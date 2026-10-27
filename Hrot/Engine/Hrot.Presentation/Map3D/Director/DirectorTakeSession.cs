@@ -42,8 +42,11 @@ namespace Hrot.UI.Common.Map3D.Director
         public Take? OpenTakeOf(string scenario, string take)
             => Editor is { } e && e.Take.Scenario == scenario && e.Take.Name == take ? e.Take : null;
 
-        /// <summary>The Camera and Time tracks of the open take; empty when none is open. (The panel's <c>Tracks</c> func.)</summary>
+        /// <summary>The Camera, Time and Subtitles tracks of the open take; empty when none is open. (The panel's <c>Tracks</c> func.)</summary>
         public IReadOnlyList<ITimelineTrack> Tracks => _tracks?.Tracks ?? Array.Empty<ITimelineTrack>();
+
+        /// <summary>⭐ <c>CE-1303</c> P2b — the open take's tracks (the window's <i>Update key from view</i> and the selected segment / subtitle's fields); null when none is open.</summary>
+        public DirectorTracks? Director => _tracks;
 
         /// <summary>The playback rate (sim seconds per film second) the Play button starts with and J / L change.</summary>
         public float Speed { get; set; } = 1f;

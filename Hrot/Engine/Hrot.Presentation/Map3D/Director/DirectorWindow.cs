@@ -124,7 +124,11 @@ namespace Hrot.UI.Common.Map3D.Director
             {
                 ImGui.SameLine();
                 if (ImGui.Button("Play from playhead"))
-                    StartFrom(runner, new PlayRequest(chosen!, _speed, Cinema: false), _playhead());
+                {
+                    // ⭐ CE-1303 P2b (§11o S5) — the playhead is a SOURCE second; the film second that shows it comes from the take's segments
+                    var request = new PlayRequest(chosen!, _speed, Cinema: false);
+                    StartFrom(runner, request, runner.FilmTimeAt(request, _playhead()));
+                }
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Plays this take from the playhead's time, the timeline kept on screen: the open take's unsaved edits are played.");
             }
             ImGui.EndDisabled();
@@ -167,7 +171,59 @@ namespace Hrot.UI.Common.Map3D.Director
             ImGui.EndDisabled();
             ImGui.SameLine();
             if (ImGui.Button("Close")) _takes.Close();
+
+            // ⭐ CE-1303 P2b (§11o S11) — the camera of the selected key (else the key on screen at the playhead) from the pilot's view; the pilot ⇄ program view
+            if (_takes.Director is not { } tracks) return;
+            if (ImGui.Button("Update key from view") && !tracks.UpdateKeyFromView(_playhead?.Invoke() ?? 0d))
+                _message = "no key to update (select one, or put the playhead after one) or no 3-D pilot camera";
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("The selected camera key (else the key on screen at the playhead) takes the view you flew to. U on the timeline. Ctrl+Z undoes.");
+            ImGui.SameLine();
+            bool pilot = FilmStudio.Pilot;
+            ImGui.BeginDisabled(IsCapturing());
+            if (ImGui.Checkbox("Pilot view", ref pilot)) FilmStudio.Pilot = pilot;
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("On: you fly the map camera while the take plays (the program keeps running). Off: the director's camera.");
+            DrawSelected(editor!, tracks);
         }
+
+        private bool IsCapturing() => _runner() is { Busy: true, Mode: DirectorMode.Capture };
+
+        /// <summary>⭐ CE-1303 P2b — the selected time segment's speed and gap, or the selected subtitle's text, position and fade (each change one undo step).</summary>
+        private void DrawSelected(TakeEditor editor, DirectorTracks tracks)
+        {
+            var take = editor.Take;
+            if (tracks.SelectedSegment is { } si && si < take.Segments.Count)
+            {
+                var seg = take.Segments[si];
+                float speed = (float)seg.Speed;
+                ImGui.SetNextItemWidth(160f);
+                ImGui.SliderFloat("Segment speed", ref speed, 0.1f, 8f, "%.2fx", ImGuiSliderFlags.Logarithmic);
+                if (ImGui.IsItemDeactivatedAfterEdit() && speed > 0f) editor.Apply(new TakeEdit.SetSegment(si, seg with { Speed = Math.Round(speed, 2) }));
+                ImGui.SameLine();
+                bool dip = seg.Gap == SegmentGap.Dip;
+                if (ImGui.Checkbox("Dip into it", ref dip)) editor.Apply(new TakeEdit.SetSegment(si, seg with { Gap = dip ? SegmentGap.Dip : SegmentGap.Cut }));
+            }
+            else if (tracks.SelectedSubtitle is { } ui && TakeSubtitles.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)) is { } subs && ui < subs.Count)
+            {
+                var sub = subs[ui];
+                if (_subtitleEdit?.Index != ui || _subtitleEdit.Value.Version != editor.Version) _subtitleEdit = (ui, editor.Version, sub.Text);
+                string text = _subtitleEdit.Value.Text;
+                ImGui.SetNextItemWidth(320f);
+                if (ImGui.InputText("Subtitle", ref text, 512)) _subtitleEdit = (ui, editor.Version, text);
+                if (ImGui.IsItemDeactivatedAfterEdit() && text != sub.Text) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Text = text }));
+                int pos = (int)sub.Position;
+                ImGui.SetNextItemWidth(120f);
+                if (ImGui.Combo("Position", ref pos, SubtitlePositions, SubtitlePositions.Length)) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Position = (SubtitlePosition)pos }));
+                ImGui.SameLine();
+                float fade = (float)sub.Fade;
+                ImGui.SetNextItemWidth(120f);
+                ImGui.SliderFloat("Fade", ref fade, 0f, 2f, "%.1f s");
+                if (ImGui.IsItemDeactivatedAfterEdit()) editor.Apply(new TakeEdit.SetSubtitle(ui, sub with { Fade = Math.Round(fade, 2) }));
+            }
+        }
+
+        private static readonly string[] SubtitlePositions = { "bottom", "top", "middle" };
+        private (int Index, int Version, string Text)? _subtitleEdit;
 
         DirectorRunner IDirectorTabContext.Runner => _ctxRunner!;
         TakeStore IDirectorTabContext.Store => _ctxStore!;

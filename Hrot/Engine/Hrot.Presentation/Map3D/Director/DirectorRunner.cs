@@ -171,6 +171,14 @@ namespace Hrot.UI.Common.Map3D.Director
         // ⭐ CE-1303 P2a — play from a film second (D5) · loop refused once on a host that cannot seek (D6)
         private double _startAt;
         private bool _loopRefused;
+        // ⭐ CE-1303 P2b — CR-7 (§11o): the film's segments (identity = none), the one playing, the live run's fast-forward, the replays it skipped
+        private FilmTimeMap _film = FilmTimeMap.Identity;
+        private int _seg = -1;
+        private bool _filmOver, _fastForwarding, _gapCard;
+        private readonly HashSet<int> _skippedBack = new();
+        // ⭐ CR-11 — the take's subtitles (its captions read as subtitles when it has none) and the one on screen
+        private IReadOnlyList<Subtitle> _subs = Array.Empty<Subtitle>();
+        private SubtitleFrame? _subNow;
         // capture
         private int _frameNo;
         private double _nextFrameAt;
@@ -273,7 +281,7 @@ namespace Hrot.UI.Common.Map3D.Director
             Error = null;
             MoviePath = null;
             _paused = false;
-            if (request.Capture != null) Directory.CreateDirectory(FramesDir);
+            if (request.Capture != null) { Directory.CreateDirectory(FramesDir); FilmStudio.Pilot = false; }   // ⭐ P2b — a capture films the program
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
             // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema; ⭐ CE-1303 D7 — nor does an iteration pass
             if (request.Mode != DirectorMode.Plan && request.Cinema) _cinema.Enter();
@@ -291,6 +299,38 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>The film second the item playing starts at (0 = its start); on a live host, until the fast-forward reaches it.</summary>
         public double StartAt => _startAt;
+
+        /// <summary>
+        /// ⭐ <c>CE-1303</c> P2b — CR-7 (§11o S5): the FILM second of <paramref name="request"/>'s first take that shows SOURCE second <paramref name="sourceSim"/>
+        /// (the first segment that holds it, else the next one after it) — what <i>Play from playhead</i> hands <see cref="PlayFrom"/>, since a playhead is a
+        /// source second. A take with no segments: the same second. The take is the one a play would read (the open one, unsaved edits included).
+        /// </summary>
+        public double FilmTimeAt(PlayRequest request, double sourceSim)
+        {
+            if (request is null) throw new ArgumentNullException(nameof(request));
+            if (request.Reel.Items.Count == 0 || LoadTake(request, request.Reel.Items[0]).Value is not { } take) return sourceSim;
+            var times = take.Baked?.Times;
+            return FilmTimeMap.Of(take, n => times != null && times.TryGetValue(n, out var t) ? t : null).FilmOf(sourceSim);
+        }
+
+        /// <summary>⭐ CR-7 — the film second now (NaN when not playing): the source second inside the segment on screen, through <see cref="FilmTimeMap"/>.</summary>
+        public double FilmTime => Phase == DirectorPhase.Playing ? FilmAt(Rel) : double.NaN;
+
+        /// <summary>⭐ CR-7 — sim seconds per film second now: the request's speed × the shot's × the segment's (the clock holds each step for it).</summary>
+        public double Rate => (_request?.Speed ?? 1d) * SourcePerFilmSecond;
+
+        /// <summary>⭐ CR-11 — the subtitle on screen now (null: none) — what the cinema was handed this frame.</summary>
+        public SubtitleFrame? SubtitleNow => _subNow;
+
+        /// <summary>The segment playing (null: the take has none, or none plays).</summary>
+        private FilmSegment? Segment => _seg >= 0 && _seg < _film.Segments.Count ? _film.Segments[_seg] : null;
+
+        private double SourcePerFilmSecond => (_shot?.Shot.Speed ?? 1d) * (Segment?.Speed ?? 1d);
+
+        private double FilmAt(double rel) => _film.IsIdentity ? rel : Segment is { } s ? s.FilmOf(rel) : _film.FilmEnd;
+
+        /// <summary>⭐ CR-7 — the clock paces each step at the request × shot × segment rate.</summary>
+        private void ApplyRate() { if (_clock != null && _request != null) _clock.SetSpeed(_request.Speed * SourcePerFilmSecond, _host.WallNow); }
 
         public void Stop()
         {
@@ -325,7 +365,7 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             if (_request == null || !(speed > 0)) return;
             _request = _request with { Speed = speed };
-            if (_clock != null && _shot != null) _clock.SetSpeed(speed * _shot.Shot.Speed, _host.WallNow);
+            if (_shot != null || Segment != null) ApplyRate();
         }
 
         // ── the frame ─────────────────────────────────────────────────────────────────────────
@@ -378,6 +418,8 @@ namespace Hrot.UI.Common.Map3D.Director
             _exitedForLoad = false; _enterFrames = 0; _issued = 0; _retiredSeen = 0; _pendingCapture = null; _liveCount = 0;
             _startAt = index == 0 && _request!.Mode is DirectorMode.Live or DirectorMode.Capture ? Math.Max(0d, _request.StartAt) : 0d;
             _loopRefused = false;
+            _film = FilmTimeMap.Identity; _seg = -1; _filmOver = false; _fastForwarding = false; _gapCard = false; _skippedBack.Clear();
+            _subs = Array.Empty<Subtitle>(); _subNow = null;
             _ext?.Reset();
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
@@ -450,7 +492,15 @@ namespace Hrot.UI.Common.Map3D.Director
             else if (_request.Mode == DirectorMode.Capture) _chapters.Add((_frameNo, Item.Scenario));
             // ⭐ CE-1303 D5 — play from a film second: a recording is sought there (the shot, camera and layers of that moment follow from the
             //   first frame's EnterShot); a live run fast-forwards (TickPlaying)
-            if (_startAt > 0d && _host.CanSeek) { SeekSource(_startAt); _startAt = 0d; }
+            //   ⭐ CE-1303 P2b — CR-7 (§11o S5): through the FILM map — the segment that plays film second t, at its source second
+            _seg = _film.IsIdentity ? -1 : 0;
+            if (_host.CanSeek && (_startAt > 0d || !_film.IsIdentity))
+            {
+                if (_film.At(_startAt) is { } at) { _seg = at.Segment; SeekSource(at.Source); }
+                else { _seg = _film.Segments.Count - 1; SeekSource(_film.Segments[^1].To); }   // past the film's end: it ends at once
+                _startAt = 0d;
+            }
+            ApplyRate();
             DirectUpcoming(Rel);
             _cinema.Card(null);
             Phase = DirectorPhase.Playing;
@@ -510,14 +560,44 @@ namespace Hrot.UI.Common.Map3D.Director
             _host.Seek(_t0 + rel);
             _issued = _retiredSeen = (long)Math.Round(Rel / _clock!.StepSeconds);
             _clock.Start(_host.WallNow);
+            _nextFrameAt = Rel;   // ⭐ P2b — a capture's next frame is due HERE (a replay seeks back past it)
         }
 
         private void Replan()
         {
-            _timeline = TakeTimeline.Plan(_take!, a => _book!.TimeOf(a), Item.From, Item.To);
+            Func<string, double?> anchors = a => _book!.TimeOf(a);
+            _timeline = TakeTimeline.Plan(_take!, anchors, Item.From, Item.To);
             _keys = CameraKeys.Played(_take!, _timeline);
+            // ⭐ CE-1303 P2b — CR-7: the film's segments play on a film or a capture; ⛔ a scout and an extension's run see the whole source
+            _film = _request!.Mode is DirectorMode.Live or DirectorMode.Capture ? FilmTimeMap.Of(_take!, anchors) : FilmTimeMap.Identity;
+            if (_seg >= _film.Segments.Count) _seg = _film.Segments.Count - 1;
+            if (!_film.IsIdentity && _seg < 0 && Phase == DirectorPhase.Playing) _seg = 0;
+            _subs = TakeSubtitles.Of(_take!, _timeline);   // ⭐ CR-11
             Report.Unresolved.Clear();
             Report.Unresolved.AddRange(_timeline.Unresolved);
+            Report.Unresolved.AddRange(_film.Unresolved);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1303</c> P2b — CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11o S3 / S4): at the end of the segment on screen, the next one. A seekable source
+        /// SEEKS to its start — a skip forward or an instant replay back; a live one cannot rewind (R-3034): a segment that would go back is skipped and said
+        /// once, a gap forward is stepped through (the fast-forward of <see cref="TickPlaying"/>). Past the last segment the film is over.
+        /// </summary>
+        private void AdvanceSegments(ref double rel)
+        {
+            double step = _clock!.StepSeconds;   // a source within one step of a segment's start is AT it (a step can overshoot an end)
+            while (Segment is { } seg && rel >= seg.To - 1e-9)
+            {
+                int next = _seg + 1;
+                for (; next < _film.Segments.Count && !_host.CanSeek && _film.Segments[next].From < rel - step - 1e-9; next++)
+                    if (_skippedBack.Add(_film.Segments[next].Number))
+                        Report.Problems.Add($"segment {_film.Segments[next].Number} goes back to {_film.Segments[next].From:0.###} s: a live run cannot replay (R-3034) — skipped");
+                if (next >= _film.Segments.Count) { _filmOver = true; return; }
+                var n = _film.Segments[next];
+                _seg = next;
+                if (_host.CanSeek && Math.Abs(n.From - rel) > step + 1e-9) { SeekSource(n.From); rel = Rel; }   // a cut: forward over a gap, or back (a replay)
+                ApplyRate();
+            }
         }
 
         private void TickPlaying()
@@ -525,15 +605,23 @@ namespace Hrot.UI.Common.Map3D.Director
             var mode = _request!.Mode;
             double rel = Rel;
 
+            // ⭐ CE-1303 P2b — CR-7: the segment on screen ended ⇒ the next one (a seek, a skipped replay on live, or the film's end)
+            if (!_film.IsIdentity)
+            {
+                AdvanceSegments(ref rel);
+                if (_filmOver) { FinishItem(); return; }
+            }
+
             // ⭐ CE-1303 D6 — loop the shot: past its end, back to its start (the take read again — D4); ⛔ a live run never rewinds (R-3034)
-            if (LoopShot && mode == DirectorMode.Live && _shot != null && rel >= _shot.End - 1e-6)
+            //   ⭐ P2b (§11o S6) — within the segment on screen: a replay's loop stays in the replay
+            if (LoopShot && mode == DirectorMode.Live && _shot != null && rel >= Math.Min(_shot.End, Segment?.To ?? double.PositiveInfinity) - 1e-6)
             {
                 if (_host.CanSeek)
                 {
                     int number = _shot.Number;
                     RefreshOpenTake();
                     var again = _timeline!.Shots.FirstOrDefault(s => s.Number == number) ?? _timeline.At(_shot.Start) ?? _shot;
-                    SeekSource(again.Start);
+                    SeekSource(Math.Max(again.Start, Segment?.From ?? double.NegativeInfinity));
                     rel = Rel;
                 }
                 else if (!_loopRefused)
@@ -542,9 +630,15 @@ namespace Hrot.UI.Common.Map3D.Director
                     Report.Problems.Add("Loop shot needs a source that seeks (a recording): a live run plays on (R-3034)");
                 }
             }
-            // ⭐ CE-1303 D5 — a live run's fast-forward is over: real time from here
-            bool fastForward = _startAt > 0d && rel + 1e-9 < _startAt;
-            if (_startAt > 0d && !fastForward) { _startAt = 0d; _clock!.Start(_host.WallNow); _nextFrameAt = Math.Max(_nextFrameAt, rel); }
+            // ⭐ CE-1303 D5 — a live run fast-forwards to the film second it plays from; ⭐ P2b (§11o S3) — and through a gap between two segments
+            //   (it cannot seek): one step a frame, no hold, no capture; once over, real time from here
+            bool inGap = Segment is { } playing && rel < playing.From - 1e-9;
+            bool fastForward = (_startAt > 0d && FilmAt(rel) + 1e-9 < _startAt) || inGap;
+            if (_startAt > 0d && !(FilmAt(rel) + 1e-9 < _startAt)) _startAt = 0d;
+            if (!fastForward && (_fastForwarding || _startAt > 0d)) { _clock!.Start(_host.WallNow); _nextFrameAt = Math.Max(_nextFrameAt, rel); }
+            _fastForwarding = fastForward;
+            if (inGap != _gapCard) { _gapCard = inGap; if (!inGap) _cinema.Card(null); }
+            if (inGap) _cinema.Card($"fast-forward +{Segment!.From - rel:0} s");   // TE-7's card (drawn in the cinema only)
 
             // ⭐ the master takes a step a frame after it is asked (one is in flight); with TWO outstanding it would take both at once
             long retired = (long)Math.Round(rel / _clock!.StepSeconds);
@@ -567,10 +661,16 @@ namespace Hrot.UI.Common.Map3D.Director
             var shot = _timeline!.At(rel);
             if (!ReferenceEquals(shot, _shot) || (shot == null) != _inGap) EnterShot(shot);
             DirectUpcoming(rel);
+            // ⭐ CE-1303 P2b — CR-11 (§11o S9): the subtitle of this source second, to the cinema every frame (its text is also what a capture burns in)
+            _subNow = TakeSubtitles.At(_subs, a => _book!.TimeOf(a), rel);
+            _cinema.Subtitle(_subNow);
+            if (!_film.IsIdentity) FilmStudio.Fade = Math.Max(FilmStudio.Fade, _film.GapFade(FilmAt(rel)));   // ⭐ CR-7 S3 — a dip gap's black
 
             if (_paused) return;
             if (masterBehind) { Report.WaitFrames++; return; }
 
+            // a film frame is paced in a shot — ⭐ P2b: and anywhere inside a segment of a take that has them
+            bool paced = !fastForward && (shot != null || Segment != null);
             if (fastForward) { }   // ⭐ CE-1303 D5 — no hold, no capture: one step per frame, as fast as frames come
             else if (mode == DirectorMode.Capture)
             {
@@ -578,12 +678,12 @@ namespace Hrot.UI.Common.Map3D.Director
                 if (_pendingCapture is { IsFaulted: true } faulted) throw new InvalidOperationException("capture failed: " + faulted.Exception!.GetBaseException().Message);
                 if (shot != null && rel >= _nextFrameAt - 1e-6) Capture(shot, rel);
             }
-            else if (mode == DirectorMode.Live && shot != null)
+            else if (mode == DirectorMode.Live && paced)
             {
                 _host.Hold(_clock!.HoldFor(_host.WallNow));
             }
             if (plan) _ext!.BeforeStep(rel);   // ⭐ CE-4061 — e.g. R1's checkpoint, an action due on this exact step
-            StepOnce();
+            StepOnce(paced);
             // ⭐ CE-1303 P2a — a seekable source steps at once; one that did not move has ENDED (a take longer than its recording): the item ends
             //   there, said in the report — ⛔ not a run that waits forever on a clock that cannot advance
             if (_host.CanSeek && Rel <= rel + 1e-9)
@@ -594,12 +694,12 @@ namespace Hrot.UI.Common.Map3D.Director
         }
 
         /// <summary>The ONE place a step is taken. ⛔ A second in the same frame is a defect of the director, not of the run.</summary>
-        private void StepOnce()
+        private void StepOnce(bool paced)
         {
             if (++_stepsThisTick > 1) throw new DirectorSteppingException($"two steps in one frame (frame {Frames})");
             _issued++;
             _host.StepBy(_clock!.StepSeconds);
-            if (_shot != null && _request!.Mode == DirectorMode.Live) _clock.Stepped(_host.WallNow);
+            if (paced && _request!.Mode == DirectorMode.Live) _clock.Stepped(_host.WallNow);
             Report.Steps++;
             Report.MaxStepsInAFrame = Math.Max(Report.MaxStepsInAFrame, _stepsThisTick);
         }
@@ -613,6 +713,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_request!.Mode == DirectorMode.Plan) return rel >= cap - 1e-9;
             if (rel >= cap) return true;
             if (_request!.Mode == DirectorMode.Scout) return !_book!.Unseen.Any() && rel >= _timeline!.End;
+            if (!_film.IsIdentity) return _filmOver;   // ⭐ CE-1303 P2b — CR-7: the segments ARE the film (it ends after the last one, or at the cap)
             if (_timeline!.Unresolved.Count > 0) return rel >= _timeline.End + UnseenGraceSeconds;
             return rel >= _timeline.End - 1e-6;
         }
@@ -622,17 +723,16 @@ namespace Hrot.UI.Common.Map3D.Director
             _shot = shot;
             _inGap = shot == null;
             var take = _take!;
-            if (shot == null) { _cinema.Caption(null); return; }
+            if (shot == null) return;   // ⭐ CE-1303 P2b — the caption is the subtitle of each frame now (TakeSubtitles: a gap has none)
             var s = shot.Shot;
             if (_host.World is { } world)
                 Report.Cuts.Add(CutSnapshot.Of(world, shot.Number, Rel, (Fdp.Toolkit.Combat.ShotLog.Peek(world)?.Count ?? 0) - _roundsAtStart));
-            _cinema.Caption(s.Caption ?? take.Caption);
             var on = new List<string>(take.Layers?.On ?? Array.Empty<string>());
             var off = new List<string>(take.Layers?.Off ?? Array.Empty<string>());
             if (s.Layers != null) { on.AddRange(s.Layers.On); off.AddRange(s.Layers.Off); on.RemoveAll(s.Layers.Off.Contains); }
             _layers.Apply(on, off);
             _sound?.SetTakeSound(s.Sound ?? take.Sound);
-            _clock!.SetSpeed(_request!.Speed * s.Speed, _host.WallNow);
+            ApplyRate();   // ⭐ P2b — request × shot × segment
             _nextFrameAt = Math.Max(shot.Start, Rel);
         }
 
@@ -657,15 +757,16 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var c = _request!.Capture!;
             var path = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
-            string? caption = c.BurnCaptions ? shot.Shot.Caption ?? _take!.Caption : null;
+            string? caption = c.BurnCaptions ? _subNow?.Text : null;   // ⭐ CE-1303 P2b — the subtitle on screen (a take's captions read as subtitles)
             _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, caption);
             _manifest.Add((_frameNo, _item, shot.Number, rel));
             _frameNo++;
             Report.Frames++;
-            double perFrame = shot.Shot.Speed / c.Fps;
+            double speed = SourcePerFilmSecond;   // ⭐ P2b — the shot's speed × the segment's
+            double perFrame = speed / c.Fps;
             _nextFrameAt += perFrame;
             // ⭐ slow motion past one frame per step: the same picture again (a step cannot be split)
-            while (_nextFrameAt <= rel + _clock!.StepSeconds - 1e-6 && shot.Shot.Speed * _take!.TickHz < c.Fps)
+            while (_nextFrameAt <= rel + _clock!.StepSeconds - 1e-6 && speed * _take!.TickHz < c.Fps)
             {
                 var dup = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
                 var src = path;
@@ -846,6 +947,11 @@ namespace Hrot.UI.Common.Map3D.Director
                 ["loopShot"] = LoopShot,   // ⭐ CE-1303 D6
                 ["shot"] = _shot?.Number,
                 ["simTime"] = Phase == DirectorPhase.Playing ? Math.Round(Rel, 3) : null,
+                // ⭐ CE-1303 P2b — CR-7 / CR-11: the film second, the segment (1-based) and the rate; the subtitle on screen
+                ["filmTime"] = Phase == DirectorPhase.Playing ? Math.Round(FilmAt(Rel), 3) : null,
+                ["segment"] = Segment?.Number,
+                ["rate"] = Phase == DirectorPhase.Playing ? Math.Round(Rate, 3) : null,
+                ["subtitle"] = _subNow?.Text,
                 ["realtimeFactor"] = _clock is { Started: true } ? Math.Round(_clock.RealtimeFactor, 3) : null,
                 ["tickHz"] = _take?.TickHz,
                 ["frames"] = _request?.Capture != null ? _frameNo : null,

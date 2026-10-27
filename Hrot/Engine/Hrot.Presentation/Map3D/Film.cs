@@ -73,6 +73,16 @@ public static class FilmStudio
     /// <summary>Gives the view back (the free camera keeps the last pose; the black clears).</summary>
     public static void Release() { lock (Gate) { _shot = null; _fade = 0f; } }
 
+    private static bool _pilot;
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b (docs/DESIGN_Director_Timeline_Editor.md §11o S11) — the PILOT view: while true the maps give the camera back to the operator
+    /// (it stays where the program left it, and flies freely) even though the director still holds a shot — the program keeps playing underneath, and
+    /// "update key from view" takes what the operator flew. False (the default) = the PROGRAM view. ⛔ A capture always films the program (the runner
+    /// clears it).
+    /// </summary>
+    public static bool Pilot { get { lock (Gate) return _pilot; } set { lock (Gate) _pilot = value; } }
+
     /// <summary>Asks for the next drawn frame's scene; completes when it is written (or faults with why it could not be).</summary>
     public static Task<FilmFrame> Capture(FilmCaptureRequest request)
     {
@@ -107,6 +117,7 @@ public static class FilmStudio
         {
             _shot = null;
             _fade = 0f;
+            _pilot = false;
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -214,7 +225,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
     private void Direct()
     {
         var camera = _view.Camera3D;
-        if (FilmStudio.Shot is { } shot)
+        if (FilmStudio.Shot is { } shot && !FilmStudio.Pilot)   // ⭐ CE-1303 P2b — the pilot view leaves the camera to the operator
         {
             _director.Shot = shot;
             if (!_view.Is3D && !_view.IsSwitching)

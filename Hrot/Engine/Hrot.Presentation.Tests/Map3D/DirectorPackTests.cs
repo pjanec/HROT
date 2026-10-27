@@ -13,6 +13,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// ⭐ <c>CE-1303</c> P1 (docs/DESIGN_Director_Timeline_Editor.md §11j) — the film director is ONE assembly (<c>Hrot.Presentation</c>) behind ONE
 /// registrar, and it needs no editor: a host with no extension and no tabs gets a working runner.
 /// </summary>
+[Collection(Map3DFrameRail.Serial)]   // FilmStudio is process-wide (CE-1303 P2b: the pilot view is in it too)
 public sealed class DirectorPackTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"ce1303-{Guid.NewGuid():N}");
@@ -190,5 +191,89 @@ public sealed class DirectorPackTests : IDisposable
         Assert.Contains(host.Holds, sim => sim >= 3.5 && sim < 4.9);                  // … paced from there
         Assert.Contains(report.Problems, p => p.Contains("Loop shot needs a source that seeks"));
         Assert.InRange(host.SimTime, 4.99, 5.05);                                     // it played on to the end (no rewind)
+    }
+
+    // ── CE-1303 P2b (§11o) — CR-7 segments and CR-11 subtitles on a host that CANNOT seek ─────────────────────────────────────────────────
+
+    private (DirectorPack Pack, LiveHost Host) LivePackWith(IReadOnlyList<TimeSegment> segments, IReadOnlyList<Subtitle>? subtitles = null)
+    {
+        var (pack, host) = LivePack();
+        var take = pack.Takes.Load("s-a", "main").Value!;
+        pack.Takes.Save(take with { Segments = segments, Subtitles = subtitles ?? Array.Empty<Subtitle>(), EndAt = new AtExpr(8d) });
+        return (pack, host);
+    }
+
+    private static TimeSegment Seg(double from, double to, double speed = 1d) => new() { From = new AtExpr(from), To = new AtExpr(to), Speed = speed };
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-7 on a live host (§11o S3 / S4; R-3034, R-3038): segments [0–1] [3–4] [0.5–1 — back] [4–5]. The gap 1–3 is a
+    /// FAST-FORWARD — stepped one step a frame (never two) with no frame held; the back segment cannot be played on a live run: it is skipped and said
+    /// ONCE; the run plays [3–4] and [4–5] paced and ends at the last segment's end (not the take's 8 s). The film clock counts the skipped replay's
+    /// length (film 3.0 at source 4.5). 🔴 Mutation: <c>AdvanceSegments</c> not skipping a back segment on a host that cannot seek ⇒ the runner waits
+    /// in that segment's "gap" (source past its end) — no "goes back" line, and the run never reaches [4–5] paced ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_OnALiveHost_AGapFastForwards_AndABackSegmentIsSkippedOnce()
+    {
+        FilmStudio.Reset();
+        var (pack, host) = LivePackWith(new[] { Seg(0, 1), Seg(3, 4), Seg(0.5, 1), Seg(4, 5) });
+        Assert.Empty(pack.Runner.Play(new PlayRequest(Reel.Of("s-a", "main"), Cinema: false)));
+        double? filmAt45 = null;
+        for (int i = 0; i < 3000 && pack.Runner.Busy; i++)
+        {
+            if (pack.Runner.Phase == DirectorPhase.Playing && Math.Abs(host.SimTime - 4.5) < 0.5 / 60) filmAt45 = pack.Runner.FilmTime;
+            pack.Tick();
+        }
+        Assert.False(pack.Runner.Busy);
+        var report = pack.Runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: {string.Join("; ", report.Problems)}");
+        Assert.Equal(1, report.MaxStepsInAFrame);                                      // the stepping rule, the fast-forward included
+        const double step = 1d / 60;
+        Assert.DoesNotContain(host.Holds, sim => sim > 1 + 2 * step && sim < 3 - 2 * step);   // the gap: no frame held
+        Assert.Contains(host.Holds, sim => sim > 0.2 && sim < 0.9);                       // … the segments: paced
+        Assert.Contains(host.Holds, sim => sim > 3.1 && sim < 3.9);
+        Assert.Contains(host.Holds, sim => sim > 4.1 && sim < 4.9);
+        Assert.Single(report.Problems, p => p.Contains("segment 3 goes back to 0.5 s"));
+        Assert.InRange(host.SimTime, 5d - 1e-9, 5d + 2 * step);                          // the film ends with its last segment
+        Assert.NotNull(filmAt45);
+        Assert.InRange(filmAt45!.Value, 3.0 - step, 3.0 + step);                         // 1 + 1 + 0.5 (the skipped replay) + 0.5
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S9) on a live host: the subtitle the cinema overlay draws (<c>WindowCinema.Shown</c>, the model of the drawing,
+    /// set every frame even OFF the cinema) is the take's subtitle at the SOURCE second the film shows — with segments [0–1] [2–5 @0.5×], film second 2.0
+    /// is source 2.5, inside "Contact" (2–4, top); before it nothing — and an UNSAVED edit of its text is what the next play shows. 🔴 Mutation: the runner
+    /// not handing the cinema the subtitle (<c>_cinema.Subtitle(_subNow)</c> removed) ⇒ <c>Shown</c> stays null ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_TheOverlaysSubtitle_IsTheTakesAtTheFilmSecond_AndAnEditShowsNextPlay()
+    {
+        FilmStudio.Reset();
+        var contact = new Subtitle { At = new AtExpr(2d), Until = new AtExpr(4d), Text = "Contact", Position = SubtitlePosition.Top };
+        var (pack, host) = LivePackWith(new[] { Seg(0, 1), Seg(2, 5, 0.5) }, new[] { contact });
+        Assert.Empty(pack.Session.Open("s-a", "main"));
+        var request = new PlayRequest(Reel.Of("s-a", "main"), Cinema: false);
+
+        SubtitleFrame? ShownAtFilm(double film, out double source)
+        {
+            Assert.Empty(pack.Runner.Play(request));
+            for (int i = 0; i < 3000 && pack.Runner.Busy && !(pack.Runner.Phase == DirectorPhase.Playing && pack.Runner.FilmTime >= film - 1e-9); i++) pack.Tick();
+            pack.Tick();   // the frame AT film: its subtitle is set before its step
+            source = host.SimTime - 1d / 60;
+            var shown = pack.Cinema.Shown;
+            Assert.Equal(shown, pack.Runner.SubtitleNow);
+            pack.Runner.Stop();
+            return shown;
+        }
+
+        Assert.Null(ShownAtFilm(0.5, out _));
+        var at2 = ShownAtFilm(2.0, out double source);
+        Assert.InRange(source, 2.5 - 1d / 60, 2.5 + 1d / 60);                           // film 2.0 = source 2.5 (the slow segment)
+        Assert.Equal(("Contact", SubtitlePosition.Top), (at2!.Text, at2.Position));
+        Assert.False(pack.Cinema.Active);                                                // drawn off the cinema (an iteration pass)
+
+        Assert.True(pack.Session.Editor!.Apply(new TakeEdit.SetSubtitle(0, contact with { Text = "Contact, 300 m" })));
+        Assert.Equal("Contact, 300 m", ShownAtFilm(2.0, out _)!.Text);                 // the open take, unsaved (CR-4)
+        Assert.Equal("Contact", pack.Takes.Load("s-a", "main").Value!.Subtitles[0].Text);
     }
 }

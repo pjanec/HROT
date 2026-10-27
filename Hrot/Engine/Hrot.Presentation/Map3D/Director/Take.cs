@@ -153,6 +153,67 @@ public sealed record TimeSegment
     public SegmentGap Gap { get; init; } = SegmentGap.Cut;
 }
 
+/// <summary>⭐ <c>CE-1303</c> P2b — CR-11 (§11o) — where a subtitle sits on the picture.</summary>
+public enum SubtitlePosition : byte { Bottom, Top, Middle }
+
+/// <summary>
+/// ⭐ <c>CE-1303</c> P2b — CR-11 (docs/DESIGN_Director_Timeline_Editor.md §5, §11o S7) — one subtitle: <see cref="Text"/> on screen from <see cref="At"/>
+/// until <see cref="Until"/>, both in SOURCE sim seconds like a key (a time, or an anchor + offset — so it stays on its event when the run's timing
+/// changes), at <see cref="Position"/>, fading in and out over <see cref="Fade"/> sim seconds (0 = a hard cut).
+/// </summary>
+public sealed record Subtitle
+{
+    public AtExpr At { get; init; }
+    public AtExpr Until { get; init; }
+    public string Text { get; init; } = "";
+    public SubtitlePosition Position { get; init; } = SubtitlePosition.Bottom;
+    public double Fade { get; init; }
+}
+
+/// <summary>⭐ CR-11 — the subtitle on screen now: its text, where, and how opaque (1 = fully, while fading less).</summary>
+public sealed record SubtitleFrame(string Text, SubtitlePosition Position, float Alpha);
+
+/// <summary>
+/// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S8) — a take's subtitles, however it was written: its own <see cref="Take.Subtitles"/> when it has any, else its
+/// CAPTIONS READ AS subtitles — each laid-out shot's <c>caption ?? take.caption</c> over the shot's stretch, equal neighbours merged — which is exactly
+/// what the runner showed before subtitles existed (the TE-2 pattern of <see cref="CameraKeys.Of"/>). ⛔ A shot's <c>why</c> is NOT read: it is the
+/// director's note (the Subtitles track offers it explicitly).
+/// </summary>
+public static class TakeSubtitles
+{
+    public static IReadOnlyList<Subtitle> Of(Take take, TakeTimeline laidOut)
+    {
+        if (take.Subtitles.Count > 0) return take.Subtitles;
+        var list = new List<Subtitle>();
+        foreach (var shot in laidOut.Shots)
+        {
+            var text = shot.Shot.Caption ?? take.Caption;
+            if (string.IsNullOrWhiteSpace(text) || !(shot.End > shot.Start)) continue;
+            if (list.Count > 0 && list[^1].Text == text && Math.Abs(list[^1].Until.Offset - shot.Start) < 1e-9)
+                list[^1] = list[^1] with { Until = new AtExpr(shot.End) };
+            else list.Add(new Subtitle { At = new AtExpr(shot.Start), Until = new AtExpr(shot.End), Text = text! });
+        }
+        return list;
+    }
+
+    /// <summary>The subtitle on screen at SOURCE second <paramref name="sourceSim"/>: the LAST listed whose [at, until) holds it (null: none), its
+    /// alpha rising over <see cref="Subtitle.Fade"/> after its start and falling over it before its end.</summary>
+    public static SubtitleFrame? At(IReadOnlyList<Subtitle> subtitles, Func<string, double?> anchorTime, double sourceSim)
+    {
+        for (int i = subtitles.Count - 1; i >= 0; i--)
+        {
+            var s = subtitles[i];
+            if (s.At.Resolve(anchorTime) is not { } from || s.Until.Resolve(anchorTime) is not { } until) continue;
+            if (sourceSim < from - 1e-9 || sourceSim >= until - 1e-9 || string.IsNullOrEmpty(s.Text)) continue;
+            double alpha = 1d;
+            if (s.Fade > 0d)
+                alpha = Math.Min(Math.Min((sourceSim - from) / s.Fade, (until - sourceSim) / s.Fade), 1d);
+            return new SubtitleFrame(s.Text, s.Position, (float)Math.Clamp(alpha, 0d, 1d));
+        }
+        return null;
+    }
+}
+
 /// <summary>
 /// ⭐ <c>TE-2</c> — a take's keys, however it was written: its <see cref="Take.Keys"/> when it has any (format v2), else its <see cref="Take.Shots"/>
 /// READ AS keys — each shot a CUT key at its <c>at</c>; a shot with a <c>to</c> also a FLY key at its end carrying the <c>to</c> values, reached
@@ -267,6 +328,8 @@ public sealed record Take
     public IReadOnlyList<CameraKey> Keys { get; init; } = Array.Empty<CameraKey>();
     /// <summary>⭐ <c>TE-2</c> — format v2's time segments (empty = the whole take at speed 1).</summary>
     public IReadOnlyList<TimeSegment> Segments { get; init; } = Array.Empty<TimeSegment>();
+    /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: the take's subtitles (empty = its captions are read as subtitles — <see cref="TakeSubtitles.Of"/>).</summary>
+    public IReadOnlyList<Subtitle> Subtitles { get; init; } = Array.Empty<Subtitle>();
     public LayerChange? Layers { get; init; }
     public bool? Sound { get; init; }
     /// <summary>Keys the director does not read but keeps (the clip id, its chapter, its state, what it needs).</summary>

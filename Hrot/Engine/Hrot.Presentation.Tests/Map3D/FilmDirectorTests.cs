@@ -690,6 +690,143 @@ public sealed class FilmDirectorTests
         Assert.Equal(9d, plan.End);
     }
 
+    // ── CE-1303 P2b (docs/DESIGN_Director_Timeline_Editor.md §11o) — the film map and the subtitles, as pure rules ──────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-7 (§11o S1): <see cref="FilmTimeMap"/> lays the segments end to end in FILM time — [0–2 @1×] film 0–2, [2–4 @0.5×]
+    /// film 2–6 (two source seconds at half speed are four film seconds), [1–2 @1×] film 6–7 marked BACK (a replay) — and maps both ways: film 3 is
+    /// source 2.5, film 6.5 source 1.5; source 3 is film 4 (the first segment holding it), a skipped source second the next segment's start; a take
+    /// with no segments is the identity. A dip gap's black rises before the dip segment and clears after it. 🔴 Mutation: <c>FilmSeconds</c> as
+    /// <c>(To − From)</c> (the speed ignored) ⇒ film 3 maps to source 3 and the film ends at 5 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_TheFilmTimeMap_PlacesSegmentsEndToEnd_SlowAndBack()
+    {
+        var take = new Take
+        {
+            Segments = new[]
+            {
+                new TimeSegment { From = new AtExpr(0), To = new AtExpr(2) },
+                new TimeSegment { From = new AtExpr(2), To = new AtExpr(4), Speed = 0.5 },
+                new TimeSegment { From = new AtExpr(1), To = new AtExpr(2), Gap = SegmentGap.Dip },
+                new TimeSegment { From = new AtExpr(0, "never"), To = new AtExpr(9) },
+            },
+        };
+        var map = FilmTimeMap.Of(take, _ => null);
+        Assert.False(map.IsIdentity);
+        Assert.Equal(new[] { (0d, 2d, false), (2d, 6d, false), (6d, 7d, true) }, map.Segments.Select(s => (s.FilmStart, s.FilmEnd, s.Back)).ToArray());
+        Assert.Equal(new[] { "segment 4: anchor 'never'" }, map.Unresolved);
+        Assert.Equal(7d, map.FilmEnd);
+        Assert.Equal((0, 1.0), map.At(1.0));
+        Assert.Equal((1, 2.5), map.At(3.0));
+        Assert.Equal((2, 1.5), map.At(6.5));
+        Assert.Null(map.At(7.0));
+        Assert.Equal(4.0, map.FilmOf(3.0));
+        Assert.Equal(1.0, map.FilmOf(1.0));                   // the FIRST segment holding it, not the replay
+        Assert.Equal(6.5, map.FilmOf(1.5, fromSegment: 2));   // … unless asked from the replay on
+        Assert.Equal(7.0, map.FilmOf(5.0));                   // past every segment: the film's end
+        Assert.Equal(0f, map.GapFade(5.0));
+        Assert.Equal(1f, map.GapFade(6.0));                   // the dip's black at the cut
+        Assert.InRange(map.GapFade(5.8), 0.49f, 0.51f);       // half-way down, 0.2 s before
+        Assert.InRange(map.GapFade(6.2), 0.49f, 0.51f);       // half-way up, 0.2 s after
+
+        var none = FilmTimeMap.Of(new Take(), _ => null);
+        Assert.True(none.IsIdentity);
+        Assert.Equal((-1, 3.25), none.At(3.25));
+        Assert.Equal(3.25, none.FilmOf(3.25));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-11 (§5, §11o): a take's <c>subtitles[]</c> read (text, at / until — a time or an anchor, position, fade), write
+    /// and read back equal; a bad position or a missing until is a problem naming it; a take WITHOUT subtitles writes no <c>subtitles</c> key — every
+    /// seeded take reads with none and writes back without the key (old takes load unchanged). 🔴 Mutation: <c>WriteSubtitle</c> not writing
+    /// <c>position</c> ⇒ the round-trip differs ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_Subtitles_RoundTrip_AndOldTakesStayWithout()
+    {
+        var json = JsonNode.Parse("""
+            {"anchors":{"fire":{"on":"shot","who":"Tank 1","n":1}},
+             "subtitles":[{"at":"fire-4","until":"fire","text":"The platoon crosses phase line BLUE"},
+                          {"at":2,"until":5.5,"text":"Top","position":"top","fade":0.3}]}
+            """)!.AsObject();
+        var problems = new List<string>();
+        var take = TakeJson.ParseTake(json, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(new Subtitle { At = new AtExpr(-4, "fire"), Until = new AtExpr(0, "fire"), Text = "The platoon crosses phase line BLUE" }, take.Subtitles[0]);
+        Assert.Equal(new Subtitle { At = new AtExpr(2), Until = new AtExpr(5.5), Text = "Top", Position = SubtitlePosition.Top, Fade = 0.3 }, take.Subtitles[1]);
+        var written = TakeJson.WriteTake(take);
+        var again = TakeJson.ParseTake(written, "s", "main", problems);
+        Assert.Empty(problems);
+        Assert.Equal(take.Subtitles, again.Subtitles);
+        Assert.Equal(written.ToJsonString(), TakeJson.WriteTake(again).ToJsonString());
+
+        TakeJson.ParseTake(JsonNode.Parse("""{"subtitles":[{"at":1,"text":"x","position":"left","colour":1}]}""")!.AsObject(), "s", "bad", problems);
+        Assert.Contains("subtitle 1: needs until", problems);
+        Assert.Contains("subtitle 1: position 'left' (bottom, top, middle)", problems);
+        Assert.Contains("subtitle 1: unknown key 'colour'", problems);
+
+        var repo = RepoRoot();
+        int count = 0;
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        {
+            var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
+            foreach (var (scenario, names) in store.AllTakes())
+                foreach (var n in names)
+                {
+                    var loaded = store.Load(scenario, n);
+                    Assert.True(loaded.Ok, $"{scenario}/{n}: {string.Join("; ", loaded.Problems)}");
+                    Assert.Empty(loaded.Value!.Subtitles);
+                    Assert.False(TakeJson.WriteTake(loaded.Value).ContainsKey("subtitles"), $"{scenario}/{n} wrote subtitles");
+                    count++;
+                }
+        }
+        Assert.True(count >= 55, $"{count} seeded takes");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S8): a take with no subtitles has its CAPTIONS read as subtitles — over every seeded take (55) the subtitle at
+    /// each 0.25 s is exactly the caption the runner showed before subtitles existed (the shot on screen's <c>caption ?? take.caption</c>, none in a
+    /// gap) — and a take's own subtitles win, with a fade's alpha rising from 0 at its start. 🔴 Mutation: <c>TakeSubtitles.Of</c> giving ONE
+    /// subtitle over the whole take (<c>0 … plan.End</c>) instead of one per laid-out shot ⇒ the text shows before the first shot / in a gap ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_TheCaptions_ReadAsSubtitles_AreWhatPlayedBefore()
+    {
+        var repo = RepoRoot();
+        int compared = 0, withText = 0;
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        {
+            var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
+            foreach (var (scenario, names) in store.AllTakes())
+                foreach (var n in names)
+                {
+                    var take = store.Load(scenario, n).Value!;
+                    var baked = take.Baked?.Times;
+                    Func<string, double?> anchors = baked != null ? a => baked.TryGetValue(a, out var bt) ? bt : null : a => 5d + 3d * (a.Sum(c => c) % 7);
+                    var plan = TakeTimeline.Plan(take, anchors);
+                    var subs = TakeSubtitles.Of(take, plan);
+                    for (double t = 0; t <= plan.End + 1; t += 0.25)
+                    {
+                        var shot = plan.At(t);
+                        string? before = shot == null ? null : shot.Shot.Caption ?? take.Caption;
+                        if (string.IsNullOrWhiteSpace(before)) before = null;
+                        Assert.Equal(before, TakeSubtitles.At(subs, anchors, t)?.Text);
+                        if (before != null) withText++;
+                        compared++;
+                    }
+                }
+        }
+        Assert.True(withText > 50, $"only {withText} captioned samples — the seeded takes' captions went unexercised");
+        Assert.True(compared > 500, $"{compared} samples");
+
+        var own = new Take { Caption = "old", Subtitles = new[] { new Subtitle { At = new AtExpr(1), Until = new AtExpr(3), Text = "new", Fade = 0.5 } } };
+        var sub = TakeSubtitles.At(TakeSubtitles.Of(own, TakeTimeline.Plan(own, _ => null)), _ => null, 1.25);
+        Assert.Equal(("new", SubtitlePosition.Bottom), (sub!.Text, sub.Position));
+        Assert.InRange(sub.Alpha, 0.49f, 0.51f);
+        Assert.Null(TakeSubtitles.At(own.Subtitles, _ => null, 3.0));   // until is exclusive
+    }
+
     private static string RepoRoot()
     {
         var dir = AppContext.BaseDirectory;

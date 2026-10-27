@@ -68,6 +68,10 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>The caption under the picture (null: none).</summary>
         void Caption(string? text);
+
+        /// <summary>⭐ <c>CE-1303</c> P2b — CR-11 (§11o S9): the subtitle on screen now — text, position, opacity (null: none); set every playing frame.
+        /// A cinema that draws only text keeps the default: the text as the caption.</summary>
+        void Subtitle(SubtitleFrame? frame) => Caption(frame?.Text);
     }
 
     /// <summary>⭐ <c>CE-4038</c> B10 (§4b, R-4060) — a take's layers: a TRANSIENT override over the user's set, never written to their file.</summary>

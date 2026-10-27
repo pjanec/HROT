@@ -63,7 +63,7 @@ public static class PilotCamera
 /// </summary>
 public sealed class DirectorTracks
 {
-    public const string CameraId = "director.camera", TimeId = "director.time";
+    public const string CameraId = "director.camera", TimeId = "director.time", SubtitlesId = "director.subtitles";
 
     private readonly TakeEditor _editor;
     private readonly Func<CameraSpec?> _pilot;
@@ -82,12 +82,15 @@ public sealed class DirectorTracks
         _pilot = pilot ?? throw new ArgumentNullException(nameof(pilot));
         _stepRate = stepRate;
         Camera = new CameraTrack(this);
-        Time = new TimeTrack(this);
-        Tracks = new ITimelineTrack[] { Camera, Time };
+        Time = MakeTimeTrack();
+        Subtitles = MakeSubtitleTrack();
+        Tracks = new ITimelineTrack[] { Camera, Time, Subtitles };
     }
 
     public ITimelineTrack Camera { get; }
     public ITimelineTrack Time { get; }
+    /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: the take's subtitles (its captions read as subtitles until the first subtitle edit — S8).</summary>
+    public ITimelineTrack Subtitles { get; }
     public IReadOnlyList<ITimelineTrack> Tracks { get; }
     public TakeEditor Editor => _editor;
 
@@ -145,6 +148,7 @@ public sealed class DirectorTracks
                         return false;
                     _d._selected = KeyId(count);
                     return true;
+                case 'U': return _d.UpdateKeyFromView(atSimSeconds);   // ⭐ CE-1303 P2b (§11o S11)
                 case 'J': if (_d._stepRate == null) return false; _d._stepRate(-1); return true;
                 case 'L': if (_d._stepRate == null) return false; _d._stepRate(+1); return true;
                 default: return false;
@@ -154,10 +158,15 @@ public sealed class DirectorTracks
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId)
         {
             if (itemId != null && IndexOf(itemId, "key:") is { } i)
+            {
                 yield return new TimelineMenuItem("Delete key", () =>
                 {
                     if (_d._editor.Apply(new TakeEdit.RemoveKey(i))) _d._selected = null;
                 });
+                // ⭐ CE-1303 P2b (§11o S11) — this key takes the pilot camera's view (one undo step)
+                if (_d._pilot() is { } view)
+                    yield return new TimelineMenuItem("Update key from view (U)", () => _d._editor.Apply(new TakeEdit.SetKeyCamera(i, view)));
+            }
         }
 
         private static int? IndexOf(string id, string prefix) =>
@@ -181,23 +190,64 @@ public sealed class DirectorTracks
         }
     }
 
-    private sealed class TimeTrack : ITimelineTrack
+    /// <summary>⭐ <c>CE-1303</c> P2b (§11o S11) — "update key from view": the SELECTED camera key — else the key on screen at <paramref name="playheadSim"/>
+    /// (the last whose time is at or before it) — takes the pilot camera (its lens too), one undo step; false when there is no pilot or no such key.</summary>
+    public bool UpdateKeyFromView(double playheadSim)
+    {
+        if (_pilot() is not { } camera) return false;
+        var keys = CameraKeys.Of(_editor.Take);
+        int? index = _selected is { } sel && SpanTrack.IndexOf(sel, "key:") is { } i && i < keys.Count ? i : null;
+        if (index is null)
+        {
+            double best = double.NegativeInfinity;
+            for (int k = 0; k < keys.Count; k++)
+                if (_editor.Resolve(keys[k].At) is { } at && at <= playheadSim + 1e-9 && at >= best) { best = at; index = k; }
+        }
+        return index is { } target && _editor.Apply(new TakeEdit.SetKeyCamera(target, camera));
+    }
+
+    /// <summary>⭐ P2b — the selected item's index into the take's segments / subtitles (the Director window edits its speed, gap, text, position, fade).</summary>
+    public int? SelectedSegment => _selected is { } s ? SpanTrack.IndexOf(s, "seg:") : null;
+    public int? SelectedSubtitle => _selected is { } s ? SpanTrack.IndexOf(s, "sub:") : null;
+
+    /// <summary>
+    /// ⭐ <c>CE-1364</c> / <c>CE-1303</c> P2b (§11o S10) — THE one span row: the Time track (segments) and the Subtitles track are this class with their own
+    /// list and edits. A body drag moves the whole span, an edge drag only that edge (<see cref="TakeEditor.MinSegmentSeconds"/>); empty space offers "add
+    /// one here", a span "delete" (+ the track's own items); every edit is one <see cref="TakeEditor.Apply"/>.
+    /// </summary>
+    private sealed class SpanTrack : ITimelineTrack
     {
         private readonly DirectorTracks _d;
-        public TimeTrack(DirectorTracks d) => _d = d;
-        public string Id => TimeId;
-        public string Label => "Time";
+        private readonly string _prefix, _thing;
+        private readonly Func<Take, IReadOnlyList<(AtExpr From, AtExpr To, string Label)>> _spans;
+        private readonly Func<int, SegmentEdge, double, TakeEdit> _move;
+        private readonly Func<int, TakeEdit> _remove;
+        private readonly Func<double, TakeEdit> _add;
+        private readonly Func<Take, TakeEdit, int> _addedIndex;
+        private readonly Func<int?, double, IEnumerable<TimelineMenuItem>>? _more;
+
+        public SpanTrack(DirectorTracks d, string id, string label, string prefix, string thing,
+                         Func<Take, IReadOnlyList<(AtExpr From, AtExpr To, string Label)>> spans, Func<int, SegmentEdge, double, TakeEdit> move,
+                         Func<int, TakeEdit> remove, Func<double, TakeEdit> add, Func<Take, TakeEdit, int> addedIndex,
+                         Func<int?, double, IEnumerable<TimelineMenuItem>>? more = null)
+        {
+            _d = d; Id = id; Label = label; _prefix = prefix; _thing = thing;
+            _spans = spans; _move = move; _remove = remove; _add = add; _addedIndex = addedIndex; _more = more;
+        }
+
+        public string Id { get; }
+        public string Label { get; }
 
         public IReadOnlyList<TimelineTrackItem> Items
         {
             get
             {
-                var segments = _d._editor.Take.Segments;
-                var list = new List<TimelineTrackItem>(segments.Count);
-                for (int i = 0; i < segments.Count; i++)
+                var spans = _spans(_d._editor.Take);
+                var list = new List<TimelineTrackItem>(spans.Count);
+                for (int i = 0; i < spans.Count; i++)
                 {
-                    if (_d._editor.Resolve(segments[i].From) is not { } from || _d._editor.Resolve(segments[i].To) is not { } to) continue;
-                    string id = SegId(i);
+                    if (_d._editor.Resolve(spans[i].From) is not { } from || _d._editor.Resolve(spans[i].To) is not { } to) continue;
+                    string id = ItemId(i);
                     double start = from, end = to;
                     if (_d._editor.Preview is { } pv && pv.ItemId == id)
                         switch (pv.Edge)
@@ -206,8 +256,7 @@ public sealed class DirectorTracks
                             case SegmentEdge.To: end = Math.Max(pv.Sim, from + TakeEditor.MinSegmentSeconds); break;
                             default: start = pv.Sim; end = pv.Sim + (to - from); break;
                         }
-                    list.Add(new TimelineTrackItem(id, start, end,
-                        segments[i].Speed == 1d ? "segment" : $"segment x{segments[i].Speed:0.##}", TimelineTrackItemKind.Segment, id == _d._selected));
+                    list.Add(new TimelineTrackItem(id, start, end, spans[i].Label, TimelineTrackItemKind.Segment, id == _d._selected));
                 }
                 return list;
             }
@@ -217,14 +266,14 @@ public sealed class DirectorTracks
 
         public void Move(string itemId, double toSimSeconds, bool commit) => Move(itemId, toSimSeconds, commit, TrackItemPart.Body);
 
-        /// <summary>CE-1364: the body moves the whole segment, an edge only that edge (it cannot cross the other: <see cref="TakeEditor.MinSegmentSeconds"/>).</summary>
+        /// <summary>CE-1364: the body moves the whole span, an edge only that edge (it cannot cross the other: <see cref="TakeEditor.MinSegmentSeconds"/>).</summary>
         public void Move(string itemId, double toSimSeconds, bool commit, TrackItemPart part)
         {
-            if (IndexOf(itemId) is not { } i) return;
+            if (IndexOf(itemId, _prefix) is not { } i) return;
             var edge = part switch { TrackItemPart.StartEdge => SegmentEdge.From, TrackItemPart.EndEdge => SegmentEdge.To, _ => SegmentEdge.Whole };
             if (!commit) { _d._editor.SetPreview(itemId, toSimSeconds, edge); return; }
             _d._editor.ClearPreview();
-            _d._editor.Apply(new TakeEdit.MoveSegment(i, edge, toSimSeconds));
+            _d._editor.Apply(_move(i, edge, toSimSeconds));
         }
 
         // K adds a CAMERA key and J / L are the film's rate: both are the camera track's (OfferKey tries the other tracks when the selected one declines)
@@ -232,29 +281,71 @@ public sealed class DirectorTracks
 
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId) => Enumerable.Empty<TimelineMenuItem>();
 
-        /// <summary>CE-1364: a segment offers "Delete segment"; empty track space offers "Add a segment here" (<see cref="TakeEditor.DefaultSegmentSeconds"/> long, speed 1, a cut gap).</summary>
+        /// <summary>CE-1364: a span offers "Delete …" (+ the track's own); empty track space offers "Add a … here" at the clicked time (+ the track's own).</summary>
         public IEnumerable<TimelineMenuItem> MenuItems(string? itemId, double atSimSeconds)
         {
             if (itemId != null)
             {
-                if (IndexOf(itemId) is { } i)
-                    yield return new TimelineMenuItem("Delete segment", () =>
+                if (IndexOf(itemId, _prefix) is { } i)
+                {
+                    yield return new TimelineMenuItem("Delete " + _thing, () =>
                     {
-                        if (_d._editor.Apply(new TakeEdit.RemoveSegment(i))) _d._selected = null;
+                        if (_d._editor.Apply(_remove(i))) _d._selected = null;
                     });
+                    if (_more != null) foreach (var m in _more(i, atSimSeconds)) yield return m;
+                }
                 yield break;
             }
             double from = Math.Max(atSimSeconds, 0d);
-            yield return new TimelineMenuItem("Add a segment here", () =>
+            yield return new TimelineMenuItem($"Add a {_thing} here", () =>
             {
-                int count = _d._editor.Take.Segments.Count;
-                if (_d._editor.Apply(new TakeEdit.AddSegment(new TimeSegment { From = new AtExpr(from), To = new AtExpr(from + TakeEditor.DefaultSegmentSeconds) })))
-                    _d._selected = SegId(count);
+                var edit = _add(from);
+                if (_d._editor.Apply(edit)) _d._selected = ItemId(_addedIndex(_d._editor.Take, edit));
             });
+            if (_more != null) foreach (var m in _more(null, from)) yield return m;
         }
 
-        private static int? IndexOf(string id) =>
-            id.StartsWith("seg:", StringComparison.Ordinal) && int.TryParse(id.AsSpan(4), NumberStyles.None, CultureInfo.InvariantCulture, out var i) ? i : null;
-        private static string SegId(int i) => "seg:" + i.ToString(CultureInfo.InvariantCulture);
+        internal static int? IndexOf(string id, string prefix) =>
+            id.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(id.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var i) ? i : null;
+        private string ItemId(int i) => _prefix + i.ToString(CultureInfo.InvariantCulture);
     }
+
+    // ── the two span tracks ──────────────────────────────────────────────────────────────────
+
+    private SpanTrack MakeTimeTrack() => new(this, TimeId, "Time", "seg:", "segment",
+        take =>
+        {
+            var map = FilmTimeMap.Of(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null);
+            return take.Segments.Select((g, i) =>
+            {
+                bool back = map.Segments.FirstOrDefault(s => s.Number == i + 1)?.Back == true;
+                string label = (back ? "replay" : "segment") + (g.Speed == 1d ? "" : $" x{g.Speed:0.##}");
+                return (g.From, g.To, label);
+            }).ToList();
+        },
+        (i, edge, sim) => new TakeEdit.MoveSegment(i, edge, sim),
+        i => new TakeEdit.RemoveSegment(i),
+        sim => new TakeEdit.AddSegment(new TimeSegment { From = new AtExpr(sim), To = new AtExpr(sim + TakeEditor.DefaultSegmentSeconds) }),
+        (take, edit) => take.Segments.ToList().IndexOf(((TakeEdit.AddSegment)edit).Segment),   // inserted in source order (S12)
+        (i, _) => i is { } index
+            ? new[] { new TimelineMenuItem("Replay this segment", () => { if (_editor.Apply(new TakeEdit.ReplaySegment(index))) _selected = "seg:" + (index + 1).ToString(CultureInfo.InvariantCulture); }) }
+            : Enumerable.Empty<TimelineMenuItem>());
+
+    private SpanTrack MakeSubtitleTrack() => new(this, SubtitlesId, "Subtitles", "sub:", "subtitle",
+        take => TakeSubtitles.Of(take, Layout(take)).Select(u => (u.At, u.Until, u.Text)).ToList(),
+        (i, edge, sim) => new TakeEdit.MoveSubtitle(i, edge, sim),
+        i => new TakeEdit.RemoveSubtitle(i),
+        sim => new TakeEdit.AddSubtitle(new Subtitle { At = new AtExpr(sim), Until = new AtExpr(sim + DefaultSubtitleSeconds), Text = DefaultSubtitleText }),
+        (take, _) => take.Subtitles.Count - 1,
+        (i, sim) => i is null && Layout(_editor.Take).At(sim) is { Shot.Why: { Length: > 0 } why } shot
+            // ⭐ CR-11 (§11o S8): the shot's note is offered, never seeded — it is the director's note until someone puts it on screen
+            ? new[] { new TimelineMenuItem("Add the shot's note as a subtitle", () =>
+                _editor.Apply(new TakeEdit.AddSubtitle(new Subtitle { At = new AtExpr(shot.Start), Until = new AtExpr(shot.End), Text = why }))) }
+            : Enumerable.Empty<TimelineMenuItem>());
+
+    /// <summary>CE-1303 P2b: a subtitle added from the menu — 3 sim seconds long, with a placeholder the window's text field replaces.</summary>
+    public const double DefaultSubtitleSeconds = 3d;
+    public const string DefaultSubtitleText = "Subtitle";
+
+    private static TakeTimeline Layout(Take take) => TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null);
 }

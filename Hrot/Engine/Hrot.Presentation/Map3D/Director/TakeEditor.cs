@@ -22,6 +22,18 @@ public abstract record TakeEdit
     /// <summary>A new segment (CE-1364): appended, speed and gap as <paramref name="Segment"/> says.</summary>
     public sealed record AddSegment(TimeSegment Segment) : TakeEdit;
     public sealed record RemoveSegment(int Index) : TakeEdit;
+    /// <summary>⭐ <c>CE-1303</c> P2b (§11o S12) — a copy of segment <paramref name="Index"/> right after it: the film plays that stretch again (an instant replay).</summary>
+    public sealed record ReplaySegment(int Index) : TakeEdit;
+    /// <summary>⭐ P2b — segment <paramref name="Index"/>'s speed and gap (its times kept as <paramref name="Segment"/> says).</summary>
+    public sealed record SetSegment(int Index, TimeSegment Segment) : TakeEdit;
+    /// <summary>⭐ P2b (§11o S11) — "update key from view": camera key <paramref name="Index"/> takes <paramref name="Camera"/> (and its lens); its time is kept.</summary>
+    public sealed record SetKeyCamera(int Index, CameraSpec Camera) : TakeEdit;
+    /// <summary>⭐ P2b — CR-11: subtitle <paramref name="Index"/>'s <paramref name="Edge"/> now at <paramref name="ToSim"/> (<see cref="SegmentEdge.Whole"/>: its start, same length).</summary>
+    public sealed record MoveSubtitle(int Index, SegmentEdge Edge, double ToSim) : TakeEdit;
+    public sealed record AddSubtitle(Subtitle Subtitle) : TakeEdit;
+    public sealed record RemoveSubtitle(int Index) : TakeEdit;
+    /// <summary>⭐ CR-11 — subtitle <paramref name="Index"/>'s text, position, fade (its times as <paramref name="Subtitle"/> says).</summary>
+    public sealed record SetSubtitle(int Index, Subtitle Subtitle) : TakeEdit;
 }
 
 /// <summary>
@@ -95,7 +107,13 @@ public sealed class TakeEditor
     public bool Apply(TakeEdit edit)
     {
         var before = Take;
-        var basis = before.Keys.Count > 0 || edit is TakeEdit.MoveSegment or TakeEdit.AddSegment or TakeEdit.RemoveSegment ? before : WithKeys(before);
+        // a v1 take's first edit of a KIND writes that kind as it plays: its shots as keys (camera edits), its captions as subtitles (subtitle edits)
+        var basis = edit switch
+        {
+            TakeEdit.MoveKey or TakeEdit.AddKey or TakeEdit.RemoveKey or TakeEdit.SetKeyCamera => before.Keys.Count > 0 ? before : WithKeys(before),
+            TakeEdit.MoveSubtitle or TakeEdit.AddSubtitle or TakeEdit.RemoveSubtitle or TakeEdit.SetSubtitle => before.Subtitles.Count > 0 ? before : WithSubtitles(before),
+            _ => before,
+        };
         Take? after;
         string what;
         switch (edit)
@@ -103,9 +121,19 @@ public sealed class TakeEditor
             case TakeEdit.MoveKey m: after = MoveKey(basis, m); what = "Move camera key"; break;
             case TakeEdit.AddKey a: after = WithAnchor(basis, a.Anchor) with { Keys = basis.Keys.Append(a.Key).ToList() }; what = "Add camera key"; break;
             case TakeEdit.RemoveKey r: after = RemoveKey(basis, r); what = "Delete camera key"; break;
+            case TakeEdit.SetKeyCamera c: after = SetKeyCamera(basis, c); what = "Update key from view"; break;
             case TakeEdit.MoveSegment s: after = MoveSegment(basis, s); what = "Move time segment"; break;
-            case TakeEdit.AddSegment a: after = basis with { Segments = basis.Segments.Append(a.Segment).ToList() }; what = "Add time segment"; break;
+            case TakeEdit.AddSegment a: after = AddSegment(basis, a.Segment); what = "Add time segment"; break;
             case TakeEdit.RemoveSegment r: after = RemoveSegment(basis, r); what = "Delete time segment"; break;
+            case TakeEdit.ReplaySegment r: after = ReplaySegment(basis, r); what = "Replay time segment"; break;
+            case TakeEdit.SetSegment s: after = (uint)s.Index < (uint)basis.Segments.Count && basis.Segments[s.Index] != s.Segment && s.Segment.Speed > 0
+                                                ? basis with { Segments = Replace(basis.Segments, s.Index, s.Segment) } : null; what = "Change time segment"; break;
+            case TakeEdit.MoveSubtitle m: after = MoveSubtitle(basis, m); what = "Move subtitle"; break;
+            case TakeEdit.AddSubtitle a: after = basis with { Subtitles = basis.Subtitles.Append(a.Subtitle).ToList() }; what = "Add subtitle"; break;
+            case TakeEdit.RemoveSubtitle r: after = (uint)r.Index < (uint)basis.Subtitles.Count
+                                                ? basis with { Subtitles = basis.Subtitles.Where((_, i) => i != r.Index).ToList() } : null; what = "Delete subtitle"; break;
+            case TakeEdit.SetSubtitle s: after = (uint)s.Index < (uint)basis.Subtitles.Count && basis.Subtitles[s.Index] != s.Subtitle
+                                                ? basis with { Subtitles = Replace(basis.Subtitles, s.Index, s.Subtitle) } : null; what = "Change subtitle"; break;
             default: return false;
         }
         if (after is null || ReferenceEquals(after, before)) return false;
@@ -214,25 +242,68 @@ public sealed class TakeEditor
     {
         if ((uint)s.Index >= (uint)take.Segments.Count) return null;
         var seg = take.Segments[s.Index];
-        var from = Resolve(take, seg.From);
-        var to = Resolve(take, seg.To);
-        if (from is null || to is null) return null;
-        TimeSegment moved;
-        switch (s.Edge)
+        if (MoveSpan(take, seg.From, seg.To, s.Edge, s.ToSim) is not { } span) return null;
+        var moved = seg with { From = span.From, To = span.To };
+        return moved == seg ? null : take with { Segments = Replace(take.Segments, s.Index, moved) };
+    }
+
+    private static Take? MoveSubtitle(Take take, TakeEdit.MoveSubtitle s)
+    {
+        if ((uint)s.Index >= (uint)take.Subtitles.Count) return null;
+        var sub = take.Subtitles[s.Index];
+        if (MoveSpan(take, sub.At, sub.Until, s.Edge, s.ToSim) is not { } span) return null;
+        var moved = sub with { At = span.From, Until = span.To };
+        return moved == sub ? null : take with { Subtitles = Replace(take.Subtitles, s.Index, moved) };
+    }
+
+    /// <summary>⭐ CE-1364 / P2b (§11o S10) — the ONE span rule of a segment and a subtitle: the body moves both ends (same length), an edge only itself and
+    /// it stops <see cref="MinSegmentSeconds"/> short of the other; each end keeps its anchor (the offset changes). Null when an end has no time.</summary>
+    private static (AtExpr From, AtExpr To)? MoveSpan(Take take, AtExpr fromAt, AtExpr toAt, SegmentEdge edge, double toSim)
+    {
+        if (Resolve(take, fromAt) is not { } from || Resolve(take, toAt) is not { } to) return null;
+        return edge switch
         {
-            case SegmentEdge.Whole:
-                moved = seg with { From = Retimed(take, seg.From, s.ToSim), To = Retimed(take, seg.To, s.ToSim + (to.Value - from.Value)) };
-                break;
-            case SegmentEdge.From:
-                moved = seg with { From = Retimed(take, seg.From, Math.Min(s.ToSim, to.Value - MinSegmentSeconds)) };
-                break;
-            default:
-                moved = seg with { To = Retimed(take, seg.To, Math.Max(s.ToSim, from.Value + MinSegmentSeconds)) };
-                break;
-        }
-        if (moved == seg) return null;
-        var segments = take.Segments.ToList();
-        segments[s.Index] = moved;
-        return take with { Segments = segments };
+            SegmentEdge.Whole => (Retimed(take, fromAt, toSim), Retimed(take, toAt, toSim + (to - from))),
+            SegmentEdge.From => (Retimed(take, fromAt, Math.Min(toSim, to - MinSegmentSeconds)), toAt),
+            _ => (fromAt, Retimed(take, toAt, Math.Max(toSim, from + MinSegmentSeconds))),
+        };
+    }
+
+    /// <summary>⭐ P2b (§11o S12) — a new segment goes where the source order puts it (before the first segment that starts later), so a segment added
+    /// EARLIER on the axis is not silently a replay; a replay is made on purpose (<see cref="TakeEdit.ReplaySegment"/>).</summary>
+    private static Take AddSegment(Take take, TimeSegment segment)
+    {
+        var list = take.Segments.ToList();
+        double at = Resolve(take, segment.From) ?? segment.From.Offset;
+        int index = list.FindIndex(s => Resolve(take, s.From) is { } f && f > at + 1e-9);
+        list.Insert(index < 0 ? list.Count : index, segment);
+        return take with { Segments = list };
+    }
+
+    private static Take? ReplaySegment(Take take, TakeEdit.ReplaySegment r)
+    {
+        if ((uint)r.Index >= (uint)take.Segments.Count) return null;
+        var list = take.Segments.ToList();
+        list.Insert(r.Index + 1, list[r.Index] with { Gap = SegmentGap.Cut });
+        return take with { Segments = list };
+    }
+
+    private static Take? SetKeyCamera(Take take, TakeEdit.SetKeyCamera c)
+    {
+        if ((uint)c.Index >= (uint)take.Keys.Count) return null;
+        var key = take.Keys[c.Index];
+        var updated = key with { Camera = c.Camera, Fov = c.Camera.Fov };
+        return updated == key ? null : take with { Keys = Replace(take.Keys, c.Index, updated) };
+    }
+
+    /// <summary>⭐ CR-11 (§11o S8) — a take whose subtitles are its captions READ as subtitles gets them written, as they play, by its first subtitle edit.</summary>
+    private static Take WithSubtitles(Take take)
+        => take with { Subtitles = TakeSubtitles.Of(take, TakeTimeline.Plan(take, n => take.Baked is { } b && b.Times.TryGetValue(n, out var t) ? t : null)).ToList() };
+
+    private static List<T> Replace<T>(IReadOnlyList<T> list, int index, T item)
+    {
+        var copy = list.ToList();
+        copy[index] = item;
+        return copy;
     }
 }

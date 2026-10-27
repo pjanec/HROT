@@ -339,9 +339,11 @@ public sealed class DirectorTracksTests : IDisposable
         add.Run();
 
         Assert.Equal(3, editor.Take.Segments.Count);
-        var seg = editor.Take.Segments[2];
+        // ⭐ CE-1303 P2b (§11o S12) — inserted in SOURCE order (between 0–4 and 8–12), so it is not a replay: was appended at [2] (T3)
+        var seg = editor.Take.Segments[1];
         Assert.Equal((5.5, 5.5 + TakeEditor.DefaultSegmentSeconds, 1d, SegmentGap.Cut), (seg.From.Offset, seg.To.Offset, seg.Speed, seg.Gap));
-        Assert.True(tracks.Time.Items[2].Selected);
+        Assert.True(tracks.Time.Items[1].Selected);
+        Assert.False(FilmTimeMap.Of(editor.Take, _ => null).Segments.Any(s => s.Back));
         Assert.Equal("Add time segment", undo.UndoDescription);
 
         undo.Undo(null!);
@@ -357,7 +359,7 @@ public sealed class DirectorTracksTests : IDisposable
         Write("main", V2);
         var (editor, tracks, undo) = Open("main");
 
-        var del = Assert.Single(tracks.Time.MenuItems("seg:0", 1.0));
+        var del = tracks.Time.MenuItems("seg:0", 1.0).First();   // ⭐ P2b: then "Replay this segment"
         Assert.Equal("Delete segment", del.Label);
         del.Run();
 
@@ -383,5 +385,134 @@ public sealed class DirectorTracksTests : IDisposable
         Assert.True(tracks.Camera.Key('K', 6.5));
         Assert.Equal(38f, editor.Take.Keys[^1].Fov);
         Assert.Equal(38f, editor.Take.Keys[^1].Camera.Fov);
+    }
+
+    // ── CE-1303 P2b (docs/DESIGN_Director_Timeline_Editor.md §11o) — the Subtitles track, update key from view, replay a segment ──────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S10): the THIRD director track edits the take's subtitles with the Time track's machinery — "Add a subtitle
+    /// here" at the clicked source second (3 s, placeholder text, selected), a body drag moves it whole, an end-edge drag only its end, "Delete subtitle"
+    /// removes it — each ONE undo step, undone in order back to no subtitles; Save writes <c>subtitles[]</c>. 🔴 Mutation: <c>TakeEditor.MoveSubtitle</c>
+    /// passing <c>SegmentEdge.Whole</c> for every edge ⇒ the edge drag moves the start too ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_TheSubtitlesTrack_AddsMovesResizesDeletes_AndUndoes()
+    {
+        var path = Write("main", V2);
+        var (editor, tracks, undo) = Open("main");
+        Assert.Equal(new[] { DirectorTracks.CameraId, DirectorTracks.TimeId, DirectorTracks.SubtitlesId }, tracks.Tracks.Select(t => t.Id));
+        Assert.Empty(tracks.Subtitles.Items);                         // V2 has no caption: nothing read as a subtitle
+
+        Assert.Equal("Add a subtitle here", Assert.Single(tracks.Subtitles.MenuItems(null, 6.0)).Label);
+        tracks.Subtitles.MenuItems(null, 6.0).Single().Run();
+        var item = Assert.Single(tracks.Subtitles.Items);
+        Assert.Equal((6.0, 6.0 + DirectorTracks.DefaultSubtitleSeconds, DirectorTracks.DefaultSubtitleText, true), (item.From, item.To!.Value, item.Label, item.Selected));
+        Assert.Equal(0, tracks.SelectedSubtitle);
+
+        tracks.Subtitles.Move("sub:0", 7.0, commit: false);           // a preview: the take is untouched
+        Assert.Equal(6.0, editor.Take.Subtitles[0].At.Offset);
+        tracks.Subtitles.Move("sub:0", 7.0, commit: true);            // the body: the whole subtitle, same length
+        Assert.Equal((7.0, 10.0), (editor.Take.Subtitles[0].At.Offset, editor.Take.Subtitles[0].Until.Offset));
+        tracks.Subtitles.Move("sub:0", 11.5, commit: true, TrackItemPart.EndEdge);   // the end edge only
+        Assert.Equal((7.0, 11.5), (editor.Take.Subtitles[0].At.Offset, editor.Take.Subtitles[0].Until.Offset));
+        Assert.True(editor.Apply(new TakeEdit.SetSubtitle(0, editor.Take.Subtitles[0] with { Text = "Contact!", Position = SubtitlePosition.Top })));
+
+        Assert.Equal(path, editor.Save());
+        var saved = _store.Load("sc", "main").Value!.Subtitles.Single();
+        Assert.Equal((7.0, 11.5, "Contact!", SubtitlePosition.Top), (saved.At.Offset, saved.Until.Offset, saved.Text, saved.Position));
+
+        var del = tracks.Subtitles.MenuItems("sub:0", 8.0).Single();
+        Assert.Equal("Delete subtitle", del.Label);
+        del.Run();
+        Assert.Empty(editor.Take.Subtitles);
+        Assert.Equal("Delete subtitle", undo.UndoDescription);
+        foreach (var expected in new[] { "Delete subtitle", "Change subtitle", "Move subtitle", "Move subtitle", "Add subtitle" })
+        {
+            Assert.Equal(expected, undo.UndoDescription);
+            undo.Undo(null!);
+        }
+        Assert.Empty(editor.Take.Subtitles);
+        Assert.Equal(3, editor.Take.Keys.Count);                       // the camera keys were never touched
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-11 (§11o S8): a v1 take's caption is READ as a subtitle over each shot (the track shows it, nothing is written), its first
+    /// subtitle edit writes them as they play; and where a shot has a <c>why</c> (the director's note, never seeded) empty space offers it as a subtitle.
+    /// 🔴 Mutation: <c>TakeEditor.Apply</c> not converting a v1 take's captions before a subtitle edit (basis = before) ⇒ the edit names no subtitle ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_AV1TakesCaption_IsReadAsSubtitles_AndTheShotsNoteIsOffered()
+    {
+        Write("main", """
+            {"caption":"Ambush at the ford",
+             "shots":[{"at":1,"seconds":3,"lookAt":[1,2,3],"distance":40},
+                      {"at":4,"seconds":2,"follow":"Tank 1","distance":10,"why":"the tank turns"}]}
+            """);
+        var (editor, tracks, _) = Open("main");
+        var read = Assert.Single(tracks.Subtitles.Items);                         // the two adjacent shots' one caption, merged
+        Assert.Equal((1d, 6d, "Ambush at the ford"), (read.From, read.To!.Value, read.Label));
+        Assert.Empty(editor.Take.Subtitles);                                      // read, not written
+
+        tracks.Subtitles.Move("sub:0", 2d, commit: true, TrackItemPart.StartEdge);
+        Assert.Equal((2d, 6d, "Ambush at the ford"), (editor.Take.Subtitles.Single().At.Offset, editor.Take.Subtitles.Single().Until.Offset, editor.Take.Subtitles.Single().Text));
+
+        var note = tracks.Subtitles.MenuItems(null, 4.5).Single(m => m.Label == "Add the shot's note as a subtitle");
+        note.Run();
+        Assert.Equal(("the tank turns", 4d, 6d), (editor.Take.Subtitles[1].Text, editor.Take.Subtitles[1].At.Offset, editor.Take.Subtitles[1].Until.Offset));
+        Assert.DoesNotContain(tracks.Subtitles.MenuItems(null, 2.0), m => m.Label.Contains("note"));   // shot 1 has no why
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b (§11o S11): <b>update key from view</b> — the SELECTED key takes the pilot camera (its lens too) in ONE undo step that puts the
+    /// old camera back; with nothing selected, U on the Camera track updates the key ON SCREEN at the playhead (the last at or before it), and the key's
+    /// menu offers it. Times never move. 🔴 Mutation: <c>TakeEditor.SetKeyCamera</c> keeping the key's old camera ⇒ the pose assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_UpdateKeyFromView_TakesThePilotsCamera_AndUndoRestoresIt()
+    {
+        Write("main", V2);
+        var pilot = PilotCamera.Of(new CameraPose(new Vector3(70, 80, 2), 25f, 1.0f, -0.3f), fov: 33f);
+        var (editor, tracks, undo) = Open("main", () => pilot);
+        var before = editor.Take.Keys[1];
+
+        tracks.Camera.Select("key:1");
+        Assert.True(tracks.UpdateKeyFromView(playheadSim: 0.5));               // the selection wins over the playhead
+        Assert.Equal(pilot, editor.Take.Keys[1].Camera);
+        Assert.Equal(33f, editor.Take.Keys[1].Fov);
+        Assert.Equal(before.At, editor.Take.Keys[1].At);
+        Assert.Equal("Update key from view", undo.UndoDescription);
+        undo.Undo(null!);
+        Assert.Equal(before, editor.Take.Keys[1]);
+
+        tracks.Camera.Select("seg:0");                                         // no key selected: the key on screen at 6 s is key 1 (at 5)
+        Assert.True(tracks.Camera.Key('U', 6.0));
+        Assert.Equal(pilot, editor.Take.Keys[1].Camera);
+        Assert.Equal(before.Camera, CameraKeys.Of(_store.Load("sc", "main").Value!)[1].Camera);   // unsaved
+        Assert.Contains(tracks.Camera.MenuItems("key:0"), m => m.Label.StartsWith("Update key from view", StringComparison.Ordinal));
+
+        var (_, blind, _) = Open("main");                                       // no pilot camera: nothing to take
+        Assert.False(blind.UpdateKeyFromView(6.0));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b (§11o S12): "Replay this segment" inserts a copy RIGHT AFTER it — the film plays that stretch again (a BACK segment in the map),
+    /// labelled "replay" on the Time track — one undo step; the selected segment's speed is one more (SetSegment). 🔴 Mutation: the copy appended at the
+    /// end instead of after its segment ⇒ the map's back segment is the third, not the second ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_ReplayThisSegment_PlaysTheStretchAgain()
+    {
+        Write("main", V2);
+        var (editor, tracks, undo) = Open("main");
+        tracks.Time.MenuItems("seg:0", 1.0).Single(m => m.Label == "Replay this segment").Run();
+        Assert.Equal(new[] { (0d, 4d), (0d, 4d), (8d, 12d) }, editor.Take.Segments.Select(s => (s.From.Offset, s.To.Offset)).ToArray());
+        Assert.Equal(new[] { false, true, false }, FilmTimeMap.Of(editor.Take, _ => null).Segments.Select(s => s.Back).ToArray());
+        Assert.Equal("replay", tracks.Time.Items[1].Label);
+        Assert.Equal(1, tracks.SelectedSegment);
+        Assert.True(editor.Apply(new TakeEdit.SetSegment(1, editor.Take.Segments[1] with { Speed = 0.5 })));
+        Assert.Equal("replay x0.5", tracks.Time.Items[1].Label);
+        undo.Undo(null!);
+        undo.Undo(null!);
+        Assert.Equal(2, editor.Take.Segments.Count);
     }
 }

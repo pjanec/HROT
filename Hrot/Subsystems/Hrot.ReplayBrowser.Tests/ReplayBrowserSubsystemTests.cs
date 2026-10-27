@@ -1392,11 +1392,11 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
     /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
-    private static string RecordFilmRun(string dir, double seconds)
+    private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null)
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
-        var meta = new RecordingMetadata { ExerciseId = Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = "0123456789abcdef" };
+        var meta = new RecordingMetadata { ExerciseId = exerciseId ?? Guid.NewGuid(), NodeId = 1, ScenarioName = "s-film", ScenarioHash = "0123456789abcdef" };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
@@ -1627,5 +1627,121 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Empty(pack.Session.Open("s-film", "main"));
         Assert.NotEmpty(_subsystem.EventTimeline.Tracks!());                             // the RB's Event Timeline shows the open take's tracks
         Assert.True(pack.Runner.OpenTake!("s-film", "main") is { } open && ReferenceEquals(open, pack.Session.Editor!.Take));
+    }
+
+    // ── CE-1303 P2b (docs/DESIGN_Director_Timeline_Editor.md §11o) — the Time track PLAYS on a recording; the takes of a kept exercise ─────────
+
+    private static Hrot.UI.Common.Map3D.Director.TimeSegment Seg(double from, double to, double speed = 1d)
+        => new() { From = new Hrot.UI.Common.Map3D.Director.AtExpr(from), To = new Hrot.UI.Common.Map3D.Director.AtExpr(to), Speed = speed };
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-7 (§11o S1–S4, success condition 1): on a REAL recording, a take with segments [0–2 @1×] [2–4 @0.5×] [1–2 @1×] plays the
+    /// FILM: at every frame the recording's sim matches the film map of the runner's film second (film f &lt; 2 → f · &lt; 6 → 2 + (f − 2)/2 · &lt; 7 → 1 + (f − 6))
+    /// within one step; the slow segment runs at half the rate (the clock paces each step at 0.5 × the request) and covers four film seconds in the same 120
+    /// steps; at its end the playhead CUTS back to source 1.0 in one frame (the instant replay), plays to 2.0, and the film ends there.
+    /// 🔴 Mutation: <c>AdvanceSegments</c> not seeking (the <c>SeekSource(n.From)</c> removed) ⇒ the film ends at 4 s with no replay ⇒ the jump is missing.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_ASlowSegment_PlaysAtItsRate_AndAReplaySegment_SeeksBack()
+    {
+        var (pack, _) = OpenFilmRecording("segments");
+        pack.Takes.Save(TwoShotTake() with { Segments = new[] { Seg(0, 2), Seg(2, 4, 0.5), Seg(1, 2) } });
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false)));
+        UntilPlaying(runner);
+
+        static double Expected(double f) => f < 2 ? f : f < 6 ? 2 + (f - 2) * 0.5 : 1 + (f - 6);
+        const double step = 1d / 60;
+        var seen = new List<(double Sim, double Film, double Rate)>();
+        for (int i = 0; i < 800 && runner.Busy; i++)
+        {
+            _subsystem.Update(1f / 60f);
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing) seen.Add((_subsystem.DirectorSimSeconds, runner.FilmTime, runner.Rate));
+        }
+        Assert.False(runner.Busy);
+        var report = runner.Reports[0];
+        Assert.True(report.Status == "ok", $"{report.Status}: {string.Join("; ", report.Problems)}");
+
+        // a film second on a segment's end is that segment's last instant AND the next one's first (the cut comes on the next frame): either side
+        Assert.All(seen, s => Assert.True(Math.Min(Math.Abs(s.Sim - Expected(s.Film)), Math.Abs(s.Sim - Expected(s.Film - 1e-6))) <= step + 1e-6,
+                                          $"film {s.Film:0.####}: source {s.Sim:0.####}, the map says {Expected(s.Film):0.####}"));
+        var slow = seen.Where(s => s.Film > 2.05 && s.Film < 5.95).ToList();
+        Assert.All(slow, s => Assert.Equal(500d, s.Rate, 6));                               // 1000 × 0.5
+        Assert.All(seen.Where(s => s.Film < 1.95 || s.Film > 6.05), s => Assert.Equal(1000d, s.Rate, 6));
+        Assert.InRange(slow.Count, 110, 122);                                                 // two source seconds = 120 steps …
+        Assert.InRange(slow[^1].Film - slow[0].Film, 3.8, 3.95);                              // … spanning four film seconds
+
+        int cut = Enumerable.Range(1, seen.Count - 1).FirstOrDefault(i => seen[i].Sim < seen[i - 1].Sim - 0.5);
+        Assert.True(cut > 0, "the playhead never went back: no replay");
+        Assert.InRange(seen[cut - 1].Sim, 4d - step, 4d + step);                              // the slow segment's end …
+        Assert.InRange(seen[cut].Sim - step, 1d - 1e-6, 1d + 1e-6);                           // … then ONE frame later the replay's first, at source 1.0
+        Assert.InRange(seen[^1].Sim, 2d - step, 2d + step);                                    // the film ends with the replay
+        Assert.Equal(1, Enumerable.Range(1, seen.Count - 1).Count(i => seen[i].Sim < seen[i - 1].Sim - 1e-6));   // one cut back, nothing else goes back
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b — CR-7 / CR-4 (§11o S5, success condition 3): <c>PlayFrom(film t)</c> across a SLOW segment lands at the MAPPED source second —
+    /// [0–2 @1×] [2–4 @0.5×]: film 4.0 is source 3.0 (not 4.0) — and the window's conversion of a playhead (a source second) to film time is the inverse
+    /// (<c>FilmTimeAt</c>: source 3.0 → film 4.0). The first frame shows the shot of source 3.0 (shot 2's key). 🔴 Mutation: <c>TickEntering</c> seeking
+    /// to the film second itself (<c>SeekSource(_startAt)</c>, P2a's) ⇒ the playhead stands at 4.0 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_PlayFrom_AcrossASlowSegment_LandsAtTheMappedSourceTime()
+    {
+        var (pack, _) = OpenFilmRecording("from-slow");
+        pack.Takes.Save(TwoShotTake() with { Segments = new[] { Seg(0, 2), Seg(2, 4, 0.5) } });
+        var runner = pack.Runner;
+        var request = new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false);
+        Assert.Equal(4.0, runner.FilmTimeAt(request, 3.0), 9);
+        Assert.Equal(1.0, runner.FilmTimeAt(request, 1.0), 9);
+
+        Assert.Empty(runner.PlayFrom(request, runner.FilmTimeAt(request, 3.0)));
+        UntilPlaying(runner);
+        Assert.InRange(_subsystem.DirectorSimSeconds, 3.0 - 1d / 60, 3.0 + 1d / 60);
+        Assert.InRange(runner.FilmTime, 4.0 - 1d / 30, 4.0 + 1d / 30);
+        double sim = Frame();
+        Assert.InRange(sim, 3.0 - 1d / 60, 3.0 + 1d / 60);
+        Assert.Equal(2, runner.Status()["shot"]!.GetValue<int>());
+        Assert.Equal(2, runner.Status()["segment"]!.GetValue<int>());
+        Assert.Equal(Key2At, Camera());
+        runner.Stop();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b (§11o S13, TE-1, success condition 6): the takes of a KEPT exercise live in the KEPT folder. An exercise recorded by node 1
+    /// (<c>nodes/node-1/exercises/&lt;id&gt;/</c>, the temp copy) and kept (<c>shared/exercises/&lt;id&gt;/</c>, §11n ③) is opened the way the browser lists it
+    /// — the NODE's copy wins (measured: <c>RecordingGroupInventory</c>) — yet a take saved there lands in <c>shared/exercises/&lt;id&gt;/s-film/takes/</c>, and
+    /// with the temp copy gone (a relaunch) the kept recording opens and still finds it. 🔴 Mutation: <c>DirectorTakesRoot</c> without the kept folder
+    /// (P2a's rule) ⇒ the take is written under <c>nodes/node-1/…</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_AKeptExercise_KeepsItsTakes_InTheKeptFolder()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "kept-staging");
+        var exercise = Guid.NewGuid();
+        string nodeDir = Path.Combine(root, "nodes", "node-1", "exercises", exercise.ToString());
+        string keptDir = Path.Combine(root, "shared", "exercises", exercise.ToString());
+        RecordFilmRun(nodeDir, 2d, exercise);
+        Directory.CreateDirectory(keptDir);
+        foreach (var f in Directory.GetFiles(nodeDir)) File.Copy(f, Path.Combine(keptDir, Path.GetFileName(f)));
+
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.RecordingsRoot = root;
+        var provider = _subsystem.CreateDebugProvider()!;
+        provider.Master!.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay });
+        Assert.Equal(Path.Combine(nodeDir, "node_1.fdp"), provider.ReplayRecordingPath);   // the node's temp copy is what opened
+
+        var pack = _subsystem.Director!;
+        string saved = pack.Takes.Save(TwoShotTake());
+        Assert.Equal(Path.GetFullPath(Path.Combine(keptDir, "s-film", "takes", "main.take.json")), Path.GetFullPath(saved));
+        Assert.False(Directory.Exists(Path.Combine(nodeDir, "s-film")));
+
+        provider.Master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Directory.Delete(Path.Combine(root, "nodes"), recursive: true);                       // the temp copies are gone
+        provider.Master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent { TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay });
+        Assert.Equal(Path.Combine(keptDir, "node_1.fdp"), provider.ReplayRecordingPath);
+        Assert.True(pack.Takes.Load("s-film", "main").Ok);                                    // the take is still there
     }
 }

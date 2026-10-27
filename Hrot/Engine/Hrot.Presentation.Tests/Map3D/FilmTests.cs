@@ -148,4 +148,37 @@ public sealed class FilmTests : System.IDisposable
         film.Update(0.016f);
         Assert.Null(view.Camera3D.Driver);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1303</c> P2b (docs/DESIGN_Director_Timeline_Editor.md §11o S11) — the pilot ⇄ program toggle: with <c>FilmStudio.Pilot</c> on, the capture
+    /// layer gives the camera back to the operator although the director still holds a shot (the camera stays where the program left it), and takes it
+    /// again when the toggle goes off. 🔴 Mutation: <c>FilmCaptureLayer.Direct</c> ignoring <c>Pilot</c> ⇒ the director keeps the camera ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1303_P2b_ThePilotView_GivesTheCameraBack_WhileTheProgramPlays()
+    {
+        FilmStudio.Reset();
+        using var world = new EntityRepository();
+        var canvas = new MapCanvas(input: null);
+        var view = new MapViewSwitch(canvas, canvas.Camera);
+        var film = new FilmCaptureLayer(canvas, view, () => world);
+        try
+        {
+            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(new Vector3(1f, 2f, 3f), 40f, 0.5f, -0.4f) });
+            film.Update(0.016f);
+            Assert.Same(film.Director, view.Camera3D.Driver);                 // the program view
+            view.Camera3D.Update(0.016f);
+
+            FilmStudio.Pilot = true;
+            film.Update(0.016f);
+            Assert.Null(view.Camera3D.Driver);                                // the operator flies …
+            Assert.NotNull(FilmStudio.Shot);                                  // … while the director still holds its shot
+            Assert.Equal(new Vector3(1f, 2f, 3f), view.Camera3D.LookAt);      // from where the program was
+
+            FilmStudio.Pilot = false;
+            film.Update(0.016f);
+            Assert.Same(film.Director, view.Camera3D.Driver);
+        }
+        finally { FilmStudio.Reset(); }
+    }
 }

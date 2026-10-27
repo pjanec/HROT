@@ -42,11 +42,26 @@ namespace Hrot.UI.Common.Map3D.Director
         }
 
         public void Card(string? text) => _card = text;
-        public void Caption(string? text) => _caption = text;
+        public void Caption(string? text) => Subtitle(text == null ? null : new SubtitleFrame(text, SubtitlePosition.Bottom, 1f));
+
+        /// <summary>⭐ <c>CE-1303</c> P2b — the subtitle this overlay draws now (the model a rail reads).</summary>
+        public SubtitleFrame? Shown { get; private set; }
+
+        /// <summary>⭐ <c>CE-1303</c> P2b (§11o S9) — drawn on AND off the cinema: an iteration pass keeps the panels on screen and must still show the text.</summary>
+        public void Subtitle(SubtitleFrame? frame)
+        {
+            Shown = frame;
+            _caption = frame?.Text;
+            if (frame != null && !_registered && _wm() is { } wm) { wm.RegisterFrameOverlay(Draw); _registered = true; }
+        }
 
         private void Draw()
         {
-            if (!Active) return;
+            if (!Active)
+            {
+                if (Shown is { } sub && !string.IsNullOrWhiteSpace(sub.Text)) DrawSubtitle(ImGui.GetForegroundDrawList(), ImGui.GetIO().DisplaySize, ImGui.GetFont(), sub);
+                return;
+            }
             var io = ImGui.GetIO();
             var dl = ImGui.GetForegroundDrawList();
             var size = io.DisplaySize;
@@ -65,19 +80,28 @@ namespace Hrot.UI.Common.Map3D.Director
                     y += s * 1.4f;
                 }
             }
-            else if (!string.IsNullOrWhiteSpace(_caption))
-            {
-                float s = MathF.Max(14f, size.Y / 30f);
-                var w = font.CalcTextSizeA(s, size.X * 0.86f, size.X * 0.86f, _caption).X;
-                var h = font.CalcTextSizeA(s, size.X * 0.86f, size.X * 0.86f, _caption).Y;
-                float top = size.Y - h - s - size.Y / 18f;
-                dl.AddRectFilled(new Vector2(0, top), new Vector2(size.X, top + h + s), 0x96000000);
-                dl.AddText(font, s, new Vector2((size.X - w) / 2f, top + s / 2f), 0xFFFFFFFF, _caption, size.X * 0.86f);
-            }
+            else if (Shown is { } sub && !string.IsNullOrWhiteSpace(_caption))
+                DrawSubtitle(dl, size, font, sub);
             if (FilmStudio.Fade is > 0f and var fade && _card == null)   // ⭐ T4 / TE-8 — a dip's black over the picture
                 dl.AddRectFilled(Vector2.Zero, size, (uint)Math.Round(fade * 255f) << 24);
             dl.AddText(new Vector2(8, size.Y - 20), 0x80FFFFFF, "Esc: stop the director");
             if (ImGui.IsKeyPressed(ImGuiKey.Escape)) EscapePressed?.Invoke();
+        }
+
+        /// <summary>The subtitle in a dark band — at the bottom (the caption's place), the top or the middle — its band and text at the subtitle's opacity.</summary>
+        private static void DrawSubtitle(ImDrawListPtr dl, Vector2 size, ImFontPtr font, SubtitleFrame sub)
+        {
+            float s = MathF.Max(14f, size.Y / 30f);
+            var extent = font.CalcTextSizeA(s, size.X * 0.86f, size.X * 0.86f, sub.Text);
+            float top = sub.Position switch
+            {
+                SubtitlePosition.Top => size.Y / 18f,
+                SubtitlePosition.Middle => (size.Y - extent.Y - s) / 2f,
+                _ => size.Y - extent.Y - s - size.Y / 18f,
+            };
+            uint a = (uint)Math.Round(Math.Clamp(sub.Alpha, 0f, 1f) * 255f);
+            dl.AddRectFilled(new Vector2(0, top), new Vector2(size.X, top + extent.Y + s), (uint)Math.Round(a * 150f / 255f) << 24);
+            dl.AddText(font, s, new Vector2((size.X - extent.X) / 2f, top + s / 2f), (a << 24) | 0x00FFFFFF, sub.Text, size.X * 0.86f);
         }
     }
 

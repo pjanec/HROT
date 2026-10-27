@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — ⭐ APPROVED 2026-10-23 (R-4071: "looks good!") with three amendments the same day: anchors ARE the existing conditions (R-4072, TE-3 rewritten), the timeline is a central panel of its own (R-4073, TE-17), the recording's events are indexed and cached for a zoomable timeline (TE-4 rewritten, TE-18…TE-20). TE-3b approved (R-4074). TE-21 approved (R-4075): the Trace Timeline and this timeline are ONE panel. TE-22 approved 2026-10-25 (R-4076): the Behaviour group's four lanes over the brain's recorded histories (ui's handoff, BV-59). ⭐ HANDED to the ui lane: batches/HANDOFF_Coordinator_To_Ui_Director_Timeline.md
-updated: 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
-current-answer: ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
+updated: 2026-10-27 (§11o P2b — the Time track plays (FilmTimeMap: rate, skip, replay) on both hosts, a Subtitles track, update key from view + pilot view, the takes of a kept exercise — BUILT) · 2026-10-27 (§11m P2a — the director in the Replay Browser: ReplayDirectorHost, the same DirectorPack.Attach, the in-memory take, play from, loop shot — BUILT) · 2026-10-27 (§11 CR — films from recordings: the workflow (record → index → draft → look ⇄ adjust in the RB → save → render → promote), CR-1…CR-12, phases P0–P6 across coordinator / backend / ui — ✅ APPROVED by the user the same day (R-4091), rewritten from the user's statement of need; TE-5's premise and §9's D3 corrected) · 2026-10-26 (§10 T-L5 approved — the sim time per frame in the ONE shared per-frame step, R-4089) · 2026-10-26 (§2c — the review timeline: the sim axis, a left click only selects, the director's gestures merged with DAR §10c — R-4087) · 2026-10-26 (§9c — R-4078 one lane seam, the editor's ITraceLaneProvider moved to the shared toolkit; R-4079 lanes are registered definitions, the shipped ones too; TL-3 and the hard-coded lanes SUPERSEDED) · 2026-10-26 (§9b — the coordinator's review of R1-a…c: accepted, three gaps for R2 / R1-d, two questions for the user) · 2026-10-25 (TE-22 approved, R-4076 — the Behaviour lanes Changes / Orders / Reports / Decisions; the exercise group "Orders" renamed Tasks) · 2026-10-23 (TE-21 approved, R-4075) · 2026-10-23 (third pass — TE-3b approved, R-4074; TE-21 added after finding the designed, unbuilt Trace Timeline; handed to ui) · 2026-10-23 (second pass — the approval and three amendments: §0, §2a, §2b, §4c, §5, §6, §7, §8) · 2026-10-23 (first version — coordinator, from the user's request and their answers the same day)
+current-answer: ⭐ §11o P2b — SEGMENTS PLAY, SUBTITLES, UPDATE KEY FROM VIEW (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11m P2a — THE DIRECTOR IN THE REPLAY BROWSER (ui, 2026-10-27, BUILT; the as-built at its end) · ⭐ §11 CR — FILMS FROM RECORDINGS: THE WORKFLOW AND THE PLAN (coordinator, 2026-10-27, ✅ APPROVED R-4091 — the leans CR-1…CR-12 and the phases P0–P6 as written; §11a the fresh look, §11b the workflow, §11e leans CR-1…CR-12, §11f phases P0–P6) · ⭐ §2e THE PANEL AND TOOLBAR ON A CLUSTER HOST — live / review / replay (ui, 2026-10-26, READY-TO-BUILD) · §10 R2-T — THE DIRECTOR'S TRACKS: the build plan (ui, 2026-10-26, DESIGN) · §2c THE INTERACTION RULES AFTER DAR (R-4087 — supersedes §2/§2a/§2b gestures) · §9c LANES REGISTERED (R-4078, R-4079) + §9d ITS AS-BUILT · §9 R1 BUILD PLAN + §9a R1-a…c AS BUILT (2026-10-26, measured: D1 the browser seeks through FederatedReplayManager, D2/D3 the panel lives in Fdp.Presentation — TL-1…TL-7, slices R1-a…e) · §0 the rulings and leans · §1 the picture · §2 the workspace · §2a the timeline on every host · §2b the event index · §3 classes · §4 sequences · §5 the take format v2 · §6 phases · §7 claim table · §8 INVENTORY
 stale-below: none
 known-rot: TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
@@ -2022,3 +2022,202 @@ ReplayBrowser perspective" check is what D11 satisfies.
 ⏭ **①'s still pair and ⑥ (people, animation, wrecks, deaths, doors, sound):** asked of the coordinator, who owns the measured method (Film
 Production §6, `ua-tank-ammo`). 📐 My own attempt on demo-city was inconclusive (the follow shot did not hold in the Replay Browser, and
 `POST /replay {atSimSeconds}` there opens at the recording's start) — not evidence either way.
+
+### 11o. P2b detail — segments, subtitles, update key from view *(ui, `2026-10-27`, CE-1303 P2b; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) (P2 row), §11e CR-7 / CR-11,
+§10 (the Time track; TE-7), §5 (the format's `subtitles[]`), §11m (P2a). 🔒 *"adjust the camera timing, camera cuts, position and viewing angles,
+subtitles and their timing … save that as takes and reels for the recording"*. Scope: CR-7 the Time track PLAYS (rate, skip, replay) on both hosts ·
+CR-11 a Subtitles track · *update key from view* + a pilot ⇄ program toggle · the takes of a KEPT exercise live in the kept folder (TE-1).
+
+**INVENTORY** *(`2026-10-27`; graph of this worktree, 278 573 nodes, + grep)*
+
+```
+search_graph name_pattern=".*(Segment|Subtitle|Caption|TimeMap|ProgramAt|FilmOverlay|FilmGraphic).*" label=Class → 20, has_more false:
+   the director's TimeSegment + the TakeEdit segment records; ReplayTimeMap (wall ↔ sim); the rest are unrelated (SumoSharp, JsonPath, roads)
+search_graph name_pattern=".*(Subtitle|Caption|Overlay|Cinema).*" label=Class → 28: the film's text is drawn by WindowCinema only (+ the rails'
+   Cinema recorder); every other hit is a map / behaviour overlay — no subtitle type exists
+search_graph name_pattern=".*(TimeMap|FilmTime|SourceTime|Program).*" label=Class → 22: ProgramFrame, ReplayTimeMap, SourceTimeOrder
+   (replication), Program × 15 — no film ↔ source map
+search_graph name_pattern=".*(Cinema|FrameSink|DirectorHost|TimelineTrack).*" label=Interface → 4: ICinema, IDirectorHost, IFrameSink, ITimelineTrack
+search_graph name_pattern=".*(Pilot|FromView|KeyCamera|FastForward|SeekSource|PlayFrom).*" label=Method → 21: DirectorRunner.PlayFrom /
+   SeekSource, PlaybackController.FastForward (frames, not the director), the K rails — no "update key" member
+grep "Segments" Hrot/ FDP/ (non-test) → TakeJson, TakeEditor, DirectorTracks only — ⛔ no reader in the runner
+grep "ProgramAt|FilmTime|SourceAt|FilmAt(" → TakeTimeline.ProgramAt (camera at a SOURCE time), SoundTrack.FilmTime (a cue → a captured frame)
+grep "Caption" director → DirectorRunner.EnterShot / Capture, WindowCinema, FilmText (capture burn-in) — the two drawers of the film's text
+grep "local copy wins" → RecordingGroupInventory.Scan (+ rail RB1_*): a kept exercise is opened from the node's temp copy while it exists
+check_index_coverage is not available through the CLI ⇒ these totals are not proof of completeness
+```
+
+**The time model, in one line:** keys, subtitles and segments are all in SOURCE sim seconds (§2c row 10 — the panel draws every track on the
+source axis); the SEGMENTS alone define FILM time: segment *i* (in LIST order) plays source `[From, To)` at `Speed` sim s per film s, from film
+second `Σ (To−From)/Speed` of the segments before it. A segment whose `From` lies before where the previous one ended goes BACK (a replay).
+
+```mermaid
+classDiagram
+  direction LR
+  class FilmTimeMap { <<NEW, TakeTimeline.cs>> Of(take, anchors) · IsIdentity · Segments · FilmEnd · At(film) · FilmOf(source) · GapFade(film) }
+  class FilmSegment { <<NEW, record>> Number · From · To · Speed · Gap · FilmStart · FilmEnd · Back }
+  class TimeSegment { <<exists>> From · To · Speed · Gap }
+  class Subtitle { <<NEW, record>> At · Until · Text · Position · Fade }
+  class TakeSubtitles { <<NEW, static>> Of(take, layout) · At(list, anchors, source) }
+  class SubtitleFrame { <<NEW, record>> Text · Position · Alpha }
+  class Take { <<exists, grown>> Subtitles }
+  class TakeJson { <<exists, grown>> subtitles[] }
+  class TakeEditor { <<exists, grown>> subtitle edits · SetSegment · SetKeyCamera · AddSegment in source order · ReplaySegment }
+  class DirectorTracks { <<exists, grown>> Camera · Time · Subtitles · UpdateKeyFromView · U }
+  class SpanTrack { <<NEW, private>> the ONE span row of Time and Subtitles }
+  class DirectorRunner { <<exists, grown>> plays the map · FilmTime · Rate · FilmTimeAt · a subtitle each frame }
+  class ICinema { <<exists, grown>> Subtitle(frame) default to Caption }
+  class WindowCinema { <<exists, grown>> draws the subtitle on and off the cinema }
+  class FilmStudio { <<exists, grown>> Pilot }
+  class FilmCaptureLayer { <<exists, grown>> the camera back to the operator while Pilot }
+  class DirectorWindow { <<exists, grown>> Play from playhead via FilmTimeAt · Update key from view · Pilot view · selected segment and subtitle fields }
+  class ReplayBrowserSubsystem { <<exists, grown>> DirectorTakesRoot prefers the KEPT folder }
+  FilmTimeMap o-- FilmSegment
+  FilmTimeMap ..> TimeSegment : laid out from
+  Take *-- Subtitle
+  TakeSubtitles ..> Subtitle
+  TakeSubtitles --> SubtitleFrame
+  DirectorRunner --> FilmTimeMap : one per item, rebuilt with the take
+  DirectorRunner --> TakeSubtitles
+  DirectorRunner --> ICinema : Subtitle(frame)
+  WindowCinema ..|> ICinema
+  DirectorTracks *-- SpanTrack : Time, Subtitles
+  DirectorTracks --> TakeEditor
+  DirectorWindow --> DirectorRunner : PlayFrom(FilmTimeAt(playhead))
+  DirectorWindow --> DirectorTracks : UpdateKeyFromView
+  DirectorWindow --> FilmStudio : Pilot
+  FilmCaptureLayer ..> FilmStudio : Shot, Pilot
+```
+*What the picture shows that prose hid:* ONE new behaviour type — `FilmTimeMap`, the only place film time meets source time — that the runner,
+PlayFrom, Loop shot and the window's playhead all go through; subtitles are the take's second span list beside segments and reuse the Time
+track's row (one `SpanTrack`), and they reach the screen through the seam that already carried the caption (`ICinema`), so a host whose cinema is
+a plain recorder still gets the text.
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant W as Director window (RB)
+  participant R as DirectorRunner
+  participant M as FilmTimeMap
+  participant H as ReplayDirectorHost
+  participant C as WindowCinema
+  participant E as TakeEditor
+  Note over M: segments 0-2 at 1x, 2-4 at 0.5x, 1-2 at 1x (back)
+  U->>W: Play from playhead (source 3.0 s)
+  W->>R: FilmTimeAt(request, 3.0) = 4.0, then PlayFrom(request, 4.0)
+  R->>M: At(4.0) = segment 2, source 3.0
+  R->>H: Seek(3.0), the step counters rebase
+  loop each frame in segment 2
+    R->>R: rate = request x shot x 0.5 (the clock holds twice as long)
+    R->>C: Subtitle(TakeSubtitles.At(source))
+    R->>H: StepBy(1/60)
+  end
+  R->>R: source reaches 4.0, segment 2 ends, segment 3 starts at 1.0 (back)
+  R->>H: Seek(1.0) - a cut, the first frame shows source 1.0
+  U->>E: drag the subtitle's end 0.5 s later (Subtitles track, no Save)
+  R->>R: source reaches 2.0 - the film ends (Loop shot: back to the shot start in THIS segment)
+  Note over R,E: the next pass reads the open take again (CR-4) - the new end is on screen
+```
+
+```mermaid
+graph TD
+  subgraph ED["Editor - EditorSubsystem.Update"]
+    EDU["pack.Tick()"]
+  end
+  subgraph RB["Replay Browser - ReplayBrowserSubsystem.Update"]
+    RBU["pack.Tick() first"]
+    ROOT["DirectorTakesRoot: the kept folder, else the recording's"]:::new
+  end
+  RUN["DirectorRunner.TickPlaying"]
+  MAP["FilmTimeMap per item"]:::new
+  EDU --> RUN
+  RBU --> RUN
+  RUN --> MAP
+  RUN -->|"seekable: a gap = Seek, cut or dip; back = Seek"| RH["ReplayDirectorHost"]
+  RUN -->|"live: a gap = fast-forward, one step a frame, no hold; back = skipped, reported once"| EH["EditorDirectorHost"]
+  RUN -->|"Subtitle(frame) each frame"| CIN["WindowCinema overlay, on and off the cinema"]
+  RUN -->|"capture: the subtitle text burned in"| SINK["FilmFrameSink"]
+  PAN["Event Timeline: Camera, Time, Subtitles"]:::new --> TE["TakeEditor, one undo stack"]
+  WIN["Director window"] -->|"Pilot view"| FS["FilmStudio.Pilot"]:::new
+  FS --> FCL["FilmCaptureLayer: the camera back to the operator"]
+  SND["SoundTrack.FilmTime"] -.->|"not reached: a replayed stretch logs no second sound"| RUN
+  classDef new fill:#d9f2d9,stroke:#2a7a2a
+  linkStyle 10 stroke:#c33,stroke-dasharray:4 3
+```
+*Caption:* both hosts reach the map through the SAME runner frame; they differ only at the two arrows that say what a gap and a back segment
+become. The dashed red edge is what is NOT reached: the sound track maps a cue's sim time to the first frame showing it, so a replayed stretch is
+silent the second time (TE-11, P6) — and the RB renders no film yet (P3).
+
+**Claim table** *(load-bearing rows)*
+
+| the plan rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| no film ↔ source map exists; segments are never played | ✅ graph + grep above: `ProgramAt` is the CAMERA at a source time (`TakeTimeline.cs:121`), `SoundTrack.FilmTime` maps a cue to a captured frame (`SoundTrack.cs:94`); `Take.Segments` has no reader in the runner | ✅ TE-6, TE-7, §11c *"Take.Segments is never played"* |
+| `ReplayTimeMap` cannot be the film map | ✅ it maps wall ↔ sim, monotonic (`SimAt` / `WallAt`); a back segment makes film → source many-to-one | ✅ §2c row 10 (the axis map is the SESSION's) |
+| keys and segments are SOURCE sim seconds; every track is drawn on the source axis | ✅ `CameraKey.At`, `TimeSegment.From/To` are `AtExpr`; `TimelineTrackItem`: *"Times are SIM seconds"* | ✅ §2c row 10 · §5 `"subtitles": [{"at": "blue-4", "until": "blue"}]` (anchors = source time) |
+| speed = sim seconds per film second | ✅ the `TimeSegment` and `ShotSpec.Speed` docs; `PacedClock.SetSpeed` | ✅ TE-7 |
+| one step a frame on both hosts; real time is kept by HOLDING | ✅ `DirectorRunner.StepOnce`, `_host.Hold(_clock.HoldFor(…))` | ✅ R-3038 |
+| a seek rebases the step counters | ✅ `DirectorRunner.SeekSource` (P2a) | ✅ §11m D5 |
+| a live host already fast-forwards unheld | ✅ `fastForward` in `TickPlaying` (P2a D5); a gap between shots is stepped unheld | ✅ TE-7: *"a skip still steps one step per frame … it shows a card"* |
+| the caption reaches the screen only in the cinema | ✅ `WindowCinema.Draw` returns when `!Active`; an iteration pass (`Cinema: false`, D7) never calls `Enter` | ⛔ searched §11 / Film Director: none — the iteration pass is new in P2a |
+| a kept exercise is opened from the NODE's temp copy while that exists | ✅ `RecordingGroupInventory.Scan` *"the local copy wins"*; rail `RB1_*` asserts the node's path | ✅ §11n ③ (kept = `{shared}/exercises/<id>/`) ⇒ ⛔ P2a's "beside the recording" puts its takes in the TEMP folder |
+| the map camera can be given back while a shot is held | ✅ `FilmCaptureLayer.Direct`; rail `CE3289_TheLayer_*` builds the layer headless | ✅ the doc's *pilot camera / program camera* words |
+
+**Decisions** *(the lean; the rejected alternatives one line each)*
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **S1** | **`FilmTimeMap`** (`TakeTimeline.cs`): the segments in LIST order are the film; none = the identity (film = source: today's behaviour, every seeded take unchanged); a segment with no resolvable time or `From ≥ To` is left out and named | `ReplayTimeMap` — monotonic, a replay breaks it · sorting by source time — a replay could not be said |
+| **S2** | **the runner keeps its clock in SOURCE time** (`Rel`) and derives film time from the segment it is in; the rate = request × shot × segment | a second, film-time stepping loop — two clocks to keep in step, the stepping rule lives on one |
+| **S3** | **a forward gap** — seekable: `Seek(next.From)`, a cut (a `dip` gap = 0.4 s of black out and 0.4 s in, in film time, through the same `FilmStudio.Fade`); live: **fast-forward** — one step a frame, no hold, no capture, the card *"fast-forward +N s"* in the cinema (TE-7) | a dip on live — the run cannot jump, the black would last the whole gap |
+| **S4** | **a back segment** — seekable: `Seek(From)` (the instant replay); live: skipped, ONE report line naming it (R-3034) | live playing the forward part of an overlapping back segment — half a replay is not a replay |
+| **S5** | **PlayFrom(film t)** = `At(t)` then seek / fast-forward; the window's *Play from playhead* turns the playhead (a SOURCE second) into film time with `FilmTimeAt` (the first segment that holds it, else the next after it) | the window passing the source second as film time (P2a) — wrong once a segment is slower or skips |
+| **S6** | **Loop shot loops within the segment on screen** (back to max(shot start, segment start)) | the shot's start in another segment — a replay's loop would leave the replay |
+| **S7** | **subtitles are in SOURCE time** (`AtExpr` at / until — anchorable, CR-6 promote-safe); a replay that covers one shows it again | ⚠ the frame said *film* time — a subtitle tied to an event would drift off it whenever a segment changes, and it could not be drawn on the source axis every track uses |
+| **S8** | **seed = the captions READ as subtitles** (`Subtitles.Of`, TE-2's pattern): no `subtitles[]` ⇒ each laid-out shot's `caption ?? take.caption` over its stretch, equal neighbours merged — exactly what plays today; the first subtitle edit writes them | seeding each shot's `why` (CR-11's wording) — the director's NOTE would appear in every existing film that has one; instead the track offers *"Add the shot's note as a subtitle"* where the shot has a `why` |
+| **S9** | **the cinema seam carries the subtitle** (`ICinema.Subtitle(frame)`, default → `Caption(text)`), drawn ON and OFF the cinema (an iteration pass must show it); the card, the fade and *Esc* stay cinema-only | a second overlay class — two drawers of one caption |
+| **S10** | **one span row** (`SpanTrack`) for Time and Subtitles: body / edge drags, add here, delete; every edit through `TakeEditor` (one undo stack) | a copy of the Time track |
+| **S11** | **update key from view** = `TakeEdit.SetKeyCamera(i, pilot)` (one undo step) on the SELECTED key, else the key on screen at the playhead — the key's menu, **U**, the window. **Pilot view** = `FilmStudio.Pilot`: the capture layer gives the camera to the operator while the program plays; a capture turns it off | copying a pose into a key's fields by hand |
+| **S12** | **AddSegment inserts in source order** (before the first segment starting later); *"Replay this segment"* inserts a copy right after it — the explicit way to make a back segment | appending (T3) — a segment added earlier on the axis would silently become a replay |
+| **S13** | **the takes of a kept exercise live in the kept folder**: `DirectorTakesRoot` = `{shared}/exercises/<exercise id>/` (of `RecordingsRoot`) when it exists, else beside the recording | the recording's folder only (P2a D8) — the node's temp copy is what opens while it exists, so its takes die with the temp folder |
+
+**✅ As built `2026-10-27`** — the diagrams above are true (one name changed while building: the static `Subtitles` is **`TakeSubtitles`** — a
+static class named like `Take.Subtitles` read ambiguously inside `Take`). Files, all in `Hrot.Presentation/Map3D/Director` unless named:
+`TakeTimeline.cs` (`FilmSegment`, `FilmTimeMap`) · `Take.cs` (`Subtitle`, `SubtitlePosition`, `SubtitleFrame`, `TakeSubtitles`, `Take.Subtitles`) ·
+`TakeJson.cs` (`subtitles[]`: `ParseSubtitle` / `WriteSubtitle`) · `TakeEditor.cs` (`ReplaySegment`, `SetSegment`, `SetKeyCamera`, `MoveSubtitle`,
+`AddSubtitle`, `RemoveSubtitle`, `SetSubtitle`; the ONE span rule `MoveSpan` now under `MoveSegment` and `MoveSubtitle`; `AddSegment` in source
+order; `WithSubtitles` beside `WithKeys`) · `DirectorTracks.cs` (`SpanTrack` replaces the private `TimeTrack`; `Subtitles` track; `UpdateKeyFromView`,
+**U**, *"Update key from view (U)"* on a key's menu, *"Replay this segment"*, *"Add the shot's note as a subtitle"*; `SelectedSegment` /
+`SelectedSubtitle`) · `DirectorRunner.cs` (`AdvanceSegments`, `FilmTimeAt`, `FilmTime`, `Rate`, `SubtitleNow`; status `filmTime` / `segment` / `rate`
+/ `subtitle`) · `DirectorHost.cs` (`ICinema.Subtitle` default member) · `DirectorAdapters.cs` (`WindowCinema.Subtitle` / `Shown`, drawn off the
+cinema) · `DirectorTakeSession.cs` (`Director`) · `DirectorWindow.cs` (*Play from playhead* through `FilmTimeAt`, *Update key from view*, *Pilot
+view*, the selected segment's speed / dip and the selected subtitle's text / position / fade) · `Map3D/Film.cs` (`FilmStudio.Pilot`;
+`FilmCaptureLayer.Direct` honours it) · `Hrot.ReplayBrowser/ReplayBrowserSubsystem.Director.cs` (`KeptExerciseFolder` first in `DirectorTakesRoot`).
+
+**Deviations and edges found while building** (each now in the decisions above):
+- **S7 vs the frame:** subtitles are in SOURCE time (the frame said film time) — argued in S7.
+- **The segments play only on a FILM or a CAPTURE**: a scout (it bakes anchors over the whole run) and an extension's run (the verifier) see the
+  identity map — ⛔ a segment must never hide a beat from the scout.
+- **"At" a boundary:** a step can overshoot a segment's end; a source within ONE step of the next segment's start is AT it (no seek, no live skip) —
+  otherwise every contiguous pair would read as a tiny gap or a replay.
+- **A live run's film clock counts a skipped replay** (film time jumps by its length): film seconds then mean the same on both hosts, so a
+  `PlayFrom(t)` from one host is the same moment on the other wherever the live run can reach it.
+- **The caption is now the subtitle of each frame** (set every playing frame, not at each cut); a capture burns in `SubtitleNow`'s text — the same
+  text as before for every take without `subtitles[]` (rail below). ⚠ position / fade are not burned in yet (CE-1370).
+- **The fast-forward card** shows only in the cinema (an iteration pass keeps the panels; nothing covers the picture there).
+- Two existing rails changed with the behaviour, deliberately: `CE1364_AddASegmentHere_*` (the new segment is at index 1, between 0–4 and 8–12 —
+  S12) and `CE1364_DeleteSegment_*` (the segment menu now has two items); `CE1364_T3_ATakeOpenInTheDirector_*` on the editor names three tracks.
+- `DirectorPackTests` joined the serial `Map3DFrameRail` collection (it reads `FilmStudio`, which now also holds the pilot view).
+
+**Known edges:** a replayed stretch is silent the second time in a rendered film's sound (CE-1369); a burned-in subtitle is bottom and opaque
+(CE-1370); takes saved before the exercise was kept stay in the node's temp folder (CE-1371); live, a back segment is skipped whole even where it
+partly lies ahead.
+
+**Rails** (each red-proved by a compiling mutation — the report lists mutation and message): `ReplayBrowserSubsystemTests.CE1303_P2b_*` ×3 (on a
+real 6 s recording: slow + replay segments, PlayFrom across a slow segment, a kept exercise's takes) · `DirectorPackTests.CE1303_P2b_*` ×2 (a live
+host: gap fast-forward + back segment skipped once; the overlay's subtitle at a film second + an unsaved edit) · `FilmDirectorTests.CE1303_P2b_*` ×3
+(the map; the JSON round-trip + the 55 seeded takes without `subtitles`; the captions read as subtitles = what played before, over all 55) ·
+`DirectorTracksTests.CE1303_P2b_*` ×4 (the Subtitles track with undo; a v1 caption read + the note offered; update key from view + undo; replay this
+segment) · `FilmTests.CE1303_P2b_ThePilotView_*`.

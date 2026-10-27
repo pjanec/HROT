@@ -51,10 +51,23 @@ public sealed partial class ReplayBrowserSubsystem
     private Fdp.Core.FlightRecorder.Metadata.RecordingMetadata? PrimaryMetadata
         => _manager != null && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx) ? ctx.Playback?.Metadata : null;
 
-    /// <summary>⭐ D8 — the open recording's folder (its takes: <c>&lt;folder&gt;/&lt;scenario&gt;/takes/</c>); none open: an empty store.</summary>
+    /// <summary>
+    /// ⭐ D8 — the open recording's folder (its takes: <c>&lt;folder&gt;/&lt;scenario&gt;/takes/</c>); none open: an empty store. ⭐ <c>CE-1303</c> P2b (§11o S13,
+    /// TE-1) — a KEPT exercise's folder first: <c>{shared}/exercises/&lt;id&gt;/</c> when it exists. ⚠ Measured: while a node still has its own (temp) copy
+    /// of the recording, that copy is what opens (<c>RecordingGroupInventory</c>: "the local copy wins"), so "beside the recording" alone would put the
+    /// takes in the temp folder that the kept exercise outlives.
+    /// </summary>
     internal string DirectorTakesRoot
-        => PrimaryRecordingPath is { } path && Path.GetDirectoryName(Path.GetFullPath(path)) is { } dir
-            ? dir : Path.Combine(Path.GetTempPath(), "hrot-replay-no-recording");
+        => KeptExerciseFolder
+           ?? (PrimaryRecordingPath is { } path && Path.GetDirectoryName(Path.GetFullPath(path)) is { } dir
+               ? dir : Path.Combine(Path.GetTempPath(), "hrot-replay-no-recording"));
+
+    /// <summary>The kept (archived) folder of the open recording's exercise, when there is one (<see cref="RecordingsRoot"/>'s shared root).</summary>
+    private string? KeptExerciseFolder
+        => PrimaryMetadata is { } meta && meta.ExerciseId != Guid.Empty
+           && Path.Combine(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(RecordingsRoot),
+                           Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName, meta.ExerciseId.ToString()) is var kept
+           && Directory.Exists(kept) ? kept : null;
 
     /// <summary>⭐ D1 — the recording's SIM second at the playhead (a v6 recording, which has no sim axis: wall seconds after the replay's zero).</summary>
     internal double DirectorSimSeconds

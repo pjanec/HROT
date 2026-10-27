@@ -20,6 +20,116 @@ public sealed record TimelineShot(int Number, ShotSpec Shot, double Start, doubl
 public sealed record ProgramFrame(CameraKey Key, CameraKey? From, float Blend, float Fade, double Since = 0d);
 
 /// <summary>
+/// ⭐ <c>CE-1303</c> P2b — CR-7 (§11o) — one segment of the film placed in FILM time: source <see cref="From"/>…<see cref="To"/> played at
+/// <see cref="Speed"/> sim seconds per film second from film second <see cref="FilmStart"/>. <see cref="Back"/>: it starts before where the segment
+/// before it ended — an instant replay (a seekable source seeks back; a live one cannot).
+/// </summary>
+public sealed record FilmSegment(int Number, double From, double To, double Speed, SegmentGap Gap, double FilmStart, bool Back)
+{
+    public double FilmSeconds => (To - From) / Speed;
+    public double FilmEnd => FilmStart + FilmSeconds;
+
+    /// <summary>The film second of source second <paramref name="sourceSim"/> inside this segment (clamped to it).</summary>
+    public double FilmOf(double sourceSim) => FilmStart + (Math.Clamp(sourceSim, From, To) - From) / Speed;
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-1303</c> P2b — CR-7 (docs/DESIGN_Director_Timeline_Editor.md §11o S1) — THE one place FILM time meets SOURCE time. A take's
+/// <see cref="Take.Segments"/>, in LIST order, are the film: each plays its source stretch at its speed, one after the other; what lies between two is
+/// skipped (a seek, or a live fast-forward) and a segment that goes BACK in source time is a replay. ⭐ A take with no segments is the IDENTITY (film
+/// second = source second — every take before CR-7). A segment whose times do not resolve, or with <c>from ≥ to</c>, is left out and named.
+/// <para>⛔ Not <c>ReplayTimeMap</c> (wall ↔ sim): that map is monotonic; a replay makes film → source many-to-one.</para>
+/// </summary>
+public sealed class FilmTimeMap
+{
+    /// <summary>The black on each side of a <c>dip</c> gap, in film seconds (the out-half before the segment, the in-half after its start).</summary>
+    public const double DipSeconds = 0.4d;
+
+    public static readonly FilmTimeMap Identity = new(Array.Empty<FilmSegment>(), Array.Empty<string>());
+
+    private FilmTimeMap(IReadOnlyList<FilmSegment> segments, IReadOnlyList<string> unresolved) { Segments = segments; Unresolved = unresolved; }
+
+    public IReadOnlyList<FilmSegment> Segments { get; }
+
+    /// <summary>"segment 2: anchor 'fire'" · "segment 3: from 5 is not before to 4" — segments left out.</summary>
+    public IReadOnlyList<string> Unresolved { get; }
+
+    /// <summary>No segment: film time IS source time.</summary>
+    public bool IsIdentity => Segments.Count == 0;
+
+    /// <summary>The film's length (∞ for the identity: the take's own end decides).</summary>
+    public double FilmEnd => IsIdentity ? double.PositiveInfinity : Segments[^1].FilmEnd;
+
+    public static FilmTimeMap Of(Take take, Func<string, double?> anchorTime)
+    {
+        if (take.Segments.Count == 0) return Identity;
+        var placed = new List<FilmSegment>();
+        var unresolved = new List<string>();
+        double film = 0d;
+        double? lastTo = null;
+        for (int i = 0; i < take.Segments.Count; i++)
+        {
+            var s = take.Segments[i];
+            if (s.From.Resolve(anchorTime) is not { } from || s.To.Resolve(anchorTime) is not { } to)
+            {
+                unresolved.Add($"segment {i + 1}: anchor '{(s.From.Resolve(anchorTime) is null ? s.From.Anchor : s.To.Anchor)}'");
+                continue;
+            }
+            if (!(to > from + 1e-9) || !(s.Speed > 0)) { unresolved.Add($"segment {i + 1}: from {from:0.###} is not before to {to:0.###}"); continue; }
+            var seg = new FilmSegment(i + 1, from, to, s.Speed, s.Gap, film, lastTo is { } prev && from < prev - 1e-6);
+            placed.Add(seg);
+            film = seg.FilmEnd;
+            lastTo = to;
+        }
+        return new FilmTimeMap(placed, unresolved);
+    }
+
+    /// <summary>The segment playing at film second <paramref name="filmTime"/> and its source second (the identity: segment −1, the same second);
+    /// before the first: the first's start; at or past the end: null.</summary>
+    public (int Segment, double Source)? At(double filmTime)
+    {
+        if (IsIdentity) return (-1, filmTime);
+        if (filmTime < Segments[0].FilmStart) return (0, Segments[0].From);
+        for (int i = 0; i < Segments.Count; i++)
+        {
+            var s = Segments[i];
+            if (filmTime < s.FilmEnd - 1e-9) return (i, s.From + (filmTime - s.FilmStart) * s.Speed);
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The film second that shows source second <paramref name="sourceSim"/> — the FIRST segment (from <paramref name="fromSegment"/> on) that holds it;
+    /// in a skipped stretch, the start of the next segment after it; past every segment, the film's end. The identity: the same second.
+    /// </summary>
+    public double FilmOf(double sourceSim, int fromSegment = 0)
+    {
+        if (IsIdentity) return sourceSim;
+        for (int i = Math.Max(fromSegment, 0); i < Segments.Count; i++)
+            if (sourceSim >= Segments[i].From - 1e-9 && sourceSim < Segments[i].To - 1e-9) return Segments[i].FilmOf(sourceSim);
+        for (int i = Math.Max(fromSegment, 0); i < Segments.Count; i++)
+            if (Segments[i].From > sourceSim) return Segments[i].FilmStart;
+        return FilmEnd;
+    }
+
+    /// <summary>The black of a <c>dip</c> gap at film second <paramref name="filmTime"/>: it rises over <see cref="DipSeconds"/> before a dip
+    /// segment's start (the segment before it still on screen) and clears over the same after it.</summary>
+    public float GapFade(double filmTime)
+    {
+        double fade = 0d;
+        for (int i = 1; i < Segments.Count; i++)
+        {
+            var s = Segments[i];
+            if (s.Gap != SegmentGap.Dip) continue;
+            double d = filmTime - s.FilmStart;
+            if (d < 0d && d > -DipSeconds) fade = Math.Max(fade, 1d + d / DipSeconds);
+            else if (d >= 0d && d < DipSeconds) fade = Math.Max(fade, 1d - d / DipSeconds);
+        }
+        return (float)Math.Clamp(fade, 0d, 1d);
+    }
+}
+
+/// <summary>
 /// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §0, §3a) — a take laid out in SIM time from its anchor times. As <c>film.py</c>'s plan does,
 /// a shot starts at its <c>at</c>, or when the shot before it ends if that is later; the sim runs on between shots (on film the gap is not
 /// filmed). ⭐ A shot whose anchor has no time yet is left out and named (<see cref="Unresolved"/>); ⛔ a replay shot is skipped in slice 1

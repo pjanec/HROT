@@ -23,7 +23,7 @@ public static class TakeJson
     private static readonly HashSet<string> ToKeys = new(StringComparer.Ordinal) { "distance", "yaw", "pitch", "lift", "back", "height", "ahead", "fov" };
 
     private static readonly HashSet<string> TakeKeys = new(StringComparer.Ordinal)
-        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "keys", "segments", "layers", "sound" };
+        { "title", "caption", "tickHz", "endAt", "anchors", "baked", "shots", "keys", "segments", "subtitles", "layers", "sound" };
 
     /// <summary>⭐ <c>TE-2</c> — a camera key's keys: a shot's camera keys at its top level, plus <c>in</c> and <c>still</c>.</summary>
     private static readonly HashSet<string> KeyKeys = new(StringComparer.Ordinal)
@@ -33,6 +33,9 @@ public static class TakeJson
     };
 
     private static readonly HashSet<string> SegmentKeys = new(StringComparer.Ordinal) { "from", "to", "speed", "gap" };
+
+    /// <summary>⭐ <c>CE-1303</c> P2b — CR-11 (§5, §11o) — a subtitle's keys.</summary>
+    private static readonly HashSet<string> SubtitleKeys = new(StringComparer.Ordinal) { "at", "until", "text", "position", "fade" };
 
     /// <summary>Kept, not read: what <c>clips.json</c> carries per clip, and a file's own note.</summary>
     private static readonly HashSet<string> ExtraKeys = new(StringComparer.Ordinal)
@@ -67,6 +70,12 @@ public static class TakeJson
                 if (sarr[i] is JsonObject g) { if (ParseSegment(g, i + 1, problems) is { } seg) segments.Add(seg); }
                 else problems.Add($"segment {i + 1} is not an object");
 
+        var subtitles = new List<Subtitle>();
+        if (json["subtitles"] is JsonArray tarr)
+            for (int i = 0; i < tarr.Count; i++)
+                if (tarr[i] is JsonObject u) { if (ParseSubtitle(u, i + 1, problems) is { } sub) subtitles.Add(sub); }
+                else problems.Add($"subtitle {i + 1} is not an object");
+
         JsonObject? extra = null;
         foreach (var (key, node) in json)
         {
@@ -86,7 +95,7 @@ public static class TakeJson
             EndAt = TryAt(json["endAt"], "endAt", problems),
             Anchors = anchors,
             Baked = json["baked"] is JsonObject b ? ParseBaked(b) : null,
-            Shots = shots, Keys = keys, Segments = segments,
+            Shots = shots, Keys = keys, Segments = segments, Subtitles = subtitles,
             Layers = json["layers"] is JsonObject l ? ParseLayers(l, "the take", problems) : null,
             Sound = Bool(json["sound"]),
             Extra = extra,
@@ -184,6 +193,25 @@ public static class TakeJson
         return new TimeSegment { From = f, To = t, Speed = speed, Gap = gap };
     }
 
+    /// <summary>⭐ <c>CE-1303</c> P2b — CR-11: one subtitle — <c>at</c>, <c>until</c>, <c>text</c>, optional <c>position</c> (<c>"bottom"</c> | <c>"top"</c> |
+    /// <c>"middle"</c>) and <c>fade</c> (sim seconds). Null (and a problem) without <c>at</c> / <c>until</c>.</summary>
+    public static Subtitle? ParseSubtitle(JsonObject u, int number, List<string> problems)
+    {
+        var where = $"subtitle {number}";
+        foreach (var (key, _) in u)
+            if (!SubtitleKeys.Contains(key)) problems.Add($"{where}: unknown key '{key}'");
+        var at = TryAt(u["at"], $"{where} at", problems);
+        var until = TryAt(u["until"], $"{where} until", problems);
+        if (u["at"] is null) problems.Add($"{where}: needs at");
+        if (u["until"] is null) problems.Add($"{where}: needs until");
+        var position = SubtitlePosition.Bottom;
+        if (Str(u["position"]) is { } pos && !Enum.TryParse(pos, ignoreCase: true, out position)) problems.Add($"{where}: position '{pos}' (bottom, top, middle)");
+        double fade = Double(u["fade"]) ?? 0d;
+        if (fade < 0) problems.Add($"{where}: fade must not be negative");
+        if (at is not { } a || until is not { } t) return null;
+        return new Subtitle { At = a, Until = t, Text = Str(u["text"]) ?? "", Position = position, Fade = Math.Max(fade, 0d) };
+    }
+
     public static ShotSpec ParseShot(JsonObject s, int number, List<string> problems)
     {
         foreach (var (key, _) in s)
@@ -273,6 +301,7 @@ public static class TakeJson
         o["shots"] = shots;
         if (take.Keys.Count > 0) o["keys"] = new JsonArray(take.Keys.Select(k => (JsonNode?)WriteKey(k)).ToArray());
         if (take.Segments.Count > 0) o["segments"] = new JsonArray(take.Segments.Select(g => (JsonNode?)WriteSegment(g)).ToArray());
+        if (take.Subtitles.Count > 0) o["subtitles"] = new JsonArray(take.Subtitles.Select(u => (JsonNode?)WriteSubtitle(u)).ToArray());
         if (take.Extra != null)
             foreach (var (k, v) in take.Extra) o[k] = v?.DeepClone();
         return o;
@@ -338,6 +367,15 @@ public static class TakeJson
         var o = new JsonObject { ["from"] = g.From.ToJson(), ["to"] = g.To.ToJson() };
         if (g.Speed != 1d) o["speed"] = g.Speed;
         if (g.Gap != SegmentGap.Cut) o["gap"] = "dip";
+        return o;
+    }
+
+    /// <summary>⭐ CR-11 — a subtitle as written (<c>position</c> / <c>fade</c> only when they differ from bottom / 0).</summary>
+    public static JsonObject WriteSubtitle(Subtitle u)
+    {
+        var o = new JsonObject { ["at"] = u.At.ToJson(), ["until"] = u.Until.ToJson(), ["text"] = u.Text };
+        if (u.Position != SubtitlePosition.Bottom) o["position"] = u.Position == SubtitlePosition.Top ? "top" : "middle";
+        if (u.Fade > 0d) o["fade"] = u.Fade;
         return o;
     }
 
