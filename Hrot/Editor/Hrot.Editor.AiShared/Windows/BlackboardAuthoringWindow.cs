@@ -501,6 +501,14 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
     /// <c>AiGraphCanvasWindow.SimulateDrawClientArea</c> / <c>AiWatchWindow.DrawContent</c>.</summary>
     internal BlackboardWindowViewModel SimulateDrawContent() => BuildAndPublish();
 
+    /// <summary>⭐ <c>CE-1277</c> — the variables table is read-only when the blackboard did not load cleanly OR the graph is built in C#
+    /// (<see cref="Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt"/> — the one read-only gate, <c>CE-1252</c>): a code-built graph
+    /// takes no new variables; its values are still shown.</summary>
+    internal static bool IsReadOnlyAsset(IBlackboardManagedAsset bbAsset)
+        => bbAsset.LoadState == BlackboardLoadState.StructParseFailed
+        || bbAsset.LoadState == BlackboardLoadState.SpanCaptureFailed
+        || (bbAsset is IEditableAsset editable && Hrot.Editor.AiShared.Documents.AiDocument.IsCodeBuilt(editable));
+
     public void DrawContent()
     {
         var vm = BuildAndPublish();
@@ -553,8 +561,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow, Shell.IDetailsVie
         var asset   = _store.ActiveAsset!;
 
         // State-aware banners for StructParseFailed and SpanCaptureFailed (1f-07).
-        bool isReadOnly = bbAsset.LoadState == BlackboardLoadState.StructParseFailed
-                       || bbAsset.LoadState == BlackboardLoadState.SpanCaptureFailed;
+        bool isReadOnly = IsReadOnlyAsset(bbAsset);   // ⭐ CE-1277 — also a code-built graph
         if (bbAsset.LoadState == BlackboardLoadState.StructParseFailed)
         {
             ImGuiNET.ImGui.TextColored(
