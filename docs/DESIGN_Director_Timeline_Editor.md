@@ -1761,6 +1761,7 @@ merges a hit 0.8 s after a shot into one moment. Each red-proved by a mutation t
   only once keys are looked up per segment (P2b, CR-7) — ⏭ for ui's CR-7 design: a key belongs to a SEGMENT, not only to a source time.
 - **film length** — ~12–14 s (more with the replay), under §1a's 15–30 s; no beat stretched to reach it.
 - a moment with no expressible anchor falls back to fixed times (no anchor, no bake); a unit with no samples sits at the event's X/Y.
+- ⭐ `2026-10-27` (CE-4060): the framing of one moment is a private `Framing`, used by `Draft` and by the new public `MomentCamera` (③ alone — the documentation stills); `GroupCamera` frames a set of units from high (a check that names no unit). [Film Production §4a](DESIGN_Film_Production.md).
 
 ## 8. INVENTORY
 

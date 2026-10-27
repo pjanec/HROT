@@ -131,12 +131,13 @@ public static class Drafter
     {
         double t = moment.Sim;
         var anchor = EventAnchors.Of(index, moment.Lane, moment.EventIndex, unitName);
-        var scene = new Scene(index, moment);
+        var framing = new Framing(index, moment, unitName, options, null);
+        var scene = framing.Scene;
         long focusId = moment.Subject ?? moment.Actor;
-        string? actorName = unitName(moment.Actor), subjectName = moment.Subject is { } sj ? unitName(sj) : null;
+        string? actorName = framing.ActorName, subjectName = framing.SubjectName;
         string? focusName = subjectName ?? (moment.Subject is null ? actorName : null);
-        var kind = options.Kind?.Invoke(moment.Actor) ?? SubjectKind.Unknown;
-        float momentPitch = PitchOf(kind);
+        float momentPitch = framing.MomentPitch;
+        float Across(float alphaDeg) => framing.Across(alphaDeg);
 
         // time: a key is `t + offset` on the moment's anchor; ① and ③ that would fall before the run's start are a FIXED time 0 (nothing earlier to hang on)
         AtExpr Key(double offset) => t + offset < 0d || anchor is null ? new AtExpr(Math.Max(t + offset, 0d)) : new AtExpr(offset, anchor.Name);
@@ -148,19 +149,7 @@ public static class Drafter
             : ConsequenceAfter;
         double end4 = off4 + ConsequenceHold;
 
-        // the 180° line: actor → subject (or the way the actor faces); the side is chosen ONCE, ①③④ stay on it, only ⑤ crosses
-        var a0 = scene.Actor(t);
-        var s0 = scene.HasSubject ? scene.Focus(t) : a0;
-        var line = new Vector2(s0.X - a0.X, s0.Y - a0.Y);
-        if (line.Length() < 0.5f)
-        {
-            float heading = scene.HeadingOf(moment.Actor, t);
-            line = new Vector2(MathF.Cos(heading), MathF.Sin(heading));
-        }
-        double lineDeg = Math.Atan2(line.Y, line.X) / Rad;
-        int side = Math.Cos(lineDeg * Rad) >= 0d ? 1 : -1;   // the camera looks north-ish: the map stays the way up
-        float Across(float alphaDeg) => Wrap((float)(side > 0 ? lineDeg + 90d - alphaDeg : lineDeg - 90d + alphaDeg));
-
+        // the 180° line (actor → subject) and its side are the Framing's: chosen ONCE, ①③④ stay on it, only ⑤ crosses
         var keys = new List<CameraKey>();
         CameraKey Cut(AtExpr at, CameraSpec camera) => new() { At = at, Camera = camera with { Fov = camera.Fov ?? options.FovDeg }, Fov = camera.Fov ?? options.FovDeg, In = KeyTransition.Cut };
 
@@ -179,17 +168,9 @@ public static class Drafter
                     : Midpoint(scene, t + off2, t + off3, Across(AcrossMoment), momentPitch, options)));
         }
 
-        // ③ the moment — the same framing is the replay's (from the other side)
-        CameraSpec TheMoment(double from, double to, float yaw)
-        {
-            bool far = scene.HasSubject && Vector2.Distance(new Vector2(a0.X, a0.Y), new Vector2(s0.X, s0.Y)) > TelephotoMetres;
-            if (!far) return Midpoint(scene, from, to, yaw, momentPitch, options);
-            yaw = Wrap(yaw + (side > 0 ? -1 : 1) * (AcrossTelephoto - AcrossMoment));   // more along the line: from the actor's side, over his shoulder
-            return subjectName is not null
-                ? Followed(scene, subjectName, from, to, yaw, momentPitch, TelephotoFov, options)
-                : Midpoint(scene, from, to, yaw, momentPitch, options) with { Fov = TelephotoFov };
-        }
-        keys.Add(Cut(t - MomentBefore < 0d ? new AtExpr(0d) : Key(off3), TheMoment(t + off3, t + MomentAfter, Across(AcrossMoment))));
+        // ③ the moment — the same framing is the replay's (from the other side); `Framing.TheMoment` is also `MomentCamera`'s
+        CameraSpec TheMoment(double from, double to, float yaw) => framing.TheMoment(from, to, yaw);
+        keys.Add(Cut(t - MomentBefore < 0d ? new AtExpr(0d) : Key(off3), framing.Moment()));
 
         // ④ the consequence — the subject from above, on the same side
         keys.Add(Cut(Key(off4), focusName is not null
@@ -223,6 +204,26 @@ public static class Drafter
             Segments = segments,
         };
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4060</c> (docs/DESIGN_Film_Production.md §4a) — the camera of ③ "the moment" for <paramref name="moment"/>: the SAME camera
+    /// <see cref="Draft"/> puts on its third key (one implementation — the private <c>Framing.Moment</c>), lens included. The documentation take's stills use it.
+    /// </summary>
+    public static CameraSpec MomentCamera(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options)
+        => WithLens(new Framing(index, moment, unitName, options, null).Moment(), options);
+
+    /// <summary>
+    /// ⭐ <c>CE-4060</c> (§4a) — ③'s framing for a moment with NO actor and no subject: the camera holds <paramref name="units"/> (every unit the caller knows)
+    /// over the same window as ③ (<c>[t−0.7, t+2]</c>), from a high angle. The one place the drafter frames "everyone" — the documentation take's fallback.
+    /// </summary>
+    public static CameraSpec GroupCamera(TimelineIndex index, double sim, IReadOnlyList<long> units, DraftOptions options)
+    {
+        var moment = new DraftMoment("group", -1, Math.Max(0, EventAnchors.FrameAt(index, sim)), sim, 0L, null, 0d);
+        var group = options with { Kind = _ => SubjectKind.Group };
+        return WithLens(new Framing(index, moment, _ => null, group, units).Moment(), group);
+    }
+
+    private static CameraSpec WithLens(CameraSpec camera, DraftOptions options) => camera with { Fov = camera.Fov ?? options.FovDeg };
 
     /// <summary>Height by the actor's kind (degrees): a person at eye level, a vehicle low, a group from above, an aircraft from below.</summary>
     private static float PitchOf(SubjectKind kind) => kind switch
@@ -308,6 +309,64 @@ public static class Drafter
 
     private static double SimOf(TimelineIndex index, int frame) => (uint)frame < (uint)index.FrameSim.Count ? index.FrameSim[frame] : double.NaN;
 
+    /// <summary>
+    /// The framing of ONE moment, shared by <see cref="Draft"/> and <see cref="MomentCamera"/>: the 180° line actor → subject (or the way the actor faces) and the
+    /// side of it the camera stays on (chosen once), the height by the actor's kind, and ③'s camera. With <c>everyone</c> the scene is those units instead.
+    /// </summary>
+    private sealed class Framing
+    {
+        private readonly double _t;
+        private readonly double _lineDeg;
+        private readonly int _side;
+        private readonly Vector2 _actorAt, _subjectAt;
+        private readonly DraftOptions _options;
+
+        public Scene Scene { get; }
+        public string? ActorName { get; }
+        public string? SubjectName { get; }
+        public float MomentPitch { get; }
+
+        public Framing(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options, IReadOnlyList<long>? everyone)
+        {
+            _t = moment.Sim;
+            _options = options;
+            Scene = new Scene(index, moment, everyone);
+            ActorName = unitName(moment.Actor);
+            SubjectName = moment.Subject is { } sj ? unitName(sj) : null;
+            MomentPitch = PitchOf(options.Kind?.Invoke(moment.Actor) ?? SubjectKind.Unknown);
+
+            // the 180° line: actor → subject (or the way the actor faces); the side is chosen ONCE, ①③④ stay on it, only ⑤ crosses
+            var a0 = Scene.Actor(_t);
+            var s0 = Scene.HasSubject ? Scene.Focus(_t) : a0;
+            _actorAt = new Vector2(a0.X, a0.Y);
+            _subjectAt = new Vector2(s0.X, s0.Y);
+            var line = _subjectAt - _actorAt;
+            if (line.Length() < 0.5f)
+            {
+                float heading = Scene.HeadingOf(moment.Actor, _t);
+                line = new Vector2(MathF.Cos(heading), MathF.Sin(heading));
+            }
+            _lineDeg = Math.Atan2(line.Y, line.X) / Rad;
+            _side = Math.Cos(_lineDeg * Rad) >= 0d ? 1 : -1;   // the camera looks north-ish: the map stays the way up
+        }
+
+        public float Across(float alphaDeg) => Wrap((float)(_side > 0 ? _lineDeg + 90d - alphaDeg : _lineDeg - 90d + alphaDeg));
+
+        /// <summary>③ — the moment, over <c>[t−0.7, t+2]</c> framed across the line (a telephoto follow past 100 m); the lens is left to the caller.</summary>
+        public CameraSpec Moment() => TheMoment(_t - Math.Min(MomentBefore, _t), _t + MomentAfter, Across(AcrossMoment));
+
+        /// <summary>The moment's framing over any window and yaw — ⑤ the replay frames it again from the other side.</summary>
+        public CameraSpec TheMoment(double from, double to, float yaw)
+        {
+            bool far = Scene.HasSubject && Vector2.Distance(_actorAt, _subjectAt) > TelephotoMetres;
+            if (!far) return Midpoint(Scene, from, to, yaw, MomentPitch, _options);
+            yaw = Wrap(yaw + (_side > 0 ? -1 : 1) * (AcrossTelephoto - AcrossMoment));   // more along the line: from the actor's side, over his shoulder
+            return SubjectName is not null
+                ? Followed(Scene, SubjectName, from, to, yaw, MomentPitch, TelephotoFov, _options)
+                : Midpoint(Scene, from, to, yaw, MomentPitch, _options) with { Fov = TelephotoFov };
+        }
+    }
+
     /// <summary>Where the two parties of a moment are, at any sim time, from the index's position track.</summary>
     private sealed class Scene
     {
@@ -315,10 +374,13 @@ public static class Drafter
         private readonly long _actor;
         private readonly long? _subject;
         private readonly Vector3 _fallback;
+        private readonly IReadOnlyList<long>? _everyone;
 
-        public Scene(TimelineIndex index, DraftMoment moment)
+        /// <summary><paramref name="everyone"/> (⭐ <c>CE-4060</c>): frame these units instead of the moment's actor and subject.</summary>
+        public Scene(TimelineIndex index, DraftMoment moment, IReadOnlyList<long>? everyone = null)
         {
             _index = index;
+            _everyone = everyone;
             _actor = moment.Actor;
             _subject = moment.Subject;
             var events = index.Lane(moment.Lane);
@@ -340,8 +402,13 @@ public static class Drafter
         public List<double> Times(double from, double to)
         {
             var times = new List<double> { from, to };
-            AddSamples(_actor, from, to, times);
-            if (_subject is { } s) AddSamples(s, from, to, times);
+            if (_everyone is not null)
+                foreach (var unit in _everyone) AddSamples(unit, from, to, times);
+            else
+            {
+                AddSamples(_actor, from, to, times);
+                if (_subject is { } s) AddSamples(s, from, to, times);
+            }
             times.Sort();
             return times;
         }
@@ -352,9 +419,15 @@ public static class Drafter
             var points = new List<Vector3>();
             foreach (var s in Times(from, to))
             {
+                if (_everyone is not null)
+                {
+                    foreach (var unit in _everyone) points.Add(PositionOf(unit, s));
+                    continue;
+                }
                 points.Add(Actor(s));
                 if (_subject.HasValue) points.Add(Focus(s));
             }
+            if (points.Count == 0) points.Add(_fallback);   // a scene of no units: where the event says
             return points;
         }
 

@@ -126,7 +126,7 @@ sequenceDiagram
 so the documentation's shot list exists the moment a scenario has checks. ⭐ Stills by default; a short clip only where a scenario opts in
 (render time). ⛔ Not a gate: no image is compared.
 
-### 4a. The documentation take — how a scenario's checks become stills *(coordinator, `2026-10-27`, CE-4060; build-state: READY-TO-BUILD — the take builder now, the rendering with ui's `/director/stills`, P3)*
+### 4a. The documentation take — how a scenario's checks become stills *(coordinator, `2026-10-27`, CE-4060; build-state: ✅ the take builder BUILT `2026-10-27` (as built below) — ⏳ the rendering waits for ui's `/director/stills`, P3)*
 
 ⭐ **One framing rule, not two:** a documentation still is the drafter's ③ ("the moment") camera at the check's moment — the same rule that
 films a feature (Director Timeline §11n). ⛔ No second camera logic for the night run.
@@ -168,6 +168,13 @@ take is ordinary, and rendering its still keys is ui's `/director/stills` — th
 Tank passing at 8.9 s; a `field` health check failing with no time, `before: 40`; a `never` passing; an `atEnd`) over a synthetic index ⇒ three
 keys at 8.9, 40 and `RunFor`, in order, each with a `Still` and a caption carrying ✅/⛔; the first key's camera is the drafter's ③ for that
 moment (equal to `Drafter.Draft(...)`'s ③); the `never` makes no key; a wildcard resolves to the first match by name.
+
+**As built** *(`2026-10-27`, coordinator via a Sonnet build, reviewed)* — `Hrot.Editor/Director/DocumentationTakes.From(checks, verdicts, index,
+idOf, nameOf, unitNames, options)`; rails `DocumentationTakesTests.CE4060_*` ×7, each red-proved. The drafter grew two public calls over ONE
+private `Framing` (no copied math): `Drafter.MomentCamera(...)` (③ alone — what `Draft` itself uses) and `Drafter.GroupCamera(index, sim,
+units, options)` (a high view over a set of units — the no-unit fallback). Deviations: `unitNames` added (the wildcard candidates and the
+fallback cast) · captions live in `Take.Extra["captions"]` as `{still, caption}` — `CameraKey` has no caption field (`Take.cs`) · a moment whose
+only resolved unit is the subject films it as the actor.
 
 ## 5. Where each part is built
 
