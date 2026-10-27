@@ -126,6 +126,49 @@ sequenceDiagram
 so the documentation's shot list exists the moment a scenario has checks. ⭐ Stills by default; a short clip only where a scenario opts in
 (render time). ⛔ Not a gate: no image is compared.
 
+### 4a. The documentation take — how a scenario's checks become stills *(coordinator, `2026-10-27`, CE-4060; build-state: READY-TO-BUILD — the take builder now, the rendering with ui's `/director/stills`, P3)*
+
+⭐ **One framing rule, not two:** a documentation still is the drafter's ③ ("the moment") camera at the check's moment — the same rule that
+films a feature (Director Timeline §11n). ⛔ No second camera logic for the night run.
+
+```mermaid
+classDiagram
+  direction LR
+  class DocumentationTakes { <<NEW, editor — Hrot.Editor/Director>> From(checks, verdicts, index, idOf, nameOf, options) Take }
+  class ScenarioChecks { <<exists>> Expect: Name · Cue (Spec.By / Who / Target, Hit) · After / Before · Never · AtEnd · RunFor }
+  class Verdict { <<exists>> Name · Ok · Time · Outside }
+  class Drafter { <<exists, §11n>> Draft(index, moment, names, options) }
+  class DraftMoment { <<exists>> Lane · Frame · Sim · Actor · Subject }
+  class Take { <<exists>> Keys — each with Still }
+  DocumentationTakes --> ScenarioChecks
+  DocumentationTakes --> Verdict
+  DocumentationTakes --> Drafter : one moment per check
+  DocumentationTakes --> Take : returns, every key a Still
+```
+*What the picture shows that prose hid:* the night run adds a mapping (check → moment) and nothing else; the camera is the drafter's, the
+take is ordinary, and rendering its still keys is ui's `/director/stills` — the same route the agent uses.
+
+| a check's verdict | the moment's time | actor · subject |
+|---|---|---|
+| passed (`Time`) | `Time` | `By` ?? `Who` · `Target` ?? `Hit` (a `Who` with `By` set is the subject) |
+| failed, its cue held outside its window (`Outside`) | `Outside` — the still shows it happening, late or early | as above |
+| failed, never held | the window's end (`Before`; else `RunFor`) — the still shows where it should have happened | as above |
+| `never` passed | ⛔ no still — nothing happened, by design | — |
+| `never` failed (it happened) | `Time` (when it happened) | as above |
+| `atEnd` | `RunFor` | as above |
+
+| rule | |
+|---|---|
+| a name with a wildcard (`"*Rifleman"`) | the first unit, by name order, that matches — the same order the checks resolve it in |
+| a name that resolves to no unit | the moment has no actor/subject from it; with neither, the still frames the scenario's units centre (the drafter's midpoint over all units) — ⚠ say so in the key's caption |
+| the take | ONE take per scenario, `name = "_doc"`, a key per moment in time order, each `Still = "<nn>-<slug of the check's name>"`, `Caption` = the check's name + ✅/⛔; fixed times (a documentation take is of THIS recording, never promoted) |
+| what renders it | ui's `/director/stills {recording, take}` (P3) into the verify report's folder, then a contact sheet (CE-4060's second half) |
+
+**Acceptance (rails, `DocumentationTakesTests`, Hrot.Editor.Tests):** a synthetic `ua-tank-ammo`-shaped check set (a shot by Tank at Enemy
+Tank passing at 8.9 s; a `field` health check failing with no time, `before: 40`; a `never` passing; an `atEnd`) over a synthetic index ⇒ three
+keys at 8.9, 40 and `RunFor`, in order, each with a `Still` and a caption carrying ✅/⛔; the first key's camera is the drafter's ③ for that
+moment (equal to `Drafter.Draft(...)`'s ③); the `never` makes no key; a wildcard resolves to the first match by name.
+
 ## 5. Where each part is built
 
 | part | owning design | status `2026-10-27` |
