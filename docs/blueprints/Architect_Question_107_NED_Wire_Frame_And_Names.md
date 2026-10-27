@@ -159,9 +159,25 @@ including a vertical nose — CE-4068's case); an all-zero `WorldPos` decodes to
 a gateway-side conversion (`origin + R · local`) agrees with `WGS84Transform.ToGeodetic` within 1 mm at 50 km; the verify harness
 (`--verify-replay --verify-branch-at`) stays green.
 
+## 5a. Step 0 — measured `2026-10-27` (coordinator)
+
+| question | measured | consequence |
+|---|---|---|
+| the frame of angular velocity | the ONLY owner-side writer is vehicles: `vel.Angular = (0, 0, yawRate)` — yaw about world Z, counter-clockwise (`CarKinematicsSystem.cs:720`); the ONLY reader is the egress (`GeoSpatialEgressTranslator.cs:217-220`); people and aircraft leave it 0 | ⭐ D: `AngularVelocity` = **rad/s about the local ENU axes** (X east, Y north, Z up), as `SimVelocity.Angular` holds it. 📐 Found on the way: today's wire labels it a compass HEADING rate (clockwise) but sends the counter-clockwise yaw rate — the sign is opposite its documented meaning (consistent round trip; gone with D) |
+| float precision of `WGS84Transform` | the float `Matrix4x4` rotates only the LOCAL offset; the origin is added in double (`WGS84Transform.ToGeodetic`) ⇒ millimetres at 100 km | ✅ no concern; a gateway doing the same math in double is exact |
+| the degree-valued fields (I) | not yet enumerated field by field | ⏳ the I refactor enumerates them first (its brief) |
+| ⛔ **C's premise: "the cluster master publishes the origin"** | the master holds NO ECS world, terrain or geo transform (`OrchestratorSubsystem.cs` — searched `EntityRepository`, `TerrainResidency`, `IGeographicTransform`: none); the origin is set ONLY by a terrain commit on an ECS host (`TerrainResidency.ApplyGeoOrigin`, `TerrainResidency.cs:546` — CGF, the editor, every `NodeBootstrapper` host) and by the Replay Browser | ⛔ **C STOPPED (R-106)** — re-decision for the user, lean below. Every other step goes on |
+
+⭐ **C re-lean (awaiting the user):** the origin is a descriptor of the **World Environment** entity, `EntityGeoReference`, beside its
+`EntityScenarioClock` — published by that entity's owner (the CGF that creates it, an ECS host that HAS the origin from its own terrain commit),
+read from the node's `IGeographicTransform` singleton, retained, so a late gateway gets one sample. ⭐ The same pattern as the scenario clock
+and the weather (Weather and Time §6.1) — no new publisher. Rejected: the master reading the terrain file itself — a second reader of the terrain
+asset, and a replay's origin comes from the recording, which the master does not open.
+
 ## 6. Answers
 
 | # | verdict | date | by |
 |---|---|---|---|
 | A, B, D | ✅ ruled (quotes in the header) | 2026-10-27 | user |
-| C, E, F, G, H, I | ✅ approved as leaned | 2026-10-27 | user |
+| E, F, G, H, I | ✅ approved as leaned | 2026-10-27 | user |
+| C | ⛔ approved, then its premise failed (§5a) — the World Environment re-lean awaits the user | 2026-10-27 | coordinator |
