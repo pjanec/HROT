@@ -691,7 +691,7 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 | F18 | `ReplaySessionTopic` matched by exercise / session id cannot tell a review from live (same exercise, same session) | `+ ReviewId` (the master mints one per review) |
 | F19 | the review's playback rate carries into live | the return restores the live rate |
 | F20 | 25 checks of `ClusterState.OperatingReplay` in 14 files and 42 `IsReplayActive` readers need a decision each (the toolbar is DISABLED in a review by `ClusterTimeTransportAdapter.cs:76-80`; the editor's Stop does nothing outside a preview, `EditorTimeTransportFacade.cs:173`; …) | one predicate `ClusterStates.IsReplaying(s)` (replay or review) for the shared behaviour, explicit review cases where they differ; a rail lists every check |
-| F21 | the `Changed` flag may be set on EVERY paused frame (singletons, ghost writes) | measure on the CE-4053 recording before relying on ◯ / ● · ✅ **MEASURED `2026-10-26` (M2): yes — every frame** (a v7 editor run of demo-city: 417 / 417 changed, all 64 frames of an operator pause included; the CE-4053 recording is v6 and carries no flags). ⇒ ◯ / ● cannot be drawn from it yet — CE-3332 |
+| F21 | the `Changed` flag may be set on EVERY paused frame (singletons, ghost writes) | measure on the CE-4053 recording before relying on ◯ / ● · ✅ **MEASURED `2026-10-26` (M2): yes — every frame** (a v7 editor run of demo-city: 417 / 417 changed, all 64 frames of an operator pause included; the CE-4053 recording is v6 and carries no flags). ⇒ ◯ / ● cannot be drawn from it yet — CE-3332 · ✅ **FIXED `2026-10-26` (§12q)** — `Changed` now means a recorded byte moved |
 
 ### 11d. Decisions for the user *(leans)*
 
@@ -1327,3 +1327,42 @@ removal, then apply the keyframe"*) was already built in P3 (row 16, `FinalizeRe
 recording · the exit fans out nothing while a seek is in flight · a seek while it waits is refused · the exit proceeds once it landed) and
 `ClusterMasterReviewTests.The_review_clock_pauses_…` (the return's wall = the wall at the review's opening, not L's), each red-proved by a compiling
 mutation. Seven older seek rails that sought from Idle now put the master in a replay first (`MasterShows`) — what they meant to test.
+
+### 12q. ✅ BUILT `2026-10-26` — the frame index's `Changed` flag means a recorded byte moved (CE-3332, F21; NOTE_Coordinator_To_Backend_After_DAR item 8)
+
+| | measured (a temporary recorder trace, the editor, demo-city, a 5 s operator pause) |
+|---|---|
+| before | every paused frame `Changed`: 0 events, 0 deaths, and FIVE tables written each frame — `SimTransform`, `CharacterAnimationDefRuntime`, `AnimationExecutorState`, `CullingState`, `ResolvedStyle` (the chunk version moved; the value did not) |
+| the fix | ONE place — `RecorderSystem`: a dirty unmanaged chunk counts for `Changed` only when its sanitized bytes differ from what it last went to the recording with (`ChunkBytesMoved`; a keyframe resets the comparison). ⛔ Not by fixing each writer: they span four subsystems and other lanes, and the next one would bring the bug back |
+| after | 55 / 58 paused frames quiet (the 3 are the pause's edges); moving frames changed ⇒ ◯ / ● (§4 "hollow vs filled") can be drawn from the flag |
+
+⚠ Not changed: the frame FORMAT — a paused frame still writes those chunks (now identical bytes). Skipping an unchanged chunk would shrink a pause's
+frames; it is a format-level choice left open. Rail: `FlightRecorderTests.CE3332_A_write_of_the_same_value_does_not_mark_the_frame_changed`
+(red-proved: the version test makes it fail).
+
+### 12r. ✅ FIXED `2026-10-26` — a seek BACK stood one seek behind (CE-4056); the barrier's tag across a return (CE-4057)
+
+**CE-4056.** 📐 Reproduced live (`scratchpad/run-4056b.sh`, the editor, demo-city): a review entered at sim 5 → the world's clock (`SimClock`,
+`/replay/status.simSeconds`) stayed at L (12.43 s); a seek to 3 then showed 4.997 — the previous target. The root cause is not the entry:
+
+```mermaid
+sequenceDiagram
+  participant M as master (seek round)
+  participant N as node PlaybackTickSystem
+  participant C as master clock
+  M->>N: NodeReplaySeek(back to t)
+  N->>N: SeekTo — the world at t
+  Note over N,C: the clock still stands at the OLD moment (later than t)
+  N->>N: next tick: pull forward to the clock — the world back at the old moment
+  M->>C: round complete — SnapTo(t)
+  N->>N: the clock (t) is BEHIND the frame shown: forward-only pull ignores it
+```
+*What the picture shows that the prose hid:* the pull model is forward-only, and the clock moves a round LATER than the world — so only a seek
+BACK goes wrong (the harness's later seeks went forward). ✅ After a seek (by time or by frame) `PlaybackTickSystem` holds the seek's frame
+until the clock's reading changes (`HoldUntilTheClockMoves`). 📐 After: entry at 5 → 4.998, then back to 3 → 2.999, both at once. Rail
+`ReplayModuleTests.CE4056_A_seek_back_holds_until_the_clock_moves_to_it` (red before the fix).
+
+**CE-4057.** The return re-derives in-flight constructions (`EntityLifecycleModule.ResumeFromRestoredWorld`), and the gateway waits for peers
+only when the entity carries `PendingNetworkAck` — `Transient` until now (M4 classification: PROTOCOL, a watch item), so a reliable entity
+went Active after a review without its peers. ✅ `DataPolicy.NoScenario` (recorded; not in an authored scenario). ⚠ The re-opened barrier's
+timeout starts at the resume frame (the ELM's rule), so an offline run drops the tag later than the straight run.

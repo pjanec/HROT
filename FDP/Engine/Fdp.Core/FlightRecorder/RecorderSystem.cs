@@ -74,6 +74,21 @@ namespace Fdp.Core.FlightRecorder
 
         private bool Records(int typeId) => ComponentTypeFilter?.Invoke(typeId) ?? ComponentTypeRegistry.IsRecordable(typeId);
 
+        // ⭐ CE-3332 — the bytes each unmanaged chunk last went to the recording with (key: type id, chunk); cleared by a keyframe
+        private readonly Dictionary<long, byte[]> _lastChunkBytes = new();
+
+        /// <summary>⭐ CE-3332 — did this chunk's sanitized bytes (in the scratch buffer) differ from what it was last recorded with? Keeps the
+        /// new bytes. Allocates only the first time a chunk is seen.</summary>
+        private bool ChunkBytesMoved(int typeId, int chunk, int bytes)
+        {
+            long key = ((long)typeId << 32) | (uint)chunk;
+            var now = new ReadOnlySpan<byte>(_scratchBuffer, 0, bytes);
+            if (_lastChunkBytes.TryGetValue(key, out var last) && last.Length == bytes && now.SequenceEqual(last)) return false;
+            if (last == null || last.Length != bytes) _lastChunkBytes[key] = last = new byte[bytes];
+            now.CopyTo(last);
+            return true;
+        }
+
         private EntityRepository? _destructionRepo;   // ⭐ CE-3335 — the world this recorder's destruction mark belongs to
         private long _destructionMark;
 
@@ -137,6 +152,7 @@ namespace Fdp.Core.FlightRecorder
             long chunkCountPos = writer.BaseStream.Position;
             writer.Write(0); // Placeholder for ChunkCount
             int actualChunkCount = 0;
+            int movedChunkCount = 0;   // ⭐ CE-3332 — chunks whose recorded BYTES moved (the Changed flag), not only their version
             BuildStructuralPrefix(entityIndex, prevTick);   // ⭐ CE-3243 — once per delta, before any chunk asks
 
             // ----------------------------------------------------------------
@@ -200,7 +216,7 @@ namespace Fdp.Core.FlightRecorder
                        var recordableMask = GetRecordableMask();
                        SanitizeHotChunkMask(_scratchBuffer, bytes, recordableMask);
                        
-                       actualChunkCount++;
+                       actualChunkCount++; movedChunkCount++;
                        writer.Write(c);
                        writer.Write(1); // Count = 1 (hot chunk only; cold follows immediately)
                        writer.Write(ENTITY_INDEX_TYPE_ID);
@@ -223,7 +239,7 @@ namespace Fdp.Core.FlightRecorder
                            SanitizeScratchBuffer(_scratchBuffer, coldBytes,
                                System.Runtime.CompilerServices.Unsafe.SizeOf<EntityMetadataCold>(),
                                new ReadOnlySpan<bool>(_livenessBuffer, 0, coldCapacity));
-                           actualChunkCount++;
+                           actualChunkCount++; movedChunkCount++;
                            writer.Write(cc);
                            writer.Write(1);
                            writer.Write(ENTITY_INDEX_COLD_TYPE_ID);
@@ -266,6 +282,7 @@ namespace Fdp.Core.FlightRecorder
                     // Return chunk count delta
                     int delta = recorder(table, entityIndex, writer, prevTick);
                     actualChunkCount += delta;
+                    movedChunkCount += delta;   // managed tables: a written chunk counts as moved
                     continue;
                 }
 
@@ -337,6 +354,7 @@ namespace Fdp.Core.FlightRecorder
                     {
                         SanitizeScratchBuffer(_scratchBuffer, bytes, table.ComponentSize, new ReadOnlySpan<bool>(_livenessBuffer, 0, capacity));
                         actualChunkCount++;
+                        if (ChunkBytesMoved(table.ComponentTypeId, c, bytes)) movedChunkCount++;
                         writer.Write(c);            // Chunk ID (specific to this table)
                         writer.Write(1);            // Count (1 component type)
                         writer.Write(table.ComponentTypeId); // Type ID
@@ -353,7 +371,9 @@ namespace Fdp.Core.FlightRecorder
             writer.BaseStream.Position = endPos;
 
             // ⭐ CE-3329 P0 — the frame index's Changed flag: anything besides the singletons (the clock) moved
-            LastFrameChanged = destroyedCount > 0 || eventStreams > 0 || actualChunkCount > 0;
+            // ⭐ CE-3332 — measured: on a paused frame five tables (SimTransform and four presentation tables) are WRITTEN every frame with the
+            //   same values, so a version test marked every paused frame changed. ⇒ a chunk counts when its recorded bytes moved.
+            LastFrameChanged = destroyedCount > 0 || eventStreams > 0 || movedChunkCount > 0;
         }
 
         /// <summary>
@@ -374,6 +394,8 @@ namespace Fdp.Core.FlightRecorder
         public void RecordKeyframe(EntityRepository repo, BinaryWriter writer,
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
+            // ⭐ CE-3332 — a keyframe holds every chunk: the next delta compares against nothing older than it
+            _lastChunkBytes.Clear();
             // ⭐ CE-3335 — a keyframe holds the whole world: the deaths before it are in it (as absences)
             _destructionRepo = repo;
             _destructionMark = repo.DestructionMark;

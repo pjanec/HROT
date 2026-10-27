@@ -100,8 +100,16 @@ namespace Fdp.Toolkit.Replay
         public void Execute(ISimulationView view, float deltaTime)
         {
             var repo = (EntityRepository)view;
-            long targetTicks = EffectiveAnchorWallTicks
-                             + (long)(_timeController.GetCurrentState().TotalTime * TimeSpan.TicksPerSecond);
+            long targetTicks = ClockTicks();
+
+            // ⭐⭐ CE-4056 — a seek is applied here at once, but the clock is moved to its landing only when the seek round completes. ⛔ Until
+            //   then the clock still names the OLD moment, and a seek BACK was played forward to it again — and never returned once the clock
+            //   was snapped below that frame (forward-only below). ⇒ hold the seek's frame while the clock still stands where it stood.
+            if (_heldWhileClockAt is { } held)
+            {
+                if (_timeController.GetCurrentState().TotalTime == held) return;
+                _heldWhileClockAt = null;
+            }
 
             // ⭐ R-4012 — outside this node's recording: listen.
             if (_playback == null || !_playback.Covers(targetTicks))
@@ -164,8 +172,18 @@ namespace Fdp.Toolkit.Replay
                 return false;
             }
             Restore(repo, wallTicks);
+            HoldUntilTheClockMoves();
             return true;
         }
+
+        /// <summary>The moment the clock names, in wall ticks of the recording (the anchor + the clock's seconds after the zero).</summary>
+        private long ClockTicks() => EffectiveAnchorWallTicks + (long)(_timeController.GetCurrentState().TotalTime * TimeSpan.TicksPerSecond);
+
+        // ⭐ CE-4056 — the clock's reading (seconds after the zero) when a seek was applied; cleared once the clock moves. The clock's own
+        //   reading, not anchor + clock: the anchor may be set around the seek.
+        private double? _heldWhileClockAt;
+
+        private void HoldUntilTheClockMoves() => _heldWhileClockAt = _timeController.GetCurrentState().TotalTime;
 
         /// <summary>A seek to a frame index (always inside the recording): restores it.</summary>
         public void SeekToFrame(EntityRepository repo, int frameIndex)
@@ -174,6 +192,7 @@ namespace Fdp.Toolkit.Replay
             _playback.SeekToFrame(repo, frameIndex);
             SmartEgressUtil.ForceMarkAllDirty(repo);
             _afterSeek?.Invoke();
+            HoldUntilTheClockMoves();   // ⭐ CE-4056 — the same seek round moves the clock after this
             State = ReplaySpanState.Restoring; ReplayState.SetListening(repo, false);   // ⭐ CE-3329 P2
         }
 
