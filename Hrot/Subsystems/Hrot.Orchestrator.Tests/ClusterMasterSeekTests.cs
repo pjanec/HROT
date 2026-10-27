@@ -836,6 +836,27 @@ public sealed class ClusterMasterSeekTests
     }
 
     /// <summary>Enters a replay on one registered node, answering its prepare round with <paramref name="prepared"/>.</summary>
+    /// <summary>⭐ CE-3333 — "the end" (long.MaxValue, what scripts send) and anything past it reach the nodes as the replay's LAST moment
+    /// (the cluster's span: 4 s here). 🔴 Before: sent as is, the node found it past its recording, listened and emptied its world.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3333_A_seek_to_the_end_or_past_it_is_sent_as_the_replays_last_moment()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        master.RegisterAggregator(new ReplayConsensusAggregator());
+        RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
+        EnterReplay(bus, master, new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 4f, 4_000_000L, 44_000_000L), targetSimSeconds: null);
+
+        foreach (long target in new[] { long.MaxValue, 50_000_000L, 20_000_000L })
+        {
+            bus.PublishManaged(new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = target });
+            bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+            var payload = Assert.IsType<ReplaySeekPayload>(
+                bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation == FdpNodeOpType.NodeReplaySeek).Last().DomainPayload);
+            Assert.Equal(Math.Min(target, 40_000_000L), payload.TargetWallTicks);   // 4 s after the zero, or the target inside it
+        }
+    }
+
     private static void EnterReplay(FdpEventBus bus, ClusterMaster master, Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult prepared,
                                     double? targetSimSeconds)
     {
