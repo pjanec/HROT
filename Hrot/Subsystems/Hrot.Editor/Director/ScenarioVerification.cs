@@ -623,11 +623,24 @@ namespace Hrot.Editor.Director
         /// live run: null (not asked) · same · different.</summary>
         public LookBackResult? Playback { get; set; }
 
+        /// <summary>⭐ CE-4045 H2 (docs/DESIGN_Scenario_Regression.md §10, RH-6) — the replay SOUGHT again in a shuffled, seeded order (backward seeks
+        /// included), each moment compared with what the in-order playback (H1b) showed there; null when not asked.</summary>
+        public LookBackResult? Seek { get; set; }
+
+        /// <summary>⭐ CE-4045 H3 (docs/DESIGN_Scenario_Regression.md §10-7, RH-7) — a LIVE run BRANCHED from the replay at <see cref="BranchAt"/>
+        /// and run on, against the straight live run from there (R1's comparison, on what the recording carries); null when not asked.</summary>
+        public LookBackResult? Branch { get; set; }
+        /// <summary>The run time H3 branched at (a live snapshot's).</summary>
+        public double? BranchAt { get; set; }
+        /// <summary>📐 The branch's own clock when it came live at <see cref="BranchAt"/> — CE-4065 while it is not the same sim time.</summary>
+        public double? BranchClock { get; set; }
+
         /// <summary>⭐ CE-4061 — the key a director report writes this under.</summary>
         public string Kind => "verify";
 
         public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same")
-                              && Review is (null or { Verdict: "same" }) && ReturnDiff.Count == 0 && Playback is (null or { Verdict: "same" });
+                              && Review is (null or { Verdict: "same" }) && ReturnDiff.Count == 0 && Playback is (null or { Verdict: "same" }) && Seek is (null or { Verdict: "same" })
+                              && Branch is (null or { Verdict: "same" });
 
         /// <summary>
         /// ⭐ This run was a reload: a capture is REFUSED (a reload's golden bakes CE-3294 in — measured: <c>SopState</c> and the animation
@@ -657,6 +670,10 @@ namespace Hrot.Editor.Director
             ["review"] = Review?.ToJson(),
             ["returnDiff"] = Review is null ? null : new JsonArray(ReturnDiff.Select(x => (JsonNode?)x).ToArray()),
             ["playback"] = Playback?.ToJson(),
+            ["seek"] = Seek?.ToJson(),
+            ["branch"] = Branch?.ToJson(),
+            ["branchAt"] = BranchAt,
+            ["branchClock"] = BranchClock is { } c ? Math.Round(c, 4) : null,
         };
     }
 

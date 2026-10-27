@@ -137,6 +137,13 @@ namespace Hrot.ClusterRunner.Configuration
                          + "(components the recording's manifest does not carry are listed apart, never failed)")]
         public bool VerifyReplay { get; set; }
 
+        /// <summary>⭐ CE-4045 H3 (docs/DESIGN_Scenario_Regression.md §10-7, RH-7) — with the replay check (implied): after H1b / H2 the replay is
+        /// sought to this run time, BRANCHED live there and run on; it must go on as the straight live run did. 0 = off.</summary>
+        [Option("verify-branch-at", Required = false, Default = 0d,
+                HelpText = "With --verify: H3 — after the replay check, branch the replay LIVE at this run time (s), run on, and require the "
+                         + "branch to equal the straight live run from there (implies --verify-replay)")]
+        public double VerifyBranchAt { get; set; }
+
         /// <summary>⭐ CE-4045 H5 (docs/DESIGN_Scenario_Regression.md §10-3, R-4086) — each scenario runs LIVE twice, each in a fresh process:
         /// straight, and with a During Action Review at this sim time (every earlier second looked back at, then back to live); the review
         /// must show the live run, the return must give the world back, and the run after it must be the straight run. 0 = off.</summary>

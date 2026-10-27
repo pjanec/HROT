@@ -724,6 +724,81 @@ shows the live run at 1 … 40 s, every recorded component equal** (`PendingNetw
 never stands there (clock 26.6 s) — ⇒ **CE-4056 is the entry path for a replay as well as a review** (a `TransitionState` with a sim
 target), while every `SeekReplay` lands. ⭐ **Re-run `2026-10-27`** after backend's CE-4056 fix (a seek BACK stood one seek behind — the entry was not the cause): H1a and H1b **same**, 41 snapshots, no problem listed.
 
+### 10-5. ✅ H2 as built `2026-10-27` — the replay sought again, shuffled *(RH-6)*
+
+⭐ Part of the replay check (`--verify-replay`): after H1b's in-order look-back, the SAME replay is sought to the same moments in a shuffled
+order (seed `ScenarioVerifyRun.SeekShuffleSeed` = 4045, never the in-order walk), and each moment is compared with what **H1b** showed there —
+not with live, so a difference can only be the seek's. Backward seeks are the point: 📌 CE-4056 (a seek BACK stood one seek behind) was found
+live and only live, because in-order seeks never go back. `VerifyResult.Seek` (`"seek"` in the report, `SEEK` in the print); `Passed` needs it
+same. The comparison sorts the visited snapshots by time first (the comparator pairs by index). Rails: `CE4045_H1b_*` (the seeks after H1b are
+a shuffled permutation of the four moments; SEEK same) · `CE4045_H2_ShuffledSeeks_CatchASeekBackThatStandsOneSeekBehind` (a fake replay
+whose backward seek shows the last seek's world under the new clock: H1a same, H1b same, **H2 different**, the item fails).
+
+### 10-6. H3 step 0 — the branch, measured `2026-10-27` *(RH-7; before building H3)*
+
+📐 `--mode editor --headless`, `ua-civ-melee`: live to 10 s → Idle → `OperatingReplay` → seek `atSimSeconds: 5` (lands) →
+`POST /cluster/transition {target: "OperatingLive"}` (the D18 branch, `LiveBranchProcessManager`).
+
+| question | measured | verdict |
+|---|---|---|
+| does the branch come live? | ✅ OperatingLive in < 1 s; the node: *"Live-from-Replay branch complete (branchedExerciseId=…, history 1465 frame(s))"*; steps run (+1.0 s per 60) | ✅ |
+| does it come live at the branch point's SIM time? | ⛔ the clock reads **12.71 s** for a branch at sim 5 s — the WALL seconds of that point (the run was stepped over HTTP: 23.7 s of wall for 10 s of sim) | ⛔ **CE-4065** (backend) |
+| `target: "LoadingLive"` | ⚠ accepted, and the cluster PARKS in `LoadingLive` (30 s, clock frozen) — an intermediate state as a target | ⚠ in CE-4065 |
+
+⇒ H3's intent is `TransitionStateIntent(OperatingLive)` from a replay. ⭐ H3 will run its comparison from T on the BRANCH's own run time
+(`t0 = clock at the branch − T`), so the offset does not shift the comparison grid — what it measures is whether the WORLD goes on as the straight run did.
+⛔ **Corrected by the live run (§10-7):** the offset is NOT harmless to the world — the world keeps its timers as absolute sim times, so a clock
+that jumps forward changes what happens (a second blow lands). H3 cannot be green until CE-4065 is fixed.
+
+### 10-7. ✅ H3 as built `2026-10-27` — the replay, branched live at T, runs on as the straight run *(RH-7)*
+
+```mermaid
+sequenceDiagram
+  participant V as ScenarioVerifyRun (H3)
+  participant R as DirectorRunner
+  participant H as EditorDirectorHost
+  participant M as the master
+  Note over V: the straight live run passed T: the actions applied by then are kept (as R1's sidecar keeps them)
+  Note over V,M: … H1a, H1b, H2 as before — still in the replay
+  V->>M: Seek(atSimSeconds T) — SeekReplayIntent
+  V->>V: wait until the clock STANDS at T (±½ step, 3 frames)
+  V->>H: BranchLive() → ReplaySessionIntents.BranchLive() — TransitionState(OperatingLive), D18
+  V->>V: wait for OperatingLive, paused, its clock standing (3 frames) — that clock is C
+  V->>V: a new ScenarioVerification from T (t0 = C − T), the kept actions marked done
+  V->>R: ResumePlaying(t0) — the run time counts from the branch's clock, the stepping bookkeeping rebased
+  loop one step per frame until runFor
+    R->>V: OnFrame — snapshot every second · BeforeStep — actions due after T
+  end
+  R->>V: Finish → CompareFrom(LIVE, BRANCH, T, carried) + CompareNotCarried
+  V->>M: Idle — then the item is judged (Branch, BranchAt, BranchClock)
+```
+*What the picture shows that prose hid: the branch runs through the RUNNER's own loop again (one step per frame, the same stepping rule) —
+the only new seam member is `ResumePlaying(t0)`, because a branch's clock is its own (CE-4065), not the straight run's.*
+
+| as built | why |
+|---|---|
+| `VerifyOptions.BranchAt` (with `Replay`), `--verify-branch-at T` (implies `--verify-replay`); T snapped UP to the snapshot grid | the branch starts from a live snapshot's world, so T must be one |
+| `ReplaySessionIntents.BranchLive()` — one `GoLive()` shared with `ExitReview()`; `POST /review/exit` now builds through it (it had an inline copy — ⚠ cross-lane edit, backend's file) | one construction per intent (R-3059) |
+| `IRunContext.ResumePlaying(double? t0)` — ⚠ cross-lane edit (ui's runner, `Hrot.Presentation`) | the run time must count from the branch's clock; without it `masterBehind` holds every step |
+| H3 compares on what the recording CARRIES (its manifest), as H1b — not every component | the branch's world is rebuilt from the recording; what it does not carry cannot come back (listed in `notCarried`) |
+| `BranchClock` is reported, never compared | 📐 CE-4065 — the clock comes up on wall seconds; H3 measures the WORLD, and the offset going to 0 will show backend's fix |
+| ⚠ a check action anchored on a moment BEFORE T is not re-anchored in the branch (its book starts at T) — it shows as an `H3 run:` problem | R1 has the same limit; no scenario measured with one yet |
+
+Rail: `DirectorRunnerTests.CE4045_H3_TheReplay_BranchedLiveAtT_RunsOnAsTheStraightRun` (fake: the branch comes up 7.71 s off; ① same at
+2 and 3 s, the 1.5 s action applied once, the clock reported, Idle at the end; ② a branch that drops the health ⇒ different from t = 2 s
+naming `Health`, while H1a / H1b / H2 stay same; a branch outside the replay check is refused).
+
+📐 **Live, `ua-civ-melee`, `--verify-branch-at 5`** (`coordinator@ed5f3d2a0`, one fresh process, 78 s of wall for the item):
+
+| phase | measured | verdict |
+|---|---|---|
+| H1a — the recording | 41 snapshots, same | ✅ |
+| H1b — the replay in order | 40 of 41 moments same; ⛔ the seek to **20 s stood at 19.983 s** (one frame short, past ±½ step) for 30 s | ⛔ **CE-4066** (backend) — seen once; H1b was green on two earlier runs |
+| H2 — shuffled seeks | 40 moments, same | ✅ |
+| H3 — does the branch come live? | ✅ *"Live-from-Replay branch complete … history 303 frame(s)"*, paused, the run went on to 40 s (36 snapshots) | ✅ the harness works end to end |
+| H3 — the branch's clock | **9.29 s** at T = 5 s (+4.29 s) | ⛔ CE-4065 |
+| H3 — does the world go on as the straight run? | ⛔ from **t = 6 s**: the policeman is hit a SECOND time (health 90 vs 95, `ResolvedStyle.DamageLevel` 10 vs 5, `RecentSenses.Hit` at branch clock 9.56 = run 5.27 s); every time-stamped field (`KnockedDownUntil`, `Restless.NextAt`, …) is on the shifted clock | ⛔ **CE-4065 is behavioural**, not cosmetic — ⚠ the mechanism (timers due at once on a clock 4.29 s ahead) is inferred: the rioter's strike timer sits in `BrainDiagnostics`, which the recording does not carry. The proof is H3 again after the fix |
+
 ### 10a. Claim table — what the leans rest on
 
 | claim | code — how it IS | design — how it was MEANT |

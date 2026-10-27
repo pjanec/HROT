@@ -232,9 +232,14 @@ namespace Hrot.UI.Common.Map3D.Director
         void IRunContext.Fail(string why) => Fail(why);
         void IRunContext.EndItem() => EndItem();
         void IRunContext.EnterExtensionPhase() => Phase = DirectorPhase.Extension;
-        void IRunContext.ResumePlaying()
+        void IRunContext.ResumePlaying(double? t0)
         {
             if (!_host.Paused) _host.Pause();
+            if (t0 is { } start && _clock != null)   // ⭐ CE-4045 H3 — the steps "retired" are counted from the new clock, as SeekSource does
+            {
+                _t0 = start;
+                _issued = _retiredSeen = (long)Math.Round(Rel / _clock.StepSeconds);
+            }
             Phase = DirectorPhase.Playing;
             _clock?.Start(_host.WallNow);
         }
