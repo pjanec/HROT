@@ -15,7 +15,7 @@ namespace Hrot.Editor.Director
     /// <c>EditorSubsystem</c> already holds (its load, its cluster state, the preview controller, <c>ITimeCommands</c>, the world's clock).
     /// ⛔ It holds nothing of its own, so it cannot drift from the editor's own controls.
     /// </summary>
-    internal sealed class EditorDirectorHost : IDirectorHost
+    internal sealed class EditorDirectorHost : IDirectorHost, IVerifyHost   // ⭐ CE-4061 — the editor hosts the film AND the verifier
     {
         private readonly Func<EntityRepository?> _world;
         private readonly Action<string> _load;

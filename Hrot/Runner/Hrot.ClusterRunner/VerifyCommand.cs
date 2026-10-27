@@ -185,7 +185,7 @@ internal static class VerifyCommand
                 JsonObject a = JsonNode.Parse(File.ReadAllText(runA))!.AsObject(), b = JsonNode.Parse(File.ReadAllText(runB))!.AsObject();
                 var carried = ScenarioGolden.CarriedBy(cp) ?? (_ => true);   // ⭐ what the checkpoint carries is what its own schema manifest lists
                 // ⭐ CE-3316 — from where A really wrote the checkpoint (a quiet step, at most a few after T1)
-                double from = DirectorRunner.ReadSidecar(new RestoreCheck(t1, cp, false, runA, every)).At ?? t1;
+                double from = ScenarioVerifyRun.ReadSidecar(new RestoreCheck(t1, cp, false, runA, every)).At ?? t1;
                 item["checkpointWrittenAt"] = Math.Round(from, 4);
                 var diff = ScenarioGolden.CompareFrom(a, b, from, carried);
                 item["golden"] = diff.Count == 0 ? "same" : "different";

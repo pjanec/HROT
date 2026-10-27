@@ -2504,10 +2504,12 @@ namespace Hrot.Editor
                 runner = new Hrot.Editor.Director.DirectorRunner(directorHost, cinema, _directorLayers,
                     _headless ? null : new Hrot.Editor.Director.FilmFrameSink(),
                     new Hrot.Editor.Director.EditorDirectorSound(() => runner?.FilmSimTime ?? double.NaN),
-                    // ⭐ CE-4042 — a verify run reads and edits through the debug service this method builds below (8b): late-bound
-                    verifyWorld: units => new Hrot.Editor.Director.EditorVerifyWorld(() => _world, units,
-                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
-                        () => _debugApiService));
+                    // ⭐ CE-4061 — the scenario verifier, plugged in through the runner's one seam. ⭐ CE-4042 — it reads and edits through the
+                    //   debug service this method builds below (8b): late-bound
+                    extension: new Hrot.Editor.Director.ScenarioVerifyRun(directorHost,
+                        units => new Hrot.Editor.Director.EditorVerifyWorld(() => _world, units,
+                            hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null,
+                            () => _debugApiService)));
                 cinema.EscapePressed = () => runner.Stop();
                 _director = runner;
                 // ⭐ CE-1364 T3 — the open take: the Event Timeline shows ITS Camera / Time tracks, Ctrl+Z on the panel undoes an edit of them

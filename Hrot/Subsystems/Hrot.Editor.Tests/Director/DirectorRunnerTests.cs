@@ -35,7 +35,7 @@ public sealed class DirectorRunnerTests : IDisposable
 
     /// <summary>The editor, faked: a load takes three frames (the world clears, then the scenario's units appear and the state is
     /// OperatingEdit); a step asked for in a frame is taken at the frame's end (the kernel); the renderer draws a frame in 1/120 s.</summary>
-    private sealed class FakeEditor : IDirectorHost
+    private sealed class FakeEditor : IDirectorHost, IVerifyHost
     {
         public readonly EntityRepository Repo = new();
         public readonly List<string> Loads = new();
@@ -686,21 +686,21 @@ public sealed class DirectorRunnerTests : IDisposable
         (DirectorRunner Runner, FakeEditor Host) Fresh()
         {
             var h = new FakeEditor(store) { Lag = 1, RecordDir = rec };
-            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+            return (new DirectorRunner(h, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = new FakeVerifyWorld(h, u))), h);
         }
         var replay = new VerifyOptions(Replay: true);
 
         // ① a faithful recording
         var (runner, host) = Fresh();
-        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: replay)));
         Run(runner, host);
         var r = runner.Reports.Single();
         Assert.Equal((1, 0, 1, 1), (host.LiveLoads, host.Enters, host.LiveStops, host.RecordingsOpened));   // ⭐ live, never a preview
         Assert.All(host.StepsPerFrame, n => Assert.Equal(1, n));
-        Assert.Equal("same", r.Verify!.Replay);
-        Assert.Equal(4, r.Verify.ReplaySnapshots);                                    // t = 0, 1, 2, 3
-        Assert.Empty(r.Verify.ReplayDiff);
-        Assert.Equal("none", r.Verify.Golden);                                         // a live run is not compared with the preview's golden
+        Assert.Equal("same", r.Verify()!.Replay);
+        Assert.Equal(4, r.Verify()!.ReplaySnapshots);                                    // t = 0, 1, 2, 3
+        Assert.Empty(r.Verify()!.ReplayDiff);
+        Assert.Equal("none", r.Verify()!.Golden);                                         // a live run is not compared with the preview's golden
         Assert.Equal("pass", r.Status);
         Assert.True(host.Opened!.Disposed);
         Assert.True(host.IsIdle);
@@ -708,27 +708,27 @@ public sealed class DirectorRunnerTests : IDisposable
         // ② a recorder that loses the health
         var (lossy, lossyHost) = Fresh();
         lossyHost.RecorderCarriesHealth = false;
-        Assert.Empty(lossy.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Assert.Empty(lossy.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: replay)));
         Run(lossy, lossyHost);
         var l = lossy.Reports.Single();
-        Assert.Equal(("different", "fail"), (l.Verify!.Replay, l.Status));
-        Assert.StartsWith("FIRST differing snapshot at t=2 s", l.Verify.ReplayDiff[0]);   // the action is at 1.5 s
-        Assert.Contains("Runner", l.Verify.ReplayDiff[0]);
-        Assert.Contains(l.Verify.ReplayDiff, d => d.Contains("Health"));
-        Assert.All(l.Verify.Verdicts, v => Assert.True(v.Ok));                          // ⭐ the live run itself was right
+        Assert.Equal(("different", "fail"), (l.Verify()!.Replay, l.Status));
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", l.Verify()!.ReplayDiff[0]);   // the action is at 1.5 s
+        Assert.Contains("Runner", l.Verify()!.ReplayDiff[0]);
+        Assert.Contains(l.Verify()!.ReplayDiff, d => d.Contains("Health"));
+        Assert.All(l.Verify()!.Verdicts, v => Assert.True(v.Ok));                          // ⭐ the live run itself was right
 
         // ③ what the manifest does not carry is listed apart
         var (scratch, scratchHost) = Fresh();
-        Assert.Empty(scratch.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Assert.Empty(scratch.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: replay)));
         scratch.Tick(); scratchHost.EndFrame();
         scratchHost.Verifier!.WithScratch = true;
         Run(scratch, scratchHost);
         var sc = scratch.Reports.Single();
-        Assert.Equal(("same", "pass"), (sc.Verify!.Replay, sc.Status));
-        Assert.Contains(sc.Verify.ReplayNotCarried, d => d.Contains("Scratch"));
+        Assert.Equal(("same", "pass"), (sc.Verify()!.Replay, sc.Status));
+        Assert.Contains(sc.Verify()!.ReplayNotCarried, d => d.Contains("Scratch"));
 
         // ⛔ a replay check records no golden
-        Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Capture: true, Replay: true))),
+        Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Capture: true, Replay: true))),
                         p => p.Contains("records no golden"));
     }
 
@@ -748,19 +748,19 @@ public sealed class DirectorRunnerTests : IDisposable
         (DirectorRunner Runner, FakeEditor Host) Fresh()
         {
             var h = new FakeEditor(store);
-            return (new DirectorRunner(h, cinema, new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+            return (new DirectorRunner(h, cinema, new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = new FakeVerifyWorld(h, u))), h);
         }
         System.Text.Json.Nodes.JsonObject RunOf(string path) => System.Text.Json.Nodes.JsonNode.Parse(System.IO.File.ReadAllText(path))!.AsObject();
         (string Straight, string Restored) Halves(double at, bool lose)
         {
             string cp = System.IO.Path.Combine(_root, $"r1-{at}.fdp"), a = cp + ".a.json", b = cp + ".b.json";
             var (straight, sh) = Fresh();
-            Assert.Empty(straight.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(R1: new RestoreCheck(at, cp, false, a)))));
+            Assert.Empty(straight.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(R1: new RestoreCheck(at, cp, false, a)))));
             Run(straight, sh);
             Assert.Equal(at, sh.CheckpointWrittenAt!.Value, 6);                  // on its moment, once
             var (restored, rh) = Fresh();
             rh.LoseHealthOnRestore = lose;
-            Assert.Empty(restored.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(R1: new RestoreCheck(at, cp, true, b)))));
+            Assert.Empty(restored.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(R1: new RestoreCheck(at, cp, true, b)))));
             Run(restored, rh);
             Assert.Equal(1, rh.Restores);
             Assert.Null(rh.CheckpointWrittenAt);                                  // the restored half writes none
@@ -819,14 +819,14 @@ public sealed class DirectorRunnerTests : IDisposable
         {
             var h = new FakeEditor(store);
             FakeVerifyWorld? w = null;
-            return (new DirectorRunner(h, cinema, new Layers(), verifyWorld: u => w = new FakeVerifyWorld(h, u)), h, () => w!);
+            return (new DirectorRunner(h, cinema, new Layers(), extension: new ScenarioVerifyRun(h, u => w = new FakeVerifyWorld(h, u))), h, () => w!);
         }
 
         // ① capture each in a fresh process: judged, the action on its exact step, the golden written
         foreach (var s in new[] { "s-a", "s-b" })
         {
             var (runner, host, world) = Fresh();
-            Assert.Empty(runner.Play(new PlayRequest(Reel.Of(s, "_verify"), Verify: new VerifyOptions(Capture: true))));
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of(s, "_verify"), Plan: new VerifyOptions(Capture: true))));
             Run(runner, host);
             var r = runner.Reports.Single();
             Assert.Equal("pass", r.Status);
@@ -834,41 +834,45 @@ public sealed class DirectorRunnerTests : IDisposable
             Assert.All(host.StepsPerFrame, n => Assert.Equal(1, n));              // ⭐ the stepping rule
             Assert.Equal(0, cinema.Enters);                                      // the editor left as it is
             Assert.Equal(1.5, world().Edits.Single().SimTime, 6);                 // ⭐ its exact step (step 90; a step is 0.0167 s)
-            Assert.Equal("captured", r.Verify!.Golden);
-            Assert.False(r.Verify.Reload);
-            Assert.Equal(1.0, r.Verify.Verdicts.Single(x => x.Name == "runs a metre").Time!.Value, 6);
+            Assert.Equal("captured", r.Verify()!.Golden);
+            Assert.False(r.Verify()!.Reload);
+            Assert.Equal(1.0, r.Verify()!.Verdicts.Single(x => x.Name == "runs a metre").Time!.Value, 6);
             Assert.True(System.IO.File.Exists(System.IO.Path.Combine(_root, s, ScenarioGolden.FileName)));
         }
 
         // ② a reel of both in ONE process compares SAME — the second is a reload, and says so
         var (one, oneHost, _) = Fresh();
         Assert.Empty(one.Play(new PlayRequest(new Reel { Name = "verify", Items = new[] { "s-a", "s-b" }.Select(s => new ReelItem { Scenario = s, Take = "_verify" }).ToList() },
-                                              Verify: new VerifyOptions())));
+                                              Plan: new VerifyOptions())));
         Run(one, oneHost);
-        Assert.All(one.Reports, r => Assert.Equal("same", r.Verify!.Golden));
-        Assert.Equal(new[] { false, true }, one.Reports.Select(r => r.Verify!.Reload));
+        Assert.All(one.Reports, r => Assert.Equal("same", r.Verify()!.Golden));
+        Assert.Equal(new[] { false, true }, one.Reports.Select(r => r.Verify()!.Reload));
 
         // ③ ⛔ a capture on a reload is refused, with the way to do it right
-        Assert.Empty(one.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Capture: true))));
+        Assert.Empty(one.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Capture: true))));
         Run(one, oneHost);
-        var refusedCapture = one.Reports.Single().Verify!;
+        var refusedCapture = one.Reports.Single().Verify()!;
         Assert.Equal("not-captured", refusedCapture.Golden);
         Assert.Contains("RELOAD", refusedCapture.GoldenDiff[0]);
 
         // ④ a regression: the runner stands still ⇒ the golden is DIFFERENT from the first snapshot it shows, and the check fails
         var (bad, badHost, _) = Fresh();
         badHost.Moves = false;
-        Assert.Empty(bad.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions())));
+        Assert.Empty(bad.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions())));
         Run(bad, badHost);
         var b = bad.Reports.Single();
         Assert.Equal("fail", b.Status);
-        Assert.Equal("different", b.Verify!.Golden);
-        Assert.StartsWith("FIRST differing snapshot at t=1 s", b.Verify.GoldenDiff[0]);
-        Assert.Contains("Runner", b.Verify.GoldenDiff[0]);
-        Assert.False(b.Verify.Verdicts.Single(x => x.Name == "runs a metre").Ok);
+        Assert.Equal("different", b.Verify()!.Golden);
+        Assert.StartsWith("FIRST differing snapshot at t=1 s", b.Verify()!.GoldenDiff[0]);
+        Assert.Contains("Runner", b.Verify()!.GoldenDiff[0]);
+        Assert.False(b.Verify()!.Verdicts.Single(x => x.Name == "runs a metre").Ok);
 
-        var refused = new DirectorRunner(badHost, cinema, new Layers()).Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions()));
+        var refused = new DirectorRunner(badHost, cinema, new Layers(), extension: new ScenarioVerifyRun(badHost, _ => null))
+            .Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions()));
         Assert.Contains(refused, p => p.Contains("cannot verify"));
+        // ⭐ CE-4061 — a runner with no extension refuses a plan (the film runner knows no verify)
+        var noExtension = new DirectorRunner(badHost, cinema, new Layers()).Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions()));
+        Assert.Contains(noExtension, p => p.Contains("no extension"));
     }
 
     /// <summary>
@@ -886,19 +890,19 @@ public sealed class DirectorRunnerTests : IDisposable
         (DirectorRunner Runner, FakeEditor Host) Fresh()   // ⭐ a fresh process: fresh request ids
         {
             var h = new FakeEditor(store);
-            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)
+            return (new DirectorRunner(h, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = new FakeVerifyWorld(h, u)
             {
                 RequestIds = new Dictionary<long, Guid> { [1] = Guid.NewGuid(), [2] = Guid.NewGuid() },
-            }), h);
+            })), h);
         }
         VerifyResult Verify(bool capture, Action<FakeEditor>? before = null)
         {
             var (runner, host) = Fresh();
-            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Capture: capture))));
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Capture: capture))));
             runner.Tick(); host.EndFrame();
             before?.Invoke(host);
             Run(runner, host);
-            return runner.Reports.Single().Verify!;
+            return runner.Reports.Single().Verify()!;
         }
         var goldenPath = Path.Combine(_root, "s-a", ScenarioGolden.FileName);
 
@@ -939,14 +943,14 @@ public sealed class DirectorRunnerTests : IDisposable
         (DirectorRunner Runner, FakeEditor Host) Fresh()
         {
             var h = new FakeEditor(store) { Lag = 1, RecordDir = rec };
-            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+            return (new DirectorRunner(h, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = new FakeVerifyWorld(h, u))), h);
         }
         System.Text.Json.Nodes.JsonObject RunOf(string path) => System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!.AsObject();
         (ItemReport Report, FakeEditor Host) Half(bool straight, string runOut, bool losesHealth = false)
         {
             var (runner, host) = Fresh();
             host.ReturnLosesHealth = losesHealth;
-            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Review: new ReviewCheck(2d, straight, runOut)))));
+            Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Review: new ReviewCheck(2d, straight, runOut)))));
             Run(runner, host);
             return (runner.Reports.Single(), host);
         }
@@ -954,10 +958,10 @@ public sealed class DirectorRunnerTests : IDisposable
         string a = Path.Combine(_root, "h5-a.json"), b = Path.Combine(_root, "h5-b.json");
         var (straight, sh) = Half(true, a);
         Assert.Equal(0, sh.Reviews);
-        Assert.Null(straight.Verify!.Review);
+        Assert.Null(straight.Verify()!.Review);
 
         var (reviewed, rh) = Half(false, b);                                                               // ①
-        var v = reviewed.Verify!;
+        var v = reviewed.Verify()!;
         Assert.Equal((1, 2, 1), (rh.Reviews, rh.ReviewSeeks, rh.ReviewExits));
         Assert.Equal(0, rh.Enters);                                                                         // live, never a preview
         Assert.All(rh.StepsPerFrame, n => Assert.Equal(1, n));
@@ -969,10 +973,10 @@ public sealed class DirectorRunnerTests : IDisposable
 
         var (lossy, _) = Half(false, b, losesHealth: true);                                                 // ② a return that drops the health
         Assert.Equal("fail", lossy.Status);
-        Assert.Contains(lossy.Verify!.ReturnDiff, d => d.Contains("Health"));
+        Assert.Contains(lossy.Verify()!.ReturnDiff, d => d.Contains("Health"));
         Assert.NotEmpty(ScenarioGolden.CompareFrom(RunOf(a), RunOf(b), 2d));
 
-        Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: new VerifyOptions(Replay: true, Review: new ReviewCheck(2d, false, b)))),
+        Assert.Contains(Fresh().Runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: new VerifyOptions(Replay: true, Review: new ReviewCheck(2d, false, b)))),
                         p => p.Contains("review check runs LIVE on its own"));
     }
 
@@ -997,17 +1001,17 @@ public sealed class DirectorRunnerTests : IDisposable
         (DirectorRunner Runner, FakeEditor Host) Fresh()
         {
             var h = new FakeEditor(store) { Lag = 1, RecordDir = rec };
-            return (new DirectorRunner(h, new Cinema(), new Layers(), verifyWorld: u => h.Verifier = new FakeVerifyWorld(h, u)), h);
+            return (new DirectorRunner(h, new Cinema(), new Layers(), extension: new ScenarioVerifyRun(h, u => h.Verifier = new FakeVerifyWorld(h, u))), h);
         }
         var replay = new VerifyOptions(Replay: true);
 
         // ① a replay that shows the live run
         var (runner, host) = Fresh();
-        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: replay)));
         Run(runner, host);
         var r = runner.Reports.Single();
-        Assert.Equal("same", r.Verify!.Replay);                                                    // H1a, unchanged
-        var pb = r.Verify.Playback!;
+        Assert.Equal("same", r.Verify()!.Replay);                                                    // H1a, unchanged
+        var pb = r.Verify()!.Playback!;
         Assert.True(pb.Verdict == "same", string.Join("\n", pb.Diff.Concat(pb.Problems)));
         Assert.Equal(4, pb.Snapshots);                                                              // t = 0, 1, 2, 3
         Assert.Empty(pb.Problems);
@@ -1018,22 +1022,54 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.True(host.IsIdle);
         Assert.False(host.IsOperatingReplay);
         Assert.Equal("pass", r.Status);
-        Assert.Equal("same", r.Verify.ToJson()["playback"]!["verdict"]!.ToString());
-        Assert.Null(r.Verify.ToJson()["review"]);                                                   // not asked
+        Assert.Equal("same", r.Verify()!.ToJson()["playback"]!["verdict"]!.ToString());
+        Assert.Null(r.Verify()!.ToJson()["review"]);                                                   // not asked
 
         // ② a replay that does not show the health
         var (bad, badHost) = Fresh();
         badHost.ReplayLosesHealth = true;
-        Assert.Empty(bad.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Verify: replay)));
+        Assert.Empty(bad.Play(new PlayRequest(Reel.Of("s-a", "_verify"), Plan: replay)));
         Run(bad, badHost);
         var b = bad.Reports.Single();
-        Assert.Equal("same", b.Verify!.Replay);                                                    // ⭐ the recording itself is right
-        Assert.Equal("different", b.Verify.Playback!.Verdict);
-        Assert.StartsWith("FIRST differing snapshot at t=2 s", b.Verify.Playback.Diff[0]);          // the action is at 1.5 s
-        Assert.Contains("Runner", b.Verify.Playback.Diff[0]);
-        Assert.Contains(b.Verify.Playback.Diff, d => d.Contains("Health"));
+        Assert.Equal("same", b.Verify()!.Replay);                                                    // ⭐ the recording itself is right
+        Assert.Equal("different", b.Verify()!.Playback!.Verdict);
+        Assert.StartsWith("FIRST differing snapshot at t=2 s", b.Verify()!.Playback.Diff[0]);          // the action is at 1.5 s
+        Assert.Contains("Runner", b.Verify()!.Playback.Diff[0]);
+        Assert.Contains(b.Verify()!.Playback.Diff, d => d.Contains("Health"));
         Assert.Equal("fail", b.Status);
         Assert.True(badHost.IsIdle);                                                                // a failed check leaves nothing running
+    }
+
+    /// <summary>
+    /// ⭐ CE-4061 (docs/DESIGN_Director_Timeline_Editor.md §11h, CR-1) — the film runner can be SHARED (the Replay Browser, P1): neither it nor
+    /// what it is handed (the film host, the request, the report) names a verify type in a field, a property or a signature. The verifier is an
+    /// editor extension behind the one seam (its rails above run through it).
+    /// </summary>
+    [Fact]
+    public void CE4061_TheFilmRunner_NamesNoVerifyType_TheVerifierIsAnExtension()
+    {
+        var verify = new[]
+        {
+            typeof(ScenarioVerifyRun), typeof(VerifyOptions), typeof(VerifyResult), typeof(ScenarioVerification), typeof(ScenarioGolden),
+            typeof(IVerifyWorld), typeof(IRecordedRun), typeof(ScenarioChecks), typeof(LookBackResult), typeof(ReviewCheck),
+            typeof(RestoreCheck), typeof(IVerifyHost), typeof(ConditionBook),
+        };
+        const System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                                                  | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static
+                                                  | System.Reflection.BindingFlags.DeclaredOnly;
+        IEnumerable<Type> Named(Type t) =>
+            t.GetFields(all).Select(f => f.FieldType)
+             .Concat(t.GetProperties(all).Select(p => p.PropertyType))
+             .Concat(t.GetMethods(all).SelectMany(m => m.GetParameters().Select(p => p.ParameterType).Append(m.ReturnType)))
+             .Concat(t.GetConstructors(all).SelectMany(c => c.GetParameters().Select(p => p.ParameterType)))
+             .Concat(t.GetInterfaces())
+             .SelectMany(x => x.IsGenericType ? x.GetGenericArguments().Append(x) : new[] { x });
+        foreach (var t in new[] { typeof(DirectorRunner), typeof(IDirectorHost), typeof(PlayRequest), typeof(ItemReport), typeof(IRunExtension), typeof(IRunContext) })
+        {
+            var leaked = Named(t).Where(x => verify.Contains(x)).Distinct().ToList();
+            Assert.True(leaked.Count == 0, $"{t.Name} names {string.Join(", ", leaked.Select(x => x.Name))}");
+        }
+        Assert.Contains(typeof(IRunExtension), typeof(ScenarioVerifyRun).GetInterfaces());   // the verifier plugs in through the seam
     }
 
 }
