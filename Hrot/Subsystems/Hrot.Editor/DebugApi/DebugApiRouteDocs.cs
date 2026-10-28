@@ -51,11 +51,12 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_status",
             Group:   "A — Lifecycle & status",
             Summary: "Runner liveness + sim state summary.",
-            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording }",
+            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo }",
             Hint:    "No params. Example: get_status({})",
             Notes: new[]
             {
                 "Use this to verify the runner is alive and check current run state before driving the sim.",
+                "`perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is \"Start\" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it).",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "check runner liveness and sim state"),
@@ -1136,6 +1137,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "ALWAYS read `current` back — an unknown name is a no-op, so trusting the 200 would leave you reading the WRONG perspective's panels.",
                 "A 400 names the claimed set; a 503 means perspective access is not wired on this host.",
+                "A 409 means the Start perspective is showing (the cluster rests in Idle, nothing loaded): a switch is refused whatever the name. LOAD FIRST (load_scenario_live / load_scenario_edit), then switch — leaving Idle restores the host's remembered perspective on its own. Read get_status.routedTo to see which perspective the reads are answered from meanwhile.",
                 "The new perspective publishes its panels on the NEXT frame — step a tick before get_panels, or you read the previous one.",
                 "In a cluster host (mode \"all\") this is how you choose which node subsequent commands act on.",
             },

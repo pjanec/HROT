@@ -706,9 +706,19 @@ namespace Hrot.Editor.DebugApi
                 ["recording"]    = _rrController is { } rr ? (JsonNode?)(rr.ActiveRecordingModule is not null) : null,
                 // ⭐ Which context these numbers describe — ⛔ without it, a cluster status is ambiguous
                 //   about WHOSE world it counted.
-                ["perspective"]  = _dispatcher?.CurrentPerspective,
+                ["perspective"]  = _dispatcher?.CurrentPerspective ?? _perspectives?.CurrentPerspective,
+                // ⭐⭐ CE-4094 (AQ108 M7/D22) — where the reads above were answered from: equal to `perspective` except while `Start`
+                //   shows, when it is the REMEMBERED perspective. ⛔ Without it `perspective: Start` would leave the caller guessing WHICH
+                //   node's world /entities counted.
+                ["routedTo"]     = _dispatcher?.RoutedTo ?? RoutedToFromSwitcher(),
             };
         }
+
+        /// <summary>⭐ CE-4094 — the editor shape's `routedTo` (no dispatcher): the window manager's perspective, or — while Start shows — the remembered one.</summary>
+        private string? RoutedToFromSwitcher()
+            => _perspectives is not { } sw ? null
+             : sw.CurrentPerspective == Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName ? sw.RememberedPerspective
+             : sw.CurrentPerspective;
 
         /// <summary>
         /// ⭐ Reads one status field, or <see langword="null"/> when this host does not offer it.

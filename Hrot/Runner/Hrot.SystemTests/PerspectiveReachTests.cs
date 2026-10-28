@@ -27,6 +27,18 @@ public sealed class PerspectiveReachTests : SystemTestBase
     public PerspectiveReachTests(EditorProcessFixture fixture, ITestOutputHelper output)
         : base(fixture, output) { }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4094</c> (AQ108 D16/M7) — LOAD FIRST. A cluster that rests in Idle shows the <c>Start</c> perspective, and while it shows a perspective
+    /// switch answers 409. ⇒ every case that switches loads a scenario first (idempotent: only when none is loaded — <c>HN-011</c>, a reload is a
+    /// world-state change).
+    /// </summary>
+    private async Task EnsureLoadedAsync()
+    {
+        var status = (await Mcp.GetStatusAsync()).EnsureOk();
+        if (string.IsNullOrEmpty(status.String("scenario")))
+            (await Mcp.LoadScenarioEditAsync(await AnyCuratedScenarioAsync("hill-attack"))).EnsureOk();
+    }
+
     private static string[] Names(ApiResult r)
         => ((r.Field("perspectives") as JsonArray)!).Select(n => n!.GetValue<string>()).ToArray();
 
@@ -67,6 +79,7 @@ public sealed class PerspectiveReachTests : SystemTestBase
     [SystemSmokeFact]
     public async Task An_unknown_perspective_is_refused_and_nothing_moves()
     {
+        await EnsureLoadedAsync();
         var before = (await Mcp.ListPerspectivesAsync()).EnsureOk().String("current");
 
         var bad = await Mcp.SwitchPerspectiveAsync("NoSuchPerspective");
@@ -97,6 +110,7 @@ public sealed class PerspectiveReachTests : SystemTestBase
     [SystemSmokeFact]
     public async Task Each_perspective_publishes_panels_the_others_do_not()
     {
+        await EnsureLoadedAsync();
         var seen = new Dictionary<string, HashSet<string>>();
 
         foreach (var p in new[] { "Scenario", "BTree", "HSM", "Blueprint" })
@@ -132,6 +146,7 @@ public sealed class PerspectiveReachTests : SystemTestBase
     [SystemSmokeFact]
     public async Task A_graph_perspective_reaches_panels_the_default_cannot()
     {
+        await EnsureLoadedAsync();
         (await Mcp.SwitchPerspectiveAndSettleAsync("Scenario")).EnsureOk();
         var fromScenario = Captured((await Mcp.GetPanelsAsync()).EnsureOk());
 

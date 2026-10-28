@@ -41,4 +41,14 @@ public interface IPerspectiveSwitcher
 
     /// <summary>⭐ The active perspective's id — ⛔ the id, never a display label.</summary>
     string CurrentPerspective { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4094</c> — the switch WITH its refusal reason (<c>WindowManager.TrySwitchPerspective</c>): <see langword="false"/>
+    /// while the <c>Start</c> perspective shows (HTTP answers 409) or when no window claims the name. ⛔ Not a second rule — a
+    /// pass-through to the window manager, the one owner.
+    /// </summary>
+    bool TrySwitchPerspective(string perspectiveName, out string? reason);
+
+    /// <summary>⭐ <c>CE-4094</c> — the perspective remembered while <c>Start</c> shows (what HTTP reads route to), else <see langword="null"/>.</summary>
+    string? RememberedPerspective { get; }
 }

@@ -275,14 +275,45 @@ public class GZH014_Tests
             new Dictionary<string, string> { ["SubA"] = "SubA" },
             controllables);
 
-        // SubA is the current perspective; switch to an unknown name.
+        // SubA is the current perspective (CE-4088: entered through the coordinator, so it holds its one listener); switch to an unknown name.
+        coordinator.Enqueue(new TogglePerspectiveEvent("", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
         coordinator.Enqueue(new TogglePerspectiveEvent("SubA", "UnknownPersp"));
 
         // Must not throw even though "UnknownPersp" is not in the perspective map.
-        // The entire listener-transfer block is skipped (new perspective unknown),
-        // so neither RemoveListener nor AddListener fires.
+        // (CE-4088: the outgoing RemoveListener DOES fire — see GZH014_3 — and AddListener does not.)
         var ex = Record.Exception(() => coordinator.ProcessPendingEvents());
         Assert.Null(ex);
         Assert.Equal(0, ctrlA.ListenerCount);
+    }
+
+    // GZH014_3 / CE-4088: entering a perspective the coordinator does not map must still release the OUTGOING listener.
+    [Fact]
+    public void GZH014_3_EnteringAnUnmappedPerspective_RemovesTheOutgoingListener()
+    {
+        var ctrlA = MakeController();
+        var orch  = CreateHeadlessOrchestrator(new MockSubsystem("SubA"));
+        orch.Initialize();
+
+        var coordinator = new PerspectiveCoordinatorSystem(
+            orch,
+            new Dictionary<string, string> { ["SubA"] = "SubA" },
+            new Dictionary<string, IGizmoControllable> { ["SubA"] = new StubGizmoControllable(ctrlA) });
+
+        coordinator.Enqueue(new TogglePerspectiveEvent("", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
+
+        // An editor document perspective / AQ108's Start: no subsystem, no controllable.
+        coordinator.Enqueue(new TogglePerspectiveEvent("SubA", "Start"));
+        coordinator.ProcessPendingEvents();
+
+        Assert.Equal(0, ctrlA.ListenerCount);                    // was 1 before the fix (leaked)
+
+        // ... and coming back adds it again (the listener count is balanced, not just zeroed).
+        coordinator.Enqueue(new TogglePerspectiveEvent("Start", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
     }
 }

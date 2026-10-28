@@ -65,6 +65,13 @@ public sealed class WindowManagerPerspectiveSwitcher : IPerspectiveSwitcher
     /// <inheritdoc />
     public string CurrentPerspective => _windowManager.CurrentPerspective;
 
+    /// <inheritdoc />
+    public bool TrySwitchPerspective(string perspectiveName, out string? reason)
+        => _windowManager.TrySwitchPerspective(perspectiveName, out reason);
+
+    /// <inheritdoc />
+    public string? RememberedPerspective => _windowManager.RememberedPerspective;
+
     // ── WindowManager.OnPerspectiveChanged handler ────────────────────────────
 
     private void OnPerspectiveChanged(string oldPerspective, string newPerspective)

@@ -37,6 +37,7 @@ public sealed class PerspectiveScopedDispatcher
     private readonly IReadOnlyList<ISubsystemDebugProvider> _providers;
     private readonly Func<string> _currentPerspective;
     private readonly Func<bool?>? _acksPending;
+    private readonly Func<string?>? _rememberedPerspective;
 
     /// <param name="providers">One per contributing subsystem. ⚠ An empty list is legal — the manifest then honestly reports nothing routable.</param>
     /// <param name="currentPerspective">
@@ -53,11 +54,20 @@ public sealed class PerspectiveScopedDispatcher
     /// perspective-scoped drive facade *(Q54-2)*, not to the gate.
     /// ⛔ Pass <see langword="null"/> when this host has no orchestrator at all.
     /// </param>
+    /// <param name="rememberedPerspective">
+    /// ⭐⭐⭐ <c>CE-4094</c> (AQ108 M7/D22) — the perspective the window manager REMEMBERED when the <c>Start</c> perspective was
+    /// entered (<c>WindowManager.RememberedPerspective</c>). While Start shows, every world/time/AI read routes there — the ONE
+    /// place the <c>Start</c> alias lives. Read LIVE through a delegate, like <paramref name="currentPerspective"/>, never a
+    /// copy. ⚠ <see langword="null"/> (the default) ⇒ no alias source: Start then routes to nothing, or to the single provider on a
+    /// one-provider host.
+    /// </param>
     public PerspectiveScopedDispatcher(
         IEnumerable<ISubsystemDebugProvider> providers,
         Func<string> currentPerspective,
-        Func<bool?>? acksPending)
+        Func<bool?>? acksPending,
+        Func<string?>? rememberedPerspective = null)
     {
+        _rememberedPerspective = rememberedPerspective;
         _providers = (providers ?? throw new ArgumentNullException(nameof(providers)))
                      .Where(p => p != null).ToList();
         _currentPerspective = currentPerspective ?? throw new ArgumentNullException(nameof(currentPerspective));
@@ -85,24 +95,47 @@ public sealed class PerspectiveScopedDispatcher
     /// "Default", matched no provider, and every world read answered NOT_SUPPORTED_HERE — the node could not be observed over
     /// HTTP at all. ⭐ With one provider there is no "wrong node" to answer for (the reason <see cref="Active"/> never falls back
     /// to the first of SEVERAL), so it is the only honest answer.</para>
+    /// <para>⭐⭐ <c>CE-4094</c> — <b><c>Start</c> is reported AS <c>Start</c></b> (never renamed to a provider's perspective), so
+    /// <c>/status</c> and <c>GET /perspectives</c> agree; where reads GO is <see cref="RoutedTo"/>.</para>
     /// </summary>
     public string CurrentPerspective
     {
         get
         {
             string current = _currentPerspective();
-            return _providers.Count == 1 && Resolve(current) is null ? _providers[0].Perspective : current;
+            return IsStart(current) ? current : OrSoleProvider(current);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4094</c> — <b>the perspective every read resolves through</b>: the current one, except that <c>Start</c> routes to
+    /// the window manager's REMEMBERED perspective (the one leaving Start restores). The single-provider fallback applies to the
+    /// routed name, so a one-provider host stays readable while Start shows.
+    /// </summary>
+    public string RoutedTo
+    {
+        get
+        {
+            string current = _currentPerspective();
+            return OrSoleProvider(IsStart(current) ? _rememberedPerspective?.Invoke() ?? string.Empty : current);
+        }
+    }
+
+    private static bool IsStart(string perspective)
+        => string.Equals(perspective, Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName, StringComparison.Ordinal);
+
+    private string OrSoleProvider(string name)
+        => _providers.Count == 1 && Resolve(name) is null ? _providers[0].Perspective : name;
 
     /// <summary>
     /// ⭐⭐ The provider owning the active perspective, or <see langword="null"/> when nothing claims it.
     /// <para>⚠ <see langword="null"/> is a real answer: in <c>--mode all</c> the startup perspective may be
     /// one whose subsystem contributes no surface. ⛔ The caller reports <c>NOT_SUPPORTED_HERE</c>; it does
     /// not silently fall back to "the first provider", which would answer for the wrong node.</para>
+    /// <para>⭐ <c>CE-4094</c> — while <c>Start</c> shows this is the REMEMBERED perspective's provider (<see cref="RoutedTo"/>).</para>
     /// </summary>
     public ISubsystemDebugProvider? Active()
-        => Resolve(CurrentPerspective);
+        => Resolve(RoutedTo);
 
     /// <summary>⭐ The provider for a NAMED perspective — <c>Q54-2</c>'s optional <c>?perspective=</c> override.</summary>
     public ISubsystemDebugProvider? Resolve(string? perspective)
