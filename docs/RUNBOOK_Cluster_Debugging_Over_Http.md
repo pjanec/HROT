@@ -262,16 +262,33 @@ Multi-domain / partitioned capture: `--DdsSettings:Participants:0:DomainId=0`
 `--DdsSettings:Participants:1:DomainId=5 --DdsSettings:Participants:1:PartitionName="sim"`.
 Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSettings:HeadlessFilePath=/tmp/cap.json [--DdsSettings:ReplayRate=2.0]`.
 
+### ⭐⭐ The AI-agent recipe — ddsmonitor ≥ 1.2.4 *(local build of `claude/dds-security` `922ae44`, unpublished as of `2026-10-28`; the bootstrap-installed tool is older and lacks these options)*
+
+Record in the background, stop by itself, and read the growing file with `jq` — never wait on Ctrl+C:
+```bash
+ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:DomainId=<domain> \
+  --AppSettings:TopicSources:0=<runner bin dir> \
+  --DdsSettings:HeadlessFilePath=/tmp/cap.jsonl --DdsSettings:RecordSummaryFile=/tmp/cap.summary.json \
+  --DdsSettings:RecordDurationSeconds=180 --DdsSettings:RecordMaxFileSizeMB=200 &   # JSON Lines + silent console are the defaults
+jq '.Topics[] | {TopicName, Count, ReadError}' /tmp/cap.summary.json                # is data arriving? (rewritten every second)
+cat /tmp/cap*.jsonl | jq -c 'select(.Ordinal > 1200)'                              # what is new since ordinal 1200 (rotated files in name order)
+```
+📐 **Measured `2026-10-28` on demo-city at `TargetCars 1000`** (one process, three ddsmonitor instances at once): 13 877 lines in 3 rotated files,
+every line parses, ordinals 1…13877 with no gap across the rotation, every `sumo/*` blob topic recorded (`sumo/vehicles` 304 — its base64 blob
+decodes to 65 536 bytes), no topic `ReadError`, `StopReason: Duration`, exit code 0. Exit `3` = some topic could not be recorded (read the summary).
+⚠ `HeadlessFilePath=-` with `RecordMaxSamples` wrote its 50 lines correctly but **aborted (exit 134)** when the cap was reached during host
+start-up — read the lines, ignore the exit code until the library fixes it.
+
 **Each JSON entry:** `Ordinal` · `TopicTypeName` · `Timestamp` · `DomainId` · `PartitionName` ·
 `Sender` *(PID / process / machine IP)* · `InstanceState` · `Payload`.
 
 | ⚠ traps | |
 |---|---|
 | 🔴 **empty `[` capture** | **almost always missing `--AppSettings:TopicSources`** *(the type assemblies — see above)*; less often a `DomainId`/partition mismatch. Fix TopicSources first |
-| ⛔⛔ **run ONE instance, to a fresh file** | ddsmonitor starts a Kestrel web host on **`:5000`**; a leftover instance holds `:5000` and the next run **crashes at startup** *(`address already in use` → 0-byte capture)*. Kill stale instances *(`pkill -f 'Headless[M]ode=Record'` — bracket-trick so it can't match your own shell)*, or give each a distinct port `ASPNETCORE_URLS=http://127.0.0.1:5088`. ⚠ Two instances writing the SAME `HeadlessFilePath` interleave → corrupt/unclosed JSON |
-| ⚠ **the array closes on clean `Ctrl+C`/SIGINT** | an abrupt kill (or concurrent writers) leaves the JSON unclosed; grep `"TopicTypeName"` still works, or append `]` to parse |
+| ⛔⛔ **run ONE instance, to a fresh file** *(older tool)* | ✅ ddsmonitor ≥ 1.2 headless binds a FREE port, so several instances run side by side (measured: three at once, `2026-10-28`). The older tool starts a Kestrel web host on **`:5000`**; a leftover instance holds `:5000` and the next run **crashes at startup** *(`address already in use` → 0-byte capture)*. Kill stale instances *(`pkill -f 'Headless[M]ode=Record'` — bracket-trick so it can't match your own shell)*, or give each a distinct port `ASPNETCORE_URLS=http://127.0.0.1:5088`. ⚠ Two instances writing the SAME `HeadlessFilePath` interleave → corrupt/unclosed JSON |
+| ⚠ **the array closes on clean `Ctrl+C`/SIGINT** | an abrupt kill (or concurrent writers) leaves the JSON unclosed; grep `"TopicTypeName"` still works, or append `]` to parse. ⛔⛔ **A process started with `&` from a script IGNORES SIGINT** (bash sets it to ignored for background jobs; `grep SigIgn /proc/<pid>/status`) — `kill -INT` does nothing. ⭐ Send **SIGTERM** (closes the file cleanly, measured exit 0 in 2 s), or use `RecordDurationSeconds` |
 | ⛔ **it needs `DOTNET_ROOT`** | the `/usr/local/bin/ddsmonitor` wrapper sets it; if you run the raw `~/.dotnet/tools/ddsmonitor`, export `DOTNET_ROOT=$HOME/.dotnet` first |
-| ⚠ **SUMO topics (`sumo/*`)** | since SumoSharp H11 (`2026-10-17`) every SUMO topic is NAMED on its type, so ddsmonitor discovers them: `DdsVehicleLifecycle` (`sumo/lifecycle`) is captured. ⛔ The blob topics (`sumo/vehicles`, `sumo/tl`, `sumo/geometry`, ped crowd/legs) still are NOT — their 64 KB `fixed byte Payload[65536]` makes ddsmonitor's `DynamicReader.DrainReader` throw `InvalidProgramException` (it surfaces at shutdown; the capture just lacks them). ⚠ A ddsmonitor 1.2.6 build captured them on 2026-10-27, ⛔ **but the 1.2 candidate package (`1.2.1-g2067f7b62b`, 2026-10-28, Linux, .NET 8) does NOT**: no blob samples, and an `InvalidProgramException` at Ctrl+C that leaves the capture JSON unclosed (append `]` to read it). Until CE-4018 closes, expect the blob topics to be missing and filter them out with `IncludeTopics`. HROT's own large blob (`DebugPrimitivesBatch`, `[DdsManaged] byte[]`) is captured fine. `CE-4018` |
+| ⚠ **SUMO topics (`sumo/*`)** | since SumoSharp H11 (`2026-10-17`) every SUMO topic is NAMED on its type, so ddsmonitor discovers them: `DdsVehicleLifecycle` (`sumo/lifecycle`) is captured. The blob topics (`sumo/vehicles`, `sumo/tl`, `sumo/geometry`, ped crowd/activity) have a 64 KB `fixed byte Payload[65536]`: ⛔ the bootstrap-installed tool and `1.2.1` throw `InvalidProgramException` in `DynamicReader.DrainReader` and record NONE of them (and `1.2.1` then dies at Ctrl+C with the JSON unclosed); ✅ **ddsmonitor `1.2.4` (`922ae44`, local build) records them all, base64-encoded** — measured `2026-10-28` with ~1000 SUMO cars. HROT's own large blob (`DebugPrimitivesBatch`, `[DdsManaged] byte[]`) is captured fine. `CE-4018` |
 | ⚠ **run it BESIDE the cluster** | start the capture, then run the scenario *(§1/§3)*; a late-started capture misses the create/spawn burst unless the topic is durable |
 
 > ✅✅ **VERIFIED WORKING `2026-09-16`** *(corrects an earlier wrong note that claimed cross-process discovery was
@@ -281,8 +298,9 @@ Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSett
 > (115), `AssetInventoryTopic`, `ClusterStateTopic`, `EntityAttributeSchema`, `IdStatus`, … — with decoded payloads
 > and distinct sender PIDs *(cross-process proven)*. ⭐ The two things that made it work: **`--AppSettings:TopicSources`**
 > pointed at the build-output DLLs *(else empty)*, and **one instance / clean port** *(a stale `:5000` crashes the run)*.
-> ⚠ In `--mode all` (single process) there is little cross-process wire traffic to see — use the **multi-process**
-> launch (§1.2) for a meaningful capture.
+> ⚠ ~~In `--mode all` (single process) there is little cross-process wire traffic to see~~ — ⛔ wrong: everything a node PUBLISHES goes
+> on the domain whatever process reads it. 📌 Measured `2026-10-28`: a single-process cluster (`--mode orchestrator,simhost,ig,excon,cgf,traffic`)
+> gave a separate ddsmonitor 13 877 samples of 54 topics in 3 minutes.
 
 ---
 
