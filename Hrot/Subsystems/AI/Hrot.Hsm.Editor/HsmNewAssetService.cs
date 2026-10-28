@@ -92,7 +92,7 @@ public sealed class HsmNewAssetService : INewAssetService
         // Synthetic "Empty" and "Starter" entries.
         var recipes = new List<IEditableAsset> { _emptyRecipe, _starterRecipe };
 
-        // Discover on-disk HSM recipes (if any exist under Recipes/HSMs).
+        // Discover on-disk HSM recipes (if any exist under recipes/behaviors/HSMs).
         // TODO: wire IRecipeDiscovery when a recipe-discovery service exists.
         // For now, only the in-code "Empty" recipe is offered.
 

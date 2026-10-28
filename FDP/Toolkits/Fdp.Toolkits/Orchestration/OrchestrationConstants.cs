@@ -109,9 +109,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <c>{nas}/assets/&lt;kind&gt;/</c> (docs/DESIGN_Asset_Management.md §10 D5).</summary>
         public const string NasAssetsDirectoryName = "assets";
 
-        /// <summary>The NAS tree of one behaviour-asset kind (<c>{nas}/assets/&lt;kind&gt;</c>).</summary>
+        /// <summary>The NAS tree of one asset-sync kind — ⭐ <c>CE-4089</c>: routed through <see cref="ContentLayout.AssetSyncRoot"/>, so a behaviour
+        /// kind (<c>blueprint</c>/<c>btree</c>/<c>hsm</c>) is <c>{nas}/assets/behaviors/&lt;Folder&gt;</c>, the SAME tree the dev seed fills.</summary>
         public static string GetNasAssetRoot(string nasBasePath, string kind)
-            => System.IO.Path.Combine(nasBasePath, NasAssetsDirectoryName, kind);
+            => ContentLayout.AssetSyncRoot(nasBasePath, kind);
 
         /// <summary>Extension of a published TKB artifact. ⛔ One definition.</summary>
         public const string TkbArtifactExtension = ".zip";

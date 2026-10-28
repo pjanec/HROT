@@ -1283,6 +1283,14 @@ namespace Hrot.Editor
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
+
+            // ⭐⭐ CE-4089 (R-4097, DESIGN_Content_Layout §2) — the repository is the DEV SEED of the NAS: copy scenarios/, assets/ and
+            // recipes/ into the NAS root BEFORE anything reads it (the asset catalogue below resolves its roots from the NAS). Only files whose
+            // bytes differ are written (CE-1365), nothing is deleted, only curated scenario names are touched. No-op in a deployed build — there
+            // is no source tree. ⭐ The cluster runner runs the same seed once at start; a second one finds identical bytes and writes nothing.
+            // Hrot.ScenarioEditor.Services.CuratedScenarios.
+            Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
+
             // GZH-016: store active-map-owner predicate injected by SubsystemOrchestrator.
             _isActiveMapOwner = config.IsActiveMapOwner;
             _requestAppExit   = config.RequestAppExit;
@@ -2412,11 +2420,7 @@ namespace Hrot.Editor
                 FileDialogService = _fileDialogService,
             });
             _clusterMaster = _orchestratorCore.Master;
-            // Curated test scenarios: copy the git-committed set into the working NAS folder on start,
-            // overwriting ONLY those names (non-curated scenarios are never touched, nothing is deleted).
-            // No-op in a deployed build — there is no source tree to copy from. See
-            // Hrot.ScenarioEditor.Services.CuratedScenarios.
-            Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoWorking(EditorBootstrap.ScenariosRoot);
+            // ⭐ CE-4089 — the content seed (scenarios/, assets/, recipes/ → the NAS) ran at the top of Initialize, before the asset catalogue read it.
 
             // ⭐⭐⭐ H2 / U9 — stage the DEPLOYED scenario SEEDS into a reserved subfolder of the same
             //    working root, so `FromSeed` can load one by the name `Recipes/<seed>`.
@@ -4563,15 +4567,16 @@ namespace Hrot.Editor
                         : $"[Migration] {sidecars.Count} sidecar(s): "
                           + string.Join(", ", sidecars.Select(s => $"{s.Kind} v{s.Version}"));
                 },
-                // Curated test scenarios: enabled only from a source checkout; copies the working copies of
-                // the git-committed set back into git. No-op/disabled in a deployed build.
+                // ⭐ CE-4089 — Save to Git: enabled only from a source checkout; copies the NAS content back into the repository
+                // (scenarios: the curated names; assets and recipes: every new or changed file; nothing is deleted).
+                // No-op/disabled in a deployed build.
                 isCuratedSaveEnabled: () => Hrot.ScenarioEditor.Services.CuratedScenarios.CanSaveToGit(),
                 saveCuratedToGit:     () =>
                 {
-                    var written = Hrot.ScenarioEditor.Services.CuratedScenarios.SaveWorkingToGit(EditorBootstrap.ScenariosRoot);
+                    var written = Hrot.ScenarioEditor.Services.CuratedScenarios.SaveToGit(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
                     _saveAllStatus = written.Count == 0
-                        ? "[Curated] No curated scenarios saved (not a source checkout, or none present)."
-                        : $"[Curated] Saved {written.Count} scenario(s) to git: " + string.Join(", ", written);
+                        ? "[Git] Nothing saved (not a source checkout, or the repository is already current)."
+                        : $"[Git] Saved {written.Count} file(s): " + string.Join(", ", written.Take(8)) + (written.Count > 8 ? ", …" : "");
                 },
                 // ⭐ CE-1025 (R-1031) — Live… / Edit… over a running live run or dry run warn first (this host is the interactive one;
                 //   the HTTP routes never prompt, ruling 53).

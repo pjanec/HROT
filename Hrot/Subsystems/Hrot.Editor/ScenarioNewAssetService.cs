@@ -36,8 +36,8 @@ public sealed class ScenarioNewAssetService : INewAssetService
     /// <c>OrchestrationConstants.GetSharedScenariosRoot()</c> for the shared one, which CGF uses too).
     /// ⇒ ⛔ <b>nothing anywhere accepts a path</b>, so "have <c>AvailableRecipes()</c> hand back full
     /// paths" cannot work; and ⛔ a root-aware load would have to carry "which root" across the wire to
-    /// every node, where <c>Recipes/Scenarios</c> — a LOCAL authoring/output path
-    /// (<c>AssetRoots.cs:294</c>) — does not exist at all.</para>
+    /// every node, where <c>recipes/scenarios</c> — a LOCAL authoring/output path
+    /// (<c>AssetRoots.ScenariosRecipesRoot</c>) — does not exist at all.</para>
     ///
     /// <para>⭐⭐ <b>The third option, which changes no seam:</b> <c>OpenForEdit</c>'s own contract already
     /// says <i>"the name may be a relative path (e.g. <c>Combat/Patrol</c>)"</i>. ⇒ stage the seeds into
@@ -124,7 +124,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
         {
             var available = AvailableRecipes();
             var offered = available.Count == 0
-                ? "(none — no seed scenarios are deployed under Recipes/Scenarios)"
+                ? "(none — no seed scenarios are present under recipes/scenarios)"
                 : string.Join(", ", available.Select(r => $"'{r.Name}'"));
             throw new InvalidOperationException(
                 "[ERROR] Scenario offers no blank template: a scenario minted with no terrain cannot acquire "

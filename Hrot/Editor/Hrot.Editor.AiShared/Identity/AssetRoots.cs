@@ -1,25 +1,24 @@
+using Fdp.Toolkit.Orchestration;
+
 namespace Hrot.Editor.AiShared;
 
 /// <summary>
-/// Single authority for the two root families described in DESIGN.md §16.
+/// The editor-side authority for the behaviour-asset roots — ⭐ <c>CE-4089</c>: it composes every path through
+/// <see cref="ContentLayout"/> (docs/DESIGN_Content_Layout.md §2, L5), which owns the segment names of the content tree.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Assets/</b> — final assets (browse/save destination): Blueprints, HSMs, BTrees.<br/>
-/// <b>Recipes/</b> — creation sources: Blueprints, HSMs, BTrees, Scenarios.
+/// <b>assets/behaviors/{Blueprints,HSMs,BTrees,Params}</b> — final assets (browse/save destination).<br/>
+/// <b>recipes/behaviors/{Blueprints,HSMs,BTrees}</b> and <b>recipes/scenarios</b> — creation sources.
 /// </para>
 /// <para>
-/// <b>Root resolution:</b> resolved via <see cref="AppContext.BaseDirectory"/> because
-/// <c>Hrot.Editor.AiShared</c> does not reference <c>Hrot.AI.Behaviors</c>. Both
-/// assemblies deploy to the same output directory at runtime, so the result is identical
-/// to resolving from the Behaviors assembly location (DEV-LEAD decision per §13).
+/// <b>Root resolution (L4):</b> <see cref="ConfiguredRoot"/> (<c>--asset-root</c>, ruling 67) → the <b>NAS root</b>
+/// (<see cref="ContentLayout.NasRoot"/>). ⛔ No source-project walk-up and no <see cref="AppContext.BaseDirectory"/> arm for content:
+/// a dev start SEEDS the NAS from the repository (<c>CuratedScenarios.SeedIntoNas</c>), and every node reads only the NAS.
 /// </para>
 /// <para>
-/// Scenario has <b>no</b> Assets root — Scenarios are orchestrator/NAS-backed and their
-/// only root is <see cref="ScenariosRecipesRoot"/>. <see cref="AssetKind.Scenario"/> does
-/// not exist yet (it is added later in MTB-P5-T2), so in this batch the Scenario recipe
-/// root is exposed as a dedicated member. Kinds with no defined root (§16: Blackboard,
-/// Utility) throw <see cref="ArgumentOutOfRangeException"/>.
+/// Scenario has <b>no</b> Assets root — its only root here is <see cref="ScenariosRecipesRoot"/> (the seeds a new scenario is created
+/// from). Kinds with no defined root (Blackboard, Utility) throw <see cref="ArgumentOutOfRangeException"/>.
 /// </para>
 /// </remarks>
 public static class AssetRoots
@@ -27,38 +26,28 @@ public static class AssetRoots
     // ══ CONFIGURED ROOT — ruling 67 ═════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>Ruling 67's configured authoring root — the one true authoring blocker on a deployed
-    /// node.</b> <see langword="null"/> until <see cref="Configure"/> is called.
+    /// ⭐⭐⭐ <b>Ruling 67's configured authoring root.</b> <see langword="null"/> until <see cref="Configure"/> is called.
     ///
-    /// <para>🔒 <b>User, <c>2026-08-14</c>:</b> *"we need a <b>config file provided asset path</b> for the
-    /// CGF as well as the Editor (<b>same shared code</b>), with <b>fallback to the repo source</b> as of
-    /// now."* ⇒ the resolution order is <b>config → source walk-up → <c>BaseDirectory</c></b>, and it
-    /// lives HERE because this class is the codebase's stated *"single authority"* for roots — ⛔ a
-    /// config mechanism added beside it would be the third competing path authority, which is what
-    /// ruling 67 explicitly warns against.</para>
+    /// <para>🔒 <b>User, <c>2026-08-14</c>:</b> *"we need a <b>config file provided asset path</b> for the CGF as well as the Editor (<b>same
+    /// shared code</b>), with <b>fallback to the repo source</b> as of now."* — the order was config → source walk-up → <c>BaseDirectory</c>;
+    /// ⭐ <c>CE-4089</c> (R-4097): it is now <b>config → the NAS root</b>, and it lives HERE because this class is the codebase's stated
+    /// *"single authority"* for roots — ⛔ a config mechanism added beside it would be the third competing path authority.</para>
     /// </summary>
     public static string? ConfiguredRoot { get; private set; }
 
     /// <summary>
     /// ⭐⭐ <b>Points the roots at a configured directory. Call once, at the composition root.</b>
     ///
-    /// <para>🔒 <b>A configured-but-missing root THROWS, and that is the ruling</b> — *"silently falling
-    /// through to the walk-up would reintroduce 'it worked on the dev box'."* ⛔ So a typo in config is a
-    /// startup failure, not an empty asset list three screens later.</para>
+    /// <para>🔒 <b>A configured-but-missing root THROWS, and that is the ruling</b> — a typo in config is a startup failure, not an empty asset
+    /// list three screens later.</para>
     ///
-    /// <para>⭐ Passing <see langword="null"/> or whitespace CLEARS the configuration and restores the
-    /// pre-ruling-67 behaviour exactly — which is what a host with no config setting must get, and what
-    /// keeps every existing call site unchanged.</para>
+    /// <para>⭐ Passing <see langword="null"/> or whitespace CLEARS the configuration — which is what a host with no config setting must get.</para>
     ///
-    /// <para>⚠ <b>A <c>static</c> setter on a <c>static</c> class is deliberate and was the ruling's own
-    /// call</b> — *"`AssetRoots` is a static class ⇒ lean: an explicit `Configure(...)` at composition
-    /// keeps all 30 call sites compiling; a provider is cleaner but ripples."* ⛔ The cost is that it is
-    /// process-global; ⭐ tests must restore it, which <see cref="ConfiguredRoot"/> makes possible.</para>
+    /// <para>⚠ <b>A <c>static</c> setter on a <c>static</c> class is deliberate and was the ruling's own call</b> — it keeps all 30 call
+    /// sites compiling. ⛔ The cost is that it is process-global; ⭐ tests must restore it, which <see cref="ConfiguredRoot"/> makes possible.</para>
     /// </summary>
     /// <param name="root">Absolute path to the authoring root, or <see langword="null"/> to clear.</param>
-    /// <exception cref="DirectoryNotFoundException">
-    /// Thrown when a non-empty <paramref name="root"/> does not exist. ⭐ Fail fast at startup.
-    /// </exception>
+    /// <exception cref="DirectoryNotFoundException">Thrown when a non-empty <paramref name="root"/> does not exist. ⭐ Fail fast at startup.</exception>
     public static void Configure(string? root)
     {
         if (string.IsNullOrWhiteSpace(root))
@@ -72,24 +61,20 @@ public static class AssetRoots
             throw new DirectoryNotFoundException(
                 $"AssetRoots.Configure: the configured authoring root '{full}' does not exist. " +
                 "Ruling 67: a configured-but-missing root fails at startup rather than falling back " +
-                "to the dev-only source walk-up.");
+                "to another root.");
 
         ConfiguredRoot = full;
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The full ruling-67 resolution: config → source walk-up → <c>BaseDirectory</c>.</b>
-    /// This is what a host should call instead of doing the walk-up and its own fallback.
+    /// ⭐⭐⭐ <b>The full resolution: config → the NAS root</b> (<c>CE-4089</c> — was config → source walk-up → <c>BaseDirectory</c>).
+    /// This is what a host should call instead of doing its own walk-up and fallback.
     ///
-    /// <para>⭐ Never <see langword="null"/>: the last arm is the output directory, which always exists.
-    /// ⚠ That is a deliberate difference from <see cref="ResolveProjectDir"/>, whose <c>null</c> means
-    /// *"there is no source tree"* and must stay honest.</para>
+    /// <para>⭐ Never <see langword="null"/>. ⚠ <paramref name="csprojSegments"/> is IGNORED for content: it is kept so the ~30 call sites
+    /// (which still pass their project path for <see cref="ResolveProjectDir"/>) compile unchanged.</para>
     /// </summary>
-    /// <param name="kind">The asset kind whose <c>Assets/</c> subfolder is wanted.</param>
-    /// <param name="csprojSegments">
-    /// Project-file segments for the dev-time walk-up — see <see cref="ResolveProjectDir"/>.
-    /// Pass none to skip the walk-up arm entirely.
-    /// </param>
+    /// <param name="kind">The asset kind whose <c>assets/behaviors/&lt;Folder&gt;</c> subfolder is wanted.</param>
+    /// <param name="csprojSegments">Ignored — see the summary.</param>
     public static string ResolveAssetsRoot(AssetKind kind, params string[] csprojSegments)
         => Path.Combine(ResolveBase(csprojSegments), AssetsRelative(kind));
 
@@ -98,235 +83,130 @@ public static class AssetRoots
         => Path.Combine(ResolveBase(csprojSegments), RecipesRelative(kind));
 
     /// <summary>
-    /// ⭐ The three-arm base resolution, in one place so <see cref="ResolveAssetsRoot"/> and
-    /// <see cref="ResolveRecipesRoot"/> cannot disagree about the order.
+    /// ⭐ The base resolution, in one place so <see cref="ResolveAssetsRoot"/>, <see cref="ResolveRecipesRoot"/> and the absolute-path
+    /// members cannot disagree: <see cref="ConfiguredRoot"/>, else <see cref="ContentLayout.NasRoot"/>.
     /// </summary>
-    /// <returns>
-    /// Which arm answered, for a caller that wants to LOG it — ⚠ and one should: *"the catalog is
-    /// empty"* and *"the catalog is pointed somewhere else"* are different problems.
-    /// </returns>
+    /// <param name="csprojSegments">Ignored (kept for the call sites).</param>
     public static string ResolveBase(params string[] csprojSegments)
-    {
-        // ① config — ruling 67's answer for a deployed node.
-        if (ConfiguredRoot != null) return ConfiguredRoot;
-
-        // ② the source walk-up — "fallback to the repo source as of now" (the user's own words).
-        var projectDir = ResolveProjectDir(csprojSegments);
-        if (projectDir != null) return projectDir;
-
-        // ③ the output directory — always exists, and is what every pre-ruling-67 property used.
-        return AppContext.BaseDirectory;
-    }
+        => ConfiguredRoot ?? ContentLayout.NasRoot;
 
     /// <summary>
-    /// ⭐ Which arm <see cref="ResolveBase"/> would answer from — for the log line that tells an
-    /// operator WHY the catalog looks the way it does. ⛔ Not a decision input; purely diagnostic.
+    /// ⭐ Which arm <see cref="ResolveBase"/> answers from — for the log line that tells an operator WHY the catalog looks the way it does.
+    /// ⛔ Not a decision input; purely diagnostic.
     /// </summary>
     public static string DescribeBase(params string[] csprojSegments)
-    {
-        if (ConfiguredRoot != null)               return $"config ({ConfiguredRoot})";
-        var dir = ResolveProjectDir(csprojSegments);
-        if (dir != null)                          return $"source walk-up ({dir})";
-        return $"output directory ({AppContext.BaseDirectory}) — no config and no source tree";
-    }
+        => ConfiguredRoot != null
+            ? $"config ({ConfiguredRoot})"
+            : $"NAS root ({ContentLayout.NasRoot})";
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-098</c> (<c>J1-a</c>) — the WHOLE root-reporting policy: which arm answered, and a
-    /// warning when only the last one did.</b>
+    /// ⭐⭐⭐ <b><c>CE-098</c> (<c>J1-a</c>) — the WHOLE root-reporting policy: which arm answered, and a warning when the answering root holds
+    /// no <c>assets/</c> folder.</b>
     ///
-    /// <para>📐 <b>Measured <c>2026-08-27</c>:</b> both composition roots ran this same ~9-line block —
-    /// an <c>Info</c> naming <see cref="DescribeBase"/>, then
-    /// <c>if (ConfiguredRoot == null &amp;&amp; ResolveProjectDir(…) == null)</c> and a ruling-67 warning.
-    /// ⛔ <b>And they worded the same fault differently</b> — <i>"editor-owned BTree/HSM JSON assets will
-    /// only load if…"</i> vs <i>"the catalog will be empty unless…"</i>. ⇒ ⚠⚠ <b>the editor's half was
-    /// duplication <c>J1</c> ITSELF introduced</b>, by copying CGF's reporting shape across instead of
-    /// sharing it — 📌 a unification slice that fixes a drift by cloning the fix is only half done.</para>
+    /// <para>⭐⭐ <b>Sinks, not a logger.</b> This assembly has no logging dependency and the two hosts route differently (<c>Console</c> on the
+    /// editor, <c>FdpLog&lt;CgfSubsystem&gt;</c> on CGF) ⇒ ⭐ the message BODY is shared so one fault has one wording; the PREFIX and the routing
+    /// stay the host's.</para>
     ///
-    /// <para>⭐⭐ <b>Sinks, not a logger.</b> This assembly has no logging dependency and the two hosts route
-    /// differently (<c>Console</c> on the editor, <c>FdpLog&lt;CgfSubsystem&gt;</c> on CGF) ⇒ the same shape
-    /// <c>AiAssetCatalogBuilder.warnMissingRoot</c> uses: ⭐ <b>the message BODY is shared so one fault has
-    /// one wording; the PREFIX and the routing stay the host's.</b></para>
-    ///
-    /// <para>⚠ <b>Why the predicate is not just <c>DescribeBase</c>'s string.</b> ⛔ Matching on
-    /// <i>"output directory"</i> in prose would be a rail-blindness generator — 📌 the decision must be the
-    /// same boolean the resolution itself uses, so re-wording the diagnostic can never change which hosts
-    /// warn. ⭐ Both arms are re-asked here rather than inferred.</para>
+    /// <para>⚠ <c>CE-4089</c>: the warning's predicate is no longer "no source tree" — there is always a root now (config, else the NAS). It is
+    /// "the root the catalog reads has no <c>assets/</c>", i.e. NOTHING was seeded or published there. ⭐ The decision is the same
+    /// <see cref="ResolveBase"/> the resolution itself uses, never the diagnostic's wording.</para>
     /// </summary>
-    /// <param name="info">
-    ///   ⭐ Receives <c>"Authoring root resolved from &lt;arm&gt;."</c> — ⚠ ALWAYS, including the happy path:
-    ///   📌 <i>"the catalog is empty"</i> and <i>"the catalog is pointed somewhere else"</i> are different
-    ///   problems and an operator cannot tell them apart without this line.
-    /// </param>
-    /// <param name="warn">
-    ///   ⭐⭐ Receives the ruling-67 message when <b>neither</b> config nor a source tree answered, i.e. the
-    ///   output-directory arm did. ⛔ Not an error — a deployed node with assets beside the binary is a
-    ///   legitimate shape; it is the SILENT version of it that ruling 67 exists to end.
-    /// </param>
-    /// <param name="csprojSegments">The dev-time walk-up's project-file segments, as for <see cref="ResolveBase"/>.</param>
+    /// <param name="info">⭐ Receives <c>"Authoring root resolved from &lt;arm&gt;."</c> — ⚠ ALWAYS, including the happy path.</param>
+    /// <param name="warn">⭐⭐ Receives the message when the resolved root has no <c>assets/</c> folder. ⛔ Not an error: a fresh NAS is legal.</param>
+    /// <param name="csprojSegments">Ignored (kept for the call sites).</param>
     public static void ReportBase(Action<string>? info, Action<string>? warn, params string[] csprojSegments)
     {
         info?.Invoke($"Authoring root resolved from {DescribeBase(csprojSegments)}.");
 
-        if (ConfiguredRoot != null) return;
-        if (ResolveProjectDir(csprojSegments) != null) return;
+        var root = ResolveBase(csprojSegments);
+        if (Directory.Exists(ContentLayout.Assets(root))) return;
 
         warn?.Invoke(
-            "No configured asset root and no source tree (searched up from CWD + BaseDirectory for "
-          + $"'{Path.Combine(csprojSegments)}'). Falling back to the output directory, so the catalog will "
-          + "be empty unless assets were deployed beside the binary. "
-          + "⇒ ruling 67: pass --asset-root on a deployed node.");
+            $"The authoring root '{root}' has no '{ContentLayout.AssetsDirectoryName}/' folder, so the catalog will be empty. "
+          + "⇒ a dev start seeds it from the repository (run the editor or the runner from a checkout); "
+          + "a deployed node needs the content published to the NAS, or --asset-root.");
     }
 
-    // ── Relative segment helpers (single authority for §16 segment names) ──
+    // ── Relative segment helpers (the names come from ContentLayout — ONE authority) ──
 
-    /// <summary>
-    /// Returns the relative path segment for the <c>Assets/<paramref name="kind"/></c>
-    /// subfolder (e.g. <c>"Assets/Blueprints"</c>). Suitable for combining with a
-    /// project directory resolved from the <c>.csproj</c> or any other base path.
-    /// </summary>
-    /// <param name="kind">The asset kind.</param>
-    /// <returns>
-    /// <c>"Assets/Blueprints"</c> for <see cref="AssetKind.Blueprint"/>,
-    /// <c>"Assets/HSMs"</c> for <see cref="AssetKind.Hsm"/>,
-    /// <c>"Assets/BTrees"</c> for <see cref="AssetKind.BTree"/>.
-    /// </returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown for <see cref="AssetKind.Blackboard"/> and <see cref="AssetKind.Utility"/>
-    /// (no Assets root defined in §16), and for any future kind without an Assets root.
-    /// </exception>
-    public static string AssetsRelative(AssetKind kind) => kind switch
+    private static string BehaviorFolder(AssetKind kind, string what) => kind switch
     {
-        AssetKind.Blueprint => Path.Combine("Assets", "Blueprints"),
-        AssetKind.BTree     => Path.Combine("Assets", "BTrees"),
-        AssetKind.Hsm       => Path.Combine("Assets", "HSMs"),
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(kind), kind, $"AssetKind.{kind} has no Assets root.")
+        AssetKind.Blueprint => ContentLayout.BlueprintsFolder,
+        AssetKind.BTree     => ContentLayout.BTreesFolder,
+        AssetKind.Hsm       => ContentLayout.HsmsFolder,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, $"AssetKind.{kind} has no {what} root.")
     };
 
     /// <summary>
-    /// Returns the relative path segment for the <c>Recipes/<paramref name="kind"/></c>
-    /// subfolder (e.g. <c>"Recipes/Blueprints"</c>). Suitable for combining with a
-    /// project directory resolved from the <c>.csproj</c> or any other base path.
+    /// The path of the <c>assets/behaviors/&lt;Folder&gt;</c> subfolder of <paramref name="kind"/>, RELATIVE to a content root
+    /// (<c>assets/behaviors/Blueprints</c> for <see cref="AssetKind.Blueprint"/>, <c>…/HSMs</c>, <c>…/BTrees</c>).
     /// </summary>
-    /// <param name="kind">The asset kind.</param>
-    /// <returns>
-    /// <c>"Recipes/Blueprints"</c> for <see cref="AssetKind.Blueprint"/>,
-    /// <c>"Recipes/HSMs"</c> for <see cref="AssetKind.Hsm"/>,
-    /// <c>"Recipes/BTrees"</c> for <see cref="AssetKind.BTree"/>.
-    /// </returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown for <see cref="AssetKind.Blackboard"/> and <see cref="AssetKind.Utility"/>
-    /// (no Recipes root defined in §16).
-    /// </exception>
-    public static string RecipesRelative(AssetKind kind) => kind switch
-    {
-        AssetKind.Blueprint => Path.Combine("Recipes", "Blueprints"),
-        AssetKind.BTree     => Path.Combine("Recipes", "BTrees"),
-        AssetKind.Hsm       => Path.Combine("Recipes", "HSMs"),
-        AssetKind.Scenario  => ScenariosRecipesRelative,
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(kind), kind, $"AssetKind.{kind} has no Recipes root.")
-    };
+    /// <exception cref="ArgumentOutOfRangeException">For <see cref="AssetKind.Blackboard"/>, <see cref="AssetKind.Utility"/> and any kind with no Assets root.</exception>
+    public static string AssetsRelative(AssetKind kind)
+        => ContentLayout.BehaviorAssets(string.Empty, BehaviorFolder(kind, "Assets"));
 
     /// <summary>
-    /// Relative path segment for the <c>Recipes/Scenarios</c> directory.
+    /// The path of the <c>recipes/…</c> subfolder of <paramref name="kind"/>, RELATIVE to a content root
+    /// (<c>recipes/behaviors/&lt;Folder&gt;</c>; <c>recipes/scenarios</c> for <see cref="AssetKind.Scenario"/>).
     /// </summary>
-    /// <remarks>
-    /// Scenario has <b>no</b> Assets root — it is orchestrator/NAS-backed. This is the
-    /// only Scenario root until <c>AssetKind.Scenario</c> is added in MTB-P5-T2, at which
-    /// point <see cref="RecipesRelative"/> will gain a Scenario arm and this member may be
-    /// deprecated in favor of <c>RecipesRelative(AssetKind.Scenario)</c>.
-    /// </remarks>
-    public static string ScenariosRecipesRelative => Path.Combine("Recipes", "Scenarios");
+    /// <exception cref="ArgumentOutOfRangeException">For kinds with no Recipes root.</exception>
+    public static string RecipesRelative(AssetKind kind) => kind == AssetKind.Scenario
+        ? ScenariosRecipesRelative
+        : ContentLayout.BehaviorRecipes(string.Empty, BehaviorFolder(kind, "Recipes"));
 
-    // ── Absolute-path properties (output-dir consumers) ──
+    /// <summary>Relative path of the scenario seeds: <c>recipes/scenarios</c>.</summary>
+    public static string ScenariosRecipesRelative => ContentLayout.ScenarioRecipes(string.Empty);
 
-    /// <summary>
-    /// ⭐⭐⭐ <b>The base every absolute-path member below hangs off — <see cref="ConfiguredRoot"/> when
-    /// ruling 67's config is set, otherwise <see cref="AppContext.BaseDirectory"/> exactly as before.</b>
-    ///
-    /// <para>⛔⛔ <b>This is the half of ruling 67 that is easy to miss, and shipping without it would
-    /// have been a SPLIT BRAIN.</b> 📐 <see cref="AssetsFor"/> is what
-    /// <c>BlueprintAssetContributor.BaseFolder</c>, <c>BTreeJsonAssetContributor</c>,
-    /// <c>HsmJsonAssetContributor</c>, <c>BTreeNewAssetService</c> and <c>HsmNewAssetService</c> all
-    /// resolve from — i.e. where assets are BROWSED and CREATED. ⇒ had these stayed on
-    /// <c>BaseDirectory</c> while the catalog resolved from config, a configured node would have LISTED
-    /// assets from one tree and CREATED them in another: two competing path authorities, which is the
-    /// precise failure ruling 67 exists to prevent.</para>
-    ///
-    /// <para>⭐ Unset config ⇒ byte-identical to the previous behaviour, so all ~30 call sites and every
-    /// dev box are unchanged. ⚠ That is why the ruling chose <c>Configure(...)</c> over a provider.</para>
-    /// </summary>
-    private static string AbsoluteBase => ConfiguredRoot ?? AppContext.BaseDirectory;
+    // ── Absolute-path properties ──
 
     /// <summary>
-    /// Absolute path to the <c>Assets/</c> root directory (final assets).
-    /// ⭐ Honours ruling 67's <see cref="ConfiguredRoot"/> — see <see cref="AbsoluteBase"/>.
+    /// ⭐⭐⭐ <b>The base every absolute-path member below hangs off</b> — the same <see cref="ResolveBase"/> as the catalog, so LISTING and
+    /// CREATING an asset can never use two trees (ruling 67's split-brain warning).
     /// </summary>
-    public static string AssetsRoot => Path.Combine(AbsoluteBase, "Assets");
+    private static string AbsoluteBase => ResolveBase();
 
-    /// <summary>
-    /// Absolute path to the <c>Recipes/</c> root directory (creation sources).
-    /// ⭐ Honours ruling 67's <see cref="ConfiguredRoot"/> — see <see cref="AbsoluteBase"/>.
-    /// </summary>
-    public static string RecipesRoot => Path.Combine(AbsoluteBase, "Recipes");
+    /// <summary>Absolute path to the <c>assets/</c> root (every final asset: behaviours, terrain, buildings, icons, audio, textures).</summary>
+    public static string AssetsRoot => ContentLayout.Assets(AbsoluteBase);
 
-    /// <summary>
-    /// Returns the absolute path to the <c>Assets/<paramref name="kind"/></c> subfolder
-    /// for file-based kinds (Blueprint, BTree, Hsm).
-    /// </summary>
+    /// <summary>Absolute path to <c>assets/behaviors</c> — the final behaviour assets (Blueprints, HSMs, BTrees, Params).</summary>
+    public static string BehaviorAssetsRoot => ContentLayout.BehaviorAssets(AbsoluteBase);
+
+    /// <summary>Absolute path to the <c>recipes/</c> root (creation sources).</summary>
+    public static string RecipesRoot => ContentLayout.Recipes(AbsoluteBase);
+
+    /// <summary>The absolute <c>assets/behaviors/&lt;Folder&gt;</c> of <paramref name="kind"/> (Blueprint, BTree, Hsm).</summary>
     /// <inheritdoc cref="AssetsRelative"/>
     public static string AssetsFor(AssetKind kind) =>
         Path.Combine(AbsoluteBase, AssetsRelative(kind));
 
-    /// <summary>
-    /// Returns the absolute path to the <c>Recipes/<paramref name="kind"/></c> subfolder
-    /// for file-based kinds (Blueprint, BTree, Hsm).
-    /// </summary>
+    /// <summary>The absolute <c>recipes/…</c> subfolder of <paramref name="kind"/>.</summary>
     /// <inheritdoc cref="RecipesRelative"/>
     public static string RecipesFor(AssetKind kind) =>
         Path.Combine(AbsoluteBase, RecipesRelative(kind));
 
-    /// <summary>
-    /// Absolute path to the <c>Recipes/Scenarios</c> directory (Scenario seed root).
-    /// </summary>
-    /// <inheritdoc cref="ScenariosRecipesRelative"/>
+    /// <summary>Absolute path to <c>recipes/scenarios</c> (the scenario seed root).</summary>
     public static string ScenariosRecipesRoot =>
         Path.Combine(AbsoluteBase, ScenariosRecipesRelative);
 
     /// <summary>
-    /// ⭐⭐⭐ <b>Resolve the SOURCE-TREE project directory that holds the authoring assets, by walking up
-    /// for its <c>.csproj</c>.</b>
+    /// ⚠ <b><c>CE-4089</c>: NOT a content resolver any more</b> — no asset root comes from here (content is read from the NAS, see
+    /// <see cref="ResolveBase"/>). It remains for the one non-content need left: finding the <c>.csproj</c> a full rebuild / hot reload builds
+    /// (<c>EditorSubsystem</c>, <c>EditorApplication</c>) — ⛔ do not use it to locate assets.
     ///
-    /// <para>⚠⚠ <b>Why a walk-up at all.</b> A host's <c>BaseDirectory</c> is its <c>bin</c> folder, not the
-    /// source tree, and the editor-owned <c>*.btree.json</c> / <c>*.hsm.json</c> / <c>*.bp.json</c> assets live
-    /// in the SOURCE tree. ⛔ A hard-coded <c>"../../../"</c> breaks the moment a host runs from a different
-    /// bin depth — 📌 measured, and it is why the editor grew this walk in the first place.</para>
-    ///
-    /// <para>⭐⭐ <b>Lifted here because a SECOND host now needs it</b> *(<c>CgfSubsystem</c>, cgf==editor
-    /// slice 2)*. ⛔ <c>AssetRoots</c> is this codebase's stated <i>"single authority"</i> for roots, so a
-    /// private copy in each composition root is the duplicate ruling 9 forbids.
-    /// ⚠⚠ <b>Two inline copies remain in <c>EditorSubsystem</c></b> *(the catalog block and the
-    /// QuickReload block)* — ⭐ they should ROUTE here, but that file belongs to another lane, so the
-    /// re-route is FILED rather than done *(<c>CE-018</c>)</para>
-    ///
-    /// <para>🔴 <b>This is ruling 67's blocker in one place.</b> On a DEPLOYED node there is no source tree,
-    /// so this answers <see langword="null"/> — ⭐ which is the honest answer, and the caller must SAY so
-    /// rather than silently indexing nothing. ⛔ The fix is config-into-roots, not a deeper walk.</para>
+    /// <para>Walks up from BOTH the working directory and <see cref="AppContext.BaseDirectory"/> (the editor measured that neither alone is
+    /// enough: the working directory differs between <c>dotnet run</c>, a test harness and a launched binary).</para>
     /// </summary>
     /// <param name="csprojSegments">
-    /// ⭐ Path segments of the project file, relative to a repo root — e.g.
+    /// Path segments of the project file, relative to a repo root — e.g.
     /// <c>["Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj"]</c>.
     /// </param>
-    /// <returns>The directory containing that <c>.csproj</c>, or <see langword="null"/> when it is not found.</returns>
+    /// <returns>The directory containing that <c>.csproj</c>, or <see langword="null"/> when it is not found (a deployed node).</returns>
     public static string? ResolveProjectDir(params string[] csprojSegments)
     {
         if (csprojSegments is null || csprojSegments.Length == 0) return null;
 
         var relative = Path.Combine(csprojSegments);
 
-        // ⭐ BOTH starting points, in this order — 📐 the editor measured that neither alone is enough:
-        //   the working directory differs between `dotnet run`, a test harness and a launched binary.
         foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
         {
             var dir = start;

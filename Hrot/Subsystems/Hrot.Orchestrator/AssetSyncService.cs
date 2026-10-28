@@ -66,7 +66,8 @@ public sealed class AssetSyncService
         var entries = plan.ToWrite.Select(e => new FileManifestEntry
         {
             SourceUnc    = Path.Combine(root, e.RelativePath.Replace('/', Path.DirectorySeparatorChar)),
-            RelativeDest = Path.Combine(OrchestrationConstants.NasAssetsDirectoryName, kind,
+            // ⭐ CE-4089 — the kind's NAS folder comes from ContentLayout (behaviour kinds: assets/behaviors/<Folder>).
+            RelativeDest = Path.Combine(Path.GetRelativePath(_nasBasePath, nasRoot),
                                         e.RelativePath.Replace('/', Path.DirectorySeparatorChar)),
             Length       = e.Length,
             LastWriteUtc = e.LastWriteUtc,

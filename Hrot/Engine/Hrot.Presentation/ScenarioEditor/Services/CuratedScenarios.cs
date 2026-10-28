@@ -2,121 +2,151 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.ScenarioEditor.Services;
 
 /// <summary>
-/// <b>The curated test-scenario set — committed in git, copied into the working NAS folder on start.</b>
+/// <b>The ONE content seed — the repository is the DEVELOPMENT SEED of the NAS</b> (<c>CE-4089</c>, R-4097,
+/// docs/DESIGN_Content_Layout.md §2, L4). Generalised IN PLACE from the curated-scenario seed: it now moves
+/// <c>scenarios/</c>, <c>assets/</c> and <c>recipes/</c> (the three folders of <see cref="ContentLayout.SeededDirectories"/>), and the class name stays.
 ///
-/// <para>Mirrors the shipped-default-layout pattern (<c>Fdp.Presentation.WindowManager.LayoutPaths</c>,
-/// <c>docs/UX/UX_Feature_Layout_Defaults.md</c>) for scenarios. The difference from the layout case is
-/// deliberate and driven by the requirements:</para>
 /// <list type="bullet">
-///   <item><b>The git folder IS the manifest.</b> Whatever <c>&lt;name&gt;/scenario.json</c> folders live
-///     under the repo's <c>scenarios/</c> directory ARE the curated set — nothing else lists them.</item>
-///   <item><b>Overlay by name, never a mirror.</b> On start each curated name is force-copied into the
-///     working root, overwriting only those names. Non-curated scenarios in the working folder are never
-///     touched and nothing is ever deleted.</item>
-///   <item><b>A scenario is a folder</b> (<c>&lt;name&gt;/scenario.json</c> plus any sidecars), so the copy
-///     is a directory-tree copy rather than the layout's two named files.</item>
-///   <item><b>Dev-only by construction.</b> The git set is located by walking up to the source tree
-///     (exactly as <c>LayoutPaths.TryFindSourceLayoutDirectory</c> does). A deployed build has no source
-///     tree, so <see cref="TryFindSourceScenariosDirectory"/> returns <c>null</c>: the start-up seed is a
-///     no-op and the "save back to git" menu item is disabled. There is nothing to copy and no operator
-///     folder to disturb.</item>
+///   <item><b>Dev start: <see cref="SeedIntoNas"/>.</b> The tree is copied from the source tree into the NAS root, each file by the CE-1365
+///     atomic replace-if-different write. Every node then reads ONLY the NAS (and its staging).</item>
+///   <item><b>Production: nothing.</b> The source tree is found by <see cref="ContentLayout.TryFindSourceTree"/> (the ONE repository walk-up);
+///     a deployed install has none, so the seed is a no-op and <see cref="CanSaveToGit"/> is false. The NAS is the only source.</item>
+///   <item><b>File › Save to Git: <see cref="SaveToGit"/>.</b> The NAS copy goes back into the repository, per kind: <b>scenarios</b> keep today's
+///     rule (the CURATED names only — the folders the repository already holds); <b>assets</b> and <b>recipes</b> copy back every NAS file that
+///     is new or differs. ⛔ Nothing is ever deleted, in either direction.</item>
+///   <item><b>The git folder IS the manifest for scenarios.</b> Whatever <c>&lt;name&gt;/scenario.json</c> folders live under the repository's
+///     <c>scenarios/</c> ARE the curated set; non-curated scenarios in the NAS are never touched.</item>
 /// </list>
-///
-/// <para>Only the editor wires this today; the logic is host-agnostic (the working root is a parameter),
-/// so CGF or any other host can call the same helper.</para>
+/// <para>The logic is host-agnostic (the NAS root is a parameter): the editor and the cluster runner both call <see cref="SeedIntoNas"/>.</para>
 /// </summary>
 public static class CuratedScenarios
 {
-    /// <summary>The repo-relative directory that holds the committed curated set.</summary>
-    public const string ScenariosDirectoryName = "scenarios";
+    /// <summary>The repo-relative directory that holds the committed curated set (<see cref="ContentLayout.ScenariosDirectoryName"/>).</summary>
+    public const string ScenariosDirectoryName = ContentLayout.ScenariosDirectoryName;
 
     /// <summary>The marker file that makes a folder a scenario (matches the runtime enumerator).</summary>
     public const string MarkerFileName = "scenario.json";
 
     /// <summary>
-    /// <b>The committed curated scenarios directory in the source tree</b> — <c>&lt;repo&gt;/scenarios</c> —
-    /// or <c>null</c> when the app is not running from a checkout.
-    ///
-    /// <para>Walks up from the output directory, the same precedent
-    /// <c>LayoutPaths.TryFindSourceLayoutDirectory</c> uses. It requires the directory to actually contain
-    /// at least one curated scenario (a <c>scenario.json</c> somewhere below it), so an unrelated
-    /// <c>scenarios</c> folder that happens to sit on the path is not mistaken for the set — and a deployed
-    /// build, which has no such source tree, correctly yields <c>null</c>.</para>
+    /// <b>The committed scenarios directory in the source tree</b> — <c>&lt;repo&gt;/scenarios</c> — or <c>null</c> when the app is not running
+    /// from a checkout. ⭐ Found through <see cref="ContentLayout.TryFindSourceTree"/>, the one repository walk-up.
     /// </summary>
     public static string? TryFindSourceScenariosDirectory()
+        => ContentLayout.TryFindSourceTree() is { } tree ? ContentLayout.Scenarios(tree) : null;
+
+    /// <summary>
+    /// <c>true</c> when a source tree exists — i.e. the "Save to Git" command can run. In a deployed build this is <c>false</c>, and the caller
+    /// disables the menu item.
+    /// </summary>
+    /// <param name="sourceSearchStartDirs">Where the repository walk-up starts; none ⇒ the working directory, then the app's base directory (tests pass an
+    /// outside folder to stand for a production install).</param>
+    public static bool CanSaveToGit(params string[] sourceSearchStartDirs) => ContentLayout.TryFindSourceTree(sourceSearchStartDirs) != null;
+
+    // ══ SEED: source tree → NAS ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// <b>Copy the repository's <c>scenarios/</c>, <c>assets/</c> and <c>recipes/</c> into the NAS root</b> — each file only when its bytes differ,
+    /// by the CE-1365 atomic write. Returns the NAS-relative paths (<c>/</c>-separated) that were WRITTEN: empty when nothing differed, and empty
+    /// (never an error) when there is no source tree — a deployed build has nothing to seed.
+    /// </summary>
+    /// <param name="nasRoot">The NAS root (<see cref="ContentLayout.NasRoot"/>), NOT its <c>scenarios/</c> folder.</param>
+    /// <param name="sourceSearchStartDirs">Where the repository walk-up starts; none ⇒ the working directory, then the app's base directory.</param>
+    public static IReadOnlyList<string> SeedIntoNas(string nasRoot, params string[] sourceSearchStartDirs)
     {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
+        if (string.IsNullOrWhiteSpace(nasRoot)) throw new ArgumentException("A NAS root is required.", nameof(nasRoot));
+
+        var tree = ContentLayout.TryFindSourceTree(sourceSearchStartDirs);
+        return tree is null ? Array.Empty<string>() : SeedTreeFrom(tree, nasRoot);
+    }
+
+    /// <summary>
+    /// The pure copy behind <see cref="SeedIntoNas"/> — exposed so the behaviour is testable without depending on the walk-up's result.
+    /// <c>scenarios/</c>: the curated names (every folder holding a <see cref="MarkerFileName"/>); <c>assets/</c> and <c>recipes/</c>: every file.
+    /// </summary>
+    public static IReadOnlyList<string> SeedTreeFrom(string sourceTree, string nasRoot)
+    {
+        var written = new List<string>();
+        foreach (var top in ContentLayout.SeededDirectories)
         {
-            var candidate = Path.Combine(dir, ScenariosDirectoryName);
-            if (Directory.Exists(candidate) && CuratedRelPaths(candidate).Count > 0)
-                return candidate;
-            dir = Directory.GetParent(dir)?.FullName;
+            var source = Path.Combine(sourceTree, top);
+            var target = Path.Combine(nasRoot, top);
+            if (!Directory.Exists(source)) continue;
+
+            if (top == ContentLayout.ScenariosDirectoryName)
+                foreach (var rel in CuratedRelPaths(source))
+                    CopyTree(Path.Combine(source, rel), Path.Combine(target, rel), top + "/" + rel, written);
+            else
+                CopyTree(source, target, top, written);
         }
-        return null;
+        return written;
     }
 
     /// <summary>
-    /// <c>true</c> when a source-tree curated set exists — i.e. the "save curated scenarios to git" command
-    /// can run. In a deployed build this is <c>false</c>, and the caller disables the menu item.
-    /// </summary>
-    public static bool CanSaveToGit() => TryFindSourceScenariosDirectory() != null;
-
-    /// <summary>
-    /// <b>Copy every curated scenario from git into the working root on start, force-overwriting only those
-    /// names.</b> Returns the curated relative paths copied; empty (never an error) when there is no source
-    /// tree — a deployed build simply has nothing to seed.
-    /// </summary>
-    /// <param name="workingRoot">The runtime scenarios root (e.g. <c>EditorBootstrap.ScenariosRoot</c>).</param>
-    public static IReadOnlyList<string> SeedIntoWorking(string workingRoot)
-    {
-        if (string.IsNullOrWhiteSpace(workingRoot)) throw new ArgumentException("A working root is required.", nameof(workingRoot));
-
-        var source = TryFindSourceScenariosDirectory();
-        if (source is null) return Array.Empty<string>();
-        return SeedFrom(source, workingRoot);
-    }
-
-    /// <summary>
-    /// The pure copy behind <see cref="SeedIntoWorking"/> — copies every curated name from
-    /// <paramref name="sourceRoot"/> into <paramref name="workingRoot"/>, force-overwriting only those
-    /// names. Exposed so the behaviour is testable without depending on the walk-up probe's result.
+    /// The scenario-only copy — every curated name of <paramref name="sourceRoot"/> into <paramref name="workingRoot"/>, force-overwriting only
+    /// those names. ⭐ Also what the editor uses to stage the scenario seeds (<c>recipes/scenarios</c>) under the scenarios root's
+    /// <c>Recipes/</c> subfolder (H2/U9). Returns the curated relative paths copied.
     /// </summary>
     public static IReadOnlyList<string> SeedFrom(string sourceRoot, string workingRoot)
     {
         var copied = new List<string>();
         foreach (var rel in CuratedRelPaths(sourceRoot))
         {
-            CopyScenarioFolder(Path.Combine(sourceRoot, rel), Path.Combine(workingRoot, rel));
+            CopyTree(Path.Combine(sourceRoot, rel), Path.Combine(workingRoot, rel), rel, null);
             copied.Add(rel);
         }
         return copied;
     }
 
-    /// <summary>
-    /// <b>Copy the working copy of every curated scenario back into the git set, force-overwriting git.</b>
-    /// The set of names is defined by git — this refreshes their contents, it does not add or remove
-    /// members. Returns the curated relative paths written; empty when there is no source tree (the menu
-    /// item is disabled in that case) or when a curated working copy is missing.
-    /// </summary>
-    /// <param name="workingRoot">The runtime scenarios root the curated copies were seeded into.</param>
-    public static IReadOnlyList<string> SaveWorkingToGit(string workingRoot)
-    {
-        if (string.IsNullOrWhiteSpace(workingRoot)) throw new ArgumentException("A working root is required.", nameof(workingRoot));
+    // ══ SAVE TO GIT: NAS → source tree ════════════════════════════════════════════════════════════════
 
-        var source = TryFindSourceScenariosDirectory();
-        if (source is null) return Array.Empty<string>();
-        return SaveTo(source, workingRoot);
+    /// <summary>
+    /// <b>Copy the NAS content back into the repository</b> (File › Save to Git). Per kind: <c>scenarios/</c> the curated names only (git defines
+    /// the set; their contents are refreshed); <c>assets/</c> and <c>recipes/</c> every NAS file that is NEW or DIFFERS. ⛔ Never deletes.
+    /// Returns the repository-relative paths written; empty when there is no source tree (the menu item is disabled then).
+    /// </summary>
+    /// <param name="nasRoot">The NAS root.</param>
+    /// <param name="sourceSearchStartDirs">Where the repository walk-up starts; none ⇒ the working directory, then the app's base directory.</param>
+    public static IReadOnlyList<string> SaveToGit(string nasRoot, params string[] sourceSearchStartDirs)
+    {
+        if (string.IsNullOrWhiteSpace(nasRoot)) throw new ArgumentException("A NAS root is required.", nameof(nasRoot));
+
+        var tree = ContentLayout.TryFindSourceTree(sourceSearchStartDirs);
+        return tree is null ? Array.Empty<string>() : SaveTreeTo(tree, nasRoot);
+    }
+
+    /// <summary>The pure copy behind <see cref="SaveToGit"/> — testable without the walk-up.</summary>
+    public static IReadOnlyList<string> SaveTreeTo(string sourceTree, string nasRoot)
+    {
+        var written = new List<string>();
+        foreach (var top in ContentLayout.SeededDirectories)
+        {
+            var git = Path.Combine(sourceTree, top);
+            var nas = Path.Combine(nasRoot, top);
+            if (!Directory.Exists(nas)) continue;
+
+            if (top == ContentLayout.ScenariosDirectoryName)
+            {
+                foreach (var rel in CuratedRelPaths(git))
+                {
+                    var working = Path.Combine(nas, rel);
+                    if (!File.Exists(Path.Combine(working, MarkerFileName))) continue;   // never seeded / user deleted it — skip, do not error
+                    CopyTree(working, Path.Combine(git, rel), top + "/" + rel, written);
+                }
+            }
+            else
+                CopyTree(nas, git, top, written);
+        }
+        return written;
     }
 
     /// <summary>
-    /// The pure copy behind <see cref="SaveWorkingToGit"/> — copies the working copy of every curated name
-    /// (as defined by <paramref name="sourceRoot"/>'s manifest) back into <paramref name="sourceRoot"/>,
-    /// force-overwriting. A curated name with no working copy is skipped, not an error. Exposed for tests.
+    /// The scenario-only save — the NAS copy of every curated name (as defined by <paramref name="sourceRoot"/>'s manifest) back into
+    /// <paramref name="sourceRoot"/>. A curated name with no working copy is skipped, not an error.
     /// </summary>
     public static IReadOnlyList<string> SaveTo(string sourceRoot, string workingRoot)
     {
@@ -124,12 +154,14 @@ public static class CuratedScenarios
         foreach (var rel in CuratedRelPaths(sourceRoot))
         {
             var working = Path.Combine(workingRoot, rel);
-            if (!File.Exists(Path.Combine(working, MarkerFileName))) continue;   // never seeded / user deleted it — skip, do not error
-            CopyScenarioFolder(working, Path.Combine(sourceRoot, rel));
+            if (!File.Exists(Path.Combine(working, MarkerFileName))) continue;
+            CopyTree(working, Path.Combine(sourceRoot, rel), rel, null);
             written.Add(rel);
         }
         return written;
     }
+
+    // ══ helpers ═══════════════════════════════════════════════════════════════════════════════════════
 
     /// <summary>
     /// The curated relative paths under <paramref name="root"/> — every folder that contains a
@@ -153,33 +185,37 @@ public static class CuratedScenarios
     }
 
     /// <summary>
-    /// Copy one scenario folder (all its files, recursively) from <paramref name="src"/> to
-    /// <paramref name="dst"/>, force-overwriting. Creates <paramref name="dst"/> and any subdirectories.
+    /// Copy a folder (all its files, recursively) from <paramref name="src"/> to <paramref name="dst"/>, each file by
+    /// <see cref="ReplaceIfDifferent"/>. Creates <paramref name="dst"/> and any subdirectories; never deletes. ⛔ Skips the temp files the
+    /// atomic write itself leaves beside a target (<c>*.tmp</c>). Appends the label-relative path of every file WRITTEN to
+    /// <paramref name="written"/> when given.
     /// </summary>
-    private static void CopyScenarioFolder(string src, string dst)
+    private static void CopyTree(string src, string dst, string label, List<string>? written)
     {
         Directory.CreateDirectory(dst);
         foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
         {
+            if (file.EndsWith(".tmp", StringComparison.Ordinal)) continue;
             var rel = Path.GetRelativePath(src, file);
             var target = Path.Combine(dst, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            ReplaceIfDifferent(file, target);
+            if (ReplaceIfDifferent(file, target))
+                written?.Add(label + "/" + rel.Replace('\\', '/'));
         }
     }
 
     /// <summary>
-    /// ⭐ CE-1365 — the working root is SHARED (every editor and test host on the machine seeds the same one), so a copy must never be
-    /// seen half-written: identical bytes are left alone, anything else is written to a unique temp file beside the target and RENAMED
-    /// over it (atomic on one volume). ⛔ Was <c>File.Copy(overwrite)</c> in place — two parallel seeds raced on <c>golden.json</c> and a
-    /// reader between them read a truncated file.
+    /// ⭐ CE-1365 — the NAS root is SHARED (every editor and test host on the machine seeds the same one), so a copy must never be
+    /// seen half-written: identical bytes are left alone (returns <c>false</c>), anything else is written to a unique temp file beside the
+    /// target and RENAMED over it (atomic on one volume; returns <c>true</c>). ⛔ Was <c>File.Copy(overwrite)</c> in place — two parallel seeds
+    /// raced on <c>golden.json</c> and a reader between them read a truncated file.
     /// </summary>
-    private static void ReplaceIfDifferent(string source, string target)
+    private static bool ReplaceIfDifferent(string source, string target)
     {
         var bytes = File.ReadAllBytes(source);
         try
         {
-            if (File.Exists(target) && File.ReadAllBytes(target).AsSpan().SequenceEqual(bytes)) return;
+            if (File.Exists(target) && File.ReadAllBytes(target).AsSpan().SequenceEqual(bytes)) return false;
         }
         catch (IOException) { /* being replaced right now — write our own copy below */ }
         var temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -187,6 +223,7 @@ public static class CuratedScenarios
         {
             File.WriteAllBytes(temp, bytes);
             File.Move(temp, target, overwrite: true);
+            return true;
         }
         finally
         {

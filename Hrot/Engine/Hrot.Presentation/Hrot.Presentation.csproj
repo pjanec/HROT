@@ -7,11 +7,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <!-- CE-1017 S5: the Add Entity picker's entity icons - 128 px PNGs rasterized by scripts/render-entity-icons.py from the
-         hand-drawn SVG sources in Assets/EntityIcons/src; served by EntityIconLibrary under the key entity/<name>. -->
-    <EmbeddedResource Include="Assets\EntityIcons\*.png" LogicalName="EntityIcons/%(Filename)%(Extension)" />
-  </ItemGroup>
-  <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Hrot.IG.Tests</_Parameter1>
     </AssemblyAttribute>
@@ -50,9 +45,7 @@
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
   </ItemGroup>
-  <!-- ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-8): sound files named by a SoundDto are looked up in assets/audio beside
-       the executable; every file here must have a row in assets/audio/LICENSES.md (CC0, or CC-BY with the attribution filled). -->
-  <ItemGroup>
-    <None Update="assets\audio\**\*" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+  <!-- ⭐ CE-4089 (R-4097): the entity icons and the sound files are CONTENT, not build output. They live at the repository root
+       (assets/icons, assets/audio — every audio file needs a row in assets/audio/LICENSES.md), a dev start seeds them into the NAS, and
+       EntityIconLibrary / AudioLayer read them from the NAS through ContentLayout. No embedded resource and no copy-to-output rule remains. -->
 </Project>

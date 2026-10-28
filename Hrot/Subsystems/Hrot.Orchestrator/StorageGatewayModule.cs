@@ -445,19 +445,19 @@ public sealed class StorageGatewayModule
 
         // ⭐⭐ BP-557 (2026-10-03) — the named TERRAIN, a FOLDER {nas}/terrain/<name>/ (definition + world +
         //   roads), staged to {node}/Terrain/<name>/. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
-        //   ⚠ Not on the NAS is NOT an error here: every node's TerrainCatalog also searches the shared root
-        //   and the terrains shipped with the build, and the node fails loudly itself if none has it.
+        //   ⚠ Not on the NAS is NOT an error here: every node's TerrainCatalog also searches the NAS
+        //   (the shipped arm is gone, CE-4089), and the node fails loudly itself if none has it.
         string? terrainSource = null;
         if (!string.IsNullOrEmpty(names.TerrainName))
         {
-            var candidate = Path.Combine(nasBasePath, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName,
-                names.TerrainName);
+            // ⭐ CE-4089 — the NAS terrain tree is {nas}/assets/terrain (ContentLayout), the one the dev seed fills.
+            var candidate = Path.Combine(ContentLayout.TerrainAssets(nasBasePath), names.TerrainName);
             if (File.Exists(Path.Combine(candidate, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName)))
                 terrainSource = candidate;
             else
                 FdpLog<StorageGatewayModule>.Info(
                     "[Gateway] PrefetchScenario: terrain '{0}' is not published under '{1}'; nodes resolve it "
-                  + "from their shared root or the terrains shipped with the build.",
+                  + "from their own staging or the NAS.",
                     names.TerrainName, candidate);
         }
 
