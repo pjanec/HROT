@@ -14,8 +14,8 @@ namespace Hrot.ClusterRunner.Configuration
     {
         // -- Hrot-specific CLI options ----------------------------------------
 
-        /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|traffic|ci|editor|migrate|replaybrowser or comma-separated combination")]
+        /// <summary>Mode string supplied via --mode.  Examples: all, server, player, simhost, ig, ios, orchestrator, cgf, traffic, ci, simhost,ig, orchestrator,cgf</summary>
+        [Option('m', "mode", Required = true, HelpText = "all (every node in one process)|server (orchestrator,simhost,cgf,traffic)|player (a client joining a server; the IG node)|orchestrator|simhost|cgf|traffic|ig|ios|ci|editor|migrate|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -186,6 +186,29 @@ namespace Hrot.ClusterRunner.Configuration
         // -- Validation ------------------------------------------------------
 
         /// <summary>
+        /// The fine-grained nodes, in start order (the orchestrator first: the id allocator needs it serving before SimHost
+        /// bootstraps). Each is a mode of its own; the shorthands below only combine them.
+        /// </summary>
+        private static readonly string[] AllNodes = { "orchestrator", "simhost", "ig", "excon", "cgf", "traffic" };
+
+        /// <summary>The server side of a networked game — everything except the nodes a player brings along (ig, excon).</summary>
+        private static readonly string[] ServerNodes = { "orchestrator", "simhost", "cgf", "traffic" };
+
+        /// <summary>
+        /// Whole-string shorthands: <c>all</c> / <c>demo</c> = every fine-grained node in one process; <c>server</c> = the
+        /// orchestrator, SimHost, CGF and traffic nodes, which players (<c>--mode player</c>) join.
+        /// </summary>
+        private static readonly Dictionary<string, string[]> RosterShorthands = new(StringComparer.Ordinal)
+        {
+            ["all"]    = AllNodes,
+            ["demo"]   = AllNodes,
+            ["server"] = ServerNodes,
+        };
+
+        private const string ModeList =
+            "Use: all, server, player, orchestrator, simhost, cgf, traffic, ig, ios, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
+
+        /// <summary>
         /// Parses <see cref="ModeString"/> into <see cref="RequestedSubsystems"/>,
         /// <see cref="Fdp.Toolkit.Runner.RunnerConfiguration.WaitForString"/> into
         /// <see cref="Fdp.Toolkit.Runner.RunnerConfiguration.WaitForPeers"/>,
@@ -196,17 +219,17 @@ namespace Hrot.ClusterRunner.Configuration
         /// </exception>
         public void Validate()
         {
-            // Expand "all" and "demo" shorthands before splitting
+            // Expand the roster shorthands ("all", "demo", "server") before splitting.
             string expandedMode = ModeString.Trim().ToLowerInvariant();
-            if (expandedMode == "all" || expandedMode == "demo")
-                expandedMode = "orchestrator,simhost,ig,excon,cgf";
+            if (RosterShorthands.TryGetValue(expandedMode, out var roster))
+                expandedMode = string.Join(",", roster);
 
             // Parse mode string -> RequestedSubsystems
             RequestedSubsystems.Clear();
             foreach (var name in expandedMode.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                // "ios" is a legacy alias for "excon"
-                var normalized = name == "ios" ? "excon" : name;
+                // "ios" is a legacy alias for "excon"; "player" is the user-facing name of the IG node (the internal key stays "ig").
+                var normalized = name switch { "ios" => "excon", "player" => "ig", _ => name };
                 // ST-015: "stridemock" is gone with the mock subsystem. Dropping it from this set is
                 // what makes `--mode stridemock` throw again instead of composing a subsystem that no
                 // longer exists.
@@ -216,22 +239,23 @@ namespace Hrot.ClusterRunner.Configuration
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor",
                       "replaybrowser", "migrate", "dump-api",
-                      "traffic" };   // ⭐ AQ93 N1 — the SUMO traffic node; NOT in "all" (the editor serves traffic embedded)
+                      "traffic" };   // ⭐ AQ93 N1 — the SUMO traffic node; part of "all" and "server" since 2026-10-28 (AQ93 §12.2)
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
-                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, traffic, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
+                        $"Invalid mode: '{ModeString}'. {ModeList}");
                 RequestedSubsystems.Add(normalized);
             }
             if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
-                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, traffic, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
+                    $"Invalid mode: '{ModeString}'. {ModeList}");
 
-            // Parse wait-for list -> WaitForPeers
+            // Parse wait-for list -> WaitForPeers   ("player" is the user-facing name of "ig", normalised as the mode token is)
             if (!string.IsNullOrWhiteSpace(WaitForString))
             {
                 WaitForPeers = new HashSet<string>(
                     WaitForString.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                 .Select(s => s.Trim().ToLowerInvariant()));
+                                 .Select(s => s.Trim().ToLowerInvariant())
+                                 .Select(s => s == "player" ? "ig" : s));
 
                 // Validate each peer name
                 var validPeers = new HashSet<string> { "simhost", "ig", "ios" };
@@ -239,7 +263,7 @@ namespace Hrot.ClusterRunner.Configuration
                 {
                     if (!validPeers.Contains(peer))
                         throw new InvalidOperationException(
-                            $"Invalid wait-for peer: '{peer}'. Valid values: simhost, ig, ios.");
+                            $"Invalid wait-for peer: '{peer}'. Valid values: simhost, ig, player, ios.");
                 }
             }
 
@@ -275,13 +299,13 @@ namespace Hrot.ClusterRunner.Configuration
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
-            bool isAll = RequestedSubsystems.Contains("orchestrator") &&
-                         RequestedSubsystems.Contains("simhost") &&
-                         RequestedSubsystems.Contains("ig") &&
-                         RequestedSubsystems.Contains("excon") &&
-                         RequestedSubsystems.Contains("cgf");
+            // A launch that hosts the master AND the simulation core (orchestrator + simhost + cgf — "all", "server" and every
+            // superset of them) waits for nobody: players join it later, and it must never block on them.
+            bool hostsTheServerCore = RequestedSubsystems.Contains("orchestrator") &&
+                                      RequestedSubsystems.Contains("simhost") &&
+                                      RequestedSubsystems.Contains("cgf");
             bool isOrchestratorOnly = RequestedSubsystems.Count == 1 && RequestedSubsystems.Contains("orchestrator");
-            if (!NoWait && WaitForPeers.Count == 0 && !isAll && !isOrchestratorOnly)
+            if (!NoWait && WaitForPeers.Count == 0 && !hostsTheServerCore && !isOrchestratorOnly)
                 throw new InvalidOperationException(
                     "--wait-for required when launching separate subsystems without --no-wait.");
         }

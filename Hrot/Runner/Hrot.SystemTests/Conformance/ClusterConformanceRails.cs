@@ -563,7 +563,10 @@ public sealed class ClusterConformanceRails
         var perspectives = (m["host"]!["routablePerspectives"] as JsonArray)!
                            .Select(n => n!.GetValue<string>()).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         _out.WriteLine($"routable: [{string.Join(", ", perspectives)}]");
-        Assert.Equal(new[] { "ExCon", "IG", "Scenario", "SimHost" }, perspectives);
+        // 2026-10-28 (measured on a live `--mode all`): the Orchestrator has been a debug provider since CE-4002 (2026-10-15) and the
+        // traffic node joined `all` the same day this line was re-measured — each contributes a ROUTABLE perspective (a provider's name,
+        // which is not the same set as the window-claimed GET /perspectives).
+        Assert.Equal(new[] { "ExCon", "IG", "Orchestrator", "Scenario", "SimHost", "Traffic" }, perspectives);
 
         // ⭐⭐ HN-028: the ack-gate is confirmable cluster-wide here. ⛔ If this reddens, the dispatcher lost its
         //    live read of OrchestratorSubsystem.IsAwaitingStepAcks and every /sim/step went back to being
