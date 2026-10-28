@@ -294,6 +294,11 @@ public sealed class PerspectiveScopedDispatcher
     public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisAnyNode
         => Active()?.ReplayAxis ?? _providers.Select(p => p.ReplayAxis).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "this run was not recorded" from the active node, else any node that keeps a cluster
+    /// read model: one cluster, one fact (as <see cref="ClusterStateAnyNode"/>). <see langword="null"/> when no node here tracks it.</summary>
+    public bool? RunNotRecordedAnyNode
+        => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
+
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds
            ?? _providers.Select(p => p.ReplayDurationSeconds).FirstOrDefault(x => x is not null);

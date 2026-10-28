@@ -126,7 +126,8 @@ namespace Hrot.ExCon
                 // ⭐ R-3055 — the exercise inventory and the replay's length, from the same pumped ClusterUiCache.
                 exercises:          () => _uiCache?.AvailableExercises,
                 replayDuration:     () => _uiCache?.ReplayDuration,
-                replayAxis:         () => _uiCache?.ReplayAxis);   // ⭐ CE-3329 R-3058
+                replayAxis:         () => _uiCache?.ReplayAxis,   // ⭐ CE-3329 R-3058
+                runNotRecorded:     () => _uiCache?.RunNotRecorded);   // ⭐ CE-4090 D14
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

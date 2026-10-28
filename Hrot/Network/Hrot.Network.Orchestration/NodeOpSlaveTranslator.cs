@@ -224,7 +224,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     TerrainName:   dto?.TerrainName,
                     IsWorldBoundary: dto?.IsWorldBoundary ?? false,    // CE-2101
                     IsCatchUp:       dto?.IsCatchUp ?? false,          // C7
-                    CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0);   // D17
+                    CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0,   // D17
+                    RecordingOff: dto?.RecordingOff ?? false);              // CE-4090 D14
             }
 
             case NedNodeOpType.StartEpisode:

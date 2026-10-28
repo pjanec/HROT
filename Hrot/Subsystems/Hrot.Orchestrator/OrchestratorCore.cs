@@ -153,6 +153,9 @@ public sealed class OrchestratorCore : IDisposable
         _inventory = new AssetInventoryProcessManager(                                            // CGF1-S0506
             bus, storageGateway, nas, OrchestrationConstants.ResolveStagingRoot(), o.StagingNodeId);
         _episodes  = new EpisodeProcessManager(bus);                                              // TASK-S003
+        // ⭐ CE-4090 (AQ108 D15) — the master discards an unarchived recording through the inventory that holds its ledger (silent-default rule:
+        //   every host builds its master here, so none can forget it).
+        _master.ExerciseDeleter = _inventory.DeleteExercise;
 
         // TASK-T001 — the live branch. Must tick BEFORE ClusterMaster so FreezeTime runs before the PrepareLive fan-out.
         var timeReads = o.TimeReads;
@@ -168,7 +171,8 @@ public sealed class OrchestratorCore : IDisposable
 
         // ⭐ CE-3329 P3 — a review's clock. Must tick BEFORE ClusterMaster so its barrier pause precedes the PrepareReview fan-out.
         _review = new ReviewProcessManager(bus, timeReads, time,
-            () => (Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState);
+            () => (Fdp.Toolkit.Orchestration.ClusterState)(int)_master.CurrentClusterState,
+            runNotRecorded: () => _master.RunNotRecorded);   // ⭐ CE-4090 D14 — a run with no recording is not paused for a review the master refuses
 
         // ⭐ CE-3329 rows 32, 45 — the session layer (§9f): republished on every change, to the DDS topic and this host's own cache
         _session = new ReplaySessionProcessManager(bus, _master, _review);

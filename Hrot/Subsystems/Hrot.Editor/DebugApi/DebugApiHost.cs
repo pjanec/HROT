@@ -1029,6 +1029,13 @@ namespace Hrot.Editor.DebugApi
             //   /replay/entities…) is retired. 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
             _routes.Add(new("GET", "/exercises", _ => RunMainResult(s => ResultOf(s.ListExercises(), unavailable: 503))));
             _routes.Add(new("POST", "/exercises/keep", ctx => RunMainResult(s => ResultOf(s.KeepExercise(ctx.Body), unavailable: 503))));   // ⭐ CE-4058 ③
+            // ⭐ CE-4090 (AQ108 D15) — discard an unarchived recording (404 for an id the inventory does not list); ⭐ D14 — the cluster-wide run settings
+            _routes.Add(new("DELETE", "/exercises/{id}", ctx => RunMainResult(s =>
+            {
+                var (result, error, hint, status) = s.DeleteExercise(ctx.RouteValue("id"));
+                return error is null ? Ok(result) : Fail(status, error, hint);
+            })));
+            _routes.Add(new("POST", "/run-settings", ctx => RunMainResult(s => ResultOf(s.SetRunSettings(ctx.Body), unavailable: 503))));
             _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
             // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a
             //   lookup resolves on the main thread (a "next" scan runs off it, in a reader of its own), then the ordinary seek.
@@ -2073,6 +2080,8 @@ namespace Hrot.Editor.DebugApi
         private static RouteResult ResultOf((JsonNode? Result, string? Error, string? HintCategory) r, int unavailable)
         {
             if (r.Error == null) return Ok(r.Result);
+            // ⭐ CE-4090 (AQ108 D14, §5a) — "this run was not recorded" is a STATE conflict (the same request is fine on a recorded run): 409, not 400
+            if (Fdp.Toolkit.Orchestration.RunRecordingGates.IsConflict(r.Error)) return Fail(409, r.Error, r.HintCategory);
             return Fail(r.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? unavailable : 400, r.Error, r.HintCategory);
         }
 
@@ -2349,6 +2358,15 @@ namespace Hrot.Editor.DebugApi
                     await WriteResponseAsync(ctx, 409, new ApiResponse(false,
                         Error: "The cluster shows a recording (a review or a replay): this would change the world. "
                              + "Return to live first — POST /review/exit, or POST /replay/stop.")).ConfigureAwait(false);
+                    return;
+                }
+
+                // ⭐⭐ CE-4090 (AQ108 D22) — the scenario is never saved from a LIVE run either (the recording case is the guard above): its world is
+                //   not the scenario — take a checkpoint, then make a scenario from it. The master refuses the same save (ClusterMaster).
+                if (method == "POST" && entry.Template == "/scenario/save" && _service?.ShowsLiveRun == true)
+                {
+                    await WriteResponseAsync(ctx, 409, new ApiResponse(false,
+                        Error: Fdp.Toolkit.Orchestration.RunRecordingGates.SaveRefusedInRunReason)).ConfigureAwait(false);
                     return;
                 }
 

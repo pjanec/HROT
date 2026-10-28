@@ -85,7 +85,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             {
                 if (intent.DomainPayload is EditLoadHandlerPayload payload && payload.TargetState == ClusterState.OperatingLive)
                 {
-                    if (_controller != null && _pendingExerciseId != Guid.Empty)
+                    // ⭐ CE-4090 (AQ108 D14) — "Record live runs" off: the same gate LoadPhaseChain applies on the hosts that have one
+                    if (_controller != null && _pendingExerciseId != Guid.Empty && !payload.RecordingOff)
                         await _controller.PrepareRecordingAsync(_pendingExerciseId, _storageDirectory)
                             .ConfigureAwait(false);
                 }

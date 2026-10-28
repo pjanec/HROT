@@ -111,6 +111,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 StorageOpType.Export           => NedClusterOpType.ExportArchive,
                 StorageOpType.Import           => NedClusterOpType.ImportArchive,
                 StorageOpType.SaveScenario => NedClusterOpType.SaveScenario,
+                StorageOpType.Delete           => NedClusterOpType.DeleteExercise,   // ⭐ CE-4090 D15 — ArchivePayloadDto carries the id
                 // CE-278: SaveScenario=2 retired; reject an unmapped storage op instead of silently
                 // routing it to the dead op (previously the default fell through to SaveScenario).
                 _ => throw new System.ArgumentOutOfRangeException(
@@ -173,6 +174,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 RequestId     = intent.RequestId,
                 OperationType = NedClusterOpType.SetReplayAxis,
                 PayloadJson   = JsonSerializer.Serialize(SetReplayAxisPayloadDto.From(intent), OrchestrationJsonOptions.Default),
+            });
+
+        foreach (var intent in _bus.ReadManaged<SetRunSettingsIntent>())   // ⭐ CE-4090 D14
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.SetRunSettings,
+                PayloadJson   = JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(intent), OrchestrationJsonOptions.Default),
             });
 
         foreach (var intent in _bus.ReadManaged<SetReplayLoopIntent>())   // ⭐ CE-3329 §12n

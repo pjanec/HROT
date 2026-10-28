@@ -71,6 +71,14 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ CE-3329 §12n — set / clear the replay's LOOP range (a session setting of the master's replay clock), from any host.
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayLoopPayloadDto.
         SetReplayLoop = 23,
+
+        // ⭐ CE-4090 (AQ108 D14) — set the cluster-wide run settings (today: Record live runs), held by the master, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. Payload: SetRunSettingsPayloadDto.
+        SetRunSettings = 24,
+
+        // ⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording (its ledger entry and staging copies), from any host. Payload: ArchivePayloadDto.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums.
+        DeleteExercise = 25,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -142,6 +150,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// <summary>⭐ CE-3329 P1 (R-3058) — the replay session's time axis: 0 = Sim (the default), 1 = Wall. The same on every node
         /// (what each host's timeline draws, what its seeks mean). Additive on the wire.</summary>
         public int ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — 1 = the run the cluster shows was started with recording OFF (nothing is being, or was,
+        /// recorded). 0 = recorded, or no run yet. ⭐ Inverse polarity on purpose: an older sender omits it, and 0 is today's behaviour.
+        /// Held by the master, the same on every node — what every host's HTTP gates and the Live icon read. Additive on the wire.</summary>
+        public int RunNotRecorded;
     }
 
     /// <summary>

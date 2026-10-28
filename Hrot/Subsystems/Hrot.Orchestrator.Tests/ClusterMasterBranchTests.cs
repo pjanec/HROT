@@ -172,6 +172,35 @@ public sealed class ClusterMasterBranchTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-4090 (AQ108 D14, §5a) — "the replay → live branch follows the setting like any live run": with <i>Record live runs</i> OFF the branch's
+    /// PrepareLive tells every node not to record (the exercise id is still minted — only the recording is not), and the master announces the run as
+    /// not recorded; with it ON (the control) the branch records exactly as before.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CE4090_ABranchFromAReplay_FollowsTheRecordLiveRunsSetting(bool recordLiveRuns)
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        BootstrapToOperatingReplay(bus, master);
+        master.RecordLiveRuns = recordLiveRuns;
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\"}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        var payload = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload);
+        Assert.Equal(!recordLiveRuns, payload.RecordingOff);
+        Assert.NotEqual(Guid.Empty, payload.ExerciseId);              // the branch's id is minted either way
+        Assert.Equal(!recordLiveRuns, master.RunNotRecorded);
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-3310 (R-3049) — a live LOAD whose request names no exercise gets one the master mints (a node records nothing without
     /// one); a request that names its exercise keeps it.
     /// </summary>

@@ -322,8 +322,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 if (branchedExerciseId == Guid.Empty)
                     throw new InvalidOperationException("a branch from a replay needs the exercise id the master minted for it");
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
-                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory, history)
-                    .ConfigureAwait(false);
+                // ⭐ CE-4090 (AQ108 D14, §5a) — the branch follows the "Record live runs" setting like any live run: with it off the
+                //   replay is torn down and the live world goes on UNRECORDED (the history copy is not started either).
+                bool recordingOff = intent.DomainPayload is EditLoadHandlerPayload { RecordingOff: true };
+                if (!recordingOff)
+                    await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory, history)
+                        .ConfigureAwait(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}, history {2}).",

@@ -291,6 +291,7 @@ export const TOOLS_CATALOG = [
     "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo }",
     "notes": [
       "Use this to verify the runner is alive and check current run state before driving the sim.",
+      "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
       "`perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is \"Start\" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it)."
     ],
     "example": {
@@ -668,7 +669,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "save current world as my-scenario"
     },
-    "hint": "Req: name (string). Example: save_scenario({name:\"my-scenario\"})",
+    "hint": "Req: name (string). Answers 409 in a live run and in a review / replay (AAR): that world is not the scenario — take a checkpoint, then make a scenario from it. Example: save_scenario({name:\"my-scenario\"})",
     "manualVerify": false
   },
 
@@ -904,7 +905,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "take a checkpoint before an experiment"
     },
-    "hint": "Optional: label (string). Requires a live run. Example: checkpoint({label:\"before-assault\"})",
+    "hint": "Optional: label (string). Requires a live RECORDED run (409 \"this run was not recorded\" otherwise). Example: checkpoint({label:\"before-assault\"})",
     "manualVerify": false
   },
 
@@ -931,7 +932,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "revert all changes since the last checkpoint"
     },
-    "hint": "Req: label (string, as checkpoint returned it). Requires a live run. Example: restore_checkpoint({label:\"before-assault\"})",
+    "hint": "Req: label (string, as checkpoint returned it). Requires a live RECORDED run (409 \"this run was not recorded\" otherwise). Example: restore_checkpoint({label:\"before-assault\"})",
     "manualVerify": false
   },
 
@@ -1568,6 +1569,37 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "delete_exercise",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording: its ledger entry and its staging copies (the retention code's delete, CE-3218). A kept (archived) exercise and the run still recording are not deleted here.",
+    "http": {
+      "method": "DELETE",
+      "path": "/exercises/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The exercise to discard (list_exercises)"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId }; 404 for an id GET /exercises does not list; 400 for a malformed id.",
+    "notes": [
+      "The master refuses (the request fails, nothing is deleted) while the exercise is the run still recording: stop the run first.",
+      "keep_exercise archives a recording for films; this is its opposite for a recording that should not pile up."
+    ],
+    "example": {
+      "args": {
+        "id": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "discard a recording"
+    },
+    "hint": "Req: id (path, an exerciseId from list_exercises). Example: delete_exercise({id:\"…\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "keep_exercise",
     "group": "I — Replay",
     "summary": "⭐ CE-4058 — \"Keep for films\": archive an exercise — every node's recording, its meta and timeline sidecar, the scenario as it was loaded and Orchestrator.json, into {shared}/exercises/<id>/ (the cluster's Export op).",
@@ -1592,7 +1624,7 @@ export const TOOLS_CATALOG = [
       "args": {},
       "gist": "keep a recording for films"
     },
-    "hint": "Optional: exerciseId (string; the newest when omitted). Example: keep_exercise({})",
+    "hint": "Optional: exerciseId (string; the newest when omitted — 409 \"this run was not recorded\" when the last run was not recorded). Example: keep_exercise({})",
     "manualVerify": false
   },
 
@@ -2103,13 +2135,13 @@ export const TOOLS_CATALOG = [
         "name": "atSeconds",
         "type": "number",
         "required": false,
-        "description": "Where the review opens, seconds after the recording's zero (default: the live point)"
+        "description": "Where the review opens, seconds after the recording's zero — this or atSimSeconds is REQUIRED (AQ108 D9)"
       },
       {
         "name": "atSimSeconds",
         "type": "number",
         "required": false,
-        "description": "Or the recorded sim time to open at — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
+        "description": "Or the recorded sim time to open at (this or atSeconds is REQUIRED) — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
       },
       {
         "name": "waitForReady",
@@ -2130,7 +2162,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "look back at the live run"
     },
-    "hint": "Optional: atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) — else the live point; waitForReady (bool). Example: enter_review({atSimSeconds:30, waitForReady:true})",
+    "hint": "Req: atSeconds (wall, after the replay's zero) OR atSimSeconds (the recorded sim time) — a review always has an explicit start (400 without one; ⭐ AQ108 D9: the live point is no longer implied); optional waitForReady (bool). 409 \"this run was not recorded\" for a run loaded with 'Record live runs' off. Example: enter_review({atSimSeconds:30, waitForReady:true})",
     "manualVerify": false
   },
 
@@ -2191,6 +2223,37 @@ export const TOOLS_CATALOG = [
       "gist": "move within the review"
     },
     "hint": "One of: atSeconds · atSimSeconds · frame · frames · cause · next. Example: seek_review({atSimSeconds:12})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_run_settings",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording.",
+    "http": {
+      "method": "POST",
+      "path": "/run-settings"
+    },
+    "params": [
+      {
+        "name": "recordLiveRuns",
+        "type": "boolean",
+        "required": true,
+        "description": "Whether a live run starts a recording (the cluster's default is true)"
+      }
+    ],
+    "returns": "{ published, requestId, recordLiveRuns, note }",
+    "notes": [
+      "The scenario verifier always records, whatever this says.",
+      "A replay → live branch follows the setting like any live run."
+    ],
+    "example": {
+      "args": {
+        "recordLiveRuns": false
+      },
+      "gist": "run live without recording"
+    },
+    "hint": "Req: recordLiveRuns (bool). Applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
     "manualVerify": false
   },
 

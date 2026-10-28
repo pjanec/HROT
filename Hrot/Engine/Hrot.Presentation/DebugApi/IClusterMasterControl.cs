@@ -38,6 +38,9 @@ public interface IClusterMasterControl
     /// <summary>A restore of a named checkpoint.</summary>
     void RestoreCheckpoint(RestoreCheckpointIntent intent);
 
+    /// <summary>⭐ <c>CE-4090</c> (AQ108 D14) — the cluster-wide run settings (<i>Record live runs</i>), held by the master, set from any host.</summary>
+    void SetRunSettings(SetRunSettingsIntent intent);
+
     /// <summary>The operator's cancel (<c>R-4004</c>).</summary>
     void Cancel(CancelOperationIntent intent);
 
@@ -60,6 +63,7 @@ public sealed class OrchestrationBusMasterControl : IClusterMasterControl
     public void Storage(ExecuteStorageOpIntent intent) => Bus.PublishManaged(intent);
     public void TakeCheckpoint(TakeCheckpointIntent intent) => Bus.PublishManaged(intent);
     public void RestoreCheckpoint(RestoreCheckpointIntent intent) => Bus.PublishManaged(intent);
+    public void SetRunSettings(SetRunSettingsIntent intent) => Bus.PublishManaged(intent);   // CE-4090 D14
     public void Cancel(CancelOperationIntent intent) => Bus.PublishManaged(intent);
     public void Dump(ExecuteDiagnosticDumpIntent intent) => Bus.PublishManaged(intent);
 

@@ -18,6 +18,7 @@ internal sealed class RecordingMasterControl : IClusterMasterControl
     public void Storage(ExecuteStorageOpIntent intent) => Sent.Add(intent);
     public void TakeCheckpoint(TakeCheckpointIntent intent) => Sent.Add(intent);
     public void RestoreCheckpoint(RestoreCheckpointIntent intent) => Sent.Add(intent);
+    public void SetRunSettings(SetRunSettingsIntent intent) => Sent.Add(intent);   // CE-4090 D14
     public void Cancel(CancelOperationIntent intent) { Cancels.Add(intent); Sent.Add(intent); }
     public void Dump(ExecuteDiagnosticDumpIntent intent) => Sent.Add(intent);
 }

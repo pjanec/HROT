@@ -234,6 +234,11 @@ public interface ISubsystemDebugProvider
     /// <c>ClusterSlave</c> or <c>ClusterUiCache</c>; the Replay Browser's is the viewer's); <see langword="null"/> when it keeps none.</summary>
     Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis { get; }
 
+    /// <summary>⭐ <c>CE-4090</c> (AQ108 D14) — the run the cluster shows was started with recording OFF, as this node's cluster read model has
+    /// it (the master's broadcast); <see langword="null"/> when this node keeps no such read model. What every HTTP gate that needs a
+    /// recording (checkpoint, restore, review, replay / keep of the last run) and <c>GET /status.recording</c> read — ONE fact, the same on every host.</summary>
+    bool? RunNotRecorded { get; }
+
 
     /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> on <c>R-3052</c>…<c>R-3055</c> — the recording THIS node replays now (its own), which the
     /// journal history and the recording search scan read-only; <see langword="null"/> outside a replay or on a node that keeps none.
@@ -372,6 +377,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>?>? _exercises;
     private readonly Func<float?>? _replayDuration;
     private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _replayAxis;   // CE-3329
+    private readonly Func<bool?>? _runNotRecorded;   // CE-4090
     private readonly Func<string?>? _replayRecording;
     private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
     private readonly Func<ReplayPosition?>? _replayPosition;          // RB-2
@@ -450,10 +456,13 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐⭐ CE-4096 — the cluster state this host LAST HEARD (null = no master seen yet) and whether that master is gone: the start
         //    gate's one input (AQ108 §2.6). Omitted ⇒ FollowedClusterState falls back to `clusterState`, MasterGone is false.
         Func<ClusterState?>? followedClusterState = null,
-        Func<bool>? masterGone = null)
+        Func<bool>? masterGone = null,
+        // ⭐ CE-4090 (AQ108 D14) — "this run was not recorded", from the same cluster read model as the cluster state
+        Func<bool?>? runNotRecorded = null)
     {
         _followedClusterState = followedClusterState;
         _masterGone = masterGone;
+        _runNotRecorded = runNotRecorded;
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
         _world        = world;
@@ -615,6 +624,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public IReadOnlyList<ExerciseInventoryItem>? Exercises => _exercises?.Invoke();
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
     public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis => _replayAxis?.Invoke();
+    public bool? RunNotRecorded => _runNotRecorded?.Invoke();
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
     public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
     public ReplayPosition? ReplayPosition => _replayPosition?.Invoke();

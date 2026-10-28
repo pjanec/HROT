@@ -213,10 +213,15 @@ public sealed class TheClusterControlRoutesTests
         var svc = Host();
         Assert.False(svc.ShowsRecording);
 
-        Assert.Null(svc.EnterReview(null).Error);
+        // ⭐ CE-4090 (AQ108 D9) — a review always has an explicit start: "no moment named ⇒ the live point" is retired
+        Assert.NotNull(svc.EnterReview(null).Error);
+        Assert.NotNull(svc.EnterReview(new JsonObject()).Error);
+        Assert.Empty(_master.Transitions);
+
+        Assert.Null(svc.EnterReview(new JsonObject { ["atSeconds"] = 5 }).Error);
         var enter = Assert.Single(_master.Transitions);
         Assert.Equal(ClusterState.OperatingReview, enter.TargetState);
-        Assert.Equal(0L, enter.TargetWallTicks);           // no moment named ⇒ the master enters at the live point
+        Assert.Equal(TimeSpan.FromSeconds(5).Ticks, enter.TargetWallTicks);
         Assert.Null(enter.TargetSimSeconds);
 
         Assert.Null(svc.EnterReview(new JsonObject { ["atSimSeconds"] = 20 }).Error);
@@ -229,7 +234,7 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions[^1].TargetState);
 
         _state = ClusterState.OperatingEdit;
-        Assert.NotNull(svc.EnterReview(null).Error);       // only from a live run
+        Assert.NotNull(svc.EnterReview(new JsonObject { ["atSeconds"] = 5 }).Error);       // only from a live run
     }
 
     /// <summary>⭐ CE-3329 D-E — every route the host refuses during a review / replay is a real, documented route (a renamed route would
@@ -338,6 +343,7 @@ public sealed class TheClusterControlRoutesTests
         public void Storage(ExecuteStorageOpIntent intent) => throw new InvalidOperationException("no such exercise");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void SetRunSettings(SetRunSettingsIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Cancel(CancelOperationIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw new InvalidOperationException("no such exercise");
     }

@@ -99,6 +99,7 @@ public sealed class ClusterOpMasterTranslator
                     SessionId        = ev.SessionId,          // ⭐ C2
                     TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
                     ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
+                    RunNotRecorded   = ev.RunNotRecorded ? 1 : 0,   // ⭐ CE-4090 D14
                 });
             }
         }
@@ -184,6 +185,10 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
+            case NedClusterOpType.SetRunSettings:   // ⭐ CE-4090 D14
+                _bus.PublishManaged(SetRunSettingsPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
             case NedClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
                 _bus.PublishManaged(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
@@ -205,6 +210,18 @@ public sealed class ClusterOpMasterTranslator
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
                     ExerciseId = archDto?.ExerciseId ?? Guid.Empty,
+                });
+                break;
+            }
+
+            case NedClusterOpType.DeleteExercise:   // ⭐ CE-4090 D15
+            {
+                ArchivePayloadDto? delDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
+                _bus.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId  = req.RequestId,
+                    Operation  = StorageOpType.Delete,
+                    ExerciseId = delDto?.ExerciseId ?? Guid.Empty,
                 });
                 break;
             }

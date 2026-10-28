@@ -71,6 +71,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
         private readonly Func<float?>? _editorReplayDuration;
         private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
+        private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -567,8 +568,11 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3329 R-3058 — the replay session's time axis (the core's ClusterUiCache)
             Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null,
             // ⭐⭐ CE-4087 — the in-process master's load-gate text (GET /cluster/roster → load.notice). ⛔ The editor HOLDS the master.
-            Func<string?>? clusterLoadNotice = null)
+            Func<string?>? clusterLoadNotice = null,
+            // ⭐ CE-4090 (AQ108 D14) — the in-process master's "this run was not recorded" (the core's ClusterUiCache). ⛔ The editor HOLDS it.
+            Func<bool?>? runNotRecorded = null)
         {
+            _editorRunNotRecorded = runNotRecorded;
             _entityCreationGetter = entityCreation;
             _editorClusterLoadNotice = clusterLoadNotice;
             _editorReplayAxis     = replayAxis;
@@ -703,7 +707,9 @@ namespace Hrot.Editor.DebugApi
                 ["inPreview"]    = TryRead(() => (JsonNode?)_preview.IsInPreviewMode),
                 ["entityCount"]  = TryRead(() => (JsonNode?)_world.EntityCount),
                 // ⭐ R-3053 — a LIVE run records on every node; nothing else does (the API no longer starts a recording).
-                ["recording"]    = _rrController is { } rr ? (JsonNode?)(rr.ActiveRecordingModule is not null) : null,
+                //   ⭐ CE-4090 (AQ108 D14, D22) — and for the run the CLUSTER shows: `recording` is false when the master loaded the live run with
+                //   "Record live runs" off (the same fact the 409 gates answer), whatever this node's recorder holds; unknown ⇒ the node's own.
+                ["recording"]    = RunIsRecorded(),
                 // ⭐ Which context these numbers describe — ⛔ without it, a cluster status is ambiguous
                 //   about WHOSE world it counted.
                 ["perspective"]  = _dispatcher?.CurrentPerspective ?? _perspectives?.CurrentPerspective,
@@ -712,6 +718,20 @@ namespace Hrot.Editor.DebugApi
                 //   node's world /entities counted.
                 ["routedTo"]     = _dispatcher?.RoutedTo ?? RoutedToFromSwitcher(),
             };
+        }
+
+        /// <summary>
+        /// ⭐ CE-4090 (AQ108 D22) — <c>GET /status.recording</c>: is the run the cluster shows RECORDED. True in a live run, a review or a recording
+        /// (AAR) that has its recording; false in Idle / Edit / Preview and in a live run the master loaded with "Record live runs" off. ⭐ Read from the
+        /// master's broadcast (one fact, every host); a host that has no cluster read model answers its own recorder's state (as before), or null.
+        /// </summary>
+        private JsonNode? RunIsRecorded()
+        {
+            var notRecorded = RunNotRecordedOrNull;
+            var state = CurrentClusterStateOrNull();
+            if (notRecorded is { } off && state is { } s)
+                return !off && (s == ClusterState.OperatingLive || ClusterStates.IsReplaying(s));
+            return _rrController is { } rr ? (JsonNode?)(rr.ActiveRecordingModule is not null) : null;
         }
 
         /// <summary>⭐ CE-4094 — the editor shape's `routedTo` (no dispatcher): the window manager's perspective, or — while Start shows — the remembered one.</summary>
@@ -1236,7 +1256,7 @@ namespace Hrot.Editor.DebugApi
         /// <para>⭐ A fresh <c>ExerciseId</c> per load, mirroring the orchestrator panel's "Load into Live"
         /// button: a live load IS a new exercise run, and the id is what recording/replay keys off.</para>
         /// </summary>
-        public JsonNode LoadScenarioLive(string name, bool startPaused = true)
+        public JsonNode LoadScenarioLive(string name, bool startPaused = true, bool forceRecording = false)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1251,6 +1271,9 @@ namespace Hrot.Editor.DebugApi
                 // ⭐ Q86 §4-G — the clock is reset to 0 either way; startPaused (default true) decides whether it runs
                 //   once the load is done. The default keeps the documented load → POST /sim/play flow.
                 TimeMode      = startPaused ? "Deterministic" : null,
+                // ⭐ CE-4090 (AQ108 D14, §5a) — the scenario verifier compares the run's RECORDING against a golden: its live load records
+                //   whatever the cluster's "Record live runs" setting says. ⛔ Not reachable from HTTP — only the verifier's own load asks.
+                ForceRecording = forceRecording,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
                                     ["startPaused"] = startPaused,
