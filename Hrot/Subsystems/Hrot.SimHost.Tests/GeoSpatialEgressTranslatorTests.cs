@@ -246,6 +246,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(angular, replica.GetComponent<Fdp.Core.SimVelocity>(ghost).Angular);
         }
 
+        /// <summary>
+        /// ⭐ <b>AQ107 D addendum (2026-10-28)</b> — <c>WorldPos.OrientationXyz</c> is the <c>OrientationQuat</c> type: <c>ddsmonitor</c> shows the grid text
+        /// (<c>ToString</c>) and the detail tokens (<c>GetFormatTokens</c>, found by reflection) as heading/pitch/roll + quaternion, while the struct is
+        /// ⭐ the same CDR bytes as <c>Vec3f</c> (identical descriptor ops, size 12, align 4 — a change of layout would turn this red).
+        /// ✅ Red-proofs (run): <c>OrientationQuat.ToString</c> returning <c>base.ToString()</c> ⇒ the text test red; giving <c>OrientationQuat</c> a 4th <c>float W</c> (12 → 16 bytes) ⇒ the descriptor test red; <c>GetFormatTokens</c> passing 0 for Z ⇒ the text test red.
+        /// </summary>
+        [Fact]
+        public void AQ107D_OrientationQuat_DisplaysAsHprAndQuat_ThroughToStringAndTheDuckTypedTokens()
+        {
+            Fdp.Toolkit.Replication.Components.QuaternionWireCodec.Encode(
+                Fdp.Core.SimMath.FromYawPitchRoll(45f * MathF.PI / 180f, -3.2f * MathF.PI / 180f, -1.0f * MathF.PI / 180f), out float x, out float y, out float z);
+            var wire = new WorldPos { OrientationXyz = new Hrot.NED.Messages.OrientationQuat { X = x, Y = y, Z = z } };
+
+            const string expected = "HPR [045.0, 3.2, -1.0] deg, Quat [0.003, -0.029, 0.382, 0.924]";
+            Assert.Equal(expected, wire.OrientationXyz.ToString());
+
+            // ddsmonitor looks the method up by reflection (DetailPanel.razor) — so do the same, not a direct call.
+            var method = typeof(Hrot.NED.Messages.OrientationQuat).GetMethod("GetFormatTokens", Type.EmptyTypes);
+            Assert.NotNull(method);
+            var tokens = (IEnumerable<CycloneDDS.Schema.Formatting.FormattedToken>)method!.Invoke(wire.OrientationXyz, null)!;
+            Assert.Equal(expected, string.Concat(System.Linq.Enumerable.Select(tokens, t => t.Text)));
+        }
+
+        [Fact]
+        public void AQ107D_OrientationQuat_HasTheSameBytesOnTheWireAsAVec3f()
+        {
+            Assert.Equal(Hrot.NED.Messages.Vec3f.GetDescriptorOps(), Hrot.NED.Messages.OrientationQuat.GetDescriptorOps());
+            Assert.Equal(Hrot.NED.Messages.Vec3f.GetDescriptorSize(), Hrot.NED.Messages.OrientationQuat.GetDescriptorSize());
+            Assert.Equal(Hrot.NED.Messages.Vec3f.GetDescriptorAlign(), Hrot.NED.Messages.OrientationQuat.GetDescriptorAlign());
+            Assert.Equal(12u, Hrot.NED.Messages.OrientationQuat.GetDescriptorSize());
+        }
+
         // -- BUG2-N003 - WorldPos disposal integration tests --
 
         /// <summary>

@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Replication.Utils
                 EntityId        = entityId,
                 SimTime         = simTimeSeconds,
                 Position        = EnuWire.ToWire(position),
-                OrientationXyz  = new Hrot.NED.Messages.Vec3f { X = qx, Y = qy, Z = qz },
+                OrientationXyz  = new Hrot.NED.Messages.OrientationQuat { X = qx, Y = qy, Z = qz },
                 Velocity        = EnuWire.ToWireF(linearVelocity),
                 AngularVelocity = EnuWire.ToWireF(angularVelocity),
             };

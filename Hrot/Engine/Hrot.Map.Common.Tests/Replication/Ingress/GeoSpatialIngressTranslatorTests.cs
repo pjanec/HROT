@@ -230,7 +230,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         world.AddComponent(entity, new NetworkVelocity());
         map.Register(79L, entity);
 
-        var sample = MakeSample(79L) with { OrientationXyz = new Vec3f { X = x, Y = y, Z = z } };
+        var sample = MakeSample(79L) with { OrientationXyz = new OrientationQuat { X = x, Y = y, Z = z } };
         ISimulationView view = world;
         var cmd = view.GetCommandBuffer();
         translator.TestDecode(sample, cmd, view);

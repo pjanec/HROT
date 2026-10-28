@@ -22,7 +22,7 @@ namespace Hrot.BDC.Replication
                 EntityId        = entityId,
                 SimTime         = simTimeSeconds,
                 Position        = new BdcVec3d { X = position.X, Y = position.Y, Z = position.Z },
-                OrientationXyz  = new BdcVec3f { X = qx, Y = qy, Z = qz },
+                OrientationXyz  = new BdcOrientationQuat { X = qx, Y = qy, Z = qz },
                 Velocity        = new BdcVec3f { X = linearVelocity.X, Y = linearVelocity.Y, Z = linearVelocity.Z },
                 AngularVelocity = new BdcVec3f { X = angularVelocity.X, Y = angularVelocity.Y, Z = angularVelocity.Z },
             };
