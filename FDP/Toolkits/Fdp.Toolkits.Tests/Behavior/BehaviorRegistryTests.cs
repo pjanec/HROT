@@ -417,25 +417,34 @@ namespace Fdp.Toolkit.Behavior.Tests
             generatedRan = false; curatedRan = false;
             var r1 = new BehaviorRegistry();
             r1.Register("Z", WithGeneratedParseParams(MakeGenerated()));
-            r1.RegisterResolver("Z", MakeCurated(), typeof(int));
+            r1.RegisterResolver("Z", MakeCurated(), typeof(Ce437WideParams));
 
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Z"), out var d1));
             d1!.ParseParams!(string.Empty, null, 0, null!, default);
             Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
             Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
-            Assert.Equal(typeof(int), d1.BlackboardLayoutType);   // the curated DTO type wins too
+            Assert.Equal(typeof(Ce437WideParams), d1.BlackboardLayoutType);   // the curated DTO type wins too (wider than the block)
 
             // ── curated resolver FIRST, generated topology second ──
             generatedRan = false; curatedRan = false;
             var r2 = new BehaviorRegistry();
-            r2.RegisterResolver("Z", MakeCurated(), typeof(int));
+            r2.RegisterResolver("Z", MakeCurated(), typeof(Ce437WideParams));
             r2.Register("Z", WithGeneratedParseParams(MakeGenerated()));
 
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Z"), out var d2));
             d2!.ParseParams!(string.Empty, null, 0, null!, default);
             Assert.True(curatedRan,    "order must not decide which resolver wins");
             Assert.False(generatedRan);
-            Assert.Equal(typeof(int), d2.BlackboardLayoutType);
+            Assert.Equal(typeof(Ce437WideParams), d2.BlackboardLayoutType);
+
+            // ⭐ CE-1431 (R-3065) — a NARROWER curated type no longer shrinks the block: the resolver writes its type into the
+            //   block, it does not describe all of it (the CE-437 rule, now for every behaviour, not only one with a manifest).
+            //   ⛔ HISTORY: with no manifest the layout was replaced by the int and the block lost four bytes.
+            var r3 = new BehaviorRegistry();
+            r3.Register("Z", WithGeneratedParseParams(MakeGenerated()));
+            r3.RegisterResolver("Z", MakeCurated(), typeof(int));
+            Assert.True(r3.TryGetDefinition(BehaviorHash.FromName("Z"), out var d3));
+            Assert.Equal(typeof(long), d3!.BlackboardLayoutType);
         }
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 24)]

@@ -28,7 +28,7 @@ ClearBuilding | hostedInput=Hrot.Map.Definitions.Behavior.ClearBuildingParamsJso
 ClearRoom | hostedInput=Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto | inputBytes=1584
 CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto | inputBytes=1392
 CombatShowcase | hostedInput=- | inputBytes=0
-DangerCrossing | hostedInput=- | inputBytes=88
+DangerCrossing | hostedInput=- | inputBytes=128
 DangerCrossingBp | hostedInput=Hrot.AI.Behaviors.Brains.DangerCrossingParams | inputBytes=24
 Demo_Advance | hostedInput=- | inputBytes=0
 Demo_Engage | hostedInput=- | inputBytes=0
@@ -63,7 +63,7 @@ HsmShowcase | hostedInput=- | inputBytes=0
 HsmStatefulBindingDemo | hostedInput=- | inputBytes=0
 HsmTwoChannelRegionsDemo | hostedInput=- | inputBytes=0
 HsmVariableShowcase | hostedInput=- | inputBytes=0
-HullDownAttackRun | hostedInput=Hrot.AI.Behaviors.Brains.HullDownAttackParams | inputBytes=48
+HullDownAttackRun | hostedInput=Hrot.AI.Behaviors.Brains.HullDownAttackParams | inputBytes=304
 Idle | hostedInput=- | inputBytes=0
 InertSop | hostedInput=- | inputBytes=0
 InfantrySquadAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=1216
@@ -88,7 +88,7 @@ PlatoonAttack | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonAttackParamsJso
 PlatoonBound | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonBoundParamsJsonDto | inputBytes=88
 PlatoonConvoy | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonConvoyParamsJsonDto | inputBytes=120
 PlatoonDefend | hostedInput=- | inputBytes=408
-PlatoonHillAttack | hostedInput=- | inputBytes=52
+PlatoonHillAttack | hostedInput=- | inputBytes=248
 PlatoonHold | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonHoldParamsJsonDto | inputBytes=16
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1616

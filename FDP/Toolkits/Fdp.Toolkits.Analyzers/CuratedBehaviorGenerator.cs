@@ -327,9 +327,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 }
                 // ⭐⭐ CE-1431 — EVERY curated BTree publishes its variables manifest, as a JSON asset's registrar always did: the block's
                 //   fields (CE-1412, derived in ONE place from the block and the compiled blob) when it names a ParamsType, else an EMPTY
-                //   manifest (it declares no variables). ⛔ Not an opt-in any more: "has a manifest" is how the hosting rules tell "its params
-                //   contract is declared" (BehaviorRegistry.TryGetHostedInputType, RootParamsAccess.InputBytes), and that must not depend on
-                //   the authoring surface. An HSM has no BTree blob to read working state from ⇒ no manifest.
+                //   manifest (it declares no variables). ⛔ Not an opt-in any more (R-3065: the same tree whatever surface authored it); the
+                //   hosting rules read the declared contract and the block, never the manifest's presence. An HSM has no BTree blob to read working state from ⇒ no manifest.
                 if (!t.IsHsm)
                 {
                     if (t.ParamsType != null)
