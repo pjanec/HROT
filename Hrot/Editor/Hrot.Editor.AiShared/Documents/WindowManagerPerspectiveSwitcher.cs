@@ -60,7 +60,9 @@ public sealed class WindowManagerPerspectiveSwitcher : IPerspectiveSwitcher
     /// ⭐ <c>N0</c> — a straight delegation. ⛔ <b>No caching:</b> the set is derived from the registered
     /// windows and a registrar can add one at any time, so a cached copy would go stale silently.
     /// </remarks>
-    public IReadOnlyList<string> GetPerspectives() => _windowManager.GetPerspectives();
+    /// <remarks>⭐ <c>CE-4096</c> — the perspectives a caller may SWITCH to: <c>Start</c> is claimed (the gate needs it) but entered only by the
+    /// start gate, so it is not listed here — <c>GET /perspectives</c> and <c>POST /perspective</c> never offer it.</remarks>
+    public IReadOnlyList<string> GetPerspectives() => _windowManager.GetSelectablePerspectives();
 
     /// <inheritdoc />
     public string CurrentPerspective => _windowManager.CurrentPerspective;

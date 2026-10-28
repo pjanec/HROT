@@ -246,7 +246,9 @@ graph TD
 *What the picture shows:* the armed mode is per host; every change to the world goes through the ONE cluster master and the ONE load path; the
 dirty state lives with the master and is announced like the cluster state, so every host shows the same `name*` (UXR-03).
 
-### 2.6 CE-4096 — the start gate, as designed by ui `2026-10-28` (built before CE-4089; the user: *"yes, build CE-4096 now"*)
+### 2.6 CE-4096 — the start gate — ⭐ **AS-BUILT `2026-10-28` (ui)** (built before CE-4089; the user: *"yes, build CE-4096 now"*)
+
+⭐ **AS-BUILT:** the picture below is the BUILT one (deviations: the table after the sequence diagram; the pre-build form is struck where it was wrong). Build-state of §2.6: **BUILT** — the content-folder listing on the surface follows CE-4089.
 
 **INVENTORY** (graph + grep; ⚠ `check_index_coverage` not available through the CLI): `search_graph .*(StartGate|StartSurface|StartPerspective|IdleGate|RestingIdle).*`
 → **0** (nothing to extend). `search_graph .*(ClusterState|ClusterUiCache|MasterGone|ClusterStatus).*` (Class/Interface) → `ClusterUiCache`,
@@ -254,7 +256,7 @@ dirty state lives with the master and is announced like the cluster state, so ev
 `LocalWindowController.cs:109` (+ the exempt Stride host). Backend's CE-4094 API: `WindowManager.StartPerspectiveName` / `RememberedPerspective` /
 `IsStartShowing` / `TrySwitchPerspective` refusal / `LeaveStartPerspective` ([NOTE](batches/NOTE_Backend_To_Ui_Run_Modes_Start_Http.md)).
 Cluster state per host: `ISubsystemDebugProvider.ClusterState` (+ `PerspectiveScopedDispatcher.ClusterStateAnyNode`, the one-cluster-one-fact
-fallback) — set by Orchestrator, Editor, ExCon, RB only; ⚠ **CGF / SimHost / IG / Traffic set none**, yet every node's `ClusterSlave` follows the
+fallback) — set by Orchestrator, Editor, ExCon, RB only; ⛔ **SUPERSEDED (found at build): CGF / SimHost / IG / Traffic set none** — they ALL pass `EcsNodeDebugProvider.For` (CE-163), which fills `ClusterState` from `ClusterSlave.LocalClusterState`: the node's own COMMITTED state, which stays Idle while the cluster loads. ⭐ So the gate needed a second, distinct fact (`FollowedClusterState`, below), not a first one. Every node's `ClusterSlave` follows the
 master's broadcast (`ClusterSlave.FollowClusterSession`, private `_clusterState`, MasterGone handled).
 
 | the lean rests on | code | design |
@@ -265,23 +267,34 @@ master's broadcast (`ClusterSlave.FollowClusterSession`, private `_clusterState`
 
 ```mermaid
 classDiagram
-  class WindowManager { <<existing, CE-4094>> StartPerspectiveName · RememberedPerspective · IsStartShowing · TrySwitchPerspective refuses in Start · LeaveStartPerspective() }
+  class WindowManager { <<existing, CE-4094; CE-4096 additions>> StartPerspectiveName · RememberedPerspective · IsStartShowing · TrySwitchPerspective refuses in Start · LeaveStartPerspective() · GetSelectablePerspectives() without Start · Render hides non-Start non-volatile windows and the toolbar while Start shows }
   class StartGate { <<NEW, Fdp.Presentation>> +Tick(now, ClusterRest) · SettleSeconds = 0.5 · Variant }
-  class ClusterRest { <<NEW record>> State? (null = no master yet) · MasterGone · CanOperate }
-  class StartSurfaceWindow { <<NEW, claims "Start">> draws the menu items marked AllowedInIdle as buttons · or the waiting text }
-  class GlobalMenuRegistry { <<existing>> RegisterItem(path, …, ⭐ allowedInIdle) · ⭐ AllowedInIdleItems() }
-  class LocalWindowController { <<existing, cluster runner>> composes gate + surface · ticks the gate each frame }
-  class ISubsystemDebugProvider { <<existing>> ClusterState · ⭐ MasterGone · Master }
-  class ClusterSlave { <<existing>> ⭐ FollowedClusterState · ⭐ MasterGone (public reads of what it already follows) }
-  class HostArmedMode { <<NEW, one bootstrap parameter>> editor Preview · CGF / all-in-one / server Live — read by CE-4097 }
+  class ClusterRest { <<NEW record struct>> State? (null = no master yet) · MasterGone · CanOperate · IsResting }
+  class IClusterRestSource { <<NEW>> ReadClusterRest() implemented by EditorSubsystem, which builds no provider }
+  class ClusterRestReader { <<NEW, ClusterRunner>> From(subsystems) the ONE fold: first non-Idle state · any MasterGone · any Master }
+  class StartSurfaceWindow { <<NEW, claims Start>> Model() · draws AllowedInIdleItems as buttons · or the waiting text }
+  class GlobalMenuRegistry { <<existing>> RegisterItem(path, ..., allowedInIdle) · AllowedInIdleItems() · IdleOnlyWhen and Offers() · PruneToIdle for contributors }
+  class MenuItemNode { <<existing>> AllowedInIdle }
+  class ContextMenuItemDto { <<existing, GizmoMap.Contracts>> AllowedInIdle for contributed items }
+  class LocalWindowController { <<existing, cluster runner>> ComposeStartSurface(wm) · TickStartGate() · ArmedMode · RequestExit and TakeExitRequest }
+  class ISubsystemDebugProvider { <<existing>> ClusterState node-committed on an ECS node · FollowedClusterState the cluster as last heard · MasterGone · Master }
+  class ClusterSlave { <<existing>> FollowedClusterState · HasFollowedState · MasterGone public reads of what it already follows }
+  class EcsNodeDebugProvider { <<existing, CE-163>> passes followedClusterState and masterGone from the node slave: CGF, SimHost, IG, Traffic alike }
+  class HostArmedMode { <<NEW, one bootstrap parameter>> editor Preview · everything else Live · read by CE-4097 }
   LocalWindowController --> StartGate : Tick before Render
   LocalWindowController --> StartSurfaceWindow : registers
+  LocalWindowController --> ClusterRestReader : feeds the gate
+  LocalWindowController --> HostArmedMode : carries
   StartGate --> WindowManager : SwitchPerspective(Start) / LeaveStartPerspective
   StartGate ..> ClusterRest : any node (one cluster, one fact)
-  ClusterRest ..> ISubsystemDebugProvider
-  ISubsystemDebugProvider ..> ClusterSlave : CGF / SimHost / IG / Traffic now answer
+  ClusterRestReader ..> ISubsystemDebugProvider : every node provider
+  ClusterRestReader ..> IClusterRestSource : the editor
+  EcsNodeDebugProvider ..> ClusterSlave : CGF / SimHost / IG / Traffic now answer
+  EcsNodeDebugProvider ..|> ISubsystemDebugProvider
   StartSurfaceWindow --> GlobalMenuRegistry : the same actions as the menu
-  WindowManager --> GlobalMenuRegistry : in Start the bar draws only AllowedInIdle
+  GlobalMenuRegistry --> MenuItemNode : leaves carry AllowedInIdle
+  GlobalMenuRegistry --> ContextMenuItemDto : contributed leaves carry it too
+  WindowManager --> GlobalMenuRegistry : IdleOnlyWhen is IsStartShowing, so the bar draws only Offers()
 ```
 
 *What the picture shows that prose hid:* the start surface owns NO action — it draws the menu items marked *allowed in Idle* (New from a recipe,
@@ -312,6 +325,27 @@ else Live), read by CE-4097.
 Rejected: **a "resting" flag on the master's broadcast** — a wire change in backend's lane, and the master cannot know a requester's second
 request is coming · **per-host gates** — four copies (R "shared and unified") · **a Start provider with no world** — M7 rejected it.
 ⚠ **Then fix** `ClusterConformanceRails` and `TheUiBaselineIsPinnedPerHostRails` (they switch perspective without a load — backend's NOTE).
+
+⭐ **Done:** both rails now call `ClusterConformanceRails.LeaveStartAsync` (one helper: when `/status.perspective` is `Start`, load the conformance scenario, then wait for the gate to hand the window back) before they walk the perspectives.
+
+**AS-BUILT deviations from the design above** *(the design text is kept; each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | CGF / SimHost / IG / Traffic set no `ClusterState`; make them answer through their slave | they already did — as the node's COMMITTED state (`EcsNodeDebugProvider.cs`, `ClusterStateFrom` → `LocalClusterState`), which stays Idle while the cluster loads. Added a SECOND member `FollowedClusterState` (the cluster as last heard; null = none yet) + `MasterGone`, as interface defaults (`FollowedClusterState => ClusterState`, `MasterGone => false`) so the Orchestrator / ExCon / Replay Browser keep what they have | reading the committed state would show Start for the whole load on every ECS node, and forever on a node outside the scenario |
+| 2 | `ClusterRest` from the providers, "first non-null state" | first NON-IDLE state any node reports, else Idle if any says Idle, else null | a node lagging into (or out of) Idle must not hold Start up or let it in; the settle covers the rest |
+| 3 | providers carry every host | the **Editor builds no `ISubsystemDebugProvider` in the runner** — it implements the new `IClusterRestSource` (state = its session's, `CanOperate` = true, never MasterGone); `ClusterRestReader` folds both | measured: `IProvidesDebugSurface` implementers = Traffic, IG, Orchestrator, CGF, ReplayBrowser, SimHost, ExCon (no Editor) |
+| 4 | "Exit" is an allowed-in-Idle item | **no Exit menu item existed** (grep `"File/Exit"`, `"Exit"`, `RequestExit`, `"Quit"`: only the window's [X] + `/shutdown`). Added `File/Exit` in `LocalWindowController` → `RequestExit`, taken by the frame loop exactly like the [X] (every `IAppExitGuard` asked first) | one path out, guards respected |
+| 5 | "Open Recording (AAR)" is allowed in Idle | **no such menu item exists yet** (grep `Open Recording`, replay items under `File`): marked `Open Scenario`, `New Scenario`, `Load Scenario` (File/Live), Help › About, Exit. The recording entry arrives with CE-4089 and later | nothing to mark |
+| 6 | `CanOperate` excludes a Player host | no reliable signal at the runner (R-4096 `OrdersOffered` is a per-world singleton, not a host role; the runner has no Player) ⇒ `CanOperate` = some provider's `Master != null` only. ⚠ every ECS node's `Master` is the bus-based control (`OrchestrationBusMasterControl.Via`), so SimHost / IG alone also read `CanOperate` and show the surface's Help / Exit buttons rather than "Waiting for the server" | the waiting text therefore shows today only while no master was ever heard from a node that cannot operate, and for server-lost; a finer signal is a follow-up |
+| 7 | `Start` claimed by one window | `Start` stays in `GetPerspectives()` (A0 needs the claimed set) but is excluded from `GetSelectablePerspectives()` — used by the Perspective menu, the toolbar and the `/perspectives` API switcher — and from the startup choice (`ResolveStartupPerspective`) | otherwise the user (or an MCP caller) could pick `Start`, and a host with a perspective sorting after it could start in it |
+| 8 | "verify Global-scope windows" | **they DO draw in Start** (`ManagedWindow.Render` shows `Scope == Global or IsPinned or owner == current`): `WindowManager.Render` skips every non-Start, non-volatile window while Start shows (volatile = dialogs, still drawn; pickers draw from the subsystems' `DrawUI`, unaffected); the main toolbar is hidden too | "no panels" |
+| 9 | the menu bar draws only allowed-in-Idle items | one visibility test `GlobalMenuRegistry.Offers` (binding AND, while `IdleOnlyWhen`, allowed-in-Idle) used by the drawn bar, the `/panels` menu model and `HasVisibleDescendant`; contributors (Help, Windows, Perspective) are pruned through the DTO flag `ContextMenuItemDto.AllowedInIdle`; separators drop | drawn bar and model cannot disagree |
+| 10 | `Fdp.Presentation` reaches `ClusterState` | it does (project reference to `Fdp.Toolkits`); `ClusterRest.State` is the real enum | — |
+| 11 | `HostArmedMode` "set from the runner's mode" | `HostArmedModes.For(config.RequestedSubsystems)` (editor ⇒ Preview, else Live) passed to `LocalWindowController`'s constructor, exposed as `ArmedMode`; no behaviour yet | CE-4097 reads it |
+| 12 | "New scenario from a recipe" | the item marked is today's `File/Edit/New Scenario` (`ClearWorld`, a local blank) — the recipe form follows CE-4089 | content-folder listing follows CE-4089 |
+| 13 | one headless frame rail per host family | no headless frame harness drives a real runner frame here: the gate is driven through the real `LocalWindowController` with a fake shell (`TheStartGateIsComposedOnceTests`) and the draw through `ImGuiTestFixture` (`StartGateTests`). The per-host system rails (`ClusterConformanceRails`, `TheUiBaselineIsPinnedPerHostRails`) are compiled but boot a real editor process | — |
+
 
 ## 3. Every move, with what the user is told
 

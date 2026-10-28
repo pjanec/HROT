@@ -183,7 +183,8 @@ public static class ScenarioMenuCommands
             "Load a scenario and run it live (cluster-wide)",
             isEnabled: () => openPicker != null,
             handler: _ => PickScenario(openPicker, name => Guarded(name, session.LoadForLive, runningRun, confirmLoad)),
-            dynamicDisplayName: Unavailable("Load Scenario", openPicker != null, NoPickerReason));
+            dynamicDisplayName: Unavailable("Load Scenario", openPicker != null, NoPickerReason),
+            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16) — offered on the Start surface: it leaves Idle through the ordinary load
 
         // ══ File/Edit — authoring on a scenario opened for edit ═════════════════
 
@@ -194,14 +195,16 @@ public static class ScenarioMenuCommands
             "Open a scenario for editing (cluster-wide)",
             isEnabled: () => openPicker != null,
             handler: _ => PickScenario(openPicker, name => Guarded(name, session.OpenForEdit, runningRun, confirmLoad)),
-            dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason));
+            dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason),
+            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 
         RegisterCommand(
             registerCommand, menu, commands,
             NewId, "New Scenario", $"{EditMenuPrefix}/New Scenario",
             "Create an empty scenario to author",
             isEnabled: () => true,
-            handler: _ => session.ClearWorld());
+            handler: _ => session.ClearWorld(),
+            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16) — "New scenario"; ⚠ until CE-4089 it is today's local blank scenario, not yet "from a recipe"
 
         // ⭐ Save falls back to Save-As when nothing is loaded — unchanged behaviour. ⚠ When the host has
         //   no Save-As dialog the fallback cannot run, so the item says so rather than doing nothing.
@@ -311,7 +314,8 @@ public static class ScenarioMenuCommands
         string description,
         Func<bool> isEnabled,
         Action<EditorCommandContext> handler,
-        Func<string>? dynamicDisplayName = null)
+        Func<string>? dynamicDisplayName = null,
+        bool allowedInIdle = false)
     {
         var descriptor = new EditorCommandDescriptor(
             Id:          commandId,
@@ -328,6 +332,6 @@ public static class ScenarioMenuCommands
 
         registerCommand(descriptor, handler);
 
-        MenuCommandAdapter.Register(menu, commands, commandId, menuPath);
+        MenuCommandAdapter.Register(menu, commands, commandId, menuPath, allowedInIdle: allowedInIdle);
     }
 }

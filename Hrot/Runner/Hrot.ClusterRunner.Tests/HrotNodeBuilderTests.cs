@@ -344,6 +344,40 @@ public sealed class HrotNodeBuilderTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the ONE ECS-node provider answers the start gate's input through the node's <c>ClusterSlave</c>, on every
+    /// node (CGF, SimHost, IG, Traffic all go through it): <c>FollowedClusterState</c> is null until a master is heard, then the CLUSTER's state
+    /// (while the node's own committed <c>ClusterState</c> is still Idle), and <c>MasterGone</c> follows the MasterGone broadcast.
+    /// 🔴 Red-proof: <c>followedClusterState:</c> returning null behind a runtime-false guard ⇒ the follow assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE4096_Node_TheEcsNodeDebugProvider_ReportsTheFollowedClusterState_AndMasterGone()
+    {
+        using var ctx = InitialisedNode(94);
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        void Hear(Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent ev)
+        {
+            ctx.EventBus.PublishManaged(ev);
+            ctx.EventBus.SwapBuffers();
+            ctx.ClusterSlave.Tick();
+        }
+
+        Assert.Null(provider.FollowedClusterState);                                   // no master heard: distinguishable from Idle
+        Assert.False(provider.MasterGone);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, SessionId = Guid.NewGuid() });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, provider.FollowedClusterState);   // ⭐ the cluster's …
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, provider.ClusterState);                    // … not the node's own commit
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(provider.MasterGone);
+
+        HrotNodeContext? none = null;                                                 // before Initialize / after Shutdown: nothing, no throw
+        var gone = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => none);
+        Assert.Null(gone.FollowedClusterState);
+        Assert.False(gone.MasterGone);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> — a host with its OWN frame (the editor) steps the node's timeline through <see cref="HrotNodeContext.StepTimeline"/>, with
     /// no <c>Tick</c>: the entity that gained a network id is indexed into <c>ctx.Timeline</c>, and the access every host serves
     /// (<c>EcsNodeDebugProvider.TimelineOf</c>) is the SAME for the context and reads that same source.

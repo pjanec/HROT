@@ -117,6 +117,8 @@ public class WindowManager
         GlobalMenu.RegisterContributor("wm/perspective", () => OnlyIfAny(PerspectiveMenuDto()), OnPerspectiveMenuAction);
         GlobalMenu.RegisterContributor("wm/windows",     () => OnlyIfAny(WindowsMenuDto()),     HandleHostMenuAction);
         GlobalMenu.RegisterContributor("wm/help",        () => new[] { HelpMenuDto() },        HandleHostMenuAction);
+        // ⭐⭐ CE-4096 (AQ108 D16) — while Start shows, the bar's model holds only items marked allowed-in-Idle (one visibility test, GlobalMenu.Offers).
+        GlobalMenu.IdleOnlyWhen = () => IsStartShowing;
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
@@ -398,10 +400,18 @@ public class WindowManager
     /// </summary>
     public IReadOnlyList<(string Perspective, bool IsChecked)> BuildPerspectiveMenuModel()
     {
-        return GetPerspectives()
+        return GetSelectablePerspectives()
             .Select(p => (p, IsPerspectiveActive(p)))
             .ToList();
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4096</c> — the perspectives a USER may pick (the menu and the toolbar): <see cref="GetPerspectives"/> without
+    /// <see cref="StartPerspectiveName"/>, which only the start gate enters. ⛔ <see cref="GetPerspectives"/> itself still lists Start —
+    /// <c>A0</c> needs the full claimed set.
+    /// </summary>
+    public IReadOnlyList<string> GetSelectablePerspectives()
+        => GetPerspectives().Where(p => p != StartPerspectiveName).ToList();
 
     /// <summary>
     /// Selects a perspective via <see cref="SwitchPerspective"/>.
@@ -708,7 +718,7 @@ public class WindowManager
             //    deliberate departure from the usual publish-inside-the-draw rule.
             _mainToolbar.PublishSnapshot(CurrentPerspective);
 
-            if (_mainToolbar.Height > 0f)
+            if (_mainToolbar.Height > 0f && !IsStartShowing)   // ⭐ CE-4096: Start shows no toolbar (no panels, only the Idle-allowed menu items)
                 _mainToolbar.RenderInline(CurrentPerspective);
 
             // ⭐ CE-4085: Help (the right-aligned menu) is drawn LAST, flush with the bar's right edge, after the toolbar.
@@ -760,6 +770,11 @@ public class WindowManager
                 _windows.Remove(win.Id);
                 continue;
             }
+
+            // ⭐⭐ CE-4096 (AQ108 D16) — "no panels": Global-scope and pinned windows draw in EVERY perspective (ManagedWindow.Render's gate), so
+            //    Start must hide them explicitly. Measured: ManagedWindow.Render shows `Scope == Global || IsPinned || owner == current`.
+            //    ⭐ A VOLATILE window is a dialog spawned on demand (a file picker, a confirm) and still draws.
+            if (IsStartShowing && !win.IsVolatile && win.OwningPerspective != StartPerspectiveName) continue;
 
             win.Render(CurrentPerspective, _atlas);
         }
@@ -813,7 +828,7 @@ public class WindowManager
                 Gui.SameLine();
                 Gui.SetCursorPosX(x);
             }
-            bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : n.ResolveBinding(CurrentPerspective) != null);
+            bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : GlobalMenu.Offers(n, CurrentPerspective));
             if (!treeShows && menu.Parts.Count == 0) continue;   // ⛔ UXI-05: no dead headers
 
             bool isLeaf = (menu.Node == null || menu.Node.Children.Count == 0)
@@ -855,7 +870,7 @@ public class WindowManager
         if (child.IsSeparator)
         {
             // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
-            if (child.ResolveBinding(CurrentPerspective) == null) return;
+            if (child.ResolveBinding(CurrentPerspective) == null || GlobalMenu.IdleOnly) return;   // ⭐ CE-4096: no separators in the Idle-only bar
             Gui.Separator();
             return;
         }
@@ -875,7 +890,7 @@ public class WindowManager
 
         // ⚠ Read from CurrentPerspective at DRAW time, never cached — the whole feature is that it changes when focus does.
         var binding = child.ResolveBinding(CurrentPerspective);
-        if (binding == null) return;
+        if (binding == null || !GlobalMenu.Offers(child, CurrentPerspective)) return;   // ⭐ CE-4096: Offers = the binding AND (in Start) allowed-in-Idle
         bool enabled = child.GetEnabled?.Invoke() ?? true;
 
         if (binding.GetChecked != null && binding.OnCheckedChanged != null)
@@ -914,7 +929,7 @@ public class WindowManager
                 continue;
             }
 
-            if (child.ResolveBinding(CurrentPerspective) != null) return true;
+            if (GlobalMenu.Offers(child, CurrentPerspective)) return true;
         }
         return false;
     }
@@ -1020,7 +1035,7 @@ public class WindowManager
             Icon = "status/info",
             Children = new[]
             {
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info", AllowedInIdle = true }   // ⭐ CE-4096: Help stays in Idle
             }
         };
 

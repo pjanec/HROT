@@ -34,6 +34,7 @@ namespace Hrot.ClusterRunner.Tests.Presentation;
 /// of claim a comment cannot hold, and one that was already gotten wrong by reading instead of
 /// running.</para>
 /// </summary>
+[Xunit.Collection("UserLayoutFolder")]
 public sealed class TheLayoutResetCanActuallyBeTurnedOffTests
 {
     /// <summary>⭐ The real production option class, through a real parser. ⛔ Nothing here is a stand-in.

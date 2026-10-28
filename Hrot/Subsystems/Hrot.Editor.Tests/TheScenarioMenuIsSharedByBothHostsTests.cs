@@ -181,6 +181,28 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         return (s, c, m);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — the SAME registrar marks the SAME scenario items allowed in Idle on both hosts (so the Start surface offers
+    /// them on either), and the surface's button runs the menu's OWN binding: <c>Open Scenario</c> reaches <c>session.OpenForEdit</c>, <c>Load
+    /// Scenario</c> reaches <c>LoadForLive</c>. ⛔ Save / Save As / Take Checkpoint / New Exercise are not offered in Idle.
+    /// 🔴 Red-proof: drop <c>allowedInIdle: true</c> from <c>Open Scenario</c> ⇒ the set assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4096_BothHostShapes_MarkTheSameScenarioItemsAllowedInIdle_AndTheSurfaceRunsTheMenusBinding()
+    {
+        var editor = EditorShape();
+        var cgf = CgfShape();
+        var expected = new[] { "File/Edit/New Scenario", "File/Edit/Open Scenario", "File/Live/Load Scenario" };
+
+        foreach (var m in new[] { editor.M, cgf.M })
+            Assert.Equal(expected, m.AllowedInIdleItems().Select(a => a.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray());
+
+        editor.M.AllowedInIdleItems().Single(a => a.Path == "File/Edit/Open Scenario").Invoke();
+        Assert.Single(editor.S.OpenForEditCalls);
+        cgf.M.AllowedInIdleItems().Single(a => a.Path == "File/Live/Load Scenario").Invoke();
+        Assert.Single(cgf.S.LoadForLiveCalls);
+    }
+
     private static string[] MenuPaths(GlobalMenuRegistry menu)
     {
         var paths = new List<string>();

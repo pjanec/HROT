@@ -4,6 +4,7 @@ using Fdp.Core.Logging;
 using Fdp.Presentation.Windows;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Runner;
+using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Systems;
 using Hrot.Common;
 
@@ -36,18 +37,72 @@ internal sealed class LocalWindowController
 
     internal Fdp.Presentation.WindowManager.WindowManager? WindowManager { get; private set; }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D12) — what ▶ arms on this host: the editor Preview, CGF / the all-in-one / the server Live. ONE bootstrap
+    /// parameter of the shared runner, set from the runner's mode; ⛔ no behaviour hangs on it yet — <c>CE-4097</c> reads it.
+    /// </summary>
+    internal HostArmedMode ArmedMode { get; }
+
+    /// <summary>⭐ <c>CE-4096</c> — the ONE start gate of this host (null while no window is open, and on an exempt host).</summary>
+    internal StartGate? StartGate { get; private set; }
+
+    /// <summary>⭐ <c>CE-4096</c> — the ONE start surface (the only window claiming <c>Start</c>).</summary>
+    internal StartSurfaceWindow? StartSurface { get; private set; }
+
+    /// <summary>⭐ <c>CE-4096</c> — the cluster-rest read the gate is fed each frame; a seam so a rail can drive the gate through a real
+    /// controller. Default: <see cref="ClusterRestReader"/> over this host's subsystems.</summary>
+    internal Func<ClusterRest>? ClusterRestOverride { get; set; }
+
+    private bool _exitRequested;
+
+    /// <summary>⭐ <c>CE-4096</c> — the Exit menu item / start-surface button asked to close: the frame loop treats it exactly like the
+    /// window's [X] (every <c>IAppExitGuard</c> is asked first). Reads and clears the request.</summary>
+    internal bool TakeExitRequest() { var r = _exitRequested; _exitRequested = false; return r; }
+
+    internal void RequestExit() => _exitRequested = true;
+
     internal LocalWindowController(
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
         RunnerOptions options,
-        PerspectiveCoordinatorSystem? coordinator)
+        PerspectiveCoordinatorSystem? coordinator,
+        HostArmedMode armedMode = HostArmedMode.Live)
     {
         _shell       = shell;
         _subsystems  = subsystems;
         _options     = options;
         _coordinator = coordinator;
+        ArmedMode    = armedMode;
         _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — <b>the start surface, composed ONCE for every cluster-runner host</b>: registers the one window that
+    /// claims <c>Start</c>, builds the one gate and the Exit item. ⛔ Exempt: a process whose only subsystem is the Replay Browser
+    /// (offline, no cluster) — it never rests in a cluster Idle. Extracted from <see cref="OpenLocalWindow"/> so a rail can compose against
+    /// a bare <c>WindowManager</c>.
+    /// </summary>
+    internal void ComposeStartSurface(Fdp.Presentation.WindowManager.WindowManager wm)
+    {
+        var real = _subsystems.Where(s => s is not PerspectiveUpdateSubsystem).ToList();
+        if (real.Count > 0 && real.All(s => s is Hrot.ReplayBrowser.ReplayBrowserSubsystem)) return;
+
+        var gate = new StartGate(wm);
+        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant);
+        wm.RegisterWindow(surface);
+        // ⭐ Exit: the same path as the window's [X] (the frame loop asks every exit guard). Allowed in Idle — the Start surface offers it.
+        wm.GlobalMenu.RegisterItem("File/Exit", RequestExit, allowedInIdle: true);
+        StartGate = gate;
+        StartSurface = surface;
+    }
+
+    private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+
+    /// <summary>⭐ <c>CE-4096</c> — once a frame, BEFORE <c>WindowManager.Render()</c>: feeds the gate the cluster's rest. No-op with no gate.</summary>
+    internal void TickStartGate() => TickStartGate(Clock.Elapsed.TotalSeconds);
+
+    internal void TickStartGate(double nowSeconds)
+        => StartGate?.Tick(nowSeconds, ClusterRestOverride?.Invoke() ?? ClusterRestReader.From(_subsystems));
 
     /// <summary>
     /// ⭐ CE-1290 — once a frame: composes the title from the first title source that has a detail (the editor's or CGF's loaded
@@ -128,6 +183,8 @@ internal sealed class LocalWindowController
                 Console.WriteLine($"[Runner] Perspective changed: {oldPersp} -> {newPersp}");
             };
         }
+
+        ComposeStartSurface(wm);   // ⭐ CE-4096
 
         RegisterLayoutMenu(wm);
 
@@ -215,12 +272,14 @@ internal sealed class LocalWindowController
         string? persisted)
     {
         var documentDriven = Hrot.Editor.AiShared.AssetKindExtensions.DocumentDrivenPerspectiveNames;
-        var durable = claimed.Where(p => !documentDriven.Contains(p)).ToList();
+        // ⭐ CE-4096 — Start is entered by the gate only, never a startup choice (it is in the claimed set so A0 allows the gate in).
+        var durable = claimed.Where(p => !documentDriven.Contains(p) && p != Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName).ToList();
 
         // ⭐ 1 — honour the stored value, but only if it is CLAIMED and DURABLE.
         if (!string.IsNullOrEmpty(persisted)
             && claimed.Contains(persisted!)
-            && !documentDriven.Contains(persisted!))
+            && !documentDriven.Contains(persisted!)
+            && persisted != Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName)
             return persisted!;
 
         // ⭐ 2 — otherwise the first durable perspective a requested subsystem owns…

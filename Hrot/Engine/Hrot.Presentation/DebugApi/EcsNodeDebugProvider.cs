@@ -40,6 +40,10 @@ public static class EcsNodeDebugProvider
             tkbDb:         SubsystemDebugProvider.TkbFrom(() => node()?.World),
             master:        OrchestrationBusMasterControl.Via(() => node()?.EventBus),
             clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => node()?.ClusterSlave),
+            // ⭐⭐ CE-4096 (AQ108 §2.6) — what the master LAST ANNOUNCED to this node, on every ECS node alike (null = none yet):
+            //    ⛔ not `ClusterState` above, which is the node's own committed state and stays Idle while the cluster loads.
+            followedClusterState: () => node()?.ClusterSlave is { HasFollowedState: true } s ? s.FollowedClusterState : null,
+            masterGone:    () => node()?.ClusterSlave.MasterGone ?? false,
             exercises:     SubsystemDebugProvider.ExercisesFrom(() => node()?.ClusterSlave),
             replayAxis:    () => node()?.ClusterSlave.ReplayAxis,   // ⭐ CE-3329 R-3058 — the master's broadcast, on every node
             replayRecording: () => node()?.ReplayRecordingPath,   // ⭐ CE-3330 E6 — the one lookup (HrotNodeContext), also what the shown timeline opens

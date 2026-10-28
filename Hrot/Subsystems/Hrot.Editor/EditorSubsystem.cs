@@ -171,8 +171,17 @@ namespace Hrot.Editor
     /// </summary>
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Fdp.Toolkit.Runner.IWindowTitleSource,
-        Hrot.Common.EntityCreation.IEntityCreationHost
+        Hrot.Common.EntityCreation.IEntityCreationHost,
+        Fdp.Presentation.WindowManager.IClusterRestSource
     {
+        /// <summary>
+        /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
+        /// operate it, its master is never "gone", and the state is the one its own session announces (Idle until a scenario is opened).
+        /// ⛔ The editor builds no <c>ISubsystemDebugProvider</c> in the runner, so this is its one answer.
+        /// </summary>
+        public Fdp.Presentation.WindowManager.ClusterRest ReadClusterRest()
+            => new(_editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, MasterGone: false, CanOperate: true);
+
         /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — the editor's node id. 🔒 User, <c>2026-10-17</c>: <i>"No valid node ID should be
         /// 0."</i> 0 means "no node" and, on a creation request, "the system picks"; the editor is an offline one-node cluster, so 1.</summary>
         internal const int EditorNodeId = 1;
