@@ -41,6 +41,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private readonly string? _storageDirectory;
     private readonly string _hostLabel;
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
+    private readonly Fdp.Toolkit.Replay.WorldChangeCheck? _changeCheck;   // ⭐ CE-4093 — the node's unsaved-changes baseline (hooks a and c)
 
     // ⭐ P8 — the load in flight (from its Loading* prepare until its hold resolves), which an abort may name.
     private Guid               _loadTransactionId;
@@ -56,8 +57,10 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         IRecordReplayController? recordingController,
         string? storageDirectory,
         string hostLabel,
-        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap)
+        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap,
+        Fdp.Toolkit.Replay.WorldChangeCheck? changeCheck)
     {
+        _changeCheck = changeCheck;
         _entityMap = entityMap;
         _steps = steps;
         _world = world;
@@ -91,6 +94,12 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     /// the job <c>ReferenceLiveLoadHandler</c> did before the chain started claiming these operations.
     /// </param>
     /// <param name="storageDirectory">Where a recording is staged; required when a controller is given.</param>
+    /// <param name="changeCheck">
+    /// ⭐ <c>CE-4093</c> (AQ108 D20) — the node's unsaved-changes check. The chain takes its BASELINE when a load into EDITING resolves — the
+    /// ONE call site for both "a load into editing commits" and "a late joiner's catch-up completes" (a catch-up is the same chain, flagged
+    /// <c>IsCatchUp</c>) — and clears it when the node enters <c>Idle</c>. 🔒 A production host that HAS a check must pass it (the silent-default
+    /// rule): <c>EcsHostClusterHandlers.Compose</c> builds one per node and hands it here.
+    /// </param>
     public static LoadPhaseChain FromRoles(
         NodeRole roles,
         IEnumerable<ILoadPartProvider> providers,
@@ -98,7 +107,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         IRecordReplayController? recordingController = null,
         string? storageDirectory = null,
         string hostLabel = "node",
-        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
+        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null,
+        Fdp.Toolkit.Replay.WorldChangeCheck? changeCheck = null)
     {
         if (providers == null) throw new ArgumentNullException(nameof(providers));
 
@@ -125,7 +135,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             hostLabel, roles,
             ordered.Count == 0 ? "no parts required" : string.Join(" -> ", ordered.Select(p => p.Part)));
 
-        return new LoadPhaseChain(ordered, world, recordingController, storageDirectory, hostLabel, entityMap);
+        return new LoadPhaseChain(ordered, world, recordingController, storageDirectory, hostLabel, entityMap, changeCheck);
     }
 
     /// <inheritdoc/>
@@ -300,6 +310,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     /// </summary>
     public void OnEnteredIdle()
     {
+        _changeCheck?.ClearBaseline();   // ⭐ CE-4093 — an emptied world has no saved state to compare with
         if (_world != null)
             WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
     }
@@ -312,10 +323,27 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     /// </remarks>
     public void DrainDeferredAcks()
     {
+        // ⭐ CE-4093 — a settling baseline takes its step every frame, whether or not a hold is open (the load resolved a frame ago)
+        if (_changeCheck != null && _world != null && _changeCheck.IsSettling && _changeCheck.SettleStep(_world))
+            FdpLog<LoadPhaseChain>.Info("[LoadPhase] {0}: unsaved-changes baseline taken after {1} frame(s){2}.", _hostLabel,
+                _changeCheck.SettledAfterFrames, _changeCheck.GaveUpSettling ? " — ⚠ the world was still moving; baselined anyway" : "");
+
         if (_holdTcs == null) return;
 
         foreach (var step in _loadContext is { } held ? StepsFor(held) : _steps)
             if (!step.IsResolved(_world)) return;
+
+        // ⭐⭐ CE-4093 (AQ108 D20) — THE baseline of the unsaved-changes check STARTS here: the world the load just built IS the saved one — but it
+        //   SETTLES first (a world just loaded still gets one frame of initial work: WorldChangeCheck.BeginSettling), so the baseline is the first
+        //   world that stops moving, taken by SettleStep in the frames that follow (the top of this method). On the frame thread, in the frame every
+        //   step reported resolved — for both an ordinary load and a late joiner's catch-up (IsCatchUp: the universal parts only, the world arrived
+        //   by replication — a settling also waits for what is still arriving). ⛔ Not for a live load: a live run is not edited, and its return to
+        //   editing is a load of its own.
+        if (_changeCheck != null && _world != null && _loadContext is { TargetState: ClusterState.LoadingEdit } loaded)
+        {
+            _changeCheck.BeginSettling();
+            FdpLog<LoadPhaseChain>.Info("[LoadPhase] {0}: unsaved-changes baseline settling ({1}).", _hostLabel, loaded.IsCatchUp ? "catch-up" : "load");
+        }
 
         _holdTcs.TrySetResult(null);
         _holdTcs = null;

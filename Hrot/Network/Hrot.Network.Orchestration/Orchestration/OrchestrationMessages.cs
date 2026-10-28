@@ -130,6 +130,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ CE-3329 P3 — enter / leave a review on a node. ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums.
         PrepareReview = 33,
         FinalizeReview = 34,
+
+        // ⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: every node answers whether its whole world differs from its baseline (the world's keyframe
+        //   content hash against the hash taken at its load / completed save / catch-up). The node's response is the JSON STRING "changed" |
+        //   "unchanged" | "no-baseline". ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 in BOTH enums.
+        CheckUnsaved = 35,
     }
 
     [DdsTopic]

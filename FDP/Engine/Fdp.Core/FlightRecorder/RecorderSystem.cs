@@ -12,9 +12,9 @@ namespace Fdp.Core.FlightRecorder
     public class RecorderSystem
     {
         // Special ID for EntityIndex hot (component-mask) chunks
-        private const int ENTITY_INDEX_TYPE_ID = -1;
+        internal const int ENTITY_INDEX_TYPE_ID = -1;
         // Special ID for EntityIndex cold (metadata) chunks
-        private const int ENTITY_INDEX_COLD_TYPE_ID = -2;
+        internal const int ENTITY_INDEX_COLD_TYPE_ID = -2;   // ⭐ CE-4093 — internal: WorldChangeCheck walks a keyframe by these ids
 
         // Reusable scratch buffer for chunk copying (64KB)
         private readonly byte[] _scratchBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];

@@ -281,6 +281,35 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Equal("exercises/file.fdp", entries[0].RelativeDest);
     }
 
+    /// <summary>⭐ <c>CE-4093</c> — a node's CheckUnsaved answer crosses the wire as a JSON string and reaches the master as the plain word.
+    /// 🔴 Mutation: no <c>CheckUnsaved</c> case in <c>DeserializeResultPayload</c> ⇒ the payload is null (the master reads a silent node).</summary>
+    [Fact(Timeout = 10_000)]
+    public void NodeOpStatus_CheckUnsaved_ReturnsTheAnswerWord()
+    {
+        using var participant  = new DdsParticipant(TestDomain);
+        using var statusWriter = new DdsWriter<NodeOpStatus>(participant);
+        using var statusReader = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter   = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(_ => nodeWriter, statusReader, bus);
+
+        statusWriter.Write(new NodeOpStatus
+        {
+            TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.CheckUnsaved, NodeId = 5,
+            StatusCode = 0, IsParticipating = true, ResultJson = "\"changed\"",
+        });
+
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var events = bus.ReadManaged<NodeOpCompletedEvent>();
+        Assert.Single(events);
+        Assert.Equal(FdpNodeOpType.CheckUnsaved, events[0].Operation);
+        Assert.Equal("changed", events[0].ResultPayload);
+    }
+
     // ── Test 6: Ingress — non-SerializeLocal with ResultJson → null ResultPayload
 
     [Fact(Timeout = 10_000)]
