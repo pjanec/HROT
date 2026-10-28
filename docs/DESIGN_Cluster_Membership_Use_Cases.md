@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
+updated: 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
   multi-process cluster the same day)
 build-state: DESIGN — the use cases are the ACCEPTANCE for Q91; the decisions live there, not here.
 current-answer: §2 is the use-case table (what must hold, today's measured status, which decision covers it); §3 is how to
@@ -82,6 +82,40 @@ role (Q91 §4-L L4, formerly "best-effort").
 | **UC-14** | the creator (CGF) crashes | its entities go everywhere; a later joiner sees none | ✅ gone on every survivor after ~11 s; a later joiner received none | — |
 | **UC-15** | a Player is still catching up | no spawn in the running game is delayed or aborted; no round waits for it | 🔴 *code*: spawns wait for every peer advertising reliable-init; rounds target the whole roster | Q91 §4-J, §4-K K6 |
 | **UC-16** | a Player joins while the cluster is paused or stepping | it shows the cluster's sim time and does not step on its own | *code*: the time mode is durable and each node derives sim time from it; not exercised live | Q91 §3 |
+
+### 2.1 Playing together — the multiplayer use cases (`CE-4080`, added `2026-10-28`)
+
+⭐ UC-1…UC-16 test **membership**: who is in the cluster and in what state. These test what a **player** does once
+inside it: possess a unit, drive it, leave and come back. The server is orchestrator + CGF + SimHost + traffic; each
+Player is one IG process. ⚠ The "today" column of the table above was measured on `2026-10-15`, **before** C7
+(catch-up), C1 (master-assigned ids) and F1 (release on departure) were built. The `CE-4080` run measures it again
+and updates it.
+
+| UC | situation | must hold | today | decided in |
+|---|---|---|---|---|
+| **UC-17** | two Players each possess a different unit and drive it | each unit moves under its own Player; the other Player and every server node see it move | *code*: the cross-node rail drives a unit from **SimHost** as the station (`EntityOrdersAcrossNodesTests` CE-3172). Never run with an IG node as the station, and never with two stations | `DESIGN_Entity_Control.md` §8b/§8c |
+| **UC-18** | the second Player asks for the unit the first one holds | today's ruling **C-3**: the second takes it over and the first leaves first person by itself. ⏸ For a game this may be wrong (it lets a player steal another's unit). The user decides | *code* (C-3) | `DESIGN_Entity_Control.md` C-3 |
+| **UC-19** | an order from Player A to a unit Player B holds | refused (`409 Possessed`) | *code* | C-3 |
+| **UC-20** | a possessing Player crashes, or exits | its unit is released on every node and its paused task resumes. The other Player is untouched | *code*: F1, `Possession.cs:218` (`NodeDeparted`). Not run live | Q91 §4-F |
+| **UC-21** | that Player starts again (late join) | caught up (C7). It sees the world as it is now, including the unit the other Player holds (`EntityPossessedBy` is durable), and it can possess again | *code* | Q91 §4-E, §4-M |
+| **UC-22** | a Player joins while another is driving | it sees the driven unit where it is now, and moving | *code* | Q91 §3 |
+| **UC-23** | the server pauses (or a Player pauses it) | every Player shows the same sim time; a control frame sent while paused moves nothing | *code* | UC-16 |
+| **UC-24** | a Player opens the 3-D map | it is not ejected | 🔴 `CE-4078`: the 3-D map's first build stalls the frame for ~40 s, so the node is ejected | Q91 §4-B3 |
+
+⭐ **The recipe** (§3), with the server's traffic node and two Players. Each Player drives through its OWN port:
+
+```bash
+S=scripts/cluster-node.sh
+$S start orchestrator 8100; $S start cgf 8101; $S start simhost 8102; $S start traffic 8105
+$S post 8101 /scenario/load/live '{"name":"hill-attack","waitForReady":true}'; $S post 8101 /sim/play
+$S start ig 8103 auto; $S start ig 8104 auto                     # two Players, ids from the master (C1)
+$S post 8103 /entities/1000/possess '{}'                          # Player 1 takes unit 1000
+$S post 8103 /entities/1000/control '{"seq":1,"forward":1,"yaw":0}'   # keep sending while the key is held
+$S get 8101 /entities/1000/order                                  # current.origin = Possession on the server
+$S kill 8104; $S start ig 8104 auto                               # crash and late join
+```
+
+---
 
 ## 3. How to run any of them live
 
