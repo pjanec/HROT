@@ -30,6 +30,8 @@ only; if one invalidates a task, STOP that task and report it (never adapt silen
 ⭐ Each task's **done when** is in the plan §2. Sonnet subagents are fine for the mechanical ones (CE-4089 above all) — brief them with the
 done-when as success conditions, review their tests and diff (CLAUDE.md, *Sonnet delegation*).
 
+⭐⭐ **Sonnet or your own model — see the plan §2a** (user, token thrift; a SUGGESTION): it marks each task, or each part of a task, as Sonnet-suitable or not. Brief Sonnet with the task's *done when* as success conditions; review its tests and diff, do not re-run them; verify any *"cannot / does not exist"* claim.
+
 ## Rules that bind every task
 
 - **One implementation per concept** — every task above extends something that exists (named in the start column); a second copy is a defect.

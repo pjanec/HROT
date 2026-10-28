@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — the dispatch record (coordinator, 2026-10-28)
 updated: 2026-10-28
-current-answer: §1 the order · §2 the tasks with their lane and success conditions · §3 how progress is checked
+current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked
 stale-below: nothing
 related-designs:
   - ../DESIGN_Content_Layout.md — R-4097: the content move (CE-4089)
@@ -54,6 +54,29 @@ parallel; only the mode picker (CE-4097) waits on three backend tasks — the di
 | **CE-4097** | ui | the mode picker (AQ108 §1–§3, D1, D5, D10, D11, D17, D21, D22): the indicator's choice (dim / bright / blink, red-or-green Live), every move of §3 with its confirmation, ■ per R2, the toasts, Save / Ctrl+S = checkpoint in Live / AAR, the status-bar note, the File-menu fold, the timeline's right-click menu, the words Preview / Live / DAR / AAR; HTTP: `POST /sim/stop` (the SAME `ITimeTransportFacade.Stop` as ■), `POST /run-mode {armed}`, `GET /status.armedMode` | every row of AQ108 §3 driven by a rail (headless editor, `SubsystemConfig { Headless = true }`); `POST /sim/stop` and ■ produce the same transitions (one rail); no move changes mode except through the indicator, the timeline or `/run-mode` |
 | **CE-4098** | ui | the picker (D19): a *Recent* section first in every open picker (per kind, the user folder), `AssetKind.Recording` + File › Open Recording | a picked item is first in Recent after a restart; a recording opens into AAR from the picker |
 | **CE-4083** | ui | remove the status-bar time control (already filed) | no host shows a time control in the status bar; the toolbar one still drives time on every host |
+
+### 2a. Who builds it — Sonnet subagent or the lane's own model *(user, `2026-10-28`: token thrift — a SUGGESTION for the lanes)*
+
+🔒 User: *"because of the token thrift, I would like some of the tasks to be done via Sonnet subagent. Could you mark in the tasks which one are
+suitable for that? So the lanes will take that as suggestion?"* — the split follows CLAUDE.md *Sonnet delegation*: Sonnet for well-scoped,
+mechanical or mirror-pattern work whose brief can name the files and the done-when; the lane's own (Opus) model for new orchestration, design
+calls and work whose brief cannot yet be written. ⭐ Either way: the brief carries the task's **done when** as success conditions, Sonnet writes
+its own rails until they pass, the lane reviews the tests and the diff (not a re-run), and every *"cannot / does not exist"* claim is verified.
+
+| id | ⭐ suggestion | why |
+|---|---|---|
+| CE-4089 content move | **Sonnet** | mechanical and large: moves + routing ~15 named paths through `AssetRoots`; the design lists every step |
+| CE-4094 HTTP in `Start` + CE-4088 | **Sonnet** | M7 already names every file and line, and the fix shape |
+| CE-4093 unsaved changes | **Sonnet for the node side** (the keyframe hash, the baseline points, the NOISE TEST first) · **Opus for the master's check round** | the hash is one call on an existing capture; the check round is a new kind of cluster round (ask, collect, decide) |
+| CE-4090 recording setting + gates | **Sonnet** | every gate is named in AQ108 §5a with its site; the setting rides the existing live load |
+| CE-4091 the recording keeps its scenario | **Sonnet** | extends one existing copy (CE-3119) and one stamp site |
+| CE-4092 start with a scenario, retire `--wait-for` | **Sonnet** | the retire is mechanical (M8 lists every caller); the start-up load sits on the CE-4087 latch |
+| CE-4095 scenario from a checkpoint | **Sonnet** | composes existing pieces: replay to a checkpoint, the save extraction, open for edit |
+| CE-4099 autosave | **Opus** (Sonnet for the recovery prompt afterwards) | new background work beside the frame thread (what may run off it — R-4001's rule), a per-node merge and a recovery flow — design calls first |
+| CE-4098 Recent + recordings in the picker | **Sonnet** | one list per kind in the user folder, one new asset kind, one menu item |
+| CE-4096 the start perspective | **Opus** for the gate and its placement in the shared bootstrap · **Sonnet** for marking the menu items *allowed in Idle* and the waiting variants | the gate decides how every host is composed (by construction, one place); the rest is mark-up |
+| CE-4097 the mode picker | **Opus** for the core (the indicator's choice, ■ per R2, the moves of §3) · **Sonnet** for the parts that mirror it (confirmation texts, toasts, the timeline menu items, the words, `/sim/stop` and `/run-mode`) | the core is the state logic every move rests on; the rest repeats one pattern many times |
+| CE-4083 remove the status-bar time control | **Sonnet** | a deletion with a check that every host keeps a time control |
 
 ## 3. How progress is checked (coordinator)
 

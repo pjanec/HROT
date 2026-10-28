@@ -26,6 +26,8 @@ commit. ⛓ **Wait for backend's CE-4089 (the content move) before CE-4096 and C
 ⭐ Each task's **done when** is in the plan §2. Rails drive the headless editor (`SubsystemConfig { Headless = true }`, as
 `TheEditorRunsTheOrchestratorCoreTests` does) — no Xvfb needed for the model; frame rails for what is drawn.
 
+⭐⭐ **Sonnet or your own model — see the plan §2a** (user, token thrift; a SUGGESTION): it marks each task, or each part of a task, as Sonnet-suitable or not. Brief Sonnet with the task's *done when* as success conditions; review its tests and diff, do not re-run them; verify any *"cannot / does not exist"* claim.
+
 ## Rules that bind every task
 
 - **One implementation per concept** — the start gate lives where every host passes through (the shared presentation layer), never per host; the
