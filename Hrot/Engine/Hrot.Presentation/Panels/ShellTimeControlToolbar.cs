@@ -1,6 +1,7 @@
 using System;
 using Fdp.Presentation.WindowManager;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.UI.Common.Panels;
 
@@ -56,14 +57,16 @@ public static class ShellTimeControlToolbar
     /// </param>
     /// <param name="facade">the host's transport. ⭐ The existing seam: the editor supplies
     /// every host supplies the one <c>ClusterTimeTransportAdapter</c> (CE-3329 row 21; the editor's own facade is retired).</param>
+    /// <param name="runChoice">⭐ CE-4097 — the host's run-mode choice (the adapter's <c>RunChoice</c>); the indicator draws it and its menu is its moves.</param>
     public static void Register(
         MainToolbarManager toolbar,
-        ITimeTransportFacade facade)
+        ITimeTransportFacade facade,
+        RunModeChoice? runChoice = null)
     {
         if (toolbar is null) throw new ArgumentNullException(nameof(toolbar));
         if (facade  is null) throw new ArgumentNullException(nameof(facade));
 
-        var section = new MainToolbarTimeControlSection(facade);
+        var section = new MainToolbarTimeControlSection(facade, choice: runChoice);
 
         toolbar.RegisterEntry(
             EntryId, sortOrder: EntrySortOrder,

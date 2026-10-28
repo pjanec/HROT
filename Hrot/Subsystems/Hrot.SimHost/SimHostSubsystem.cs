@@ -82,6 +82,8 @@ namespace Hrot.SimHost
         private bool _headless;
         private int _nodeId;
         private ClusterTimeTransportAdapter? _clusterTimeAdapter;
+        /// <summary>⭐ CE-4097 — this host's one run choice (no scenario session; default Live), for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -339,6 +341,9 @@ namespace Hrot.SimHost
             if (bus != null)
             {
                 _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
+                // ⭐ CE-4097 (AQ108 §2.8 ⑥) — SimHost has NO scenario session: Live is armed (D12) and ▶ from Edit is disabled with its reason
+                //   (the shared toolbar section is not registered on this host; its status-bar transport reads the same facade).
+                _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, control: null);
 
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
                 // It had its own private pause flag that nothing read, so its Play/Pause/Step did

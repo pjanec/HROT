@@ -201,6 +201,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <summary>The Blueprint node drawers this host built (rail access — asserted on the constructed host).</summary>
     internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
+    /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Live), for the wiring rail.</summary>
+    internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
 
     /// <summary>
     /// ⭐⭐ <c>BP-510</c> — this node's view of the current load's staging⇄runtime id table.
@@ -1831,6 +1833,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             _clusterTimeAdapter = new ClusterTimeTransportAdapter(
                 bus, () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
+            // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
+            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, _scenarioSession);
             var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
             windowManager.StatusBar.RegisterSection(
                 id:             "cgf_time_controls",
@@ -1859,7 +1863,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   an expression-bodied property, so it can never be null. The editor removed its own copy
             //   for the same reason.
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                windowManager.MainToolbar, _clusterTimeAdapter);
+                windowManager.MainToolbar, _clusterTimeAdapter, _clusterTimeAdapter.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
@@ -2886,6 +2890,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐⭐ This is the line that closes the gap design §2 measured: *"CGF registers only the
         //    engine-default Settings … the wall is ScenarioMenuCommands binding to the editor-only
         //    IEditorLogic."* It now binds to IScenarioSession, so there is no wall left.
+        // ⭐ CE-4097 — "Save as… and go live": the Save-As dialog below, then the name back to the run choice (the dialog's callback is what saves)
+        if (_clusterTimeAdapter?.RunChoice is { } runChoice && _saveAsBrowser != null && _scenarioSession != null)
+            runChoice.SaveAsPrompt = onNamed => OpenScenarioSaveAsDialog(catalog, name => { _scenarioSession.SaveAs(name); onNamed(name); });
         if (_scenarioSession != null)
             Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
                 registerCommand: windowManager.ShellCommands.Register,
