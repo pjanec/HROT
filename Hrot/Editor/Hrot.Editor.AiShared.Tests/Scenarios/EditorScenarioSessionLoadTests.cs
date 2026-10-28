@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using Fdp.Core;
@@ -80,6 +81,43 @@ public sealed class EditorScenarioSessionLoadTests
         var load = Assert.Single(Drain(bus));
         Assert.Equal(ClusterState.OperatingEdit, load.TargetState);
         Assert.Equal("c", load.ScenarioId);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4098</c> (AQ108 D16) — File › Open Recording ends in the ONE replay intent <c>ReplaySessionIntents.EnterReplay(exerciseId)</c> (what
+    /// <c>POST /replay {exerciseId}</c> publishes), in ONE request from ANY state — no Idle hop (the master plans the unload) — and it drops a
+    /// scenario load still waiting for Idle, which would otherwise fire after it and undo it.
+    /// 🔴 Red-proof: swap the intent for <c>EnterReview()</c> ⇒ the target-state assertion fails.
+    /// </summary>
+    [Fact]
+    public void OpenRecording_PublishesTheOneReplayIntent_FromAnyState_AndDropsAWaitingLoad()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+        ClusterIs(bus, session, ClusterState.OperatingLive);
+        session.OpenForEdit("waiting");   // asks for Idle first and waits
+        Assert.Equal(ClusterState.Idle, Assert.Single(Drain(bus)).TargetState);
+
+        var exercise = Guid.NewGuid();
+        session.OpenRecording(exercise);
+
+        var replay = Assert.Single(Drain(bus));
+        Assert.Equal(ClusterState.OperatingReplay, replay.TargetState);
+        Assert.Equal(exercise, replay.ExerciseId);
+
+        ClusterIs(bus, session, ClusterState.Idle);
+        Assert.Empty(Drain(bus));   // the waiting edit-open was cancelled — it must not follow the replay request
+    }
+
+    [Fact]
+    public void OpenRecording_WithNoExercise_PublishesNothing()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+
+        session.OpenRecording(Guid.Empty);   // Empty means "the master picks" on the wire; a pick always names one
+
+        Assert.Empty(Drain(bus));
     }
 
     [Fact]

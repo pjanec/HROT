@@ -2919,7 +2919,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     run();
                 },
                 showMigrationHistory: sidecars => FdpLog<CgfSubsystem>.Info(
-                    "[CGF] {0} migration sidecar(s) for the loaded scenario.", sidecars.Count));
+                    "[CGF] {0} migration sidecar(s) for the loaded scenario.", sidecars.Count),
+                // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording, the same launcher as the editor's: the master's exercise inventory
+                //    as THIS node's slave last heard it (the one read EcsNodeDebugProvider serves), a pick opening into AAR through the
+                //    session's ONE replay intent. Null picker registry ⇒ greyed with its cause (ruling 49).
+                openRecordingPicker: _shellPickers is null ? null : new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+                    openPicker:    _shellPickers.OpenPicker,
+                    listExercises: () => Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _context?.ClusterSlave)()
+                                         ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
+                    openRecording: _scenarioSession.OpenRecording).Open);
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two

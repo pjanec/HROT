@@ -662,7 +662,7 @@ public sealed class AssetBrowserPanelTests
     {
         // Verify every AssetKind maps to a non-zero, distinct filter flag.
         var seen = new HashSet<AssetKindFilter>();
-        foreach (AssetKind kind in Enum.GetValues<AssetKind>())
+        foreach (AssetKind kind in Enum.GetValues<AssetKind>().Where(AssetKindFilterMapping.IsCatalogKind))
         {
             var flag = AssetKindFilterMapping.FromKind(kind);
             Assert.NotEqual(AssetKindFilter.None, flag);
@@ -814,6 +814,94 @@ public sealed class AssetBrowserPanelTests
 
         panel.SelectPreviousTab();
         Assert.Null(panel.RequestedTabIndex);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  CE-4098 (AQ108 D19) — the Recent section, per kind, in the user folder
+    // ═════════════════════════════════════════════════════════════════
+
+    private static AssetBrowserPanel CreatePanelWithRecent(FakeCatalog catalog, NodeEditor.UI.Picker.RecentStore recent,
+        AssetKindFilter kinds = AssetKindFilter.All)
+        => new(catalog, new FakeIconProvider(), new AssetBrowserPanelOptions { Kinds = kinds, Recent = recent });
+
+    private static string TempRecentFile() => Path.Combine(Path.GetTempPath(), "recent-" + Guid.NewGuid().ToString("N"), "recent-picks.json");
+
+    /// <summary>
+    /// ⭐ CE-4098 success 1+2 — a pick in the panel is first in that kind's Recent section after a "restart" (save, a fresh store from the same
+    /// file, a fresh panel), and kinds do not mix. Red-proof: drop the <c>Recent?.Push</c> in <c>ActivateAsset</c> ⇒ the restart assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4098_APickIsFirstInThatKindsRecentSection_AfterARestart_AndKindsDoNotMix()
+    {
+        var bp1 = new FakeAsset { Kind = AssetKind.Blueprint, Name = "A" };
+        var bp2 = new FakeAsset { Kind = AssetKind.Blueprint, Name = "B" };
+        var sc  = new FakeAsset { Kind = AssetKind.Scenario,  Name = "Scen" };
+        var catalog = new FakeCatalog(bp1, bp2, sc);
+        var file = TempRecentFile();
+
+        var panel = CreatePanelWithRecent(catalog, NodeEditor.UI.Picker.RecentStore.Load(file));
+        panel.ActivateAsset(bp1);
+        panel.ActivateAsset(bp2);   // B newest, then A
+        panel.ActivateAsset(sc);
+
+        // "restart": brand-new store from the same file, brand-new panel
+        var restarted = CreatePanelWithRecent(catalog, NodeEditor.UI.Picker.RecentStore.Load(file));
+
+        Assert.Equal(new IEditableAsset[] { bp2, bp1 }, restarted.RecentFor(AssetKind.Blueprint));
+        Assert.Equal(new IEditableAsset[] { sc }, restarted.RecentFor(AssetKind.Scenario));
+        Assert.Empty(restarted.RecentFor(AssetKind.BTree));
+        // the "All" tab's Recent section: every kind's recents, each kind's latest first
+        Assert.Equal(new IEditableAsset[] { bp2, bp1, sc }, restarted.RecentFlat());
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 success 3 — a remembered asset the catalog no longer holds is not shown (no ghost row, no crash); the filter narrows the
+    /// section like every other list. Red-proof: have <c>RecentFor</c> skip the <c>byId</c> lookup and return an empty placeholder per key ⇒ fails.
+    /// </summary>
+    [Fact]
+    public void CE4098_ARecentThatNoLongerResolves_IsNotShown_AndTheFilterNarrowsTheSection()
+    {
+        var kept = new FakeAsset { Kind = AssetKind.Blueprint, Name = "Kept" };
+        var gone = new FakeAsset { Kind = AssetKind.Blueprint, Name = "Gone" };
+        var store = new NodeEditor.UI.Picker.RecentStore();
+        store.Push(AssetRecents.ContextFor(AssetKind.Blueprint), AssetRecents.ItemKey(gone));
+        store.Push(AssetRecents.ContextFor(AssetKind.Blueprint), AssetRecents.ItemKey(kept));
+        var panel = CreatePanelWithRecent(new FakeCatalog(kept), store);   // "Gone" was deleted from the catalog
+
+        Assert.Equal(new IEditableAsset[] { kept }, panel.RecentFor(AssetKind.Blueprint));
+
+        panel.Filter = "zzz";
+        Assert.Empty(panel.RecentFor(AssetKind.Blueprint));
+    }
+
+    /// <summary>A panel built with no store (a headless host) has no Recent section and an activation still just raises the event.</summary>
+    [Fact]
+    public void CE4098_WithNoStore_ThereIsNoRecentSection()
+    {
+        var a = new FakeAsset { Kind = AssetKind.Blueprint, Name = "A" };
+        var panel = CreatePanel(new FakeCatalog(a));
+        IEditableAsset? activated = null;
+        panel.AssetActivated += x => activated = x;
+
+        panel.ActivateAsset(a);
+
+        Assert.Same(a, activated);
+        Assert.Empty(panel.RecentFor(AssetKind.Blueprint));
+        Assert.Empty(panel.RecentFlat());
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 — a recording is not a catalog asset: no tab, no filter flag (so the "All" browser gets no empty Recording tab), but it has its
+    /// own icon and its own Recent list name.
+    /// </summary>
+    [Fact]
+    public void CE4098_ARecordingIsNotACatalogKind_ButHasItsOwnIconAndRecentList()
+    {
+        Assert.False(AssetKindFilterMapping.IsCatalogKind(AssetKind.Recording));
+        Assert.Throws<ArgumentOutOfRangeException>(() => AssetKindFilterMapping.FromKind(AssetKind.Recording));
+        Assert.DoesNotContain(AssetKind.Recording, AssetKindFilterMapping.PermittedKinds(AssetKindFilter.All));
+        Assert.Equal("asset/recording", AssetKindIcons.GetIconKey(AssetKind.Recording));
+        Assert.NotEqual(AssetRecents.ContextFor(AssetKind.Scenario), AssetRecents.ContextFor(AssetKind.Recording));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

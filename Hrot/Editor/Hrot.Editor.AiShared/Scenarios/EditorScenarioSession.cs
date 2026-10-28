@@ -178,6 +178,18 @@ public sealed class EditorScenarioSession : IScenarioSession
     }
 
     /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId)
+    {
+        if (exerciseId == Guid.Empty) return;   // ⭐ Empty means "the master picks" on the wire; an Open-Recording pick always names one
+        _leaveRun?.Invoke();
+        // A queued scenario load would otherwise fire after the replay request and undo it.
+        _loads.Cancel();
+        // ⭐ CE-4098 — the ONE construction of the replay intent (POST /replay {exerciseId} and the orchestrator's Load Replay end in it);
+        //   the master plans the unload + the replay from ANY state in one request, so there is no Idle hop here.
+        _orchestrationBus.PublishManaged(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(exerciseId));
+    }
+
+    /// <inheritdoc/>
     public void SaveCurrent()
     {
         if (string.IsNullOrEmpty(_loadedScenarioName)) return;

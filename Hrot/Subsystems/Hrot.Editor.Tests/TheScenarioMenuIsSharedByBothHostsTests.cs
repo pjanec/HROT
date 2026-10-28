@@ -5,6 +5,7 @@ using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Scenarios;
 using NodeEditor.Core.Action;
+using NodeEditor.UI.Picker;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
@@ -54,6 +55,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         public void SaveAs(string n) { }
         public void SaveTo(string p) { }
         public void TakeCheckpoint() => TakeCheckpointCallCount++;
+        public readonly List<Guid> OpenRecordingCalls = new();
+        public void OpenRecording(Guid exerciseId) => OpenRecordingCalls.Add(exerciseId);
         public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => Array.Empty<SidecarFileInfo>();
     }
 
@@ -192,7 +195,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     {
         var editor = EditorShape();
         var cgf = CgfShape();
-        var expected = new[] { "File/Edit/New Scenario", "File/Edit/Open Scenario", "File/Live/Load Scenario" };
+        // ⭐ CE-4098 — "Open Recording (AAR)" joins them (D16): offered whether or not a host has an inventory (a host without one shows it greyed with its cause)
+        var expected = new[] { "File/Edit/New Scenario", "File/Edit/Open Scenario", "File/Live/Load Scenario", "File/Open Recording" };
 
         foreach (var m in new[] { editor.M, cgf.M })
             Assert.Equal(expected, m.AllowedInIdleItems().Select(a => a.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray());
@@ -270,7 +274,85 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             "File/Edit/Save Scenario As",
             "File/Live/Load Scenario",
             "File/Live/New Exercise",
+            "File/Open Recording",   // ⭐ CE-4098
         }, MenuPaths(menu));
+    }
+
+    // ══ ⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording ═══════════════════
+
+    private static readonly Guid RecordingA = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
+    private static readonly Guid RecordingB = Guid.Parse("00000000-0000-0000-0000-0000000000b2");
+
+    /// <summary>A host shape with a recording inventory: the REAL launcher over a fake picker, its opener the session's <c>OpenRecording</c>.</summary>
+    private static (Session S, Commands C, GlobalMenuRegistry M, Func<Action<PickerResult>?> Pending, Func<PickerRequest?> Request)
+        RecordingShape(Func<IReadOnlyList<ExerciseInventoryItem>> inventory)
+    {
+        var s = new Session();
+        var c = new Commands();
+        var m = new GlobalMenuRegistry();
+        Action<PickerResult>? pending = null;
+        PickerRequest? request = null;
+        var launcher = new RecordingPickerLauncher((r, cb) => { request = r; pending = cb; }, inventory, s.OpenRecording);
+
+        ScenarioMenuCommands.Register(
+            registerCommand:     (d, h) => c.Register(d, h),
+            menu:                m,
+            commands:            c,
+            session:             s,
+            openPicker:          (kinds, cb) => cb(new Asset("Picked")),
+            openSaveAsDialog:    cb => cb("Named"),
+            openRecordingPicker: launcher.Open);
+
+        return (s, c, m, () => pending, () => request);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4098 success 4 — File › Open Recording lists the master's exercises (the picker's entries are the inventory) and a pick goes through
+    /// the session's ONE opener (<c>IScenarioSession.OpenRecording</c> → <c>ReplaySessionIntents.EnterReplay</c>) exactly once with the picked exercise
+    /// id; it is allowed in Idle, so the Start screen's model offers it and its button runs the SAME binding.
+    /// 🔴 Red-proof: drop <c>allowedInIdle: true</c> from the Open Recording registration ⇒ the Start-model assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4098_OpenRecording_ListsTheMastersExercises_OpensThePickThroughTheOneOpener_AndShowsOnTheStartScreen()
+    {
+        var inv = new[]
+        {
+            new ExerciseInventoryItem(RecordingA, new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "alpha"),
+            new ExerciseInventoryItem(RecordingB, new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(4), "beta"),
+        };
+        var (session, commands, menu, pending, request) = RecordingShape(() => inv);
+
+        // on the Start screen's model, and the button is the menu's own binding
+        var idle = menu.AllowedInIdleItems().Single(a => a.Path == ScenarioMenuCommands.OpenRecordingMenuPath);
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Recording");
+        Assert.True(commands.Get(ScenarioMenuCommands.OpenRecordingId)!.IsEnabled());
+        Assert.Null(commands.Get(ScenarioMenuCommands.OpenRecordingId)!.DynamicDisplayName);
+
+        idle.Invoke();   // the Start button
+        Assert.NotNull(request());
+        var listed = request()!.ItemsProvider().ToList();
+        Assert.Equal(new[] { RecordingB, RecordingA }.Select(AssetRecents.RecordingKey), listed.Select(e => e.Id));   // the master's exercises, newest first
+
+        pending()!(new PickerResult(new[] { listed[1] }));   // the user picks alpha
+        Assert.Equal(new[] { RecordingA }, session.OpenRecordingCalls);
+
+        pending()!(new PickerResult(Array.Empty<PickerEntry>()));   // a cancel opens nothing more
+        Assert.Single(session.OpenRecordingCalls);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 — a host with NO recording inventory still carries the item (ruling 49), greyed with its cause, and it is still on the Idle list:
+    /// the two host families agree on presence; only serviceability differs.
+    /// </summary>
+    [Fact]
+    public void CE4098_AHostWithNoRecordingInventory_KeepsTheItemGreyedWithItsCause()
+    {
+        var (_, commands, menu, _) = CgfShape();   // CgfShape passes no openRecordingPicker
+
+        var d = commands.Get(ScenarioMenuCommands.OpenRecordingId)!;
+        Assert.False(d.IsEnabled());
+        Assert.Contains("no recording inventory", d.DynamicDisplayName!());
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Recording");
     }
 
     // ══ ② ONLY SERVICEABILITY DIFFERS ═══════════════════════════════════════

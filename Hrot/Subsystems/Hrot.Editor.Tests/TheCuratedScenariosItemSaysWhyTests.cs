@@ -66,6 +66,7 @@ public sealed class TheCuratedScenariosItemSaysWhyTests
         public void SaveAs(string scenarioName) { }
         public void SaveTo(string filePath) { }
         public void TakeCheckpoint() { }
+        public void OpenRecording(Guid exerciseId) { }
         public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => Array.Empty<SidecarFileInfo>();
     }
 
