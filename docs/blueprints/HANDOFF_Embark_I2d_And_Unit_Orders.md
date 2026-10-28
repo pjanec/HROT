@@ -74,7 +74,7 @@ Ids:
 | The menu Move / Engage / Stop, the RTS tool and HTTP `move` / `attack` / `hold` go through `EntityOrders` → `MoveToLocation` / `CombatPosture` / `Idle` on the unit itself: a soldier behaviour on a body-less entity. A move never arrives (no `NavigationStatus`), and the members get nothing | `EntityOrders.cs:70-136`; `MenuOrders.cs:43-96`; `RtsCommands.cs:55-72`; `MoveToExecutor.cs:97-98` |
 | Stop does not recall the members: releasing a march does nothing | ✅ `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/SquadMarchBehavior.cs:233` |
 | An operator order to a member outranks the squad's Superior orders until it is released | `BehaviorOrigin.cs:56-84` |
-| No order is passed down two levels: no platoon-of-squads composite, the runner issues only soldier behaviours, and `CommanderNodes.Action_IssueTacticalIntent` is a stub | `BdcTkbCatalog.cs:230-235`; `CommanderNodes.cs:66-90` |
+| No order is passed down two levels: no platoon-of-squads composite, the runner issues only soldier behaviours, and `CommanderNodes.Action_IssueTacticalIntent` is a stub | `NedTkbCatalog.cs:230-235`; `CommanderNodes.cs:66-90` |
 | The data allows nesting: `UnitRoster` holds any entity (16); `UnitHierarchySystem` does no type check | `UnitRoster.cs:84-91`; `UnitHierarchySystem.cs:99-160` |
 | No design covers translating an operator order for a unit, or passing one down echelons. Searched Entity Control, Squad Tactics, Squad Coordination / Wiring, AQ29, AQ83, the hill-attack docs | — |
 
@@ -98,7 +98,7 @@ What would change it: making the unit's SOP slot (R-189) the decomposer.
 |---|---|
 | Capacity is `PassengerBuffer.Capacity = 8` on every carrier. No TKB field declares capacity or seats; the only per-type carry fact is `PassengerExposure` | `InteractionComponents.cs:16`; `VehicleParametersDto.cs:89` |
 | Every brained entity, soldiers included, gets an empty `PassengerBuffer`. ⇒ a soldier can be named as a "vehicle" today | `BehaviorTkbTranslator.cs:161-162`; `Embarkation.cs` `TryEmbark` |
-| There are no crew, driver, gunner or seat types. The vehicle's own brain drives; `ManualDrive` is written onto the vehicle; the "gunner" is code (`AimAndFireExecutor`) | `BdcTkbCatalog.cs:70-180`; `DESIGN_Entity_Control.md` M-1/M-3; `DESIGN_Weapon_Layers.md:52` |
+| There are no crew, driver, gunner or seat types. The vehicle's own brain drives; `ManualDrive` is written onto the vehicle; the "gunner" is code (`AimAndFireExecutor`) | `NedTkbCatalog.cs:70-180`; `DESIGN_Entity_Control.md` M-1/M-3; `DESIGN_Weapon_Layers.md:52` |
 | Precedent for a per-type carry fact: `VehicleKinematicsTkbTranslator` stamps `OpenPassengerCabin` | `CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs:81-82` |
 | The design already rejected per-seat exposure *"until seats exist"* and left `PassengersMayFire` as a lean | Entity Interactions §7.2 (`:439`, `:441`) |
 

@@ -72,7 +72,7 @@ namespace Hrot.Common.EntityCreation
         /// <summary>
         /// ⭐⭐⭐ <b>The network's entity-lifecycle adapters — the ONE network input a production host passes.</b>
         /// <c>INetworkFactory.CreateCgfEntityLifecycleAdapters()</c> on the node-configured factory; <c>null</c>
-        /// offline or on a stack without them (BDC).
+        /// offline or on a stack without them.
         ///
         /// <para>The pack takes every network seam from here: the request source, the ack sink, the JSON
         /// compiler, the ownership strategy and the forwarding egress. It also BUILDS the two systems that

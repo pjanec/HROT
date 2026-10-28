@@ -19,7 +19,7 @@ namespace Hrot.Core.Network;
 
 /// <summary>
 /// Factory that creates all protocol-specific network infrastructure for a simulation node.
-/// Implemented by Hrot.Network.NED (NedNetworkFactory) and Hrot.Network.BDC (BdcNetworkFactory).
+/// Implemented by Hrot.Network.NED (NedNetworkFactory) — the one network stack (R-4095).
 /// </summary>
 public interface INetworkFactory : IGizmoNetworkFactory
 {
@@ -116,7 +116,7 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// <summary>
     /// Creates the protocol-specific entity lifecycle adapters required by a CGF (Brain) node.
     /// Returns null when this protocol does not support CGF entity creation
-    /// (e.g. BDC or offline factories).
+    /// (e.g. offline factories).
     /// Must be called on a factory instance already configured via
     /// <see cref="ConfigureForNode(HrotNodeContext, NodeRole, Fdp.Toolkit.Behavior.BehaviorRegistry)"/>.
     /// </summary>

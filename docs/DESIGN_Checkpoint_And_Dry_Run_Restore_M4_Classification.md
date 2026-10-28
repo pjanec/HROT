@@ -1,13 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (D1 — the nine SIM-STATE types are recorded now) · 2026-10-22 (created — M4 of the restore design, by a read-only subagent; spot-checked: BehaviorStartRecord, SensorCapability, ReplicatedBrainIntent)
+updated: 2026-10-28
 current-answer: the whole file — an APPENDIX of docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md §6b
 stale-below: nothing
-known-rot: the "Policy" column of the nine SIM-STATE rows is the policy AS FOUND — D1 (2026-10-22) made all nine recorded. Writer/reader lists are grep over FDP/Hrot/Stride (tests excluded); check_index_coverage is not available through the CLI, so not proven exhaustive
+known-rot: the "Policy" column of the nine SIM-STATE rows is the policy AS FOUND — D1 (2026-10-22) made all nine recorded. Writer/reader lists are grep over FDP/Hrot/Stride (tests excluded); check_index_coverage is not available through the CLI, so not proven exhaustive · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator.cs:208/:214` (a writer site of `NetworkTransform` / `NetworkVelocity`) was removed with the BDC stack; the NED translators remain the writers.
 related-designs:
   - docs/DESIGN_Replay_Census_H0.md — asks the REPLAY question of every type (this file asks the RESTORE one); its verdicts can differ for PROTOCOL / NET-SHADOW types
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the decisions this classification feeds (D1, D6, D7, D12)
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcWorldPosTranslator.cs:208/:214` (a writer site of `NetworkTransform` / `NetworkVelocity`) was removed with the BDC stack; the NED translators remain the writers. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 ## INVENTORY — how the type set was enumerated
 

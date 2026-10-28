@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-10-27 (AQ107 D / F — the sample is a local-ENU pose with `double SimTime`; §"Encoding"; the old encoding is in the HISTORY at the bottom)
+updated: 2026-10-28
 approved: 2026-09-07 by the user ("go"). CE-211 is slice S0 of the Stride build order and is IN FLIGHT
   on claude/reset-working-branch-qd1qpv (started marker bbd976a7d).
 current-answer: the whole file. It is the ONE owning design for dead reckoning / remote-entity
@@ -11,7 +11,7 @@ design-basis: user rulings 2026-09-05/06/07 (quoted verbatim in §2) · measured
   BdcEntityMessages.cs, GeoSpatialEgress/IngressTranslator.cs, EqsResultUpdateSystem.cs ·
   NotebookLM architect input on the clock domain (job 20260907T055024Z-b217f7b7), verified in
   Blueprint_Issues_Tracker CE-211.
-known-rot: §9 (pitch and roll on the wire, Euler `Ori`) describes the pre-AQ107 wire — superseded at its head, kept as history; the Euler helpers it names remain only for the attribute routes.
+known-rot: §9 (pitch and roll on the wire, Euler `Ori`) describes the pre-AQ107 wire — superseded at its head, kept as history; the Euler helpers it names remain only for the attribute routes. · ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack (`BdcWorldPos`, `BdcWorldPosTranslator`, `BdcReplicationModule`, `BdcOrientationQuat`, `BdcWorldPosCodec`) was removed; every statement about "both stacks" or the BDC column now concerns NED only.
 known-conflict: it SUPERSEDES three places that frame DR as an IG-only presentation feature —
   docs/designs/dds-to-ecs/DESIGN.md §6.3 (the birth design, which specifies the accumulator this
   removes), docs/designs/IG/DESIGN-IG.md, and docs/projects/relationships/FDP-Network-Stack.md §12.6.
@@ -22,6 +22,8 @@ related-designs:
   - DESIGN_Weapon_Layers.md — W-10 applies this model to TurretPose (azimuth, elevation, rates, sim stamp).
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — SUMO cars are NOT NED entities: they use SumoSharp's own lane-based dead reckoning on cluster sim time (R-4020, R-4022).
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the BDC stack (`BdcWorldPos`, `BdcWorldPosTranslator`, `BdcReplicationModule`, `BdcOrientationQuat`, `BdcWorldPosCodec`) was removed; every statement about "both stacks" or the BDC column now concerns NED only. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # DESIGN — dead reckoning: every node, both stacks, from the sample and its stamp
 
@@ -105,23 +107,11 @@ classDiagram
         +Vec3f Velocity
         +Vec3f AngularVelocity
     }
-    class BdcWorldPos {
-        <<wire BDC · AQ107 F>>
-        +double SimTime
-        +BdcVec3d Position
-        +BdcOrientationQuat OrientationXyz
-        +BdcVec3f Velocity
-        +BdcVec3f AngularVelocity
-    }
     class GeoSpatialEgressTranslator {
         +ScanAndPublish(view)
     }
     class GeoSpatialIngressTranslator {
         +ApplyToEntity(entity, data, repo)
-    }
-    class BdcWorldPosTranslator {
-        +ScanAndPublish(view)
-        +ApplyToEntity(...)
     }
     class SimClock {
         <<facade>>
@@ -129,10 +119,8 @@ classDiagram
     }
 
     GeoSpatialEgressTranslator --> WorldPos : stamps SimStamp
-    BdcWorldPosTranslator --> BdcWorldPos : stamps SimStamp
     WorldPos --> GeoSpatialIngressTranslator : decoded
     GeoSpatialIngressTranslator --> NetworkTransform : writes sample + stamp
-    BdcWorldPosTranslator --> NetworkTransform : writes sample + stamp
     DeadReckoningSyncSystem --> NetworkTransform : reads only
     DeadReckoningSyncSystem --> NetworkVelocity : reads
     DeadReckoningSyncSystem --> NetworkAuthority : skips if owned

@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
-updated: 2026-10-27 (§4 ⑩ AQ107 C — the master publishes the origin as GeoReference)
+updated: 2026-10-28
 current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
-known-rot: none
+known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack.
 known-conflict: none
 related-designs:
   - blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the NED wire frame and the retained GeoReference topic that publishes this file's origin (§4 ⑩); this file owns where the origin comes from
@@ -17,6 +17,9 @@ related-designs:
   - DESIGN_Uniform_Gizmo_Membership.md §10 — the map's MapServices; the Replay Browser's missing geo transform (mission lines) closes here.
   - designs/replay-and-modules/DESIGN.md — what runs during replay; §5 adds the terrain the browser's replay worlds are drawn over.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcWorldPosTranslator` (a DDS translator listed as a geo-transform holder) was removed with the BDC stack. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # DESIGN — **the geo origin comes from the terrain** *(`CE-3126`, backend, `2026-10-08`)*
 
 > 🔒 **User, `2026-10-08`:** *"Geo origin should be specidied as part of terrain file and passed to geoconverter service from there. Origin can be saved in recording metadata in case terrain with remembered name no longer exists"* — **R-229**.

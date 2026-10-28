@@ -41,12 +41,12 @@ good"* · *"Ok write it"*.
 | a weapon is DATA on its carrier's type: `Combat.WeaponSuite` mounts; mount 0's state on the carrier, mounts 1…N derived child parts (`WeaponMountInfo` + `PartMetadata`, CGF only, rebuilt from the TKB, never saved) | `CombatTkbTranslator.cs:86-130` | Weapon Layers W-9 / W-11 |
 | the weapon brain's mount list = the unit + its own mount children | `WeaponMountQuery.cs:23-68` | Utility Demo §12 W1–W3 |
 | a turret is a part child on every node (`2000 + index`) with `TurretPose`; the task lives on it | `TurretParts.cs`, `TurretSuiteDto.cs` | R-267, Map 3-D M23–M26 |
-| the technicals 104 / 105 are pickup TYPES whose pintle is a turret mount; the gunner is not a person | `BdcTkbCatalog` | Exposure Cycle §6, D-K |
+| the technicals 104 / 105 are pickup TYPES whose pintle is a turret mount; the gunner is not a person | `NedTkbCatalog` | Exposure Cycle §6, D-K |
 | the person posture At ease · Ready · Aimed is weapon state written by the weapon brain, replicated | W-13 §5h | R-272 (backend) |
 | a seat has a role (Passenger · Driver · Gunner · Commander), exposure, and (ui) a place, facing and pose | `CarrierDefDto.cs`, `InteractionComponents.cs:98-104` | R-2009, Map 3-D §6m |
 | a passenger is put at the carrier's REFERENCE POINT (a person carrier: behind him); the seat's place is drawn only | `EmbarkedStateSystem.cs:115-121` | §6m ("read only by the 3-D map") |
 | a person carries only a man who is down | `Embarkation.cs:107-111` | R-2009 C3 |
-| land DIS categories used: 1–10, 81; Category 50 is free on land (only the FPV drone uses 50, in the AIR domain) | `EntityClassTable.cs:120-137`, `BdcTkbCatalog.cs:480` | R-278 |
+| land DIS categories used: 1–10, 81; Category 50 is free on land (only the FPV drone uses 50, in the AIR domain) | `EntityClassTable.cs:120-137`, `NedTkbCatalog.cs:480` | R-278 |
 
 ### INVENTORY — the queries run
 
@@ -263,7 +263,7 @@ seats at the indices scenarios already saved (0–2) and adds the gunner and the
 | the ring | all round (no station arc — the weapon's own pintle limits), 2.3 m pivot, the gunner EXPOSED in the ring (`SeatDto.Exposed`) while the passengers stay enclosed | — |
 | the new technicals | **108 Technical (DShK)**, **109 Technical (minigun)** — the pickup body, hostile side like 104 / 105; 106 stays bare | — |
 
-**As built (`2026-10-15`)** — as designed. `BdcTkbCatalog.HmmwvSeats()`: seats 0–2 passengers; seat 3 Gunner (rifleman, `Exposed`,
+**As built (`2026-10-15`)** — as designed. `NedTkbCatalog.HmmwvSeats()`: seats 0–2 passengers; seat 3 Gunner (rifleman, `Exposed`,
 at x −0.4, z 1.2); seat 4 Station (Pintle, OperatedBy 3, NeedsGunner, M2, x −0.4, z 2.0 ⇒ the M2's pivot 2.3 m). 108 / 109 are two more
 `Pickup(...)` calls. Rails: `NedTkbBuilderCombatTests.P1_TheHmmwv_…`, `M9_TheTechnicals_…` (+108, 109),
 `CreateEntityRequestSystemTests.P1_APlacedArmedVariant_…` (102 / 108 / 109: weapon + gunner into the named seats, boarded, controlled,
@@ -302,7 +302,7 @@ kept firing. Now each type states how it breaks; the burst uses the one fragment
 | a weapon is EQUIPMENT in the burst: `CombatPlatformDefDto.PresentedAreaM2 > 0` | its own area, casing and health — not a man's |
 | it stays in its host's controlled list | the `32 + k` mount indices of the others must not shift |
 
-**As built (`2026-10-15`, `CE-3203`)** — as designed. `BdcTkbCatalog.WeaponSystemType` takes a `WeaponBreaks(area, casing, health,
+**As built (`2026-10-15`, `CE-3203`)** — as designed. `NedTkbCatalog.WeaponSystemType` takes a `WeaponBreaks(area, casing, health,
 blast share)` per type (the table above; the casing is every face's armour). `WeaponSystems.IsBroken` (a weapon system at health ≤ 0);
 `CanFire` ⇒ `WeaponHold.Destroyed` (= 4); `PrimaryMount` / `WeaponOf` skip a broken one (the next working one answers); `WeaponChoice.Choose`
 never picks one. Measured at 10 m from an 81 mm: M2 30 of 80, Javelin 25 of 20 (broken); a grenade 3 m from an M2 breaks it; a Mk-82
@@ -310,7 +310,7 @@ never picks one. Measured at 10 m from an 81 mm: M2 30 of 80, Javelin 25 of 20 (
 `AimAndFireExecutorTests.CE3203_ABrokenStationWeapon_DoesNotFire_AndArmsNobody` ·
 `AreaEffectSystemTests.W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks`. ✅ **C4 measured `2026-10-15`:** a weapon
 CARRIED by a soldier (a Javelin on his back) IS struck with him — every soldier type declares `CarrierDefDto.PersonCarrier()` (an OPEN
-carrier: BdcTkbCatalog's rifleman, the urban catalogue's soldiers), so his carry station is an exposed seat, the boarded weapon's
+carrier: NedTkbCatalog's rifleman, the urban catalogue's soldiers), so his carry station is an exposed seat, the boarded weapon's
 `IsEmbarkedTag.Exposed` is 1 and `PhysicalPresence.IsHidden` does not hide it; the 81 mm at 10 m that breaks a Javelin on the ground
 breaks it on his back (rail `AreaEffectSystemTests.CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim`). ~~not measured for the
 soldier types here; a lean in the report~~
@@ -337,7 +337,7 @@ class here** — data on the existing weapon-system types (§3), so the class an
 ⚠ `WeaponCategory.Sam` is a new enum member (appended) — the weapon brain's `Atgm` / `MachineGun` paths must not mistake a SAM for an ATGM.
 
 **As built (`2026-10-15`, CE-2187 `7104ea35c`, CE-2190)** — as the tables above. `WeaponCategory.Sam` = 11: the `Guided` profile, one
-round per press, does not fire on the move. The gunners are `BdcTkbCatalog.ManpadsGunner` (the rifleman's body, sensor range 5 km for the
+round per press, does not fire on the move. The gunners are `NedTkbCatalog.ManpadsGunner` (the rifleman's body, sensor range 5 km for the
 launcher's sight, the carry station's `StartWith`); the Igla gunner is Russian, faction 2. ⚠ The ZU-23's muzzle speed is the BDC
 derivation (range × 0.5 = 1250 m/s against a real ≈ 970) like every BDC gun — the lead and the flight read the same value, so it hits;
 ⭐ it holds 2 × 50 (AP, HE-I) and the weapon brain picks between them (CE-2186). Rails: `CreateEntityRequestSystemTests.P1_…` (+110) and

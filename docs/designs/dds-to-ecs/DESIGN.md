@@ -679,7 +679,7 @@ perception, combat, and damage — matching the `UrbanCombat` golden standard.
 | DDS2ECS-S17T2 | Add Perception, Combat, Physics, and HSM component registrations to `SimHostApp.RegisterSimComponents()` (mirror `HeadlessDemoApp.RegisterComponents()`) |
 | DDS2ECS-S17T3 | Initialize `PhysicsToolkitModule` in `SimHostApp.OnLoad()` before `_kernel.Initialize()` to allocate `RaycastBatchData` singleton |
 | DDS2ECS-S17T4 | Expand `SimulationLogicModule.RegisterSystems()` with Input-phase systems (`FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem`), Sim-phase systems (`WeaponDispatcherSystem` + `AimAndFireExecutor`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `ThreatEvaluationSystem`, `DamageSystem`, `CognitiveInterruptSystem`, `BrainTickSystem`), and PostSim-phase system (`BallisticsSystem`) |
-| DDS2ECS-S17T5 | Rewrite `BdcTkbBuilder.WithCombat()` to call `template.AddComponent()` for real FDP ECS components (`WeaponState`, `PerceptionReceptor`, `TargetMemory`, `PhysicsCollider`, `Health`, `Faction`) translated from `SimCombatDef` fields; retain `SimCombatDef` managed component for IG UI use |
+| DDS2ECS-S17T5 | Rewrite `NedTkbBuilder.WithCombat()` to call `template.AddComponent()` for real FDP ECS components (`WeaponState`, `PerceptionReceptor`, `TargetMemory`, `PhysicsCollider`, `Health`, `Faction`) translated from `SimCombatDef` fields; retain `SimCombatDef` managed component for IG UI use |
 
 ---
 
@@ -816,7 +816,7 @@ first `OnUpdate` tick.
 
 ### 11.4 TKB Templates Are Hollow — `SimCombatDef` Is a UI Proxy
 
-`BdcTkbBuilder.WithCombat()` stores a **managed class** (`SimCombatDef`) on the template. This
+`NedTkbBuilder.WithCombat()` stores a **managed class** (`SimCombatDef`) on the template. This
 class carries armour thickness, weapon names, and sensor range as properties for IG display.
 However, it **does not call `template.AddComponent()`** for any unmanaged FDP toolkit struct.
 When `template.ApplyTo(world, entity)` is called at spawn time, the entity receives no
@@ -845,7 +845,7 @@ t.AddComponent(new Health { Current = 100, Max = 100 });
 t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionBlue });
 ```
 
-**Fix (S17T5):** Rewrite `BdcTkbBuilder.WithCombat()` to translate `SimCombatDef` fields into
+**Fix (S17T5):** Rewrite `NedTkbBuilder.WithCombat()` to translate `SimCombatDef` fields into
 real ECS components via `template.AddComponent()`. The `SimCombatDef` managed component is
 retained on the template so IG can still query it for ORBAT/inspector display.
 

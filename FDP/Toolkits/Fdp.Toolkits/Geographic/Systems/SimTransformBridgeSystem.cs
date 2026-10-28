@@ -47,7 +47,7 @@ namespace Fdp.Modules.Geographic.Systems
         {
             // SimMath's pitch convention is nose-DOWN-positive (see SimMath docs); this bridge
             // (and the DIS/aerospace wire protocol its consumers feed) uses nose-UP-positive.
-            // Negate to convert. Consumers (GeoSpatialEgressTranslator, BdcWorldPosTranslator)
+            // Negate to convert. Consumers (GeoSpatialEgressTranslator)
             // write this value straight to the wire, so the sign must be correct here.
             var (_, p, r) = SimMath.ToYawPitchRollDeg(rotation);
             pitchDeg = -p;

@@ -1584,7 +1584,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2349_AVehicleWithAThermalSight_CarriesIt_AndStillSeesAndHears()
         {
-            // ⭐ the builder path, on test vehicles: the catalogue carries no thermal sight yet (withdrawn — see BdcTkbCatalog, M1)
+            // ⭐ the builder path, on test vehicles: the catalogue carries no thermal sight yet (withdrawn — see NedTkbCatalog, M1)
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var builder = new Hrot.Map.Definitions.Tkb.NedTkbBuilder(db);
             foreach (var (type, vision, thermal) in new[] { (990_001L, 8000f, 3000f), (990_002L, 5000f, 2500f) })

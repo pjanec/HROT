@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-01
+updated: 2026-10-28
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
 current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution (user: "Solution agreed", 2026-10-02) · §0.8 the GRANT definition · §0.9 gaps and flaws · §0.10 parts · §0.11 crash = dispose · §0.12 external nodes · §0.13 BUILD READINESS (scope + what is missing) · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
-known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
+known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction. · ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack ("BDC exempt while unused", G6, the §2.3 BDC sender edge) was removed; the exemption is moot.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
 related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the BUILD design (R-170): the classification, the ownership groups, the UML; this doc keeps the decisions.
@@ -15,6 +15,8 @@ related-designs:
   - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the SAVE gate (PrimaryOwnerId); untouched.
   - docs/reference/BDC_NED_SST_Descriptor_Rules.md — the wire spec (per-descriptor owners, OwnershipUpdate, default-to-master).
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the BDC stack ("BDC exempt while unused", G6, the §2.3 BDC sender edge) was removed; the exemption is moot. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # Architect Question 79 — **ownership: one owner per component, and the network record derived from it**
 
@@ -436,7 +438,6 @@ per descriptor, which is the spec's only hard rule.
 ```mermaid
 graph TD
     NRM[NedReplicationModule tick] --> EG[13 egress translators, 12 scan ALL entities each frame]
-    BDC[BDC replication] --> EG
     CYC[Cyclone multi-instance] --> EG
     EG --> GATE[AuthorityExtensions.HasAuthority entity, packedKey]
     ANIM[8 animation senders] --> GATE0[HasAuthority entity - entity level]

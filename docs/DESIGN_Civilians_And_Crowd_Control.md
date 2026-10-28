@@ -922,7 +922,7 @@ INVENTORY *(codebase-memory MCP `search_graph` + grep, 2026-10-17; `check_index_
 | "armed" today | ONE test: a `WeaponState` on the target or a controlled weapon system, a dispenser-only mount excepted; armed = danger 1, unarmed 0.3 | `ThreatDanger.cs:30-33`, `WeaponSystems.WeaponOf:182-186`, `Countermeasures.DispenserOnly` (5 readers) |
 | who reads `WeaponState` as armed-ness | **27** production reads in 17 files (figure, utility inputs, squad inputs, threat danger…) | grep `HasComponent<WeaponState>` |
 | issued weapons | BUILT-IN mounts, type data (rifle, RPG); several per type, the weapon brain ranks them per target | `UrbanCombatTkbCatalog.cs:203, 256-279` (Insurgent 2003: RPG + rifle), `WeaponChoice.Choose`; W-A, W-F |
-| separable weapons | weapon-system ENTITIES 600–609 (HMGs, minigun, Javelin, NLAW, LAW, Kornet, TOW, sentry, mortar); one-man launchers fire while carried; stowed / deploying / deployed / packing | `TkbEntityTypes.cs:27-38`, `BdcTkbCatalog.cs:264`, `WeaponSystemComponents.cs:45`; R-2016 |
+| separable weapons | weapon-system ENTITIES 600–609 (HMGs, minigun, Javelin, NLAW, LAW, Kornet, TOW, sentry, mortar); one-man launchers fire while carried; stowed / deploying / deployed / packing | `TkbEntityTypes.cs:27-38`, `NedTkbCatalog.cs:264`, `WeaponSystemComponents.cs:45`; R-2016 |
 | picking up | the carry station takes a downed man or a portable weapon system — nothing else | `Embarkation.cs:121-160`, `CarrierDefDto.cs:43-47` (ONE station per person) |
 | a thrown grenade on the ground | a time-fuzed round LANDS and lies there (`WarheadRound.Landed`) until its fuze runs out; grenades cross the wire as lightweight entities, simulated only on SimHost | `CombatComponents.cs:146-149`; R-271 (ui) |
 | several rounds on one mount | `AmmoLoadout`: up to 4 munition types with counts, one loaded, a switch time | `AmmoLoadout.cs` (M8) |
@@ -2193,7 +2193,7 @@ remote phone trigger as a demo (HI-6 is built and railed), a dead-man switch.
 **INVENTORY** *(2026-10-17; codebase-memory MCP `search_graph` `.*(Detonat|Charge|Bomber|Suicide).*` Class ⇒ 26: `Charges`, `ChargeSystem`,
 `DetonateChargeEvent`, the I-1 `DetonateChargeInteractionPayload`, and the detonation pipeline (`DetonationNotification`, `DetonationLog`,
 `RecentDetonations`, the NED translators) — ⛔ **no behaviour sets a charge off**: grep `Charges\.(Ask|Detonate)` outside `Combat/` and
-its rails ⇒ only `BdcTkbCatalog` (the type) · `check_index_coverage` not run)*:
+its rails ⇒ only `NedTkbCatalog` (the type) · `check_index_coverage` not run)*:
 
 | question | measured | where |
 |---|---|---|
@@ -3051,7 +3051,7 @@ INVENTORY *(grep + reads at `backend@58d6e7a5c`; codebase-memory CLI as in §7.8
 
 | question | measured | where |
 |---|---|---|
-| person types | every TKB type whose `VehicleParametersDto.VehicleClass` is `Pedestrian`: the urban catalog (civilian pedestrian/child 1001/1003, infantry, grenadier, mortar team, insurgent, the AT men), the civilian catalog (the family + security forces), the BDC builder's infantry, and any TKB FILE the knowledge-base step loads | `UrbanCombatTkbCatalog`, `CivilianTkbCatalog.Person`, `BdcTkbBuilder:541`, `KnowledgeBaseLoadStep` |
+| person types | every TKB type whose `VehicleParametersDto.VehicleClass` is `Pedestrian`: the urban catalog (civilian pedestrian/child 1001/1003, infantry, grenadier, mortar team, insurgent, the AT men), the civilian catalog (the family + security forces), the BDC builder's infantry, and any TKB FILE the knowledge-base step loads | `UrbanCombatTkbCatalog`, `CivilianTkbCatalog.Person`, `NedTkbBuilder:541`, `KnowledgeBaseLoadStep` |
 | one place every TKB passes through | `HrotEnvironment.RegisterBuiltInTkb` (with a post-pass precedent: `RouteTkbExtensions.ApplyRoutePlanToBlueprint`) and `KnowledgeBaseLoadStep` (file TKB) | `HrotEnvironment.cs:41`, `KnowledgeBaseLoadStep.cs:70+` |
 | how a mount becomes state | `CombatTkbTranslator`: mount 0 ⇒ `WeaponState` on the OWNER, mount 1+ ⇒ a child; an `AmmoLoadout` only when the TKB mount lists one | `CombatTkbTranslator.cs:86-140` |
 | a civilian today | NO suite ⇒ no `WeaponState` ⇒ the hands mount would be his mount 0, on him | `CivilianTkbCatalog.cs:62` |
@@ -3380,7 +3380,7 @@ is lost · one live round in the hands at a time.
 | `WeaponFireIntent.FuzeSeconds` + the request wire (`WeaponFireRequest.FuzeSeconds`, appended); `FireProcessingSystem` flies a time-fuzed round with it; `FireAtPointExecutor` sends a held live round's fuze left and drops the `HeldFuze` once thrown | `WeaponFireEvents.cs`, `FireInteractionMessages.cs`, the two SimHost fire translators, `FireAtPointExecutor.cs` |
 | interaction kinds 9 `PickUpRound` / 10 `PickUpGrant` + payload cases; codecs (`OwnsRound`, `PossessionSystem.OwnsBrain`); events registered on every host | `InteractionMessages.cs`, `InteractionTransport.cs`, `HrotSharedComponentRegistry.cs` |
 | built-in data: hand items stone (lies 60 s), M67, stun, tear-gas grenade, canister, smoke — each with a look (grenade shape) | `MunitionTkbCatalog.HandItems`, `BuiltInLooks` |
-| `ItemSources.At` / `Refill` (the area found by `WeatherField.TryOutline`, even-odd inside test) · the **Stone Source** type 8812 (`ItemSourceDto` stone ×5) · its placement tool (ui's `PlacementToolRegistry`, one row — a cross-lane edit, named in the commit) | `Combat/ItemSources.cs`, `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `PlacementToolRegistry.cs` |
+| `ItemSources.At` / `Refill` (the area found by `WeatherField.TryOutline`, even-odd inside test) · the **Stone Source** type 8812 (`ItemSourceDto` stone ×5) · its placement tool (ui's `PlacementToolRegistry`, one row — a cross-lane edit, named in the commit) | `Combat/ItemSources.cs`, `TkbEntityTypes.cs`, `NedTkbCatalog.cs`, `PlacementToolRegistry.cs` |
 
 Rails: `RoundPickUpTests` (7: lingers vs bursts · a stone lies its minute then goes without a burst · ask → grant → hands · two asks, one winner ·
 out of reach / still flying / not a hand item refused · a live grenade cooks off at his feet · a held round thrown with its fuze left) ·
@@ -3464,7 +3464,7 @@ INVENTORY *(grep + reads at `backend@1e935427a`; codebase-memory CLI `search_gra
 
 | question | measured | where |
 |---|---|---|
-| who the "soldier types" are | `UrbanCombatTkbCatalog`: InfantrySoldier 2002 (rifle), Grenadier 2004 (rifle + M67), MortarTeam 2005, JavelinTeam 2006 / NlawGunner 2007 (launcher + rifle), Insurgent 2003 (RPG + rifle). ⛔ **no Pilot type exists** (the frame's "planned Pilot"). BDC `InfantrySoldier` 504 takes its mounts from BDC data rows, not code | `UrbanCombatTkbCatalog.cs:193-306`, `BdcTkbBuilder.cs:280-300` |
+| who the "soldier types" are | `UrbanCombatTkbCatalog`: InfantrySoldier 2002 (rifle), Grenadier 2004 (rifle + M67), MortarTeam 2005, JavelinTeam 2006 / NlawGunner 2007 (launcher + rifle), Insurgent 2003 (RPG + rifle). ⛔ **no Pilot type exists** (the frame's "planned Pilot"). BDC `InfantrySoldier` 504 takes its mounts from BDC data rows, not code | `UrbanCombatTkbCatalog.cs:193-306`, `NedTkbBuilder.cs:280-300` |
 | which types the soldier rails spawn | `ua-posture`, `ua-threat-ranking`, `bt-window-duel` → 2002 (and 8806, a parked car) | `scenarios/*/scenario.json` |
 | who picks the weapon | `WeaponChoice.Choose` ← `AimAndFireExecutor.EngagementMount` (only for `MountAuto`; chosen ONCE per engagement, re-chosen when the chosen mount runs dry, W-12a) ← `PostureNodes` / `CgfNodes` aimed fire | `WeaponChoice.cs`, `AimAndFireExecutor.cs:99, 756-772`, `PostureNodes.cs:470` |
 | how it ranks a mount | `WeaponSelectionDecision`: ammo (step) × in range (logistic at distance / range = 1) × effectiveness (expected damage of one round through `ArmorModel` × hit chance from `HitModel`) × `RoundsLeft` (log scale, 300 = 1) | `WeaponSelectionDecision.cs`, `StandardInputs.cs:378-470` |
@@ -3564,17 +3564,17 @@ INVENTORY *(grep + reads at `backend@5b7c356f6`, an `Explore` sweep; codebase-me
 
 | question | measured | where |
 |---|---|---|
-| the person's seats today | ⚠ **TWO, not one** — seat 0 the casualty seat, seat 1 ONE `Station` accepting `Carried`; the Javelin preset fills "seat 1 = the carry station" BY INDEX | `CarrierDefDto.cs:45-51`, `BdcTkbCatalog.cs:179` |
+| the person's seats today | ⚠ **TWO, not one** — seat 0 the casualty seat, seat 1 ONE `Station` accepting `Carried`; the Javelin preset fills "seat 1 = the carry station" BY INDEX | `CarrierDefDto.cs:45-51`, `NedTkbCatalog.cs:179` |
 | how seats reach the runtime | `CarrierTkbTranslator` projects `CarrierSeats` (roles, `ExposedMask`) and `CarrierStations` (`StationMask`, per-seat `Accepts`) — **type facts, never on the wire**, on every node | `CarrierTkbTranslator.cs:32-120` |
 | how a carried thing knows its seat | its slot in the man's `PassengerBuffer` — **on the wire** (`EntityPassengers`); every node re-derives `IsEmbarkedTag.Seat` / `Exposed` from it (`EmbarkedStateSystem` re-boards when the slot changes) | `EntityPassengersTranslators.cs`, `EmbarkedStateSystem.cs:52-73` |
 | "hidden" today | `PhysicalPresence.IsHidden` — an enclosed passenger (`IsEmbarkedTag.Exposed == 0`) is not sensed, targeted or hit; ⛔ **no `Concealed` anywhere** | `PhysicalPresence.cs:25-35`, `Embarkation.cs:447` |
 | where a carried thing stands | `EmbarkedStateSystem` moves it with its carrier, at the station's offset — so a carried thing's OWN position is its carrier's | `EmbarkedStateSystem.cs:122-135` |
 | carry, controller, fire gate | `Embarkation.Check` / `FreeStation` (the first free accepting station) · `WeaponSystems.ControllerOf` (carried + `FireWhileCarried` ⇒ the carrier) · `CanFire` (:85) · `AimAndFireExecutor.SystemHold` | `Embarkation.cs:137-286`, `WeaponSystems.cs:41-93`, `AimAndFireExecutor.cs:722` |
 | a cross-node carry command | `EmbarkEntityCommand` applied where the CARRIER is owned (`Embarkation.OwnsVehicle`) | `EmbarkationSystem.cs:35` |
-| one-man fire-while-carried types | the `shoulder` preset (OneMan, Ground \| Carried, `FireWhileCarried`): Javelin, NLAW, LAW; ids 600–615, **616 free** | `BdcTkbCatalog.cs:264-334`, `TkbEntityTypes.cs:26-47` |
+| one-man fire-while-carried types | the `shoulder` preset (OneMan, Ground \| Carried, `FireWhileCarried`): Javelin, NLAW, LAW; ids 600–615, **616 free** | `NedTkbCatalog.cs:264-334`, `TkbEntityTypes.cs:26-47` |
 | `Armament` and carried weapons | status (`WeaponOf`), lethal-in-hand and conduct (`Controlled`) ALREADY count a carried weapon — ⛔ none asks where it is carried | `Armament.cs:199-276` |
 | a burst with no round in flight | the FPV drone: the position owner publishes `DetonationNotification` from mount 0's round, then spends itself (`DamageAssessedEvent`) | `DroneImpactSystem.cs:105-119` |
-| the builder's mount | `WeaponMount` has `Category`, ⛔ no look — a pistol weapon system would read as a rifle | `SimCombatDef.cs:5-58`, `BdcTkbBuilder.cs:299-325` |
+| the builder's mount | `WeaponMount` has `Category`, ⛔ no look — a pistol weapon system would read as a rifle | `SimCombatDef.cs:5-58`, `NedTkbBuilder.cs:299-325` |
 
 ```mermaid
 classDiagram
@@ -3589,7 +3589,7 @@ classDiagram
   class UtilityScorer { <<existing>> no Stowed candidate }
   class InteractionTransport { <<I-1>> + kind 11 Restation · + kind 12 DetonateCharge }
   class Charges { <<NEW static, B-11b>> Detonate(world, charge) — on its position owner }
-  class BdcTkbCatalog { <<existing>> + 616 pick-up rifle · + 617 pick-up pistol · + 618 explosive charge (B-11b) }
+  class NedTkbCatalog { <<existing>> + 616 pick-up rifle · + 617 pick-up pistol · + 618 explosive charge (B-11b) }
   CarrierDefDto --> SeatDto
   CarrierStations ..> SeatDto : projected
   CarryStations ..> CarrierStations
@@ -3660,7 +3660,7 @@ at B-11b against CE-3220 part 2 (the urban-combat car 1002 is being retired; the
 | I-1 kind 11 **`Restation`** (target the man, actor the thing, payload the seat; owner = `OwnsVehicle`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
 | fire gates: `WeaponSystems.CanFire` (stowed ⇒ `NotDeployed`) · `PrimaryMount` / `WeaponOf` skip a stowed weapon · weapon-choice candidates skip it | `WeaponSystems.cs`, `UtilityScorer.cs` |
 | observer gates: `Armament.ArmedByStatus` reads `SeenControlled` (no concealed weapon) · `Judge`'s conduct skips a concealed one | `Armament.cs` |
-| pick-up rifle **616** and pistol **617** (one man, `FireWhileCarried`, the soldier's rifle / pistol numbers); `WeaponMount.MuzzleVelocity` + `Look` (appended, copied by the builder) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `SimCombatDef.cs`, `BdcTkbBuilder.cs` |
+| pick-up rifle **616** and pistol **617** (one man, `FireWhileCarried`, the soldier's rifle / pistol numbers); `WeaponMount.MuzzleVelocity` + `Look` (appended, copied by the builder) | `TkbEntityTypes.cs`, `NedTkbCatalog.cs`, `SimCombatDef.cs`, `NedTkbBuilder.cs` |
 
 ⚠ **Deviation from ST-6, and why:** `Armament.LethalInHand` — the TRUTH form ("am I armed", `ThreatDanger.OwnStrength`) — still counts a
 hidden weapon: the man knows he has it. ST-6's "arms nobody" holds for every OBSERVER reader (status, conduct, `Judge`). ⚠ `WeaponOf` now answers
@@ -3680,7 +3680,7 @@ is checked at seat 1 (`CE2187_…`).
 | `WeaponSystems.CanFire`: a charge ⇒ `NotDeployed` — it is never fired | `WeaponSystems.cs` |
 | `Charges` — `IsCharge`, `Ask`, `Detonate` (on the POSITION owner: mount 0's round as one `DetonationNotification` where it stands, shooter = who set it off, else its carrier, else itself; out of the carrier's list where this node owns it; ⭐ a REPLICATED charge is spent at once and ends through ONE `DestroyEntityCommand` — the teardown — so every replica goes; an offline one is destroyed); `DetonateChargeEvent` (5014); `ChargeSystem` in the `Interactions` capability | `Combat/Charges.cs`, `CoreInfrastructureCapabilities.cs` |
 | I-1 kind 12 **`DetonateCharge`** (target the charge, actor who set it off; owner = `OwnsPosition`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
-| charge **618** (one man, Ground \| Carried \| Cargo, breakable) and its round **6043** "8 kg demolition charge" — its warhead from the reference library's entry of that name (`explosiveKg 8`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `MunitionTkbCatalog.cs`, `ammo.json` |
+| charge **618** (one man, Ground \| Carried \| Cargo, breakable) and its round **6043** "8 kg demolition charge" — its warhead from the reference library's entry of that name (`explosiveKg 8`) | `TkbEntityTypes.cs`, `NedTkbCatalog.cs`, `MunitionTkbCatalog.cs`, `ammo.json` |
 | the civilian car **1002**: a fifth seat, a cargo station — stowed, concealed, not exposed (the boot) | `UrbanCombatTkbCatalog.cs` |
 
 ⚠ **Deviation from ST-3, and why:** `FreeStation` skips a concealed station only while an OPEN station on the type takes the thing (a man's hands,

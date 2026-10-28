@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25
+updated: 2026-10-28
 build-state: BUILDING
 current-answer: ⭐ 2026-10-25 — §3.4e (CE-3323, AQ107) is BUILT: EntityConstructionCompleted / EntityDestructionCompleted on every node,
   naming the creation request. §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
@@ -34,7 +34,7 @@ current-answer: ⭐ 2026-10-25 — §3.4e (CE-3323, AQ107) is BUILT: EntityConst
   'supersedes' note in that file.
 known-rot: §2.3's Role-selected HALVES are SUPERSEDED — Architect_Question_65 §4 resolved the question
   and there is ONE uniform pipeline. §2.3 is kept only as HISTORY. §3's Role invariant (item 4) still says
-  "role decides which half"; that wording is stale and must be read against Q65 §4.
+  "role decides which half"; that wording is stale and must be read against Q65 §4. · ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack, its `BdcNodeId` (the byte-identical duplicate of the shared node id, §6/§9) and `BdcReplicationModule` were removed; the duplicate closed by deletion.
 known-rot: the scorecard row and the composition sentence in §2.4 were corrected 2026-08-31 — ghost
   promotion is gated by the NodeRole inside NedReplicationModule, NOT by host composition, so the
   EntityCreationPack registers the two SPAWN systems only. Q65 §4's Q65-B carries the measurement.
@@ -118,6 +118,9 @@ related-designs:
     entity-level SAVE ownership that the distributed scenario save gates on (`HasAuthority`). That doc owns
     the save/load mechanism; this one owns the creation that sets the owner.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the BDC stack, its `BdcNodeId` (the byte-identical duplicate of the shared node id, §6/§9) and `BdcReplicationModule` were removed; the duplicate closed by deletion. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # DESIGN — entity creation is assembled by hand at six sites; make it a pack
 
 > 🔒 **User ruling, `2026-08-30`:** *"Basic concepts like entity creation should be shared across

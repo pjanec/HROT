@@ -71,7 +71,7 @@ related-designs:
 | one generic picker exists, with tree + fuzzy filter + icons | ✅ `PickerWindow` + `PickerEntry(Id, Name, Description, Category "A/B/C", Keywords, IconTextureId, Tag, IconKey, IsEnabled)`; `PickerTreeBuilder` splits `Category` into folders; fuzzy tiers + highlights; Recent/Favourites (in-memory) | ✅ `ASSET-PICKER-UX-DESIGN.md` D1 *"Adopt NodeEdit's picker (PickerLayout.Tree); do NOT build a parallel picker"* |
 | the Tree layout has no preview pane and does not fold single-child folders | ✅ `Layouts/TreeLayout.cs` (Description only as a disabled-row tooltip, `:332`); Grid has an 80 px detail strip | ⛔ searched, none found |
 | the shared map library can reach `PickerWindow` | ⛔ **not today**: only `Hrot.Editor.AiShared`/`Blueprints`/`BTree`/`Hsm` editors reference `NodeEditor.UI`; ✅ but `NodeEditor.UI` depends only on `NodeEditor.Core` + ImGui.NET, so `Hrot.Presentation` may reference it with no cycle | ⛔ searched, none found |
-| DIS data is too thin to group by on its own | ✅ `BdcTkbCatalog.cs:56-237`: Country **0** on every type; platoons are Kind 1/Domain 1 like tanks; `UrbanCombatTkbCatalog` sets **no** DisType; the JSON loader never copies `TkbMaster.DisType` into `template.DisType` | ✅ `tkb-1/DESIGN.md` L313 `GetEntitiesByCategory` *"for editor tree building"* (`CategoryPath`) |
+| DIS data is too thin to group by on its own | ✅ `NedTkbCatalog.cs:56-237`: Country **0** on every type; platoons are Kind 1/Domain 1 like tanks; `UrbanCombatTkbCatalog` sets **no** DisType; the JSON loader never copies `TkbMaster.DisType` into `template.DisType` | ✅ `tkb-1/DESIGN.md` L313 `GetEntitiesByCategory` *"for editor tree building"* (`CategoryPath`) |
 | no DIS name table exists | ✅ names only in comments (`DISEntityType.cs:14-15`) | ⛔ searched `docs/`+`.dev/`, none found |
 | no icon field, no entity icon library | ✅ `VisualDefinitionDto{SymbolCode, ModelPath, ColorHex, Scale, ShowLabel, MapShapeName}`; no thumbnail code anywhere | ⛔ only `tkb-design-ideas.md` L1299 (a model browser *idea*) |
 | creation ends in one call | ✅ `EntityCreation.RequestEntityCreation` (`EntityCreation.cs:183`) — today **only the debug API** calls it; `ScenarioSpawnAdapter` builds `EntityCreationRequest` itself | ✅ `DESIGN_Entity_Authoring_Surface.md` (one method; §5b per-host send) |
@@ -482,14 +482,14 @@ ghost/replica ingress sets `SpawnEntityCommand.SpawnHeight`.
 |---|---|
 | DIS text form | `DISEntityType.ToString()` / `TryParse` — `Kind.Domain.Country.Category.Subcategory.Specific.Extra`; fewer fields leave the rest 0 (`FDP/Engine/Fdp.Core/DISEntityType.cs`) |
 | loader | `TkbDeserializer.ParseAndRegister` copies a non-empty `TkbMaster.DisType` into `template.DisType`; a malformed string throws `TkbFormatException` naming the file (like a missing `$guid`) |
-| one value, two places | `BdcTkbBuilder.WithDisType` also writes the master's `DisType` text, so `template.DisType` and `TkbMasterDto.DisType` cannot disagree on built-in types |
+| one value, two places | `NedTkbBuilder.WithDisType` also writes the master's `DisType` text, so `template.DisType` and `TkbMasterDto.DisType` cannot disagree on built-in types |
 | built-in types | the **13 physical** types carry a country: 8 in `NedTkbCatalog` (T-72 = Russia 222, the rest United States 225) and the **5 urban** types (`UrbanCombatTkbCatalog`, which had DIS 0 before). Map graphics (Fire Line, Route, Area, Terrain Zone) stay DIS 0 — they group under *Map Graphics* (D-rev 2) |
 | ⚠ HMMWV category | **6** (small wheeled utility vehicle, SISO-REF-010), was 3 (armored utility vehicle — wrong) |
 | ⚠ side effect: map layers | the 5 urban types now have a non-zero DIS ⇒ `MapLayerRegistry` puts them in the **Ground** layer (and the car/APC in **Vehicles**) — before, DIS 0 kept them out of every DIS layer. Intended: they are land entities |
 | icons | `VisualDefinitionDto.IconName` / `IgVisualDef.IconName`, copied by `WithVisual`; built-in names `m1_abrams`, `m2_bradley`, `hmmwv`, `t72`, `rifleman`, `tank_platoon`, `infantry_squad` (S5 draws the PNGs) |
 | palette | `TkbMasterDto.HideFromPalette` (default false) |
 | names | ⛔ *(superseded 2026-10-12 by CE-2138, R-280)* ~~`DisNameTable` reads the embedded data file `DisNames.json`~~ ⭐ `Hrot.Core.Tkb.DisNameTable` is built from the hard-coded `EntityClassTable` (a level name IS a class pinning exactly that level, e.g. `Tank = 1.1.*.1`) and `CountryTable`; the JSON and its `EmbeddedResource` are deleted. `Path(dis)` unchanged = named `Kind › Domain › Country › Category`, 0 levels skipped, unknown numbers read `Category 7`; a golden (`EntityTypeCatalogTests.CE2138_*`) pins every built-in type's folder and every name the JSON held |
-| rails | `TkbDeserializerTests.CE1017_*` (3) · `DisFilterTests.CE1017_DisText_*` · `BdcTkbBuilderVisualTests.CE1017_*` (2) |
+| rails | `TkbDeserializerTests.CE1017_*` (3) · `DisFilterTests.CE1017_DisText_*` · `NedTkbBuilderVisualTests.CE1017_*` (2) |
 
 ### ✅ S2 engine half as built *(backend, `2026-10-07`)* — the UI half (the tool, the ghost) is the ui lane's
 

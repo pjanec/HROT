@@ -459,7 +459,7 @@ about not forking or extending it.
 ##### 3.8.3c ⭐⭐ The SIDC already exists in the data — and PRESENCE decides, not the host
 
 📐 **Measured end to end.** `IgVisualDef.SymbolCode` defaults to `"SFGPUCIZ-------"`, TKB assets author real
-15-character SIDCs — `SFGPUCI--------`, `SFGPUCIZ--H----` — and the chain `BdcTkbBuilder:97` →
+15-character SIDCs — `SFGPUCI--------`, `SFGPUCIZ--H----` — and the chain `NedTkbBuilder:97` →
 `VisualDefinitionDto.SymbolCode` → `PresentationTkbTranslator:47` → `VisualData.SymbolCode` →
 `StyleResolutionSystem:100` → `ResolvedStyle.TextureName` is live, with
 `ResolvedStyleConstants.TextureNameMaxBytes = 16` sized for exactly 15 chars + null

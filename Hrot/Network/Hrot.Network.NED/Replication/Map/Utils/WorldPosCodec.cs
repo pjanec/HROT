@@ -9,7 +9,7 @@ namespace Hrot.Map.Common.Replication.Utils
     /// sample, both ways. The egress translator, the ingress translator, the spawn-request mapper and the descriptor-update system all
     /// call it, so no path can decode a pose differently from how another path encodes it.
     /// <para>Position, velocity and angular velocity are COPIED (local ENU, <see cref="EnuWire"/>); the orientation goes through
-    /// <see cref="QuaternionWireCodec"/> — the same helper BDC uses. ⛔ No Euler angles, no geodetic maths.</para>
+    /// <see cref="QuaternionWireCodec"/> — the one shared helper. ⛔ No Euler angles, no geodetic maths.</para>
     /// </summary>
     public static class WorldPosCodec
     {

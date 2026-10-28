@@ -835,7 +835,7 @@ format has no way to express either one.
 
 | | ⭐ birth-critical | ⛔ mandatory |
 |---|---|---|
-| **does it vary per template?** | ⛔ **no** — 📐 all 8 production sites declare `SimTransform` and nothing else: `BdcTkbBuilder.cs:44` *(every vehicle)* · `BdcTkbCatalog.cs:247` *(area)* · `:255` *(route)* · `UrbanCombatTkbCatalog` ×5 | ✅ **yes** — 📐 `NedTkbBuilder.DefineVehicle` declares `EntityInfo`+`SimTransform` **hard**; `UrbanCombatTkbCatalog`'s five templates carry the **same descriptors** and declare **none** |
+| **does it vary per template?** | ⛔ **no** — 📐 all 8 production sites declare `SimTransform` and nothing else: `NedTkbBuilder.cs:44` *(every vehicle)* · `NedTkbCatalog.cs:247` *(area)* · `:255` *(route)* · `UrbanCombatTkbCatalog` ×5 | ✅ **yes** — 📐 `NedTkbBuilder.DefineVehicle` declares `EntityInfo`+`SimTransform` **hard**; `UrbanCombatTkbCatalog`'s five templates carry the **same descriptors** and declare **none** |
 | **can a rule derive it?** | ✅ **yes — apply it unconditionally** | 🔴 **not as the catalogues stand.** They DISAGREE for identically-shaped templates ⇒ no predicate over the file reproduces it. ⚠⚠ **But that does not prove per-template policy was INTENDED** — 📐 `HrotEnvironment.CreateTkb()` registers **both** catalogues into **one** database *(`:35`, `:39`)*, so the disagreement is live in one cluster and no design record says which side is right. ⇒ **the prior question is whether it is meant to vary at all** |
 | **what if the rule is wrong?** | ⭐ nothing: the create leg intersects with the entity's **live component mask**, so naming a component it never receives contributes no bits | 🔴 **a ghost that NEVER PROMOTES** — a hard requirement that never arrives is `return`, every frame, forever |
 | **so** | ✅ **convention, applied in the app layer** — `TkbComponentConventions.ApplyTo`, called by `TkbLoadClusterStateHandler` | ⛔ **left empty, and FILED as `CE-265`** — it needs a design answer, not a guess |
@@ -850,7 +850,7 @@ carrying `TkbMasterDto`, so *"has `TkbMasterDto`"* seems to be the predicate. �
 2. `NetworkSpawningSystem`'s `cmd.InitialTransform`, available to **any** template.
 
 📌 Route 2 is how the **area** and **route** templates get a position — they carry **no `TkbMasterDto` at
-all**, and `BdcTkbCatalog.cs:243-246` declares birth-criticality for them anyway, saying so in its own
+all**, and `NedTkbCatalog.cs:243-246` declares birth-criticality for them anyway, saying so in its own
 comment. ⇒ ⛔ **a `HasDescriptor` predicate would MISS exactly those two**, which is the one direction
 that is unsafe.
 
@@ -898,7 +898,7 @@ right, one is half right, and the load-bearing one is INVENTED:**
 | the claim | verdict |
 |---|---|
 | *"`TkbIdentity` is always implicitly hard-mandatory, enforced at ghost promotion"* | ✅ **TRUE and STRUCTURAL** — `GhostPromotionSystem.cs:280-282` builds `_readyGhostQuery` as `.With<TkbIdentity>().WithLifecycle(Ghost)`, so an entity without it is never a promotion candidate at all |
-| *"programmatic catalogues declare them explicitly — e.g. `NedTkbBuilder` **or `UrbanCombatTkbCatalog`**"* | ⚠ **HALF.** True of `NedTkbBuilder` *(`BdcTkbBuilder.cs:36,38`)*; ⛔ **`UrbanCombatTkbCatalog` declares NONE** — it is cited as an example of the very thing it does not do. ⚠ It also calls them *"birth-critical structural components … added with `AddMandatoryComponent`"*, conflating the two separate lists |
+| *"programmatic catalogues declare them explicitly — e.g. `NedTkbBuilder` **or `UrbanCombatTkbCatalog`**"* | ⚠ **HALF.** True of `NedTkbBuilder` *(`NedTkbBuilder.cs:36,38`)*; ⛔ **`UrbanCombatTkbCatalog` declares NONE** — it is cited as an example of the very thing it does not do. ⚠ It also calls them *"birth-critical structural components … added with `AddMandatoryComponent`"*, conflating the two separate lists |
 | 🔴 *"translators derive and populate mandatory component requirements at load time"* | ⛔⛔ **FALSE — the mechanism does not exist.** `ITkbEntityTranslator` has exactly **two** members: `GetConsumedDescriptors()` and `Inject(repo, **entity**, template)` ⇒ it adds components to an ENTITY at spawn/promote time, and has no way to add a requirement to a TEMPLATE. 📐 Repo-wide there are **7** `AddMandatoryComponent` occurrences and **ZERO** are in a translator. ⚠ And the ordering forbids it anyway: `GhostPromotionSystem` checks the mandatory list **before** the translator loop runs |
 
 ⇒ 📐 **The complete, measured answer: `NedTkbBuilder.DefineVehicle` (`:36,:38`) and `AsComposite`
@@ -1026,7 +1026,7 @@ type)*; the attribute is right about the SOURCE *(whether a component can start 
 | ⭐ the shape | |
 |---|---|
 | **source of truth** | `[BirthCritical]` on the component TYPE — same house pattern as `[ComponentId]` *(`ComponentIdAttribute.cs:30`)* and `[DataPolicy]` *(`DataPolicyAttribute.cs:79`)* |
-| ⭐⭐⭐ **population point** | 📐 **`ITkbDatabase.Register(TkbTemplate)` is the SINGLE choke point** *(measured: `TkbDatabase.cs:20`; every producer goes through it — `TkbDeserializer.cs:54`, `BdcTkbBuilder.cs:45`, `BdcTkbCatalog.cs:248,256`, `UrbanCombatTkbCatalog` ×5, and the `FDP/Examples` setups)*. ⇒ fill the cache there and **no path can skip it**, file or programmatic |
+| ⭐⭐⭐ **population point** | 📐 **`ITkbDatabase.Register(TkbTemplate)` is the SINGLE choke point** *(measured: `TkbDatabase.cs:20`; every producer goes through it — `TkbDeserializer.cs:54`, `NedTkbBuilder.cs:45`, `NedTkbCatalog.cs:248,256`, `UrbanCombatTkbCatalog` ×5, and the `FDP/Examples` setups)*. ⇒ fill the cache there and **no path can skip it**, file or programmatic |
 | **the field** | `TkbTemplate.BirthCriticalComponents` becomes `IReadOnlyList<int>`; `AddBirthCriticalComponent<T>()` goes away |
 | ⭐⭐ **why keep the field at all** | ⛔ it is currently identical for every template, so it is *technically* a global constant — ⭐ **but it is the SEAM where the deferred TKB-record override lands.** Keeping it means that override changes only HOW the cache is filled, with **zero call-site churn**; and `RoleAffinityPolicy.cs:189`'s hot-path read is unchanged |
 | ⚠ **the override is DEFERRED, not rejected** | 🔒 *"we can add TKB record override any time later."* ⇒ ⛔ do not build it now, and ⛔ do not design the file syntax for it now |

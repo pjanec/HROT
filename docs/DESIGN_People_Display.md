@@ -43,7 +43,7 @@ codebase-memory server did not connect and its CLI hung on one sweep, so no `sea
 | where a carried weapon sits | the carried entity's `IsEmbarkedTag.Seat` on the man: 1 Hands · 2 Back · 3 Hidden; `CarryStations.Hands/Back/IsConcealed` | ✅ (the replicated passenger list) | `StationWeaponBehavior` (`RestationEvent`) |
 | the hands mount and what it holds | `PersonHands` (last mount of every person, `Hands = true`); the loaded round per mount | ✅ `dtWeaponAmmo` | pick-ups (`RoundPickUpSystem`) |
 | laid down (surrender) | `WeaponAmmo.LaidDown` bitmask | ✅ `dtWeaponAmmo` | `SurrenderBehavior` |
-| pick-up rifle 616 / pistol 617, the charge 618 | weapon-system types (`TkbEntityTypes.cs:48-52`, `BdcTkbCatalog.cs:339-358`); `Charges.IsCharge` | ✅ ordinary entities | scenario / behaviours |
+| pick-up rifle 616 / pistol 617, the charge 618 | weapon-system types (`TkbEntityTypes.cs:48-52`, `NedTkbCatalog.cs:339-358`); `Charges.IsCharge` | ✅ ordinary entities | scenario / behaviours |
 | stones and the stone source | munition 6038 (lies 60 s), area 8812 `StoneSource` | ✅ rounds as lightweight entities | behaviours |
 | gesture | `Gesture.Kind` (`GestureKind` … Throwing, ⭐ **Warning** = 6, the police warning, 2 s) | ✅ `dtGesture` (143) | the CivilianHsm, `EscalationLadder` |
 | effects on him | `EffectState` (stunned, irritated, knocked down, cowering) | ✅ `dtEffectState` (142) | `HealthApplicationSystem`, the HSM |

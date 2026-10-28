@@ -40,8 +40,8 @@ the kinetic value), D-C (ERA / cages later, data), D-F (explicit health per type
 | `WarheadKind { Kinetic, HighExplosive, Fragmentation, ShapedCharge }` — read by nothing in the hit chain | `WarheadDto.cs:9` |
 | the "RPG-7 rocket" / "TOW missile" names DELIBERATELY miss the library's "PG-7V HEAT" / "TOW-2 HEAT", so they carry no warhead — pinned by `EffectTests.LR1_EveryBuiltInMountLoadsAMunitionType_AndNoCombatNumberMoved` | `MunitionTkbCatalog.cs:27-32`, `EffectTests.cs:448` |
 | `ParameterResolver.Warhead`: the template's own `WarheadDto` FIRST, then the library by name, then none | `ParameterResolver.cs:274-281` |
-| `CombatPlatformDefDto { MaxHealth, MobilityKillBelowFraction, ArmorFront, ArmorSide, ArmorRear }`, a `[TkbDescriptor("Combat.PlatformDef")]` record; TKB data comes only from C# catalogs (no TKB JSON files) | `CombatPlatformDefDto.cs:12`, `BdcTkbBuilder.cs:215-221` |
-| health is generated as front armour × 5 when the BDC catalog sets none | `BdcTkbBuilder.cs:217` |
+| `CombatPlatformDefDto { MaxHealth, MobilityKillBelowFraction, ArmorFront, ArmorSide, ArmorRear }`, a `[TkbDescriptor("Combat.PlatformDef")]` record; TKB data comes only from C# catalogs (no TKB JSON files) | `CombatPlatformDefDto.cs:12`, `NedTkbBuilder.cs:215-221` |
+| health is generated as front armour × 5 when the BDC catalog sets none | `NedTkbBuilder.cs:217` |
 | `DamageSystem` (`HitEvent` consumer) is wired only in examples; production damage = `DetonationNotification` → `DamageAssessedEvent` → `HealthApplicationSystem` | `HealthApplicationSystem.cs:88` |
 
 ### INVENTORY — the queries run
@@ -403,7 +403,7 @@ The §7.5 diagrams are what was built: no deviation from them. What the build ad
 |---|---|---|
 | **AE1** | the mass law in the library generator (`ReferenceLibrary.FragmentMassG`), its two coefficients optional in `coefficients.json` (absent ⇒ one mass, so a hand-written coefficient file keeps working); the fragment formula on `GET /tkb/resolve` shows the scaling | `ReferenceLibrary.cs`, `coefficients.json` |
 | **AE2** | `ArmorModel.BlastSusceptibility`; `AreaEffectSystem` multiplies the blast by it (a hull at 0 skips the blast falloff); `AmmoChoice` reads the same rule; `DetonationEffect.BlastSusceptibility` and `blastSusceptibility` on `GET /combat/detonations` | `ArmorModel.cs`, `AreaEffectSystem.cs`, `AmmoChoice.cs`, `DetonationLog.cs`, `CombatReport.cs` |
-| **AE3** | every catalogued platform with a combat record states it (§7.6 table in the report); `SimCombatDef.BlastSusceptibility` → `BdcTkbBuilder` | `BdcTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs` |
+| **AE3** | every catalogued platform with a combat record states it (§7.6 table in the report); `SimCombatDef.BlastSusceptibility` → `NedTkbBuilder` | `NedTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs` |
 | **AE4** | nothing to build: blast is an ordinary `DamageAssessedEvent`, so `HealthApplicationSystem` immobilises a technical below 60 % health as it does for any hit | — |
 
 Fragment penetration, before → after (every other library warhead unchanged): 81 mm 1.65 → 2.24 mm · 70 mm rocket 1.67 → 2.32 ·

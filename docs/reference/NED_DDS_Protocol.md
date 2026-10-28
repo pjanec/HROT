@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-27
+updated: 2026-10-28
 current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check
 stale-below: nothing
-known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 129 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
+known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 125 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
 known-conflict: BDC_NED_SST_Descriptor_Rules.md (the authoritative spec) and the code differ in the places listed in §Code versus the spec; neither side has been reconciled by a ruling. Two C# types share the topic name "IGCapabilitiesAnnounce" (see §Inventory F).
 related-designs:
   - ../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the planned wire change: one frame (local metres + GeoReference), names from types, WorldPos as a quaternion pose (R-4092); this reference is updated as each step lands
@@ -32,7 +32,7 @@ SimNetGateway). It states **concepts, rules and full C# type names** — never t
 or the build-generated IDL, see Concepts §15). Every rule carries a `file:line` and/or a doc § citation; what could not be
 determined says so.
 
-**Reading order.** Diagrams (3) → Concepts and rules → Inventory (all 129 wire types) → For a protocol gateway → Code versus the spec.
+**Reading order.** Diagrams (3) → Concepts and rules → Inventory (all 125 wire types) → For a protocol gateway → Code versus the spec.
 
 **The one-paragraph model.** An entity is *nothing but* a set of keyed DDS instances ("descriptors"), one topic per descriptor type,
 all sharing the entity id. `EntityMaster` alive = the entity exists. Each descriptor has its own owner (the node that writes it);
@@ -213,12 +213,12 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 
 | Rule | Evidence |
 |---|---|
-| A descriptor topic is **keyed by the entity id** (85 of the 129 wire types are keyed; the 44 unkeyed are messages or singletons) | `scripts/ned-wire-inventory.py` (a type is keyed when a member carries `[DdsKey]`) |
+| A descriptor topic is **keyed by the entity id** (83 of the 125 wire types are keyed; the 42 unkeyed are messages or singletons) | `scripts/ned-wire-inventory.py` (a type is keyed when a member carries `[DdsKey]`) |
 | Spec says `KeepLast 1` so `read_instance` returns one sample; HROT state topics are `Reliable + TransientLocal + KeepLast(1)` (kind `S`) | Spec L59; §QoS kinds below |
 | **Multi-instance descriptors** are keyed by *(parent entity id + part/child instance id)*: turret pose and weapon task/status (part id = 2000 + turret index), the four EQS-family topics (child sensor index = `PartMetadata.InstanceId`) | `SimDescriptors.cs` comments at `EntityTurretPose`; `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsDdsTopics.cs:23-40` |
 | Other composite keys: `MapEntitySymbol` (entity + map group), `SensorTrackState` (observer + target), `DescriptorOptimisticLock` (entity + descriptor type) | inventory §A, §F |
 | For ownership a *(descriptor type, instance)* pair is packed as `(type << 32) OR instance` | `FDP/Toolkits/Fdp.Toolkits/Replication/Extensions/OwnershipExtensions.cs:16-28` |
-| **Entity ids are `int64` everywhere** *(changed by AQ107 E / R-4093, 2026-10-27; before it the older descriptors, 19 types, carried `int32`)*: every `EntityId` key and every field that names an entity (`EntityInfo.CommanderId`, `ContextActionInvoked.ContextEntityId`, the map selection lists `SelectedEntityIds` / `ForSelection`) is a `long`, in all 129 wire types; `0` = invalid. ⚠ **Node ids stay `int32`** (`AppInstanceId`, `NodeId`, the owner ids of `OwnershipUpdate`); a receiver built before AQ107 E reads an `EntityId` key at the wrong width | `scripts/ned-wire-inventory.py --verbose` key members (every entity key is `long`); `Replication/Map/Egress/GeoSpatialEgressTranslator.cs:226` writes `netId.Value` with no cast; rail `EntityMasterTranslatorTests.AQ107E_AnEntityIdAboveInt32_SurvivesEgressDdsAndIngress` |
+| **Entity ids are `int64` everywhere** *(changed by AQ107 E / R-4093, 2026-10-27; before it the older descriptors, 19 types, carried `int32`)*: every `EntityId` key and every field that names an entity (`EntityInfo.CommanderId`, `ContextActionInvoked.ContextEntityId`, the map selection lists `SelectedEntityIds` / `ForSelection`) is a `long`, in all 125 wire types; `0` = invalid. ⚠ **Node ids stay `int32`** (`AppInstanceId`, `NodeId`, the owner ids of `OwnershipUpdate`); a receiver built before AQ107 E reads an `EntityId` key at the wrong width | `scripts/ned-wire-inventory.py --verbose` key members (every entity key is `long`); `Replication/Map/Egress/GeoSpatialEgressTranslator.cs:226` writes `netId.Value` with no cast; rail `EntityMasterTranslatorTests.AQ107E_AnEntityIdAboveInt32_SurvivesEgressDdsAndIngress` |
 
 ### 5. How entity ids are allocated
 
@@ -270,7 +270,7 @@ The attribute `[DdsQos]` exposes only Reliability, Durability and History. The i
 | `B` | Reliable · Volatile · history not stated | gets nothing | raycast and path batches |
 | `D` | **no `[DdsQos]` (or history only)** — library default; measured effect: *a reader keeps ONE sample*, so two events in one take overwrite each other | gets the library default | 9 types; the fire-pipeline events were moved off it for exactly that loss (`FireInteractionMessages.cs:27-29`) |
 
-Counts over the 129 types: S 67 · Q 33 · D 9 · SL 6 · L 6 · B 4 · SN 2 · SA 1 · QN 1. The exact default of `D` is **not determinable from sources** (library 0.3.2); the "one sample" effect is the measured statement in `Hrot/Network/Hrot.Network.NED/FireInteractionMessages.cs:27-29` (CE-3095).
+Counts over the 125 types: S 66 · Q 31 · D 9 · SL 5 · L 6 · B 4 · SN 2 · SA 1 · QN 1. The exact default of `D` is **not determinable from sources** (library 0.3.2); the "one sample" effect is the measured statement in `Hrot/Network/Hrot.Network.NED/FireInteractionMessages.cs:27-29` (CE-3095).
 
 ### 9. Descriptors versus messages
 
@@ -311,7 +311,7 @@ Counts over the 129 types: S 67 · Q 33 · D 9 · SL 6 · L 6 · B 4 · SN 2 · 
 | Rule | Evidence |
 |---|---|
 | `TkbType` = integer (`int64`) id of a **template in the Template Knowledge Base**; **mandatory**. It decides what a receiver builds (components, mandatory descriptors) | `GenericDescriptors.cs:97-122`; `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/GhostPromotionSystem.cs:225` |
-| The **catalog is not on the wire.** It is code-registered at node start (`NedTkbCatalog`, `UrbanCombatTkbCatalog`, civilian/munition/effect/sound/voice/map-camera/area-effect catalogs) and, when present, replaced by a **staged TKB file** synced to all nodes | `Hrot/Engine/Hrot.Core/HrotEnvironment.cs:38-58`; `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/BdcTkbCatalog.cs:10`; `Hrot/Engine/Hrot.Core/Tkb/*Catalog.cs`; interface `FDP/Engine/Fdp.Core/Abstractions/ITkbDatabase.cs:10`. The file format/location: **not determinable from sources** here (the R-4018 "NAS master copy" is only referenced in `HrotEnvironment.cs:38`) |
+| The **catalog is not on the wire.** It is code-registered at node start (`NedTkbCatalog`, `UrbanCombatTkbCatalog`, civilian/munition/effect/sound/voice/map-camera/area-effect catalogs) and, when present, replaced by a **staged TKB file** synced to all nodes | `Hrot/Engine/Hrot.Core/HrotEnvironment.cs:38-58`; `Hrot/Engine/Hrot.Core/MapDefinitions/Tkb/NedTkbCatalog.cs:10`; `Hrot/Engine/Hrot.Core/Tkb/*Catalog.cs`; interface `FDP/Engine/Fdp.Core/Abstractions/ITkbDatabase.cs:10`. The file format/location: **not determinable from sources** here (the R-4018 "NAS master copy" is only referenced in `HrotEnvironment.cs:38`) |
 | `DisType` is the DIS enumeration (kind.domain.country.category.subcategory.specific.extra) and is **optional per template** (`TkbTemplate.DisType`); the master publishes whatever the template/cold metadata holds (zeros when unset) | `FDP/Engine/Fdp.Core/Abstractions/TkbTemplate.cs:158`; `EntityMasterEgressTranslator.cs:87-110` |
 | Munition/effect/sound types in events are **also TKB ids** (`MunitionType`, `AmmoGuid`) | `FireInteractionMessages.cs` |
 
@@ -336,11 +336,10 @@ Counts over the 129 types: S 67 · Q 33 · D 9 · SL 6 · L 6 · B 4 · SN 2 · 
 | The DDS **type name** is the C# namespace as IDL modules + type name (`Hrot::NED::Descriptors::EntityMaster`); extensibility is **`@appendable`**: new fields are only ever **appended** (marked "APPENDED" in comments), so an older reader keeps working | same generated IDL; R-169 in RULINGS |
 | The **topic name** is the `[DdsTopic("…")]` string — and a **writer may override it** by name (`DdsWriterAdapter`); three types are bound to a topic only by a translator constant (marked † in the inventory) | `Hrot/Engine/Hrot.Core/Dds/DdsWriterAdapter.cs:31`; translators `BehaviorFaultTranslators.cs:28`, `SquadReportTranslators.cs:24`, `SimHost/TacticalIntentIngressTranslator.cs:27` |
 | Some types are `[DdsManaged]` (strings, sequences, unions): variable length; a few payloads are **JSON text** (`ClusterOpRequest.PayloadJson`, EQS/survey results, attribute patches) | inventory; `GenericMessages.cs`, `OrchestrationMessages.cs` |
-| The BDC stack uses the same layout under a **`BDC_` topic prefix** (4 types) | `Hrot/Network/Hrot.Network.BDC/BdcEntityMessages.cs:10,29`; inventory §J |
 
 ## Inventory
 
-All **129** production wire types: **126** carry `[DdsTopic]`, **3** are bound to a topic by a translator constant (†). Full names are
+All **125** production wire types: **122** carry `[DdsTopic]`, **3** are bound to a topic by a translator constant (†). Full names are
 **reflection style** (`Namespace.Type`; a nested type would print `Namespace.Outer+Nested` — none exists today). Kind and QoS legend
 are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: `Hrot/`, `FDP/`, `Stride/`; excluded roots: see
 §Excluded roots. Family counts are informational; `--check` compares the full names only.
@@ -513,16 +512,14 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.Animation.Replication.DdsStanceIntent` | `hrot/anim/StanceIntent` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Wanted stance, Brain to Muscle |
 | `Hrot.Animation.Replication.DdsStanceStatus` | `hrot/anim/StanceStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Current stance and transition, Muscle to Brain |
 
-### J. Other (alternative BDC stack, library demo topics, status) — 6
+### J. Other (FDP library demo topics) — 2
+
+> The former BDC stack's four `BDC_*` types left with it — **removed 2026-10-28, R-4095** (NED is the one network implementation).
 
 | Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|---|
 | `Fdp.Network.Cyclone.Topics.EntityMasterTopic` | `SST_EntityMaster` | descriptor | yes: entity id | SN | Fdp.Network.Cyclone | FDP library demo master; no HROT production use |
 | `Fdp.Network.Cyclone.Topics.EntityStateTopic` | `SST_EntityState` | descriptor | yes: entity id | L | Fdp.Network.Cyclone | FDP library demo state; no HROT production use |
-| `Hrot.BDC.Messages.BdcEntityMaster` | `BDC_EntityMaster` | descriptor | yes: entity id | S | Hrot.Network.BDC | BDC stack: entity existence (BDC_ prefix) |
-| `Hrot.BDC.Messages.BdcMissionControlAck` | `BDC_MissionControlAck` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control ack |
-| `Hrot.BDC.Messages.BdcMissionControlRequest` | `BDC_MissionControlRequest` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control request |
-| `Hrot.BDC.Messages.BdcWorldPos` | `BDC_WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.BDC | BDC stack: the same local-ENU pose (AQ107 F) |
 
 
 ## Excluded roots

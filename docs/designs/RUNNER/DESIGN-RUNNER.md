@@ -648,7 +648,7 @@ public class SimHostSubsystem : SubsystemBase
         
         // Register TKB catalog (matches Hrot.SimHost/Program.cs logic)
         var tkbDb = new TkbDatabase();
-        BdcTkbCatalog.RegisterAll(tkbDb);
+        NedTkbCatalog.RegisterAll(tkbDb);
         _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
         
         // Register GeographicModule, ELM, SimulationLogicModule, etc.

@@ -10,8 +10,8 @@ using Xunit;
 namespace Fdp.Toolkit.Replication.Tests
 {
     /// <summary>
-    /// The text <c>ddsmonitor</c> shows for a position wire's orientation (<see cref="OrientationDisplay"/>, used by BOTH
-    /// <c>OrientationQuat</c> (NED) and <c>BdcOrientationQuat</c> (BDC)) — AQ107 D, as-built addendum 2026-10-28.
+    /// The text <c>ddsmonitor</c> shows for a position wire's orientation (<see cref="OrientationDisplay"/>, used by the NED
+    /// <c>OrientationQuat</c>) — AQ107 D, as-built addendum 2026-10-28.
     /// 📐 Convention under test = <see cref="SimTransformBridgeSystem"/>'s: H compass (0 north, clockwise), P positive nose-up, R positive right-wing-down;
     /// the identity (an all-zero wire struct) faces EAST, so it reads <c>H 090.0</c>. Each expected string was computed independently
     /// (a Python re-derivation of the quaternion maths), not copied from the code's output.

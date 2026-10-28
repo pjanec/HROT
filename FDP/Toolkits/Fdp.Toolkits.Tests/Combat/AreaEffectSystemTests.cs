@@ -382,7 +382,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         private const long WsM2 = 600, WsJavelin = 603;
 
-        /// <summary>The two weapon types, as BdcTkbCatalog states them (§5b): area m², casing mm, health.</summary>
+        /// <summary>The two weapon types, as NedTkbCatalog states them (§5b): area m², casing mm, health.</summary>
         private void WeaponTypes()
         {
             var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
@@ -437,7 +437,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>
         /// ⭐ <c>CE-3203</c> C4 (DESIGN_Weapon_Systems §5b) — a Javelin CARRIED on a soldier's back is struck when he is: the soldier types
-        /// declare <see cref="Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier"/> (an OPEN carrier — BdcTkbCatalog's rifleman, the urban
+        /// declare <see cref="Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier"/> (an OPEN carrier — NedTkbCatalog's rifleman, the urban
         /// catalogue's soldiers), so the carry station is an exposed seat and the boarded weapon's <c>IsEmbarkedTag.Exposed</c> is 1 —
         /// <c>PhysicalPresence.IsHidden</c> does not hide it. The same 81 mm at 10 m that breaks a Javelin on the ground breaks it on his back.
         /// </summary>

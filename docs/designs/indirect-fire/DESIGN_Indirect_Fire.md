@@ -337,7 +337,7 @@ classDiagram
   class BallisticAim { <<existing, grows>> +Solve(…, arc, ammo): a LAID order (arc Low or High) aims along FireSolution.For(no mask).Launch ★ }
   class FireSolution { <<IF-1>> ChargesOf · For }
   class TurretPose { <<existing, dtTurretPose>> Azimuth · Elevation }
-  class BdcTkbCatalog { <<existing>> mortars 609–611, towed 612: + a laying turret 0 ★ · mount TurretIndex 0 ★ }
+  class NedTkbCatalog { <<existing>> mortars 609–611, towed 612: + a laying turret 0 ★ · mount TurretIndex 0 ★ }
   FireAtPointExecutor --> WeaponTask : writes (brain)
   WeaponTaskDispatcherSystem ..> WeaponTask : reads (muscle)
   WeaponTaskDispatcherSystem ..> BallisticAim

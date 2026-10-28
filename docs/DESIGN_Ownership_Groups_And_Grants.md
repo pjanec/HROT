@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-28
 build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S8 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E4/E6 routed edits ✅ (CE-3003), E8 crash reclaim ✅ multi-process (+10.2 s, no message), E7 ✅ after §5.8 (the brain names each EQS sensor's solver, R-179; live 48/48 results); S8 ✅ (CE-523 damage on SimHost/IG-created entities, F-5 ingress skip incl. the F7 handover race, CE-3001).
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
-known-rot: none.
+known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack ("no grant support — exempt while unused") was removed; NED is the only host that executes grants besides the offline editor, which executes none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
 related-designs:
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS the motion domains (one module per domain); R-3005 (CE-3199, its §5a): every domain's body is owned by THIS design's one MuscleGround group — no MuscleAir / MuscleNaval role
@@ -25,6 +25,8 @@ related-designs:
   - docs/DESIGN_Entity_Control.md — adds ManualDrive, PossessedBy and WeaponAmmo to the Brain group
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §10 EM-4 (R-4045): an OWNED entity may be replicated by another mechanism than NED — a per-entity replication route; the NED send gate becomes "owned AND routed to NED" (HasAuthority itself unchanged).
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the BDC stack ("no grant support — exempt while unused") was removed; NED is the only host that executes grants besides the offline editor, which executes none. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # Ownership groups and grants — the build design
 
@@ -212,7 +214,7 @@ graph TD
 | ~~D-1~~ | ✅ R-171: damage application stays on the Brain with `Health` (BRAIN group) | — |
 | ~~D-2~~ | ✅ R-171: a separate PERCEPTION group (§1.2b), not mixed into MuscleGround | — |
 | ✅ | D-4..D-7 approved by the user `2026-10-02` (R-173): *"approved D-4 to D-7, start step 1"* | — |
-| ~~D-8~~ | ✅ R-175: who owns the position of a composite unit and of a standalone tactical symbol (area, route, overlay) | ⭐ **the CREATOR, position included**: neither has kinematics, so G-4 grants no MuscleGround group (G-5 keeps it with the creator). 🔒 User `2026-10-02`: *"whoever creates them should own them including their position i guess (logical entity anyway does not have any kinematics components so this should work consistently)"* and *"map tactical symbols … should be owned by the creator, same mechanism (no kinematics parts)"*. A composite unit is typically created on a Brain node; deriving its position from its members (averaging) is future work for its owner, not yet decided (CE-514). A node that moves a creator-owned symbol (e.g. Map2D) sends an edit request to the owner (BDC spec "descriptor change requests"), which needs F-10 fixed (S2b). 📐 Measured templates: tanks, IFV, truck, infantry rifleman (`BdcTkbCatalog.cs:26-168`), the `UrbanCombatTkbCatalog` entities get MuscleGround; `TacGraphic_Area`/`TacGraphic_Route` (`BdcTkbCatalog.cs:238-247`) and `Unit_TankPlatoon`/`Unit_InfantrySquad` (`:182-216`, no `WithPhysics`) do not |
+| ~~D-8~~ | ✅ R-175: who owns the position of a composite unit and of a standalone tactical symbol (area, route, overlay) | ⭐ **the CREATOR, position included**: neither has kinematics, so G-4 grants no MuscleGround group (G-5 keeps it with the creator). 🔒 User `2026-10-02`: *"whoever creates them should own them including their position i guess (logical entity anyway does not have any kinematics components so this should work consistently)"* and *"map tactical symbols … should be owned by the creator, same mechanism (no kinematics parts)"*. A composite unit is typically created on a Brain node; deriving its position from its members (averaging) is future work for its owner, not yet decided (CE-514). A node that moves a creator-owned symbol (e.g. Map2D) sends an edit request to the owner (BDC spec "descriptor change requests"), which needs F-10 fixed (S2b). 📐 Measured templates: tanks, IFV, truck, infantry rifleman (`NedTkbCatalog.cs:26-168`), the `UrbanCombatTkbCatalog` entities get MuscleGround; `TacGraphic_Area`/`TacGraphic_Route` (`NedTkbCatalog.cs:238-247`) and `Unit_TankPlatoon`/`Unit_InfantrySquad` (`:182-216`, no `WithPhysics`) do not |
 | ~~D-3~~ | ✅ R-171: sensor config and every perception INTENT (`PerceptionReceptor`, `EqsSensor`) stay in BRAIN | — |
 | ~~D-9~~ | ✅ R-175 (user `2026-10-02` confirmed the "no kinematics ⇒ creator" mechanism): how a group's applicability (G-4) is decided per template — user: *"this might need some TKB entity-type based data driven rule"* | ⭐ **Keep it keyed on the template's CAPABILITY DESCRIPTORS** (`HrotOwnershipGroups.cs:97-99`). That is already TKB data, synced to every node, with no entity-class vocabulary (TKB `DESIGN.md` §6.6a, user `2026-09-13`: *"the components the entity have makes the entity a vehicle"*). Rejected: ① keying on the entity TYPE id (`TkbEntityTypes`) is the per-class hardcode §6.6a bans. ② Keying on the LIVE component mask is host-dependent: Stride strips `VehicleState` from infantry (`InfantryVehicleStateStripTkbTranslator.cs:21`), so a Stride creator would deny infantry its MuscleGround grant. ③ Keying on `produced(translators)` cannot see descriptor values: `BehaviorState` is stamped for `BrainTier 0` too (`BehaviorTkbTranslator.cs:75`). ④ A per-template file field, e.g. an ownership-profile descriptor, is the escape hatch for when a template needs a different answer than its descriptors give (§6.6, "when a file field WOULD be the right answer": a schema change plus loud load-time validation, because the deserializer skips unknown keys). No template needs it today: the user ruled a composite unit's position stays with its creator (D-8), so the composite case is not one either |
 
@@ -381,14 +383,12 @@ graph TD
   NED -- "Tick() calls ExecuteGroup each frame" --> LG
   NED --> CI["Input: ClusterCapabilityIngestSystem raises NodeDeparted → PartialOwnerReclaimSystem (S7)"]
   ED["Editor (OfflineNetworkFactory)"] -. "no NED: one node, owns all, no grants" .-> NED
-  BDC["BDC stack"] -. "no grant support — exempt while unused" .-> NED
-  linkStyle 6 stroke:#c0392b,stroke-dasharray:4
   linkStyle 7 stroke:#c0392b,stroke-dasharray:4
 ```
 
 *What the picture shows that prose hid:* the takeover runs inside `NetworkLifecycleGroup`, whose ONLY executor is
-`NedReplicationModule.Tick` (`NedReplicationModule.cs:654`) — so grants are honoured exactly on NED hosts. The two dashed red edges
-are the hosts where no grant is ever executed: the offline editor (correct — one node) and BDC (exempt, Q79 §0.7 G6).
+`NedReplicationModule.Tick` (`NedReplicationModule.cs:654`) — so grants are honoured exactly on NED hosts. The dashed red edge
+is the host where no grant is ever executed: the offline editor (correct — one node). *(A second one, the BDC stack, was exempt under Q79 §0.7 G6 and was removed 2026-10-28, R-4095; the picture's old `linkStyle 6` also dashed the unrelated `NED → CI` edge — an off-by-one, fixed.)*
 
 ### 5.5 Design decisions inside the frame
 

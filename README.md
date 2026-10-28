@@ -49,7 +49,7 @@ The solution is organized in two layers:
 |  Editor (scenario authoring)   Blueprint subsystem (visual scripting)  |
 |  BTree.Editor   Hsm.Editor     Compiler / Runtime / Hot-reload         |
 |                                                                        |
-|  Hrot.Network.NED (30+ topics)  .BDC (2 topics)  .Orchestration       |
+|  Hrot.Network.NED (30+ topics)  .Orchestration                         |
 +========================================================================+
 |                         FDP  Framework Layer                           |
 |                                                                        |
@@ -439,11 +439,10 @@ Current capability list and open gaps: `docs/blueprints/Blueprints_Overview.md` 
 | Profile | Topics | Use Case |
 |---------|--------|----------|
 | **NED** (full) | 30+ DDS topics | All production multi-node runs |
-| **BDC** (minimal) | 2 topics (`BDC_EntityMaster`, `BDC_WorldPos`) | Lightweight IG tracking, federation gateways |
 | **Orchestration** | 7 topics | Cluster 2PC, state machine, heartbeat |
 
-Both NED and BDC implement `INetworkFactory` / `IReplicationModule`; higher-level
-code is protocol-agnostic.
+NED implements `INetworkFactory` / `IReplicationModule`; higher-level
+code is protocol-agnostic. *(The lightweight BDC profile was removed 2026-10-28, R-4095.)*
 
 ### 6.3 Translator Pattern
 
@@ -916,7 +915,6 @@ Hrot/
     Hrot.UI.Common/         -- Hexagonal UI facades, reusable ImGui panels
   Network/
     Hrot.Network.NED/       -- Full 30+ topic DDS profile
-    Hrot.Network.BDC/       -- Lightweight 2-topic profile
     Hrot.Network.Orchestration/ -- Cluster 2PC, state machine, heartbeat
   Subsystems/
     Hrot.Orchestrator/      -- Cluster master, 2PC coordinator, NAS gateway

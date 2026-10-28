@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
+updated: 2026-10-28
 build-state: BUILT — §2.1m, 2026-09-12 (ea659a581 + 4e7d2285f). All three steps landed: the ELM is
   cleared at every world replacement (PrepareReplay, every seek, FinalizeReplay/PrepareLive, and the editor
   preview via the bracket), the re-derive is armed only when resuming to a live world, and both
@@ -61,7 +61,7 @@ known-rot: ⛔⛔ `2026-10-26` (user): §2.2 / §2.3's "IG nodes use ListenerRec
   ELM must be cleared at every WORLD REPLACEMENT (PrepareReplay, every seek, the live boundary), not only
   at resume. Filed as CE-259ar.
   ⭐ §2.1i measures the participant sets: both production ctor sites pass an EMPTY list and
-  RegisterRequirement has ZERO callers, so the ack set is at most {gatewayModuleId} today.
+  RegisterRequirement has ZERO callers, so the ack set is at most {gatewayModuleId} today. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (the module that built a lifecycle group and never executed it, §2.1/diagram) was removed with the BDC stack; `NedReplicationModule.Tick` is the group's only constructor and executor.
 stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.1f); the retracted
   lifecycle line above; §2.1f's "asymmetry in BeginDestruction" flag (moot — see §2.1i). The other §2.1
   rows were not re-measured on 2026-09-11 and carry no claim either way.
@@ -79,6 +79,9 @@ related-designs:
   - ../../DESIGN_Geo_Origin.md §5 — CE-3118: the Replay Browser loads the recording's terrain by name and mirrors it onto every replay world it draws; ZoneEnvironmentData is NoReplay (its pointers were recorded).
   - ../../DESIGN_Visual_Effects.md §7 (W1, VE-R) — effect entities are RECORDED; the map's effect spawner and the generic LifespanSystem are gated in place by the same late-read IsReplayActive (§2.1m's mechanism), fed from MapInteractionContext.IsReplayActive.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcReplicationModule` (the module that built a lifecycle group and never executed it, §2.1/diagram) was removed with the BDC stack; `NedReplicationModule.Tick` is the group's only constructor and executor. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # Design: Replay Isolation and Modern Module System
 
 ## 1. Problem Statement
@@ -603,21 +606,20 @@ graph TD
     end
     TICK --> NLG
 
-    BDC["BdcReplicationModule :61<br/>builds a group, NEVER executes it"]
     NULLR["NullReplicationModule — the EDITOR :150<br/>exposes a group, nothing ticks it"]
 
     RH["ReferenceReplayLoadHandler<br/>SetSystemsEnabled toggles 4 groups"] -.->|"Enabled = false"| NLG
 
     classDef dead fill:#fdd,stroke:#c00
     classDef live fill:#dfd,stroke:#080
-    class BDC,NULLR dead
+    class NULLR dead
     class SCHED,LS,GPS live
 ```
 
 | 🔴 what the picture shows that the prose hid | |
 |---|---|
 | ⛔ **`LifecycleSystem` and `GhostPromotionSystem` reach the SCHEDULER, not the group** | ⇒ they run on **every** host, replay or not — including during playback |
-| 🔴 **the group is reachable only through `NedReplicationModule.Tick`** | ⇒ relocating them into it **silently disables lifecycle** on the editor and on BDC |
+| 🔴 **the group is reachable only through `NedReplicationModule.Tick`** | ⇒ relocating them into it **silently disables lifecycle** on the editor (and did on BDC, removed 2026-10-28, R-4095) |
 | ⚠ **a system in BOTH would execute twice a frame** | the scheduler runs it, then `ExecuteGroup` runs it again |
 
 ##### ⭐⭐ DIAGRAM 2 — THE REWIND SEAM — **existing classes, and the ONE that is new**

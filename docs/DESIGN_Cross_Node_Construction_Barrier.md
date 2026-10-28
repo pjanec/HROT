@@ -12,7 +12,7 @@ build-state: BUILT (primary barrier LIVE-PROVEN) `2026-09-15` (CE-283). ✅ The 
   (production model) is DESIGNED in §3b and NOT yet dispatched: creation-request wait-list + timeout, mandatory
   reply, timeout=abort-via-EntityMaster-dispose, and the LOCAL poll-store result. Slice A's option-A "all present
   peers" is superseded-for-production by §3b. Prereqs P1–P3 (§5) BUILT. Fast stays default (user); reliable is OPT-IN.
-updated: 2026-09-15
+updated: 2026-10-28
 current-answer: ⭐ §3b IS THE PIECE-C PRODUCTION MODEL — the resolved, measured contract (creation-request
   fields, mandatory reply, timeout=abort-via-EntityMaster-dispose, and the LOCAL poll-store result). §1 is the
   original diagrams (1.1 sequence, 1.2 classes, 1.3 module map). §2 says WHY — incl. §2a late-joiner durability,
@@ -25,7 +25,7 @@ known-rot: ⛔⛔ The role→init derivation floated in an earlier piece-C hando
   ⚠ Also: §2a/§3 name the DDS attrs as `[DdsStruct]`/`[DdsKey]`/`[DdsQos]` — SUPERSEDED by §3a.1 (real convention
   is a `partial struct` with `[DdsTopic]`+`[DdsQos]`+`[DdsKey,DdsId]`; no `[DdsStruct]` exists). And the Step-0 V2
   note ("Flags is `int`") measured the CYCLONE type by mistake — the `--mode all` NED `EntityMaster.Flags` is
-  `ulong` (§3a.0); the original "`ulong`" stands.
+  `ulong` (§3a.0); the original "`ulong`" stands. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `Hrot.Network.BDC` (the "thin ~861-LOC skeleton") was removed; the barrier lives on NED descriptors only.
 related-designs:
   - docs/DESIGN_Entity_Genesis_End_To_End.md — the landing page; this design is stage ⑨'s reliable variant. It owns the end-to-end sequence; this owns the cross-node WAIT. (reciprocal: genesis §"reliable init" links back here.)
   - docs/designs/others/DESIGN-NetworkSpawning.md — owns ReliableInitType / PendingNetworkAck / the SpawnEntityCommand→NetworkSpawningSystem local-create pipeline this rides.
@@ -41,6 +41,9 @@ related-designs:
   - docs/blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — §3c consumer view; owns the host-capability token facility + the non-supporting-host degradation.
   - docs/designs/two-ack/TwoAck-DESIGN.md — the REMOTE requestor's two-phase view (SstStatusCode InProgress/NotSupported); this barrier is the mechanism its ack sits on (its STATUS notes the pre-barrier "vacuous" gap this fills).
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `Hrot.Network.BDC` (the "thin ~861-LOC skeleton") was removed; the barrier lives on NED descriptors only. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # DESIGN — the cross-node construction barrier *(reliable distributed init)*
 
 > 🎯 **What this owns:** how a creating node holds an entity in `Constructing` until the **peer nodes that

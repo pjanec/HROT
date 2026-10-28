@@ -75,7 +75,7 @@ data-centric publish/subscribe communication. Key concepts:
 |                                                               |
 |  +---------------------+   +--------------------------+      |
 |  | NedReplicationModule|   | DdsIdAllocatorServer     |      |
-|  | / BdcReplication... |   |  (optional, one per sim) |      |
+|  |                     |   |  (optional, one per sim) |      |
 |  |  (IReplicationModule)|  |                          |      |
 |  +---------+-----------+   +----------+---------------+      |
 |            |                          |                       |
@@ -210,8 +210,8 @@ All types live under the root namespace `Fdp.Network.Cyclone`.
 > ⛔⛔ **`CycloneNetworkModule` was DELETED `2026-08-26` (`AX-021`).** This table used to describe it as the
 > *"Root `IEcsModule`"* that *"constructs and registers all systems"*. 📐 Measured: it was constructed
 > **nowhere** — zero production and zero test sites — and had been **superseded by per-domain composite
-> modules**, `NedReplicationModule` and `BdcReplicationModule` *(both `IReplicationModule`, both obtained from
-> a node's network factory)*. ⭐ Those are **role-aware** and bundle the tightly-coupled lifecycle systems,
+> modules**, `NedReplicationModule` *(an `IReplicationModule`, obtained from
+> a node's network factory; the BDC twin was removed since, R-4095)*. ⭐ That one is **role-aware** and bundles the tightly-coupled lifecycle systems,
 > including the `CycloneNetworkCleanupSystem` the deleted module explicitly refused to register.
 >
 > ⚠ **Why it stayed invisible:** the live `CycloneNetworkIngressSystem` shared its file, so the FILE was
@@ -281,7 +281,7 @@ All types live under the root namespace `Fdp.Network.Cyclone`.
 ### ⛔ CycloneNetworkModule — **DELETED `2026-08-26` (`AX-021`)**
 
 > ⚠ The API reference below is HISTORY, kept so a reader meeting the name in an old document can resolve
-> it. ⭐ Use `networkFactory.CreateReplicationModule()` → `NedReplicationModule` / `BdcReplicationModule`.
+> it. ⭐ Use `networkFactory.CreateReplicationModule()` → `NedReplicationModule`.
 
 
 ```csharp

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-28
+updated: 2026-10-28
 current-answer: ⭐⭐⭐ THE INTENT NOW LIVES IN docs/DESIGN_Entity_State_Sourcing.md — read THAT to learn
   how entity state is sourced. ⛔ THIS FILE IS THE ARCHAEOLOGY: four rejected transport designs and why
   each failed. Keep it for the reasoning, do not use it as the reference.
@@ -20,11 +20,14 @@ current-answer: ⭐⭐⭐ THE INTENT NOW LIVES IN docs/DESIGN_Entity_State_Sourc
 stale-below: ⛔⛔ §2's "the loss is the WIRE HOP" framing is WRONG — see §10.1. ⛔ §4's Q64-1/Q64-2
   leans are superseded by §6. ⛔ §8.3/§8.4's "use InitialAttributesJson / grow the attribute
   vocabulary" is WRONG — see §10.3. §8.1/§8.2's measured inventories remain valid.
-known-rot: nothing yet.
+known-rot: nothing yet. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcNetworkFactory:135` (a factory returning no adapters) was removed with the BDC stack.
 known-conflict: DESIGN_Subsystem_Composition_Unification.md §5c.18.5 said CE-103's fix was
   CE-109's live-path handler unification. ⛔ THAT IS NOW REFUTED by §2 below and is corrected
   in §5c.18.6 of that document. This file is the authority for CE-103's cause.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcNetworkFactory:135` (a factory returning no adapters) was removed with the BDC stack. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # ⭐⭐⭐ `Q64` — **Per-entity scenario component overrides do not cross the wire.** `build-state: CLOSED`
 
 > 📄📄 **THE INTENT LIVES IN [`DESIGN_Entity_State_Sourcing.md`](../DESIGN_Entity_State_Sourcing.md)**
@@ -260,7 +263,7 @@ argument led me somewhere wrong.
 
 ### 7.1 🔴 THE GAP, EXACTLY
 
-`NedTkbBuilder.WithPhysics` *(`BdcTkbBuilder.cs:78`)* receives a **`SimVehicleDef` that already carries
+`NedTkbBuilder.WithPhysics` *(`NedTkbBuilder.cs:78`)* receives a **`SimVehicleDef` that already carries
 `Height`, `TurnRate` and `Mobility`** — and **drops all three** when building the descriptor:
 
 ```csharp
@@ -574,7 +577,7 @@ TKB-side use of the word.**
 | | |
 |---|---|
 | ⭐ **consumer** | `GhostPromotionSystem:105` reads `template.MandatoryComponents` and blocks on Hard / times out on Soft — ✅ **BUILT** |
-| 🔴🔴 **producer** | ⛔ **NO translator registers a `MandatoryComponent`.** A grep across the Behavior · CarKinem · Combat · Perception · Spatial translators returns **nothing**. The **only** production writer is `BdcTkbBuilder.cs:242`, **hand-authored, for `EntityInfo` alone** |
+| 🔴🔴 **producer** | ⛔ **NO translator registers a `MandatoryComponent`.** A grep across the Behavior · CarKinem · Combat · Perception · Spatial translators returns **nothing**. The **only** production writer is `NedTkbBuilder.cs:242`, **hand-authored, for `EntityInfo` alone** |
 | 🔴 **the design's whole shape** | ⛔ `TranslateBlueprint` and `ITranslationContext` **do not exist anywhere in the codebase** — so the *"register applicators and MandatoryComponent requirements at load"* step was never built, and with it the **pre-compiled applicator** hot path of §10.1 property 3 |
 
 ⇒ ⭐⭐⭐ **THIS IS THE REAL GAP, and it is not the transport.** The user's *"mark it mandatory"* is a
@@ -633,7 +636,7 @@ honest sequencing is:
 
 ### 12.1 ⛔⛔ CORRECTION — **`SimTransform` IS hard-mandatory, and §11.3 UNDERSTATED what is built**
 
-📐 **Measured.** `BdcTkbBuilder.DefineVehicle` *(`:33-38`)*, on **every** template it creates:
+📐 **Measured.** `NedTkbBuilder.DefineVehicle` *(`:33-38`)*, on **every** template it creates:
 
 ```csharp
 template.AddMandatoryComponent<EntityInfo>(isHard: true);      // id 164
@@ -646,7 +649,7 @@ The mechanism is BUILT AND WORKING**, exactly as the user said.
 
 ⚠⚠ **Why §11.3 got it wrong: a fourth grep-as-hypothesis miss.** I searched the **property**
 (`MandatoryComponents`) and found only the `:242` `Exists(...)` guard; ⛔ **I never searched the METHOD**
-(`AddMandatoryComponent`), which is where `:36-38` live. 📌 Same failure shape as `BdcTkbBuilder.cs`
+(`AddMandatoryComponent`), which is where `:36-38` live. 📌 Same failure shape as `NedTkbBuilder.cs`
 containing class `NedTkbBuilder`, and as `CreateTkb` truncated by `head -20`.
 
 ⇒ ⭐ **`CE-115`'s scope shrinks and sharpens.** ⛔ **NOT** *"the readiness gate is unbuilt"*. ⭐ The real gap is narrower: the design says entries are **"populated PER TRANSLATOR… each engine's translators add

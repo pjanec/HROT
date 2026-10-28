@@ -1131,7 +1131,7 @@ command crosses through 5d-1's transport, and the answer comes back as the repli
 ⚠ **Found by the first live run, fixed:** the Locksmith reached the door and the door action failed at once — the built-in
 UrbanCombat humans (1001/2002/2003) carried no `CanInteract`, and `InteractionDispatcherSystem` fails every interaction-channel
 action without it (the BDC builder sets it; the hand-written catalog did not). ⇒ the three human templates now carry
-`CanInteract = true`; rail `BdcTkbBuilderVisualTests.CE3112_BuiltInHumans_ArePedestrians_ThatCanInteract` pins both flags
+`CanInteract = true`; rail `NedTkbBuilderVisualTests.CE3112_BuiltInHumans_ArePedestrians_ThatCanInteract` pins both flags
 (with the `Pedestrian` class of R-222). ⚠ The in-process rail could not see it: it drives the executor directly, past the
 dispatcher's capability gate.
 

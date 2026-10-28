@@ -45,8 +45,8 @@ namespace Fdp.Toolkit.Replication.Services
         /// ① <see cref="RegisterFromTranslator"/> filled ONLY the forward direction, so
         /// <see cref="GetDescriptorForComponent"/> saw nothing from translators at all — only from the manual
         /// <c>Type[]</c> overload. ② <c>_componentTypeToDescriptor</c> is <b>single-valued</b>, and a component
-        /// genuinely has SEVERAL covering descriptors: <c>SimTransform</c> is declared by both
-        /// <c>BdcWorldPosTranslator</c> and <c>GeoSpatialEgressTranslator</c>. ⇒ last-writer-wins would mark
+        /// genuinely has SEVERAL covering descriptors: <c>SimTransform</c> was declared by both
+        /// the BDC stack's world-position translator (removed since, R-4095) and <c>GeoSpatialEgressTranslator</c>. ⇒ last-writer-wins would mark
         /// the wrong descriptor.</para>
         ///
         /// <para>⭐ Keyed by component <b>id</b>, not <see cref="Type"/> — that is what translators declare, and

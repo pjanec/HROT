@@ -453,7 +453,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         // read — a node that owned nothing therefore got the narrowed ghost-only behaviour it did
         // not want, and a node with no IG flag got no smoothing at all. The predicate is about
         // OWNERSHIP ("this node owns nothing"), never about what the node renders, and it is
-        // character-for-character the one BdcReplicationModule has always used.
+        // character-for-character the one the (since removed, R-4095) BDC replication module used.
         // 📄 docs/DESIGN_Dead_Reckoning.md rule R1 + §5.1.
         registry.RegisterSystem(new DeadReckoningSyncSystem(_driveFromNetwork));
 
@@ -564,9 +564,9 @@ public sealed class NedReplicationModule : INedReplicationModule
         //   PROMOTION applies the TKB template and consumes the translator list — a SIMULATION concern
         //   that had no business living in one network implementation.
         //
-        //   🔴 It was already a defect independent of that design: `BdcReplicationModule` registers
-        //     `GhostCreationSystem` and NO promotion, so a BDC node's ghosts were never promoted. ⭐ The
-        //     move closes that as a side effect.
+        //   🔴 It was already a defect independent of that design: the BDC replication module (removed since,
+        //     R-4095) registered `GhostCreationSystem` and NO promotion, so a BDC node's ghosts were never
+        //     promoted. ⭐ The move closed that as a side effect.
         //
         //   ⚠⚠ THE WHOLE POINT OF THE ONE-COMMIT RULE IS HERE: the add and this removal ship together, or
         //     promotion runs TWICE per frame. It is now also structural — `GhostPromotionSystem` carries

@@ -50,7 +50,7 @@ Five independent root causes were identified. **All five must be fixed together*
 
 `TkbDatabase` is instantiated empty in both `IgApplication` and `SimHostApp`. When `NetworkSpawningSystem` processes a `SpawnEntityCommand`, it looks up the `TkbType` in the database and silently rejects the command with `"[NS] Unknown TkbType"` when the catalog is empty.
 
-**Required fix:** Call `BdcTkbCatalog.RegisterAll(tkbDb)` immediately after constructing `TkbDatabase` in both apps.
+**Required fix:** Call `NedTkbCatalog.RegisterAll(tkbDb)` immediately after constructing `TkbDatabase` in both apps.
 
 ### RC-2: SimHost Spawns "Local-Only" Invisible Cars
 
@@ -100,7 +100,7 @@ All three apps need the same coordinate origin, TKB catalog, and DDS domain. Dup
 // Hrot.Map.Common/HrotEnvironment.cs
 public static class HrotEnvironment
 {
-    public static TkbDatabase     CreateTkb();               // registers BdcTkbCatalog
+    public static TkbDatabase     CreateTkb();               // registers NedTkbCatalog
     public static WGS84Transform  CreateGeoTransform();      // Berlin origin by default
     public static DdsParticipant  CreateParticipant(int domainId);
 }

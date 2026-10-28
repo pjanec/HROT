@@ -30,7 +30,7 @@ related-designs:
 | fact | where |
 |---|---|
 | `ThreatDanger.Of(ISimulationView view, Entity self, Entity target)` = armed 1 / unarmed 0.3 / out of the fight 0 — **`self` unused**; `OfSlot` (heard ⇒ `OfClass`), `OwnStrength`; `CombatTkb` takes `EntityRepository` — every production caller passes one, the pattern is `view is EntityRepository repo` | `ThreatDanger.cs:15-64`, `EntityRepository.View.cs:10` |
-| ⚠ a SOLDIER also has a `CombatPlatformDefDto` (5 mm body armour) — "has armour" cannot be the vehicle test | `BdcTkbCatalog.cs:210` |
+| ⚠ a SOLDIER also has a `CombatPlatformDefDto` (5 mm body armour) — "has armour" cannot be the vehicle test | `NedTkbCatalog.cs:210` |
 | callers of the danger (all on CGF): `ContactThreatLevel`, `ContactDanger`, `EnemyStrengthRatio` (`OfSlot`), `SquadContactThreatLevel`, `SquadEnemyStrengthRatio`, `ThreatsAtLeast`, `DangerAreaSensorSystem.ThreatOn`; `TopThreat` ranks through `ContactThreatLevel`; ⚠ `UtilityTestWorld.SetEnemyStrengthRatio` re-implements the formula | `StandardInputs.cs:164-286`, `SquadInputs.cs:190-276`, `SensorNodes.cs:122-140`, `DangerAreaSensorSystem.cs:138-145`, `EqsTacticsNodes.cs:322-342` |
 | sound classes 0–6 in 3 bits (one value, 7, free); heard danger by class `OfClass` | `SignaturesDto.cs:84-93`, `ThreatDanger.cs:52`, `AcousticPerception.cs:36` |
 | `SensorChange` members 1–15 used | `SensorChangedEvent.cs:12-56` |
@@ -534,7 +534,7 @@ the nearest hide). It needs a second query and a new node phase, while the reach
 |---|---|---|
 | `Integrate` clamps to `[−MaxSpeedRev, MaxSpeedFwd]` | ⚠ **`Integrate(…, maxSpeedRev = 0, maxSpeedFwd = ∞)`** — the caller passes `MaxSpeedRev` **only while `NavState.ReverseAllowed == 1`**, else 0 | ⛔ a bare `[−MaxSpeedRev, …]` would let ANY AI vehicle whose speed controller undershoots (the reverse-heading `speedSign`, `CarKinematicsSystem.cs:330-336`) back up without being asked. Reverse stays an order's choice (`LocomotionMoveTo.Issue(…, reverseAllowed)`), never a side-effect of a preset gaining a reverse speed. `MaxSpeedFwd` 0 (an unknown profile, CE-103) = no cap |
 | progress `|Speed|·dt·max(0, dot(travelDir, tangent))` | ✅ as written (`CarKinematicsSystem.cs`, the trajectory branch) | — |
-| presets PersonalCar 6, Truck 4, Tank 8 | ✅; ⚠ the BDC catalog's tank overrides to **10** (`BdcTkbCatalog.cs:164`) — that is what the hill attack drives | — |
+| presets PersonalCar 6, Truck 4, Tank 8 | ✅; ⚠ the BDC catalog's tank overrides to **10** (`NedTkbCatalog.cs:164`) — that is what the hill attack drives | — |
 
 📐 **Hill attack, live (`hill-attack-close`, `--mode all`, 150 s, SimHost perspective, 0.5 s samples):** **before** — tanks 1001–1003 asked to reverse on 10–11 samples and **reversed on 0** (the clamp). **After** — 1002 backed up on 20 samples (115 m, down to −10.0 m/s), 1003 on 12 (47 m, −8.3 m/s); 1001 was asked on 14 samples and did not reverse (its reverse leg ended inside the arrival radius — not chased); 1004 is never asked. Rails: `CarKinematicsSystemTests.V5_AnAiTank_ReversesToAPointBehindIt_FacingUnchanged`, `V5_ReversingAlongAPath_MakesProgress`, `BicycleModelTests.CE2167_BicycleModel_WithAReverseSpeed_BacksUp_ToThatSpeedOnly` (all three red with the old `≥ 0` clamp).
 

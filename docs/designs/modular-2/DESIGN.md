@@ -1,5 +1,7 @@
 # Modular-2: BDC Network Plugin and Assembly Consolidation
 
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the BDC project it created (`Hrot.Network.BDC`, `BdcNetworkFactory`, `BdcReplicationModule`, §3.3) was removed; NED is the one network implementation behind `INetworkFactory`. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 ## Overview
 
 This workstream introduces a second network protocol (BDC) as a swappable alternative to
@@ -136,7 +138,6 @@ flowchart TD
     subgraph NetworkAdapters [Network Adapters]
         HrotOrch2["Hrot.Network.Orchestration"]
         HrotNED["Hrot.Network.NED"]
-        HrotBDC["Hrot.Network.BDC"]
     end
 
     subgraph EngineAdapters [Engine Adapters]
@@ -174,9 +175,6 @@ flowchart TD
     HrotNED --> HrotCore
     HrotNED --> HrotOrch2
     HrotNED --> FdpCyclone
-    HrotBDC --> HrotCore
-    HrotBDC --> HrotOrch2
-    HrotBDC --> FdpCyclone
 
     HrotPresentation --> FdpPresentation
     HrotPresentation --> HrotCore

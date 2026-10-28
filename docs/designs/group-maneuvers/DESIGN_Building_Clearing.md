@@ -91,7 +91,7 @@ backend's room graph.
 | HTTP: raw bus events | ⚠ `GET /events?type=` reads ONE ring of **500 events of every type** (`DiagnosticEventHistoryService.Capacity`), oldest overwritten — a firefight's shots and sensor events evict a report within seconds; payloads carry node-local `Entity` ids, not network ids | `Fdp.Core/Diagnostics/DiagnosticEventHistoryService.cs:16`; `DebugApiService.cs:837` | a report log of its own |
 | HTTP: a log of one kind of event | ✅ the precedent: `ShotLog` (a ring per node, network ids at read time) served by `GET /combat/shots?last=&shooter=&target=` | `DebugApi/CombatReport.cs:17`; `DebugApiHost.cs:746` | — |
 | HTTP: a squad's state | ✅ `GET /entities/{id}/squad`: members, assignments, contacts, the drill trace (`SquadDrillTrace`: phases, events, member orders) | `DebugApiService.Squad.cs:19-120`; `DebugApiHost.cs:1194` | the platoon's picture and the room record |
-| an infantry PLATOON unit type | ⛔ only `Unit_InfantrySquad` (302, 1 leader + 9 riflemen, body-less, runs the squad SOP); platoons exist for tanks only (301, 303) | `MapDefinitions/TkbEntityTypes.cs:145-149`; `Tkb/BdcTkbCatalog.cs:734-750` | `Unit_InfantryPlatoon` (SL-0) |
+| an infantry PLATOON unit type | ⛔ only `Unit_InfantrySquad` (302, 1 leader + 9 riflemen, body-less, runs the squad SOP); platoons exist for tanks only (301, 303) | `MapDefinitions/TkbEntityTypes.cs:145-149`; `Tkb/NedTkbCatalog.cs:734-750` | `Unit_InfantryPlatoon` (SL-0) |
 
 ## 3. Classes
 
@@ -639,7 +639,7 @@ Rebased onto `CommandReport` before it was pushed; ⚠ dropped with it: `Request
 | combat effective (CB-16) | `CombatEffective.IsInTheFight(view, member)`: a soldier by `Injury.IsInTheFight`; a UNIT (`UnitEntity`) while ≥ `MinEffective(n)` = min(4, ⌈n/2⌉) of its roster members are, recursively (a platoon counts its squads, ≤ 6 levels). ⚠ Two edges decided while building: a unit with **no** `UnitRoster` is taken as in the fight (nothing to judge by — what the existing unit-member rails build); a roster that **emptied** (its men destroyed, `UnitHierarchySystem` drops them) is out of it | `FDP/Toolkits/Fdp.Toolkits/Squad/CombatEffective.cs` |
 | the runner | `SquadPlayContext.Live(i)` reads `CombatEffective` ⇒ a wiped-out squad gets no order and holds no bound | `SquadManeuverRunner.cs` |
 | the centre | `UnitCentroidSystem` counts a unit member only while it is combat effective (a soldier member: alive, as before) | `UnitCentroidSystem.cs` |
-| the platoon type | `Unit_InfantryPlatoon` **305**: infantry arm, platoon echelon, roster 3 × `Unit_InfantrySquad`, a brain, ⚠ **no default SOP yet** (`BasicPlatoonSop` is CC-D, `CE-2294`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `BehaviorCatalog.cs` (Commander list) |
+| the platoon type | `Unit_InfantryPlatoon` **305**: infantry arm, platoon echelon, roster 3 × `Unit_InfantrySquad`, a brain, ⚠ **no default SOP yet** (`BasicPlatoonSop` is CC-D, `CE-2294`) | `TkbEntityTypes.cs`, `NedTkbCatalog.cs`, `BehaviorCatalog.cs` (Commander list) |
 | the nested run | ✅ the existing runner already orders a UNIT member with an ORDER (`CE-2141`): a platoon marching its squads sends each `Order.Move` / `Order.Hold`, and each squad resolves it by its own class (`InfantrySquadMove` → its own `SquadMarch`). Nothing new was needed for that | rail `SquadManeuverTests.CE2262_…`; demo `sl0-platoon-march` |
 
 Rails: `SquadCoordinationSystemTests.CE2262_*` (the rule, an emptied roster, the platoon's centre) · `SquadManeuverTests.CE2262_*` (a

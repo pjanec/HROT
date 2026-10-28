@@ -105,7 +105,7 @@ text was read from `results/<id>.json`.
 | # | claim |
 |---|---|
 | **A** | ONE shared descriptor was deliberate. `TkbCivilianPedestrian` and `TkbInfantrySoldier` both carry `VehicleParametersDto`; steering fields are **simply ignored** for humans; `KinematicVehicleMotor` has a character-body guard skipping `Capsule` / `CrowdMotorIntent` |
-| **B** | The class is **already derived** at TKB build time — `BdcTkbBuilder.MapMobility(TerrainMobility)` maps `Infantry → VehicleClass.Pedestrian`. The DTO carries `VehicleClass? VehicleClass`, **not** a `MobilityProfile` byte. The record is **silent** on field-vs-derive |
+| **B** | The class is **already derived** at TKB build time — `NedTkbBuilder.MapMobility(TerrainMobility)` maps `Infantry → VehicleClass.Pedestrian`. The DTO carries `VehicleClass? VehicleClass`, **not** a `MobilityProfile` byte. The record is **silent** on field-vs-derive |
 | **C** | `NavAgentProfile` was meant to be stamped at TKB injection time; **nothing writes it** in production — only tests/harnesses do. The record is **silent** on which system was to own it |
 | **D** | ⭐⭐⭐ **The codebase already committed to the STRIP strategy** — a dedicated `InfantryVehicleStateStripTkbTranslator` runs after `VehicleKinematicsTkbTranslator` and removes `VehicleState`/`VehicleParams` from capsule entities |
 | **E** | Consumers that would move if the discriminator changed: `LinearKinematicsSystem` (`.Without<VehicleState>()`), `CarKinematicsSystem` (`With<VehicleState>()`), `KinematicVehicleMotor`, the bridge, harness suites; DDS/replication is insulated *(uses `SimTransform`)* |
@@ -115,7 +115,7 @@ text was read from `results/<id>.json`.
 | # | claim | verdict |
 |---|---|---|
 | A1 | steering fields ignored; motor guards on capsule | ✅ `KinematicVehicleMotor.cs:161` skips `CollisionShapeKind.Capsule` |
-| B1 | `BdcTkbBuilder.MapMobility`, `Infantry → Pedestrian` | ✅ **REAL** — `BdcTkbBuilder.cs:330`, used at `:133` `VehicleClass = MapMobility(physicsDef.Mobility)` |
+| B1 | `NedTkbBuilder.MapMobility`, `Infantry → Pedestrian` | ✅ **REAL** — `NedTkbBuilder.cs:330`, used at `:133` `VehicleClass = MapMobility(physicsDef.Mobility)` |
 | B2 | the DTO has `VehicleClass?`, not `MobilityProfile` | ✅ `VehicleParametersDto.cs:82` |
 | C1 | `NavAgentProfile` has zero production writers | ✅ confirmed independently before asking |
 | D1 | ⭐⭐⭐ `InfantryVehicleStateStripTkbTranslator` **EXISTS** | ✅✅ **REAL and NEW to this session** — `Stride/Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator.cs:32`. Its guard is **verbatim** as quoted: `VehicleParametersDto` present **and** `StrideRenderModelDefDto.ShapeKind == Capsule` ⇒ remove `VehicleState` + `VehicleParams` |

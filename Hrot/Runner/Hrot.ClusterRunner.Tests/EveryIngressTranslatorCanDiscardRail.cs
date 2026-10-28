@@ -18,7 +18,7 @@ public sealed class EveryIngressTranslatorCanDiscardRail
 {
     /// <summary>Every assembly that declares a production translator (measured `2026-10-27`).</summary>
     private static readonly string[] TranslatorAssemblies =
-        { "Fdp.Toolkits", "Fdp.Network.Cyclone", "Hrot.Network.NED", "Hrot.Network.BDC", "Hrot.Animation.Replication" };
+        { "Fdp.Toolkits", "Fdp.Network.Cyclone", "Hrot.Network.NED", "Hrot.Animation.Replication" };
 
     [Fact]
     public void CE3329_W5_Every_ingress_translator_that_is_not_control_plane_implements_IDiscardableIngress()

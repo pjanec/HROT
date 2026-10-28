@@ -58,7 +58,7 @@ off and flies away"* → B1–B11 *"Approved"*.
 | every aircraft resolves orders through the class `AirPlatform` (helicopters, fighters, attack aircraft below it) | `EntityClassTable.cs:119-156` | R-278 (behaviors) |
 | orders: Move (a point), Attack (an entity), Hold | `OrderKind.cs:9-17`, `OrderDtos.cs` | orders design D1 |
 | rounds start at muzzle speed along the aim line — never the shooter's velocity; gravity only for Arc rounds; no drag | `FireProcessingSystem.cs:156`, `BallisticsSystem.cs:129-131` | — |
-| the doors-off Black Hawk (404): `Gen.Carrier` Open, 8 door seats; the plain UH-60 (400) carries nobody | `BdcTkbCatalog.cs:376-382`, `TkbEntityTypes.cs:56-57` | Map 3-D §6m (CE-1083) |
+| the doors-off Black Hawk (404): `Gen.Carrier` Open, 8 door seats; the plain UH-60 (400) carries nobody | `NedTkbCatalog.cs:376-382`, `TkbEntityTypes.cs:56-57` | Map 3-D §6m (CE-1083) |
 | a squad dismounts by `SquadDismount` (SOP row: under fire AND aboard); a reaction pauses the task, which resumes after it | `SquadDismountBehavior.cs`, `BasicInfantrySopTests` | Squad Tactics §5a |
 | `CarryCasualty` takes ANY man who is down, by network id; `TryEmbark` seats an incapacitated man in a vehicle (no injury check for a vehicle) | `EmbarkBehaviors.cs:83-105`, `Embarkation.cs:99-122` | Entity Interactions §7.4 |
 | a mission phase is `{ BehaviorId, Trigger, TriggerParam }` — no per-phase params | `MissionComponents.cs:42-60` | CE-456 |
@@ -445,15 +445,15 @@ classDiagram
     +6024 GAU-8 API ★
     +6025 Hydra-70 HE rocket ★
   }
-  class BdcTkbCatalog {
+  class NedTkbCatalog {
     <<existing>>
     405 A-10 + GAU-8 mount ★
     +406 AH-64 class ★ chin M134 turret, Hydra pod
   }
   AimAndFireExecutor ..> BodyAim : the cone
   FireAtPointExecutor ..> BodyAim : the cone
-  BdcTkbCatalog ..> WeaponMountDto : states FixedConeDeg
-  BdcTkbCatalog ..> MunitionTkbCatalog : AmmoTkb / Loadout
+  NedTkbCatalog ..> WeaponMountDto : states FixedConeDeg
+  NedTkbCatalog ..> MunitionTkbCatalog : AmmoTkb / Loadout
 ```
 
 *What the picture shows that the prose hid: nothing new flies — the cone is a HOLD in the two executors the AI already fires through,
@@ -545,7 +545,7 @@ translator set (`TkbTranslatorSet.Base()`, `HrotEnvironment.CreateTkb()`), its c
 | ✅ soldiers see and remember aircraft, and their fire picks one: the threat ranking has no air filter; `PostureNodes.Fire` aims at the top threat; a person's aim has no elevation limit | `ThreatRankingDecision.cs`, `PostureNodes.cs:430-466`, `BodyAim.cs` | the targeting half of "soldiers attack air targets" exists |
 | ⛔ no lead: a round is aimed where the target IS — a 60 m/s helicopter at 300 m is ~24 m on by the time a bullet arrives | `Fdp.Toolkits/Combat` (the only lead is guided dive geometry) | a soldier hits only a hovering or slow aircraft; the lead is the same led point as B13, in the aim path |
 | ~~⛔ a killed aircraft does not fall~~ ⛔ **WRONG — SUPERSEDED by §7c-i (backend, `2026-10-15`)**: I read `RotorcraftModel.cs:53` (the hover with no intent) and missed the dead-body branch above it — a killed helicopter FALLS (`RotorcraftModel.Falling`), a plane falls ballistically (`FixedWingModel.Fall`), both since M7. The one real hole was `DroneImpactSystem`'s ground-phase skip (a death while landing fell through the ground) — fixed in AT3 | ~~`LocomotionDispatcherSystem.cs:56-71`, `RotorcraftModel.cs:53`, `FixedWingModel.cs:49`~~ | ⚠ a reading of the line nearest the question, not the whole method — the WHOLE-FIELD READ rule |
-| ⚠ the plain UH-60 (400) has no flight model and no health; the doors-off UH-60 (404) flies but has no health | `BdcTkbCatalog.cs` (`DefineAircraft` adds no combat platform) | both need a health and armour entry before anything can down them |
+| ⚠ the plain UH-60 (400) has no flight model and no health; the doors-off UH-60 (404) flies but has no health | `NedTkbCatalog.cs` (`DefineAircraft` adds no combat platform) | both need a health and armour entry before anything can down them |
 
 🔒 **APPROVED `2026-10-15` (R-2021)** — *"accepted you leans on 'What's missing' please record them and update the design. write handoffs."*
 → B15–B18 in §10, handed to backend: [Air Targets handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Targets.md).
@@ -1167,7 +1167,7 @@ frame, and the decision to come round belongs to the attack, not the order.*
 | **the lead (B13)**: guns and rockets aim at `TargetLead.Point` — the target's position + (its velocity − the aircraft's) × t, t solved for the round's speed (the missile's, else the mount's muzzle velocity); a bomb aims at the target + its velocity × the fall time `BombBallistics.Impact` predicts; positions and velocities from `ReplicatedMotion` (§9c) | A4: an air-launched round carries the carrier's velocity, so the aircraft's own velocity comes off the lead |
 | a running fire action's point is re-written in place each frame (the executor re-reads its params every tick) | the ripple keeps tracking without a new action per frame |
 | **passes (B14)**: an entity attack ends Success when the target is dead (`CombatLife.IsAlive`); at the end of a pass with it alive, it comes round (3 passes, then Failure); a weapon that runs dry moves to the next; none left ⇒ Failure. A strike keeps its one pass | B14 |
-| **GunRun**: a plane's level pass at **50 m** above the target, the gun from 0.9 × its range, the break at **600 m**, then through and out (as RocketRun) | 📐 the GAU-8's nose cone is 5° (`BdcTkbCatalog.cs:832`): at 50 m the target leaves the cone at 571 m, at 150 m already at 1 714 m — beyond the gun's 1 200 m; ⚠ a level pass stands for the shallow dive the model cannot fly |
+| **GunRun**: a plane's level pass at **50 m** above the target, the gun from 0.9 × its range, the break at **600 m**, then through and out (as RocketRun) | 📐 the GAU-8's nose cone is 5° (`NedTkbCatalog.cs:832`): at 50 m the target leaves the cone at 571 m, at 150 m already at 1 714 m — beyond the gun's 1 200 m; ⚠ a level pass stands for the shallow dive the model cannot fly |
 | ⏸ an entity attack's gun keeps the LOADED round (HEI): `AmmoChoice` picks per target only on the aimed path, and `FireAtPoint` has no target | ⚠ known gap; closes with W2 / CE-2186 |
 | ⏸ W1's "Unspecified on a terrain building ⇒ Building" is not built: the order states the kind | no point-in-building query in the toolkit yet |
 

@@ -199,11 +199,11 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-10-17 (§4.1ae — CE-4013: one capability walk on every host, the terrain residency per node, one universal-load-parts factory)
+updated: 2026-10-28
 known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
   production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
   (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
-  EditorStrideSubsystem.cs:942. Read §4.1ac before quoting either.
+  EditorStrideSubsystem.cs:942. Read §4.1ac before quoting either. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcNetworkFactory` (named as a network-factory implementation) was removed with the BDC stack; `NedNetworkFactory` and the offline factory remain.
 current-answer: the whole file. This is the STANDING design for the composition-unification programme —
   the approach, the constraints and the phase plan. §5 = phase 0 (BUILT; §5.6-§5.9 are its as-built),
   §5b = phase 1 (seam BUILT; ⚠ §5b.4 records THREE argued deviations — read it before quoting §5b.2's
@@ -227,6 +227,9 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md §7.1d — OWNS entity interactions; its CoreInfrastructureCapabilities.Interactions (doors + embarkation) is the third cross-role infrastructure capability (§4.1ad)
   - docs/DESIGN_Node_Roles_And_Policies.md §3.1–§3.2 — OWNS what a role means and loads; a role never denies a capability
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcNetworkFactory` (named as a network-factory implementation) was removed with the BDC stack; `NedNetworkFactory` and the offline factory remain. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # ⭐⭐⭐ DESIGN — **Subsystem composition unification**
 
 > 🔒 **The goal (user, `2026-08-27`):** *"the subsystem bootstrap need much bigger unification than there is
@@ -5205,7 +5208,7 @@ is what makes the steer angle NaN.**
 #### 5c.18.3 ⛔⛔ ONE SOURCE IDENTIFIED, ONE **NOT** — *(corrected `2026-08-28`; the first version of this section was WRONG)*
 
 ⚠⚠ **RETRACTION.** This section previously claimed the editor's params come from
-`BdcTkbBuilder.BuildVehicleParams`, on the strength of the arithmetic matching *(`WheelBase = 7.93 × 0.6`,
+`NedTkbBuilder.BuildVehicleParams`, on the strength of the arithmetic matching *(`WheelBase = 7.93 × 0.6`,
 `MaxSteerRate = TurnRate × π/180`)*. ⛔⛔ **That method has ZERO CALLERS — it is dead code.** 📌 I matched
 numbers to a function and never checked it was invoked: **over-fitting an explanation to a coincidence**, the
 same error class as reading a symbol's name instead of its body.
@@ -5230,7 +5233,7 @@ third source exists and is unidentified. It must be found by measurement, not by
 | ⚠ | |
 |---|---|
 | ⭐⭐⭐ **The question is WHICH SOURCE IS CANONICAL** | ⛔ not a code defect to patch: two populators exist and the hosts pick different ones. 📌 Ruling 9 territory — *one implementation* — but choosing the survivor is a **data-pipeline** decision |
-| ⚠⚠ **My "no production caller" claim was a GREP ARTEFACT** | 📐 the file is `BdcTkbBuilder.cs` but the class inside is **`NedTkbBuilder`** ⇒ ⛔ searching the filename found nothing. 📌 Third pattern-as-hypothesis miss of the session. ⭐ `NedTkbBuilder` is used via `NedTkbCatalog.RegisterAll`, reached by `HrotEnvironment.CreateTkb()` |
+| ⚠⚠ **My "no production caller" claim was a GREP ARTEFACT** | 📐 the file is `NedTkbBuilder.cs` but the class inside is **`NedTkbBuilder`** ⇒ ⛔ searching the filename found nothing. 📌 Third pattern-as-hypothesis miss of the session. ⭐ `NedTkbBuilder` is used via `NedTkbCatalog.RegisterAll`, reached by `HrotEnvironment.CreateTkb()` |
 | ⭐⭐ **THE NEXT PROBE, and it is decisive** | `GET /tkb/types/303` on **both** hosts. ⭐ If the templates are IDENTICAL *(they should be — same factory)*, the divergence is in the **INJECTION** path, not the data, and the hunt narrows to which translator/system stamps `VehicleParams` first *(the translator's `!HasComponent` guard makes it order-dependent)* |
 | 🔒 **The user's caution binds** | *"the scenario loading path was tested manually pretty well in the editor"* ⇒ ⛔ a change that re-points vehicle-param population risks the one path known to work |
 | ⭐ **The cheap next probe, if wanted** | compare the TKB template the two hosts hold for `TkbType 303` *(`GET /tkb/types/303`)* — that says whether the cluster's TKB lacks the BDC descriptor, or holds it and ignores it |

@@ -34,7 +34,7 @@ public sealed class EntityDeletionRequest
 
 /// <summary>
 /// Source of incoming entity-creation requests.
-/// Implemented by NED/BDC adapters; tested via stubs.
+/// Implemented by the NED adapters; tested via stubs.
 /// </summary>
 public interface IEntityCreationRequestSource
 {

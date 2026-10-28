@@ -35,8 +35,8 @@ The project defines three orthogonal concerns:
 2. **Network abstraction** - Protocol-neutral interfaces (prefixed `I`) for
    every DDS concern: entity lifecycle, mission-control gateways, IG adapters,
    time-control, orchestration, and replication.  Concrete implementations live
-   in `Hrot.Network.NED` or `Hrot.Network.BDC`; Hrot.Core never references
-   them.
+   in `Hrot.Network.NED` (the one network stack -- the BDC stack was removed, R-4095); Hrot.Core never references
+   it.
 
 3. **Shared infrastructure** - `HrotNodeConfig` / `HrotNodeContext` (bootstrap
    carrier types), component registries, serialisation options, the zone
@@ -215,16 +215,16 @@ EntityRepository (world)
     +---------------------------------> IReplicationModule (state sync)
 
   Concrete implementations (NOT in Hrot.Core):
-  +-------------------------------+    +-------------------------------+
-  |  NedNetworkFactory            |    |  BdcNetworkFactory            |
-  |  (Hrot.Network.NED)           |    |  (Hrot.Network.BDC)           |
-  +-------------------------------+    +-------------------------------+
+  +-------------------------------+
+  |  NedNetworkFactory            |
+  |  (Hrot.Network.NED)           |
+  +-------------------------------+
 ```
 
 ### Diagram 3: Entity Lifecycle Request Pipeline
 
 ```
-  Network adapter (NED/BDC)
+  Network adapter (NED)
           |
           | Enqueue()
           v
@@ -484,8 +484,8 @@ EntityRepository (world)
 | `MapDefinitions/Tkb/SimCombatDef.cs` | `Hrot.Map.Definitions.Tkb` | `class SimCombatDef` | Combat stats: armour (front/side/rear mm RHA), weapon mounts, sensor range, autonomous engagement flag |
 | `MapDefinitions/Tkb/SimVehicleDef.cs` | `Hrot.Map.Definitions.Tkb` | `class SimVehicleDef` | Vehicle physics: mass, dimensions, max speed (fwd/rev), acceleration, turn rate, terrain mobility, fuel |
 | `MapDefinitions/Tkb/IgVisualDef.cs` | `Hrot.Map.Definitions.Tkb` | `class IgVisualDef` | IG visual definition used during TKB builder calls: symbol code, model path, colour, scale, show-label, layer |
-| `MapDefinitions/Tkb/BdcTkbCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class NedTkbCatalog` | Registers all entity types (M1 Abrams, Bradley, HMMWV, T-72, infantry, platoons, routes, areas) into a `TkbDatabase` |
-| `MapDefinitions/Tkb/BdcTkbBuilder.cs` | `Hrot.Map.Definitions.Tkb` | `class NedTkbBuilder` | Fluent builder for TKB templates; chains `DefineVehicle`, `WithVisual`, `WithPhysics`, `WithCombat`, `WithBehavior`, `WithDisType` |
+| `MapDefinitions/Tkb/NedTkbCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class NedTkbCatalog` | Registers all entity types (M1 Abrams, Bradley, HMMWV, T-72, infantry, platoons, routes, areas) into a `TkbDatabase` |
+| `MapDefinitions/Tkb/NedTkbBuilder.cs` | `Hrot.Map.Definitions.Tkb` | `class NedTkbBuilder` | Fluent builder for TKB templates; chains `DefineVehicle`, `WithVisual`, `WithPhysics`, `WithCombat`, `WithBehavior`, `WithDisType` |
 | `MapDefinitions/Tkb/BehaviorCatalog.cs` | `Hrot.Map.Definitions.Tkb` | `static class BehaviorCatalog` | Reflection-built per-entity-type behavior name lists; `GetValidBehaviors(tkbType)` returns filtered list |
 | `MapDefinitions/Behavior/BehaviorIds.cs` | `Hrot.Map.Definitions.Behavior` | `internal static class BehaviorIds` | Integer constants for all behavior parameter DTOs (range 3001-3099 for CGF behaviors) |
 | `MapDefinitions/Behavior/BehaviorCategory.cs` | `Hrot.Map.Definitions.Behavior` | `[Flags] enum BehaviorCategory` | Entity category filter bits for behavior contracts (Civilian, MilitaryApc, Infantry, Insurgent, Commander) |

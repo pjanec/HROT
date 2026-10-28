@@ -735,10 +735,9 @@ default 50). Each `DistributedTransaction` records:
 
 ## 7. The NED Network Layer
 
-**NED** (Network Exchange Description) is the primary DDS protocol adapter for HROT.
+**NED** (Network Exchange Description) is the DDS protocol adapter for HROT -- the one network stack.
 It is implemented in `Hrot.Network.NED` and exposed through the `INetworkFactory`
-interface (also in `Hrot.Core.Network`). A secondary protocol, BDC, uses the same
-interface and is selected via `--network bdc` at the CLI.
+interface (also in `Hrot.Core.Network`). *(The secondary BDC protocol and the `--network` CLI option were removed 2026-10-28, R-4095.)*
 
 ### 7.1 INetworkFactory
 
@@ -991,7 +990,6 @@ Hrot.ClusterRunner.exe --mode ci --scenario MinimalCI_01 --headless
 | `--wait-for` | | -- | Comma-separated peer names to wait for at startup |
 | `--config` | `-c` | -- | JSON config file path (overrides CLI defaults) |
 | `--node-id` | | auto | Integer node ID; defaults to a well-known ID per role |
-| `--network` | | `ned` | Protocol: `ned` or `bdc` |
 | `--log-dir` | | `logs/` | Directory for NLog file output |
 | `--scenario` | `-s` | -- | Scenario name (CI mode only) |
 

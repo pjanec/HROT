@@ -425,7 +425,7 @@ whole point is that this scenario is non-deterministic.
 > theoretizing."*
 
 📌 **The case that cost three corrections in one exchange.** Asked whether the tanks were within sensor
-range, I grepped `BdcTkbCatalog.cs:50` — `SensorRange = 8000` — and concluded they were *"fifty times
+range, I grepped `NedTkbCatalog.cs:50` — `SensorRange = 8000` — and concluded they were *"fifty times
 inside range"*. 📐 **The live entity says `VisionRange: 100`**, because
 `scenarios/hill-attack/scenario.json` overrides it on six entities *(deliberately small, to exercise the
 sensor)*. The friendlies were **37–46 m OUTSIDE** vision, i.e. the exact opposite of the conclusion.

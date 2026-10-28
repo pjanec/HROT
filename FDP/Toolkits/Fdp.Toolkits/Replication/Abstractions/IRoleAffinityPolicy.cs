@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Replication.Abstractions
     /// composition root; nothing in this assembly maps <c>NodeRole.Brain</c> to a component. §2.3 is the
     /// same rule one level down: the table is a <see cref="BitMask512"/> of COMPONENT IDS, ⛔ never a
     /// descriptor set — <c>DescriptorOwnershipMap</c> is populated per NETWORK IMPLEMENTATION (NED fills
-    /// it from NED translators, BDC differently, an offline node not at all), so a rule keyed on it would
+    /// it from NED translators, an offline node not at all), so a rule keyed on it would
     /// mean something different on every stack and nothing offline.</para>
     ///
     /// <para>⚠ <b>Nothing calls this yet.</b> Its two insertion points are step 2

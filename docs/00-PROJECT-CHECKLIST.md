@@ -25,7 +25,6 @@
 *(Database, Networking, Messaging, External Adapters)*
 
 - [X] Fdp.Network.Cyclone (Path: FDP/Network/Fdp.Network.Cyclone/Fdp.Network.Cyclone.csproj) -> docs/projects/FDP/Network/Fdp.Network.Cyclone.md
-- [X] Hrot.Network.BDC (Path: Hrot/Network/Hrot.Network.BDC/Hrot.Network.BDC.csproj) -> docs/projects/Hrot/Network/Hrot.Network.BDC.md
 - [X] Hrot.Network.NED (Path: Hrot/Network/Hrot.Network.NED/Hrot.Network.NED.csproj) -> docs/projects/Hrot/Network/Hrot.Network.NED.md
 - [X] Hrot.Network.Orchestration (Path: Hrot/Network/Hrot.Network.Orchestration/Hrot.Network.Orchestration.csproj) -> docs/projects/Hrot/Network/Hrot.Network.Orchestration.md
 

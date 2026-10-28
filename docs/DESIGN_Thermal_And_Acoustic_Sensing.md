@@ -746,7 +746,7 @@ downstream carries only what that man could tell — the anonymity rule (§6 D) 
 **As built (`2026-10-20`).** `SoundEmissionRing.Append` stamps the token (`TokenOf`), `AcousticPerception.Sound` puts the family in the
 flags when the ear `Identifies ≥ 1` and the token when `≥ 2` (`IdentificationOf(ProficiencyOf.Tier)`), `SensorMemoryStage.HearAll`
 fills `SoundContactEvent.Family` / `.Signature`, and `AudioTargetDetected` carries both to the brain. The catalogues author `Family` and
-the three bands on every firing weapon (`BdcTkbCatalog`, `UrbanCombatTkbCatalog`; a hand weapon defaults to `Rifle`).
+the three bands on every firing weapon (`NedTkbCatalog`, `UrbanCombatTkbCatalog`; a hand weapon defaults to `Rifle`).
 
 | rail | proves | red-proof |
 |---|---|---|
@@ -766,7 +766,7 @@ field — the struct is pinned at 32 bytes, and any other high bit would meet th
 ### 8.5 `CE-3284` / `CE-3285` — the REAL carries, and a band per sound *(backend, `2026-10-20`; Q95 B1 / B3, approved; build-state: BUILT)*
 
 🔒 Q95 B1 (R-3024): *"each signature's carry is its real one. A 155 mm can carry 15–20 km."* Nothing in the hearing changes — only the
-data (`BdcTkbCatalog` reports); a loud sound is heard by distance × weather (§8.2) and the estimate's radius grows with distance as before.
+data (`NedTkbCatalog` reports); a loud sound is heard by distance × weather (§8.2) and the estimate's radius grows with distance as before.
 
 | weapon | carry (shot = burst) | was (`CE-3273`) | source |
 |---|---|---|---|
@@ -907,7 +907,7 @@ eyes on the receptor, as the implicit ones are.
 
 | ⭐ as built | why | rejected |
 |---|---|---|
-| `SimCombatDef.ThermalRange` (0 = none); `BdcTkbBuilder` lists Visual + Acoustic + Thermal when it is set | a listed TKB gets no implicit sensors | a translator rule "add the implicit pair beside a list" — it flips CE-3038's "listed means exactly these" for every listed unit (radar sites, test rigs) |
+| `SimCombatDef.ThermalRange` (0 = none); `NedTkbBuilder` lists Visual + Acoustic + Thermal when it is set | a listed TKB gets no implicit sensors | a translator rule "add the implicit pair beside a list" — it flips CE-3038's "listed means exactly these" for every listed unit (radar sites, test rigs) |
 | `SensorEntryDto.FromReceptor` → `SensorTag.Implicit = 1` | the listed eyes keep reading the live receptor | listing the eyes plainly — the measured 8000 m regression above |
 | thermal FOV 360° | the commander's independent viewer turns with the turret; one sensor stands for the gunner's and the commander's sights | a 40° gunner's sight — one cone would need the turret's bearing, which perception does not read |
 

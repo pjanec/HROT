@@ -443,7 +443,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
             // ⭐⭐ CE-509 / S2b — the SAME network adapters every ECS host passes: this node can be ASKED over the
             //    network to create or delete, forward a request addressed elsewhere, and GRANT what it creates
-            //    (push-only ownership). The pack builds the delete and poll systems from it. Null offline / BDC.
+            //    (push-only ownership). The pack builds the delete and poll systems from it. Null offline.
             //    📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S2, S2b.
             NetworkAdapters = ConfiguredNetworkFactory?.CreateCgfEntityLifecycleAdapters(),
 

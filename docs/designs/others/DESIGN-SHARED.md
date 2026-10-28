@@ -634,16 +634,16 @@ namespace Hrot.Map.Definitions.Tkb
 ```csharp
 namespace Hrot.Map.Definitions.Tkb
 {
-    public class BdcTkbBuilder
+    public class NedTkbBuilder
     {
         private readonly TkbDatabase _db;
         
-        public BdcTkbBuilder(TkbDatabase db)
+        public NedTkbBuilder(TkbDatabase db)
         {
             _db = db;
         }
         
-        public BdcTkbBuilder DefineVehicle(long tkbId, string name)
+        public NedTkbBuilder DefineVehicle(long tkbId, string name)
         {
             var template = new TkbTemplate
             {
@@ -661,7 +661,7 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
         
-        public BdcTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure)
+        public NedTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure)
         {
             var template = _db.GetTemplate(tkbId);
             var visualDef = new IgVisualDef();
@@ -670,7 +670,7 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
         
-        public BdcTkbBuilder WithPhysics(long tkbId, Action<SimVehicleDef> configure)
+        public NedTkbBuilder WithPhysics(long tkbId, Action<SimVehicleDef> configure)
         {
             var template = _db.GetTemplate(tkbId);
             var physicsDef = new SimVehicleDef();
@@ -679,7 +679,7 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
         
-        public BdcTkbBuilder WithCombat(long tkbId, Action<SimCombatDef> configure)
+        public NedTkbBuilder WithCombat(long tkbId, Action<SimCombatDef> configure)
         {
             var template = _db.GetTemplate(tkbId);
             var combatDef = new SimCombatDef();
@@ -695,7 +695,7 @@ namespace Hrot.Map.Definitions.Tkb
 
 ```csharp
 var tkbDb = world.GetModule<TkbDatabase>();
-var builder = new BdcTkbBuilder(tkbDb);
+var builder = new NedTkbBuilder(tkbDb);
 
 builder
     .DefineVehicle(TkbEntityTypes.Tank_M1Abrams, "M1 Abrams")
@@ -1688,7 +1688,7 @@ namespace Hrot.Map.Common
    - `SimVehicleDef` (mass, dimensions, mobility)
    - `SimCombatDef` (armor, weapons, sensors)
    - `TkbCompositionDef` (subordinate slots)
-3. Implement `BdcTkbBuilder` fluent API
+3. Implement `NedTkbBuilder` fluent API
 4. Integrate with `FDP.Toolkit.Tkb.TkbDatabase`
 5. Register 10-15 representative entity types:
    - M1 Abrams, Bradley IFV, HMMWV
