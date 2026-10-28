@@ -262,7 +262,7 @@ Multi-domain / partitioned capture: `--DdsSettings:Participants:0:DomainId=0`
 `--DdsSettings:Participants:1:DomainId=5 --DdsSettings:Participants:1:PartitionName="sim"`.
 Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSettings:HeadlessFilePath=/tmp/cap.json [--DdsSettings:ReplayRate=2.0]`.
 
-### ⭐⭐ The AI-agent recipe — ddsmonitor ≥ 1.2.4 *(local build of `claude/dds-security` `922ae44`, unpublished as of `2026-10-28`; the bootstrap-installed tool is older and lacks these options)*
+### ⭐⭐ The AI-agent recipe — ddsmonitor ≥ 1.2.6 *(local build of `claude/dds-security` `e2677da`, unpublished as of `2026-10-28`; the bootstrap-installed tool is older and lacks these options)*
 
 Record in the background, stop by itself, and read the growing file with `jq` — never wait on Ctrl+C:
 ```bash
@@ -276,8 +276,9 @@ cat /tmp/cap*.jsonl | jq -c 'select(.Ordinal > 1200)'                           
 📐 **Measured `2026-10-28` on demo-city at `TargetCars 1000`** (one process, three ddsmonitor instances at once): 13 877 lines in 3 rotated files,
 every line parses, ordinals 1…13877 with no gap across the rotation, every `sumo/*` blob topic recorded (`sumo/vehicles` 304 — its base64 blob
 decodes to 65 536 bytes), no topic `ReadError`, `StopReason: Duration`, exit code 0. Exit `3` = some topic could not be recorded (read the summary).
-⚠ `HeadlessFilePath=-` with `RecordMaxSamples` wrote its 50 lines correctly but **aborted (exit 134)** when the cap was reached during host
-start-up — read the lines, ignore the exit code until the library fixes it.
+✅ ddsmonitor ≥ 1.2.6 (`e2677da`): pipe mode (`HeadlessFilePath=-` + `RecordMaxSamples`) exits 0 even when the cap is met during start-up
+(1.2.4 aborted with 134), samples are written in ordinal order, `TopicSources` may be RELATIVE (to the current directory), and
+`ddsmonitor --help` prints every option, the line format and the exit codes — read it instead of this summary when in doubt.
 
 **Each JSON entry:** `Ordinal` · `TopicTypeName` · `Timestamp` · `DomainId` · `PartitionName` ·
 `Sender` *(PID / process / machine IP)* · `InstanceState` · `Payload`.
