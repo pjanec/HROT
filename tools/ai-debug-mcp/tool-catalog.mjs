@@ -288,10 +288,11 @@ export const TOOLS_CATALOG = [
       "path": "/status"
     },
     "params": [],
-    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo }",
+    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty }",
     "notes": [
       "Use this to verify the runner is alive and check current run state before driving the sim.",
       "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
+      "`scenarioDirty` is the LAST check round's verdict (check_unsaved): true = the scenario open for editing has unsaved changes, false = saved; null when no round ran, or the cluster left editing since. Reading it NEVER runs a round — call check_unsaved for a fresh answer.",
       "`perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is \"Start\" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it)."
     ],
     "example": {
@@ -563,6 +564,30 @@ export const TOOLS_CATALOG = [
   // ── Group E — Scenario ──────────────────────────────────────────────────────
 
   {
+    "name": "check_unsaved",
+    "group": "E — Scenario",
+    "summary": "Ask the cluster whether the scenario open for editing has unsaved changes (every node compares its whole world with its baseline).",
+    "http": {
+      "method": "POST",
+      "path": "/scenario/check-unsaved"
+    },
+    "params": [],
+    "returns": "ok:true envelope with changed (bool) and changedNodes (node ids whose world differs from its baseline, or that have none).",
+    "notes": [
+      "⭐ CE-4093 (AQ108 D20) — a CHECK ROUND on demand, never periodic: each node captures its whole world as a binary keyframe, hashes it and compares it with the baseline taken when the load committed or its slice was last saved; anything that changed counts (not only the scenario's parts). It can only err towards \"changed\" (an identical unit deleted and re-added), never report unchanged for a changed world. ~60 ms per node on a large scenario.",
+      "A save round that FAILED after the last load (the slice pull or the merge) makes the answer changed too — the files on disk are stale whatever the worlds say.",
+      "Only an explicit \"unchanged\" from a node means saved: a node with no baseline counts as changed (and is named in changedNodes). A host with no ECS world does not take part.",
+      "get_status.scenarioDirty reports the LAST round's verdict without running one; load_scenario_live (and load_scenario_edit of another scenario) run this round themselves and answer 409 when it says changed."
+    ],
+    "example": {
+      "args": {},
+      "gist": "ask whether the open scenario has unsaved changes"
+    },
+    "hint": "No params. Answers 409 unless the cluster is open for editing (OperatingEdit). Example: check_unsaved({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "load_scenario_edit",
     "group": "E — Scenario",
     "summary": "Load a scenario for AUTHORING (Edit state), cluster-wide.",
@@ -583,10 +608,18 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Wait for the cluster to reach OperatingEdit before returning",
         "default": false
+      },
+      {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
+        "default": false
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
     "notes": [
+      "⭐ CE-4093 (AQ108 D22) — a load of ANOTHER scenario while one is open for editing first asks the cluster to compare every node's whole world with its saved baseline (the check_unsaved round) and answers 409 \"the scenario has unsaved changes\" when it differs; save_scenario first, or send discardUnsaved:true. Reloading the scenario already open is not gated.",
       "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
       "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
       "Edit state freezes sim time — nothing ticks until enter_preview or play.",
@@ -601,7 +634,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "load test-move for authoring and wait for ready"
     },
-    "hint": "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
+    "hint": "Req: name (string). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
     "manualVerify": false
   },
 
@@ -626,10 +659,18 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Wait for the cluster to reach OperatingLive before returning",
         "default": false
+      },
+      {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "Go live even though the scenario open for editing has unsaved changes (they are lost). Without it such a load answers 409.",
+        "default": false
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
     "notes": [
+      "⭐ CE-4093 (AQ108 D22) — while a scenario is open for EDITING the cluster first compares every node's whole world with its saved baseline (the check_unsaved round); when it differs this answers 409 \"the scenario has unsaved changes\" — save_scenario first, or send discardUnsaved:true. From Idle, a preview, a live run or a replay nothing is asked.",
       "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
       "Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).",
       "Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.",
@@ -642,7 +683,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "load test-move live across the cluster and wait for ready"
     },
-    "hint": "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
+    "hint": "Req: name (string). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when the scenario open for editing differs from its saved state, unless discardUnsaved:true. Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
     "manualVerify": false
   },
 

@@ -40,6 +40,24 @@ public sealed class ClusterUiCache : IDisposable
     public bool        RunNotRecorded         { get; private set; }
 
     /// <summary>
+    /// ⭐ CE-4093 (AQ108 D20) — the newest check round's answer, as the master published it on every host's bus; null before the first, and once the
+    /// cluster leaves editing (the answer no longer describes what is open). ⛔ Never produced by reading this cache: only a round the master ran.
+    /// </summary>
+    public UnsavedCheckResult? LastUnsavedCheck { get; private set; }
+
+    private const int OutcomeCapacity = 32;
+    private readonly Dictionary<Guid, (OrchestrationStatusCode Status, object? Payload)> _outcomes = new();
+    private readonly Queue<Guid> _outcomeOrder = new();
+
+    /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended; null while it has not (or it is older than the last 32 ops seen).</summary>
+    public UnsavedCheckOutcome? UnsavedCheckOutcomeFor(Guid requestId)
+    {
+        if (!_outcomes.TryGetValue(requestId, out var o)) return null;
+        if (o.Status == OrchestrationStatusCode.Success && o.Payload is UnsavedCheckResult r) return new UnsavedCheckOutcome(r, null);
+        return new UnsavedCheckOutcome(null, o.Payload as string ?? $"the cluster answered {o.Status}");
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-3329 (rows 32, 45; §9e–§9g) — the replay's SESSION LAYER as the master last published it: the zero, the length, the axis,
     /// the cluster's time map, the checkpoint marks, the review's id and live point. The same on every host; inactive outside a replay.
     /// </summary>
@@ -163,6 +181,7 @@ public sealed class ClusterUiCache : IDisposable
             ActiveExerciseId = ev.ExerciseId;
             if (!ev.MasterGone) { ReplayAxis = ev.ReplayAxis; RunNotRecorded = ev.RunNotRecorded; }   // ⭐ CE-3329 R-3058 · CE-4090 D14
             IsBootstrapped = CurrentState != ClusterState.Degraded;
+            if (CurrentState != ClusterState.OperatingEdit) LastUnsavedCheck = null;   // ⭐ CE-4093 — the answer described an open scenario
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);
         }
@@ -274,6 +293,15 @@ public sealed class ClusterUiCache : IDisposable
             if (ev.StatusCode == OrchestrationStatusCode.InProgress) continue;
 
             bool success = ev.StatusCode == OrchestrationStatusCode.Success;
+
+            // ⭐ CE-4093 — remember how each op ended (the last few): a requester that asked through the bus finds its answer by request id
+            if (_outcomes.TryAdd(ev.RequestId, (ev.StatusCode, ev.ResultPayload)))
+            {
+                _outcomeOrder.Enqueue(ev.RequestId);
+                while (_outcomeOrder.Count > OutcomeCapacity) _outcomes.Remove(_outcomeOrder.Dequeue());
+            }
+            else _outcomes[ev.RequestId] = (ev.StatusCode, ev.ResultPayload);
+            if (success && ev.ResultPayload is UnsavedCheckResult checkResult && CurrentState == ClusterState.OperatingEdit) LastUnsavedCheck = checkResult;
 
             // Try an exact match (works when ClusterOpCompletedEvent.RequestId == transaction ID).
             if (_inFlight.Remove(ev.RequestId, out var matchedTx))

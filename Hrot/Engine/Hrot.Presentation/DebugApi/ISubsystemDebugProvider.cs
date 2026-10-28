@@ -239,6 +239,18 @@ public interface ISubsystemDebugProvider
     /// recording (checkpoint, restore, review, replay / keep of the last run) and <c>GET /status.recording</c> read — ONE fact, the same on every host.</summary>
     bool? RunNotRecorded { get; }
 
+    /// <summary>⭐⭐ <c>CE-4093</c> (AQ108 D20) — how the unsaved-changes check round <paramref name="requestId"/> ended, from this node's cluster read model
+    /// (the master's answer reaches every host's bus); <see langword="null"/> while it has not, or when this node keeps no such read model.</summary>
+    Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId);
+
+    /// <summary>⭐ <c>CE-4093</c> — the LAST check round's verdict (true = the open scenario has unsaved changes), from this node's cluster read model;
+    /// <see langword="null"/> when no round ran (or the cluster left editing since) or this node keeps no read model. ⛔ Reading it never runs a round.</summary>
+    bool? ScenarioDirty { get; }
+
+    /// <summary>⭐ <c>CE-4093</c> — this node keeps the cluster read model that sees check-round answers (<see cref="UnsavedCheck"/> can ever be non-null).
+    /// A host with none cannot gate a load on the check — it must not wait for an answer that cannot reach it.</summary>
+    bool ObservesUnsavedChecks { get; }
+
 
     /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> on <c>R-3052</c>…<c>R-3055</c> — the recording THIS node replays now (its own), which the
     /// journal history and the recording search scan read-only; <see langword="null"/> outside a replay or on a node that keeps none.
@@ -366,6 +378,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<float?>? _replayDuration;
     private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _replayAxis;   // CE-3329
     private readonly Func<bool?>? _runNotRecorded;   // CE-4090
+    private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _unsavedCheck;   // CE-4093
+    private readonly Func<bool?>? _scenarioDirty;   // CE-4093
     private readonly Func<string?>? _replayRecording;
     private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
     private readonly Func<ReplayPosition?>? _replayPosition;          // RB-2
@@ -440,9 +454,14 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐⭐ CE-4087 — the master's load-gate text (a Func, like the roster: the core is built in Initialize).
         Func<string?>? clusterLoadNotice = null,
         // ⭐ CE-4090 (AQ108 D14) — "this run was not recorded", from the same cluster read model as the cluster state
-        Func<bool?>? runNotRecorded = null)
+        Func<bool?>? runNotRecorded = null,
+        // ⭐ CE-4093 (AQ108 D20) — the check round's outcome and the last verdict, from the same cluster read model (ClusterUiCache)
+        Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
+        Func<bool?>? scenarioDirty = null)
     {
         _runNotRecorded = runNotRecorded;
+        _unsavedCheck = unsavedCheck;
+        _scenarioDirty = scenarioDirty;
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
         _world        = world;
@@ -605,6 +624,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
     public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis => _replayAxis?.Invoke();
     public bool? RunNotRecorded => _runNotRecorded?.Invoke();
+    public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId) => _unsavedCheck?.Invoke(requestId);
+    public bool? ScenarioDirty => _scenarioDirty?.Invoke();
+    public bool ObservesUnsavedChecks => _unsavedCheck != null;
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
     public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
     public ReplayPosition? ReplayPosition => _replayPosition?.Invoke();

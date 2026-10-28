@@ -103,11 +103,15 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
 
     /// <summary>One real load of <paramref name="scenario"/> into the headless editor, run to the moment the node's baseline stands; the stages work on it
     /// and the editor and the scenario copy are cleaned up after.</summary>
-    private void WithTheScenarioLoaded(string scenario, Action<EditorSubsystem, EntityRepository> stages)
+    private void WithTheScenarioLoaded(string scenario, Action<EditorSubsystem, EntityRepository> stages, int httpPort = 0)
     {
         string name = CopyScenario(scenario, out var dir);
         var editor = new EditorSubsystem();
-        editor.Initialize(new SubsystemConfig { Headless = true });
+        // ⭐ CE-4093 (master side) — the editor's debug API starts when this variable names a port AT INITIALIZE: the master-side rails below talk HTTP to it
+        string? before = Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
+        if (httpPort > 0) Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", httpPort.ToString());
+        try { editor.Initialize(new SubsystemConfig { Headless = true }); }
+        finally { if (httpPort > 0) Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", before); }
         try
         {
             editor.EditorLogic.LoadScenarioByName(name);
@@ -115,6 +119,30 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
             stages(editor, editor.NodeForTest!.World);
         }
         finally { editor.Shutdown(); if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+    }
+
+    private static int FreePort()
+    {
+        var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        l.Start();
+        int port = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return port;
+    }
+
+    /// <summary>One HTTP call to the editor's debug API, with the editor's frames pumped meanwhile (the routes run on the main thread, in <c>Update</c>).</summary>
+    private static (System.Net.HttpStatusCode Status, System.Text.Json.Nodes.JsonNode Body, double Ms) Call(EditorSubsystem editor, System.Net.Http.HttpClient client, int port, string method, string path, string json = "{}")
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var task = method == "GET"
+            ? client.GetAsync($"http://localhost:{port}{path}")
+            : client.PostAsync($"http://localhost:{port}{path}", new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+        var until = DateTime.UtcNow.AddSeconds(90);
+        while (!task.IsCompleted && DateTime.UtcNow < until) { editor.Update(0.016f); System.Threading.Thread.Sleep(1); }
+        Assert.True(task.IsCompleted, $"{method} {path} did not answer in 90 s");
+        var response = task.GetAwaiter().GetResult();
+        double ms = sw.Elapsed.TotalMilliseconds;
+        return (response.StatusCode, System.Text.Json.Nodes.JsonNode.Parse(response.Content.ReadAsStringAsync().GetAwaiter().GetResult())!, ms);
     }
 
     /// <summary>Asserts the node's answer; a wrong one names the component types whose content moved since <paramref name="reference"/>.</summary>
@@ -241,5 +269,90 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
             Rename(editor, world, unit, "ce4093-second");
             Expect(editor, world, reference, "changed", "a unit renamed again after the save");
         });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4093</c> (master side) success condition 5 — <b>THE CHECK ROUND END TO END</b>, over the editor's real debug API on a real scenario
+    /// (<c>pc-defend-house</c>): the master asks the editor's node (its production handler, its production baseline hooks), aggregates and answers over HTTP.
+    /// Loaded ⇒ <c>{changed:false}</c> and <c>/status.scenarioDirty:false</c>; a unit renamed through the authoring path ⇒ <c>{changed:true}</c> naming the node,
+    /// <c>scenarioDirty:true</c> and <c>POST /scenario/load/live</c> answers 409 <i>"the scenario has unsaved changes"</i> with the cluster still in editing; the
+    /// editor's own save (the real storage round, pull + merge) ⇒ <c>{changed:false}</c> again, <c>scenarioDirty:false</c>.
+    /// 🔴 Mutations (each compiles): the editor's <c>unsavedCheck</c> not wired ⇒ the first call times out / 504; <c>UnsavedCheckAggregator</c> not registered in
+    /// <c>OrchestratorCore</c> ⇒ "changed" at once (an unaggregated round reads as changed); the gate not called from <c>HandleScenarioLoad</c> ⇒ the 409 cell red;
+    /// the master's save-failure fact never cleared ⇒ the post-save cell stays changed.
+    /// </summary>
+    [Fact(Timeout = 400_000)]
+    public void TheCheckRoundOverHttp_UnchangedAfterTheLoad_ChangedAfterAnEdit_RefusesTheLiveLoad_UnchangedAfterTheSave()
+    {
+        int port = FreePort();
+        using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        WithTheScenarioLoaded("pc-defend-house", (editor, world) =>
+        {
+            var checkUnsaved = () => Call(editor, client, port, "POST", "/scenario/check-unsaved");
+            bool? Dirty() => Call(editor, client, port, "GET", "/status").Body["data"]!["scenarioDirty"]?.GetValue<bool>();
+
+            Assert.Null(Dirty());                                                      // no round yet ⇒ unknown, and asking did not run one
+            var (status, body, _) = checkUnsaved();
+            Assert.Equal(System.Net.HttpStatusCode.OK, status);
+            Assert.False(body["data"]!["changed"]!.GetValue<bool>(), $"[loaded] {body}");
+            Assert.Empty(body["data"]!["changedNodes"]!.AsArray());
+            Assert.False(Dirty());
+
+            var unit = AUnit(world);
+            Rename(editor, world, unit, "ce4093-http");
+            (status, body, _) = checkUnsaved();
+            Assert.Equal(System.Net.HttpStatusCode.OK, status);
+            Assert.True(body["data"]!["changed"]!.GetValue<bool>(), $"[renamed] {body}");
+            Assert.NotEmpty(body["data"]!["changedNodes"]!.AsArray());                 // the editor's node is named
+            Assert.True(Dirty());
+
+            string other = "ce4093_other";
+            (status, body, _) = Call(editor, client, port, "POST", "/scenario/load/live", $"{{\"name\":\"{other}\"}}");
+            Assert.Equal(System.Net.HttpStatusCode.Conflict, status);
+            Assert.Contains("the scenario has unsaved changes", body["error"]!.GetValue<string>());
+            Assert.Equal((int)ClusterState.OperatingEdit, (int)editor.ClusterMasterForTest!.CurrentClusterState);   // nothing was unloaded
+
+            editor.EditorLogic.SaveCurrentScenario();                                  // the real round
+            bool? changed = null;
+            var until = DateTime.UtcNow.AddSeconds(90);
+            while (DateTime.UtcNow < until)
+            {
+                (status, body, _) = checkUnsaved();
+                Assert.Equal(System.Net.HttpStatusCode.OK, status);
+                changed = body["data"]!["changed"]!.GetValue<bool>();
+                if (changed == false) break;
+                Frames(editor, 5, sleepMs: 10);
+            }
+            Assert.True(changed == false, $"[after the editor's own save] the master still said changed: {body}");
+            Assert.False(Dirty());
+        }, httpPort: port);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4093</c> (master side) success condition 6 — what ONE check round costs end to end on the editor with <c>uc-urban-battle</c> loaded (682 units):
+    /// <c>POST /scenario/check-unsaved</c> from request to answer — master fan-out, the node's capture + hash, aggregation, the read model, the route's polling — the
+    /// median of 5 after a warm-up round (printed). The editor's frames are pumped back to back while it waits, so the figure is compute, not frame pacing.
+    /// </summary>
+    [Fact(Timeout = 400_000)]
+    public void TheCheckRound_OnTheBigScenario_TimedOverHttp()
+    {
+        int port = FreePort();
+        using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        WithTheScenarioLoaded("uc-urban-battle", (editor, world) =>
+        {
+            var warm = Call(editor, client, port, "POST", "/scenario/check-unsaved");
+            Assert.False(warm.Body["data"]!["changed"]!.GetValue<bool>(), $"[loaded] {warm.Body}");
+            var times = new List<double>();
+            for (int i = 0; i < 5; i++)
+            {
+                var (status, body, ms) = Call(editor, client, port, "POST", "/scenario/check-unsaved");
+                Assert.Equal(System.Net.HttpStatusCode.OK, status);
+                Assert.False(body["data"]!["changed"]!.GetValue<bool>(), $"[round {i}] {body}");
+                times.Add(ms);
+            }
+            double median = times.OrderBy(x => x).ElementAt(2);
+            _out.WriteLine($"uc-urban-battle: {world.EntityCount} entities; POST /scenario/check-unsaved, 5 rounds (ms): {string.Join(", ", times.Select(t => t.ToString("F0")))}; median {median:F0} ms");
+            Assert.True(median < 5_000, $"one check round took {median:F0} ms");
+        }, httpPort: port);
     }
 }

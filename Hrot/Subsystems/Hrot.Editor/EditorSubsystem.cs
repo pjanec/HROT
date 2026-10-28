@@ -2602,6 +2602,9 @@ namespace Hrot.Editor
                         replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,
                         replayAxis:        () => _orchestratorCore?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
                         runNotRecorded:    () => _orchestratorCore?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
+                        // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer and last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS it.
+                        unsavedCheck:      id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id),
+                        scenarioDirty:     () => _orchestratorCore?.UiCache.LastUnsavedCheck?.Changed,
                         // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
                         // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
                         //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records

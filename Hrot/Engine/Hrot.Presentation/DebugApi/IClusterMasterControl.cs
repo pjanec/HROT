@@ -41,6 +41,10 @@ public interface IClusterMasterControl
     /// <summary>⭐ <c>CE-4090</c> (AQ108 D14) — the cluster-wide run settings (<i>Record live runs</i>), held by the master, set from any host.</summary>
     void SetRunSettings(SetRunSettingsIntent intent);
 
+    /// <summary>⭐⭐ <c>CE-4093</c> (AQ108 D20) — ask for a CHECK ROUND: does the scenario open for editing have unsaved changes? The answer comes back as the
+    /// op's result (<c>ISubsystemDebugProvider.UnsavedCheck</c>); the master refuses it outside editing.</summary>
+    void CheckUnsaved(CheckUnsavedIntent intent);
+
     /// <summary>The operator's cancel (<c>R-4004</c>).</summary>
     void Cancel(CancelOperationIntent intent);
 
@@ -64,6 +68,7 @@ public sealed class OrchestrationBusMasterControl : IClusterMasterControl
     public void TakeCheckpoint(TakeCheckpointIntent intent) => Bus.PublishManaged(intent);
     public void RestoreCheckpoint(RestoreCheckpointIntent intent) => Bus.PublishManaged(intent);
     public void SetRunSettings(SetRunSettingsIntent intent) => Bus.PublishManaged(intent);   // CE-4090 D14
+    public void CheckUnsaved(CheckUnsavedIntent intent) => Bus.PublishManaged(intent);   // CE-4093 D20
     public void Cancel(CancelOperationIntent intent) => Bus.PublishManaged(intent);
     public void Dump(ExecuteDiagnosticDumpIntent intent) => Bus.PublishManaged(intent);
 

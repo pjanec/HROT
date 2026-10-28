@@ -299,6 +299,18 @@ public sealed class PerspectiveScopedDispatcher
     public bool? RunNotRecordedAnyNode
         => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended, from the active node, else any node that keeps a cluster read model
+    /// (the master's answer reaches every host: one cluster, one fact). <see langword="null"/> while it has not.</summary>
+    public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheckAnyNode(Guid requestId)
+        => Active()?.UnsavedCheck(requestId) ?? _providers.Select(p => p.UnsavedCheck(requestId)).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4093 — the last check round's verdict (<see langword="null"/> = none ran), from the active node, else any node that keeps a read model.</summary>
+    /// <summary>⭐ CE-4093 — some node here keeps the read model that sees check-round answers.</summary>
+    public bool ObservesUnsavedChecksAnyNode => _providers.Any(p => p.ObservesUnsavedChecks);
+
+    public bool? ScenarioDirtyAnyNode
+        => Active()?.ScenarioDirty ?? _providers.Select(p => p.ScenarioDirty).FirstOrDefault(x => x is not null);
+
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds
            ?? _providers.Select(p => p.ReplayDurationSeconds).FirstOrDefault(x => x is not null);

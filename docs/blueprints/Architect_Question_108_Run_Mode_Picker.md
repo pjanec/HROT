@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
-updated: 2026-10-28 (CE-4090 as-built folded into §5a)
+updated: 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
 current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
@@ -302,7 +302,7 @@ dirty state lives with the master and is announced like the cluster state, so ev
 
 ### 4a. ⭐ As-built — D20, the node side (`CE-4093`, `2026-10-28`)
 
-📐 **Measured on `uc-urban-battle`** (on demo-city, 682 units, in a real headless editor; the noise test is `TheWorldChangeCheckOnTheEditorTests`). The master's check round is not built here.
+📐 **Measured on `uc-urban-battle`** (on demo-city, 682 units, in a real headless editor; the noise test is `TheWorldChangeCheckOnTheEditorTests`). The master's check round is built in §4b.
 
 | | what was built |
 |---|---|
@@ -316,6 +316,22 @@ dirty state lives with the master and is announced like the cluster state, so ev
 | **cost** | `uc-urban-battle`: keyframe 6.8 MiB; capture ≈ 33 ms + hash ≈ 24 ms (median of 10, Debug) ⇒ one node's answer ≈ 56 ms |
 
 ⚠ **Open edges, named:** a late joiner's replicated world still arriving after its catch-up resolves is waited for by the settling only while it keeps moving frame to frame; the master must also treat a failed save round as unsaved. 📌 Found on the way, **pre-existing at base `1a5bd73a1`**: saving a freshly loaded `uc-urban-battle` (and `hill-attack`) in the headless editor throws `SaveResolver: entity Entity.Null is not in the save map` with no edit made; `pc-defend-house` and `test-move` save.
+
+### 4b. ⭐ As-built (CE-4093 master) — the CHECK ROUND, `2026-10-28`
+
+📐 Built on the node side above; **no new round mechanism** — the round is `CollectCheckpoint`'s shape (`Participants()` → `FanOutNodeOp` → a `GenericTransactionTracker` that completes through an aggregator). ⚠ Open edge 2 of §4a ("a failed save round") is closed here.
+
+| | what was built |
+|---|---|
+| **the op** | `ClusterOpType.CheckUnsavedChanges = 26` in both enums, ⛔ permanent (R-42). ⚠ **Deviation: not `CheckUnsaved`** — IDL scopes enum members by module and `NodeOpType.CheckUnsaved = 35` is in the same module (`idlc: Declaration 'CheckUnsaved' collides`), as `NodeReplaySeek` / `ReplaySeek` before it. New `CheckUnsavedIntent` (EventId 9075, no payload) with its egress / ingress translator arms (`ClusterOpEgressTranslator`, `ClusterOpMasterTranslator`) and a `case` in `ClusterMaster`'s op switch. Any host's debug surface publishes it through `IClusterMasterControl.CheckUnsaved` |
+| **the round** | `ClusterMaster.StartUnsavedCheck` (`ClusterMaster.UnsavedCheck.cs`). **Refused outside `OperatingEdit`** (Rejected + `UnsavedCheckOutcome.NotEditingReason`): Idle has nothing to lose, Preview / Live / a replay hold a run's world, not the scenario's. Zero participants ⇒ Success "unchanged" at once (only the master's own fact below can say otherwise) |
+| **the answer** | `UnsavedCheckAggregator` (registered in `OrchestratorCore` beside the others) → `UnsavedCheckResult { Changed, ChangedNodes[] }` (`Fdp.Toolkit.Orchestration`). Changed when ANY non-empty answer `MeansChanged` (only an explicit "unchanged" is saved; "no-baseline" and unreadable answers are changed); **empty answers are skipped** (a host with no ECS world). The master folds its own fact in through the tracker's `RefineResult` hook and keeps `LastUnsavedCheck`; no aggregator registered ⇒ "changed" (never a silent "saved") |
+| **the master's own fact** | `SaveFailedSinceLoad`: a scenario-save round whose node round FAILS, or whose NAS pull / merge fails (`StorageProcessManager` now publishes `ScenarioSaveFinishedEvent`), makes the master report Changed — the nodes re-baselined at `Commit` and cannot know. Cleared by a save whose pull + merge completes, by a load of a scenario into editing, and by Idle (`NoteLoadForUnsavedCheck`) |
+| **who sees the answer** | the answer is the op's `ResultPayload`, which reaches EVERY host's bus. `ClusterUiCache` keeps the last 32 op outcomes by request id (`UnsavedCheckOutcomeFor`) and `LastUnsavedCheck` (cleared when the cluster leaves editing); the providers expose `UnsavedCheck(requestId)` / `ScenarioDirty` / `ObservesUnsavedChecks` (dispatcher `…AnyNode`, one cluster one fact). ⚠ **Wire trap fixed:** `OrchestrationObserverTranslator` decoded EVERY op result as `ReplayPrepareResult`, which "succeeds" from any JSON object — `DecodeResult` now recognises the verdict by its `changedNodes` property first |
+| **HTTP** | `POST /scenario/check-unsaved` → `{changed, changedNodes}` (409 outside editing; one round per call). `POST /scenario/load/live`, and `load/edit` of ANOTHER scenario than the one open, run **one helper** (`GateUnsavedChangesAsync`) at their top: 409 *"the scenario has unsaved changes"* while a round says changed, unless `discardUnsaved: true`; asked only while the cluster is in editing and this host can see the answer. `GET /status.scenarioDirty` = the last verdict (null: none ran, or the cluster left editing) — **never runs a round**. Route docs, MCP skill and catalog regenerated |
+| **measured** | headless editor, `uc-urban-battle` (682 units): `POST /scenario/check-unsaved` from request to answer, 5 rounds (ms) **189, 191, 240, 225, 222 — median 222** (master fan-out, the node's capture ≈ 32 ms + hash ≈ 21 ms, aggregation, read model, the route's polling; frames pumped back to back) |
+
+⚠ **Open edges after this:** a hard-coded `GateUnsavedChangesAsync` timeout of 15 s answers 504 (fail closed) when no answer arrives; a `load/edit` of the scenario already open is NOT gated (the harnesses' "start over") — D22's *"never saved"* half (a scenario with no file) and the UI's *Save / Discard / Cancel* are CE-4097's; the multi-process cluster path (observer decode over DDS) is covered by a unit rail on `DecodeResult`, not by a live DDS run.
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 

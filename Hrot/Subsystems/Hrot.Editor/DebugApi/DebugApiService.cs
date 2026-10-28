@@ -72,6 +72,8 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<float?>? _editorReplayDuration;
         private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
         private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
+        private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _editorUnsavedCheck;   // CE-4093 — the in-process master's check round answer
+        private readonly Func<bool?>? _editorScenarioDirty;   // CE-4093 — the in-process master's last verdict
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -570,9 +572,14 @@ namespace Hrot.Editor.DebugApi
             // ⭐⭐ CE-4087 — the in-process master's load-gate text (GET /cluster/roster → load.notice). ⛔ The editor HOLDS the master.
             Func<string?>? clusterLoadNotice = null,
             // ⭐ CE-4090 (AQ108 D14) — the in-process master's "this run was not recorded" (the core's ClusterUiCache). ⛔ The editor HOLDS it.
-            Func<bool?>? runNotRecorded = null)
+            Func<bool?>? runNotRecorded = null,
+            // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer + last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS them.
+            Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
+            Func<bool?>? scenarioDirty = null)
         {
             _editorRunNotRecorded = runNotRecorded;
+            _editorUnsavedCheck = unsavedCheck;
+            _editorScenarioDirty = scenarioDirty;
             _entityCreationGetter = entityCreation;
             _editorClusterLoadNotice = clusterLoadNotice;
             _editorReplayAxis     = replayAxis;
@@ -717,6 +724,9 @@ namespace Hrot.Editor.DebugApi
                 //   shows, when it is the REMEMBERED perspective. ⛔ Without it `perspective: Start` would leave the caller guessing WHICH
                 //   node's world /entities counted.
                 ["routedTo"]     = _dispatcher?.RoutedTo ?? RoutedToFromSwitcher(),
+                // ⭐⭐ CE-4093 (AQ108 D22) — the LAST check round's verdict (true = the open scenario has unsaved changes); null when none ran or the cluster
+                //   left editing since. ⛔ Reading it never runs a round — POST /scenario/check-unsaved does.
+                ["scenarioDirty"] = ScenarioDirtyOrNull,
             };
         }
 

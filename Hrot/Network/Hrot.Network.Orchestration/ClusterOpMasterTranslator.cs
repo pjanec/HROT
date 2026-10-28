@@ -297,6 +297,10 @@ public sealed class ClusterOpMasterTranslator
                 break;
             }
 
+            case NedClusterOpType.CheckUnsavedChanges:   // ⭐ CE-4093 D20
+                _bus.PublishManaged(new CheckUnsavedIntent { RequestId = req.RequestId });
+                break;
+
             case NedClusterOpType.LoadZone:
             {
                 // ⭐ D2 — a purpose-built DTO. This arm used to deserialize ArchivePayloadDto and

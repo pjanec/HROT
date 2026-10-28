@@ -160,6 +160,14 @@ public sealed class ClusterOpEgressTranslator : IDisposable
                 PayloadJson   = LabelJson(intent.Label),
             });
 
+        foreach (var intent in _bus.ReadManaged<CheckUnsavedIntent>())   // ⭐ CE-4093 D20 — no payload
+            _writer.Write(new ClusterOpRequest
+            {
+                RequestId     = intent.RequestId,
+                OperationType = NedClusterOpType.CheckUnsavedChanges,
+                PayloadJson   = string.Empty,
+            });
+
         foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
             _writer.Write(new ClusterOpRequest
             {

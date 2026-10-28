@@ -249,6 +249,18 @@ namespace Fdp.Toolkit.Orchestration
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4093</c> (AQ108 D20) — ask the master for a CHECK ROUND: every node answers whether its whole world differs from its baseline; the
+    /// master's answer is an <see cref="UnsavedCheckResult"/> on <c>ClusterOpCompletedEvent</c> (RequestId = this one). Refused outside editing.
+    /// Published by <c>ClusterOpMasterTranslator</c> for a DDS <c>CheckUnsaved</c>, and by any host's debug surface / UI. No payload.
+    /// </summary>
+    [EventId(9075)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct CheckUnsavedIntent
+    {
+        public Guid RequestId;
+    }
+
+    /// <summary>
     /// Published by <c>ClusterOpMasterTranslator</c> when a DDS <c>ClusterOpRequest</c>
     /// with <c>OperationType == LoadZone</c> arrives.
     /// <para>

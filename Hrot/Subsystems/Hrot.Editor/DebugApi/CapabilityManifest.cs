@@ -91,6 +91,8 @@ public static class CapabilityManifest
         //    scenarios", which is false: it loads them all the time, through 2PC. ⛔ Ordered BEFORE the
         //    /scenario prefix below, which still covers save/list.
         if (path.StartsWith("/scenario/load", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;
+        // ⭐ CE-4093 (AQ108 D20) — the check round is a request to the cluster MASTER, like the loads it gates
+        if (path.StartsWith("/scenario/check-unsaved", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;
         // ⭐⭐ CE-277(c0): SAVE gets its OWN capability, exactly like /scenario/load above (HN-029).
         //    📌 While /scenario/save was hardwired to IEditorLogic (editor.authoring), a cluster refusal read
         //    "authoring is absent here" — true of the editor's DRIVER, but misread as "a cluster cannot save
