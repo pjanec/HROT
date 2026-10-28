@@ -492,22 +492,22 @@ See [Blueprint Scripting System](relationships/Blueprint-Scripting-System.md).
    cd FDP && dotnet build FDP.sln -c Release
    cd ..\Hrot && dotnet build (locate Hrot solution file)
    ```
-   Or use the provided `build_all_standalone.bat` at the solution root.
+   Or build everything at once with `dotnet build HROT.sln` at the solution root.
 
 2. **Start a full cluster in one process** (development / demo mode):
    ```
    Hrot.ClusterRunner.exe --mode all
    ```
-   This starts Orchestrator + SimHost + IG + ExCon + CGF in a single process with a
-   Raylib window.
+   This starts Orchestrator + SimHost + IG (the player) + ExCon + CGF + Traffic in a single
+   process with a Raylib window.
 
 3. **Start individual nodes** (production / multi-machine):
    ```
-   # Machine 1 (headless orchestrator + simhost + cgf)
-   Hrot.ClusterRunner.exe --mode orchestrator,simhost,cgf --headless
+   # Machine 1 (headless server: orchestrator + simhost + cgf + traffic)
+   Hrot.ClusterRunner.exe --mode server --headless
 
-   # Machine 2 (IG with window)
-   Hrot.ClusterRunner.exe --mode ig
+   # Machine 2 (a player, i.e. the IG node, with window)
+   Hrot.ClusterRunner.exe --mode player --no-wait
 
    # Machine 3 (ExCon / IOS with window)
    Hrot.ClusterRunner.exe --mode excon
@@ -519,8 +519,9 @@ See [Blueprint Scripting System](relationships/Blueprint-Scripting-System.md).
 5. **Observe** the tactical map in the IG window. Use ExCon to spawn units, assign
    missions, and control exercise pace.
 
-6. **Use the provided bat scripts** at the solution root for common configurations:
-   `run_IG.bat`, `run_IOS.bat`, `run_SimHost.bat`, `run_all_together.bat`.
+6. **Use the provided scripts** at the solution root (`.bat` and `.sh` twins) for common
+   configurations: `run_Editor`, `run_All`, `run_Server`, `run_Player`, `run_ReplayBrowser`,
+   `run_ddsmon`.
 
 ### 8.2 "I Want to Develop a New FDP Module"
 

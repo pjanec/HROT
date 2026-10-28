@@ -34,7 +34,7 @@ namespace Hrot.Runner;
 ///
 /// <para><b>CLI arguments:</b>
 /// <list type="table">
-///   <item><term>-m / --mode</term><description>all | simhost | ig | ios | comma-separated</description></item>
+///   <item><term>-m / --mode</term><description>all | server | player | orchestrator | simhost | cgf | traffic | ig | ios | editor | replaybrowser | comma-separated</description></item>
 ///   <item><term>-d / --domain</term><description>DDS domain ID (default: 0)</description></item>
 ///   <item><term>--headless</term><description>Run without UI</description></item>
 ///   <item><term>--no-wait</term><description>Skip waiting room synchronisation</description></item>

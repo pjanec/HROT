@@ -79,6 +79,7 @@ namespace Hrot.ClusterRunner.Tests
             Assert.True(cfg.RequestedSubsystems.Contains("excon"),        "mode all must include excon");
             Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"), "mode all must include orchestrator");
             Assert.True(cfg.RequestedSubsystems.Contains("cgf"),          "mode all must include cgf");
+            Assert.True(cfg.RequestedSubsystems.Contains("traffic"),      "mode all must include traffic");
         }
 
         /// <summary>

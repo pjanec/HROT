@@ -62,7 +62,9 @@ public sealed class ModeStartupRails
     public static TheoryData<string, string> HealthyModes => new()
     {
         { "editor",        "mode=editor,"        },
-        { "all",           "mode=orchestrator,simhost,ig,excon,cgf," },
+        { "all",           "mode=orchestrator,simhost,ig,excon,cgf,traffic," },
+        { "server",        "mode=orchestrator,simhost,cgf,traffic," },
+        { "player",        "mode=ig,"            },   // the user-facing name of the IG node
         { "simhost",       "mode=simhost,"       },
         { "cgf",           "mode=cgf,"           },
         { "excon",         "mode=excon,"         },

@@ -32,6 +32,19 @@ and the traps**, not a second route list.
 
 ## 1. ⭐ Launch
 
+### 1.0 ⭐ The run modes *(2026-10-28)*
+
+Every node is a mode of its own; `all` and `server` only combine them.
+
+| `--mode` | hosts | notes |
+|---|---|---|
+| `orchestrator` · `simhost` · `cgf` · `traffic` · `ig` · `excon` | that one node | `ios` = `excon`; ⭐ `player` = `ig` (the user-facing name of the IG node; the internal key, node-id offset 100 and log names stay `ig`) |
+| `server` | `orchestrator,simhost,cgf,traffic` | never waits for anyone — players join it later |
+| `all` (= `demo`) | `orchestrator,simhost,ig,excon,cgf,traffic` | every fine-grained node in one process; never waits |
+| `editor` · `replaybrowser` | standalone hosts | not combinable with the above |
+
+A single-node launch needs `--no-wait` (or `--wait-for simhost,ig|player,ios`); with no `-n` it asks the cluster master for its node id (`scripts/cluster-node.sh start player <port> auto`).
+
 ### 1.1 One process, all subsystems
 
 ```bash
@@ -86,8 +99,9 @@ A healthy line names the port, the mode and the providers:
 
 ```
 [Runner] Debug API listening on 8111 — mode=all,
-  providers=[SimHost, IG, ExCon, CGF], perspectives=[ExCon, IG, Scenario, SimHost].
+  providers=[Orchestrator, SimHost, IG, ExCon, CGF, Traffic], perspectives=[ExCon, IG, Orchestrator, Scenario, SimHost, Traffic].
 ```
+*(Measured `2026-10-28`. `perspectives=` here is the providers' routable names; `GET /perspectives` lists only the window-claimed ones, so `POST /perspective {"name":"Traffic"}` is refused.)*
 
 ---
 

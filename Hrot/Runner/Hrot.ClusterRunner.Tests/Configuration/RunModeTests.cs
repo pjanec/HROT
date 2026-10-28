@@ -21,7 +21,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         [Fact]
         public void ParseModeString_Demo_ReturnsDemoFlags()
         {
-            // "demo" is an alias for "all" (orchestrator, simhost, ig, excon, cgf)
+            // "demo" is an alias for "all" (orchestrator, simhost, ig, excon, cgf, traffic)
             var cfg = new HrotRunnerConfiguration { ModeString = "demo", NoWait = true };
             cfg.Validate();
             Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
@@ -29,6 +29,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             Assert.True(cfg.RequestedSubsystems.Contains("excon"));
             Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(cfg.RequestedSubsystems.Contains("cgf"));
+            Assert.True(cfg.RequestedSubsystems.Contains("traffic"));
         }
 
         [Fact]
@@ -158,19 +159,83 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void Validate_AllMode_ExpandsToTheFiveSubsystems()
+        public void Validate_AllMode_ExpandsToTheSixSubsystems()
         {
             // ST-015: replaces Validate_AllMode_DoesNotContainStrideMock, which asserted that "all"
             // omits a token that no longer exists anywhere -- trivially true, and it would have read
-            // like a live guard. The invariant worth holding is what "all" DOES expand to, which is
-            // also the fact the programme charter had to measure by hand: five subsystems, and
-            // there is no "--mode cluster".
+            // like a live guard. The invariant worth holding is what "all" DOES expand to: every
+            // fine-grained node in one process, and there is no "--mode cluster".
+            // 2026-10-28: the traffic node joined "all" (user ruling: "all" = orchestrator, simhost,
+            // cgf, traffic, player, excon ... all the fine-grained nodes together).
             var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true };
             cfg.Validate();
 
             Assert.Equal(
-                new[] { "cgf", "excon", "ig", "orchestrator", "simhost" },
+                new[] { "cgf", "excon", "ig", "orchestrator", "simhost", "traffic" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_ServerMode_ExpandsToOrchestratorSimHostCgfTraffic_AndNeverWaits()
+        {
+            // "server" = the server side of a networked game; players (--mode player) join it later, so it
+            // must start with NEITHER --wait-for NOR --no-wait.
+            var cfg = new HrotRunnerConfiguration { ModeString = "server" };
+            cfg.Validate();   // must not throw
+
+            Assert.Equal(
+                new[] { "cgf", "orchestrator", "simhost", "traffic" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_AllMode_StartsWithoutWaitFor()
+        {
+            // The generalised isAll exemption: "all" hosts the master, so nobody is waited for.
+            var cfg = new HrotRunnerConfiguration { ModeString = "all" };
+            cfg.Validate();   // must not throw
+        }
+
+        [Fact]
+        public void Validate_PlayerMode_IsTheIgNode()
+        {
+            // "player" is the user-facing name of the IG node; the internal key stays "ig".
+            var cfg = new HrotRunnerConfiguration { ModeString = "player", NoWait = true };
+            cfg.Validate();
+
+            Assert.Equal(new[] { "ig" }, cfg.RequestedSubsystems.ToArray());
+            Assert.False(cfg.RequestedSubsystems.Contains("player"));
+        }
+
+        [Fact]
+        public void Validate_PlayerWithExcon_NormalisesPlayerToIg()
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = "player,excon", NoWait = true };
+            cfg.Validate();
+
+            Assert.Equal(
+                new[] { "excon", "ig" },
+                cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
+        }
+
+        [Fact]
+        public void Validate_PlayerAlone_StillNeedsWaitForOrNoWait()
+        {
+            // A player is a single-subsystem node: it keeps today's peer-wait rule (the launch scripts pass --no-wait).
+            var cfg = new HrotRunnerConfiguration { ModeString = "player" };
+            var ex = Assert.Throws<InvalidOperationException>(() => cfg.Validate());
+            Assert.Contains("--wait-for required", ex.Message, StringComparison.Ordinal);   // the peer-wait rule, not "Invalid mode"
+        }
+
+        [Fact]
+        public void Validate_InvalidModeMessage_OffersTheNewModes()
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = "nonsense", NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => cfg.Validate());
+            var offered = ex.Message[(ex.Message.IndexOf("Use:", StringComparison.Ordinal) + 4)..];
+            Assert.Contains("server", offered, StringComparison.Ordinal);
+            Assert.Contains("player", offered, StringComparison.Ordinal);
+            Assert.Contains("traffic", offered, StringComparison.Ordinal);
         }
     }
 }

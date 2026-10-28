@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17
+updated: 2026-10-28
 build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
   slice 2 (the networked pack + the traffic node, §12) BUILT 2026-10-17: §12.1 is its as-built; the rest of §6 is DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
   moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
@@ -916,8 +916,16 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 
 ### 12.2 N1 as built — the `--mode traffic` host *(2026-10-17)*
 
-- `Hrot/Subsystems/Hrot.TrafficNode/` — `TrafficSubsystem` (`--mode traffic`, node id base + 800, NOT in `all`: the editor serves
-  traffic embedded) over `TrafficNodeBootstrapper : SharedApplicationBootstrapper`, role `Traffic`. Its plan is the shared head
+- ⭐ **2026-10-28 — the traffic node is now PART of `--mode all`, and of the new `--mode server`** *(user ruling: "cgf, simhost, orchestrator
+  they all should remain separate ones. all then combine these, as well as server combines these. 'server' = orchestrator, simhost, cgf,
+  traffic, and 'all' is orchestrator, simhost, cgf, traffic, player, excon... etc (all fine grained nodes together)")*.
+  `all`/`demo` = `orchestrator,simhost,ig,excon,cgf,traffic`; `server` = `orchestrator,simhost,cgf,traffic`; `player` is the user-facing name of the IG
+  node (the internal key stays `ig`: node-id offsets, `scripts/cluster-node.sh`, logs). Both `all` and `server` start without `--wait-for`/`--no-wait`
+  (`HrotRunnerConfiguration.Validate` — a launch hosting the orchestrator, SimHost and CGF waits for nobody; players join later). ⛔ SUPERSEDED
+  below: *"NOT in `all`"*. A scenario with no traffic demand leaves the node idle (SUMO starts only when the node holds the settings AND the terrain's
+  net, §12.1); the editor still serves traffic embedded, and `editor` is never combined with `all`/`server`.
+- `Hrot/Subsystems/Hrot.TrafficNode/` — `TrafficSubsystem` (`--mode traffic`, node id base + 800, ~~NOT in `all`: the editor serves
+  traffic embedded~~ *(superseded above)*) over `TrafficNodeBootstrapper : SharedApplicationBootstrapper`, role `Traffic`. Its plan is the shared head
   (`CoreInfrastructureCapabilities.LiveSimulationPlan`, i.e. `HealthApplication` — the node will own car replicas that take damage)
   plus `TrafficPack.Serving()`, walked by the base (CE-4013); orchestration is `NodeBootstrapper.BuildOrchestration` (load chain for `Traffic`: KnowledgeBase →
   Terrain), entity creation + ghost promotion is `EntityCreationPack`, components are `HrotSharedComponentRegistry` only.

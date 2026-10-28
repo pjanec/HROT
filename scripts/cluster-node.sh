@@ -2,7 +2,7 @@
 # Launch / probe / stop ONE cluster node process each — the shape the membership use cases need
 # (docs/DESIGN_Cluster_Membership_Use_Cases.md). Wraps RUNBOOK_Cluster_Debugging_Over_Http.md §1.2/§1.3.
 #
-#   scripts/cluster-node.sh start <mode> <port> [base-node-id|auto] [domain]   # mode: orchestrator|cgf|simhost|ig; auto = ask the master (C1)
+#   scripts/cluster-node.sh start <mode> <port> [base-node-id|auto] [domain]   # mode: orchestrator|cgf|simhost|traffic|player (= ig)|server|all; auto = ask the master (C1)
 #   scripts/cluster-node.sh status <port>                                  # GET /status of that node
 #   scripts/cluster-node.sh get <port> <route>                             # GET any debug route
 #   scripts/cluster-node.sh post <port> <route> [json]                     # POST (body defaults to {})
@@ -10,7 +10,7 @@
 #   scripts/cluster-node.sh stop-all                                       # every node + Xvfb
 #
 # A node's id is <base-node-id> + the subsystem offset (Program.cs ResolveAppNodeId: simhost 1, ig 100,
-# orchestrator 300, cgf 400). Logs: /tmp/n-<mode>-<port>.log. PIDs: /tmp/n-<port>.pid.
+# orchestrator 300, cgf 400, excon 200, traffic 800; "player" is the IG node). Logs: /tmp/n-<mode>-<port>.log. PIDs: /tmp/n-<port>.pid.
 set -u
 DLL=${HROT_RUNNER_DLL:-/home/user/HROT/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll}
 curl_() { curl -s --noproxy '*' --max-time 20 "$@"; }

@@ -971,11 +971,10 @@ dotnet restore HROT.sln
 
 ```bat
 REM Build everything
-build_all_standalone.bat
+dotnet build HROT.sln -c Release
 
 REM Or build each sub-solution individually
 cd FDP && dotnet build FDP.sln -c Release
-dotnet build HROT.sln -c Release
 ```
 
 ### Run -- Editor Mode (Recommended First Step)
@@ -1007,34 +1006,41 @@ you access to every feature of the engine without a distributed cluster:
 Hrot.ClusterRunner.exe --mode all
 ```
 
-Starts the Orchestrator, SimHost, IG, ExCon, and CGF as separate subsystems in one
-process. Each subsystem is isolated (own entity map, own DDS participant) as if they
-ran on separate machines, but sharing the frame clock. Use this to validate the full
-distributed protocol on a single developer workstation.
+Starts the Orchestrator, SimHost, IG (the player), ExCon, CGF and Traffic nodes as separate
+subsystems in one process. Each subsystem is isolated (own entity map, own DDS participant)
+as if they ran on separate machines, but sharing the frame clock. Use this to validate the
+full distributed protocol on a single developer workstation. The Traffic node idles when
+the loaded scenario carries no traffic.
 
 ### Run -- Distributed Across Machines (Production Mode)
 
 ```bat
-REM Machine 1: headless backend
-Hrot.ClusterRunner.exe --mode orchestrator,simhost,cgf --headless
+REM Machine 1: the server (orchestrator + simhost + cgf + traffic, never waits for players)
+Hrot.ClusterRunner.exe --mode server --headless
 
-REM Machine 2: image generator
-Hrot.ClusterRunner.exe --mode ig
+REM Machine 2: a player (the IG node; the cluster master assigns its node id)
+Hrot.ClusterRunner.exe --mode player --no-wait
 
 REM Machine 3: operator console
-Hrot.ClusterRunner.exe --mode excon
+Hrot.ClusterRunner.exe --mode excon --no-wait
 ```
 
-DDS peer-to-peer discovery connects the nodes automatically.
+DDS peer-to-peer discovery connects the nodes automatically. The fine-grained nodes
+(`orchestrator`, `simhost`, `cgf`, `traffic`, `ig`/`player`, `excon`) each remain a mode of
+their own; `server` and `all` only combine them.
 
 ### Convenience Scripts
 
+Each script has a `.bat` (Windows) and a `.sh` (Linux) twin; the networked ones take an optional DDS `DOMAIN` argument (default 0).
+
 | Script | What it starts |
 |--------|---------------|
-| `run_all_together.bat` | All subsystems in one process |
-| `run_IG.bat` | Image generator node only |
-| `run_IOS.bat` | ExCon / IOS operator station |
-| `run_SimHost.bat` | SimHost (Muscle) node |
+| `run_Editor` | The editor (one offline node) |
+| `run_All` | Every node in one process: networked, with traffic |
+| `run_Server` | The server side: orchestrator, simhost, cgf, traffic |
+| `run_Player` | A player joining a server (the master assigns its node id) |
+| `run_ReplayBrowser` | The replay browser |
+| `run_ddsmon` | The DDS monitor on a domain |
 
 ### Load a Scenario
 

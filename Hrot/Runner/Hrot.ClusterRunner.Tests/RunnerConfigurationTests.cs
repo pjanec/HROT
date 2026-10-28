@@ -27,6 +27,7 @@ namespace Hrot.ClusterRunner.Tests
             Assert.True(config.RequestedSubsystems.Contains("excon"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
+            Assert.True(config.RequestedSubsystems.Contains("traffic"));
         }
 
         [Fact]
@@ -68,9 +69,10 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_ComboAllFive_EqualsAllFlag()
+        public void ParseMode_ComboAllFive_ParsesEachToken()
         {
-            // All five tokens must produce the same set as "all".
+            // The five explicit tokens each parse (ios normalised to excon). Since 2026-10-28 this is "all" MINUS traffic:
+            // "all" also hosts the traffic node.
             var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator,cgf", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
@@ -180,6 +182,21 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
+        public void WaitFor_Player_IsAcceptedAndNormalisedToIg()
+        {
+            // "player" is the user-facing name of the IG node, normalised exactly as the --mode token is.
+            var config = new RunnerConfiguration
+            {
+                ModeString    = "simhost",
+                WaitForString = "player,ios"
+            };
+            config.Validate();
+            Assert.Contains("ig",  config.WaitForPeers);
+            Assert.DoesNotContain("player", config.WaitForPeers);
+            Assert.Equal(2, config.WaitForPeers.Count);
+        }
+
+        [Fact]
         public void WaitFor_ThreePeers_AllParsed()
         {
             var config = new RunnerConfiguration
@@ -269,9 +286,9 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_AllMode_HasAllFiveFlags()
+        public void ParseMode_AllMode_HasAllSixFlags()
         {
-            // "all" includes all five subsystems: Orchestrator, SimHost, IG, ExCon, and CGF.
+            // "all" includes all six subsystems: Orchestrator, SimHost, IG, ExCon, CGF and Traffic.
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
@@ -279,6 +296,8 @@ namespace Hrot.ClusterRunner.Tests
             Assert.True(config.RequestedSubsystems.Contains("excon"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
+            Assert.True(config.RequestedSubsystems.Contains("traffic"));
+            Assert.Equal(6, config.RequestedSubsystems.Count);
         }
 
         [Fact]

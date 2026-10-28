@@ -350,8 +350,9 @@ continues to build both the master and Stride solutions as today.
 ### Tier 3 - Launch tooling
 
 #### WI-8: Linux launch scripts  [effort S, Sonnet]
-Author `.sh` equivalents of `run_SimHost.bat`, `run_IG.bat`, `run_IOS.bat`,
-`run_Editor.bat`, `run_all_together.bat` using `nohup`/`setsid`/`&` in place of
+Author `.sh` equivalents of the Windows launchers (SimHost, IG, IOS, Editor, all-together)
+(2026-10-28: those launchers were since replaced by
+`run_Editor`, `run_All`, `run_Server`, `run_Player`, `run_ReplayBrowser`, `run_ddsmon`, each as `.bat` + `.sh`) using `nohup`/`setsid`/`&` in place of
 cmd's `start`, and `rsync`/`cp -a` in place of `robocopy`. Keep the `.bat` files
 untouched for Windows. Do not attempt to port the external Dirigent orchestrator.
 **Acceptance:** on Linux, the scripts launch `Hrot.ClusterRunner` in the
