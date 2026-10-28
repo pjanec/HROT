@@ -112,6 +112,18 @@ internal struct SaveScenarioJsonBegunEvent
 }
 
 /// <summary>
+/// ⭐ CE-4093 (AQ108 D20) — published by <see cref="StorageProcessManager"/> when the NAS pull + merge of a scenario save has finished, so the
+/// master knows whether the file on disk is current: a node cannot know a save failed AFTER its slice was written.
+/// </summary>
+internal struct ScenarioSaveFinishedEvent
+{
+    /// <summary>The save's SerializeLocal fan-out transaction ID (<see cref="SaveScenarioJsonBegunEvent.TransactionId"/>).</summary>
+    public Guid TransactionId;
+    /// <summary>True when every slice was pulled and merged into the canonical <c>scenario.json</c>.</summary>
+    public bool Succeeded;
+}
+
+/// <summary>
 /// Published by <see cref="ClusterMaster"/> when an ImportArchive operation is initiated.
 /// Consumed by <see cref="StorageProcessManager"/> to perform the NAS-to-node prefetch via
 /// <see cref="StorageGatewayModule.PrefetchArchiveAsync"/>.

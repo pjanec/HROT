@@ -82,6 +82,8 @@ public sealed partial class ClusterMaster : IDisposable
         public object? SuccessResult;
         /// <summary>⭐ CE-3299 B3 — report each node's answer (node id → its result) on success: a checkpoint export's file per node.</summary>
         public bool ResultFromResponses;
+        /// <summary>⭐ CE-4093 — turns the aggregator's result into the one the requester gets (the check round folds in the master's own fact).</summary>
+        public Func<object?, object?>? RefineResult;
         /// <summary>
         /// ⭐ When non-null this tracker is a <b>NON-TERMINAL PHASE</b> of a multi-phase round
         /// (today: <c>PrepareZone</c> → <c>CommitZone</c>). On all-ACK success the continuation runs
@@ -361,6 +363,7 @@ public sealed partial class ClusterMaster : IDisposable
         ProcessManageEpisodeIntents();
         ProcessStorageOpIntents();
         ProcessTakeCheckpointIntents();
+        ProcessUnsavedCheckIntents();   // ⭐ CE-4093 D20
         ProcessSeekReplayIntents();
         ProcessCancelOperationIntents();
         ProcessDiagnosticDumpIntents();
@@ -521,6 +524,10 @@ public sealed partial class ClusterMaster : IDisposable
                 break;
             case ClusterOpType.RestoreCheckpoint:   // ⭐ CE-3299 B4
                 StartRestore(req.RequestId, LabelOf(req.PayloadJson));
+                break;
+
+            case ClusterOpType.CheckUnsavedChanges:   // ⭐ CE-4093 D20 — the unsaved-changes check round (no payload)
+                StartUnsavedCheck(req.RequestId);
                 break;
 
             case ClusterOpType.ReplaySeek:
@@ -1514,6 +1521,7 @@ public sealed partial class ClusterMaster : IDisposable
 
         // ⚠ §7.2a — the optimistic advance belongs HERE, not at planning time.
         _currentDsmState = resolvedTarget;
+        NoteLoadForUnsavedCheck(resolvedTarget, intent.ScenarioId);   // ⭐ CE-4093 — a new scenario (or none): the old save failure / answer no longer apply
         // ⭐ CE-3329 §12n — a new session starts unlooped: a stale bracket from the last exercise is never enforced.
         if (!ClusterStates.IsReplaying((FdpClusterState)(int)resolvedTarget)) _replayLoop = null;
 
@@ -1942,6 +1950,7 @@ public sealed partial class ClusterMaster : IDisposable
 
                 FanOutSerializeLocal(scnTxId, scnNodeIds,
                     new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(intent.ScenarioName!));
+                if (scnNodeIds.Count > 0) NoteSaveRoundStarted(scnTxId);   // ⭐ CE-4093 — a failed save makes the scenario unsaved (the check round)
 
                 FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario '{0}' → SerializeLocal fan-out to {1} node(s).",
                     intent.ScenarioName, scnNodeIds.Count);
@@ -2386,6 +2395,7 @@ public sealed partial class ClusterMaster : IDisposable
                 FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
                     new AbortTransactionPayload(txId), tracker.Targets);
 
+            NoteRoundCompletedForUnsavedCheck(txId, failed: true, aggregated: null);   // ⭐ CE-4093
             PublishOpStatus(tracker.RequestId, tracker.FailureCode);
         }
         else if (tracker.OnPhaseSuccess != null)
@@ -2406,6 +2416,8 @@ public sealed partial class ClusterMaster : IDisposable
             }
             var aggregated = tracker.SuccessResult
                 ?? (tracker.ResultFromResponses ? ResponsesByNode(tracker.NodeResponses) : TryAggregate(txId, tracker.NodeResponses));
+            if (tracker.RefineResult != null) aggregated = tracker.RefineResult(aggregated);   // ⭐ CE-4093
+            NoteRoundCompletedForUnsavedCheck(txId, failed: false, aggregated);
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
             OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
             OnRoundSucceededForGeoReference(parkedGeo, aggregated);   // ⭐ AQ107 C — the NED wire's frame origin (load: terrain; replay: recording)

@@ -18,6 +18,7 @@ public static class OrchestratorEventRegistry
         bus.RegisterManaged<NodeJoinedRosterEvent>();                // R-4018 — a node entered the roster: sync its TKB.
         bus.RegisterManaged<ExportArchiveBegunEvent>();
         bus.RegisterManaged<SaveScenarioJsonBegunEvent>();
+        bus.RegisterManaged<ScenarioSaveFinishedEvent>();   // ⭐ CE-4093 — the save's pull + merge reported (the master's unsaved fact)
         bus.RegisterManaged<ImportArchiveBegunEvent>();
         bus.RegisterManaged<MergeLogsIntent>();
         bus.RegisterManaged<LogMergeCompletedEvent>();

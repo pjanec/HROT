@@ -111,6 +111,7 @@ public sealed class OrchestratorCore : IDisposable
         _master.RegisterAggregator(new ReplaySeekAggregator());                                   // TASK-T002
         _master.RegisterAggregator(new CheckpointRestoreAggregator());                            // CE-3299 B4 (D5)
         _master.RegisterAggregator(new LiveBranchAggregator());                                   // CE-3312 — the branch's clock reaches the master
+        _master.RegisterAggregator(new UnsavedCheckAggregator());                                 // ⭐ CE-4093 D20 — the unsaved-changes check round
         _replay = new ReplayProcessManager(bus, o.TimeReads);
         _master.RegisterAggregator(_replay.CreateAggregator());
         _master.RegisterAggregator(_replay.CreateReviewAggregator());                             // ⭐ CE-3329 P3

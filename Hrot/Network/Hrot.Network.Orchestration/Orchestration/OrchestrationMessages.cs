@@ -79,6 +79,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording (its ledger entry and staging copies), from any host. Payload: ArchivePayloadDto.
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums.
         DeleteExercise = 25,
+
+        // ⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: ask every node whether its whole world differs from its saved baseline, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. No payload; the answer is UnsavedCheckResult.
+        //   ⚠ Named CheckUnsavedChanges, not CheckUnsaved: IDL scopes enum members by module, and NodeOpType.CheckUnsaved (35) is in the same module.
+        CheckUnsavedChanges = 26,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
