@@ -12,12 +12,14 @@ related-designs:
 `ExerciseInventoryItem.ScenarioId` ⇒ *back to the scenario's start, Live armed*. No wire change for that.
 
 ⛔ **The branch case (D5) cannot be done that way:** a live run branched from a recording should return, on ■, to **the parent recording at the
-branch point** (AAR). No host can see either — measured: `ExerciseInventoryItem(ExerciseId, StartTimeUtc, Duration, ScenarioId)` has no parent;
-`grep ParentExercise` in `FDP/` and `Hrot/` → 0. Until then ui falls back to the scenario's start for a branched run (said in AQ108 §2.8).
+branch point** (AAR). The INVENTORY does not carry it: `ExerciseInventoryItem(ExerciseId, StartTimeUtc, Duration, ScenarioId)` has no parent.
+⚠ **Corrected `2026-10-28` (coordinator caught it):** the recording itself DOES know — `RecordingMetadata.ParentExerciseId` / `BranchWallTicks`
+(`RecordingModule.cs:89`). ⛔ My earlier *"`grep ParentExercise` → 0"* was a grep scoped to `FDP/Toolkits/Fdp.Toolkits/Orchestration`, not the
+tree — an absence claim from a narrowed search. Only the inventory lacks the fields. Until then ui falls back to the scenario's start (AQ108 §2.8).
 
 | ⭐ ask | lean |
 |---|---|
-| publish a branched exercise's parent id and its branch point (sim seconds) | add `ParentExerciseId` (Guid, empty = not a branch) and `BranchAtSimSeconds` to `ExerciseInventoryItem` — the inventory already reaches every host, and the branch handler (`ReferenceReplayLoadHandler` → live) knows both |
+| publish a branched exercise's parent id and its branch point (sim seconds) | add the metadata's `ParentExerciseId` and branch point to `ExerciseInventoryItem` — the inventory already reaches every host (coordinator's [HANDOFF](HANDOFF_Coordinator_To_Backend_Run_Origin.md) carries it) |
 
 Nothing on ui blocks on it; ui switches ■'s branch case over when the fields arrive.
 
