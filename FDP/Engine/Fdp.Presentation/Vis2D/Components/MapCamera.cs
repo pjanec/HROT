@@ -1,4 +1,6 @@
+using System;
 using System.Numerics;
+using Fdp.Presentation.WindowManager;
 using Raylib_cs;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Input;
@@ -72,6 +74,79 @@ namespace Fdp.Toolkit.Vis2D.Components
         /// <summary>⭐ One predicate, so the three seams cannot disagree about what "usable" means.</summary>
         internal static bool IsFinite(Vector2 v) => float.IsFinite(v.X) && float.IsFinite(v.Y);
         
+        // ── ⭐ CE-4084 (docs/DESIGN_Map_3D_Mode.md §6af) — the centre of the VISIBLE map ─────────────────────────────
+        /// <summary>The screen size when no window is open (tests); the window's size otherwise.</summary>
+        public Vector2 FallbackViewport { get; set; } = new(1280, 720);
+
+        /// <summary>A fixed screen size instead of the window's (tests; a camera drawing into a sub-viewport).</summary>
+        public Vector2? ViewportOverride { get; set; }
+
+        private Vector2? _frameViewport;            // ⭐ CE-1072 — the window size, read once a frame
+        private Vector2? _frameCentre;              // ⭐ CE-4084 — the visible centre, read once a frame
+        private Vector2 _frameCentreFor;            // the viewport it was read for (a film frame has another size)
+        private Func<Vector2, Vector2> _viewCentreSource = OpenMapArea.Centre;
+
+        /// <summary>⭐ CE-1072 — read from the window ONCE a frame (cleared by <see cref="ResetFrameCache"/>): 📐 measured 2026-10-14, asking
+        /// the window per call cost 13 % of a 3-D frame, because <c>MapCamera3D.ZoomAt</c> asks it for every primitive drawn.</summary>
+        public Vector2 Viewport => ViewportOverride ?? (_frameViewport ??= WindowOpen()
+            ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight())
+            : FallbackViewport);
+
+        /// <summary>False in a test process with no window — or no native Raylib at all (the 2-D camera's math is window-free too).</summary>
+        private static bool WindowOpen()
+        {
+            try { return Raylib.IsWindowReady(); }
+            catch (DllNotFoundException) { return false; }
+            catch (EntryPointNotFoundException) { return false; }
+        }
+
+        /// <summary>
+        /// ⭐ CE-4084 — viewport → the screen point the map is centred on (zoom, turn, pick, the 2-D target). Default
+        /// <see cref="OpenMapArea.Centre"/> (the dockspace's open hole, or the window's middle). ⭐ ONE seam: every consumer reads
+        /// <see cref="ViewCentre"/>, never <see cref="OpenMapArea"/>, so a test or a host sets one source per camera.
+        /// </summary>
+        public Func<Vector2, Vector2> ViewCentreSource
+        {
+            get => _viewCentreSource;
+            set { _viewCentreSource = value ?? OpenMapArea.Centre; _frameCentre = null; }
+        }
+
+        /// <summary>⭐ CE-4084 — the centre of the visible map, window pixels; read once a frame (and again when the viewport changes).</summary>
+        public Vector2 ViewCentre
+        {
+            get
+            {
+                var vp = Viewport;
+                if (_frameCentre is not { } c || _frameCentreFor != vp)
+                {
+                    c = _viewCentreSource(vp);
+                    if (!IsFinite(c)) c = vp / 2f;
+                    _frameCentre = c; _frameCentreFor = vp;
+                }
+                return c;
+            }
+        }
+
+        /// <summary>A new frame: the window may have been resized and the visible area moved.</summary>
+        protected void ResetFrameCache() { _frameViewport = null; _frameCentre = null; }
+
+        /// <summary>
+        /// ⭐ CE-4084 — draws the same picture with <see cref="Offset"/> at <paramref name="screen"/>: <see cref="Target"/> (and the glide's target)
+        /// move by <c>flipY((screen − oldOffset) / Zoom)</c>, so EVERY world point keeps its screen position — docking a panel does not make the
+        /// map jump. From then on a zoom / <see cref="FocusOn"/> lands at <paramref name="screen"/>.
+        /// </summary>
+        public void AnchorAt(Vector2 screen)
+        {
+            if (!IsFinite(screen)) return;
+            var old = InnerCamera.Offset;
+            if (old == screen) return;
+            if (!float.IsFinite(InnerCamera.Zoom) || InnerCamera.Zoom <= 0f) { InnerCamera.Offset = screen; return; }
+            var d = FlipY((screen - old) / InnerCamera.Zoom);
+            InnerCamera.Offset = screen;
+            if (IsFinite(InnerCamera.Target)) InnerCamera.Target += d;
+            if (IsFinite(_targetTarget)) _targetTarget += d;
+        }
+
         public Vector2 Offset
         {
             get => InnerCamera.Offset;
@@ -184,6 +259,10 @@ namespace Fdp.Toolkit.Vis2D.Components
                 InnerCamera.Target = _targetTarget;
                 return;
             }
+
+            // ⭐ CE-4084 — the picture's centre follows the visible map (a docked panel moves it); the picture itself does not jump.
+            ResetFrameCache();
+            AnchorAt(ViewCentre);
 
             if (EnableSmoothing)
             {

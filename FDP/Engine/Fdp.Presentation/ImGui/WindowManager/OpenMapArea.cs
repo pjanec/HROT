@@ -45,6 +45,14 @@ public static class OpenMapArea
 
     private static float ReadFloat(IntPtr p, int offset) => BitConverter.Int32BitsToSingle(Marshal.ReadInt32(p, offset));
 
+    /// <summary>
+    /// ⭐ CE-4084 (docs/DESIGN_Map_3D_Mode.md §6af) — the centre of the visible map in window pixels: the middle of <see cref="Current"/>, or
+    /// <paramref name="viewport"/> / 2 when it is unknown. 🔒 User: "the map zoom center and camera turn center stays in the center of [the screen]"
+    /// — the map sits under docked panels, so the middle of the VISIBLE part is not the middle of the window.
+    /// </summary>
+    public static Vector2 Centre(Vector2 viewport)
+        => Current is { } r ? new Vector2(r.X + r.W / 2f, r.Y + r.H / 2f) : viewport / 2f;
+
     /// <summary>The visible map's corner (<paramref name="left"/> / <paramref name="top"/>) inset by <paramref name="margin"/>, for a
     /// block of <paramref name="width"/> × <paramref name="height"/> — in a view of <paramref name="viewport"/> when the area is unknown.</summary>
     public static Vector2 Corner(Vector2 viewport, bool left, bool top, float width, float height, float margin = 12f)

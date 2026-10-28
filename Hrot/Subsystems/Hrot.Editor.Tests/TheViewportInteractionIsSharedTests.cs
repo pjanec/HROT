@@ -467,6 +467,7 @@ public sealed class TheViewportInteractionIsSharedTests
         var (world, _, netId) = WorldWithEntity(x: 123f, y: 456f);
         var camera = new MapCamera();
         var system = new CenterOnEntitySystem(() => camera);
+        camera.Update(0f);   // ⭐ CE-4084 — the frame loop has anchored the camera at the visible centre before an operator can centre
 
         world.Bus.Publish(new CenterOnEntityCommand { NetworkId = netId });
         world.Bus.SwapBuffers();
