@@ -2,7 +2,7 @@
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
 updated: 2026-10-28
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
-current-answer: §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
+current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
 known-rot: none
 known-conflict: CGF-1-DESIGN.md:557 removed `RunningEdit → LoadingLive` ("would … leave edit-session resources dangling"); §4 D3 reinstates it as a world-CONTINUING load (the shape of the replay → live branch), which leaves nothing dangling because the edit world is parked in the go-live snapshot
@@ -54,6 +54,8 @@ obtrusive"* · *"ok leans are fine"*
 🔒 **User, `2026-10-28`, the fifth pass** (verbatim): *"Maybe the open for editing is the default because we already support going live from the preview, which is still at the beginning. that would reduce the menu to open scenario, and whether we are going to edit or [live] could depend on what node is opening. If it is editor, it could start in the editing mode by default, and if it is the CGF, then it could start in the live mode by default. As the start perspective should be something shared and unified across the nodes, 'am I starting in live or in preview?' should be one of little host specific parametrizing the otherwise unified and shared bootstrap code. Startup scenario lives on the command line of the cluster runner. and it is meant for the orchestrator node. And if the startup scenario is the recipe, then we are loading an unsaved new scenario based on the recipe. And if the scenario is an already saved scenario, meaning not a recipe, we are loading that scenario … just by the scenario name, we should be able to somehow determine whether it is a recipe or an already existing scenario."*
 
 🔒 **User, `2026-10-28`, the approval:** *"top-level recipes folder, and go with your lean on behaviours, All your leans accepted."* ⇒ every ⏸ lean in §4 and §5 is approved as written (R-4098).
+
+🔒 **User, `2026-10-28`, the sixth pass** (verbatim): *"There should be also 'Recent' section in the picker dialog So we can easily pick whatever was picked the last time. The recent items should be remembered in the user folder."* · *"Mode can be changed also by clicking the timeline and selecting something like replay from this place or similar."* · *"How do we recognize there are any unsaved changes? … comparing the current state of the world with the snapshot … this might differ per node."* · *"The continue the world flag. Is it required given that the load of the world is quick … What I meant by no reloading was that we shouldn't reload any terrain or big assets that are already loaded in the memory. Could the solution be more clean if we avoid using the continue the world flag?"* · *"Please break the implementation into tasks so we can give them to different sessions as needed - ui, backend etc."*
 
 ## 0. INVENTORY
 
@@ -129,69 +131,65 @@ stateDiagram-v2
 nothing lost) or a confirmed mode switch. Nothing reaches `LRun` except ▶ from Live armed or a branch from a replay — so a live run always starts
 from a scenario's beginning or from an intended replay moment.
 
-### 2.2 Classes — existing (grey) and new
+### 2.2 Classes — existing (grey) and new *(revised `2026-10-28`, sixth pass: no continue-world flag)*
 
 ```mermaid
 classDiagram
   class MainToolbarTimeControlSection { <<existing>> ModeGlyph · ModeMenu · Play/Step/Stop }
-  class ITimeTransportFacade { <<existing>> Mode · TogglePlayPause · Stop · EnterReview(at) }
-  class RunModeChoice { <<NEW>> Armed : Preview|Live|Replay · LastExercise · LastBranchPoint }
-  class ClusterReplayControls { <<existing>> EnterReview(at REQUIRED) · EnterReplay(id, at) }
-  class ScenarioMenuCommands { <<existing>> File/Live, File/Edit → File › Open Scenario · File › Open Replay }
-  class EditorScenarioSession { <<existing>> OpenForEdit · Save · IsDirty }
-  class EditorPreviewController { <<existing>> the dry run: snapshot, run, restore }
-  class GoLiveSnapshot { <<NEW, reuses the dry-run snapshot>> taken at ▶ Live · restored at ■ / Live → Preview }
-  class EditLiveHandoff { <<NEW handler>> claims PrepareLive in OperatingEdit when ContinueWorld }
-  class ReferenceReplayLoadHandler { <<existing>> claims PrepareLive during a replay (the branch, D18) }
+  class ITimeTransportFacade { <<existing>> Mode · TogglePlayPause · Stop · EnterReview(at REQUIRED) }
+  class RunModeChoice { <<NEW>> Armed : Preview|Live|AAR (host default, D12) · LastExercise · LastBranchPoint }
+  class ClusterReplayControls { <<existing>> EnterReview(at) · EnterReplay(id, at) }
+  class ScenarioLoadSequence { <<existing, the ONE load path>> OpenForEdit · LoadLive (Edit → Idle → Live, terrain kept) }
+  class TerrainResidency { <<existing>> same terrain already resident ⇒ skip re-ingestion }
+  class ScenarioDirtyState { <<NEW, master-held>> Dirty · raised by authoring changes · cleared by a completed save }
+  class StartGate { <<NEW, shared presentation layer>> cluster RESTING in Idle ⇒ perspective Start }
+  class ReferenceReplayLoadHandler { <<existing>> the replay → live branch (D18 of the checkpoint design) }
   class ReferenceLiveLoadHandler { <<existing>> PrepareState Live → PrepareRecordingAsync(exercise) }
-  class HrotStateGraph { <<existing>> + OperatingEdit → LoadingLive (continue-world) NEW }
-  class ClusterMaster { <<existing>> mints the exercise id · IsWorldBoundaryLoad (false: not from Idle) }
-  class ScenarioCopyIntoExercise { <<existing CE-3119 AssetInventoryProcessManager.SnapshotScenario>> + subfolders, hash, RecordedAt NEW }
-  class RecordingMetadata { <<existing>> ScenarioName · ScenarioHash · + RecordedAt NEW }
-  class AssetBrowserPanel { <<existing>> + AssetKind.Recording NEW }
-  class CheckpointToast { <<NEW>> Save/Ctrl+S in Live or Replay = take checkpoint + toast }
+  class ClusterMaster { <<existing>> mints the exercise id · the bootstrap latch (CE-4087) }
+  class ScenarioCopyIntoExercise { <<existing CE-3119>> + whole folder, hash, RecordedAt NEW }
+  class RecentList { <<NEW, user folder>> per kind: scenarios · recordings · assets }
+  class AssetBrowserPanel { <<existing>> + Recent section + AssetKind.Recording NEW }
   MainToolbarTimeControlSection --> ITimeTransportFacade
   MainToolbarTimeControlSection --> RunModeChoice : shows, menu sets
   ITimeTransportFacade --> ClusterReplayControls
-  RunModeChoice ..> EditorScenarioSession : IsDirty → Save first
-  RunModeChoice ..> GoLiveSnapshot
-  GoLiveSnapshot ..> EditorPreviewController : same snapshot code
-  ClusterMaster --> HrotStateGraph
-  ClusterMaster ..> EditLiveHandoff : PrepareLive ContinueWorld
+  RunModeChoice ..> ScenarioDirtyState : dirty ⇒ Save first
+  RunModeChoice ..> ScenarioLoadSequence : ▶ Live / ■ / → Preview
+  ScenarioLoadSequence ..> ClusterMaster
+  ClusterMaster ..> TerrainResidency : unchanged terrain is not reloaded
   ClusterMaster ..> ScenarioCopyIntoExercise
-  EditLiveHandoff ..> ReferenceLiveLoadHandler : recording starts as for any live
+  ClusterMaster --> ScenarioDirtyState
   ReferenceReplayLoadHandler ..> ReferenceLiveLoadHandler
-  ScenarioMenuCommands ..> AssetBrowserPanel : Open Replay
-  ScenarioCopyIntoExercise ..> RecordingMetadata
+  AssetBrowserPanel --> RecentList
+  StartGate ..> ClusterMaster : reads the announced state
 ```
 
-*What the picture shows that prose hid:* the go-live from editing is the SAME shape as the built replay → live branch — a handler that claims
-`PrepareLive` while a world is already open — and the snapshot is the dry run's own. The new code is a choice holder, one handler claim, one graph
-edge, one copy step and one asset kind; everything else exists.
+*What the picture shows that prose hid:* every mode change except the replay branch is an ORDINARY load through the one load path — the
+"continue the world" flag of the first draft is gone (sixth pass, user). It costs no big reload because entering Idle clears only the entities
+(`LoadPhaseChain.OnEnteredIdle`) and an unchanged terrain is not re-ingested (`TerrainResidency.cs:174-203`); the knowledge base is a no-op
+(`KnowledgeBaseLoadStep.cs:99`). Bonus: a live run's ids are the canonical ones of a fresh load, and its recording matches its scenario file.
 
-### 2.3 Sequence — Preview idle → ▶ Live, no reload
+### 2.3 Sequence — Preview idle → ▶ Live (only the scenario file is re-read)
 
 ```mermaid
 sequenceDiagram
   actor U as User
   participant T as Toolbar (RunModeChoice)
-  participant S as EditorScenarioSession
-  participant P as GoLiveSnapshot
+  participant D as ScenarioDirtyState (master)
   participant M as ClusterMaster
   participant N as every node
   U->>T: ▶ with Live armed
-  alt scenario has unsaved edits
+  T->>D: dirty?
+  alt dirty or never saved
     T->>U: Save and go live / Cancel
-    U->>S: Save
+    U->>T: Save (a cluster save round), D cleared
   end
-  T->>P: snapshot the edited world (the dry-run snapshot)
-  T->>M: transition OperatingEdit → OperatingLive, ContinueWorld
-  M->>M: mint exercise E, not a world boundary (not from Idle)
-  M->>M: copy the scenario folder into exercises/E/scenario/
-  M->>N: PrepareLive ContinueWorld (EditLiveHandoff claims it, nothing is read from a file)
-  M->>N: PrepareState Live (recording E starts), commits
+  T->>M: load the saved scenario LIVE (the ordinary path)
+  M->>N: Edit → Idle: entities cleared, terrain stays resident
+  Note over T: the start gate ignores this Idle — the cluster passes through, it does not rest there
+  M->>M: mint exercise E, copy the scenario folder + hash into exercises/E
+  M->>N: LoadingLive: the scenario file re-read, terrain and knowledge base skipped (unchanged)
+  M->>N: PrepareState Live (recording E starts unless recording is off)
   M->>N: resume the clock
-  Note over U,N: the map never cleared: the world on screen IS the saved scenario's start
 ```
 
 ### 2.4 Sequence — ■ in Live, and Live → Preview
@@ -202,23 +200,20 @@ sequenceDiagram
   participant T as Toolbar
   participant M as ClusterMaster
   participant N as every node
-  participant P as GoLiveSnapshot
   alt ■ (no confirmation)
     U->>T: ■
     T->>M: end the live run
     M->>N: FinalizeLive (recording E closed and kept)
-    alt the run started from editing
-      M->>N: back to OperatingEdit, restore the go-live snapshot
-      Note over T: Live stays armed, toast Exercise recorded, Replay it
+    alt the run started from the scenario
+      M->>N: load the scenario again (paused at its start), Live stays armed
+      Note over T: toast Exercise recorded, Replay it
     else the run branched from a replay
-      M->>N: back to the replay of the parent at the branch point
-      Note over T: Live stays armed, the next ▶ branches again
+      M->>N: back to the AAR of the parent at the branch point, Live stays armed
     end
   else indicator → Preview (confirm, ends the live session)
     U->>T: confirm
-    T->>M: end the live run, then edit
-    M->>N: FinalizeLive, then OperatingEdit with the scenario's START
-    Note over N: a run that branched from a replay goes back to its scenario's start too, never to the branch point
+    T->>M: end the live run, then open the scenario for editing
+    M->>N: FinalizeLive, then Edit at the scenario's START (a branched run too)
   end
 ```
 
@@ -226,23 +221,24 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  ED["Editor host frame"] --> TB["MainToolbarTimeControlSection (draws, menu)"]
-  TB --> RC["RunModeChoice (editor-local, per operator)"]
+  ED["Every host frame (shared bootstrap)"] --> SG["StartGate: cluster resting in Idle ⇒ Start"]
+  ED --> TB["MainToolbarTimeControlSection (draws, menu)"]
+  TB --> RC["RunModeChoice (per host, D12 default)"]
   TB --> FAC["ITimeTransportFacade"]
-  FAC --> CRC["ClusterReplayControls → TransitionStateIntent"]
+  FAC --> CRC["ClusterReplayControls / ScenarioLoadSequence → TransitionStateIntent"]
   CRC --> ORC["ClusterMaster.Tick (orchestrator / the editor's in-process core)"]
+  ORC --> DS["ScenarioDirtyState (announced with the cluster state)"]
   ORC --> SLV["ClusterSlave on each node: NodeOps to handlers"]
-  SLV --> ELH["EditLiveHandoff (NEW)"]
+  SLV --> LPC["LoadPhaseChain (scenario, terrain-if-changed, KB-if-changed)"]
   SLV --> RLH["ReferenceReplayLoadHandler"]
   SLV --> LLH["ReferenceLiveLoadHandler → RecordingModule"]
-  ORC --> GW["StorageGateway: scenario copy into the exercise (NEW step)"]
+  ORC --> GW["AssetInventory: scenario copy into the exercise"]
   SB["Status-bar time control (CE-4083)"]:::dead
   classDef dead stroke:#d33,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-*What the picture shows:* the armed mode lives only in the editor (it is a choice of what ▶ will request); everything that actually changes the
-world goes through the ONE cluster master, so a CGF or Player host showing the same toolbar sees the same running mode. The status-bar copy (red,
-dashed) goes with CE-4083 — one transport, one picker.
+*What the picture shows:* the armed mode is per host; every change to the world goes through the ONE cluster master and the ONE load path; the
+dirty state lives with the master and is announced like the cluster state, so every host shows the same `name*` (UXR-03).
 
 ## 3. Every move, with what the user is told
 
@@ -276,7 +272,7 @@ dashed) goes with CE-4083 — one transport, one picker.
 |---|---|---|
 | **D1** | the mode is a CHOICE of what ▶ runs, shown dim before the start and bright while running; locked while running except through the confirmed moves of §3 | ✅ user |
 | **D2** | Live always starts from a scenario's beginning, or from an intended replay moment (the branch) — never from the middle of a preview | ✅ user |
-| **D3** | Preview idle → Live does not reload: the edited world IS the saved scenario's start (unsaved edits are saved first). Built as a world-continuing live load claimed in `OperatingEdit` — the replay branch's shape — with a new `OperatingEdit → LoadingLive` edge; not a world boundary, so no id reset (Deterministic Ids §11) | ✅ user (the behaviour) · ⏸ the mechanism, after M1 |
+| **D3** | ⭐ **REVISED `2026-10-28` (sixth pass, user):** going Live from editing is the ORDINARY load path (Edit → Idle → Live, the saved scenario re-read) — ⛔ no "continue the world" flag. "No reload" means no reload of the TERRAIN and other big assets, and that already holds: entering Idle clears only the entities (`LoadPhaseChain.OnEnteredIdle`), an unchanged terrain is not re-ingested (`TerrainResidency.cs:174-203`), the knowledge base is a no-op (`KnowledgeBaseLoadStep.cs:99`). Gains: no new handler, no new graph edge, canonical ids, the recording matches its scenario file; ■ and Live → Preview are ordinary loads too. ⚠ The start gate (D16) must react only to the cluster RESTING in Idle, never to an Idle a planned trajectory passes through. ⛔ SUPERSEDED: the first form (a world-continuing `OperatingEdit → LoadingLive` with a go-live snapshot) — M1 showed it feasible but it is no longer needed | ✅ user |
 | **D4** | unsaved edits ask *Save and go live / Cancel*; a never-saved scenario asks *Save as… and go live / Cancel* (D16) | ✅ user |
 | **D5** | ■ follows R2: back to where the run came from, the armed mode stays | ✅ user ("next play after LIVE end = next live start") · the branch case ✅ lean accepted |
 | **D6** | replay of a just-ended live run is an explicit step (the indicator, or the toast's button), at the recording's START | ✅ user |
@@ -291,6 +287,9 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **D15** | at ■ in Live, *"Keep this recording?"* — gated by a second setting *"Ask to keep recordings"* | ✅ user (the prompt + its gate) · ⏸ lean: default OFF (keep silently), Keep is the default button |
 | **D16** | ⭐⭐ **THE START PERSPECTIVE.** While the cluster is **Idle** (at boot, and whenever it returns to Idle — an unload, a stop to Idle, the master gone), EVERY host shows the perspective `Start`: no panels, only the menu items marked *allowed in Idle* — **New scenario from a recipe** (an unsaved scenario based on it; the empty flat-terrain recipe listed first), **Open scenario**, **Open recording (AAR)**, Exit, Help. ⭐ **Open always loads into the editing state** (clock stopped, nothing recorded); what ▶ then does is the host's armed mode (D12) — going live from there is the no-reload go-live (D3), so a separate "Open live" is not needed (fifth pass). Each of them leaves Idle through the ordinary state machine; leaving Idle restores the host's remembered perspective. ⭐ Enforced BY CONSTRUCTION: one gate in the shared presentation layer, registered by the shared bootstrapper, reads the cluster state every host already has (`ClusterStateUpdateEvent`, `MasterGone`); `Start` is claimed by ONE shared window (the start surface — UXR-01), so the A0 rule (`WindowManager.cs:276-297`) holds. While `Start` shows, the perspective toolbar and `POST /perspective` refuse with *"load a scenario first"*. A host that cannot operate the cluster (a Player, SimHost alone) shows *"Waiting for the server to load a scenario"* with no actions; the master gone shows *"Server lost — waiting"*. The Replay Browser (offline, no cluster) and the Stride host (an example only) are exempt. ⛔ No special flat terrain: an existing terrain's empty recipe does it. ⭐ The empty Idle world stays as it is behind `Start` — harnesses and tools that use it keep working; only the UI can no longer reach it | ✅ user |
 | **D18** | ⭐ **a cluster may be started with a scenario**: a cluster-runner command-line option for the ORCHESTRATOR node (`--startup-scenario <name>`). ⭐ The name decides what is loaded: a name under the reserved recipes folder (`Recipes/<seed>`, `ScenarioNewAssetService.SeedSubfolder`) loads an UNSAVED new scenario based on that recipe; any other name loads that saved scenario. Either way it lands in the editing state with the hosts' armed modes (D12) — nothing records until ▶. ⚠ The rule needs one guard: nothing may be SAVED under `Recipes/` (a save there would turn a scenario into a recipe). The master WAITS until every mandatory node / role is present, THEN loads it through the ordinary state machine. ⭐ ⚠ M8 found: the latch's `LoadWaitSeconds` (30 s) would REFUSE a start-up load whose nodes boot later — ⭐ lean: the start-up scenario waits WITHOUT a deadline (the operator can cancel it; `load.notice` shows what it waits for); the 30 s refusal stays for operator-issued loads. Built on the EXISTING bootstrap latch (`ClusterConfiguration.Mandatory`, `ClusterMaster.CheckBootstrapLatch`, CGF-1-DESIGN §3.5) — today it rejects every transition until the named mandatory subsystems are in Idle (default: none, so it opens at once), and a mandatory node's ejection re-engages it; CE-4087 extends it to ROLES (Brain + MuscleGround always) and makes a load WAIT instead of being rejected. Without the setting a cluster boots Idle into `Start` | ✅ user (command line, orchestrator node, recipe-vs-saved by name) |
+| **D19** | **Recent**: every open picker (scenarios, recordings, assets) shows a *Recent* section first — the items last picked, per kind — remembered in the user folder (beside the layout's user files) | ✅ user |
+| **D20** | **Unsaved changes are tracked, not compared.** ⛔ Comparing the world with a snapshot is rejected (the user's own doubt): a scenario's state is spread over several nodes and each holds different derived data. ⭐ Lean: the cluster master holds ONE `ScenarioDirty` flag for the loaded scenario, raised whenever an authoring change happens on ANY node (entity created / deleted / edited, a property, a zone, a route — through the authoring choke points: the editor's commands, the HTTP / MCP authoring routes, the operators' create requests) and cleared by a completed save round; it is announced with the cluster state, so every host shows `name*` (UXR-03, unbuilt today — `EditorScenarioSession` has no dirty state; only AI documents have `MarkDirty`). First step of the task: enumerate the authoring choke points (graph + grep) — a missed path is the failure mode | ⏸ lean |
+| **D21** | the timeline's right-click menu changes mode at the clicked moment, without asking: in Live — *DAR from here* (live continues) · *AAR from here* (ends the live run); in AAR — *Go live from here* (a branch); everywhere — *Take checkpoint here* | ✅ user |
 | **D17** | the user-facing words: **DAR** (inside a live session) and **AAR** (a recording played back) replace "Review" and "Replay"; the code names stay (§1a) | ✅ user (the words) · ⏸ lean: code names unchanged |
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
@@ -320,16 +319,6 @@ dashed) goes with CE-4083 — one transport, one picker.
 
 ⚠ Two words already taken: `POST /exercises/keep` archives a run to the shared NAS — D15's "keep" must not reuse that name for "do not delete". And D8's "new scenario from a checkpoint" has no code yet (the checkpoint menu holds only Take Checkpoint); a checkpoint taken during AAR has no mechanism either (a replay has no live recorder).
 
-## 6. The build list (for the UI lane, after §5)
+## 6. The build list
 
-1. `RunModeChoice` + the indicator menu (radio items, the Replay items, dim/bright/blink) on `MainToolbarTimeControlSection`.
-2. `EditLiveHandoff` + the `OperatingEdit → LoadingLive` continue-world edge + the go-live snapshot (the dry-run snapshot code).
-3. ■ per R2 (Live: back to editing or to the branch point, Live armed; Replay: rewind) + the toast.
-4. Grow CE-3119's scenario copy to the whole folder + stamp name/hash/`RecordedAt` at go-live (§5 M2/M3); AAR → Preview's two-button dialog.
-5. `AssetKind.Recording` in the shared open dialog; File › Open Replay; File › Live / File › Edit folded into File › Open Scenario.
-6. Save/Ctrl+S = checkpoint + toast in Live/Replay; "New scenario from checkpoint".
-7. `EnterReview` without a position refused; the timeline's right-click menu carries Review from here / Go live from here / Take checkpoint here.
-8. The status-bar note while a run goes.
-9. The two settings (D14 record live runs, D15 ask to keep) and the host default mode (D12); the AAR/DAR wording everywhere the user reads it (menus, tooltips, dialogs, the timeline).
-10. **The start perspective (D16)**: the shared start-surface window claiming `Start`; the Idle gate in the shared presentation layer (every host, by construction); the allowed-in-Idle menu flag (default not allowed); the perspective toolbar / `POST /perspective` refusal; the waiting variants; ⚠ M7 first.
-11. **Start with a scenario (D18)**: `--startup-scenario` on the orchestrator's runner, `Recipes/` ⇒ unsaved new scenario, else the saved one, issued when the bootstrap latch opens (after CE-4087 makes the latch role-based and waiting); ⚠ M8 — the dead `--wait-for`.
+⭐ Broken into lane tasks in [`PLAN_Run_Modes_And_Content_Build.md`](PLAN_Run_Modes_And_Content_Build.md) (sixth pass) — that plan is the dispatch record; this section no longer lists steps.
