@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§4-P C9 BUILT — as-built + live run; the coverage grace now applies at BOTH ends, measured) ·
+updated: 2026-10-28 (⭐ §4-B3 NEW — CE-4078: the 3-D map's mesh rebuilds stall the frame thread that also beats the heartbeat; fix = §4-B2's rule applied to them, the catch-up gets its own recording file and a failure path to Idle) · 2026-10-15 (§4-P C9 BUILT — as-built + live run; the coverage grace now applies at BOTH ends, measured) ·
   2026-10-15 (⭐ §4-P NEW — C9 build design: one replay anchor from the prepare round, entry runs a seek round, covered ⇔ inside the span, a node with no recording listens; measured live — spans differ, entry leaves the clock past the end, the entry seek never runs) ·
   2026-10-15 (K4 APPROVED as R-4017 — every §4-I..§4-L decision is now taken) ·
   2026-10-15 (K5′ APPROVED as R-4015 — a catch-up runs KB + terrain only, never the scenario; R-4016 a process is identified by computer name + process id, no random ids — L1 amended) ·
@@ -342,6 +342,70 @@ object nobody else can see yet; every write into shared state (the TKB database,
 | progress, not an ACK | the slave publishes ONE `InProgress` status when it defers a prepare; the master's round intake and the prefetch tracker read `InProgress` / `Pending` as progress — no `Received++`, no paid ACK |
 | rails | `LoadPhaseChainTests.P4_AnOffThreadStep_LeavesThePrepareIncomplete_AndRunsOffTheCallingThread` · `ClusterSlaveTests.P4_ADeferredPrepare_ReportsInProgressOnce_ThenItsAnswer` · `ClusterMasterZoneRoundTests.P4_An_InProgress_report_is_not_the_nodes_answer` (red-proved: without the master's skip the round commits on progress alone) |
 | ⭐⭐ **follow-up: the world-boundary clear moved to the START of the prepare** | 🔴 P4 regression, found by `TimeControlIntegrationTests.Stop_PausesTheClock…CE3068` (8/8 at P3, red 3 of 12 after): with the prepare spanning frames, a faster node's committed entities replicated in before this node's Commit, and the Commit-time `CE-2101` clear destroyed them (`Entity is not alive` in SimHost's blueprint application). Fixed in `LoadPhaseChain.PrepareAsync`; rail `TheWorldBoundary_KeepsAnEntityThatArrivesDuringTheLoadWindow_CE2101_P4`. 📄 [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §8 |
+
+### 4-B3 ⭐ CE-4078 — a frame stall that is NOT a cluster load: the 3-D map's rebuild *(coordinator, `2026-10-28`; build-state: READY-TO-BUILD — handed off in `batches/HANDOFF_Coordinator_CE4078_Frame_Stall.md`)*
+
+📐 **The defect:** on Windows, opening a node's 3-D map on `Recipes/demo-city` froze a CGF node for 20–60 s. The master ejected it after
+5 s without a heartbeat. C7's catch-up then reset it, which wiped its scenario, and the re-prepare FAILED on its own existing recording
+(`node_10000.fdp`). The tracker row has the full log.
+
+**§4-B2's rule already says what is wrong:** the frame thread coordinates, and only work that touches nothing shared leaves it. The
+3-D map's mesh rebuilds break that rule exactly as the load did before P4.
+
+```mermaid
+sequenceDiagram
+  participant F as frame thread (heartbeat · sim · draw)
+  participant L as TrafficLayer3D / TerrainLayer3D
+  participant W as worker (pure)
+  participant G as GPU (Raylib)
+  Note over F,L: TODAY — one frame does all of it (measured: 20-60 s silent, ejected at 5 s)
+  F->>L: Draw: the net / terrain identity changed
+  L->>L: BuildTagged + BuildVertexData (whole network)
+  L->>G: UploadMesh
+  Note over F,G: AFTER — the frame only coordinates
+  F->>L: Draw: identity changed
+  L->>W: start BuildVertexData on an immutable snapshot (returns at once)
+  F->>L: next frames: not done → draw the previous mesh (or nothing) — the heartbeat keeps beating
+  W-->>L: vertex arrays ready
+  F->>L: next frame: done → UploadMesh on the frame thread (split it if one upload alone is too long)
+  L->>G: UploadMesh
+```
+*What the picture shows that the prose hid:* the heartbeat, the sim and the draw share ONE thread. Any layer that rebuilds a whole mesh
+in one `Draw` silences the node, and the 5 s timeout punishes a node for drawing a map.
+
+```mermaid
+classDiagram
+  class TrafficLayer3D { existing: Rebuild(net) → BuildVertexData (static, pure) + UploadMesh }
+  class TerrainLayer3D { existing: Rebuild(geometry) → BuildTagged + BuildVertexData (static, pure) + UploadMesh }
+  class PendingMeshBuild~T~ { NEW, shared: Start(Func~T~) · TryTake(out T) · Cancel() — one helper, both layers }
+  class FrameStallProbe { NEW: a frame longer than N ms logs WARN with the slowest phase / layer — step 0's measurement, kept as a guard }
+  class ClusterSlave { existing: the heartbeat at 1 Hz on the frame thread — UNCHANGED (§4-B2) }
+  class AsyncRecorder { existing: CreateNew, never overwrites (R-3047) — UNCHANGED }
+  class RecordingModule { existing: names node_ID.fdp — a CAUGHT-UP node needs its own file }
+  TrafficLayer3D --> PendingMeshBuild~T~
+  TerrainLayer3D --> PendingMeshBuild~T~
+  RecordingModule --> AsyncRecorder
+```
+*What the picture shows that the prose hid:* the fix adds one shared helper used by both layers, not a copy in each. The heartbeat and the
+recorder's never-overwrite rule stay as they are.
+
+| # | decision | lean | rejected (one line each) |
+|---|---|---|---|
+| **S0** | **measure first** | ⭐ a `FrameStallProbe` (frame > 1 s → WARN naming the slowest phase/layer, with its ms), then reproduce on Windows: demo-city, then open the 3-D map. Expect `TrafficLayer3D.Rebuild` (demo-city's SUMO network) and/or `TerrainLayer3D.Rebuild`. ⚠ The 500-entity spawn is the other suspect — the probe decides. 📐 On Linux, separate processes without a 3-D map open did **not** eject (`2026-10-28`) | guessing the culprit — the row itself says it is unmeasured |
+| **S1** | **the 3-D map stops blocking the frame** | ⭐ pure vertex building on a worker through ONE `PendingMeshBuild<T>`; the GPU upload stays on the frame thread; a stale request is cancelled when the identity changes again. ⚠ **Check first that the build inputs are immutable** (`ITerrainRenderGeometry.BuildTagged`, `TrafficNetCache`); if one is not, snapshot it on the frame thread | a heartbeat thread (below) · raising the timeout (below) |
+| **S2** | **the heartbeat stays on the frame thread** | ⭐ unchanged (§4-B2). There are no per-round timers (R-4001), so a frozen frame thread is the ONLY signal that a node hangs | a separate heartbeat thread — a deadlocked node would stay in the roster and every round would wait for it forever |
+| **S3** | **the timeout** | ⭐ unchanged (5 s). Fix the stall, not the alarm | 60 s, or a "load-aware" ejection — it hides every future stall, and a 3-D map is not a cluster load anyway |
+| **S4** | **a catch-up must not fail on its own recording** | ⭐ a node that is caught up records into a **new file of its own** (e.g. `node_<id>.c<commit>.fdp`); `AsyncRecorder` keeps never overwriting (R-3047). ⚠ C9's replay-by-span must accept several spans (files) per node — check `RecordingIndex` / the span index; if it cannot, the caught-up node records nothing until the next load, and say so | overwriting the old file — the truncation R-3047 forbids |
+| **S5** | **a FAILED catch-up leaves the node half-reset** (`LoadingLive`) | ⭐ the catch-up saga's failure path sends the node to `Idle` (the R-4004 / P8 cancel path, which exists), and the master shows *"catch-up failed: <reason>"*. K7's once-per-commit then holds | retrying in a loop — K7 forbids it |
+
+**Acceptance (the tracker row's, made checkable):**
+1. S0's probe names the culprit, with the numbers.
+2. `demo-city` loads on Windows with the 3-D map open. The node stays in the roster through the load and the map opening; no C7 catch-up fires; the entities persist.
+3. Tests:
+   - `PendingMeshBuild` hands over exactly one result and drops a cancelled one.
+   - A catch-up over an existing `node_<id>.fdp` records into its own file.
+   - A catch-up whose prepare fails leaves the node in `Idle`.
+   - Each test is shown red by a mutation that compiles.
 
 ### 4-C ⭐ A best-effort node returns an ERROR
 
