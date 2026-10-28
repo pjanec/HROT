@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — the user shaped every decision in chat (2026-10-28); §4 records each with its verdict. Two rows are still leans (§4 marked ⏸)
 updated: 2026-10-28
-build-state: DESIGN — not dispatched. Before READY-TO-BUILD: measure M1–M5 (§5)
+build-state: DESIGN — not dispatched. Before READY-TO-BUILD: measure M1–M6 (§5)
 current-answer: §1 the three rules · §1a the words (Live / DAR / AAR) · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
 known-rot: none
@@ -43,6 +43,8 @@ indicator mode switch. if from timeline's menu, it is accepted immediately"* ·
 obtrusive"* · *"ok leans are fine"*
 
 🔒 **User, `2026-10-28`, the second pass** (verbatim): *"CGF/all-in-one mode should start in live mode by default, editor in preview mode"* · *"review and replay wording would be better to replace with AAR and DAR (or at least DAR as something different from classical replay)"* · *"we should somehow also allow live without recording; live does not mean just recording, it has consequences on whether people control some HID like replicated weapons or drive a replicated cars, outside of our engine, so it differs from preview where no live players are present; maybe some setting in the system can control whether the live does recording at all; and we could ask at the end (gated by another setting) whether we want to discard the recording so it does not pile up"* · *"editor is in 'unsaved new scenario' mode by default and the terrain must be loaded first - can be loaded via terrain-specific scenario recipes which would then read as always creating a scenario first. Scenario must be saved before switching to live but can be previewed at will."*
+
+🔒 **User, `2026-10-28`, the third pass** (verbatim): *"turning off recording will need some gates at different places where the recording is expected to be available now"* · *"Edit mode and live mode are not much different from our ecosystem point of view. The difference is in some parts that are outside of this ecosystem."* · *"today we are allowed to start Editing without the terrain selected, So we are ending up in no terrain situation. Technically this might be okay if we use reference point 0, 0 but it is almost never correct for any production real use case … the cleanest option is to behave like any usual editor. So when it opens empty and the controls are disabled until the user decides whether to create a new scenario by opening a terrain recipe or by loading an already existing scenario, and only then the controls will enable … Meaning that a scenario without a terrain cannot be authored."*
 
 ## 0. INVENTORY
 
@@ -250,7 +252,7 @@ dashed) goes with CE-4083 — one transport, one picker.
 | New scenario from a checkpoint | checkpoint menu / timeline | asks for a new name | the checkpoint's world as a new scenario, opened for editing |
 | editing while Preview or Live runs | any tool | none | allowed; the status bar says *"Running — edits are not saved unless you save"* |
 | open another scenario | File | unsaved → Save / Discard / Cancel | the HOST's default mode is armed (D12): Preview in the editor, Live on CGF / all-in-one |
-| editor start | — | none | a NEW UNSAVED scenario; the terrain comes first, through a terrain-specific scenario recipe (so starting always creates a scenario); Preview armed; ▶ Preview at will |
+| editor start | — | none | EMPTY: run controls and authoring tools disabled, the indicator dim; the only ways in are **New scenario (from a terrain recipe)** and **Open scenario** (and File › Open Recording for an AAR) |
 | Live armed → ▶ on a never-saved scenario | Play | *Save as… and go live / Cancel* | Live needs a saved scenario (D16) — it is what the recording keeps (D7) |
 | ■ in Live with recording OFF (D14) | Stop | none | as ■ (§2.4), toast *"Live run ended"* — no AAR button; DAR and "AAR the last exercise" are greyed *"this run was not recorded"* |
 | ■ in Live with "ask to keep recordings" ON (D15) | Stop | *"Keep this recording? (12:31, hill-attack) — Keep / Discard"* | Discard deletes `exercises/<id>/`; Keep is the default button |
@@ -274,7 +276,7 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **D13** | the status-bar time control is removed (CE-4083) — the picker exists once | ✅ user (CE-4083) |
 | **D14** | **Live does not imply recording.** A system setting *"Record live runs"* (default ON) decides; the Live icon says which (red recording · green not). Not a conflict with mgmt-1 §8.12 "Always Recording" — that rule keeps the recorder running while the clock is PAUSED, it does not make every live run record | ✅ user (the setting) · ⏸ lean: default ON, one cluster-wide setting the master hands to every node with the live load |
 | **D15** | at ■ in Live, *"Keep this recording?"* — gated by a second setting *"Ask to keep recordings"* | ✅ user (the prompt + its gate) · ⏸ lean: default OFF (keep silently), Keep is the default button |
-| **D16** | the editor starts in a NEW UNSAVED scenario; the terrain is loaded first, through terrain-specific scenario recipes (starting always creates a scenario); Preview runs at will; Live needs a saved scenario | ✅ user |
+| **D16** | ⭐ **the editor opens EMPTY, like any editor**: the run controls and the authoring tools are disabled until the user either creates a new scenario from a terrain-specific recipe or opens an existing scenario. ⛔ **A scenario without a terrain cannot be authored** (today it can — the 0,0 origin, practical for quick tries but never right for real use). Preview then runs at will; Live needs a saved scenario | ✅ user |
 | **D17** | the user-facing words: **DAR** (inside a live session) and **AAR** (a recording played back) replace "Review" and "Replay"; the code names stay (§1a) | ✅ user (the words) · ⏸ lean: code names unchanged |
 
 ## 5. What must be measured before READY-TO-BUILD
@@ -285,7 +287,8 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **M2** | does the distributed save write per-node parts into the scenario folder? | D7 copies the whole folder either way; this only tells how big the copy is |
 | **M3** | does every live recording carry `ScenarioHash` today (editor, director, HTTP loads)? | D7's "changed since" check |
 | **M4** | what does the editor open at start today, and how do the terrain-specific recipes create a scenario? | D16 |
-| **M5** | can recording be switched off for a live run without touching DAR's machinery (DAR plays the live recording — with none, DAR is greyed, not broken)? | D14 |
+| **M5** | ⭐ **every place that expects a live run to have a recording** (user: *"turning off recording will need some gates at different places"*) — at least DAR, "AAR the last exercise", checkpoints and their restore (a restore reads the recording), the replay → live branch (copies the parent's frames), the film pipeline (R-4091: films are cut from recordings), the scenario verifier's live run (H1a, R-3053), the director's takes — each: what breaks with no recording, and the gate (greyed with a reason, never a failure deep inside) | D14 |
+| **M6** | what changes between Edit and Live INSIDE the ecosystem (user: *"not much different from our ecosystem point of view; the difference is in some parts outside"*) — confirms or breaks D3's no-reload go-live; what are the OUTSIDE parts (HID, replicated weapons/vehicles driven by people) and does anything in the code gate them on Live | D3, D14 |
 
 ## 6. The build list (for the UI lane, after §5)
 
@@ -298,4 +301,4 @@ dashed) goes with CE-4083 — one transport, one picker.
 7. `EnterReview` without a position refused; the timeline's right-click menu carries Review from here / Go live from here / Take checkpoint here.
 8. The status-bar note while a run goes.
 9. The two settings (D14 record live runs, D15 ask to keep) and the host default mode (D12); the AAR/DAR wording everywhere the user reads it (menus, tooltips, dialogs, the timeline).
-10. The editor start in a new unsaved scenario with the terrain-recipe step (D16) — ⚠ measure first what the editor opens at start today.
+10. The editor opens empty with everything disabled until New-from-terrain-recipe or Open (D16); a scenario without a terrain cannot be authored — ⚠ M4 first: what the editor opens at start today and which paths create a terrain-less scenario.
