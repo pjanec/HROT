@@ -9,6 +9,11 @@
 **But check which host you are talking to — `get_capabilities` tells you.** The same API is also served by a
 multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + excon + cgf). There:
 
+- ⭐ **load first, then switch.** A cluster that rests in Idle (nothing loaded — at boot, after an unload) shows the **`Start`**
+  perspective on every host; while it shows, `switch_perspective` answers **HTTP 409** with the reason, and `get_status` reports
+  `perspective: "Start"` with `routedTo` = the perspective the world reads are still answered from. Load a scenario (or open a
+  recording) first — leaving Idle restores the host's remembered perspective by itself — and only then switch. Never script
+  *"switch perspective at boot"*;
 - commands act **in the context of the currently selected perspective** (`switch_perspective`), because that
   is how an operator would drive it — so a read answers for *that node*, not for "the world";
 - capabilities differ per perspective. A call the active perspective cannot serve answers **HTTP 501

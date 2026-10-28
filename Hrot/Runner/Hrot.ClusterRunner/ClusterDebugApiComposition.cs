@@ -17,7 +17,7 @@ internal static class ClusterDebugApiComposition
     /// adapter. ⚠ The ack-gate is read through a lambda — the master is built in <c>Initialize</c> and disposed in
     /// <c>Shutdown</c>, so a latched value would answer for a controller that no longer exists.</remarks>
     public static Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher Dispatcher(
-        IEnumerable<object> subsystems, Func<string> currentPerspective)
+        IEnumerable<object> subsystems, Func<string> currentPerspective, Func<string?>? rememberedPerspective = null)
     {
         var list = subsystems.ToList();
         var providers = list
@@ -31,7 +31,9 @@ internal static class ClusterDebugApiComposition
         return new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
             providers,
             currentPerspective: currentPerspective,
-            acksPending: orchestrator is null ? null : () => orchestrator.IsAwaitingStepAcks);
+            acksPending: orchestrator is null ? null : () => orchestrator.IsAwaitingStepAcks,
+            // ⭐⭐ CE-4094 — the window manager's remembered perspective, so reads route there while `Start` shows (AQ108 M7).
+            rememberedPerspective: rememberedPerspective);
     }
 
     /// <summary>⭐ <c>CE-1303</c> P3 — the film director of the subsystem that owns one (the Replay Browser), or null.</summary>

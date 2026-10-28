@@ -275,13 +275,78 @@ public class WindowManager
     /// refusal that floods the log is a refusal nobody reads.</para>
     /// </summary>
     public void SwitchPerspective(string newPerspective)
+        => TrySwitchPerspective(newPerspective, out _);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>CE-4094 (AQ108 D16/M7) — the name of the START perspective</b>: what every host shows while the cluster rests in
+    /// Idle. 📄 <c>Architect_Question_108_Run_Mode_Picker.md</c> §4 D16, §5 M7. ⭐ One constant, so the dispatcher, the HTTP
+    /// surface and the start gate (CE-4096) cannot disagree about the spelling.
+    /// </summary>
+    public const string StartPerspectiveName = "Start";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The perspective that was current when <see cref="StartPerspectiveName"/> was entered</b> — the one leaving Start
+    /// restores (D16) and the one HTTP reads route to while Start shows (the dispatcher's alias). <see langword="null"/> until
+    /// Start has been entered, and again once it is left. ⛔ The ONE owner: set inside <see cref="TrySwitchPerspective"/>, the
+    /// only funnel into Start, so no host can enter Start without remembering.
+    /// </summary>
+    public string? RememberedPerspective { get; private set; }
+
+    /// <summary>⭐ True while <see cref="StartPerspectiveName"/> is the current perspective.</summary>
+    public bool IsStartShowing => CurrentPerspective == StartPerspectiveName;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The switch with its reason</b> — <see cref="SwitchPerspective"/> delegates here. Returns <see langword="false"/>
+    /// (and a <paramref name="reason"/>) when the switch is REFUSED: ① <b>Start is current</b> — the gate owns leaving it
+    /// (<see cref="LeaveStartPerspective"/>), so a toolbar click, a menu action or <c>POST /perspective</c> cannot walk out of
+    /// Idle; ② the name is claimed by no window (<c>A0</c>). Returns <see langword="true"/> for a switch that happened and for the
+    /// no-op onto the current perspective. ⭐ Entering Start remembers the outgoing perspective in
+    /// <see cref="RememberedPerspective"/>. ⚠ When Start is NOT current this behaves exactly as <see cref="SwitchPerspective"/>
+    /// always did.
+    /// </summary>
+    public bool TrySwitchPerspective(string newPerspective, out string? reason)
     {
-        if (newPerspective == CurrentPerspective) return;
+        reason = null;
+        if (newPerspective == CurrentPerspective) return true;
+
+        if (IsStartShowing)
+        {
+            reason = $"The Start perspective is showing (the cluster is Idle) — '{newPerspective}' cannot be selected until a scenario or "
+                   + $"recording is opened or created; leaving Start restores '{RememberedPerspective ?? "the previous perspective"}'.";
+            return false;
+        }
+
+        return ApplyPerspective(newPerspective, out reason);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The gate's own way out of Start</b> — restores <see cref="RememberedPerspective"/> and clears it (D16: "leaving Idle
+    /// restores the host's remembered perspective"). ⛔ The ONLY path out of Start; ⭐ the start gate (CE-4096) calls it when the
+    /// cluster leaves Idle — ⛔ not another remember-and-restore. Returns <see langword="false"/> with a reason when Start is not
+    /// showing or the remembered perspective is no longer claimed (Start then stays, never a blank UI — <c>A0</c>).
+    /// </summary>
+    public bool LeaveStartPerspective(out string? reason)
+    {
+        reason = null;
+        if (!IsStartShowing) { reason = "The Start perspective is not showing."; return false; }
+        if (RememberedPerspective is not { } target)
+        { reason = "No perspective was remembered when Start was entered."; return false; }
+
+        // The gate's path bypasses the Start refusal but keeps the A0 claimed-set check.
+        if (!ApplyPerspective(target, out reason)) return false;
+        RememberedPerspective = null;
+        return true;
+    }
+
+    private bool ApplyPerspective(string newPerspective, out string? reason)
+    {
+        reason = null;
 
         // ⭐⭐⭐ A0 — the claimed set is the only legal set. ⛔ Do NOT relax this to "non-empty string":
         //    the whole defect is that an unclaimed name is syntactically fine and semantically blank.
         if (!GetPerspectives().Contains(newPerspective))
         {
+            reason = $"'{newPerspective}' is not a perspective any registered window claims.";
             if (_refusedPerspectives.Add(newPerspective))
                 FdpLog<WindowManager>.Warn(
                     "[WindowManager] Refused to switch to unknown perspective '{0}' — "
@@ -289,12 +354,15 @@ public class WindowManager
                     newPerspective,
                     CurrentPerspective,
                     string.Join(", ", GetPerspectives()));
-            return;
+            return false;
         }
 
         var old = CurrentPerspective;
+        // ⭐ The ONE place Start is remembered into: every entry funnels through here.
+        if (newPerspective == StartPerspectiveName) RememberedPerspective = old;
         CurrentPerspective = newPerspective;
         OnPerspectiveChanged?.Invoke(old, newPerspective);
+        return true;
     }
 
     /// <summary>
@@ -501,7 +569,8 @@ public class WindowManager
     {
         filePath ??= DefaultSettingsPath;
         var state = new WindowManagerSettings(
-            CurrentPerspective,
+            // ⭐ CE-4094 — Start is a transient resting view, never a layout to restore at the next boot (D16).
+            IsStartShowing ? RememberedPerspective ?? CurrentPerspective : CurrentPerspective,
             UiScale,
             new Dictionary<string, WindowState>(
                 _windows
