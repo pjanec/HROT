@@ -4,7 +4,10 @@ using Fdp.Core.Serialization;
 using Fdp.Toolkit.Behavior.Components;
 using Hrot.NED.Messages;
 using System.Threading;
+using System.Collections.Generic;
+using System.Linq;
 using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Components;
@@ -98,6 +101,92 @@ public class PartialOwnerReclaimTests
             $"CGF must take back the kinematic group once its grantee has left. {Describe(cgf, tank)}");
         Assert.True(((ISimulationView)cgf).HasAuthority(tank, Key(EDescriptorType.dtWorldPos)));
         Assert.False(cgf.HasManagedComponent<OutgoingGrantsPending>(tank));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4079</c> ② — the creator LETS GO of a granted descriptor once the grantee confirms (F7), and the instance is never deleted
+    /// on the way: a reader of <c>WorldPos</c> sees the tank's instance, alive, written by the grantee; and when the grantee's writer then goes
+    /// away, the reader sees <c>NotAliveNoWriters</c> — the spec's partial-owner signal — never <c>NotAliveDisposed</c>. 📐 Without the
+    /// creator's release the instance would stay registered by two writers and the grantee's writer going would show NOTHING; with the
+    /// library's default writer QoS the release would DISPOSE the descriptor mid-handover.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3. Node 77 is the grantee: it confirms (an <c>OwnershipUpdate</c> and a
+    /// <c>WorldPos</c> write), and keeps heartbeating so the cluster does not see it LEAVE (that would be the reclaim above).
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public void AGrantTheGranteeConfirmed_IsLetGoByTheCreator_SoTheGranteesWriterGoingShowsAsNoWriters()
+    {
+        int domainId = Interlocked.Increment(ref _domainCounter);
+        using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
+        using var fake = new DdsParticipant((uint)domainId);
+        fake.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = domainId, AppInstanceId = FakeNode });
+        using var observerNode = new DdsParticipant((uint)domainId);
+        observerNode.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = domainId, AppInstanceId = 99 });
+        using var probe = new DdsReader<WorldPos>(observerNode);                       // a bystander: reads the topic like any replica
+        probe.EnableSenderTracking(observerNode.SenderRegistry!);
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);
+        var caps = Join(fake);
+        using var owner = new DdsWriter<WireOwnershipUpdate>(fake);
+        var position = new DdsWriter<WorldPos>(fake);
+        Heartbeat(hb);
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
+
+        long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
+        var cgf = harness.Cgf!.World!;
+
+        var seen = new List<(DdsInstanceState State, int? Sender)>();
+        void Observe()
+        {
+            using var loan = probe.Take();
+            int i = 0;
+            foreach (var s in loan)
+            {
+                long id = s.IsValid ? s.Data.EntityId : DdsTypeSupport.FromNative<WorldPos>(s.NativePtr).EntityId;
+                if (id == net) seen.Add((s.Info.InstanceState, loan.GetSender(i)?.AppInstanceId));
+                i++;
+            }
+        }
+
+        Entity tank = Entity.Null;
+        Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
+                                         && cgf.HasManagedComponent<OutgoingGrantsPending>(tank)
+                                         && seen.Any(x => x.State == DdsInstanceState.Alive),   // ⚠ the harness's own nodes share ONE untracked participant: their samples carry no sender
+                timeoutFrames: 3000, alsoEachTick: Observe),
+            "CGF must create the tank, hold the grant pending, and publish its position meanwhile (F7). "
+            + $"exists={harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out var t0)} pending={t0.Index != 0 && cgf.HasManagedComponent<OutgoingGrantsPending>(t0)} "
+            + $"saw: {string.Join(", ", seen.Select(x => $"{x.State}/{x.Sender}"))}");
+
+        // The grantee takes over and confirms: it writes the position and says it owns it (re-sent until CGF has it).
+        bool WorldPosStillPending() => cgf.HasManagedComponent<OutgoingGrantsPending>(tank)
+            && cgf.GetComponent<OutgoingGrantsPending>(tank).Descriptors.ContainsKey((long)EDescriptorType.dtWorldPos);   // the mark holds every granted descriptor
+        Assert.True(PumpAlive(harness, hb, () => !WorldPosStillPending()
+                                              && Recorded(cgf, tank, Key(EDescriptorType.dtWorldPos)) == FakeNode
+                                              && seen.Any(x => x.State == DdsInstanceState.Alive && x.Sender == FakeNode),
+                timeoutFrames: 3000,
+                alsoEachTick: () =>
+                {
+                    owner.Write(new WireOwnershipUpdate
+                    {
+                        EntityId = net, DescrTypeId = (long)EDescriptorType.dtWorldPos, InstanceId = 0, NewOwner = FakeNode, OriginNodeId = FakeNode,
+                    });
+                    position.Write(new WorldPos { EntityId = net });
+                    Observe();
+                }),
+            "CGF must record node 77 as the position's owner (ending its F7 window) and a reader must see node 77's sample. "
+            + $"pending={WorldPosStillPending()} recorded={Recorded(cgf, tank, Key(EDescriptorType.dtWorldPos))} "
+            + $"saw: {string.Join(", ", seen.Select(x => $"{x.State}/{x.Sender}"))}");
+
+        // The creator's release must have reached the wire by now. Nothing about the instance was deleted.
+        PumpAlive(harness, hb, () => false, timeoutFrames: 60, alsoEachTick: Observe);
+        Assert.DoesNotContain(seen, x => x.State == DdsInstanceState.NotAliveDisposed);
+
+        // ⭐ The grantee's writer goes away (node 77 itself stays in the cluster, so this is not a departure). Only the creator's
+        //   release can make that the LAST writer: the reader must now see the instance as having no writers — not disposed.
+        position.Dispose();
+        Assert.True(PumpAlive(harness, hb, () => seen.Any(x => x.State == DdsInstanceState.NotAliveNoWriters),
+                timeoutFrames: 3000, alsoEachTick: Observe),
+            "once the grantee's writer is gone the reader must see NotAliveNoWriters — the creator must have let go of the instance. "
+            + $"saw: {string.Join(", ", seen.Select(x => $"{x.State}/{x.Sender}"))}");
+        Assert.DoesNotContain(seen, x => x.State == DdsInstanceState.NotAliveDisposed);
     }
 
     /// <summary>An external node is handed the position (spec <c>OwnershipUpdate</c>, Q79 §0.12 E2), then leaves: every

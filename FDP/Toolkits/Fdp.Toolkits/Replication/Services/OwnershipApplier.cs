@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Utilities;
 
 namespace Fdp.Toolkit.Replication.Services
 {
@@ -73,6 +74,10 @@ namespace Fdp.Toolkit.Replication.Services
                 }
             }
 
+            // ── 0. Who owned it until now: the record, else the primary owner (CE-4079 ② — to tell a GAIN from a repeat) ──────────
+            int previousOwner = map.TryGetValue(packedKey, out int recorded) ? recorded
+                : repo.HasComponent<NetworkAuthority>(entity) ? repo.GetComponentRO<NetworkAuthority>(entity).PrimaryOwnerId : -1;
+
             // ── 1. The record ──────────────────────────────────────────────────────────────────────────
             map[packedKey] = newOwnerNodeId;
             repo.SetManagedComponent(entity, ownership with { Map = map });
@@ -91,6 +96,14 @@ namespace Fdp.Toolkit.Replication.Services
                         repo.SetAuthority(entity, componentId, isAuth);
                 }
             }
+
+            // ── 2b. ⭐ CE-4079 ② — a node that GAINS a descriptor publishes it once: the spec's "the new owner writes the descriptor to
+            //    confirm". It matters most to a creator that took a grant BACK (the grantee left): its writer had let go of the instance
+            //    when the grantee confirmed, so without a write the instance would stay unwritten — NoWriters, and nothing for a late
+            //    joiner — until the value next changed. Only a descriptor published through SmartEgress needs the mark (the others
+            //    forgot what they sent when they released); an entity with no publication state publishes anyway.
+            if (isAuth && previousOwner != newOwnerNodeId && instanceId == 0 && repo.HasManagedComponent<EgressPublicationState>(entity))
+                SmartEgressUtil.MarkDirty(repo, entity, typeId);
 
             // ── 3b. Primary-owner mirror (BDC compliance, OQ12 / CE-275 ④). The master descriptor DEFINES entity /
             //    save ownership; it is named network-agnostically through PrimaryOwnerDescriptorOrdinal. Written on

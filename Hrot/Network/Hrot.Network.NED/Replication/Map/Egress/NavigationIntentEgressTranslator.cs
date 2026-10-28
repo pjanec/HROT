@@ -188,6 +188,15 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>No DDS dispose needed for navigation intent.</summary>
         public void Dispose(long networkEntityId) { }
 
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
+            _lastScanTick = 0;   // the next scan looks at every chunk again, so a reclaimed intent is republished
+            if (_publishedIds.Remove(networkEntityId))
+                _writer.UnregisterInstance(new Hrot.NED.Descriptors.NavigationIntent { EntityId = networkEntityId });
+        }
+
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         internal static ENavigationMode MapMode(EcsNavMode mode) => mode switch

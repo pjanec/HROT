@@ -93,7 +93,7 @@ namespace Hrot.NED.Descriptors
     // Once this one is removed, the entity instances ceases to exist no matter if its descriptors still exist.
     [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityMaster
     {
         // Entity instance id.
@@ -164,7 +164,7 @@ namespace Hrot.NED.Descriptors
     // but crucial for identification and hierarchy.
     [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct EntityInfo
     {
@@ -202,7 +202,7 @@ namespace Hrot.NED.Descriptors
     // NOT for every descriptor, on demand only! Used just where optimistic locking is needed.
     [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepAll)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepAll, AutodisposeUnregisteredInstances = false)]
     public partial struct DescriptorOptimisticLock
     {
         // Key 1: Entity ID.

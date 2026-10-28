@@ -30,7 +30,7 @@ namespace Hrot.Network.NED.Tests
         /// <summary>A private DDS domain (the NED suite's other tests use 120, 121, 150, 151, 200).</summary>
         private const uint PrivateDomain = 122;
 
-        private static readonly Lazy<IReadOnlyList<Type>> TopicTypes = new(FindTopicTypes);
+        internal static readonly Lazy<IReadOnlyList<Type>> TopicTypes = new(FindTopicTypes);   // ⭐ CE-4079 ②: the descriptor-QoS rail walks the same types
 
         private static bool IsHrotAssembly(string? name)
             => name is not null

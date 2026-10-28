@@ -17,7 +17,7 @@ namespace Hrot.NED.Descriptors
     //   Name and topic QoS are unchanged.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct WorldPos
     {
         // Primary Key: Which entity is being modified?
@@ -65,7 +65,7 @@ namespace Hrot.NED.Descriptors
     // 📄 docs/designs/brain-split/BS-1-DESIGN.md §6.5 · Blueprint_Issues_Tracker CE-196.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityDamage
     {
         // Primary Key: Which entity is being modified?
@@ -85,7 +85,7 @@ namespace Hrot.NED.Descriptors
     //   string, never a number). TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every door's current state.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct EntityDoorState
     {
@@ -105,7 +105,7 @@ namespace Hrot.NED.Descriptors
     //   joiner gets every weapon's current state.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponSystemState
     {
         [DdsKey]
@@ -127,7 +127,7 @@ namespace Hrot.NED.Descriptors
     //   Reliable + TransientLocal + KeepLast(1) keyed by entity, like the scenario clock: a late joiner gets the current settings.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityTrafficDemand
     {
         [DdsKey]
@@ -157,7 +157,7 @@ namespace Hrot.NED.Descriptors
 
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityScenarioClock
     {
         [DdsKey]
@@ -177,7 +177,7 @@ namespace Hrot.NED.Descriptors
     //   levels, 4 cloud layers. Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner gets the current weather.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeather
     {
         [DdsKey]
@@ -225,7 +225,7 @@ namespace Hrot.NED.Descriptors
     //   BestEffort + TransientLocal + KeepLast 1 like WorldPos: a lost sample is repaired by the next change or the heartbeat.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityTurretPose
     {
         /// <summary>Network id of the hull (the part's <c>PartMetadata.ParentEntity</c>).</summary>
@@ -255,7 +255,7 @@ namespace Hrot.NED.Descriptors
     //   📄 docs/DESIGN_Weapon_Layers.md §5d.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponTask
     {
         [DdsKey] public long ParentNetworkId;
@@ -280,7 +280,7 @@ namespace Hrot.NED.Descriptors
     // ⭐ WL-2b (CE-1049) — the weapon muscle's report on that order (W-3), Muscle → Brain, same key.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponTaskStatus
     {
         [DdsKey] public long ParentNetworkId;
@@ -298,7 +298,7 @@ namespace Hrot.NED.Descriptors
     //   📄 docs/DESIGN_Weapon_Layers.md §5h.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponPosture
     {
         [DdsKey] public long EntityId;
@@ -320,7 +320,7 @@ namespace Hrot.NED.Descriptors
     //   matters (M-6), and a lost sample is repaired by the next one.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityManualDrive
     {
         [DdsKey] public long EntityId;
@@ -337,7 +337,7 @@ namespace Hrot.NED.Descriptors
     //   KeepLast 1: a late joiner must see it; Held = 0 is the release (no revoke message exists to get lost).
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityPossessedBy
     {
         [DdsKey] public long EntityId;
@@ -353,7 +353,7 @@ namespace Hrot.NED.Descriptors
     //   KeepLast 1: it changes per round fired, and a station that possesses the unit later must see it.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponAmmo
     {
         [DdsKey] public long EntityId;
@@ -395,7 +395,7 @@ namespace Hrot.NED.Descriptors
     //   the unit. Reliable + TransientLocal + KeepLast 1 (the dtWeaponAmmo shape): STATE, so a lost sample cannot leave the HUD stale.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityOperatorUseStatus
     {
         [DdsKey] public long EntityId;
@@ -409,7 +409,7 @@ namespace Hrot.NED.Descriptors
     //   Brain → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1: STATE, like dtOperatorUseStatus.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityEffectState
     {
         [DdsKey] public long EntityId;
@@ -426,7 +426,7 @@ namespace Hrot.NED.Descriptors
     //   out on the man's own clock, never poses to snap to; 0 ends either at once.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityGesture
     {
         [DdsKey] public long EntityId;
@@ -441,7 +441,7 @@ namespace Hrot.NED.Descriptors
     //   who is held.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityCustody
     {
         [DdsKey] public long EntityId;
@@ -455,7 +455,7 @@ namespace Hrot.NED.Descriptors
     //   TransientLocal + KeepLast 1: a late joiner must know who leans.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityLean
     {
         [DdsKey] public long EntityId;
@@ -469,7 +469,7 @@ namespace Hrot.NED.Descriptors
     //   three sources and the set bits (the precedence stays in ProficiencyOf, the one reader). Reliable + TransientLocal + KeepLast 1.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityCombatProficiency
     {
         [DdsKey] public long EntityId;
@@ -483,7 +483,7 @@ namespace Hrot.NED.Descriptors
     //   (the four NoFire network ids flattened). Reliable + TransientLocal + KeepLast 1.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityEngagementArea
     {
         [DdsKey] public long EntityId;
@@ -512,7 +512,7 @@ namespace Hrot.NED.Descriptors
     // ⭐ CE-3264 (G1, §7.18) — what a man says now, his brain's owner → every node. Target = a NETWORK id (0 = everyone around).
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityUtterance
     {
         [DdsKey] public long EntityId;
@@ -525,7 +525,7 @@ namespace Hrot.NED.Descriptors
     // ⭐ CE-3265 (G2, §7.18) — how a civilian seems: his mode, fear and anger in quarters, his brain's owner → every node.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityDemeanour
     {
         [DdsKey] public long EntityId;
@@ -537,7 +537,7 @@ namespace Hrot.NED.Descriptors
     // ⭐ CE-3271 (Q94 D, §5.2a) — a spawn's birth level (mode, level) and whether the position's owner has applied it.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntitySpawnLevel
     {
         [DdsKey] public long EntityId;
@@ -550,7 +550,7 @@ namespace Hrot.NED.Descriptors
     // ⭐ CE-1223 (Entity Control §8k S-2) — when a man was last hit or nearly missed (sim seconds), stamped on the Muscle, read by every node's hit model.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityUnderFire
     {
         [DdsKey] public long EntityId;
@@ -559,7 +559,7 @@ namespace Hrot.NED.Descriptors
 
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityLookState
     {
         [DdsKey] public long EntityId;
@@ -573,7 +573,7 @@ namespace Hrot.NED.Descriptors
 
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityHostileAct
     {
         [DdsKey] public long EntityId;
@@ -585,7 +585,7 @@ namespace Hrot.NED.Descriptors
     //   a late joiner must see a cloud still hanging there. Its position is the entity's ordinary transform.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityAreaEffectCloud
     {
         [DdsKey] public long EntityId;
@@ -605,7 +605,7 @@ namespace Hrot.NED.Descriptors
     //   and a late joiner must see a man's wounds.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityPartDamage
     {
         [DdsKey] public long EntityId;
@@ -633,7 +633,7 @@ namespace Hrot.NED.Descriptors
     //   sample is repaired by the next hit, a late joiner gets the ring.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityHitMarks
     {
         [DdsKey] public long EntityId;
@@ -647,7 +647,7 @@ namespace Hrot.NED.Descriptors
     //   late joiner must see it.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityDescent
     {
         [DdsKey] public long EntityId;
@@ -671,7 +671,7 @@ namespace Hrot.NED.Descriptors
     //   Reliable + TransientLocal + KeepLast 1: a late joiner must know who is aboard.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityPassengers
     {
         [DdsKey] public long EntityId;
@@ -704,7 +704,7 @@ namespace Hrot.NED.Descriptors
     //   📄 docs/DESIGN_Peek_And_Fire.md §9.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityObstacleShape
     {
         [DdsKey]
@@ -765,7 +765,7 @@ namespace Hrot.NED.Descriptors
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct NavigationIntent
     {
         /// <summary>Which entity this command targets.</summary>
@@ -815,7 +815,7 @@ namespace Hrot.NED.Descriptors
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct NavigationStatus
     {
         /// <summary>Which entity's navigation state is reported.</summary>
@@ -912,7 +912,7 @@ namespace Hrot.NED.Descriptors
 
     /// <summary>Sensor configuration broadcast for an observer entity. Key = EntityId.</summary>
     [DdsTopic]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct SensorConfig
     {
         [DdsKey] public long  EntityId;
@@ -935,7 +935,7 @@ namespace Hrot.NED.Descriptors
 
     /// <summary>Per-observer snapshot of currently detected targets. Best-effort, volatile.</summary>
     [DdsTopic]
-    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile)]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile, AutodisposeUnregisteredInstances = false)]
     public partial struct SensorTargets
     {
         [DdsKey] public long ObserverEntityId;
@@ -950,7 +950,7 @@ namespace Hrot.NED.Descriptors
     /// congestion and new Brain nodes receive the last state for each observer/target pair.
     /// </summary>
     [DdsTopic]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct SensorTrackState
     {
         /// <summary>ECS/network ID of the observer entity that holds the sensor.</summary>
@@ -1051,7 +1051,7 @@ namespace Hrot.NED.Descriptors
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct GroundClampingOverride
     {
         /// <summary>Network entity ID matching <see cref="WorldPos.EntityId"/>.</summary>

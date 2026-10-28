@@ -96,6 +96,12 @@ namespace Hrot.Network.NED.SimHost
         {
             _writer?.DisposeInstance(new SensorConfig { EntityId = networkEntityId });
         }
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it. ⚠ A reclaim republishes through the dirty mark the ownership applier sets when this node gains the descriptor.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            _writer?.UnregisterInstance(new SensorConfig { EntityId = networkEntityId });
+        }
     }
 
     /// <summary>

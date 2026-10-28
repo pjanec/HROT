@@ -323,7 +323,7 @@ namespace Hrot.NED.Messages
     // TransientLocal: late-joining ExCon subscribers immediately receive the latest published schema.
     [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
-            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct EntityAttributeSchema
     {

@@ -43,6 +43,24 @@ namespace Fdp.Toolkit.Replication.Messages
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4079</c> ② — local event: the creator's grant of a descriptor was CONFIRMED by the grantee (F7), so this node's
+    /// writer should let go of that instance (<c>IDescriptorTranslator.ReleaseInstance</c> — an unregister, never a dispose) and the
+    /// grantee becomes its sole writer. Raised by <c>OwnershipRecomputeSystem</c> where it ends the creator's
+    /// <c>OutgoingGrantsPending</c> mark; consumed by <c>CycloneNetworkCleanupSystem</c>.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3.
+    /// </summary>
+    [EventId(9034)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct DescriptorHandedOver
+    {
+        public NetworkIdentity NetworkId;
+        public long PackedKey;
+
+        public override string ToString()
+            => $"DescriptorHandedOver(NetId={NetworkId.Value}, Key={Fdp.Interfaces.PackedKey.ToString(PackedKey)})";
+    }
+
+    /// <summary>
     /// ⭐ Local event: a cluster node has LEFT (crashed or exited) — this node no longer hears its heartbeat. Raised by
     /// the network implementation's cluster-membership ingest; consumed by <c>PartialOwnerReclaimSystem</c>, which
     /// returns what the departed node owned to each entity's primary owner (R-167: a direct call, never a network

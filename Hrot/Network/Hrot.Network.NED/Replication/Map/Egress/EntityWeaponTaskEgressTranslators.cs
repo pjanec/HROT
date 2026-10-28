@@ -62,6 +62,12 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         public void Dispose(long networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
+        /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+            => TurretPartKey.Release(_last, networkEntityId,
+                partId => _writer?.UnregisterInstance(new EntityWeaponTask { ParentNetworkId = networkEntityId, PartId = partId }));
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 
@@ -107,6 +113,12 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         public void Dispose(long networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
+        /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+            => TurretPartKey.Release(_last, networkEntityId,
+                partId => _writer?.UnregisterInstance(new EntityWeaponTaskStatus { ParentNetworkId = networkEntityId, PartId = partId }));
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 
@@ -124,6 +136,15 @@ namespace Hrot.Map.Common.Replication.Egress
             if (!view.HasAuthority(part, OwnershipExtensions.PackKey(descriptor, partId))) return false;
             hullNetworkId = view.GetComponentRO<NetworkIdentity>(hull).Value;
             return true;
+        }
+
+        /// <summary>⭐ CE-4079 ② — forgets every cached part of the hull and calls <paramref name="unregister"/> for each part id this node had published.</summary>
+        public static void Release<T>(Dictionary<(long, int), T> cache, long hullNetworkId, System.Action<int> unregister)
+        {
+            List<(long, int)>? mine = null;
+            foreach (var key in cache.Keys) if (key.Item1 == hullNetworkId) (mine ??= new()).Add(key);
+            if (mine == null) return;
+            foreach (var key in mine) { cache.Remove(key); unregister(key.Item2); }
         }
 
         public static void Forget<T>(Dictionary<(long, int), T> cache, long hullNetworkId)

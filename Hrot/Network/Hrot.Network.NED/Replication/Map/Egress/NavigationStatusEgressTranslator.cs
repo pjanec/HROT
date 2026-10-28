@@ -143,6 +143,14 @@ namespace Hrot.Map.Common.Replication.Egress
                 _lastPublished.Remove(entity);
         }
 
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublished.Remove(entity);
+            if (_publishedIds.Remove(networkEntityId))
+                _writer.UnregisterInstance(new Hrot.NED.Descriptors.NavigationStatus { EntityId = networkEntityId });
+        }
+
         // â”€â”€ Enum mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         private static ENavigationResult MapResult(EcsNavResult result) => result switch

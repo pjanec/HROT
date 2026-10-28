@@ -71,7 +71,7 @@ namespace Hrot.NED.Descriptors
 
     [DdsTopic]
     [DdsIdlFile("hrot-missions-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityMission
     {
         [DdsKey]

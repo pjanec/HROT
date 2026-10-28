@@ -10,6 +10,8 @@ using Fdp.Network.Cyclone.Topics;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Messages;
 
 namespace Fdp.Network.Cyclone.Systems
 {
@@ -39,6 +41,9 @@ namespace Fdp.Network.Cyclone.Systems
 
         /// <summary>⭐ CE-3329 W1 — how many full sweeps ran: one per in-place world replacement, never one per frame.</summary>
         public int Sweeps { get; private set; }
+
+        /// <summary>⭐ CE-4079 ② — descriptor instances this node's writers let go of because the grantee confirmed (F7). Diagnostics, rails.</summary>
+        public int ReleasedHandedOver { get; private set; }
         
         public CycloneNetworkCleanupSystem(IEnumerable<Fdp.Interfaces.IDescriptorTranslator> translators)
         {
@@ -57,6 +62,8 @@ namespace Fdp.Network.Cyclone.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            ReleaseHandedOver(view);
+
             // ⭐⭐ CE-4000 F2 / R-4019 — the world was wiped (entering Idle, or a load's world boundary) without a
             //   DestructionOrder: DELETE on the wire every entity this node owned, then forget them — so a late joiner never
             //   receives a dead run (EntityMaster is TransientLocal). ⛔ SUPERSEDED (CE-2101): "forget, no Dispose — the next
@@ -185,6 +192,38 @@ namespace Fdp.Network.Cyclone.Systems
             }
             if (_gone.Count > 0)
                 FdpLog<CycloneNetworkCleanupSystem>.Debug("Sweep: {0} id(s) left this node's world.", _gone.Count);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ② — the creator's grant was CONFIRMED by the grantee (<see cref="DescriptorHandedOver"/>, raised by
+        /// <c>OwnershipRecomputeSystem</c>): the translators of that descriptor let go of the instance — an UNREGISTER, never a dispose
+        /// (every descriptor topic sets <c>AutodisposeUnregisteredInstances = false</c>), so readers keep the grantee's value and the
+        /// grantee is the SOLE writer: its crash then shows on the descriptor as <c>NotAliveNoWriters</c>, which is the spec's partial-owner
+        /// mechanism. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.3 (F7). ⚠ Not held by the replay egress hold: it is a retraction
+        /// like the disposes below, and the grantee already writes.
+        /// </summary>
+        private void ReleaseHandedOver(ISimulationView view)
+        {
+            if (view is not EntityRepository repo || !repo.Bus.IsRegistered<DescriptorHandedOver>()) return;
+            foreach (var handedOver in view.ReadEvents<DescriptorHandedOver>())
+            {
+                var (typeId, instanceId) = OwnershipExtensions.UnpackKey(handedOver.PackedKey);
+                foreach (var translator in _translators)
+                {
+                    if (translator.DescriptorOrdinal != typeId) continue;
+                    try
+                    {
+                        translator.ReleaseInstance(handedOver.NetworkId.Value, instanceId);
+                        ReleasedHandedOver++;
+                    }
+                    catch (Exception ex)
+                    {
+                        FdpLog<CycloneNetworkCleanupSystem>.Warn(
+                            "Translator {0} failed to release entity {1} (descriptor {2}): {3}",
+                            translator.GetType().Name, handedOver.NetworkId.Value, typeId, ex.Message);
+                    }
+                }
+            }
         }
 
         private void Observe(ISimulationView view, EntityRepository repo, Entity entity)

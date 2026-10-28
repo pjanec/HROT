@@ -60,13 +60,16 @@ namespace Hrot.SimHost.Tests
 
         private sealed class MockTranslator : Fdp.Interfaces.IDescriptorTranslator
         {
-            public long DescriptorOrdinal => 0;
+            public long DescriptorOrdinal { get; init; } = 0;
             public string TopicName => "mock";
             public long ReceivedSampleCount { get; private set; }
             public long SentSampleCount { get; private set; }
             public TranslatorDirection Direction => TranslatorDirection.Bidirectional;
             public List<long> DisposedIds { get; } = new();
             public bool ThrowOnDispose { get; set; }
+            // ⭐ CE-4079 ②
+            public List<(long Id, long Instance)> Released { get; } = new();
+            public bool ThrowOnRelease { get; set; }
 
             public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
             public void ScanAndPublish(ISimulationView view) { }
@@ -76,6 +79,12 @@ namespace Hrot.SimHost.Tests
             {
                 if (ThrowOnDispose) throw new InvalidOperationException("Simulated disposal failure");
                 DisposedIds.Add(networkEntityId);
+            }
+
+            public void ReleaseInstance(long networkEntityId, long instanceId)
+            {
+                if (ThrowOnRelease) throw new InvalidOperationException("Simulated release failure");
+                Released.Add((networkEntityId, instanceId));
             }
         }
 
@@ -341,6 +350,41 @@ namespace Hrot.SimHost.Tests
             repo.DestroyEntity(unit);                                   // its owner deleted it; our ghost goes
             system.Execute(repo, 0f);
             Assert.Empty(t1.DisposedIds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ② — the creator's grant was confirmed (<c>DescriptorHandedOver</c>): the translators of THAT descriptor let go of
+        /// the instance — once, with the entity's id and the descriptor's instance — and nothing is disposed (a dispose would delete the
+        /// descriptor the grantee now owns). A translator that fails to release does not stop the others.
+        /// </summary>
+        [Fact]
+        public void CE4079_AHandedOverDescriptor_IsReleasedOnThatDescriptorsTranslatorsOnly_AndNeverDisposed()
+        {
+            var repo = CreateWorld();
+            repo.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorHandedOver>();
+            var egress = new MockTranslator { DescriptorOrdinal = 2 };
+            var ingressOfTheSame = new MockTranslator { DescriptorOrdinal = 2 };
+            var broken = new MockTranslator { DescriptorOrdinal = 2, ThrowOnRelease = true };
+            var other = new MockTranslator { DescriptorOrdinal = 3 };
+            var system = new CycloneNetworkCleanupSystem(new[] { broken, egress, ingressOfTheSame, other });
+
+            repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.DescriptorHandedOver
+            {
+                NetworkId = new NetworkIdentity(77L),
+                PackedKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(2, 0),
+            });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0f);
+
+            Assert.Equal(new[] { (77L, 0L) }, egress.Released);
+            Assert.Equal(new[] { (77L, 0L) }, ingressOfTheSame.Released);   // the translator filter is the ordinal; each translator decides if it ever wrote
+            Assert.Empty(other.Released);                                   // another descriptor's translator is left alone
+            Assert.Empty(egress.DisposedIds);                               // ⭐ a release is not a delete
+            Assert.Equal(2, system.ReleasedHandedOver);                     // the broken one is not counted and did not stop the rest
+
+            repo.Bus.SwapBuffers();                                         // the next frame: the event is gone, nothing is released again
+            system.Execute(repo, 0f);
+            Assert.Single(egress.Released);
         }
 
         /// <summary>⭐ §12b — an entity retracted by its DestructionOrder lingers while it tears down (awaiting acks); a tearing-down

@@ -142,6 +142,12 @@ namespace Hrot.Map.Common.Replication.Egress
             _lastPublished.Remove(networkEntityId);
         }
 
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            if (_lastPublished.Remove(networkEntityId)) _writer.UnregisterInstance(new EntityDamage { EntityId = networkEntityId });
+        }
+
         /// <inheritdoc/>
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }

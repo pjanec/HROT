@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EqsSensorConfigTopic
     {
         /// <summary>Network ID of the parent agent entity (first key field of the compound key).</summary>
@@ -132,7 +132,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EqsResultTopic
     {
         /// <summary>Network ID of the parent agent (first key field of the compound key).</summary>

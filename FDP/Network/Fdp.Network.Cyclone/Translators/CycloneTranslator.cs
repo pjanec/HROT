@@ -48,6 +48,26 @@ namespace Fdp.Network.Cyclone.Translators
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ② — the F7 giver lets go of the root instance WITHOUT disposing it (an unregister: the grantee keeps the
+        /// descriptor alive and becomes its sole writer). Only an EGRESS translator ever wrote the instance, so an ingress one does
+        /// nothing. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3.
+        /// </summary>
+        public virtual void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            if ((Direction & TranslatorDirection.Egress) == 0 || Writer == null) return;
+            UnregisterInstance(networkEntityId, 0);
+        }
+
+        /// <summary>Helper to unregister (release, never dispose) a specific instance — the key is patched like <see cref="DisposeInstance(long, long)"/>.</summary>
+        protected void UnregisterInstance(long entityId, long instanceId)
+        {
+            TDds keySample = default;
+            if (UnsafeLayout<TDds>.IsValid) UnsafeLayout<TDds>.WriteId(&keySample, entityId);
+            if (MultiInstanceLayout<TDds>.IsValid) MultiInstanceLayout<TDds>.WriteInstanceId(&keySample, instanceId);
+            Writer.UnregisterInstance(keySample);
+        }
+
+        /// <summary>
         /// Helper to dispose specific instance.
         /// </summary>
         protected void DisposeInstance(long entityId, long instanceId)

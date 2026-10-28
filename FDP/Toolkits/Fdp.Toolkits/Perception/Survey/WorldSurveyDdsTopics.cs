@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Perception.Survey.Topics
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct WorldSurveyResultTopic
     {
         /// <summary>Network id of the unit.</summary>

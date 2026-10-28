@@ -39,7 +39,7 @@ internal struct DdsAnimationChannelStatus
 //   first registered on SimHost / CGF). State-bearing: Reliable + TransientLocal + KeepLast 1 (the QoS table's State()).
 [DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
-[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
 public unsafe partial struct DdsLookAtChannelIntent
 {
@@ -55,7 +55,7 @@ public unsafe partial struct DdsLookAtChannelIntent
 
 [DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
-[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
 public partial struct DdsLookAtChannelStatus
 {
@@ -75,7 +75,7 @@ public partial struct DdsLookAtChannelStatus
 //   stay test-only (CE-3010).
 [DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
-[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
 public partial struct DdsStanceIntent
 {
@@ -90,7 +90,7 @@ public partial struct DdsStanceIntent
 
 [DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
-[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
 [StructLayout(LayoutKind.Sequential)]
 public partial struct DdsStanceStatus
 {

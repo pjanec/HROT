@@ -63,6 +63,12 @@ namespace Hrot.Map.Common.Replication.Egress
             => new() { EntityId = netId, Side = (byte)c.Side, Depth = c.Depth };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityLean { EntityId = networkEntityId });
+        }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

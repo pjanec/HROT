@@ -615,7 +615,7 @@ public class EntityMasterTranslatorTests
     }
 
     /// <summary>
-    /// ⭐ CE-517 + CE-4078 ① — end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
+    /// ⭐ CE-517 + CE-4079 ① — end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
     /// <c>EntityMaster</c> (sender identity), and does so <b>on the first poll that sees the sample</b>. Written ONCE.
     /// CycloneDDS.NET 1.2.20 resolves the sender when the sample is delivered (a lookup miss drains the identity reader
     /// synchronously), so there is no "owner unknown, learn it later" path any more — the 0.3.2 retry by publication handle is gone.

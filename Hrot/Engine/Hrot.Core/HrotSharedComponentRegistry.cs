@@ -279,6 +279,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Replication.Messages.OwnershipUpdate>();
         world.RegisterEvent<Fdp.Toolkit.Replication.Messages.NodeDeparted>();   // S7: a cluster node left (R-167 reclaim)
         world.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged>();
+        world.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorHandedOver>();   // CE-4079 ②: the F7 giver releases its writer's instance
 
         // ── Blueprint blackboard tiers ────────────────────────────────────────
         // ⭐⭐⭐ ADDED 2026-09-03 after a MEASURED production crash: a `--mode all` cluster aborted on

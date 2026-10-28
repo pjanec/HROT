@@ -203,7 +203,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     [DdsQos(Reliability = DdsReliability.Reliable,
             Durability  = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast,
-            HistoryDepth = 1)]
+            HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct AssetInventoryTopic
     {
         /// <summary>Key: 0 = singleton cluster orchestrator.</summary>
@@ -375,7 +375,7 @@ namespace Hrot.NED.Descriptors.Orchestration
 
     [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct NodeHeartbeat
     {
         [DdsKey] public int NodeId;
@@ -405,7 +405,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct NodeCapabilitiesTopic
     {
         [DdsKey] public int NodeId;

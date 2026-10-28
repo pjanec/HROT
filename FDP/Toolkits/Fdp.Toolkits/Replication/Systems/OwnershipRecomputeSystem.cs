@@ -109,8 +109,12 @@ namespace Fdp.Toolkit.Replication.Systems
                 {
                     var pending = repo.GetComponent<OutgoingGrantsPending>(entity);
                     var (typeId, _) = OwnershipExtensions.UnpackKey(update.PackedKey);
-                    if (update.NewOwnerNodeId != _localNodeId)
-                        pending.Descriptors.Remove(typeId);
+                    // ⭐⭐ CE-4079 ② — the grantee confirmed: the creator's F7 window for this descriptor ends, and its writer LETS GO of
+                    //   the instance (an unregister, never a dispose — the descriptor topics set AutodisposeUnregisteredInstances = false),
+                    //   so the grantee is the sole writer and its crash shows on the descriptor. 📄 DESIGN_Ownership_Groups_And_Grants §5.3.
+                    if (update.NewOwnerNodeId != _localNodeId && pending.Descriptors.Remove(typeId)
+                        && repo.Bus.IsRegistered<DescriptorHandedOver>())
+                        repo.Bus.Publish(new DescriptorHandedOver { NetworkId = update.NetworkId, PackedKey = OwnershipExtensions.PackKey(typeId, 0) });
                 }
                 Touch(entity);
             }

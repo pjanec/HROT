@@ -209,6 +209,81 @@ public sealed class NedReplicationModuleTests
         Assert.Equal(typeof(Fdp.Toolkit.Replication.Systems.OwnershipIngressSystem), after?.Target);
     }
 
+    // ── CE-4079 ② — the F7 giver can let go of every descriptor it may have granted ──────────────────────
+
+    /// <summary>
+    /// Egress translators of GRANTABLE descriptors that do not release an instance, each with the measured reason. A descriptor is grantable
+    /// when one of its <c>TargetComponentIds</c> is in an ownership group (<c>HrotOwnershipGroups.Table</c>) — the creator can hand it to
+    /// another node (<c>DeferredTakeOwnership</c>), and must then let go of it when the grantee confirms.
+    /// </summary>
+    private static readonly Dictionary<string, string> CannotReleaseBecause = new()
+    {
+        // (filled from the measured run below)
+    };
+
+    private static bool OverridesRelease(Fdp.Interfaces.IDescriptorTranslator t)
+    {
+        var map = t.GetType().GetInterfaceMap(typeof(Fdp.Interfaces.IDescriptorTranslator));
+        int i = Array.FindIndex(map.InterfaceMethods, m => m.Name == nameof(Fdp.Interfaces.IDescriptorTranslator.ReleaseInstance));
+        return i >= 0 && map.TargetMethods[i].DeclaringType != typeof(Fdp.Interfaces.IDescriptorTranslator);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4079</c> ② — what makes the giver's release complete BY CONSTRUCTION: the translators this node really registers are
+    /// built, and every egress one whose descriptor can be granted overrides <c>IDescriptorTranslator.ReleaseInstance</c>. Without it a
+    /// granted descriptor would keep the giver registered as a second writer (a grantee's crash would show nothing) and the library default
+    /// would be silently inherited by the next translator someone adds. 🔴 Red-proof: delete one override ⇒ this names the translator.
+    /// </summary>
+    [Theory]
+    [InlineData(NodeRole.Brain)]
+    [InlineData(NodeRole.MuscleGround)]
+    [InlineData(NodeRole.Traffic)]
+    [InlineData(NodeRole.Map2D)]
+    [InlineData(NodeRole.Brain | NodeRole.MuscleGround)]
+    [InlineData(NodeRole.Perception)]
+    public void CE4079_EveryEgressTranslatorOfAGrantableDescriptor_CanReleaseItsInstance(NodeRole role)
+    {
+        using var participant = new CycloneDDS.Runtime.DdsParticipant(0);
+        var entityMap = new NetworkEntityMap();
+        var module = new NedReplicationModule(
+            participant:  participant,
+            role:         role,
+            entityMap:    entityMap,
+            eventBus:     new FdpEventBus(),
+            localNodeId:  1,
+            domainId:     0);
+        var registry = new InstanceRegistry();
+        module.RegisterSystems(registry);
+
+        // The module's own packs, plus the host-built ones a node adds beside them (SimHostApp / CgfSubsystem).
+        var translators = new List<Fdp.Interfaces.IDescriptorTranslator>();
+        foreach (var egress in registry.Systems.OfType<CycloneEgressSystem>())
+            translators.AddRange(egress.Translators.OfType<Fdp.Interfaces.IDescriptorTranslator>());
+        translators.AddRange(Hrot.Network.NED.SimHost.SimHostAuxiliaryTranslatorPack.Create(participant, entityMap, new FdpEventBus(), 1, role));
+        var geo = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
+        if (role.HasFlag(NodeRole.Brain))
+            translators.AddRange(Hrot.Network.NED.SimHost.BrainPerceptionTranslatorPack.Create(participant, entityMap, geo, 1));
+        if (role.HasFlag(NodeRole.Perception))
+            translators.AddRange(Hrot.Network.NED.SimHost.SimPerceptionTranslatorPack.Create(participant, entityMap, geo, new GhostCreationSystem(entityMap)));
+
+        var table = Hrot.Map.Common.HrotOwnershipGroups.Table;
+        int grantable = 0;
+        var missing = new List<string>();
+        foreach (var t in translators)
+            {
+                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress) == 0) continue;
+                if (!t.TargetComponentIds.Any(id => table.GroupOf(id) != NodeRole.None)) continue;
+                grantable++;
+                string name = t.GetType().Name;
+                if (!OverridesRelease(t) && !CannotReleaseBecause.ContainsKey(name)) missing.Add(name);
+            }
+
+        Assert.True(grantable >= 1 || role == NodeRole.Map2D, $"{role}: no grantable egress translator found — the scan is not finding the pack");
+        Assert.True(missing.Count == 0,
+            $"{role}: egress translators of a grantable descriptor that cannot let go of an instance (override ReleaseInstance, or list them in "
+            + "CannotReleaseBecause with the reason):\n  " + string.Join("\n  ", missing.Distinct()));
+    }
+
     // ── CE-1148 S1 — ONE ingress path on every node (R-3015) ─────────────────────────────────────────────────
 
     private sealed class InstanceRegistry : ISystemRegistry

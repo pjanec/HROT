@@ -22,7 +22,7 @@ namespace Hrot.NED.Descriptors
     // - IG Logic: Look for specific override; if none, look for global; if none, use TKB default.
     [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapEntitySymbol
     {
@@ -56,7 +56,7 @@ namespace Hrot.NED.Descriptors
 
     [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapVisualOverlay
     {
@@ -139,7 +139,7 @@ namespace Hrot.NED.Descriptors
     // Defines a navigation route composed of multiple waypoints.
     [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapRoute
     {
@@ -173,7 +173,7 @@ namespace Hrot.NED.Descriptors
     // Scope: Group-based (Role). All IGs in "Blue Force" group receive this.
     [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapInteractionConfig
     {
@@ -228,7 +228,7 @@ namespace Hrot.NED.Descriptors
     // Scope: Instance-based.
     [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct MapConfigStatus
     {
@@ -249,7 +249,7 @@ namespace Hrot.NED.Descriptors
     // IG -> ExCon
     [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     [DdsManaged]
     public partial struct IGCapabilitiesAnnounce
     {

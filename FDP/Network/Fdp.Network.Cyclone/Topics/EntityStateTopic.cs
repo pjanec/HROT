@@ -11,7 +11,8 @@ namespace Fdp.Network.Cyclone.Topics
         Reliability = DdsReliability.BestEffort,
         Durability = DdsDurability.Volatile,
         HistoryKind = DdsHistoryKind.KeepLast,
-        HistoryDepth = 1
+        HistoryDepth = 1,
+        AutodisposeUnregisteredInstances = false
     )]
     public partial struct EntityStateTopic
     {

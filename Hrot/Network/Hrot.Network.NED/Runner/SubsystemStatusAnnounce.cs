@@ -17,7 +17,7 @@ namespace Hrot.DDS.DataModel.Runner
         Reliability  = DdsReliability.Reliable,
         Durability   = DdsDurability.TransientLocal,
         HistoryKind  = DdsHistoryKind.KeepLast,
-        HistoryDepth = 1)]
+        HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct SubsystemStatusAnnounce
     {
         /// <summary>Unique node identifier within the DDS domain. Used as the DDS key.</summary>

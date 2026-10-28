@@ -136,6 +136,83 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.True(creator.RecordMine(Info));                 // the creator's remainder is untouched
         }
 
+        // ── CE-4079 ②: the confirmation also tells the giver's writers to let go of the instance ───────────────
+
+        private static System.Collections.Generic.List<DescriptorHandedOver> HandedOver(Node n)
+        {
+            n.Repo.Bus.SwapBuffers();   // the event was published during the frame: readable after the swap
+            return new System.Collections.Generic.List<DescriptorHandedOver>(n.Repo.Bus.Read<DescriptorHandedOver>().ToArray());
+        }
+
+        [Fact]
+        public void CE4079_TheGranteesConfirmation_RaisesDescriptorHandedOver_OnceAndOnlyForAPendingGrant()
+        {
+            var creator = Build(Local, primary: Local);
+            creator.Repo.RegisterEvent<DescriptorHandedOver>();   // production: HrotSharedComponentRegistry
+            YieldGrant(creator, Kinematic);
+
+            creator.Update(Info, Local, Local);                    // an unrelated update: no grant is confirmed
+            creator.Frame();
+            Assert.Empty(HandedOver(creator));
+            Assert.True(creator.Repo.HasManagedComponent<OutgoingGrantsPending>(creator.E));
+
+            creator.Update(Kinematic, Remote, Remote);             // ⭐ the grantee takes over and confirms
+            creator.Frame();
+            var handed = HandedOver(creator);
+            Assert.Single(handed);
+            Assert.Equal(NetId, handed[0].NetworkId.Value);
+            Assert.Equal(Key(Kinematic), handed[0].PackedKey);
+
+            creator.Update(Kinematic, Remote, Remote);             // a repeat of the confirmation: nothing left to let go of
+            creator.Frame();
+            Assert.Empty(HandedOver(creator));
+        }
+
+        [Fact]
+        public void CE4079_AnUpdateNamingTheCreatorItself_ReleasesNothing()
+        {
+            // The grant is still pending and the update says the creator owns it (the creator keeps it): nothing is handed over.
+            var creator = Build(Local, primary: Local);
+            creator.Repo.RegisterEvent<DescriptorHandedOver>();
+            YieldGrant(creator, Kinematic);
+
+            creator.Update(Kinematic, Local, Local);
+            creator.Frame();
+
+            Assert.Empty(HandedOver(creator));
+            Assert.True(creator.Repo.HasManagedComponent<OutgoingGrantsPending>(creator.E));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4079</c> ② — a node that GAINS a descriptor publishes it once (the spec's "the new owner writes the descriptor to
+        /// confirm"): a descriptor published through SmartEgress is marked dirty. It matters to a creator that takes a grant BACK after its
+        /// writer let go of the instance — nothing else would write it. A repeat of the same update is not a gain; an update naming another
+        /// node marks nothing here.
+        /// </summary>
+        [Fact]
+        public void CE4079_GainingADescriptor_MarksItDirty_ForSmartEgress_ButARepeatOrAnotherNodesGainDoesNot()
+        {
+            var node = Build(Local, primary: Remote);
+            node.Repo.RegisterManagedComponent<EgressPublicationState>();
+            var state = new EgressPublicationState();
+            state.LastPublishedTickMap[Kinematic] = 5;
+            node.Repo.SetManagedComponent(node.E, state);
+            node.Repo.RegisterEvent<DescriptorHandedOver>();
+
+            node.Update(Kinematic, Remote, Remote);                      // another node's gain: nothing for this node to write
+            node.Frame();
+            Assert.DoesNotContain(Kinematic, state.DirtyDescriptors);
+
+            node.Update(Kinematic, Local, Remote);                       // ⭐ this node gains it
+            node.Frame();
+            Assert.Contains(Kinematic, state.DirtyDescriptors);
+
+            state.DirtyDescriptors.Clear();                              // published
+            node.Update(Kinematic, Local, Remote);                       // the same update again: not a gain
+            node.Frame();
+            Assert.DoesNotContain(Kinematic, state.DirtyDescriptors);
+        }
+
         // ── The recompute: the record is made to agree with the claim, both ways ────────────────────────────
 
         [Fact]

@@ -97,6 +97,14 @@ namespace Hrot.Network.Translators
                 _writer.DisposeInstance(new EntityBrainIntent { EntityId = networkEntityId, IntentJson = string.Empty });
         }
 
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            _lastSignature.Remove(networkEntityId);
+            if (_lastSent.Remove(networkEntityId))
+                _writer.UnregisterInstance(new EntityBrainIntent { EntityId = networkEntityId, IntentJson = string.Empty });
+        }
+
         /// <summary>What the published intent depends on, as plain values — cheap to compare every frame.</summary>
         internal readonly record struct Signature(
             int Hash, uint Instance, BehaviorOrigin Origin,

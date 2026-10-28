@@ -122,5 +122,23 @@ namespace Fdp.Interfaces
         void ApplyToEntity(Entity entity, object data, EntityRepository repo);
 
         void Dispose(long networkEntityId);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ② — this node's writer lets go of an instance it wrote <b>without disposing it</b>: the descriptor is now
+        /// owned by another node, which keeps it alive (a dispose would delete it for every reader at once).
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3 (the giver's unregister after the grantee confirmed, F7).
+        ///
+        /// <para>Called by <c>CycloneNetworkCleanupSystem</c> on the translators whose <see cref="DescriptorOrdinal"/> matches a
+        /// <c>DescriptorHandedOver</c> event — the creator, once the grantee's <c>OwnershipUpdate</c> arrived. ⭐ The grantee is then the
+        /// SOLE writer, so its crash shows on the descriptor (<c>NotAliveNoWriters</c>). ⚠ It only means "released, not deleted" because
+        /// every descriptor topic sets <c>[DdsQos(AutodisposeUnregisteredInstances = false)]</c>.</para>
+        ///
+        /// <para>An implementation unregisters its DDS instance AND forgets what it last published for the entity, so that a reclaim
+        /// (the grantee leaves; the entity's primary owner takes the descriptor back) republishes instead of skipping an "unchanged"
+        /// value. <paramref name="instanceId"/> 0 names the entity's root instance and, for a multi-instance descriptor (turret
+        /// pose, weapon task), every instance this node wrote for the entity. Default: nothing to release (an ingress translator, a
+        /// message topic).</para>
+        /// </summary>
+        void ReleaseInstance(long networkEntityId, long instanceId) { }
     }
 }

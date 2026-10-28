@@ -83,6 +83,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void Dispose(long networkEntityId) => TurretPartKey.Forget(_lastPublished, networkEntityId);
 
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
+        /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+            => TurretPartKey.Release(_lastPublished, networkEntityId,
+                partId => _writer?.UnregisterInstance(new EntityTurretPose { ParentNetworkId = networkEntityId, PartId = partId }));
+
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

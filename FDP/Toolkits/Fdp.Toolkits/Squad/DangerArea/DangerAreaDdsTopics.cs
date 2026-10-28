@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Squad.DangerArea.Topics
     /// </summary>
     [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct DangerAreaResultTopic
     {
         /// <summary>Network id of the unit.</summary>

@@ -31,7 +31,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <i>"Ownership is determined by the most recent writer"</i>; <c>EntityMaster</c> carries no owner field. Every
     /// production participant enables CycloneDDS sender tracking with <c>AppInstanceId</c> = its node id
     /// (<c>BUG2-DESIGN.md</c> §1.2), so the reader resolves the writer of each sample to a node.
-    /// ⭐ <b>CE-4078 ① — the sender is resolved WHEN THE SAMPLE IS DELIVERED.</b> CycloneDDS.NET 1.2.20 drains the identity reader
+    /// ⭐ <b>CE-4079 ① — the sender is resolved WHEN THE SAMPLE IS DELIVERED.</b> CycloneDDS.NET 1.2.20 drains the identity reader
     /// synchronously on a lookup miss (<c>CHANGELOG.md</c> 1.2.20, "Sender identity could stay unresolved for a delivered
     /// sample"), so a ghost is created with its owner on the first poll. The retry by publication handle this class used to keep
     /// (for the 0.3.2 thread-pool-starvation window) is gone; a ghost still at -1 can only mean a participant WITHOUT sender

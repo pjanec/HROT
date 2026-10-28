@@ -7,7 +7,7 @@ namespace Hrot.IG.Gizmos
     // so they can configure their requests appropriately.
     [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
-            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct IGCapabilitiesAnnounce
     {
         [DdsKey] public uint NodeId;

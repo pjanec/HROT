@@ -62,6 +62,12 @@ namespace Hrot.Map.Common.Replication.Egress
         internal static EntityGesture ToSample(long netId, in Gesture g) => new() { EntityId = netId, Kind = (byte)g.Kind };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+
+        /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
+        public void ReleaseInstance(long networkEntityId, long instanceId)
+        {
+            if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityGesture { EntityId = networkEntityId });
+        }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
 }

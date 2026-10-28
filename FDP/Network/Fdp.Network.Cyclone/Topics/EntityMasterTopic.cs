@@ -12,7 +12,8 @@ namespace Fdp.Network.Cyclone.Topics
         Reliability = DdsReliability.Reliable,
         Durability = DdsDurability.TransientLocal,
         HistoryKind = DdsHistoryKind.KeepLast,
-        HistoryDepth = 100
+        HistoryDepth = 100,
+        AutodisposeUnregisteredInstances = false
     )]
     public partial struct EntityMasterTopic
     {

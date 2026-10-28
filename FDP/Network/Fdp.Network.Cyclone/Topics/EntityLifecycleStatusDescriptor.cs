@@ -26,7 +26,8 @@ namespace Fdp.Network.Cyclone.Topics
         Reliability = DdsReliability.Reliable,
         Durability  = DdsDurability.TransientLocal,
         HistoryKind = DdsHistoryKind.KeepLast,
-        HistoryDepth = 1
+        HistoryDepth = 1,
+        AutodisposeUnregisteredInstances = false
     )]
     public partial struct EntityLifecycleStatusDescriptor
     {
