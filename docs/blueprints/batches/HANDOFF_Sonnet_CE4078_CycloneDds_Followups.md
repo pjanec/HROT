@@ -12,7 +12,7 @@ related-designs:
 -->
 # TASK CE-4078 (Sonnet) — use the CycloneDDS.NET 1.2.20 fixes in HROT, and drop the redundant `[DdsId]`s
 
-**Dispatched at:** not yet; the dispatching session stamps the sha when it starts the agent. HROT has used **CycloneDDS.NET 1.2.20** since
+**Dispatched at** `f03270309` (coordinator, 2026-10-28). HROT has used **CycloneDDS.NET 1.2.20** since
 `df04652e6`. The library is published, and its source is github.com/pjanec/CycloneDds.NET at `main` `416c68b`. Read the APIs there:
 - `DdsQosAttribute.AutodisposeUnregisteredInstances` (`src/CycloneDDS.Schema/Attributes/TypeLevel/DdsQosAttribute.cs:38`, default `true`);
 - `DdsWriter<T>.WaitForAcks(TimeSpan)` (`src/CycloneDDS.Runtime/DdsWriter.cs:265`);
