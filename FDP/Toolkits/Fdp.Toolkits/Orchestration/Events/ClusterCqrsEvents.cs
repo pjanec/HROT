@@ -123,6 +123,9 @@ namespace Fdp.Toolkit.Orchestration
         public int TransactionEpoch;
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis (rides every cluster-state publication).</summary>
         public ReplayAxis ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF. Inverse polarity: default false = recorded
+        /// (today's behaviour), so a publisher that does not set it changes nothing. Rides every cluster-state publication.</summary>
+        public bool RunNotRecorded;
     }
 
     /// <summary>
@@ -193,6 +196,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool MasterGone;
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master last said.</summary>
         public ReplayAxis ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — as <see cref="ClusterStateTransitionedEvent.RunNotRecorded"/>.</summary>
+        public bool RunNotRecorded;
     }
 
     /// <summary>

@@ -42,6 +42,7 @@ public static class EcsNodeDebugProvider
             clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => node()?.ClusterSlave),
             exercises:     SubsystemDebugProvider.ExercisesFrom(() => node()?.ClusterSlave),
             replayAxis:    () => node()?.ClusterSlave.ReplayAxis,   // ⭐ CE-3329 R-3058 — the master's broadcast, on every node
+            runNotRecorded: () => node()?.ClusterSlave.RunNotRecorded,   // ⭐ CE-4090 D14 — the same broadcast
             replayRecording: () => node()?.ReplayRecordingPath,   // ⭐ CE-3330 E6 — the one lookup (HrotNodeContext), also what the shown timeline opens
             // ⭐ RB-2 — the replay's zero and now, from the same handler (frame-based seeks resolve against them)
             replayPosition: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault() is { } h

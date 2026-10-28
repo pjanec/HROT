@@ -48,6 +48,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private TaskCompletionSource<object?>? _holdTcs;
     private Guid _pendingExerciseId;
     private double _pendingCheckpointingSeconds;   // ⭐ CE-3299 D17 (R-3045) — the recording mode the load's session asked for
+    private bool _pendingRecordingOff;             // ⭐ CE-4090 (AQ108 D14) — the load's session must NOT record ("Record live runs" was off)
 
     private LoadPhaseChain(
         IReadOnlyList<ILoadPartProvider> steps,
@@ -186,7 +187,9 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             //   (found when the exercise recorder became CreateNew: e2e_live_from_replay_branch failed loudly instead).
             var exercise = _pendingExerciseId;
             _pendingExerciseId = Guid.Empty;
-            if (_recordingController != null && exercise != Guid.Empty
+            // ⭐ CE-4090 (AQ108 D14, §5a) — "Live does not imply recording": a session the master loaded with recording OFF starts no
+            //   recorder on this node, so no checkpoint / review / restore handler finds one (the master refuses those at the top).
+            if (_recordingController != null && exercise != Guid.Empty && !_pendingRecordingOff
              && context.TargetState == ClusterState.OperatingLive)
             {
                 await _recordingController
@@ -200,6 +203,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
 
         _pendingExerciseId = context.ExerciseId;
         _pendingCheckpointingSeconds = context.CheckpointingSeconds;
+        _pendingRecordingOff         = context.RecordingOff;
         _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
         _loadContext       = context;
 

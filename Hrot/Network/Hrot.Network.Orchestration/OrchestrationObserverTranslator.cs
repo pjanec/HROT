@@ -194,6 +194,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         ExerciseId   = topic.ExerciseId,
         SessionId    = topic.SessionId,   // ⭐ C2
         ReplayAxis   = (Fdp.Toolkit.Orchestration.ReplayAxis)topic.ReplayAxis,   // ⭐ CE-3329 R-3058
+        RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14
     };
 
     internal static AssetInventoryUpdateEvent InventoryOf(in AssetInventoryTopic data) => new()

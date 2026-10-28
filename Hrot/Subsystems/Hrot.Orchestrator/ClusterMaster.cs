@@ -356,6 +356,7 @@ public sealed partial class ClusterMaster : IDisposable
         ReleaseHeldReplayExit();   // ⭐ CE-3329 F8 — an exit from a replay / review waits for the seeks in flight
 
         // Bus-based intent drain (CMC-S008).
+        ProcessRunSettingsIntents();   // ⭐ CE-4090 D14 — BEFORE the transitions: a setting and a load in one frame honour the setting
         ProcessTransitionStateIntents();
         ProcessManageEpisodeIntents();
         ProcessStorageOpIntents();
@@ -507,6 +508,7 @@ public sealed partial class ClusterMaster : IDisposable
             case ClusterOpType.SaveScenario:   // CE-277(c0): distributed JSON scenario save
             case ClusterOpType.ExportArchive:
             case ClusterOpType.ImportArchive:
+            case ClusterOpType.DeleteExercise:   // ⭐ CE-4090 D15
                 ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));
                 break;
 
@@ -527,6 +529,10 @@ public sealed partial class ClusterMaster : IDisposable
 
             case ClusterOpType.SetReplayAxis:   // ⭐ CE-3329 R-3058
                 ProcessSetReplayAxisIntent(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
+            case ClusterOpType.SetRunSettings:   // ⭐ CE-4090 D14
+                ProcessSetRunSettingsIntent(SetRunSettingsPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
             case ClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
@@ -828,6 +834,9 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void StartCheckpoint(Guid requestId, string? label)
     {
+        // ⭐ CE-4090 (AQ108 D14, §5a) — a checkpoint is a keyframe of the run's recording: no recording, no checkpoint — refused here,
+        //   ⛔ not a throw on every node (ReferenceCheckpointHandler).
+        if (_runNotRecorded) { RefuseNotRecorded(requestId, "checkpoint"); return; }
         var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         long now = WallTicks?.Invoke() ?? 0;
         if (WallTicks == null)
@@ -895,6 +904,7 @@ public sealed partial class ClusterMaster : IDisposable
             PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
             return;
         }
+        if (_runNotRecorded) { RefuseNotRecorded(requestId, "restore of checkpoint"); return; }   // ⭐ CE-4090 D14 — nothing to restore from
         if (_currentDsmState != ClusterState.OperatingLive)
         {
             FdpLog<ClusterMaster>.Warn(
@@ -1325,6 +1335,9 @@ public sealed partial class ClusterMaster : IDisposable
         //    by the asker from a cached inventory, so the same request worked on the editor and was refused on CGF.
         if (intent.TargetState == FdpClusterState.OperatingReplay && intent.ExerciseId == Guid.Empty)
         {
+            // ⭐ CE-4090 (AQ108 D14, §5a) — "replay the last run" when the last run was not recorded: refused, naming why — ⛔ never
+            //   silently the newest OLDER exercise, which the asker did not mean.
+            if (_runNotRecorded) { RefuseNotRecorded(requestId, "replay of the last run"); return; }
             var resolved = ResolveReplayExercise();
             if (resolved == Guid.Empty)
             {
@@ -1360,6 +1373,9 @@ public sealed partial class ClusterMaster : IDisposable
                 PublishOpStatus(requestId, OrchestrationStatusCode.Rejected);
                 return;
             }
+            // ⭐ CE-4090 (AQ108 D14, §5a) — DAR needs the run's recording: refused HERE, at the master, before anything pauses the live
+            //   clock (ReviewProcessManager skips the pause for the same reason) — ⛔ it used to pause first and throw in every node's prepare.
+            if (_runNotRecorded) { RefuseNotRecorded(requestId, "review (DAR)"); return; }
             _replayEntrySimSeconds = intent.TargetSimSeconds;
             _reviewEntryWallTicks  = intent.TargetWallTicks != 0 || intent.TargetSimSeconds != null ? intent.TargetWallTicks : long.MaxValue;
             if (intent.ExerciseId == Guid.Empty) intent.ExerciseId = _currentExerciseId;   // the run being reviewed
@@ -1547,6 +1563,15 @@ public sealed partial class ClusterMaster : IDisposable
         //   parent recording's), and a late joiner's catch-up is told the current one.
         if (LoadsLiveFromIdle(capturedSourceState, trajectory)) _currentCheckpointingSeconds = Math.Max(0, intent.CheckpointingSeconds);
 
+        // ⭐⭐ CE-4090 (AQ108 D14, §5a) — LIVE DOES NOT IMPLY RECORDING: a live LOAD, and a branch from a replay ("the branch follows the
+        //   setting like any live run"), take the cluster's "Record live runs" setting — or the verifier's force — as of NOW. It rides the
+        //   payload below to every node and every cluster-state publication to every host.
+        NoteRunRecording(intent,
+            startsLiveRun: LoadsLiveFromIdle(capturedSourceState, trajectory)
+                        || (capturedSourceState == ClusterState.OperatingReplay
+                            && trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.LoadingLive)),
+            resolvedTarget: (FdpClusterState)(int)resolvedTarget);
+
         // ── HN-037: the world boundary resets the ONE id authority ───────────────────────
         // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
         ResetIdAuthorityIfWorldBoundary(trajectory, capturedSourceState);
@@ -1616,7 +1641,10 @@ public sealed partial class ClusterMaster : IDisposable
                             TerrainName: contentNames.TerrainName,
                             // ⭐ CE-2101 — every node clears its world before this load (the world boundary).
                             IsWorldBoundary: worldBoundary,
-                            CheckpointingSeconds: _currentCheckpointingSeconds);   // D17 — the session's recording mode
+                            CheckpointingSeconds: _currentCheckpointingSeconds,   // D17 — the session's recording mode
+                            // ⭐ CE-4090 D14 — the live session's recording decision, the same on every node (only a live step reads it)
+                            RecordingOff: _runNotRecorded
+                                       && tStep.TargetState is ClusterState.LoadingLive or ClusterState.OperatingLive);
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
@@ -1861,9 +1889,26 @@ public sealed partial class ClusterMaster : IDisposable
         {
             FdpLog<ClusterMaster>.Warn("[Orchestrator] save {0} REJECTED — the cluster shows a recording ({1}); return to live first.",
                 intent.RequestId, _currentDsmState);
-            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected, SaveRefusedInRunReason);
             return;
         }
+        // ⭐ CE-4090 (AQ108 D22) — the same refusal in LIVE: a live run's world is not the scenario (take a checkpoint, then make a
+        //   scenario from it — D8). ⭐ One rule, the one CE-3329 P3 already built for the recording: extended, not duplicated.
+        if (intent.Operation == StorageOpType.SaveScenario && _currentDsmState == ClusterState.OperatingLive)
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] save {0} REJECTED — a live run does not save the scenario; take a checkpoint instead.", intent.RequestId);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected, SaveRefusedInRunReason);
+            return;
+        }
+        // ⭐ CE-4090 (AQ108 D14, §5a) — keep / export of the run that was not recorded: there is nothing to archive
+        if (intent.Operation == StorageOpType.Export && _runNotRecorded
+            && intent.ExerciseId != Guid.Empty && intent.ExerciseId == _activeExerciseId)
+        {
+            RefuseNotRecorded(intent.RequestId, "export");
+            return;
+        }
+        // ⭐ CE-4090 (AQ108 D15) — discard an unarchived recording
+        if (intent.Operation == StorageOpType.Delete) { ProcessDeleteExercise(intent); return; }
         switch (intent.Operation)
         {
             // CE-278: StorageOpType.SaveScenario (=2) retired — the half-built .fdp-archive stub whose only
@@ -2165,6 +2210,7 @@ public sealed partial class ClusterMaster : IDisposable
             SessionId        = SessionId,          // ⭐ C2
             TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
             ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
+            RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2172,6 +2218,7 @@ public sealed partial class ClusterMaster : IDisposable
             ExerciseId   = _activeExerciseId,
             SessionId    = SessionId,
             ReplayAxis   = _replayAxis,
+            RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
         });
     }
 

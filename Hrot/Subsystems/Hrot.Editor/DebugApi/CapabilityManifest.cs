@@ -83,6 +83,7 @@ public static class CapabilityManifest
         //    master cell (a bus that reaches it), the same as a scenario load — ⛔ no longer the editor's preview controller.
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/exercises", StringComparison.Ordinal))  return DebugCapabilities.ScenarioLoad;
+        if (path.StartsWith("/run-settings", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;   // ⭐ CE-4090 — a setting of the master
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.
         //    📌 While `/scenario/load` was hardwired to IEditorLogic, a cluster refusal read "authoring is

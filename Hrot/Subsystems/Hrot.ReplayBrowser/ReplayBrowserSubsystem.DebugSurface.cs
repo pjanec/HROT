@@ -399,6 +399,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public void Storage(ExecuteStorageOpIntent intent) => throw Offline("storage");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw Offline("checkpoint");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw Offline("checkpoint restore");
+        public void SetRunSettings(SetRunSettingsIntent intent) => throw Offline("run settings");
         public void Cancel(CancelOperationIntent intent) => throw Offline("cancel");
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw Offline("diagnostic dump");
 

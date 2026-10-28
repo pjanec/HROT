@@ -78,6 +78,12 @@ edit-load handler yet), so use **live** when every node must hold the world.
   `checkpoint`, `enter_replay`, `seek_replay`, `save_scenario` are each one master intent.
 - **A checkpoint is part of the LIVE recording** — a named keyframe on every node — not a preview snapshot.
   `restore_checkpoint {label}` continues the live run from it.
+- **Live does not imply recording** (AQ108 D14). The cluster-wide setting *Record live runs* (default ON;
+  `set_run_settings {recordLiveRuns}`) applies from the NEXT live load; `get_status → recording` says whether the run
+  on screen is recorded. A live run loaded with it OFF writes no recording: `checkpoint`, `restore_checkpoint`,
+  `enter_review`, `keep_exercise` and `enter_replay` (of the last run) answer **409 "this run was not recorded"**.
+  `enter_review` needs its start (`atSeconds` or `atSimSeconds`). `save_scenario` answers 409 in a live run and in a
+  replay / review — a live world is not the scenario. `delete_exercise {id}` discards an unarchived recording.
 - **A replay is the cluster's, not a sandbox.** `enter_replay` (one request from any state — the master plans
   the way) puts every node into its own recording; the ORDINARY readers (`list_entities`, `get_entity`,
   `get_entity_brain`, `get_entity_journal`) then read the replayed world. `stop_replay` goes to Idle.
@@ -299,7 +305,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: MCP-side lifecycle tool — also calls the /shutdown HTTP endpoint.; Always call when done to avoid orphan runner processes..
   Example: `stop_simulation({})` — graceful runner shutdown.
 - **`get_status`** — Runner liveness + sim state summary. No params. Returns { scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo }
-  Notes: Use this to verify the runner is alive and check current run state before driving the sim.; `perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is "Start" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it)..
+  Notes: Use this to verify the runner is alive and check current run state before driving the sim.; `recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 "this run was not recorded".; `perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is "Start" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it)..
   Example: `get_status({})` — check runner liveness and sim state.
 
 ### Group B — Queries
@@ -416,6 +422,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`list_exercises`** — The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053). No params. Returns { count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.
   Notes: Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus..
   Example: `list_exercises({})` — what can be replayed.
+- **`delete_exercise`** — ⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording: its ledger entry and its staging copies (the retention code's delete, CE-3218). A kept (archived) exercise and the run still recording are not deleted here. Req `id` (string). Returns { published, requestId, exerciseId }; 404 for an id GET /exercises does not list; 400 for a malformed id.
+  Notes: The master refuses (the request fails, nothing is deleted) while the exercise is the run still recording: stop the run first.; keep_exercise archives a recording for films; this is its opposite for a recording that should not pile up..
+  Example: `delete_exercise({"id":"00000000-0000-0000-0000-000000000000"})` — discard a recording.
 - **`keep_exercise`** — ⭐ CE-4058 — "Keep for films": archive an exercise — every node's recording, its meta and timeline sidecar, the scenario as it was loaded and Orchestrator.json, into {shared}/exercises/<id>/ (the cluster's Export op). `exerciseId?` (string). Returns { published, requestId, exerciseId, archive } — archive is the folder the files land in.
   Notes: A kept exercise survives the temp root being cleared (a relaunch): the Replay Browser lists the archive beside the nodes' own copies.; The takes of a kept recording live in its folder (Director Timeline TE-13)..
   Example: `keep_exercise({})` — keep a recording for films.
@@ -455,6 +464,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `exit_review({"waitForReady":true})` — back to the live run.
 - **`seek_review`** — ⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next). `atSeconds?` (number), `atSimSeconds?` (number). Returns as seek_replay
   Example: `seek_review({"atSimSeconds":12})` — move within the review.
+- **`set_run_settings`** — ⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 "this run was not recorded". Live does not imply recording. Req `recordLiveRuns` (boolean). Returns { published, requestId, recordLiveRuns, note }
+  Notes: The scenario verifier always records, whatever this says.; A replay → live branch follows the setting like any live run..
+  Example: `set_run_settings({"recordLiveRuns":false})` — run live without recording.
 - **`step_selection_history`** — Replay Browser only (RB-3): back / forward through the units selected. Req `direction` (string). Returns the Replay Browser's status
   Example: `step_selection_history({"direction":"back"})` — select the unit selected before.
 - **`get_timeline_events`** — One timeline lane's events in a frame range, optionally only one unit's (RB-6) — what the index already holds, no scan of the file. Req `lane` (string), `from?` (integer), `to?` (integer), `entity?` (number), `limit?` (integer). Returns { lane, count, truncated, events:[{frame, subject, other, x, y, value}] }

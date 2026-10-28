@@ -36,6 +36,9 @@ public sealed class ClusterUiCache : IDisposable
     public Fdp.Toolkit.Orchestration.ReplayAxis ReplayAxis { get; private set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
     public Guid        ActiveExerciseId       { get; private set; }
 
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast said.</summary>
+    public bool        RunNotRecorded         { get; private set; }
+
     /// <summary>
     /// ⭐⭐ CE-3329 (rows 32, 45; §9e–§9g) — the replay's SESSION LAYER as the master last published it: the zero, the length, the axis,
     /// the cluster's time map, the checkpoint marks, the review's id and live point. The same on every host; inactive outside a replay.
@@ -158,7 +161,7 @@ public sealed class ClusterUiCache : IDisposable
             var prev = CurrentState;
             CurrentState   = (ClusterState)(int)ev.CurrentState;
             ActiveExerciseId = ev.ExerciseId;
-            if (!ev.MasterGone) ReplayAxis = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
+            if (!ev.MasterGone) { ReplayAxis = ev.ReplayAxis; RunNotRecorded = ev.RunNotRecorded; }   // ⭐ CE-3329 R-3058 · CE-4090 D14
             IsBootstrapped = CurrentState != ClusterState.Degraded;
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);

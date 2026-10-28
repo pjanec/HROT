@@ -26,6 +26,7 @@ public sealed class AssetInventoryProcessManager
     private readonly StorageGatewayModule _gateway;
     private readonly string _nasBasePath;
     private readonly string _ledgerDirectory;
+    private readonly string _stagingRoot;
     private DateTime _lastInventoryScan = DateTime.MinValue;
     private ClusterState _lastState = ClusterState.Idle;
     private string? _pendingScenarioId;
@@ -43,7 +44,7 @@ public sealed class AssetInventoryProcessManager
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
-        _ = localStagingRoot ?? throw new ArgumentNullException(nameof(localStagingRoot));
+        _stagingRoot     = localStagingRoot ?? throw new ArgumentNullException(nameof(localStagingRoot));
         _ledgerDirectory = Path.Combine(
             OrchestrationConstants.GetNodeStagingRoot(localStagingRoot, nodeId),
             "recording_ledger");
@@ -65,7 +66,15 @@ public sealed class AssetInventoryProcessManager
 
         foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
         {
-            if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive)
+            if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive && ev.RunNotRecorded)
+            {
+                // ⭐⭐ CE-4090 (AQ108 D14, §5a) — THE ONE GATE AT LEDGER CREATION. A live run started with "Record live runs" off writes no
+                //   ledger entry and no scenario copy, so the inventory never offers "AAR the last exercise" / keep / export for a recording
+                //   that does not exist (and no empty archive is written). ⛔ Not gated again downstream: every consumer reads this ledger.
+                FdpLog<AssetInventoryProcessManager>.Info("[AssetInventory] CE-4090: live run {0} is not recorded — no ledger entry.", ev.ExerciseId);
+                _currentRecording = null;
+            }
+            else if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive)
             {
                 _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero);
                 SnapshotScenario(ev.ExerciseId, _pendingScenarioId);
@@ -151,6 +160,20 @@ public sealed class AssetInventoryProcessManager
             });
             _lastInventoryScan = DateTime.UtcNow;
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4090 (AQ108 D15) — discards ONE unarchived recording: its ledger entry (memory and file), its scenario copy and the exercise's
+    /// staging directories (<see cref="ExerciseRetention.Delete"/>, CE-3218 — the one deleter of recordings). Returns false for an id the
+    /// ledger does not hold (a kept / archived exercise, the run still recording, a stranger) — ⛔ nothing is touched then.
+    /// </summary>
+    public bool DeleteExercise(Guid exerciseId)
+    {
+        if (!_unarchivedLedger.Remove(exerciseId)) return false;
+        DeleteLedgerEntry(exerciseId);
+        ExerciseRetention.Delete(_stagingRoot, exerciseId, msg => FdpLog<AssetInventoryProcessManager>.Info("{0}", msg));
+        _lastInventoryScan = DateTime.MinValue;   // the next Tick republishes: the inventory stops offering it at once
+        return true;
     }
 
     private void HydrateLedger()

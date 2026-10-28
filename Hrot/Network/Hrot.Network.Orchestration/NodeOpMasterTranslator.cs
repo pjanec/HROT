@@ -130,7 +130,8 @@ public sealed class NodeOpMasterTranslator
                     TerrainName: p.TerrainName,
                     IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
                     IsCatchUp:       p.IsCatchUp,          // C7
-                    CheckpointingSeconds: p.CheckpointingSeconds),   // D17
+                    CheckpointingSeconds: p.CheckpointingSeconds,   // D17
+                    RecordingOff: p.RecordingOff),                  // CE-4090 D14
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(

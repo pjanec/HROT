@@ -75,6 +75,39 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Contains("TargetState", received[0].PayloadJson);
     }
 
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "do not record" decision is ON THE WIRE: a PrepareLive whose payload says <c>RecordingOff</c>
+    /// reaches the node's reader as <c>"RecordingOff":true</c> (the slave's decoding is rail-tested in <c>NodeOpSlaveTranslatorTests</c>).</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4090_PrepareLive_WithRecordingOff_PutsItOnTheWire()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        using var statusReader    = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter2     = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(new Dictionary<int, DdsWriter<NodeOpCommand>> { [2] = nodeWriter2 }, statusReader, bus);
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TargetNodeId = 2, TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive, RecordingOff: true),
+        });
+        bus.SwapBuffers();
+        Thread.Sleep(300);
+        translator.Tick();
+
+        var received = new List<NodeOpCommand>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (DateTime.UtcNow < deadline && received.Count == 0)
+        {
+            using var scope = nodeOpCmdReader.Take();
+            foreach (var s in scope) if (s.IsValid) received.Add(s.Data);
+            if (received.Count == 0) Thread.Sleep(30);
+        }
+
+        Assert.Contains("\"RecordingOff\":true", Assert.Single(received).PayloadJson);
+    }
+
     // ── Test 2: Egress — null DomainPayload → empty PayloadJson ──────────────
 
     [Fact(Timeout = 10_000)]

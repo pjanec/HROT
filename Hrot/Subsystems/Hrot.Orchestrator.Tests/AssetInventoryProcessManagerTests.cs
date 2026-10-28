@@ -248,4 +248,121 @@ public sealed class AssetInventoryProcessManagerTests
             if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4090 (AQ108 D14, §5a) — THE ONE GATE AT LEDGER CREATION: a live run the master loaded with "Record live runs" OFF
+    /// (<c>ClusterStateUpdateEvent.RunNotRecorded</c>) creates no ledger entry, copies no scenario and is not in the inventory — before and after
+    /// it ends — so nothing offers "AAR the last exercise" / keep / export for a recording that does not exist. The same run with the flag unset
+    /// (today's default) is the control.
+    /// </summary>
+    [Fact]
+    public void CE4090_ALiveRunWithRecordingOff_CreatesNoLedger_NoScenarioCopy_AndIsNotInTheInventory()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce4090_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce4090_stg_" + Guid.NewGuid().ToString("N"));
+        const int nodeId = 400;
+        try
+        {
+            const string scenarioId = "town-raid";
+            var scenarioDir = Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+            Directory.CreateDirectory(scenarioDir);
+            File.WriteAllText(Path.Combine(scenarioDir, "SimHost.json"), "as-started");
+            var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
+
+            AssetInventoryUpdateEvent? Run(Guid exercise, bool notRecorded)
+            {
+                var bus     = new FdpEventBus();
+                var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId);
+                bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenarioId, ExerciseId = exercise });
+                bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, RunNotRecorded = notRecorded });
+                bus.SwapBuffers();
+                manager.Tick();                                   // the live run in progress (the first scan publishes at once)
+                bus.SwapBuffers();
+                AssetInventoryUpdateEvent? during = null;
+                foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) during = ev;
+
+                bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exercise, RunNotRecorded = notRecorded });
+                bus.SwapBuffers();
+                manager.Tick();                                   // the run ends
+                return during;
+            }
+
+            // ── OFF: nothing is created ──
+            var off = Guid.NewGuid();
+            var duringOff = Run(off, notRecorded: true);
+            Assert.NotNull(duringOff);
+            Assert.Empty(duringOff!.Value.LocalExercises!);                                          // not replayable while it runs …
+            Assert.False(File.Exists(Path.Combine(ledgerDir, $"{off}.json")), "no ledger entry after the run ends");
+            Assert.False(Directory.Exists(Path.Combine(ledgerDir, $"{off}.scenario")), "no scenario copy");
+
+            // ── the control: the flag unset records exactly as before ──
+            var on = Guid.NewGuid();
+            var duringOn = Run(on, notRecorded: false);
+            Assert.Single(duringOn!.Value.LocalExercises!);
+            Assert.True(File.Exists(Path.Combine(ledgerDir, $"{on}.json")), "a recorded run still gets its ledger entry");
+            Assert.True(Directory.Exists(Path.Combine(ledgerDir, $"{on}.scenario")), "… and its scenario copy");
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4090 (AQ108 D15) — discarding an unarchived recording goes through the retention code's delete (<c>ExerciseRetention.Delete</c>,
+    /// CE-3218): the ledger entry (memory and file), the scenario copy and every <c>exercises/&lt;id&gt;</c> directory under the staging root
+    /// go; a stranger's id deletes nothing and answers false; another exercise's directory is untouched.
+    /// </summary>
+    [Fact]
+    public void CE4090_DeleteExercise_RemovesTheLedgerAndTheStagingCopies_AndRefusesAnUnknownId()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce4090d_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce4090d_stg_" + Guid.NewGuid().ToString("N"));
+        const int nodeId = 400;
+        try
+        {
+            var doomed = Guid.NewGuid();
+            var kept   = Guid.NewGuid();
+            var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
+            Directory.CreateDirectory(ledgerDir);
+            foreach (var id in new[] { doomed, kept })
+            {
+                File.WriteAllText(Path.Combine(ledgerDir, $"{id}.json"), JsonSerializer.Serialize(
+                    new RecordingLedgerEntry(id, "hill-attack", DateTime.UtcNow.AddMinutes(-2), TimeSpan.FromSeconds(60)), FdpJsonOptionsRegistry.Indented));
+                // the recordings: one directory in the shared exercises folder and one in each node's
+                foreach (var dir in new[]
+                {
+                    Path.Combine(staging, OrchestrationConstants.ExercisesDirectoryName, id.ToString()),
+                    Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), OrchestrationConstants.ExercisesDirectoryName, id.ToString()),
+                })
+                {
+                    Directory.CreateDirectory(dir);
+                    File.WriteAllText(Path.Combine(dir, "rec.fdp"), "bytes");
+                }
+            }
+            Directory.CreateDirectory(Path.Combine(ledgerDir, $"{doomed}.scenario"));
+
+            var manager = new AssetInventoryProcessManager(new FdpEventBus(), new StorageGatewayModule(), nasRoot, staging, nodeId);   // hydrates both
+
+            Assert.False(manager.DeleteExercise(Guid.NewGuid()), "an id the ledger does not hold is not deleted");
+            Assert.True(Directory.Exists(Path.Combine(staging, OrchestrationConstants.ExercisesDirectoryName, doomed.ToString())));
+
+            Assert.True(manager.DeleteExercise(doomed));
+            Assert.False(File.Exists(Path.Combine(ledgerDir, $"{doomed}.json")));
+            Assert.False(Directory.Exists(Path.Combine(ledgerDir, $"{doomed}.scenario")));
+            Assert.False(Directory.Exists(Path.Combine(staging, OrchestrationConstants.ExercisesDirectoryName, doomed.ToString())));
+            Assert.False(Directory.Exists(Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), OrchestrationConstants.ExercisesDirectoryName, doomed.ToString())));
+            Assert.False(manager.DeleteExercise(doomed), "gone: a second discard knows nothing of it");
+
+            // the other exercise is untouched
+            Assert.True(File.Exists(Path.Combine(ledgerDir, $"{kept}.json")));
+            Assert.True(Directory.Exists(Path.Combine(staging, OrchestrationConstants.ExercisesDirectoryName, kept.ToString())));
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
 }

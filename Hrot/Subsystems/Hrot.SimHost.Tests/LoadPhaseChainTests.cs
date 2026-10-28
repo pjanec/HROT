@@ -249,6 +249,64 @@ public sealed class LoadPhaseChainTests
         Assert.True(hold.IsCompleted);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ CE-4090 (AQ108 D14, §5a) — <b>LIVE DOES NOT IMPLY RECORDING, on the node.</b> The recorder starts when the load's operating transition
+    /// completes — unless the load's payload said <c>RecordingOff</c>: then NO recorder starts on this node (so no checkpoint / review / restore handler
+    /// finds one, and nothing is written under <c>exercises/&lt;id&gt;</c>). The same load without the flag starts exactly one (the control).
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task CE4090_ALiveLoadStartsTheRecorder_UnlessThePayloadSaysRecordingOff(bool recordingOff, int recorders)
+    {
+        var recorder = new CountingRecorder();
+        var exercise = Guid.NewGuid();
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Map2D, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) },
+            world: null, recordingController: recorder, storageDirectory: ".");
+
+        await chain.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        var hold = chain.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareState, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;
+
+        Assert.Equal(recorders, recorder.Started);
+        if (recorders == 1) Assert.Equal(exercise, recorder.LastExercise);
+    }
+
+    private sealed class CountingRecorder : Fdp.Core.Orchestration.IRecordReplayController
+    {
+        public int Started { get; private set; }
+        public Guid LastExercise { get; private set; }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) { Started++; LastExercise = exerciseId; return Task.CompletedTask; }
+        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+        public void ProcessPlaybackTick(GlobalTime currentTime) { }
+        public Task TeardownReplayAsync() => Task.CompletedTask;
+        public bool IsReplayActive => false;
+        public GlobalTime GetCurrentReplayTime() => default;
+        public float ActiveReplayDurationSeconds => 0f;
+        public long ActiveRecordingStartWallTicks => 0;
+        public long ActiveRecordingEndWallTicks => 0;
+        public long ReplayAnchorWallTicks { get; set; }
+        public string? ActiveReplayFilePath => null;
+        public bool IsRestoringReplay => false;
+        public long ActiveMaxNetworkId => 0;
+        public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => Task.FromResult(default(GlobalTime));
+        public Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout) => Task.FromResult<string?>(null);
+        public void HoldEgress(string reason) { }
+        public void ReleaseEgress() { }
+        public void ReleaseReplayExit() { }
+    }
+
     /// <summary>⭐ An abort cancels the hold and rolls every step back, rather than leaving the cluster waiting.</summary>
     [Fact]
     public async Task AnAbort_CancelsTheHold_AndAbortsEveryStep()
