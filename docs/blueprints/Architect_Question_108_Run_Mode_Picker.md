@@ -246,6 +246,73 @@ graph TD
 *What the picture shows:* the armed mode is per host; every change to the world goes through the ONE cluster master and the ONE load path; the
 dirty state lives with the master and is announced like the cluster state, so every host shows the same `name*` (UXR-03).
 
+### 2.6 CE-4096 — the start gate, as designed by ui `2026-10-28` (built before CE-4089; the user: *"yes, build CE-4096 now"*)
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` not available through the CLI): `search_graph .*(StartGate|StartSurface|StartPerspective|IdleGate|RestingIdle).*`
+→ **0** (nothing to extend). `search_graph .*(ClusterState|ClusterUiCache|MasterGone|ClusterStatus).*` (Class/Interface) → `ClusterUiCache`,
+`SimpleClusterStateCache`, `ClusterStates`, `IClusterStateUpdateObserver`, the events. Production `new WindowManager(` → **one** cluster-runner site,
+`LocalWindowController.cs:109` (+ the exempt Stride host). Backend's CE-4094 API: `WindowManager.StartPerspectiveName` / `RememberedPerspective` /
+`IsStartShowing` / `TrySwitchPerspective` refusal / `LeaveStartPerspective` ([NOTE](batches/NOTE_Backend_To_Ui_Run_Modes_Start_Http.md)).
+Cluster state per host: `ISubsystemDebugProvider.ClusterState` (+ `PerspectiveScopedDispatcher.ClusterStateAnyNode`, the one-cluster-one-fact
+fallback) — set by Orchestrator, Editor, ExCon, RB only; ⚠ **CGF / SimHost / IG / Traffic set none**, yet every node's `ClusterSlave` follows the
+master's broadcast (`ClusterSlave.FollowClusterSession`, private `_clusterState`, MasterGone handled).
+
+| the lean rests on | code | design |
+|---|---|---|
+| one place composes every cluster-runner host's window manager | ✅ `LocalWindowController.cs:109` (one `new WindowManager`) | ✅ D16 "one gate … registered by the shared bootstrapper" |
+| an announced Idle CAN be a pass-through | ✅ the ordinary load is TWO requests (`ScenarioLoadSequence.Request`: Idle, then the load — CE-295) ⇒ every host sees a real Idle between them | ✅ D3 ⚠ "never an Idle a trajectory passes through" |
+| every node knows the master's state and MasterGone | ✅ `ClusterSlave.cs:638-660` | ✅ D16 "reads the cluster state every host already has" |
+
+```mermaid
+classDiagram
+  class WindowManager { <<existing, CE-4094>> StartPerspectiveName · RememberedPerspective · IsStartShowing · TrySwitchPerspective refuses in Start · LeaveStartPerspective() }
+  class StartGate { <<NEW, Fdp.Presentation>> +Tick(now, ClusterRest) · SettleSeconds = 0.5 · Variant }
+  class ClusterRest { <<NEW record>> State? (null = no master yet) · MasterGone · CanOperate }
+  class StartSurfaceWindow { <<NEW, claims "Start">> draws the menu items marked AllowedInIdle as buttons · or the waiting text }
+  class GlobalMenuRegistry { <<existing>> RegisterItem(path, …, ⭐ allowedInIdle) · ⭐ AllowedInIdleItems() }
+  class LocalWindowController { <<existing, cluster runner>> composes gate + surface · ticks the gate each frame }
+  class ISubsystemDebugProvider { <<existing>> ClusterState · ⭐ MasterGone · Master }
+  class ClusterSlave { <<existing>> ⭐ FollowedClusterState · ⭐ MasterGone (public reads of what it already follows) }
+  class HostArmedMode { <<NEW, one bootstrap parameter>> editor Preview · CGF / all-in-one / server Live — read by CE-4097 }
+  LocalWindowController --> StartGate : Tick before Render
+  LocalWindowController --> StartSurfaceWindow : registers
+  StartGate --> WindowManager : SwitchPerspective(Start) / LeaveStartPerspective
+  StartGate ..> ClusterRest : any node (one cluster, one fact)
+  ClusterRest ..> ISubsystemDebugProvider
+  ISubsystemDebugProvider ..> ClusterSlave : CGF / SimHost / IG / Traffic now answer
+  StartSurfaceWindow --> GlobalMenuRegistry : the same actions as the menu
+  WindowManager --> GlobalMenuRegistry : in Start the bar draws only AllowedInIdle
+```
+
+*What the picture shows that prose hid:* the start surface owns NO action — it draws the menu items marked *allowed in Idle* (New from a recipe,
+Open scenario, Open recording, Exit, Help) and invokes the SAME bindings, so the surface and the menu cannot disagree; and the gate's only input is
+one `ClusterRest` read from any node, so every host family behaves alike by construction.
+
+```mermaid
+sequenceDiagram
+  participant R as runner frame (LocalWindowController)
+  participant G as StartGate
+  participant W as WindowManager
+  R->>G: Tick(now, rest)
+  alt rest is Idle / MasterGone / no master yet, held ≥ 0.5 s, not Start yet
+    G->>W: SwitchPerspective("Start") — remembers the outgoing one
+  else rest is anything but Idle and Start shows
+    G->>W: LeaveStartPerspective() — restores the remembered one
+  end
+  Note over G: the 0.5 s settle swallows the Idle between CE-295's two requests (a pass-through), on every host alike
+```
+
+⭐ **Decisions:** ① **resting = Idle held ≥ 0.5 s** (also MasterGone, and "no master yet" at a node's boot) — the two-request load leaves a real
+Idle for one round trip; a settle on the HOST needs no wire change. ② **Variants** from `ClusterRest`: `CanOperate` (a provider in this process
+offers `Master`, and the host is not a Player) ⇒ the actions; else *"Waiting for the server to load a scenario"*; MasterGone ⇒ *"Server lost —
+waiting"*. ③ **Exempt:** a process whose only subsystem is the Replay Browser (offline), and the Stride host. ④ **The surface's actions are the
+menu's:** a host that registers no Open/New items (today CGF's come from `ScenarioCatalogContributor`) shows what it has — until CE-4089 they open
+today's dialogs on today's folders, after it the same dialogs on the new ones. ⑤ **`HostArmedMode`** is defined and set here (editor Preview,
+else Live), read by CE-4097.
+Rejected: **a "resting" flag on the master's broadcast** — a wire change in backend's lane, and the master cannot know a requester's second
+request is coming · **per-host gates** — four copies (R "shared and unified") · **a Start provider with no world** — M7 rejected it.
+⚠ **Then fix** `ClusterConformanceRails` and `TheUiBaselineIsPinnedPerHostRails` (they switch perspective without a load — backend's NOTE).
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |
