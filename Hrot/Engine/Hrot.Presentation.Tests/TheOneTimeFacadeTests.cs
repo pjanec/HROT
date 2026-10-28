@@ -20,13 +20,13 @@ namespace Hrot.Presentation.Tests;
 public sealed class TheOneTimeFacadeTests
 {
     private static (ClusterTimeTransportAdapter Facade, FdpEventBus Bus) In(ClusterState state, ReplayAxis axis = ReplayAxis.Sim,
-                                                                           ReplaySession? session = null, double clock = 0)
+                                                                           ReplaySession? session = null, double clock = 0, bool running = false)
     {
         var bus = new FdpEventBus();
         var facade = new ClusterTimeTransportAdapter(bus, () => clock);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ReplayAxis = axis });
         if (session != null) bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
-        bus.Publish(new SwitchTimeModeEvent { TargetMode = Fdp.ModuleHost.Time.TimeMode.Deterministic });   // paused
+        bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });   // paused unless `running`
         bus.SwapBuffers();
         facade.Update();
         bus.SwapBuffers();   // drop the setup; what the facade publishes next is all the read buffer holds
@@ -55,6 +55,30 @@ public sealed class TheOneTimeFacadeTests
         var step = Published<TransitionStateIntent>(bus2);
         Assert.Equal(ClusterState.OperatingPreview, step.TargetState);
         Assert.Equal("Deterministic", step.TimeMode);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4054</c> (second half) — Play / Pause in a LIVE run, a replay or a review drive the CLUSTER'S clock (resume / pause intent) and
+    /// NEVER start a dry run on top of the run; only Edit's Play is the dry run (the test above). 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §9a.
+    /// 🔴 Red-proof: the Edit guard in <c>TogglePlayPause</c> widened to every state but Idle ⇒ these rows publish a dry-run Enter.
+    /// </summary>
+    [Theory]
+    [InlineData(ClusterState.OperatingLive)]
+    [InlineData(ClusterState.OperatingReplay)]
+    [InlineData(ClusterState.OperatingReview)]
+    public void PlayAndPause_InARun_DriveTheClusterClock_NeverTheDryRun(ClusterState state)
+    {
+        var (paused, pausedBus) = In(state);
+        paused.TogglePlayPause();
+        pausedBus.SwapBuffers();
+        Assert.Empty(pausedBus.ReadManaged<TransitionStateIntent>());   // no dry run entered on top of the run
+        Assert.Single(pausedBus.ReadManaged<ResumeTimeIntent>());
+
+        var (running, runningBus) = In(state, running: true);
+        running.TogglePlayPause();
+        runningBus.SwapBuffers();
+        Assert.Empty(runningBus.ReadManaged<TransitionStateIntent>());
+        Assert.Single(runningBus.ReadManaged<PauseTimeIntent>());
     }
 
     [Theory]
