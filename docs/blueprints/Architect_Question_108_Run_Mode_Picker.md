@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — the user shaped every decision in chat (2026-10-28); §4 records each with its verdict. Two rows are still leans (§4 marked ⏸)
 updated: 2026-10-28
-build-state: DESIGN — not dispatched. Before READY-TO-BUILD: measure M1–M3 (§5)
-current-answer: §1 the three rules · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
+build-state: DESIGN — not dispatched. Before READY-TO-BUILD: measure M1–M5 (§5)
+current-answer: §1 the three rules · §1a the words (Live / DAR / AAR) · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
 known-rot: none
 known-conflict: CGF-1-DESIGN.md:557 removed `RunningEdit → LoadingLive` ("would … leave edit-session resources dangling"); §4 D3 reinstates it as a world-CONTINUING load (the shape of the replay → live branch), which leaves nothing dangling because the edit world is parked in the go-live snapshot
@@ -42,6 +42,8 @@ indicator mode switch. if from timeline's menu, it is accepted immediately"* ·
 *"edits must be allowed in live and preview, whether the user saves them is his responsibility, banner should be ok, rather in status bar - non
 obtrusive"* · *"ok leans are fine"*
 
+🔒 **User, `2026-10-28`, the second pass** (verbatim): *"CGF/all-in-one mode should start in live mode by default, editor in preview mode"* · *"review and replay wording would be better to replace with AAR and DAR (or at least DAR as something different from classical replay)"* · *"we should somehow also allow live without recording; live does not mean just recording, it has consequences on whether people control some HID like replicated weapons or drive a replicated cars, outside of our engine, so it differs from preview where no live players are present; maybe some setting in the system can control whether the live does recording at all; and we could ask at the end (gated by another setting) whether we want to discard the recording so it does not pile up"* · *"editor is in 'unsaved new scenario' mode by default and the terrain must be loaded first - can be loaded via terrain-specific scenario recipes which would then read as always creating a scenario first. Scenario must be saved before switching to live but can be previewed at will."*
+
 ## 0. INVENTORY
 
 ⭐ Graph via `scripts/cbm.sh` + grep, `2026-10-28`. ⚠ `check_index_coverage` is not reachable through the CLI; every count was corroborated by grep.
@@ -66,6 +68,17 @@ obtrusive"* · *"ok leans are fine"*
 | **R2** | **■ returns to where this run came from, and the armed mode stays** — so the next ▶ repeats the run | Preview: back to the edited world. Live from editing: back to the scenario's start, Live armed (a quick rerun). Live branched from a replay: back to the replay at the branch point, Live armed (re-train the same part). Replay: back to the recording's start |
 | **R3** | **A confirmation appears only to explain a jump or to stop losing something**, and it says exactly what will happen | Live → anything that ends the session asks; a deliberate ■ does not (it is the stop, and the run is already a recording) |
 
+### 1a. ⭐ The words the user sees (D17)
+
+| word | means | indicator |
+|---|---|---|
+| **Preview** | a dry run of the scenario being edited — no live players, nothing recorded, ■ restores | ◐ violet |
+| **Live** | the exercise with live players: people outside the engine drive replicated vehicles and weapons (HID, simulators). ⭐ **Live is NOT "recording"** — it records only when the system setting says so (D14) | ● **red** when recording · ● **green** when not |
+| **DAR** — During Action Review | looking back INSIDE a running live session; live continues after ⏏ | ⟲ amber, tooltip "DAR" |
+| **AAR** — After Action Review | playing a recording (an ended exercise, or one opened from a file); "Replay" disappears from the user's vocabulary | blue **AAR** badge |
+
+⭐ Only the words the user sees change. ⛔ The code keeps `TransportMode.Replay` / `Review` and `ClusterState.OperatingReplay` / `OperatingReview` — renaming them buys nothing and touches the wire and every test.
+
 ## 2. The picture
 
 ### 2.1 What the user sees — the modes and the moves
@@ -76,22 +89,23 @@ stateDiagram-v2
   state "Preview — editing (◐ dim)" as PIdle
   state "Preview running (◐ blinking)" as PRun
   state "Live armed (● red, dim)" as LArmed
-  state "Live running (● red, blinking / steady when paused)" as LRun
-  state "Review inside Live (⟲ amber)" as Rev
-  state "Replay (R blue)" as Rep
-  [*] --> PIdle : open a scenario
+  state "Live running (● red recording / green not, blinking, steady when paused)" as LRun
+  state "DAR inside Live (⟲ amber)" as Rev
+  state "AAR (blue badge)" as Rep
+  [*] --> PIdle : editor start (new unsaved scenario) / open a scenario
+  [*] --> LArmed : CGF / all-in-one start
   PIdle --> PRun : ▶
   PRun --> PIdle : ■ (restores the edited world)
   PIdle --> LArmed : indicator → Live
   LArmed --> PIdle : indicator → Preview
-  LArmed --> LRun : ▶ (unsaved edits → Save first)
+  LArmed --> LRun : ▶ (never saved or unsaved → Save first)
   LRun --> LArmed : ■ (recording kept, back to the start)
-  LRun --> Rev : indicator → Review the last 30 s / timeline
+  LRun --> Rev : indicator → DAR the last 30 s / timeline
   Rev --> LRun : ⏏ back to live
-  LRun --> Rep : indicator → Replay (confirm, ends the live run)
+  LRun --> Rep : indicator → AAR (confirm, ends the live run)
   LRun --> PIdle : indicator → Preview (confirm, ends the live run)
-  PIdle --> Rep : indicator → Replay / File › Open Replay
-  LArmed --> Rep : "Replay the last exercise"
+  PIdle --> Rep : indicator → AAR / File › Open Recording
+  LArmed --> Rep : AAR the last exercise
   Rep --> LRun : Go live from here (confirm from the indicator, at once from the timeline)
   Rep --> PIdle : indicator → Preview (confirm, explains which scenario opens)
 ```
@@ -221,21 +235,25 @@ dashed) goes with CE-4083 — one transport, one picker.
 |---|---|---|---|
 | Preview idle → Live armed | indicator | none | ▶ will now start a live run |
 | Live armed → ▶ | Play | only if unsaved: *Save and go live / Cancel* | live from the world on screen, recording on, no reload (§2.3) |
-| Preview running → Live / Replay | indicator | *"Stops the preview and returns to the scenario's start"* | the dry run restores, then the chosen mode is armed |
-| Live running → Review | indicator *"Review the last 30 s / 2 min / from a checkpoint — live continues after"*, or the timeline's menu at a time | none | DAR as built — ⛔ never at the live end (D9) |
-| Live running → Replay | indicator, second item | *"Ends the live session; its recording opens"* | FinalizeLive, then the replay of E |
+| Preview running → Live / AAR | indicator | *"Stops the preview and returns to the scenario's start"* | the dry run restores, then the chosen mode is armed |
+| Live running → DAR | indicator *"DAR — the last 30 s / 2 min / from a checkpoint (live continues after)"*, or the timeline's menu at a time | none | DAR as built — ⛔ never at the live end (D9) |
+| Live running → AAR | indicator, second item | *"Ends the live session; its recording opens for AAR"* | FinalizeLive, then the AAR of E |
 | Live running → Preview | indicator | *"Ends the live session; you return to editing the scenario at its start"* | §2.4 |
 | ■ in Live | Stop | none | §2.4 — Live stays armed; toast *"Exercise recorded (12:31) — Replay it"* |
-| Live armed → Replay the last exercise | indicator, or the toast's button | none | the replay of the last exercise, at its START |
-| Preview → Replay, or File › Open Replay | indicator / File | unsaved edits → *Save / Discard / Cancel*; File › Open Replay always asks for a recording | the shared open dialog, kind Recording, grouped by scenario: *"hill-attack · run 3 · 14:41 · 12:31 long"* |
-| Replay → Live | indicator | *"A new exercise starts from 07:04; this recording stays unchanged"* | the built branch (D18), inheriting the parent's scenario copy |
-| Replay → Live | timeline menu | none — the user picked the moment | the same |
-| Replay → Preview | indicator | explains which scenario opens; when the saved scenario's hash differs from the recording's: **Open the recorded version (as a copy)** · **Open the current scenario** | edit that scenario at its start |
-| ■ in Replay | Stop | none | back to the recording's start, still Replay (R2) |
-| Save / Ctrl+S in Live or Replay | toolbar / key | none | a checkpoint, toast *"Checkpoint taken"*; the scenario is never written |
+| Live armed → AAR the last exercise | indicator, or the toast's button | none | the replay of the last exercise, at its START |
+| Preview → AAR, or File › Open Recording | indicator / File | unsaved edits → *Save / Discard / Cancel*; File › Open Recording always asks for one | the shared open dialog, kind Recording, grouped by scenario: *"hill-attack · run 3 · 14:41 · 12:31 long"* |
+| AAR → Live | indicator | *"A new exercise starts from 07:04; this recording stays unchanged"* | the built branch (D18), inheriting the parent's scenario copy |
+| AAR → Live | timeline menu | none — the user picked the moment | the same |
+| AAR → Preview | indicator | explains which scenario opens; when the saved scenario's hash differs from the recording's: **Open the recorded version (as a copy)** · **Open the current scenario** | edit that scenario at its start |
+| ■ in AAR | Stop | none | back to the recording's start, still AAR (R2) |
+| Save / Ctrl+S in Live or AAR | toolbar / key | none | a checkpoint, toast *"Checkpoint taken"*; the scenario is never written |
 | New scenario from a checkpoint | checkpoint menu / timeline | asks for a new name | the checkpoint's world as a new scenario, opened for editing |
 | editing while Preview or Live runs | any tool | none | allowed; the status bar says *"Running — edits are not saved unless you save"* |
-| open another scenario | File | unsaved → Save / Discard / Cancel | Preview is armed (never records by accident) |
+| open another scenario | File | unsaved → Save / Discard / Cancel | the HOST's default mode is armed (D12): Preview in the editor, Live on CGF / all-in-one |
+| editor start | — | none | a NEW UNSAVED scenario; the terrain comes first, through a terrain-specific scenario recipe (so starting always creates a scenario); Preview armed; ▶ Preview at will |
+| Live armed → ▶ on a never-saved scenario | Play | *Save as… and go live / Cancel* | Live needs a saved scenario (D16) — it is what the recording keeps (D7) |
+| ■ in Live with recording OFF (D14) | Stop | none | as ■ (§2.4), toast *"Live run ended"* — no AAR button; DAR and "AAR the last exercise" are greyed *"this run was not recorded"* |
+| ■ in Live with "ask to keep recordings" ON (D15) | Stop | *"Keep this recording? (12:31, hill-attack) — Keep / Discard"* | Discard deletes `exercises/<id>/`; Keep is the default button |
 
 ## 4. Decisions
 
@@ -244,7 +262,7 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **D1** | the mode is a CHOICE of what ▶ runs, shown dim before the start and bright while running; locked while running except through the confirmed moves of §3 | ✅ user |
 | **D2** | Live always starts from a scenario's beginning, or from an intended replay moment (the branch) — never from the middle of a preview | ✅ user |
 | **D3** | Preview idle → Live does not reload: the edited world IS the saved scenario's start (unsaved edits are saved first). Built as a world-continuing live load claimed in `OperatingEdit` — the replay branch's shape — with a new `OperatingEdit → LoadingLive` edge; not a world boundary, so no id reset (Deterministic Ids §11) | ✅ user (the behaviour) · ⏸ the mechanism, after M1 |
-| **D4** | unsaved edits ask *Save and go live / Cancel* | ✅ user |
+| **D4** | unsaved edits ask *Save and go live / Cancel*; a never-saved scenario asks *Save as… and go live / Cancel* (D16) | ✅ user |
 | **D5** | ■ follows R2: back to where the run came from, the armed mode stays | ✅ user ("next play after LIVE end = next live start") · the branch case ✅ lean accepted |
 | **D6** | replay of a just-ended live run is an explicit step (the indicator, or the toast's button), at the recording's START | ✅ user |
 | **D7** | a recording keeps its scenario: the whole scenario folder copied into `exercises/<id>/scenario/` by the orchestrator once at go-live, plus `RecordedAt`; a branch inherits its parent's copy | ✅ user + lean accepted |
@@ -252,8 +270,12 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **D9** | a review always has an explicit start (the indicator's windows, the timeline); the "no position = the live point" default is removed (`ClusterReplayControls.cs:19`, `POST /review`) | ✅ user |
 | **D10** | confirmations exactly as §3; Live → Preview always asks (no "don't ask again"); timeline actions never ask | ✅ user |
 | **D11** | edits are allowed while Preview or Live runs; a status-bar note, not a banner | ✅ user |
-| **D12** | opening a scenario arms Preview | ⏸ lean (accepted in the walkthrough, not stated as a ruling) |
+| **D12** | the armed mode at start and after opening a scenario is the HOST's default: **Preview in the editor, Live on CGF and the all-in-one** (`--mode all`, `run_All`) | ✅ user |
 | **D13** | the status-bar time control is removed (CE-4083) — the picker exists once | ✅ user (CE-4083) |
+| **D14** | **Live does not imply recording.** A system setting *"Record live runs"* (default ON) decides; the Live icon says which (red recording · green not). Not a conflict with mgmt-1 §8.12 "Always Recording" — that rule keeps the recorder running while the clock is PAUSED, it does not make every live run record | ✅ user (the setting) · ⏸ lean: default ON, one cluster-wide setting the master hands to every node with the live load |
+| **D15** | at ■ in Live, *"Keep this recording?"* — gated by a second setting *"Ask to keep recordings"* | ✅ user (the prompt + its gate) · ⏸ lean: default OFF (keep silently), Keep is the default button |
+| **D16** | the editor starts in a NEW UNSAVED scenario; the terrain is loaded first, through terrain-specific scenario recipes (starting always creates a scenario); Preview runs at will; Live needs a saved scenario | ✅ user |
+| **D17** | the user-facing words: **DAR** (inside a live session) and **AAR** (a recording played back) replace "Review" and "Replay"; the code names stay (§1a) | ✅ user (the words) · ⏸ lean: code names unchanged |
 
 ## 5. What must be measured before READY-TO-BUILD
 
@@ -262,6 +284,8 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **M1** | does a node in `OperatingEdit` hold anything a live run must not have — editor-only systems, the preview's checkpoint, creation-request ids, role gates that differ between Edit and Live? | D3's mechanism. If something real blocks it, the fallback is a reload that keeps camera and selection |
 | **M2** | does the distributed save write per-node parts into the scenario folder? | D7 copies the whole folder either way; this only tells how big the copy is |
 | **M3** | does every live recording carry `ScenarioHash` today (editor, director, HTTP loads)? | D7's "changed since" check |
+| **M4** | what does the editor open at start today, and how do the terrain-specific recipes create a scenario? | D16 |
+| **M5** | can recording be switched off for a live run without touching DAR's machinery (DAR plays the live recording — with none, DAR is greyed, not broken)? | D14 |
 
 ## 6. The build list (for the UI lane, after §5)
 
@@ -273,3 +297,5 @@ dashed) goes with CE-4083 — one transport, one picker.
 6. Save/Ctrl+S = checkpoint + toast in Live/Replay; "New scenario from checkpoint".
 7. `EnterReview` without a position refused; the timeline's right-click menu carries Review from here / Go live from here / Take checkpoint here.
 8. The status-bar note while a run goes.
+9. The two settings (D14 record live runs, D15 ask to keep) and the host default mode (D12); the AAR/DAR wording everywhere the user reads it (menus, tooltips, dialogs, the timeline).
+10. The editor start in a new unsaved scenario with the terrain-recipe step (D16) — ⚠ measure first what the editor opens at start today.
