@@ -640,6 +640,9 @@ namespace Hrot.Editor.DebugApi
             //    404, which is the honest answer — ⛔ better than silently choosing a mode for it.
             _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
             _routes.Add(new("POST", "/scenario/load/live", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
+            // ⭐⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: every node compares its whole world with its baseline; the master answers {changed, changedNodes}.
+            //    ⛔ Runs a round each time it is called — GET /status.scenarioDirty only reports the last one.
+            _routes.Add(new("POST", "/scenario/check-unsaved", _ => HandleCheckUnsaved()));
             _routes.Add(new("POST", "/scenario/save", ctx =>
             {
                 var name = ctx.Body?["name"]?.GetValue<string>();
@@ -1996,6 +1999,9 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(name))
                 return Fail(400, "name is required.");
 
+            // ⭐⭐ CE-4093 (AQ108 D22) — at the TOP: a load would lose the edits, so the master's check round runs first (ONE helper for both modes)
+            if (await GateUnsavedChangesAsync(ctx, name!, target).ConfigureAwait(false) is { } unsaved) return unsaved;
+
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
 
@@ -2072,6 +2078,67 @@ namespace Hrot.Editor.DebugApi
                            //   reason ("waiting for: MuscleGround (SimHost)") is on the node that hosts the master.
                            + "If the cluster has no node with a required role (Brain, MuscleGround) the master holds the load and refuses it "
                            + "after its wait: read load.notice in GET /cluster/roster on the orchestrator.");
+        }
+
+        /// <summary>⭐ CE-4093 — how long a check round may take to answer: it is one capture + hash per node (~60 ms on a large scenario), so this is a stall, not slowness.</summary>
+        private const double UnsavedCheckTimeoutSeconds = 15.0;
+
+        /// <summary>
+        /// ⭐⭐ CE-4093 (AQ108 D20) — runs ONE check round through the master and waits for its answer, polled through the main-thread queue (the master and the
+        /// read model are ticked there). Returns the outcome, or the failure to send (no master reachable, or no answer within <see cref="UnsavedCheckTimeoutSeconds"/>).
+        /// </summary>
+        private async Task<(Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? Outcome, RouteResult? Failure)> RunCheckRoundAsync()
+        {
+            var started = await _jobQueue.RunOnMainThread(() => Service().StartUnsavedCheck()).ConfigureAwait(false);
+            if (started.Error != null)
+                return (null, Fail(started.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? 503 : 400, started.Error, started.HintCategory));
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed.TotalSeconds < UnsavedCheckTimeoutSeconds)
+            {
+                var outcome = await _jobQueue.RunOnMainThread(() => Service().UnsavedCheckOutcomeOrNull(started.RequestId)).ConfigureAwait(false);
+                if (outcome is not null) return (outcome, null);
+                await Task.Delay(20).ConfigureAwait(false);
+            }
+            return (null, Fail(504, $"The unsaved-changes check was asked of the cluster but no answer came within {UnsavedCheckTimeoutSeconds:0}s "
+                                  + "(a node that never answers holds the round; see GET /cluster/roster).", DebugApiHints.Scenario));
+        }
+
+        /// <summary><c>POST /scenario/check-unsaved</c> — <c>{changed, changedNodes}</c>, the master's check round; 409 when the cluster is not open for editing.</summary>
+        private async Task<RouteResult> HandleCheckUnsaved()
+        {
+            var (outcome, failure) = await RunCheckRoundAsync().ConfigureAwait(false);
+            if (failure is not null) return failure.Value;
+            if (outcome!.Result is not { } r)
+                return Fail(outcome.Refusal == Fdp.Toolkit.Orchestration.UnsavedCheckOutcome.NotEditingReason ? 409 : 502,
+                            outcome.Refusal ?? "the cluster did not answer the check.", DebugApiHints.Scenario);
+            var nodes = new JsonArray();
+            foreach (var n in r.ChangedNodes) nodes.Add(n);
+            return Ok(new JsonObject { ["changed"] = r.Changed, ["changedNodes"] = nodes });
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4093 (AQ108 D22) — the ONE gate both scenario loads pass at their top: a load that would LOSE edits answers 409 "the scenario has unsaved changes"
+        /// unless the body says <c>discardUnsaved: true</c>. Gated: a Live load always; an Edit load of ANOTHER scenario (reloading the one open is the harnesses'
+        /// "start over", and the load of a scenario is not the loss D22 names). Only while the cluster is open for editing and this host can see the master's answer;
+        /// ⛔ nothing is asked in Idle, a preview, a live run or a replay (the world there is not the scenario's). Returns the response to send, or null to go on.
+        /// </summary>
+        private async Task<RouteResult?> GateUnsavedChangesAsync(RequestContext ctx, string name, Fdp.Toolkit.Orchestration.ClusterState target)
+        {
+            if (ctx.Body?["discardUnsaved"] is JsonValue d && d.TryGetValue(out bool discard) && discard) return null;
+            bool gated = await _jobQueue.RunOnMainThread(() =>
+            {
+                var s = Service();
+                if (!s.IsEditingScenario || !s.ObservesUnsavedChecks) return false;
+                return target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
+                    || !string.Equals(s.LoadedScenarioNameOrNull(), name, StringComparison.OrdinalIgnoreCase);
+            }).ConfigureAwait(false);
+            if (!gated) return null;
+
+            var (outcome, failure) = await RunCheckRoundAsync().ConfigureAwait(false);
+            if (failure is not null) return failure;
+            if (outcome!.Result is not { Changed: true } changed) return null;   // unchanged — or the master refused (the state moved): nothing to lose
+            return Fail(409, "the scenario has unsaved changes (nodes: " + string.Join(",", changed.ChangedNodes) + "): save it first (POST /scenario/save), "
+                           + "or send {\"discardUnsaved\": true} to load anyway.", DebugApiHints.Scenario);
         }
 
         private DebugApiService Service()

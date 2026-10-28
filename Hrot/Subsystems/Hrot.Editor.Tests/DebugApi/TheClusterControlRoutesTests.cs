@@ -344,6 +344,7 @@ public sealed class TheClusterControlRoutesTests
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void SetRunSettings(SetRunSettingsIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void CheckUnsaved(CheckUnsavedIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Cancel(CancelOperationIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw new InvalidOperationException("no such exercise");
     }

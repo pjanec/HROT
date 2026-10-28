@@ -128,7 +128,9 @@ namespace Hrot.ExCon
                 replayDuration:     () => _uiCache?.ReplayDuration,
                 replayAxis:         () => _uiCache?.ReplayAxis,   // ⭐ CE-3329 R-3058
                 runNotRecorded:     () => _uiCache?.RunNotRecorded,   // ⭐ CE-4090 D14
-                recordLiveRunsOff:  () => _uiCache?.RecordLiveRunsOff);
+                recordLiveRunsOff:  () => _uiCache?.RecordLiveRunsOff,
+                unsavedCheck:       id => _uiCache?.UnsavedCheckOutcomeFor(id),   // ⭐ CE-4093 D20
+                scenarioDirty:      () => _uiCache?.LastUnsavedCheck?.Changed);
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>

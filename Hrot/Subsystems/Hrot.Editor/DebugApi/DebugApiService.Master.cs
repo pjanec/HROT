@@ -83,6 +83,42 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["exerciseId"] = id.ToString() }, null, null, 200);
         }
 
+        // ── ⭐⭐ CE-4093 (AQ108 D20, D22) — the unsaved-changes CHECK ROUND ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>POST /scenario/check-unsaved</c>, first half — asks the master for a check round (every node compares its whole world with its baseline) and returns
+        /// the request id; the host's route waits for the answer (<see cref="UnsavedCheckOutcomeOrNull"/>). ⛔ Never answers from a cache: only a round the master ran.
+        /// </summary>
+        public (Guid RequestId, string? Error, string? HintCategory) StartUnsavedCheck()
+        {
+            var master = MasterOrNull;
+            if (master is null) return (Guid.Empty, NoMaster, DebugApiHints.Panel);
+            var intent = new CheckUnsavedIntent { RequestId = Guid.NewGuid() };
+            try { master.CheckUnsaved(intent); }
+            catch (InvalidOperationException ex) { return (Guid.Empty, ex.Message, DebugApiHints.Scenario); }
+            return (intent.RequestId, null, null);
+        }
+
+        /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended (the master's answer, or its refusal); null while it has not.</summary>
+        public UnsavedCheckOutcome? UnsavedCheckOutcomeOrNull(Guid requestId)
+            => _editorUnsavedCheck?.Invoke(requestId) ?? _dispatcher?.UnsavedCheckAnyNode(requestId);
+
+        /// <summary>⭐ CE-4093 — this host can see check-round answers (it keeps a cluster read model fed by the master); a host that cannot must not gate on them.</summary>
+        public bool ObservesUnsavedChecks => _editorUnsavedCheck != null || _dispatcher?.ObservesUnsavedChecksAnyNode == true;
+
+        /// <summary>⭐ CE-4093 (D22) — <c>GET /status.scenarioDirty</c>: the LAST check round's verdict; null when none ran (or the cluster left editing since). ⛔ Never runs a round.</summary>
+        public bool? ScenarioDirtyOrNull => _editorScenarioDirty?.Invoke() ?? _dispatcher?.ScenarioDirtyAnyNode;
+
+        /// <summary>⭐ CE-4093 — the scenario this host has open (the editor driver's name), or null when this host has no editor driver / none is open.</summary>
+        public string? LoadedScenarioNameOrNull()
+        {
+            try { return _editor.LoadedScenarioName; }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
+        }
+
+        /// <summary>⭐ CE-4093 — the cluster is open for editing: the only state in which unsaved changes can be lost (and the only one the master checks).</summary>
+        public bool IsEditingScenario => CurrentClusterStateOrNull() == ClusterState.OperatingEdit;
+
         /// <summary><c>POST /preview/enter {startPaused?}</c> — the cluster's dry run (<c>OperatingPreview</c>). ⛔ Never recorded (R-3053).</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) EnterPreview(bool startPaused = false)
         {
