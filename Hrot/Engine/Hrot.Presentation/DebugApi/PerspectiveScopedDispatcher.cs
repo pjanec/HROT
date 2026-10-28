@@ -296,6 +296,10 @@ public sealed class PerspectiveScopedDispatcher
 
     /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "this run was not recorded" from the active node, else any node that keeps a cluster
     /// read model: one cluster, one fact (as <see cref="ClusterStateAnyNode"/>). <see langword="null"/> when no node here tracks it.</summary>
+    /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, from the active node else any node (one cluster, one fact).</summary>
+    public bool? RecordLiveRunsOffAnyNode
+        => Active()?.RecordLiveRunsOff ?? _providers.Select(p => p.RecordLiveRunsOff).FirstOrDefault(x => x is not null);
+
     public bool? RunNotRecordedAnyNode
         => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
 

@@ -2029,6 +2029,16 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"id\":\"00000000-0000-0000-0000-000000000000\"}",
             ExampleGist: "discard a recording"),
 
+        [("GET", "/run-settings")] = new RouteDoc(
+            Tool:    "get_run_settings",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does). The same answer on every host.",
+            Returns: "{ recordLiveRuns }",
+            Hint:    "No params. get_status → recording says whether the run on screen is recorded. Example: get_run_settings({})",
+            Notes: new[] { "A set_run_settings is visible here once the master has broadcast it (a frame or two)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "will the next live run be recorded"),
+
         [("POST", "/run-settings")] = new RouteDoc(
             Tool:    "set_run_settings",
             Group:   "I — Replay",

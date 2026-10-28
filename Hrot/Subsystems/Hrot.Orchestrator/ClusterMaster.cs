@@ -2211,6 +2211,7 @@ public sealed partial class ClusterMaster : IDisposable
             TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
             ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
+            RecordLiveRunsOff = !RecordLiveRuns,
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2219,6 +2220,7 @@ public sealed partial class ClusterMaster : IDisposable
             SessionId    = SessionId,
             ReplayAxis   = _replayAxis,
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
+            RecordLiveRunsOff = !RecordLiveRuns,
         });
     }
 

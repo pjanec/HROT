@@ -2227,6 +2227,27 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "get_run_settings",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does). The same answer on every host.",
+    "http": {
+      "method": "GET",
+      "path": "/run-settings"
+    },
+    "params": [],
+    "returns": "{ recordLiveRuns }",
+    "notes": [
+      "A set_run_settings is visible here once the master has broadcast it (a frame or two)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "will the next live run be recorded"
+    },
+    "hint": "No params. get_status → recording says whether the run on screen is recorded. Example: get_run_settings({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "set_run_settings",
     "group": "I — Replay",
     "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording.",

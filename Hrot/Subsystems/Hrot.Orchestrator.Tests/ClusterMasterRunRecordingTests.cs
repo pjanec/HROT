@@ -156,6 +156,27 @@ public sealed class ClusterMasterRunRecordingTests
         Assert.True(master.RecordLiveRuns);
     }
 
+    /// <summary>⭐ CE-4090 — every host reads the SETTING off the cluster-state broadcast: ON by default (nothing inverted announced), and a
+    /// <c>SetRunSettings</c> makes the master republish the state at once, both ways.</summary>
+    [Fact(Timeout = 10_000)]
+    public void The_setting_itself_rides_the_cluster_state_broadcast_and_is_republished_when_it_changes()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus);
+        ClusterStateUpdateEvent? Last()
+        {
+            ClusterStateUpdateEvent? last = null;
+            foreach (var e in bus.ReadManaged<ClusterStateUpdateEvent>()) last = e;
+            return last;
+        }
+        SetSetting(master, bus, true);
+        Assert.False(Last()!.Value.RecordLiveRunsOff);
+        SetSetting(master, bus, false);
+        Assert.True(Last()!.Value.RecordLiveRunsOff);          // told at once, no load needed
+        SetSetting(master, bus, true);
+        Assert.False(Last()!.Value.RecordLiveRunsOff);
+    }
+
     // ── 4 — the verifier ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>⭐ §5a — the scenario verifier compares a RECORDING against a golden: its live load (<c>ForceRecording</c>) records even with the

@@ -39,6 +39,9 @@ public sealed class ClusterUiCache : IDisposable
     /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast said.</summary>
     public bool        RunNotRecorded         { get; private set; }
 
+    /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said.</summary>
+    public bool        RecordLiveRunsOff      { get; private set; }
+
     /// <summary>
     /// ⭐⭐ CE-3329 (rows 32, 45; §9e–§9g) — the replay's SESSION LAYER as the master last published it: the zero, the length, the axis,
     /// the cluster's time map, the checkpoint marks, the review's id and live point. The same on every host; inactive outside a replay.
@@ -161,7 +164,7 @@ public sealed class ClusterUiCache : IDisposable
             var prev = CurrentState;
             CurrentState   = (ClusterState)(int)ev.CurrentState;
             ActiveExerciseId = ev.ExerciseId;
-            if (!ev.MasterGone) { ReplayAxis = ev.ReplayAxis; RunNotRecorded = ev.RunNotRecorded; }   // ⭐ CE-3329 R-3058 · CE-4090 D14
+            if (!ev.MasterGone) { ReplayAxis = ev.ReplayAxis; RunNotRecorded = ev.RunNotRecorded; RecordLiveRunsOff = ev.RecordLiveRunsOff; }   // ⭐ CE-3329 R-3058 · CE-4090 D14
             IsBootstrapped = CurrentState != ClusterState.Degraded;
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);

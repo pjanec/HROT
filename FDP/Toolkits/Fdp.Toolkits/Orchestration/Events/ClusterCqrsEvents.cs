@@ -126,6 +126,8 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF. Inverse polarity: default false = recorded
         /// (today's behaviour), so a publisher that does not set it changes nothing. Rides every cluster-state publication.</summary>
         public bool RunNotRecorded;
+        /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load will do). Inverse polarity: default false = ON.</summary>
+        public bool RecordLiveRunsOff;
     }
 
     /// <summary>
@@ -198,6 +200,8 @@ namespace Fdp.Toolkit.Orchestration
         public ReplayAxis ReplayAxis;
         /// <summary>⭐ CE-4090 (AQ108 D14) — as <see cref="ClusterStateTransitionedEvent.RunNotRecorded"/>.</summary>
         public bool RunNotRecorded;
+        /// <summary>⭐ CE-4090 — as <see cref="ClusterStateTransitionedEvent.RecordLiveRunsOff"/>.</summary>
+        public bool RecordLiveRunsOff;
     }
 
     /// <summary>
