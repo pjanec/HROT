@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-28 (C-3′ / R-4096 — a station never takes a unit or a seat another live station holds; same side shares a vehicle in free seats) · 2026-10-21 (§8p CE-1201 — an optional over-the-shoulder view; leans OS-1…OS-6 taken overnight) · 2026-10-21 (§8o CE-1200 — first person in a vehicle draws it, from a crew eye; BUILT) · 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
-current-answer: §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
+current-answer: §8q (R-4096 / C-3′ — a player never takes another live player's unit or seat; BUILT) · §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -77,7 +77,7 @@ not run (not available via the CLI) — the zero rows are grep-and-graph zeros, 
 | **C-1** | **FPS runs in our 3-D map view** (the shared `MapCanvas` 3-D mode on every map host), the camera behind a driver hook so a final engine can take it over (R-250) |
 | **C-2** | **The operator overrides the ROE** — a possessed unit fires when told, even under `HoldFire`; it is not held by its own seen-now gate either (the operator is the eyes) |
 | **C-3** | **One station per unit, FPS only.** ⛔ ~~A second station's possess request takes the unit over~~ — SUPERSEDED `2026-10-28` by **C-3′** (R-4096); RTS / menu / HTTP orders to a unit another station holds in FPS are refused |
-| **C-3′** | ⭐ **MULTIPLAYER (R-4096, `2026-10-28`): a station NEVER takes a unit or a seat another LIVE station holds** — not on the same side, not on another. Same side (`EntityInfo.ForceId`): a second player may board the same vehicle and take a FREE seat (O-4, MW-1 seat switching into free seats only). Another side: may not possess or board a unit/vehicle another side's player holds. A killed holder frees the unit and the seat (already: death releases, `Possession.cs:212`). 🔒 User, `2026-10-28`: *"taking someone elses tank should not be allowed if those players do not belong to the same faction (blue/red...) if they are on same side,  they should be allowed to occupy different seats of the same vehicle but never push the other player from the seat he is occupying (uless the plaer has been killed, which should free the seat)."* ⏸ Open: what a player's side is when it holds nothing — lean: the side of the unit it holds; a player holding nothing has no side until it possesses (no separate player-faction concept yet) |
+| **C-3′** | ⭐ **MULTIPLAYER (R-4096, `2026-10-28`): a station NEVER takes a unit or a seat another LIVE station holds** — not on the same side, not on another. Same side (`EntityInfo.ForceId`): a second player may board the same vehicle and take a FREE seat (O-4, MW-1 seat switching into free seats only). Another side: may not possess or board a unit/vehicle another side's player holds. A killed holder frees the unit and the seat (already: death releases, `Possession.cs:212`). 🔒 User, `2026-10-28`: *"taking someone elses tank should not be allowed if those players do not belong to the same faction (blue/red...) if they are on same side,  they should be allowed to occupy different seats of the same vehicle but never push the other player from the seat he is occupying (uless the plaer has been killed, which should free the seat)."* ✅ BUILT `2026-10-28` — **§8q**: a station's side is the side of the unit it holds (its Riding soldier first); a station holding nothing has no side, so only the held-by-another test applies to it. ⏸ Still open for the user: a separate player-faction concept (none exists yet) |
 | **C-4** | **FPS release resumes the unit's earlier task** (the paused-task slot); an RTS / menu / HTTP order **replaces** it and clears the mission plan (Entity Commanding ruling 50) |
 | **C-5** | **"Attack" = close in and fight** — one behaviour for RTS, menu and HTTP: CombatPosture with a designated target and `assault` (AQ89) — the unit picks route, cover and weapon |
 | **C-6** | Network lag on FPS movement is accepted for v1 and **measured on the cluster**; looking around is local |
@@ -521,7 +521,7 @@ sequenceDiagram
     participant C as OperatorControl
     participant K as CarKinematicsSystem (muscle)
     S->>P: PossessRequestEvent{unit, station}
-    P->>P: PossessedBy = station (another station's hold is taken over)
+    P->>P: PossessedBy = station (R-4096: refused when ANOTHER live station holds the unit, §8q)
     P->>I: AssignBehaviorEvent(OperatorControl, origin Possession)
     I->>I: the running task → PausedTask
     loop each frame
@@ -634,7 +634,7 @@ classDiagram
 ```
 
 *What the picture shows that the prose hid:* the station never decides it is in FPS — it **follows the replicated `PossessedBy`**, so a
-possess from the menu, from HTTP, or a take-over by another station all land the same way, and a lost unit leaves FPS by itself.
+possess from the menu or from HTTP lands the same way, and a lost unit leaves FPS by itself. *(⛔ SUPERSEDED `2026-10-28` — R-4096 / C-3′: a take-over by another station no longer exists; the unit stays with its holder, §8q.)*
 
 ```mermaid
 sequenceDiagram
@@ -1194,7 +1194,7 @@ possession on boarding* — the soldier and the vehicle may live on two brain no
 | **O-1** | hold-`E`: a small list near the crosshair, or a radial? | a short list — fewer pixels over the view |
 | **O-2** | while the human drives, the soldier's own task resumes aboard — could it order him out (a squad move)? | ✅ pause it — the mark is `PossessionMode.Riding` (`CE-1156`): the station keeps holding the soldier, so his task stays paused by the possession that already pauses it (origin Possession), and frames are not sent to him |
 | **O-3** | the vehicle already has an AI driving it: does the human simply take over (its task pauses, as for any possession)? | yes — possession outranks it (origin rank, Q83) |
-| **O-4** | two humans board the same vehicle | one station per unit (C-3): the second becomes a passenger, not its driver |
+| **O-4** | two humans board the same vehicle | one station per unit (C-3): the second becomes a passenger, not its driver. ✅ **R-4096 (`2026-10-28`, §8q) makes it a rule for PLAYERS:** the second boards a FREE seat only — never the driver seat a station holds, even when no man sits in it (the vehicle is held) — and only when no player of ANOTHER side holds or sits in the vehicle (`UseReason.OtherSide`) |
 | **O-5** | a gunner and a driver as different humans | waits for crew to stop being abstract |
 | **O-6** | stretchers / two-man weapons for a human | later: naming the assistant is its own design (T4) |
 
@@ -2003,6 +2003,8 @@ which already crosses nodes (`EntityOrders.Possess`).
 
 📐 **Rails:** `AimAndFireExecutorTests.CE1210_*` (FDP), `PossessionStationTests.CE1210_*` (`PossessionStationTests.Seats.cs`).
 
+> ⭐ **`2026-10-28` (R-4096, §8q) — MW-1 switches only into a seat NO OTHER player holds.** `SeatSwitch.Next` / `SeatsFor` drop the vehicle itself while another station drives it and a gun seat another station plays; a free seat (an AI gunner's, an empty driver's) switches as before. Rail `PossessionStationTests.R4096_G_NeverGoesToASeatAnotherPlayerHolds_…`.
+
 ## 8o. First person in a vehicle — the vehicle drawn, from a crew eye (`CE-1200`, `2026-10-21`, ui) — build-state: BUILT
 
 🔒 User, live, `2026-10-19`: *"in FPS mode the vehicle model should not be turned off — once the camera looks from proper cockpit place,
@@ -2110,6 +2112,71 @@ the frame, the brain and the round are untouched, because the crosshair ray alre
 
 ⚠ Not built: the camera does not stop at a wall (it can stand inside a building behind him); a Windows check is owed. Rails
 `Map3DTests.CE1201_*` (red-proved: the right offset flipped), frame `Map3DFrameRail.CE1201_V_*` (`docs/assets/map-3d/ce1201-over-the-shoulder.png`).
+
+## 8q. AS-BUILT — a player never takes another live player's unit or seat (`R-4096`, C-3′, `2026-10-28`, backend) — build-state: BUILT
+
+🔒 User, `2026-10-28`: *"taking someone elses tank should not be allowed if those players do not belong to the same faction (blue/red...) if they are on same side, they should be allowed to occupy different seats of the same vehicle but never push the other player from the seat he is occupying (uless the plaer has been killed, which should free the seat)."* — C-3′ replaces C-3's *"a second station's possess request takes the unit over"*.
+
+### 8q.1 INVENTORY *(`2026-10-28`; codebase-memory CLI `list_projects` only — the index was up, the reads below are `grep` + the code read; `check_index_coverage` is not reachable through the CLI)*
+
+| the place a player could take what another holds | where | before | now |
+|---|---|---|---|
+| a possess request, on the BRAIN | `PossessionSystem.Execute` | any station's request took the unit (epoch + 1) | `StationClaims.ForPossess` ≠ None ⇒ ignored, `Refused++` |
+| a possess order, on the STATION (menu, RTS, HTTP `POST /entities/{id}/possess` → 409) | `EntityOrders.Possess` | published at once | refused before anything is published or released: `Possessed` (names the holder) / `WrongSide` |
+| the use key: Drive / Pilot / Board / Man | `OperatorUseActions.Vehicle` / `Weapon` → `Seat` | free seat by `Embarkation.FreeSeat` only | + the driver seat of a vehicle a station HOLDS is `SeatTaken`; a vehicle an enemy PLAYER holds or sits in is `UseReason.OtherSide` |
+| seat switching (G, MW-1) | `SeatSwitch.Next` | every manned seat | `SeatSwitch.SeatsFor` drops a seat another station holds |
+| a killed player's seat | `PossessionSystem` death sweep + `Embarkation` | the body stayed in the buffer ⇒ the seat stayed taken | the sweep also sends `DisembarkEntityCommand` for a killed man that is aboard |
+| NOT touched (scope fence) | `Embarkation.CanEmbark` / `TryEmbark` / `FreeSeat`, the AI's embark nodes, `EmbarkOrders` (map menu) | — | AI crews, a dead AI man's seat, a free unit of ANY side behave exactly as before |
+
+### 8q.2 Diagrams
+
+```mermaid
+classDiagram
+  class StationClaims { <<new, Fdp.Toolkits>> TryHeldByOther(unit, station) · TrySideOf(station) · OtherSideAboard(vehicle, side, station) · ForPossess(unit, station) }
+  class PossessionSystem { <<exists, changed>> Refused · the killed and departed sweeps run BEFORE the requests · FreeSeatOf }
+  class EntityOrders { <<exists, changed>> Possess answers Possessed or WrongSide at once }
+  class OperatorUseActions { <<exists, changed>> Vehicle · Weapon · Seat answer SeatTaken or OtherSide }
+  class SeatSwitch { <<exists ui, changed>> SeatsFor drops the seats another station holds }
+  class EmbarkationSystem { <<exists>> applies DisembarkEntityCommand on the vehicles owner }
+  class Embarkation { <<exists, untouched>> FreeSeat · CanEmbark · TryEmbark }
+  EntityOrders ..> StationClaims
+  PossessionSystem ..> StationClaims
+  OperatorUseActions ..> StationClaims
+  SeatSwitch ..> StationClaims
+  OperatorUseActions ..> Embarkation
+  PossessionSystem ..> EmbarkationSystem : DisembarkEntityCommand for a killed player aboard
+```
+*What the picture shows that prose hid:* ONE rule (`StationClaims`) read by four callers — the station's answer, the brain's arbiter, the use key and the seat switch — so they cannot disagree; `Embarkation` (which the AI shares) is deliberately NOT in the rule.
+
+```mermaid
+sequenceDiagram
+  participant B as station B (second player)
+  participant A as station A (holds the tank)
+  participant P as PossessionSystem (brain node)
+  B->>B: EntityOrders.Possess(tank): StationClaims says held by A
+  B--xB: refused at once, 409 Possessed (nothing published)
+  B->>P: a request that arrives anyway (race of two stations)
+  P->>P: ReleaseKilled and ReleaseDeparted first, then ForPossess is still HeldByAnotherStation
+  P--xB: ignored (Refused + 1), A keeps the unit, its epoch and its frames
+  Note over A,P: A is killed: the sweep releases the tank (and A's soldier leaves his seat)
+  B->>P: Possess(tank) in the same tick, the sweeps ran before the requests
+  P->>B: B holds it
+```
+*What the picture shows that prose hid:* the order inside `PossessionSystem.Execute` matters — the killed and departed sweeps now come BEFORE the request loop, or a request in the tick the holder died would be refused for nothing.
+
+### 8q.3 As built — C-3′'s four questions answered
+
+| question | built | note |
+|---|---|---|
+| what is a station's SIDE | `StationClaims.TrySideOf`: the `EntityInfo.ForceId` of a unit it holds — its **Riding** soldier first (the human's own body), else the first held unit. A station holding nothing has **no side** and is not refused for it | ⏸ the lean recorded in C-3′, built as leaned; a separate player-faction concept does not exist yet |
+| possess a unit/vehicle | refused when **another LIVE station holds it** (`Possessed`, whatever the side), or when it **carries a player of another side** than the station's (`WrongSide`: a vehicle whose driver or any passenger is held by a station of another side) | "live" = the held unit is not killed (`PossessionSystem.Alive`, one definition) |
+| boarding (E) | a free seat only (O-4 unchanged); the driver seat of a vehicle ANOTHER station holds is `SeatTaken` even with no man in it; a vehicle an enemy player holds or sits in is `OtherSide` for Drive, Pilot, Board and Man alike | the rule `OperatorUseActions.For` is shared by the HUD (greyed, `enemy aboard`) and the brain |
+| seat switching (G) | a seat another station holds is not offered; a free seat switches as before | `SeatSwitch.SeatsFor`; the HUD's seat line follows it |
+| killed player | his hold is released (unchanged); ⭐ **new:** a killed man that is aboard is asked out (`DisembarkEntityCommand` ⇒ the vehicle's owner's `EmbarkationSystem`), so the seat is free for the next player | ⚠ only a man a STATION held: a dead AI crewman stays in his seat as ever (scope fence) |
+
+⚠ **Not built, said:** (1) the executor race — two stations pressing Drive at the same tick on an EMPTY driver seat nobody holds yet: `EmbarkExecutor`/`Embarkation` still decide by free seat (first to run wins, nobody is pushed); the held-vehicle test is made when the press is read. (2) `EmbarkOrders` (the map menu's Embark…) is an editor order on AI units and was left alone. (3) Not yet measured live with two real Player nodes (UC-18 in [`DESIGN_Cluster_Membership_Use_Cases.md`](DESIGN_Cluster_Membership_Use_Cases.md)): rails only.
+
+📐 **Rails** *(each red-proved by a compiling mutant)*: `PossessionReplicationTests.R4096_*` (SimHost: the brain refuses a second station and keeps the holder's epoch and frames · a killed or departed holder's unit is taken in the same tick · a vehicle carrying an enemy player is refused, a friend's is not, a station with no unit has no side · a killed player's seat is freed, a dead AI man's is not) · `OperatorUseActionsTests.R4096_*` (FDP: same-side Board into a free seat and never the held driver seat · a held empty vehicle's driver seat is taken · an enemy player aboard ⇒ `OtherSide`, an AI-driven enemy vehicle is boardable as before · a left seat is free) · `PossessionStationTests.R4096_*` (the station's synchronous 409 / `WrongSide` · G never offers a held seat) · `DebugApiOrdersTests.CE3172_AnotherStation_CannotDriveOrRelease_AndR4096_CannotTakeOver` (the old C-3 take-over test, now asserting the refusal on the HTTP-facing `EntityOrders`, then the brain ignoring a raw request, then a take once the holder releases).
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
@@ -2264,7 +2331,7 @@ MCP tools: `order_entity` · `get_entity_order` · `release_entity` · `order_en
 idle choice, an Operator clear refused) · `CarKinematicsSystemTests` CE3173 ×4 (strafe at 60 %; turn on the spot, back at 60 %,
 signed speed; a vehicle steers, brakes, reverses; no drive = hold still) · `DebugApiOrdersTests` CE3172 ×2 in the NETWORKLESS
 editor world (possess pauses a hold, refuses an order, control frames walk the body east, an older frame is ignored, release stops
-the body and resumes the hold; another station cannot drive or release but can take over).
+the body and resumes the hold; another station cannot drive or release — ⛔ and since `2026-10-28` (R-4096, §8q) cannot take over either: its possess is refused, `409 Possessed`, and the test is `CE3172_AnotherStation_CannotDriveOrRelease_AndR4096_CannotTakeOver`).
 MCP tools: `possess_entity` · `release_possession` · `control_entity` (group Z).
 
 ### 13.1 AS-BUILT — S4d operator fire (`CE-3172` part, `2026-10-11`)

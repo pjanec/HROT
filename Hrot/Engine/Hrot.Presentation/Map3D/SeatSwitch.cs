@@ -45,10 +45,24 @@ public static class SeatSwitch
         return seats;
     }
 
+    /// <summary>
+    /// ⭐ <c>R-4096</c> (C-3′, MW-1 seat switching) — the seats <paramref name="unit"/>'s player may go to: <see cref="Seats"/> without the
+    /// ones ANOTHER live station holds (the vehicle itself when another player drives it, a gunner another player plays). He never pushes
+    /// anyone from a seat; a seat nobody holds — an AI gunner's, an empty driver's — still switches. <paramref name="unit"/> itself
+    /// stays in the list (the place the next seat is counted from).
+    /// </summary>
+    public static List<Entity> SeatsFor(EntityRepository w, Entity unit)
+    {
+        long? me = Fdp.Toolkit.Behavior.Possession.PossessionSystem.HolderOf(w, unit);
+        var seats = Seats(w, VehicleOf(w, unit));
+        seats.RemoveAll(seat => seat != unit && Fdp.Toolkit.Behavior.Possession.StationClaims.TryHeldByOther(w, seat, me, out _));
+        return seats;
+    }
+
     /// <summary>The seat after <paramref name="unit"/>'s (wrapping), or null when the vehicle has no other.</summary>
     public static Entity Next(EntityRepository w, Entity unit)
     {
-        var seats = Seats(w, VehicleOf(w, unit));
+        var seats = SeatsFor(w, unit);
         if (seats.Count < 2) return Entity.Null;
         int at = Math.Max(0, seats.IndexOf(unit));
         return seats[(at + 1) % seats.Count];

@@ -88,4 +88,35 @@ public sealed partial class PossessionStationTests
         u.W.Bus.SwapBuffers();
         Assert.Equal(pickup, Assert.Single(u.W.Bus.Read<PossessRequestEvent>().ToArray()).Unit);   // back to the driver seat
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4096</c> S4 (docs/DESIGN_Entity_Control.md C-3′, §8n MW-1) — G never moves into a seat ANOTHER player holds: the driver seat
+    /// (the vehicle) while another player drives it, a gun seat while another player plays it — no G, no seat line; the moment that player
+    /// lets go the seat switches again (and a seat nobody holds always did). ✅ Red-proof: <c>SeatSwitch.SeatsFor</c> without its
+    /// <c>RemoveAll</c> ⇒ G offers the held seat and the first assert fails.
+    /// </summary>
+    [Fact]
+    public void R4096_G_NeverGoesToASeatAnotherPlayerHolds_ASeatNobodyHoldsStillSwitches()
+    {
+        using var u = new UseWorld();
+        var (pickup, gunner, _) = Technical(u);
+        u.W.RemoveComponent<PossessedBy>(u.Me);
+        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });   // I play the gun
+        Assert.Equal(pickup, SeatSwitch.Next(u.W, gunner));                                        // the driver seat is nobody's: as before
+
+        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 1 });   // another player drives
+        Assert.Equal(Entity.Null, SeatSwitch.Next(u.W, gunner));                                   // never pushed from it
+        Assert.Null(PossessionStation.Hud.SeatLine(u.W, gunner));
+
+        u.W.RemoveComponent<PossessedBy>(pickup);                                                  // I drive, he plays the gun
+        u.W.RemoveComponent<PossessedBy>(gunner);
+        u.W.AddComponent(pickup, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 2 });
+        u.W.AddComponent(gunner, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 1 });
+        Assert.Equal(Entity.Null, SeatSwitch.Next(u.W, pickup));
+        Assert.Equal(new[] { pickup, gunner }, SeatSwitch.Seats(u.W, pickup));                     // the seats exist; they are just not mine to take
+
+        u.W.RemoveComponent<PossessedBy>(gunner);                                                  // he lets go (or is killed)
+        Assert.Equal(gunner, SeatSwitch.Next(u.W, pickup));
+        Assert.Equal("SEAT DRIVER  (G: next seat)", PossessionStation.Hud.SeatLine(u.W, pickup));
+    }
 }

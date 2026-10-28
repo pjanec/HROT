@@ -66,6 +66,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         NothingToDo,
         /// <summary>The action started and its executor failed.</summary>
         Failed,
+        /// <summary>⭐ <c>R-4096</c> (C-3′) — a player of ANOTHER side drives or sits in that vehicle: it is not for this one. (Appended: the
+        /// numbers above are on the wire.)</summary>
+        OtherSide,
     }
 
     /// <summary>⭐ <c>CE-1153</c> — the brain's answer to a use press.</summary>
@@ -268,9 +271,14 @@ namespace Fdp.Toolkit.Behavior.Possession
             var drive = Embarkation.CanEmbark(world, actor, vehicle, SeatRole.Driver);
             // FreeSeat falls back to a passenger seat when the asked role is taken — Drive means THE driver seat, so that fallback is SeatTaken
             if (drive == EmbarkResult.Applied && !DriverSeatFree(world, vehicle)) drive = EmbarkResult.Full;
+            // ⭐ R-4096 (C-3′) — a station that HOLDS the vehicle occupies its driver seat even with no man in it (it drives it from the menu):
+            //   another player is never pushed from it, so Drive / Pilot is SeatTaken; a free passenger seat (O-4) still boards
+            long? me = PossessionSystem.HolderOf(world, actor);
+            if (drive == EmbarkResult.Applied && StationClaims.TryHeldByOther(world, vehicle, me, out _)) drive = EmbarkResult.Full;
             var board = Embarkation.CanEmbark(world, actor, vehicle, SeatRole.Passenger);
-            var driveAction = Seat(air ? UseVerbKind.Pilot : UseVerbKind.Drive, air ? "Pilot" : "Drive", vehicle, SeatRole.Driver, drive, reach);
-            var boardAction = Seat(UseVerbKind.Board, "Board", vehicle, SeatRole.Passenger, board, reach);
+            bool otherSide = OtherSideAboard(world, actor, vehicle, me);   // ⭐ R-4096 — an enemy player drives or sits in it
+            var driveAction = Seat(air ? UseVerbKind.Pilot : UseVerbKind.Drive, air ? "Pilot" : "Drive", vehicle, SeatRole.Driver, drive, reach, otherSide);
+            var boardAction = Seat(UseVerbKind.Board, "Board", vehicle, SeatRole.Passenger, board, reach, otherSide);
             // O-4 — a second human boards as a passenger: the free seat goes first
             if (driveAction.Available || !boardAction.Available) { into[n++] = driveAction; if (n < into.Length) into[n++] = boardAction; }
             else { into[n++] = boardAction; if (n < into.Length) into[n++] = driveAction; }
@@ -292,7 +300,8 @@ namespace Fdp.Toolkit.Behavior.Possession
                 return Take(world, actor, weapon, into, n);
             if (!Has<PassengerBuffer>(world, weapon)) return n;
             bool reach = Distance(world, actor, weapon) <= VehicleReach;
-            into[n++] = Seat(UseVerbKind.Man, "Man", weapon, SeatRole.Gunner, Embarkation.CanEmbark(world, actor, weapon, SeatRole.Gunner), reach);
+            into[n++] = Seat(UseVerbKind.Man, "Man", weapon, SeatRole.Gunner, Embarkation.CanEmbark(world, actor, weapon, SeatRole.Gunner), reach,
+                OtherSideAboard(world, actor, weapon, PossessionSystem.HolderOf(world, actor)));   // ⭐ R-4096
             return n;
         }
 
@@ -310,9 +319,14 @@ namespace Fdp.Toolkit.Behavior.Possession
             return n;
         }
 
-        private static UseAction Seat(UseVerbKind kind, string label, Entity vehicle, SeatRole role, EmbarkResult result, bool reach)
+        /// <summary>⭐ <c>R-4096</c> (C-3′) — does <paramref name="vehicle"/> carry (or is it driven by) a player of another side than the
+        /// actor's? The actor's own station is never "another" station. An actor whose side is unknown is a Neutral one (<c>EntityInfo</c> absent).</summary>
+        private static bool OtherSideAboard(EntityRepository world, Entity actor, Entity vehicle, long? me)
+            => StationClaims.OtherSideAboard(world, vehicle, StationClaims.ForceOf(world, actor), me, out _);
+
+        private static UseAction Seat(UseVerbKind kind, string label, Entity vehicle, SeatRole role, EmbarkResult result, bool reach, bool otherSide)
         {
-            var reason = result switch
+            var reason = otherSide ? UseReason.OtherSide : result switch   // ⭐ R-4096 — the reason a person can act on comes first
             {
                 EmbarkResult.Full => UseReason.SeatTaken,
                 EmbarkResult.Invalid => UseReason.NothingToDo,

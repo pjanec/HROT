@@ -9,7 +9,7 @@ using Fdp.Toolkit.Navigation;
 
 namespace Fdp.Toolkit.Behavior.Possession
 {
-    /// <summary>How a station holds a unit (C-3: one station per unit, FPS only for now).</summary>
+    /// <summary>How a station holds a unit (C-3: one station per unit, FPS only for now; ⭐ R-4096 C-3′: and no other station takes it from it).</summary>
     public enum PossessionMode : byte
     {
         None = 0,
@@ -153,7 +153,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     /// <summary>
     /// ⭐⭐ <c>CE-3172</c> (M-6, M-7; <c>docs/DESIGN_Entity_Control.md</c> §8b) — the BRAIN OWNER's side of possession, the one writer of
     /// <see cref="PossessedBy"/>: a request starts the operator behaviour at origin <see cref="BehaviorOrigin.Possession"/> (which pauses
-    /// the unit's task); a later station takes the unit over (C-3); frames from the holding station become <see cref="OperatorInput"/>
+    /// the unit's task); ⭐ R-4096 (C-3′) no later station takes it over — a request for a unit another live station holds is refused; frames from the holding station become <see cref="OperatorInput"/>
     /// (newest seq wins); a release — or the unit's death — clears the behaviour at origin Possession, which RESUMES the paused task
     /// (C-4), and a body left in Manual with no possession running is let go (<see cref="LetGoOfManual"/>). ⭐ Q91 §4-F: the holding
     /// station's node leaving (<c>NodeDeparted</c>) releases its units the same way. Events about units this
@@ -177,14 +177,28 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>Possessions started (a rail and diagnostics read it).</summary>
         public long Possessed { get; private set; }
 
+        /// <summary>⭐ R-4096 — requests refused because another live station holds the unit, or it carries a player of another side.</summary>
+        public long Refused { get; private set; }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<BehaviorState>()) return;
             Ensure(repo);
 
+            // ⭐ R-4096 (C-3′) — the holders that are GONE are let go BEFORE the requests are read: a holder killed or departed this tick must
+            //   not make the next player's request for its unit look like a take-over (the sweeps key on facts, not on event order)
+            ReleaseKilled(repo);
+            ReleaseDeparted(repo);
+
             if (repo.Bus.IsRegistered<PossessRequestEvent>())
                 foreach (ref readonly var req in repo.ReadEvents<PossessRequestEvent>())
-                    if (OwnsBrain(repo, req.Unit) && Alive(repo, req.Unit)) Possess(repo, req.Unit, req.StationNodeId, req.Mode);
+                    if (OwnsBrain(repo, req.Unit) && Alive(repo, req.Unit))
+                    {
+                        // ⭐ R-4096 (C-3′) — NEVER a take-over: a unit another live station holds stays with it, and a vehicle carrying a player
+                        //   of another side is not for this station. The station answers 409 first; this is the arbiter for the race of two.
+                        if (StationClaims.ForPossess(repo, req.Unit, req.StationNodeId, out _) != ClaimRefusal.None) { Refused++; continue; }
+                        Possess(repo, req.Unit, req.StationNodeId, req.Mode);
+                    }
 
             if (repo.Bus.IsRegistered<OperatorControlFrameEvent>())
                 foreach (ref readonly var f in repo.ReadEvents<OperatorControlFrameEvent>())
@@ -209,19 +223,44 @@ namespace Fdp.Toolkit.Behavior.Possession
                 foreach (ref readonly var rel in repo.ReadEvents<ReleasePossessionEvent>())
                     if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId)) Release(repo, rel.Unit);
 
-            // C-3 / §4.3 — a killed unit is released on its own.
-            foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                if (OwnsBrain(repo, unit) && !Alive(repo, unit)) Release(repo, unit);
-
-            // ⭐ Q91 §4-F (F1) — the station's NODE left (a Player node is disposable: it may crash or disconnect at any time): every
-            //   unit it holds is released by the SAME path as Esc, so its paused task resumes. ⛔ No timer (R-4001) — the release keys on
-            //   the departure itself (NodeDeparted, raised on every node when a node's capability descriptor goes not-alive).
-            if (repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
-                foreach (ref readonly var gone in repo.ReadEvents<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
-                    foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                        if (OwnsBrain(repo, unit) && HeldBy(repo, unit, gone.NodeId)) Release(repo, unit);
-
             LetGoOfManual(repo);
+        }
+
+        /// <summary>C-3 / §4.3 — a killed unit is released on its own. ⭐ R-4096 — and a killed PLAYER who was aboard a vehicle leaves his seat
+        /// (his body steps out beside the hull, as <see cref="Embarkation.Disembark"/> places any man), so the seat is FREE for the next player.
+        /// ⚠ Only a killed unit THIS release lets go: a dead AI man keeps his seat as ever (the body stays aboard).</summary>
+        private static void ReleaseKilled(EntityRepository repo)
+        {
+            foreach (var unit in repo.Query().With<PossessedBy>().Build())
+                if (OwnsBrain(repo, unit) && !Alive(repo, unit))
+                {
+                    FreeSeatOf(repo, unit);
+                    Release(repo, unit);
+                }
+        }
+
+        /// <summary>
+        /// ⭐ Q91 §4-F (F1) — the station's NODE left (a Player node is disposable: it may crash or disconnect at any time): every
+        /// unit it holds is released by the SAME path as Esc, so its paused task resumes. ⛔ No timer (R-4001) — the release keys on
+        /// the departure itself (NodeDeparted, raised on every node when a node's capability descriptor goes not-alive).
+        /// </summary>
+        private static void ReleaseDeparted(EntityRepository repo)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>()) return;
+            foreach (ref readonly var gone in repo.ReadEvents<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
+                foreach (var unit in repo.Query().With<PossessedBy>().Build())
+                    if (OwnsBrain(repo, unit) && HeldBy(repo, unit, gone.NodeId)) Release(repo, unit);
+        }
+
+        /// <summary>⭐ R-4096 — a killed man that sits in a vehicle is asked to step out: <see cref="DisembarkEntityCommand"/> reaches the
+        /// vehicle's owner (this node, or another through the interaction transport), the one node that may empty the seat.</summary>
+        private static void FreeSeatOf(EntityRepository repo, Entity unit)
+        {
+            if (!repo.IsComponentTypeRegistered<IsEmbarkedTag>() || !repo.HasComponent<IsEmbarkedTag>(unit)) return;
+            var vehicle = repo.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity;
+            if (vehicle.IsNull || !repo.IsAlive(vehicle)) return;
+            if (!repo.Bus.IsRegistered<DisembarkEntityCommand>()) repo.Bus.Register<DisembarkEntityCommand>();
+            repo.Bus.Publish(new DisembarkEntityCommand { Passenger = unit, Vehicle = vehicle });
         }
 
         /// <summary>
@@ -286,7 +325,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         public static bool OwnsBrain(EntityRepository repo, Entity unit)
             => repo.IsAlive(unit) && repo.HasComponent<BehaviorState>(unit) && repo.HasAuthority<BehaviorState>(unit);
 
-        private static bool Alive(EntityRepository repo, Entity unit)
+        /// <summary>A unit is live while it has no health to lose or some left (⭐ R-4096 — also <see cref="StationClaims"/>' test of a holder).</summary>
+        internal static bool Alive(EntityRepository repo, Entity unit)
             => !repo.IsComponentTypeRegistered<Health>() || !repo.HasComponent<Health>(unit) || repo.GetComponentRO<Health>(unit).Current > 0f;
 
         private static void Ensure(EntityRepository repo)

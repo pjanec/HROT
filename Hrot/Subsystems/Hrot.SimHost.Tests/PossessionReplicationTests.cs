@@ -1,4 +1,7 @@
+using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
@@ -264,6 +267,200 @@ namespace Hrot.SimHost.Tests
                 cmd.Playback(station);
                 Assert.Equal(ammo, station.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit));
             }
+        }
+
+        // ── R-4096 (docs/DESIGN_Entity_Control.md C-3') — the brain never lets one player take what another LIVE player holds ──────
+
+        /// <summary>One brain node with the REAL possession, ingress and embarkation systems; each unit has its brain here.</summary>
+        private sealed class BrainNode : System.IDisposable
+        {
+            public readonly EntityRepository W = new();
+            public readonly PossessionSystem Possession = new(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+            private readonly Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem _ingress;
+            private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem _embark = new();
+
+            public BrainNode()
+            {
+                SimHostComponentRegistry.RegisterAll(W);
+                CognitiveComponentRegistry.RegisterAll(W);
+                Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(W);
+                if (!W.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) W.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+                if (!W.IsComponentTypeRegistered<Fdp.Core.EntityInfo>()) W.RegisterComponent<Fdp.Core.EntityInfo>();
+                W.Bus.Register<Fdp.Toolkit.Replication.Messages.NodeDeparted>();
+                var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+                Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+                _ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+            }
+
+            public void Frame()
+            {
+                W.Bus.SwapBuffers(); Possession.Execute(W, 0.016f);
+                W.Bus.SwapBuffers(); _ingress.Execute(W, 0.016f); _embark.Execute(W, 0.016f);   // one readable window: what possession just published
+            }
+
+            public Entity Unit(ForceId side = ForceId.Friend, float health = 100f)
+            {
+                var u = W.CreateEntity();
+                W.AddComponent(u, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+                W.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(u, true);   // this node runs its brain
+                Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(W, u);
+                W.AddComponent(u, new Fdp.Core.EntityInfo { ForceId = side });
+                W.AddComponent(u, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+                W.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+                {
+                    Entity = u, BehaviorName = Hrot.Map.Definitions.Behavior.BehaviorNames.Idle, JsonParams = "{}",
+                    Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,
+                });
+                W.Bus.SwapBuffers(); _ingress.Execute(W, 0.016f);
+                return u;
+            }
+
+            public void Request(Entity unit, long station, PossessionMode mode = PossessionMode.Fps)
+                => W.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = station, Mode = mode });
+
+            public long? Holder(Entity unit) => PossessionSystem.HolderOf(W, unit);
+            public void Kill(Entity unit) => W.SetComponent(unit, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+
+            public void Dispose() => W.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4096</c> S1 — a second station's request for a unit the first holds is REFUSED, never a take-over: the holder keeps the
+        /// unit (same <c>Epoch</c>, still the operator behaviour), his frames still arrive and the intruder's are ignored; the refusal is
+        /// counted. ✅ Red-proof: <c>PossessionSystem</c> without the <c>StationClaims.ForPossess</c> guard (the old C-3) ⇒ the unit is
+        /// station 9's and the first assert fails.
+        /// </summary>
+        [Fact]
+        public void R4096_ASecondStationsRequest_IsRefused_TheHolderKeepsTheUnitAndHisFrames()
+        {
+            using var n = new BrainNode();
+            var unit = n.Unit();
+            int op = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+
+            n.Request(unit, station: 7);
+            n.Frame();
+            var held = n.W.GetComponentRO<PossessedBy>(unit);
+            Assert.Equal((7L, 1u), (held.StationNodeId, held.Epoch));
+
+            n.Request(unit, station: 9);
+            n.Request(unit, station: 9, PossessionMode.Riding);
+            n.W.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 9, Seq = 1, Forward = -1f });
+            n.W.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 1, Forward = 1f });
+            n.Frame();
+
+            Assert.Equal(7L, n.Holder(unit));                                                    // still his
+            Assert.Equal(1u, n.W.GetComponentRO<PossessedBy>(unit).Epoch);                       // never re-taken, so never bumped
+            Assert.Equal(PossessionMode.Fps, n.W.GetComponentRO<PossessedBy>(unit).Mode);
+            Assert.Equal(op, n.W.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).ActiveBehaviorHash);
+            Assert.Equal(1f, n.W.GetComponentRO<OperatorInput>(unit).Forward);                   // the holder's frame, not the intruder's
+            Assert.Equal(2L, n.Possession.Refused);
+
+            n.Request(unit, station: 7, PossessionMode.Riding);                                  // the HOLDER may still change its own mode
+            n.Frame();
+            Assert.Equal((7L, PossessionMode.Riding), (n.Holder(unit), n.W.GetComponentRO<PossessedBy>(unit).Mode));
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-4096</c> S2 — a unit whose holder was KILLED, or whose holder's node DEPARTED, is free again: another station's request in
+        /// the SAME tick gets it (the releases come before the requests are read). ✅ Red-proof: the two sweeps back after the request loop
+        /// (the old order) ⇒ the departed holder's unit is refused in that tick.
+        /// </summary>
+        [Fact]
+        public void R4096_AKilledHolder_OrADepartedOne_FreesTheUnit_TheNextStationTakesItAtOnce()
+        {
+            using var n = new BrainNode();
+            var killed = n.Unit();
+            var departed = n.Unit();
+            n.Request(killed, station: 7);
+            n.Request(departed, station: 8);
+            n.Frame();
+            Assert.Equal((7L, 8L), (n.Holder(killed), n.Holder(departed)));
+
+            n.Kill(killed);
+            n.W.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = 8 });
+            n.Request(departed, station: 9);
+            n.Request(killed, station: 9);                                                      // a killed unit itself is nobody's to take
+            n.Frame();
+
+            Assert.Equal(9L, n.Holder(departed));                                               // the departed holder let go, the next took it
+            Assert.Null(n.Holder(killed));                                                      // released on death, and not possessable dead
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-4096</c> — a vehicle that carries a player of ANOTHER side is not for this station (the arbiter's side rule, for the race
+        /// the station's own answer cannot see); one carrying a player of its OWN side is possessed as ever. A station holding nothing has no
+        /// side, so it is not refused for it. ✅ Red-proof: the side comparison dropped in <c>StationClaims.ForPossess</c>.
+        /// </summary>
+        [Fact]
+        public void R4096_AVehicleCarryingAnEnemyPlayer_IsRefused_OneCarryingAFriendIsNot_AStationWithNoUnitHasNoSide()
+        {
+            using var n = new BrainNode();
+            Entity Truck(Vector3 at)
+            {
+                var v = n.Unit(ForceId.Neutral);
+                n.W.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                n.W.AddComponent(v, new PassengerBuffer());
+                return v;
+            }
+            Entity Rider(ForceId side, long station, Entity truck)
+            {
+                var r = n.Unit(side);
+                n.W.AddComponent(r, new SimTransform { Position = n.W.GetComponentRO<SimTransform>(truck).Position, Rotation = Quaternion.Identity });
+                n.Request(r, station);
+                n.Frame();
+                Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(n.W, r, truck));
+                return r;
+            }
+            var withEnemy = Truck(new Vector3(0, 0, 0));
+            Rider(ForceId.Hostile, 7, withEnemy);
+            var withFriend = Truck(new Vector3(0, 20, 0));
+            Rider(ForceId.Friend, 8, withFriend);
+
+            var mine = n.Unit(ForceId.Friend);
+            n.Request(mine, station: 9);                                                         // station 9 is a blue player
+            n.Frame();
+            n.Request(withEnemy, station: 9);
+            n.Request(withFriend, station: 9);
+            n.Frame();
+            Assert.Null(n.Holder(withEnemy));                                                    // refused: an enemy player sits in it
+            Assert.Equal(9L, n.Holder(withFriend));                                              // a blue player sits in this one: fine
+
+            n.Request(withEnemy, station: 5);                                                    // station 5 holds nothing: no side to be refused for
+            n.Frame();
+            Assert.Equal(5L, n.Holder(withEnemy));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4096</c> S5 — a KILLED player aboard a vehicle frees his seat: the brain releases him and asks the vehicle's owner to put
+        /// him out (<c>DisembarkEntityCommand</c>), so the next player can take it. A dead man NO player held (an AI crewman) keeps his seat as
+        /// ever — the body stays aboard. ✅ Red-proof: <c>FreeSeatOf</c> not called ⇒ the dead player stays in the buffer.
+        /// </summary>
+        [Fact]
+        public void R4096_AKilledPlayersSeat_IsFreed_ADeadAiMansIsNot()
+        {
+            using var n = new BrainNode();
+            var truck = n.Unit(ForceId.Neutral);
+            n.W.AddComponent(truck, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            n.W.AddComponent(truck, new PassengerBuffer());
+            var player = n.Unit();
+            var ai = n.Unit();
+            foreach (var m in new[] { player, ai }) n.W.AddComponent(m, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            n.Request(player, station: 7);
+            n.Frame();
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(n.W, player, truck));   // seat 0
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(n.W, ai, truck));       // seat 1
+            Assert.Equal(2, n.W.GetComponentRO<PassengerBuffer>(truck).Count);
+
+            n.Kill(player);
+            n.Kill(ai);
+            n.Frame();
+
+            Assert.Null(n.Holder(player));                                                       // released on death, as before
+            Assert.False(n.W.HasComponent<IsEmbarkedTag>(player));                               // and out of the vehicle
+            Assert.Equal(1, n.W.GetComponentRO<PassengerBuffer>(truck).Count);
+            Assert.True(n.W.GetComponentRO<PassengerBuffer>(truck).Passengers[0].IsNull);        // seat 0 is free again
+            Assert.Equal(0, Embarkation.FreeSeat(n.W, truck));
+            Assert.True(n.W.HasComponent<IsEmbarkedTag>(ai));                                    // the dead AI man keeps his seat
         }
     }
 }

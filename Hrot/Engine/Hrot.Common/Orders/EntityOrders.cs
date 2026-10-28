@@ -21,11 +21,13 @@ namespace Hrot.Common.Orders
         UnknownEntity,
         /// <summary>The unit is killed (health ≤ 0) — it can take no order.</summary>
         Dead,
-        /// <summary>The session is locked to another side (<see cref="EntityOrders.SideLock"/>).</summary>
+        /// <summary>The session is locked to another side (<see cref="EntityOrders.SideLock"/>) — or, ⭐ <c>R-4096</c> (C-3′), the vehicle
+        /// carries a player of another side than this station's (<see cref="EntityOrders.Possess(long, PossessionMode)"/>).</summary>
         WrongSide,
         /// <summary>The order itself is malformed (no behaviour name, no move target).</summary>
         BadRequest,
-        /// <summary>⭐ <c>CE-3172</c> (C-3) — a station possesses the unit: no order reaches it until it is released.</summary>
+        /// <summary>⭐ <c>CE-3172</c> (C-3) — a station possesses the unit: no order reaches it until it is released. ⭐ <c>R-4096</c> (C-3′) —
+        /// and a second station's <c>Possess</c> of it is refused with this too: nobody takes a unit another live station holds.</summary>
         Possessed,
         /// <summary>⭐ <c>CE-2143</c> — no class of the unit fulfils the order (§8: no <c>&lt;Class&gt;&lt;Order&gt;</c> behaviour), or two
         /// classes tie. The receiver would start nothing; the sender says why.</summary>
@@ -178,7 +180,9 @@ namespace Hrot.Common.Orders
         public long? Station { get; set; }
 
         /// <summary>⭐ <c>CE-3172</c> — POSSESS the unit (FPS): its task pauses and this station's control frames drive it, until
-        /// <see cref="Unpossess"/> (or it dies) resumes the task. Another station's hold is taken over (C-3).</summary>
+        /// <see cref="Unpossess"/> (or it dies) resumes the task. ⭐ <c>R-4096</c> (C-3′) — a unit ANOTHER live station holds is refused
+        /// (<see cref="OrderRefusal.Possessed"/>, naming the holder), never taken over; so is a vehicle carrying a player of another side
+        /// (<see cref="OrderRefusal.WrongSide"/>).</summary>
         public OrderResult Possess(long unit) => Possess(unit, PossessionMode.Fps);
 
         /// <summary>
@@ -191,6 +195,17 @@ namespace Hrot.Common.Orders
             if (!TryAddress(unit, out var entity, out var refused, ignorePossession: true)) return refused;
             if (Fdp.Toolkit.Behavior.Possession.Possessability.Refusal(_world, entity) is { } why)   // ⭐ CE-1205 (§8m PK-7)
                 return OrderResult.Refused(OrderRefusal.NotPossessable, $"Entity {unit}: {why}.");
+            // ⭐ R-4096 (C-3′) — answered here, synchronously, from the replicated PossessedBy; the brain's PossessionSystem enforces the same
+            //   rule (StationClaims) for the race of two stations. Checked BEFORE ReleaseOtherFps: a refused possess lets nothing go.
+            switch (StationClaims.ForPossess(_world, entity, StationFor(entity), out long holder))
+            {
+                case ClaimRefusal.HeldByAnotherStation:
+                    return OrderResult.Refused(OrderRefusal.Possessed,
+                        $"Entity {unit} is held by station {holder}; a unit another player holds is never taken over (release is theirs).");
+                case ClaimRefusal.OtherSide:
+                    return OrderResult.Refused(OrderRefusal.WrongSide,
+                        $"Entity {unit} carries a player of another side (station {holder}); it is not for this station.");
+            }
             if (mode != PossessionMode.Riding) ReleaseOtherFps(entity);
             Publish(new PossessRequestEvent { Unit = entity, Mode = mode, StationNodeId = StationFor(entity) });
             return new OrderResult(OrderRefusal.None, mode == PossessionMode.Riding ? "riding" : "possessing", string.Empty, string.Empty);

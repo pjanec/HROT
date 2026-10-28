@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
             _world.RegisterEvent<DamageAssessedEvent>();
             if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<PossessedBy>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -170,6 +171,106 @@ namespace Fdp.Toolkit.Behavior.Tests
             var other = Soldier(new Vector3(1, 1, 0));
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, other, tripod, SeatRole.Gunner));
             Assert.Equal(UseReason.SeatTaken, For(me, tripod).Single().Reason);
+        }
+
+        /// <summary>A player: <paramref name="unit"/> held by station <paramref name="station"/> and of side <paramref name="side"/>.</summary>
+        private Entity Player(Entity unit, long station, ForceId side, PossessionMode mode = PossessionMode.Fps)
+        {
+            if (_world.HasComponent<EntityInfo>(unit)) _world.SetComponent(unit, new EntityInfo { ForceId = side });
+            else _world.AddComponent(unit, new EntityInfo { ForceId = side });
+            _world.AddComponent(unit, new PossessedBy { StationNodeId = station, Mode = mode, Epoch = 1 });
+            return unit;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4096</c> (docs/DESIGN_Entity_Control.md C-3′, O-4) — a second PLAYER of the same side boards the vehicle another player
+        /// drives, into a FREE seat; the driver seat — occupied by the first player — is SeatTaken, and with the last free seat gone Board is too:
+        /// nobody is pushed from a seat. ✅ Red-proof: <c>StationClaims.OtherSide</c> comparing <c>theirs == side</c> (same side refused) ⇒
+        /// Board is <c>OtherSide</c> and the first assert fails.
+        /// </summary>
+        [Fact]
+        public void R4096_ASecondPlayerOfTheSameSide_BoardsAFreeSeat_NeverTheSeatThePlayerHolds_AndAFullOneIsSeatTaken()
+        {
+            var bmp = Vehicle(new Vector3(0, 0, 0));
+            var first = Player(Soldier(new Vector3(2, 1, 0)), station: 7, ForceId.Friend, PossessionMode.Riding);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, first, bmp, SeatRole.Driver));
+            Player(bmp, station: 7, ForceId.Friend);   // the first player drives it (Fps), his soldier Riding
+
+            var me = Player(Soldier(new Vector3(2, 0, 0)), station: 9, ForceId.Friend);
+            var onIt = For(me, bmp);
+            Assert.Equal((UseVerbKind.Board, true, UseReason.Ok), (onIt[0].Verb, onIt[0].Available, onIt[0].Reason));   // the free passenger seat
+            Assert.Equal((UseVerbKind.Drive, false, UseReason.SeatTaken), (onIt[1].Verb, onIt[1].Available, onIt[1].Reason));   // never his seat
+
+            var third = Player(Soldier(new Vector3(2, -1, 0)), station: 11, ForceId.Friend);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, third, bmp));   // the last free seat goes to a third player
+            Assert.All(For(me, bmp), a => Assert.Equal((false, UseReason.SeatTaken), (a.Available, a.Reason)));
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-4096</c> — a station that HOLDS the vehicle occupies its driver seat even with no man in it (it drives from the menu): a
+        /// same-side player's Drive is SeatTaken though the seat is empty, his Board takes a passenger seat. A vehicle NOBODY holds is
+        /// driven as ever. ✅ Red-proof: dropping the vehicle-holder test in <c>OperatorUseActions.Vehicle</c> makes Drive available.
+        /// </summary>
+        [Fact]
+        public void R4096_AVehicleAPlayerHoldsWithNoManAboard_ItsDriverSeatIsTaken_AFreeOneIsDrivenAsEver()
+        {
+            var held = Vehicle(new Vector3(0, 0, 0));
+            Player(held, station: 7, ForceId.Friend);
+            var me = Player(Soldier(new Vector3(2, 0, 0)), station: 9, ForceId.Friend);
+            var onHeld = For(me, held);
+            var drive = onHeld.Single(a => a.Verb == UseVerbKind.Drive);
+            Assert.Equal((false, UseReason.SeatTaken), (drive.Available, drive.Reason));
+            Assert.True(onHeld.Single(a => a.Verb == UseVerbKind.Board).Available);
+
+            var free = Vehicle(new Vector3(0, 6, 0));   // nobody holds it: Drive is the primary, as before
+            var mine = Player(Soldier(new Vector3(2, 6, 0)), station: 9, ForceId.Friend);
+            Assert.Equal((UseVerbKind.Drive, true), (For(mine, free)[0].Verb, For(mine, free)[0].Available));
+        }
+
+        /// <summary>
+        /// ⭐ <c>R-4096</c> — a vehicle an ENEMY player drives or sits in is not boardable at all (<see cref="UseReason.OtherSide"/>), whatever
+        /// seat is free; a vehicle of another side that NO player holds is as before (AI crews and free units of any side are untouched).
+        /// ✅ Red-proof: the side comparison dropped (always "same side") ⇒ Board is available.
+        /// </summary>
+        [Fact]
+        public void R4096_APlayerOfAnotherSide_CannotBoardAVehicleAnEnemyPlayerHolds_ButAFreeOneOfAnySideIsAsEver()
+        {
+            var tank = Vehicle(new Vector3(0, 0, 0));
+            Player(tank, station: 7, ForceId.Hostile);                                   // the red player drives it
+            var blue = Player(Soldier(new Vector3(2, 0, 0)), station: 9, ForceId.Friend);
+            Assert.All(For(blue, tank), a => Assert.Equal((false, UseReason.OtherSide), (a.Available, a.Reason)));
+
+            // the same tank, driven by an AI (nobody holds it): blue boards it as before — scope fence
+            var aiTank = Vehicle(new Vector3(0, 8, 0));
+            var aiCrew = Soldier(new Vector3(2, 9, 0));
+            _world.AddComponent(aiCrew, new EntityInfo { ForceId = ForceId.Hostile });
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, aiCrew, aiTank, SeatRole.Driver));
+            var blue2 = Player(Soldier(new Vector3(2, 8, 0)), station: 9, ForceId.Friend);
+            Assert.Equal((UseVerbKind.Board, true), (For(blue2, aiTank)[0].Verb, For(blue2, aiTank)[0].Available));
+
+            // an enemy player in a PASSENGER seat counts as well
+            var truck = Vehicle(new Vector3(0, 16, 0));
+            var redRider = Player(Soldier(new Vector3(2, 17, 0)), station: 7, ForceId.Hostile);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, redRider, truck));
+            var blue3 = Player(Soldier(new Vector3(2, 16, 0)), station: 9, ForceId.Friend);
+            Assert.All(For(blue3, truck), a => Assert.Equal(UseReason.OtherSide, a.Reason));
+        }
+
+        /// <summary>⭐ <c>R-4096</c> — a seat a player held and LEFT (killed ⇒ released, the body stepped out) is free to the next player.</summary>
+        [Fact]
+        public void R4096_ASeatItsPlayerLeft_IsFreeAgain()
+        {
+            var bmp = Vehicle(new Vector3(0, 0, 0));
+            var first = Player(Soldier(new Vector3(2, 1, 0)), station: 7, ForceId.Friend);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, first, bmp, SeatRole.Driver));
+            var me = Player(Soldier(new Vector3(2, 0, 0)), station: 9, ForceId.Friend);
+            Assert.Equal((UseVerbKind.Board, UseVerbKind.Drive), (For(me, bmp)[0].Verb, For(me, bmp)[1].Verb));
+            Assert.False(For(me, bmp)[1].Available);
+
+            _world.RemoveComponent<PossessedBy>(first);                       // the brain released him (death, Esc, departure)
+            Assert.True(Embarkation.Disembark(_world, first, bmp));           // and he stepped out
+            var after = For(me, bmp);
+            Assert.Equal((UseVerbKind.Drive, true), (after[0].Verb, after[0].Available));   // the driver seat is open again
         }
 
         [Fact]

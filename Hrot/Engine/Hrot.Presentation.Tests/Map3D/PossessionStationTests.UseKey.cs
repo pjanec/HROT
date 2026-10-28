@@ -385,4 +385,63 @@ public sealed partial class PossessionStationTests
         u.W.SetComponent(third, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Riding, Epoch = 9 });
         Assert.Equal(Entity.Null, PossessionStation.HeldHere(u.W, out _));     // only riders: nothing to drive
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4096</c> S1 (docs/DESIGN_Entity_Control.md C-3′) — the STATION answers a possess of a unit ANOTHER station holds at once,
+    /// from the replicated <c>PossessedBy</c>: <see cref="OrderRefusal.Possessed"/> naming the holder (the HTTP route's 409), for Fps and
+    /// for Riding; no request goes out and nothing of this station's own is released. A free unit is still possessed (S6), and the unit
+    /// this station holds itself may be re-possessed (its own mode change). ✅ Red-proof: the <c>StationClaims.ForPossess</c> switch
+    /// removed from <c>EntityOrders.Possess</c> (the old C-3) ⇒ the first assert fails and a request goes out.
+    /// </summary>
+    [Fact]
+    public void R4096_PossessingAUnitAnotherStationHolds_IsRefused_NothingGoesOut_NothingOfMineIsReleased()
+    {
+        using var u = new UseWorld();
+        var theirs = u.Soldier(new Vector3(5f, 0f, 0f), 100f, 4343);
+        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 1 });
+        u.Soldier(new Vector3(6f, 0f, 0f), 100f, 4444);
+        var orders = new EntityOrders(u.W, u.Map, geo: null);
+
+        var refused = orders.Possess(4343);
+        Assert.Equal(OrderRefusal.Possessed, refused.Refusal);
+        Assert.Contains("station 77", refused.Detail);
+        Assert.Equal(OrderRefusal.Possessed, orders.Possess(4343, PossessionMode.Riding).Refusal);
+        u.W.Bus.SwapBuffers();
+        Assert.Equal(0, u.W.Bus.IsRegistered<PossessRequestEvent>() ? u.W.Bus.Read<PossessRequestEvent>().ToArray().Length : 0);   // no request
+        Assert.Equal(0, u.W.Bus.IsRegistered<ReleasePossessionEvent>() ? u.W.Bus.Read<ReleasePossessionEvent>().ToArray().Length : 0);   // nothing let go
+        Assert.Equal(77L, orders.HolderOf(4343));
+
+        Assert.True(orders.Possess(4242, PossessionMode.Riding).Accepted);      // my own unit: my own mode change
+        Assert.True(orders.Possess(4444).Accepted);                              // a free unit: as ever
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-4096</c> — a vehicle that carries a player of ANOTHER side than this station's is refused (<see cref="OrderRefusal.WrongSide"/>,
+    /// naming the other station); one carrying a player of its OWN side is possessed. ✅ Red-proof: the side comparison dropped.
+    /// </summary>
+    [Fact]
+    public void R4096_PossessingAVehicleAnEnemyPlayerSitsIn_IsRefusedWrongSide_AFriendsIsNot()
+    {
+        using var u = new UseWorld();
+        u.W.AddComponent(u.Me, new EntityInfo { ForceId = ForceId.Friend });      // this station is a blue player
+        Entity Rider(long netId, ForceId side, long station, Entity vehicle)
+        {
+            var r = u.Soldier(new Vector3(8f, 1f, 0f), 100f, netId);
+            u.W.AddComponent(r, new EntityInfo { ForceId = side });
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, r, vehicle));
+            u.W.AddComponent(r, new PossessedBy { StationNodeId = station, Mode = PossessionMode.Fps, Epoch = 1 });
+            return r;
+        }
+        var redTank = u.Vehicle(new Vector3(8f, 0f, 0f), 5001);
+        Rider(5002, ForceId.Hostile, 77, redTank);
+        var blueTruck = u.Vehicle(new Vector3(20f, 0f, 0f), 5003);
+        Rider(5004, ForceId.Friend, 88, blueTruck);
+        var orders = new EntityOrders(u.W, u.Map, geo: null);
+
+        var refused = orders.Possess(5001);
+        Assert.Equal(OrderRefusal.WrongSide, refused.Refusal);
+        Assert.Contains("station 77", refused.Detail);
+        Assert.True(orders.Possess(5003).Accepted);
+        Assert.NotEqual("", PossessionStation.Hud.ReasonText(UseReason.OtherSide));   // and the HUD has words for a boarding refused the same way
+    }
 }

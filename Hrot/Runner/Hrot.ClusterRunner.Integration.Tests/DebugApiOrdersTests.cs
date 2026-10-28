@@ -377,7 +377,7 @@ public sealed class DebugApiOrdersTests
     }
 
     [Fact]
-    public void CE3172_AnotherStation_CannotDriveOrRelease_ButCanTakeOver()
+    public void CE3172_AnotherStation_CannotDriveOrRelease_AndR4096_CannotTakeOver()
     {
         using var h = new EditorHarness(productionBehaviors: true);
         var unit = Walker(h, UnitId);
@@ -391,11 +391,31 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, b.Control(UnitId, f).Refusal);
         Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, b.Unpossess(UnitId).Refusal);
 
-        Assert.True(b.Possess(UnitId).Accepted);   // C-3: a later station takes the unit over
+        // ⭐ R-4096 (C-3′) — SUPERSEDES C-3's "a later station takes the unit over": the second station is refused, naming the holder
+        //   (the HTTP route answers 409), and nothing is published, so the first keeps the unit and the operator behaviour
+        var refused = b.Possess(UnitId);
+        Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, refused.Refusal);
+        Assert.Contains("station 7", refused.Detail);
+        h.PumpFrames(4);
+        Assert.Equal(7L, b.HolderOf(UnitId));
+        Assert.Equal(BehaviorOrigin.Possession, h.Repo.GetComponentRO<BehaviorState>(unit).Origin);
+        Assert.True(a.Control(UnitId, f).Accepted);   // the holder still drives
+
+        // and the brain enforces it too, for a request that arrives anyway (two stations racing): ignored, the holder keeps the unit
+        h.Repo.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
+        {
+            Unit = unit, StationNodeId = 9, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps,
+        });
+        h.PumpFrames(4);
+        Assert.Equal(7L, a.HolderOf(UnitId));
+        Assert.Equal(1u, h.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(unit).Epoch);   // never re-taken
+
+        // once the holder lets go, the other station may take it (a free unit is free)
+        Assert.True(a.Unpossess(UnitId).Accepted);
+        h.PumpFrames(4);
+        Assert.True(b.Possess(UnitId).Accepted);
         h.PumpFrames(4);
         Assert.Equal(9L, b.HolderOf(UnitId));
-        Assert.Equal(BehaviorOrigin.Possession, h.Repo.GetComponentRO<BehaviorState>(unit).Origin);
-        Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, a.Control(UnitId, f).Refusal);
     }
 
     /// <summary>

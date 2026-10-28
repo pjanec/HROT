@@ -893,7 +893,7 @@ namespace Hrot.UI.Common.Map3D
 
             public static string? SeatLine(EntityRepository w, Entity unit)
             {
-                if (SeatSwitch.Seats(w, SeatSwitch.VehicleOf(w, unit)).Count < 2) return null;
+                if (SeatSwitch.SeatsFor(w, unit).Count < 2) return null;   // ⭐ R-4096 — only the seats no other player holds
                 string name = SeatSwitch.StationOf(w, unit, out _, out _, out var weapon) ? TypeName(w, weapon)?.ToUpperInvariant() ?? "GUN" : "DRIVER";
                 return $"SEAT {name}  (G: next seat)";
             }
@@ -952,6 +952,7 @@ namespace Hrot.UI.Common.Map3D
                 UseReason.DoorRefuses => "will not move",
                 UseReason.NotDown => "not down",
                 UseReason.SeatTaken => "seat taken",
+                UseReason.OtherSide => "enemy aboard",   // ⭐ R-4096
                 UseReason.Unfit => "you are down",
                 UseReason.Carrying => "hands full",
                 UseReason.NothingToDo => "nothing to do",
