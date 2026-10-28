@@ -454,6 +454,8 @@ modal (§10.3). Sort-order ranges define group boundaries.
 
 ## 16. Folder Reorganization (prerequisite cleanup)
 
+> ⛔ **SUPERSEDED in location `2026-10-28` (R-4097):** the split below (final assets vs recipes, `AssetRoots` the one authority) STANDS, but both roots move out of the project to the repository root — `assets/`, `recipes/`, `scenarios/` — and every content type reaches a run by ONE pattern (the repository seeds the NAS at a dev start). See [`../../DESIGN_Content_Layout.md`](../../DESIGN_Content_Layout.md).
+
 Today recipes live under the asset folder (`Blueprints/Recipes/`), so recipe and final assets
 mix when scanning, and there is no separation of concerns. We reorganize to disjoint roots:
 
