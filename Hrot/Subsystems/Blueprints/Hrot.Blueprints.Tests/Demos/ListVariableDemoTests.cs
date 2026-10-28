@@ -15,10 +15,9 @@ public sealed class ListVariableDemoTests
 {
     private static BlueprintAsset LoadRecipe()
     {
-        // Same production-location resolution as RecipeIntegrityTests.LoadRecipe.
-        var aiBehaviors = typeof(Hrot.AI.Behaviors.BpFixedListDemo).Assembly;
-        var dir = Path.GetDirectoryName(aiBehaviors.Location)!;
-        var json = File.ReadAllText(Path.Combine(dir, "Recipes", "Blueprints", "ListVariableDemo.bp.json"));
+        // ⭐ CE-4089 — the recipe lives at the repository root (recipes/behaviors/Blueprints).
+        var json = File.ReadAllText(Path.Combine(
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "ListVariableDemo.bp.json"));
         return BlueprintJsonServices.Deserialize(json)!;
     }
 

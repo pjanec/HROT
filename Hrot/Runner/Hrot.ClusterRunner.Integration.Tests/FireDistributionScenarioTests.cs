@@ -38,12 +38,9 @@ public sealed class FireDistributionScenarioTests : IDisposable
     public FireDistributionScenarioTests(ITestOutputHelper output) => _out = output;
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
+    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
     private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
+        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
 
     private static Entity ByName(EntityRepository world, string name)
     {

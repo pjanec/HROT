@@ -20,8 +20,9 @@ public sealed class CollectionWriteDemoTests
 {
     private static BlueprintAsset LoadRecipe()
     {
-        var dir = Path.GetDirectoryName(typeof(BpFixedListDemo).Assembly.Location)!;
-        var json = File.ReadAllText(Path.Combine(dir, "Recipes", "Blueprints", "CollectionWriteDemo.bp.json"));
+        // ⭐ CE-4089 — the recipe lives at the repository root (recipes/behaviors/Blueprints).
+        var json = File.ReadAllText(Path.Combine(
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "CollectionWriteDemo.bp.json"));
         return BlueprintJsonServices.Deserialize(json)!;
     }
 

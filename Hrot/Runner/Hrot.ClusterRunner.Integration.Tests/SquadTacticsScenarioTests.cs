@@ -38,12 +38,9 @@ public sealed class SquadTacticsScenarioTests : IDisposable
 
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
+    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
     private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
+        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
 
     private static Entity ByName(EntityRepository world, string name)
     {
@@ -61,7 +58,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     {
         var root = RepoRoot();
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-suppress-flank", "scenario.json"),
+        File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-suppress-flank", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -158,7 +155,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-react-contact", "scenario.json"),
+            File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-react-contact", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
             using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -265,7 +262,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-squad-march", "scenario.json"),
+            File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-squad-march", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
             using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -365,7 +362,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         try
         {
             var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(
-                Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-squad-march", "scenario.json")))!;
+                Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-squad-march", "scenario.json")))!;
             foreach (var (_, e) in doc["entities"]!.AsObject())
                 if ((string?)e!["EntityInfo"]?["Name"] == "Squad") e.AsObject().Remove("Behavior");   // the order comes at run time
             File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), doc.ToJsonString());
@@ -450,7 +447,7 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-convoy-ambush", "scenario.json"),
+            File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-convoy-ambush", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
             using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());

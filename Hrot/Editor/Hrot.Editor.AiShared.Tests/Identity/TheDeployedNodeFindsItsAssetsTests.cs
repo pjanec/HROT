@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.AiShared;
 using Xunit;
 
@@ -11,7 +12,9 @@ namespace Hrot.Editor.AiShared.Tests.Identity;
 ///
 /// <para>🔒 <b>User, <c>2026-08-14</c>:</b> *"we need a <b>config file provided asset path</b> for the CGF
 /// as well as the Editor (<b>same shared code</b>), with <b>fallback to the repo source</b> as of now."*
-/// ⇒ resolution order <b>config → source walk-up → output directory</b>.</para>
+/// ⇒ resolution order <b>config → source walk-up → output directory</b>.
+/// ⭐ <c>CE-4089</c> (R-4097): it is now <b>config → the NAS root</b> — a dev start SEEDS the NAS from the repository, every node reads only
+/// the NAS, and neither a source walk-up nor the output directory answers for content.</para>
 ///
 /// <para>⚠⚠ <b>These rails MUTATE PROCESS-GLOBAL STATE and restore it in a <c>finally</c>.</b>
 /// <c>AssetRoots</c> is a <c>static</c> class and ruling 67 chose an explicit <c>Configure(...)</c> over a
@@ -31,15 +34,15 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
     public void Dispose() => AssetRoots.Configure(_saved);
 
     /// <summary>
-    /// ⭐ A temp directory with the <c>Assets/BTrees</c> shape and — crucially — <b>no <c>.csproj</c>
+    /// ⭐ A temp directory with the <c>assets/behaviors</c> shape and — crucially — <b>no source tree
     /// anywhere above it</b>. That is what makes it a DEPLOYED shape rather than a dev one.
     /// </summary>
     private static string MakeDeployedShapeRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "ruling67-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(root, "Assets", "BTrees"));
-        Directory.CreateDirectory(Path.Combine(root, "Assets", "Blueprints"));
-        Directory.CreateDirectory(Path.Combine(root, "Recipes", "Scenarios"));
+        Directory.CreateDirectory(Path.Combine(root, "assets", "behaviors", "BTrees"));
+        Directory.CreateDirectory(Path.Combine(root, "assets", "behaviors", "Blueprints"));
+        Directory.CreateDirectory(Path.Combine(root, "recipes", "scenarios"));
         return root;
     }
 
@@ -61,7 +64,7 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
             Assert.Equal(root, AssetRoots.ResolveBase("no", "such", "project.csproj"));
 
             var btrees = AssetRoots.ResolveAssetsRoot(AssetKind.BTree, "no", "such", "project.csproj");
-            Assert.Equal(Path.Combine(root, "Assets", "BTrees"), btrees);
+            Assert.Equal(Path.Combine(root, "assets", "behaviors", "BTrees"), btrees);
             Assert.True(Directory.Exists(btrees), "the deployed-shape root must actually be listable");
         }
         finally
@@ -71,15 +74,12 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <b>Config OUTRANKS the walk-up</b> — and this rail passes real, findable <c>.csproj</c> segments
-    /// so the walk-up would otherwise succeed. ⛔ Without the ordering, a deployed node that also happened
-    /// to sit inside a checkout would silently prefer the source tree over its own configuration.
+    /// ⭐⭐ <b>Config OUTRANKS the NAS root</b> — and this rail passes real, findable <c>.csproj</c> segments, which are now IGNORED for
+    /// content. ⛔ Without the ordering, a node told where its tree lives would silently prefer the NAS.
     /// </summary>
     [Fact]
-    public void ConfigOutranksTheSourceWalkUp()
+    public void ConfigOutranksTheNasRoot()
     {
-        var viaWalkUp = AssetRoots.ResolveProjectDir("Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj");
-
         var root = MakeDeployedShapeRoot();
         try
         {
@@ -87,7 +87,7 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
             var resolved = AssetRoots.ResolveBase("Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj");
 
             Assert.Equal(root, resolved);
-            if (viaWalkUp != null) Assert.NotEqual(viaWalkUp, resolved);   // ⭐ only meaningful in a checkout
+            Assert.NotEqual(ContentLayout.NasRoot, resolved);
         }
         finally
         {
@@ -96,22 +96,21 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <b>Unset config restores the pre-ruling behaviour EXACTLY.</b> That is what keeps every one of
-    /// the ~30 existing call sites, and every dev box, unchanged — ⛔ the change must be opt-in.
+    /// ⭐⭐ <b>Unset config means the NAS root — and nothing else.</b> ⭐ <c>CE-4089</c>: ⛔ not the source project walk-up, ⛔ not
+    /// <see cref="AppContext.BaseDirectory"/> (the two arms that used to answer for content are gone, L4).
     /// </summary>
     [Fact]
-    public void WithNoConfigTheWalkUpThenTheOutputDirectoryStillAnswer()
+    public void WithNoConfigTheNasRootAnswers()
     {
         AssetRoots.Configure(null);
         Assert.Null(AssetRoots.ConfiguredRoot);
 
-        // ⭐ In a checkout the walk-up answers; in a deployed test host it does not. Both are legal, so
-        //   this asserts the CONTRACT (never null, and the two possible arms) rather than one machine.
         var resolved = AssetRoots.ResolveBase("Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj");
-        Assert.False(string.IsNullOrEmpty(resolved));
+        Assert.Equal(ContentLayout.NasRoot, resolved);
 
+        // ⛔ the source project directory is NOT where content comes from, even in a checkout where the walk-up would find it
         var walkUp = AssetRoots.ResolveProjectDir("Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj");
-        Assert.Equal(walkUp ?? AppContext.BaseDirectory, resolved);
+        if (walkUp != null) Assert.NotEqual(walkUp, resolved);
     }
 
     /// <summary>
@@ -125,7 +124,7 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
         AssetRoots.Configure(null);
 
         Assert.Null(AssetRoots.ResolveProjectDir("definitely", "not", "here.csproj"));
-        Assert.Equal(AppContext.BaseDirectory, AssetRoots.ResolveBase("definitely", "not", "here.csproj"));
+        Assert.Equal(ContentLayout.NasRoot, AssetRoots.ResolveBase("definitely", "not", "here.csproj"));
     }
 
     // ══ the fail-fast half ═══════════════════════════════════════════════════════
@@ -181,8 +180,9 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
         {
             AssetRoots.Configure(root);
 
-            Assert.Equal(Path.Combine(root, "Assets"),   AssetRoots.AssetsRoot);
-            Assert.Equal(Path.Combine(root, "Recipes"),  AssetRoots.RecipesRoot);
+            Assert.Equal(Path.Combine(root, "assets"),   AssetRoots.AssetsRoot);
+            Assert.Equal(Path.Combine(root, "assets", "behaviors"), AssetRoots.BehaviorAssetsRoot);
+            Assert.Equal(Path.Combine(root, "recipes"),  AssetRoots.RecipesRoot);
 
             foreach (var kind in new[] { AssetKind.Blueprint, AssetKind.BTree, AssetKind.Hsm })
             {
@@ -203,19 +203,19 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ <b>And with config UNSET every one of those members is byte-identical to before</b> — the
-    /// change must be opt-in for ~30 call sites and every dev box.
+    /// ⚠ <b>And with config UNSET every one of those members hangs off the NAS root</b> (<c>CE-4089</c>) — ⛔ none off the exe folder.
     /// </summary>
     [Fact]
-    public void WithNoConfigEveryRootMemberIsUnchanged()
+    public void WithNoConfigEveryRootMemberIsUnderTheNasRoot()
     {
         AssetRoots.Configure(null);
+        var nas = ContentLayout.NasRoot;
 
-        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "Assets"),  AssetRoots.AssetsRoot);
-        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "Recipes"), AssetRoots.RecipesRoot);
-        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "Assets", "BTrees"),
+        Assert.Equal(Path.Combine(nas, "assets"),  AssetRoots.AssetsRoot);
+        Assert.Equal(Path.Combine(nas, "recipes"), AssetRoots.RecipesRoot);
+        Assert.Equal(Path.Combine(nas, "assets", "behaviors", "BTrees"),
                      AssetRoots.AssetsFor(AssetKind.BTree));
-        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "Recipes", "Scenarios"),
+        Assert.Equal(Path.Combine(nas, "recipes", "scenarios"),
                      AssetRoots.ScenariosRecipesRoot);
     }
 
@@ -231,7 +231,7 @@ public sealed class TheDeployedNodeFindsItsAssetsTests : IDisposable
             Assert.Contains("config", AssetRoots.DescribeBase("no", "such", "x.csproj"));
 
             AssetRoots.Configure(null);
-            Assert.Contains("output directory", AssetRoots.DescribeBase("definitely", "not", "here.csproj"));
+            Assert.Contains("NAS root", AssetRoots.DescribeBase("definitely", "not", "here.csproj"));
         }
         finally
         {

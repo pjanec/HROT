@@ -354,9 +354,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         private static string HighwayRestFolder()
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            return System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "highway-rest");
+            return System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "highway-rest");
         }
 
         internal static TerrainWorld HighwayRest()
@@ -428,14 +426,13 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         private static string RepoRoot()
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            return dir!.FullName;
+            // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
+            return Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!;
         }
 
         internal static TerrainWorld BasicDesert()
         {
-            var folder = System.IO.Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "basic-desert");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "basic-desert");
             return TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "basic-desert.world.geojson")),
                 "basic-desert", TerrainAssets.ForFolder(folder));
         }
@@ -541,8 +538,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void H4_BasicDesert_TheTrack_DipsIntoTheWadi_OnTheGround()
         {
             var w = BasicDesert();
-            using var roads = new RoadsHolder(global::CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(
-                RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "basic-desert", "roads.json")));
+            using var roads = new RoadsHolder(global::CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "basic-desert", "roads.json")));
             var planner = new Fdp.Toolkit.Navigation.RoutePlanner { World = new TerrainWorldQuery(w) };
             var q = new Fdp.Toolkit.Navigation.RouteQuery(new Vector3(20f, 295f, 0f), new Vector3(580f, 295f, 0f),
                 Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer, Fdp.Toolkit.Navigation.NavigationBackend.NavRoadGraph);

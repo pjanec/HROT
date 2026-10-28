@@ -22,9 +22,7 @@ namespace Fdp.Toolkit.Perception.Survey.Tests
 
         public WorldSurveySolveTests()
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             _terrain = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
                 TerrainAssets.ForFolder(folder));
             _w = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(_terrain);
@@ -58,9 +56,7 @@ namespace Fdp.Toolkit.Perception.Survey.Tests
         [Fact]
         public void CE2276_E4_AnAreaKeepsItsNearestFourBuildings()
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "cqb-village");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "cqb-village");
             var village = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "cqb-village.world.geojson")), "cqb-village",
                 TerrainAssets.ForFolder(folder));
             using var w = Fdp.Toolkit.Terrain.Tests.DoorFixtures.WorldWithDoors(village);

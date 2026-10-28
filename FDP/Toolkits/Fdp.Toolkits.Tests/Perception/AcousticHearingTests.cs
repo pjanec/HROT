@@ -127,9 +127,7 @@ namespace Fdp.Toolkit.Tests.Perception
         [Fact]
         public void AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway()
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             string json = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,50,50],\"groundZ\":0},\"features\":[" +
                           "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"H\",\"baseZ\":0," +
                           "\"rotation\":0,\"doors\":{\"hall\":\"open\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0]}}]}";
@@ -164,9 +162,7 @@ namespace Fdp.Toolkit.Tests.Perception
         [Fact]
         public void AQ106L_ExplainHearing_GivesEachSoundsVerdict_AsTheSensorHeardIt()
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             string json = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-500,-500,500,500],\"groundZ\":0},\"features\":[" +
                           "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"H\",\"baseZ\":0," +
                           "\"rotation\":0,\"doors\":{\"hall\":\"open\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0]}}]}";

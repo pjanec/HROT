@@ -37,14 +37,8 @@ public sealed class CorpusCanonicalisationTests
 
     private static string ResolveRecipesDir()
     {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Blueprints");
-            if (Directory.Exists(candidate)) return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException("Hrot.AI.Behaviors/Recipes/Blueprints not found.");
+        var candidate = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
+        return Directory.Exists(candidate) ? candidate : throw new DirectoryNotFoundException($"recipes/behaviors/Blueprints not found: {candidate}");
     }
 
     private static string Canonical(string json)

@@ -527,12 +527,9 @@ public sealed class TimeControlIntegrationTests : IDisposable
     public async Task Stop_PausesTheClock_SoTheNextEditIsFrozen_CE3068()
     {
         string scenarioId = "tc_stop_pauses_" + Guid.NewGuid().ToString("N");
-        string root = AppContext.BaseDirectory;
-        for (var dir = new System.IO.DirectoryInfo(root); dir != null; dir = dir.Parent)
-            if (System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) { root = dir.FullName; break; }
         System.IO.Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         System.IO.File.Copy(
-            System.IO.Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json"),
+            System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json"),
             System.IO.Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
         try
         {

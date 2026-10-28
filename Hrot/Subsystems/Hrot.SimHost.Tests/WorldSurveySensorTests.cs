@@ -29,9 +29,7 @@ namespace Hrot.SimHost.Tests
             SimHostComponentRegistry.RegisterAll(_world);
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             _terrain = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
                 TerrainAssets.ForFolder(folder));
             _world.RegisterManagedComponent<TerrainWorld>();

@@ -32,9 +32,10 @@ public sealed class GoldenCorpusTests
         var text   = File.ReadAllText(csproj);
 
         Assert.Contains($"<AdditionalFiles Include=\"{GoldenCorpus.CorpusGlobInProject}\"", text);
-        // ⛔ Recipes/Blueprints is Content, never compiled by production — and globbing both roots
+        // ⛔ recipes/behaviors/Blueprints is not a generator input — and globbing both roots
         // throws, because assets exist in each sharing an AssetId.
-        Assert.DoesNotContain(@"<AdditionalFiles Include=""Recipes\", text);
+        Assert.DoesNotContain(text.Split('\n'), l => l.Contains("<AdditionalFiles", StringComparison.Ordinal)
+                                                  && l.Contains("recipes", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

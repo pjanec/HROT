@@ -92,6 +92,33 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     }
 
     /// <summary>
+    /// ⭐ <b>CE-4089 — no content path is spelled outside <c>ContentLayout</c> or read from a project/exe folder.</b> The old shapes: a path into the Behaviors
+    /// project (<c>"Hrot.AI.Behaviors", "Assets"|"Recipes"</c>), an exe-folder content root (<c>AppContext.BaseDirectory, "Recipes"|"Assets"|"assets"</c>) and the
+    /// shipped-recipes tree (<c>"Recipes", "Terrain"|"Buildings"|…</c>). ⛔ Comment lines are not scanned (see <see cref="StrippedOfCommentLines"/>).
+    /// </summary>
+    private static readonly Regex OldContentPath = new(
+        @"""Hrot\.AI\.Behaviors""\s*,\s*""(Assets|Recipes)""|AppContext\.BaseDirectory\s*,\s*""(Recipes|Assets|assets)""|""Recipes""\s*,\s*""(Terrain|Buildings|Scenarios|Blueprints)""",
+        RegexOptions.Compiled);
+
+    [Fact]
+    public void NoProductionFileSpellsAnOldContentPath()
+    {
+        var offenders = new List<string>();
+        var repoRoot  = RepoRoot();
+
+        foreach (var file in ProductionSources(repoRoot))
+            if (OldContentPath.IsMatch(StrippedOfCommentLines(File.ReadAllText(file))))
+                offenders.Add(Path.GetRelativePath(repoRoot, file));
+
+        Assert.Equal(new List<string>(), offenders.OrderBy(x => x, StringComparer.Ordinal).ToList());
+
+        // ⚠ anti-vacuity: the regex still matches each old shape (a rotted pattern would pass forever)
+        Assert.Matches(OldContentPath, @"Path.Combine(root, ""Hrot"", ""Subsystems"", ""Hrot.AI.Behaviors"", ""Recipes"", ""Terrain"")");
+        Assert.Matches(OldContentPath, @"Path.Combine(AppContext.BaseDirectory, ""Recipes"", ""Terrain"")");
+        Assert.Matches(OldContentPath, @"Path.Combine(AppContext.BaseDirectory, ""assets"", ""audio"")");
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>The ANTI-VACUITY half: something must still resolve all THREE roots</b> — ⛔ otherwise the
     /// forbid-scan above is satisfied by a tree that resolves nothing at all. 📌 <c>CE-064</c>'s shape:
     /// an assertion that is correct, universal and unreachable.

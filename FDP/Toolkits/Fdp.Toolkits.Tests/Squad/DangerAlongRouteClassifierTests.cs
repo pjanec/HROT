@@ -181,10 +181,7 @@ namespace Fdp.Toolkit.Tests.Squad
         [Fact]
         public void CE3081_TestTown_TheLooseMarchLeg_IsOneOpenRun()
         {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            var folder = Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town");
+            var folder = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
             var world = TerrainWorldParser.Parse(File.ReadAllText(Directory.GetFiles(folder, "*.world.geojson").Single()), "test-town",
                 TerrainAssets.ForFolder(folder));
             var a = Assert.Single(RunWith(TerrainCoverProvider.Build(world), new Vector3(72, 58, 0), new Vector3(175, 60, 0)));

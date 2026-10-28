@@ -1302,9 +1302,7 @@ namespace Hrot.SimHost.Tests
         public void CE2366_ANearMissIndoors_DoesNotDropHim_TheMoveStaysTheCrouchedRush()
         {
             var w = new World();
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
                 "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
             w.Repo.SetSingletonManaged(terrain);

@@ -30,6 +30,14 @@ public sealed class CgfHarness : IDisposable
 
     private static int _domainCounter = CgfDomainIdBase - 1;
 
+    // ⭐ CE-4089 — this harness is the in-process composition root, so it does what the runner's Program.cs does at every dev start: seed the NAS from
+    //    the repository (scenarios/, assets/, recipes/). The nodes read ONLY the NAS now (no shipped terrains in the test output). Once per process.
+    static CgfHarness()
+    {
+        Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
+    }
+
+
     public int          DomainId { get; }
     public CgfSubsystem CgfSvc   { get; }
 

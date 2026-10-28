@@ -58,8 +58,7 @@ namespace Hrot.Map.Common.Tests
         private static IEnumerable<string> ShippedScenarios()
         {
             var root = RepoRoot();
-            foreach (var dir in new[] { Path.Combine(root, "scenarios"),
-                                        Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios") })
+            foreach (var dir in new[] { Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(root), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(root) })
                 if (Directory.Exists(dir))
                     foreach (var f in Directory.EnumerateFiles(dir, "scenario.json", SearchOption.AllDirectories))
                         yield return f;
@@ -74,11 +73,8 @@ namespace Hrot.Map.Common.Tests
                     yield return type;
         }
 
+        // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
         private static string RepoRoot()
-        {
-            var dir = AppContext.BaseDirectory;
-            while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir);
-            return dir ?? throw new InvalidOperationException("repo root not found");
-        }
+            => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new InvalidOperationException("repo root not found");
     }
 }

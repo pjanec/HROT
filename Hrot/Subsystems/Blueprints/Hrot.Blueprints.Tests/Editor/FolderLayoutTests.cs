@@ -1,37 +1,19 @@
-using System.Reflection;
-
 namespace Hrot.Blueprints.Tests.Editor;
 
 /// <summary>
-/// MTB-P0-T2 SC: Verify the §16 folder layout — recipe templates ship to
-/// output under Recipes/Blueprints, source assets live under Assets/<Kind>,
-/// and no legacy bare directories remain.
+/// MTB-P0-T2 SC: Verify the content layout — ⭐ CE-4089 (R-4097): the repository root holds <c>assets/behaviors/&lt;Kind&gt;</c> (final assets) and
+/// <c>recipes/behaviors/Blueprints</c> (creation sources); the Behaviors PROJECT holds neither, and ships nothing of them into its output.
 ///
-/// Finals (.bp.json/.hsm.json/.btree.json) are generator AdditionalFiles
-/// compiled into the assembly and are NOT copied to output; this test does
-/// not assert their presence in the output tree (see instruction note).
+/// Finals (.bp.json/.hsm.json/.btree.json) are generator AdditionalFiles compiled into the assembly and are NOT copied to output.
 /// </summary>
 public sealed class FolderLayoutTests
 {
     // ---- helpers ---------------------------------------------------------------
 
-    /// <summary>
-    /// Resolve the repository root by walking up from the test assembly
-    /// output directory until HROT.sln is found.
-    /// </summary>
+    /// <summary>The repository root — through the one walk-up (ContentLayout).</summary>
     private static string ResolveRepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln")))
-                return dir;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException(
-            "Could not find repo root (looked for HROT.sln upward from " +
-            AppContext.BaseDirectory + ")");
-    }
+        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()
+           ?? throw new DirectoryNotFoundException("Could not find repo root (HROT.sln beside assets/) upward from " + AppContext.BaseDirectory);
 
     /// <summary>
     /// Resolve the Behaviors source project directory (the .csproj location).
@@ -46,91 +28,56 @@ public sealed class FolderLayoutTests
         return dir;
     }
 
-    /// <summary>
-    /// Resolve the Behaviors build-output directory from the loaded assembly.
-    /// </summary>
-    private static string ResolveBehaviorsOutputDir()
-    {
-        // Force-load Hrot.AI.Behaviors so we can resolve its output directory.
-        var asm = Assembly.Load("Hrot.AI.Behaviors");
-        var dir = Path.GetDirectoryName(asm.Location);
-        if (dir == null || !Directory.Exists(dir))
-            throw new DirectoryNotFoundException(
-                "Cannot determine Hrot.AI.Behaviors assembly output directory.");
-        return dir;
-    }
+    // ---- the layout --------------------------------------------------------------
 
-    // ---- (a) Output — Recipes/Blueprints ships to build output ------------------
-
-    /// <summary>
-    /// (a) Output: the build-output Recipes/Blueprints dir exists and contains
-    /// the recipe templates (e.g. CountingDemo.bp.json).
-    /// Finals are NOT asserted — they are compiled in, not copied.
-    /// </summary>
     [Fact]
-    public void Output_HasAssetsAndRecipesRoots()
+    public void TheRepositoryRootHoldsTheAssetsAndTheRecipes()
     {
-        var outputDir = ResolveBehaviorsOutputDir();
+        var repo = ResolveRepoRoot();
 
-        // (a) Output Recipes/Blueprints exists with recipe templates.
-        var recipesDir = Path.Combine(outputDir, "Recipes", "Blueprints");
-        Assert.True(Directory.Exists(recipesDir),
-            $"Expected Recipes/Blueprints directory in output: {recipesDir}");
-
+        // (a) recipes/behaviors/Blueprints exists with recipe templates (CountingDemo is the canonical one, committed since WHEN-M11-T4).
+        var recipesDir = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(repo, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
+        Assert.True(Directory.Exists(recipesDir), $"Expected recipes/behaviors/Blueprints at the repository root: {recipesDir}");
         var recipeFiles = Directory.GetFiles(recipesDir, "*.bp.json");
         Assert.NotEmpty(recipeFiles);
+        Assert.Contains(recipeFiles.Select(Path.GetFileName), f => f == "CountingDemo.bp.json");
 
-        // CountingDemo.bp.json is the canonical recipe committed since WHEN-M11-T4.
-        var recipeNames = recipeFiles.Select(Path.GetFileName).ToHashSet();
-        Assert.Contains("CountingDemo.bp.json", recipeNames);
-
-        // (b) Source project: Assets/<Kind> directories exist with their files.
-        var sourceDir = ResolveBehaviorsSourceDir();
-
-        var assetsBlueprintsDir = Path.Combine(sourceDir, "Assets", "Blueprints");
-        Assert.True(Directory.Exists(assetsBlueprintsDir),
-            $"Expected Assets/Blueprints directory in source: {assetsBlueprintsDir}");
+        // (b) assets/behaviors/<Kind> directories exist with their files.
+        var assetsBlueprintsDir = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(repo, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
+        Assert.True(Directory.Exists(assetsBlueprintsDir), $"Expected assets/behaviors/Blueprints: {assetsBlueprintsDir}");
         var assetBpFiles = Directory.GetFiles(assetsBlueprintsDir, "*.bp.json", SearchOption.AllDirectories);   // CE-3164: assets live in picker folders
         Assert.NotEmpty(assetBpFiles);
-        Assert.Contains(assetBpFiles.Select(Path.GetFileName),
-            f => f == "Count4.bp.json");
+        Assert.Contains(assetBpFiles.Select(Path.GetFileName), f => f == "Count4.bp.json");
 
-        var assetsHsmsDir = Path.Combine(sourceDir, "Assets", "HSMs");
-        Assert.True(Directory.Exists(assetsHsmsDir),
-            $"Expected Assets/HSMs directory in source: {assetsHsmsDir}");
-        var hsmFiles = Directory.GetFiles(assetsHsmsDir, "*.hsm.json", SearchOption.AllDirectories);   // CE-3164: assets live in picker folders
+        var assetsHsmsDir = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(repo, Fdp.Toolkit.Orchestration.ContentLayout.HsmsFolder);
+        Assert.True(Directory.Exists(assetsHsmsDir), $"Expected assets/behaviors/HSMs: {assetsHsmsDir}");
+        var hsmFiles = Directory.GetFiles(assetsHsmsDir, "*.hsm.json", SearchOption.AllDirectories);
         Assert.NotEmpty(hsmFiles);
-        Assert.Contains(hsmFiles.Select(Path.GetFileName),
-            f => f == "SampleGuard.hsm.json");
+        Assert.Contains(hsmFiles.Select(Path.GetFileName), f => f == "SampleGuard.hsm.json");
 
-        var assetsBTreesDir = Path.Combine(sourceDir, "Assets", "BTrees");
-        Assert.True(Directory.Exists(assetsBTreesDir),
-            $"Expected Assets/BTrees directory in source: {assetsBTreesDir}");
-        var btreeFiles = Directory.GetFiles(assetsBTreesDir, "*.btree.json", SearchOption.AllDirectories);   // CE-3164: assets live in picker folders
+        var assetsBTreesDir = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(repo, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder);
+        Assert.True(Directory.Exists(assetsBTreesDir), $"Expected assets/behaviors/BTrees: {assetsBTreesDir}");
+        var btreeFiles = Directory.GetFiles(assetsBTreesDir, "*.btree.json", SearchOption.AllDirectories);
         Assert.NotEmpty(btreeFiles);
-        Assert.Contains(btreeFiles.Select(Path.GetFileName),
-            f => f == "SampleScout.btree.json");
+        Assert.Contains(btreeFiles.Select(Path.GetFileName), f => f == "SampleScout.btree.json");
+    }
 
-        // Source Recipes/Blueprints exists with recipe templates.
-        var sourceRecipesDir = Path.Combine(sourceDir, "Recipes", "Blueprints");
-        Assert.True(Directory.Exists(sourceRecipesDir),
-            $"Expected Recipes/Blueprints directory in source: {sourceRecipesDir}");
-        var sourceRecipeFiles = Directory.GetFiles(sourceRecipesDir, "*.bp.json");
-        Assert.NotEmpty(sourceRecipeFiles);
-        Assert.Contains(sourceRecipeFiles.Select(Path.GetFileName),
-            f => f == "CountingDemo.bp.json");
+    /// <summary>
+    /// ⭐ CE-4089 — nothing of the content is left in (or shipped from) the Behaviors project: no <c>Assets/</c>, <c>Recipes/</c> or bare
+    /// legacy folders, and the <c>.csproj</c> carries no copy-to-output rule (one pattern: a dev start seeds the NAS).
+    /// </summary>
+    [Fact]
+    public void TheBehaviorsProjectHoldsNoContentAndCopiesNone()
+    {
+        var sourceDir = ResolveBehaviorsSourceDir();
 
-        // (c) No leftovers: no bare Blueprints/, Machines/, or Trees/ dirs remain.
-        var bareBlueprintsDir = Path.Combine(sourceDir, "Blueprints");
-        Assert.False(Directory.Exists(bareBlueprintsDir),
-            $"Bare Blueprints/ directory must not exist in source: {bareBlueprintsDir}");
+        foreach (var legacy in new[] { "Assets", "Recipes", "Blueprints", "Machines", "Trees" })
+        {
+            var dir = Path.Combine(sourceDir, legacy);
+            Assert.False(Directory.Exists(dir), $"{legacy}/ must not exist in the Behaviors project (content lives at the repository root): {dir}");
+        }
 
-        var machinesDir = Path.Combine(sourceDir, "Machines");
-        Assert.False(Directory.Exists(machinesDir),
-            $"Machines/ directory must not exist in source: {machinesDir}");
-
-        var treesDir = Path.Combine(sourceDir, "Trees");
-        Assert.False(Directory.Exists(treesDir),
-            $"Trees/ directory must not exist in source: {treesDir}");
+        var csproj = File.ReadAllText(Path.Combine(sourceDir, "Hrot.AI.Behaviors.csproj"));
+        Assert.DoesNotContain("<CopyToOutputDirectory>", csproj);   // the MSBuild item metadata, not a comment about it
     }
 }

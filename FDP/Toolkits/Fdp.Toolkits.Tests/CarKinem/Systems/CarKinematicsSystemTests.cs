@@ -1432,9 +1432,7 @@ namespace CarKinem.Tests.Systems
         [InlineData("across")]
         public void CE3145_APerson_DownTheStairs_NeverFallsThroughTheStairwell(string run)
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Directory.GetFiles(folder, "*.world.geojson")[0]),
                 "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
 

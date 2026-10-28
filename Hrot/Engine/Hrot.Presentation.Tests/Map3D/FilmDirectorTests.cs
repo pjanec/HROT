@@ -91,7 +91,7 @@ public sealed class FilmDirectorTests
     public void CE4038_TheSeededTakes_AllRead_AndTheFeaturesReelNamesOnlyThem()
     {
         var repo = RepoRoot();
-        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         var found = new HashSet<string>();
         foreach (var root in roots)
         {
@@ -754,7 +754,7 @@ public sealed class FilmDirectorTests
     public void TE2_TheSeededTakes_StillRead_GiveKeys_AndWriteBackAsV1()
     {
         var repo = RepoRoot();
-        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         int count = 0, withTo = 0;
         foreach (var root in roots)
         {
@@ -903,7 +903,7 @@ public sealed class FilmDirectorTests
     public void CE1364_T4_AV1Take_PlaysTheSameShots_AsTheOldShotPath()
     {
         var repo = RepoRoot();
-        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         var takes = new List<(string Name, Take Take)>();
         foreach (var root in roots)
         {
@@ -1055,7 +1055,7 @@ public sealed class FilmDirectorTests
 
         var repo = RepoRoot();
         int count = 0;
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1107,7 +1107,7 @@ public sealed class FilmDirectorTests
 
         var repo = RepoRoot();
         int count = 0;
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1136,7 +1136,7 @@ public sealed class FilmDirectorTests
     {
         var repo = RepoRoot();
         int compared = 0, withText = 0;
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1371,7 +1371,7 @@ public sealed class FilmDirectorTests
     private static IEnumerable<(TakeStore Store, string Scenario, string Name)> SeededTakes()
     {
         var repo = RepoRoot();
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1379,10 +1379,7 @@ public sealed class FilmDirectorTests
         }
     }
 
+    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
     private static string RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Directory.GetParent(dir)?.FullName;
-        return dir ?? throw new InvalidOperationException("no repo root above " + AppContext.BaseDirectory);
-    }
+        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new InvalidOperationException("no repo root above " + AppContext.BaseDirectory);
 }

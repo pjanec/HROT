@@ -66,12 +66,9 @@ public sealed class SampleScoutDiscoveryTests
         // Hrot/Subsystems/Hrot.AI.Behaviors/ relative to the repo root.
         // Walk up from the test assembly output dir (net8.0 → Debug → bin →
         // Hrot.BTree.Editor.Tests → AI → Subsystems → Hrot → repo root).
-        var asmDir = Path.GetDirectoryName(typeof(SampleScoutDiscoveryTests).Assembly.Location)!;
-        var repoRoot = asmDir;
-        for (int i = 0; i < 7; i++)
-            repoRoot = Path.GetDirectoryName(repoRoot)!;
-        var jsonPath = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "BTrees", "Samples", "SampleScout.btree.json");
+        // ⭐ CE-4089 — assets/behaviors/BTrees at the repository root, found through the one walk-up (ContentLayout).
+        var jsonPath = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder),
+            "Samples", "SampleScout.btree.json");
 
         jsonPath.Should().NotBeNullOrEmpty();
         File.Exists(jsonPath).Should().BeTrue(

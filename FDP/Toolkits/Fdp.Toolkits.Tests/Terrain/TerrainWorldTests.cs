@@ -277,6 +277,51 @@ namespace Fdp.Toolkit.Terrain.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-4089, success condition 5 — NO SHIPPED ARM.</b> A node's catalog searches EXACTLY its staging folder and the NAS's
+        /// <c>assets/terrain</c> — nothing under the exe folder (the <c>{app}/Recipes/Terrain</c> root and <c>DefaultShippedRoot</c> are gone).
+        /// </summary>
+        [Fact]
+        public void CE4089_ForNode_SearchesOnlyStagingAndTheNasAssetsTerrain()
+        {
+            var stage = Path.Combine("x", "node-1");
+            var nas = Path.Combine("x", "nas");
+
+            var cat = TerrainCatalog.ForNode(stage, nas);
+
+            Assert.Equal(new[]
+            {
+                Path.Combine(stage, TerrainCatalog.StagingDirectoryName),
+                Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas),
+            }, cat.Roots);
+            Assert.Empty(TerrainCatalog.ForNode(null, null).Roots);                       // nothing else is added behind the caller's back
+            Assert.DoesNotContain(cat.Roots, r => r.StartsWith(AppContext.BaseDirectory, StringComparison.Ordinal));
+        }
+
+        /// <summary>⭐ CE-4089 — a terrain a dev start seeded into <c>{nas}/assets/terrain</c> resolves through the catalog; the shared buildings root is the NAS's too.</summary>
+        [Fact]
+        public void CE4089_ASeededTerrain_ResolvesFromTheNas_AndTheSharedBuildingsRootIsTheNasToo()
+        {
+            var nas = Path.Combine(Path.GetTempPath(), "tcat_nas_" + Guid.NewGuid().ToString("N")[..8]);
+            try
+            {
+                var terrain = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), "seeded");
+                Directory.CreateDirectory(terrain);
+                File.WriteAllText(Path.Combine(terrain, TerrainCatalog.DefinitionFileName), "{}");
+
+                var cat = TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: nas);
+                Assert.Equal(Path.Combine(terrain, TerrainCatalog.DefinitionFileName), cat.ResolveDefinition("seeded"));
+                Assert.Equal(new[] { "seeded" }, cat.List());
+
+                Assert.Equal(Fdp.Toolkit.Orchestration.ContentLayout.BuildingAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot),
+                             TerrainAssets.DefaultSharedBuildingsRoot);
+            }
+            finally
+            {
+                if (Directory.Exists(nas)) Directory.Delete(nas, true);
+            }
+        }
+
         // ── ⭐ CE-1017 S2 — terrain LEVELS (docs/DESIGN_Add_Entity_Picker.md §2b–§2c) ─────────────────────
 
         [Fact]
@@ -697,11 +742,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         private static string ShippedTerrain(string name)
         {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors")))
-                dir = dir.Parent;
-            Assert.NotNull(dir);
-            return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+            return Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), name);
         }
 
         [Fact]
@@ -780,9 +821,9 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
-        /// ⭐ UI-1 (platoon demos hand-off) — the SHARED templates folder <c>Recipes/Buildings/</c>: <c>bt-range</c> places
+        /// ⭐ UI-1 (platoon demos hand-off) — the SHARED templates folder <c>assets/buildings/</c>: <c>bt-range</c> places
         /// <c>house-2f</c> with no copy of its own (<see cref="TerrainAssets.RecipesSibling"/> finds it from the source tree, the build
-        /// output's <c>Recipes/Buildings</c> from the app), and no template is left in two places.
+        /// the NAS assets/buildings from the app), and no template is left in two places.
         /// 🔴 Red-proof: drop <c>RecipesSibling</c> from the lookup ⇒ "building template 'house-2f' was not found".
         /// </summary>
         [Fact]

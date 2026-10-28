@@ -1104,7 +1104,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     public void CE3118_TheRecordingsTerrain_AndItsRoads_AreOnTheReplayWorld()
     {
         string path = RecordNamingTerrain("terrain.fdp", "test-town");
-        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        // ⭐ CE-4089 — there is no shipped arm any more: the catalog reads the repository's assets/terrain (a test of repo content reads the SOURCE tree).
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[]
+            { Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!) });
         _subsystem.Initialize(HeadlessConfig());
         _subsystem.LoadFdpViaManager(path);
 

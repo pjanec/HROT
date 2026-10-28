@@ -39,14 +39,15 @@ public static class GoldenCorpus
     /// ⭐⭐ <b>The corpus is the GENERATOR'S INPUTS — take the glob, not the count.</b>
     ///
     /// <para>
-    /// <c>Hrot.AI.Behaviors.csproj</c>: <c>&lt;AdditionalFiles Include="Assets\Blueprints\**\*.bp.json" /&gt;</c>.
-    /// ⛔ <b>Not "all shipped <c>.bp.json</c>".</b> <c>Recipes/Blueprints</c> is <c>Content</c> —
+    /// <c>Hrot.AI.Behaviors.csproj</c>: <c>&lt;AdditionalFiles Include="$(AssetsBehaviorsDir)Blueprints\**\*.bp.json" /&gt;</c>
+    /// (⭐ CE-4089: <c>$(AssetsBehaviorsDir)</c> is the repository's <c>assets/behaviors/</c>).
+    /// ⛔ <b>Not "all shipped <c>.bp.json</c>".</b> <c>recipes/behaviors/Blueprints</c> is not an input —
     /// production never compiles it — and globbing <b>both</b> roots <b>throws</b>, because assets
     /// exist in each sharing an <c>AssetId</c>. It happens to be 44 files today (was 50 before <c>CE-436</c>); the definition is the
     /// glob, and <c>GoldenCorpusTests</c> asserts the <c>.csproj</c> still says so.
     /// </para>
     /// </summary>
-    public const string CorpusGlobInProject = @"Assets\Blueprints\**\*.bp.json";
+    public const string CorpusGlobInProject = @"$(AssetsBehaviorsDir)Blueprints\**\*.bp.json";
 
     /// <summary>
     /// ⚠ <b>The preload.</b> ⛔ <c>CE-436</c> deleted the three <c>HillAssault2I_*</c> assets this
@@ -64,16 +65,10 @@ public static class GoldenCorpus
     /// <summary>The source directory the glob is rooted at.</summary>
     public static string ResolveCorpusDir()
     {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints");
-            if (Directory.Exists(candidate)) return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException(
-            "Golden corpus not found — expected Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints "
-            + "on an ancestor of the test output directory.");
+        var candidate = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
+        return Directory.Exists(candidate)
+            ? candidate
+            : throw new DirectoryNotFoundException($"Golden corpus not found — expected {candidate} (assets/behaviors/Blueprints at the repository root).");
     }
 
     /// <summary>Every corpus file, ordered so the sweep and its baseline are deterministic.</summary>

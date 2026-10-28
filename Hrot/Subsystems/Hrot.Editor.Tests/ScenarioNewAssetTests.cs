@@ -51,7 +51,7 @@ public sealed class ScenarioNewAssetTests
         var ex = Assert.Throws<InvalidOperationException>(
             () => svc.CreateNew(null, "MyScenario", ""));
 
-        Assert.Contains("Recipes/Scenarios", ex.Message);
+        Assert.Contains("recipes/scenarios", ex.Message);
     }
 
     /// <summary>

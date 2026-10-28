@@ -682,21 +682,10 @@ public sealed class NodeCoverageTests
 
     private static BlueprintAsset LoadRecipe(string name)
     {
-        var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-
-        string path;
-        if (aiBehaviorsAssembly != null)
-        {
-            var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
-                ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors assembly location.");
-            path = Path.Combine(assemblyLocation, "Recipes", "Blueprints", name + ".bp.json");
-        }
-        else
-        {
-            var dir = TestData.ResolveTestAssetsDir();
-            path = Path.Combine(dir, "Recipes", name + ".bp.json");
-        }
+        // ⭐ CE-4089 — the recipes live at the repository root (recipes/behaviors/Blueprints); read them from the source tree.
+        // (Was the Hrot.AI.Behaviors output folder, which the csproj no longer copies them into.)
+        var path = Path.Combine(
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), name + ".bp.json");
 
         if (!File.Exists(path))
             throw new FileNotFoundException($"Recipe file not found: {path}");

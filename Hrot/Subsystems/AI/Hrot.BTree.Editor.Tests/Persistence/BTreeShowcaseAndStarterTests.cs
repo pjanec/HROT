@@ -34,18 +34,14 @@ public sealed class BTreeShowcaseAndStarterTests : IDisposable
     // ── Path resolution ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Resolves the committed CombatShowcase.btree.json path by walking up from the
-    /// test assembly output directory to the repo root, then into the Behaviors assets tree.
+    /// Resolves the committed CombatShowcase.btree.json path under assets/behaviors/BTrees at the repository root.
     /// Mirrors the pattern used by SampleScoutDiscoveryTests.
     /// </summary>
     private static string ResolveShowcasePath()
     {
-        var asmDir = Path.GetDirectoryName(typeof(BTreeShowcaseAndStarterTests).Assembly.Location)!;
-        var repoRoot = asmDir;
-        for (int i = 0; i < 7; i++)
-            repoRoot = Path.GetDirectoryName(repoRoot)!;
-        return Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "BTrees", "Samples", "CombatShowcase.btree.json");
+        // ⭐ CE-4089 — assets/behaviors/BTrees at the repository root, found through the one walk-up (ContentLayout).
+        return Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder),
+            "Samples", "CombatShowcase.btree.json");
     }
 
     // ── Showcase: deserialization ─────────────────────────────────────────────
