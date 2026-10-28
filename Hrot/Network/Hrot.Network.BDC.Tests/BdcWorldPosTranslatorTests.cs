@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -115,6 +116,42 @@ namespace Hrot.Network.BDC.Tests
             Assert.Equal(Quaternion.Identity, r0);
             Assert.Equal(Vector3.Zero, p0);
             Assert.False(float.IsNaN(r0.X + r0.Y + r0.Z + r0.W));
+        }
+
+        /// <summary>
+        /// ⭐ <b>AQ107 D addendum (2026-10-28)</b> — <c>BdcWorldPos.OrientationXyz</c> is <c>BdcOrientationQuat</c>: it displays as heading/pitch/roll + quaternion
+        /// (grid <c>ToString</c> and the reflection-found <c>GetFormatTokens</c>), with the SAME bytes as <c>BdcVec3f</c>, and ⭐ for the same x, y, z it shows
+        /// EXACTLY what NED's <c>OrientationQuat</c> shows (one <c>OrientationDisplay</c> behind both). ✅ Red-proofs (run): <c>BdcOrientationQuat.ToString</c> →
+        /// <c>base.ToString()</c> ⇒ red; a 4th <c>float W</c> on <c>BdcOrientationQuat</c> ⇒ the descriptor test red; <c>GetFormatTokens</c> passing <c>-Y</c> on the BDC struct only ⇒ the parity test red.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, 0f, 0f)]
+        [InlineData(0.003f, -0.029f, 0.382f)]
+        [InlineData(0f, -0.7071068f, 0f)]
+        [InlineData(-0.168f, 0.045f, 0.951f)]
+        public void AQ107D_BdcOrientationQuat_DisplaysLikeTheNedType_ThroughToStringAndTheDuckTypedTokens(float x, float y, float z)
+        {
+            var bdc = new BdcOrientationQuat { X = x, Y = y, Z = z };
+            var ned = new Hrot.NED.Messages.OrientationQuat { X = x, Y = y, Z = z };
+            Assert.Equal(ned.ToString(), bdc.ToString());
+
+            var method = typeof(BdcOrientationQuat).GetMethod("GetFormatTokens", Type.EmptyTypes);
+            Assert.NotNull(method);
+            var tokens = (IEnumerable<CycloneDDS.Schema.Formatting.FormattedToken>)method!.Invoke(bdc, null)!;
+            Assert.Equal(bdc.ToString(), string.Concat(tokens.Select(t => t.Text)));
+            Assert.Equal(string.Concat(ned.GetFormatTokens().Select(t => t.Text)), string.Concat(tokens.Select(t => t.Text)));
+        }
+
+        [Fact]
+        public void AQ107D_BdcOrientationQuat_ShowsTheKnownPoseText_AndHasTheSameBytesAsABdcVec3f()
+        {
+            QuaternionWireCodec.Encode(Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4f), out float x, out float y, out float z);
+            Assert.Equal("HPR [045.0, 0.0, 0.0] deg, Quat [0.000, 0.000, 0.383, 0.924]", new BdcOrientationQuat { X = x, Y = y, Z = z }.ToString());
+
+            Assert.Equal(BdcVec3f.GetDescriptorOps(), BdcOrientationQuat.GetDescriptorOps());
+            Assert.Equal(BdcVec3f.GetDescriptorSize(), BdcOrientationQuat.GetDescriptorSize());
+            Assert.Equal(BdcVec3f.GetDescriptorAlign(), BdcOrientationQuat.GetDescriptorAlign());
+            Assert.Equal(12u, BdcOrientationQuat.GetDescriptorSize());
         }
     }
 

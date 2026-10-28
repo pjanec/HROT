@@ -101,7 +101,7 @@ classDiagram
         <<wire NED · AQ107 D>>
         +double SimTime
         +Vec3d Position
-        +Vec3f OrientationXyz
+        +OrientationQuat OrientationXyz
         +Vec3f Velocity
         +Vec3f AngularVelocity
     }
@@ -109,7 +109,7 @@ classDiagram
         <<wire BDC · AQ107 F>>
         +double SimTime
         +BdcVec3d Position
-        +BdcVec3f OrientationXyz
+        +BdcOrientationQuat OrientationXyz
         +BdcVec3f Velocity
         +BdcVec3f AngularVelocity
     }

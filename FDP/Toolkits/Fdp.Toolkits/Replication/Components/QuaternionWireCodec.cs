@@ -16,7 +16,9 @@ namespace Fdp.Toolkit.Replication.Components
     ///   <item>there is no Euler convention to get wrong and no gimbal case — a nose straight up or down (CE-4068) round-trips like any
     ///   other attitude.</item>
     /// </list>
-    /// <para>⛔ Both stacks call THIS class; a second copy of the arithmetic is how two wires come to disagree.</para>
+    /// <para>⛔ Both stacks call THIS class; a second copy of the arithmetic is how two wires come to disagree. The field's TYPE is
+    /// <c>OrientationQuat</c> (NED) / <c>BdcOrientationQuat</c> (BDC) — the bytes of a Vec3f, a type of its own so <c>ddsmonitor</c> shows it
+    /// as heading/pitch/roll + quaternion via <see cref="OrientationDisplay"/>.</para>
     /// </summary>
     public static class QuaternionWireCodec
     {

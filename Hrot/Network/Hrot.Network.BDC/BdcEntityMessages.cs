@@ -43,7 +43,7 @@ namespace Hrot.BDC.Messages
 
         // Quaternion vector part (x, y, z); w = +sqrt(max(0, 1 - |v|^2)), sender canonicalises w >= 0 — an all-zero struct is the
         // identity. Encoded/decoded by Fdp.Toolkit.Replication.Components.QuaternionWireCodec (the one helper NED uses too).
-        public BdcVec3f OrientationXyz;
+        public BdcOrientationQuat OrientationXyz;
 
         // Linear velocity [m/s], local ENU.
         public BdcVec3f Velocity;

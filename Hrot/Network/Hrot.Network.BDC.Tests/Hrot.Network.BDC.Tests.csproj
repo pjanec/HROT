@@ -16,6 +16,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Network.BDC\Hrot.Network.BDC.csproj" />
+    <!-- AQ107 D addendum: the display-parity rail compares BdcOrientationQuat with the NED stack's OrientationQuat. -->
+    <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
