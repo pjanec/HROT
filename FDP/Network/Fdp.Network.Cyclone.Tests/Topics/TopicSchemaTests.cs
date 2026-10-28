@@ -65,7 +65,8 @@ namespace Fdp.Network.Cyclone.Tests.Topics
             var attr = type.GetCustomAttribute<DdsTopicAttribute>();
             
             Assert.NotNull(attr);
-            Assert.Equal("SST_EntityMaster", attr.TopicName);
+            Assert.Null(attr.TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Fdp_Network_Cyclone_Topics_EntityMasterTopic", DdsTopicName.Of<EntityMasterTopic>());
         }
 
         [Fact]
@@ -123,7 +124,8 @@ namespace Fdp.Network.Cyclone.Tests.Topics
             var attr = type.GetCustomAttribute<DdsTopicAttribute>();
             
             Assert.NotNull(attr);
-            Assert.Equal("SST_EntityState", attr.TopicName);
+            Assert.Null(attr.TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Fdp_Network_Cyclone_Topics_EntityStateTopic", DdsTopicName.Of<EntityStateTopic>());
         }
 
         [Fact]

@@ -19,19 +19,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponSystemStateEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityWeaponSystemState";
         private readonly DdsWriter<EntityWeaponSystemState>? _writer;
         private readonly Dictionary<long, EntityWeaponSystemState> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponSystemState>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponSystemState;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityWeaponSystemStateEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityWeaponSystemState>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityWeaponSystemState>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -70,14 +69,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityWeaponSystemStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityWeaponSystemState";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponSystemState;
         private readonly DdsReader<EntityWeaponSystemState>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, EntityWeaponSystemState> _pending = new();
         private readonly List<long> _done = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponSystemState>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -87,7 +85,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityWeaponSystemStateIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityWeaponSystemState>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityWeaponSystemState>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

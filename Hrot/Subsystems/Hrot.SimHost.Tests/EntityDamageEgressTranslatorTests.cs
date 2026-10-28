@@ -56,7 +56,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 210u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityDamage>(participant, "EntityDamage");
+            using var reader = new DdsReader<EntityDamage>(participant);
 
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
@@ -107,7 +107,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 213u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityDamage>(participant, "EntityDamage");
+            using var reader = new DdsReader<EntityDamage>(participant);
 
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
@@ -154,7 +154,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 211u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityDamage>(participant, "EntityDamage");
+            using var reader = new DdsReader<EntityDamage>(participant);
 
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);
@@ -198,7 +198,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 212u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityDamage>(participant, "EntityDamage");
+            using var reader = new DdsReader<EntityDamage>(participant);
 
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityDamageEgressTranslator(participant, entityMap);

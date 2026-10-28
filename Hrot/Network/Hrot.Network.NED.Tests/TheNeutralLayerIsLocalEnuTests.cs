@@ -126,7 +126,7 @@ public class TheNeutralLayerIsLocalEnuTests
     public async Task AnExConCreateEntity_ReachesTheWire_WithTheSameLocalMetres()
     {
         using var participant = new DdsParticipant(DomainB);
-        using var reader      = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
+        using var reader      = new DdsReader<CreateEntityRequest>(participant);
         using var writers     = new NedExConEgressWriters(participant);
 
         await Task.Delay(1000);
@@ -159,7 +159,7 @@ public class TheNeutralLayerIsLocalEnuTests
     public async Task APersonalRoute_ReachesTheWire_WithTheSameLocalMetres()
     {
         using var participant = new DdsParticipant(DomainB);
-        using var reader      = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
+        using var reader      = new DdsReader<CreateEntityRequest>(participant);
         var adapter           = new NedIgNetworkAdapter(participant, nodeId: 6);
 
         await Task.Delay(1000);

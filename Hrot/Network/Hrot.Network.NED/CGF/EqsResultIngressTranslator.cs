@@ -20,14 +20,13 @@ namespace Hrot.Network.NED.CGF
     /// </summary>
     public sealed class EqsResultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EqsResult";
         private readonly DdsReader<EqsResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
         // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
         internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -38,7 +37,7 @@ namespace Hrot.Network.NED.CGF
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
             _entityMap = entityMap;
             _reader = participant != null
-                ? new DdsReader<EqsResultTopic>(participant, DdsTopicName)
+                ? new DdsReader<EqsResultTopic>(participant)
                 : null;
         }
 

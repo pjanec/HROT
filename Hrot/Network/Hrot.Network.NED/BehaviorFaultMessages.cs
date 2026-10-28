@@ -8,10 +8,10 @@ namespace Hrot.NED.Messages
     ///
     /// <para>Event-shaped, on the <c>WeaponFire</c> precedent: published once by the node whose behaviour faulted
     /// (<c>BehaviorFaultEgressTranslator</c>, from the local <c>BehaviorFaultNotification</c>) and turned into a row of the
-    /// Message Log's "Behaviour faults" tab on every node (<c>BehaviorFaultIngressTranslator</c>). Topic <c>"BehaviorFault"</c>,
+    /// Message Log's "Behaviour faults" tab on every node (<c>BehaviorFaultIngressTranslator</c>). Topic <c>Hrot_NED_Messages_BehaviorFaultReport</c> (derived from the type),
     /// ordinal <see cref="Hrot.NED.Descriptors.EDescriptorType.dtBehaviorFault"/> = 97.</para>
     /// </summary>
-    [DdsStruct]
+    [DdsTopic]   // ⭐ AQ107 A — was [DdsStruct] + a name in the translators; now a topic whose name is derived from the type
     [DdsIdlFile("hrot-behavior-fault")]
     [DdsManaged]
     public partial struct BehaviorFaultReport

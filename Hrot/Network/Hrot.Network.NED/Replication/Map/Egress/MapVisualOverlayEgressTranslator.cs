@@ -25,7 +25,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class MapVisualOverlayEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "MapVisualOverlay";
         private const long OrdinalValue = (long)EDescriptorType.dtMapVisualOverlay;
 
         private readonly DdsWriter<MapVisualOverlay> _writer;
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly HashSet<long> _tracedNetIds = new();
         private readonly long _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapVisualOverlay>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -49,7 +48,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             long localNodeId)
         {
-            _writer = new DdsWriter<MapVisualOverlay>(participant, DdsTopicName);
+            _writer = new DdsWriter<MapVisualOverlay>(participant);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }

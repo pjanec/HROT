@@ -19,7 +19,7 @@ namespace Hrot.NED.Messages
     /// on the local bus for <c>TacticalIntentResolutionSystem</c> to process.
     /// </para>
     /// </summary>
-    [DdsStruct]
+    [DdsTopic]   // ⭐ AQ107 A — was [DdsStruct] + a name in the translators; now a topic whose name is derived from the type
     [DdsIdlFile("hrot-tactical-intent")]
     [DdsManaged]
     public partial struct TacticalIntentRequest

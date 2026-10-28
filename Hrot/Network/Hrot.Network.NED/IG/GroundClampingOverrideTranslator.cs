@@ -40,7 +40,7 @@ namespace Hrot.Network.NED.IG
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtGroundClampingOverride;
-        public string TopicName         => "GroundClampingOverride";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<GroundClampingOverride>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;

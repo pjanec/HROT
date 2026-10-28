@@ -14,13 +14,12 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class MontageEndedEventTranslator
     : CycloneNativeEventTranslator<MontageEndedEvent, DdsMontageEndedEvent>
 {
-    private const string TopicNameConst = "hrot/anim/MontageEnded";
 
     public override TranslatorDirection Direction { get; }
 
     internal MontageEndedEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsMontageEndedEvent).Namespace, new[] { nameof(DdsMontageEndedEvent) }))
     {
         Direction = direction;
     }

@@ -176,7 +176,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 218u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<WorldPos>(participant, "WorldPos");
+            using var reader = new DdsReader<WorldPos>(participant);
             var translator = new GeoSpatialEgressTranslator(
                 participant, new NetworkEntityMap(), localNodeId: 1);
 

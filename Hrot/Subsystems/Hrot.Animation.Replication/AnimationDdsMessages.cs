@@ -37,7 +37,7 @@ internal struct DdsAnimationChannelStatus
 // ⭐ CE-3252 (LD-F, G5) — the look-at pair put on REAL DDS, as CE-2121 did for the stance pair. ⛔ Before, it had no generated
 //   serialiser and the first live reader threw "does not have a public static GetDescriptorOps()" at boot (measured when the pair was
 //   first registered on SimHost / CGF). State-bearing: Reliable + TransientLocal + KeepLast 1 (the QoS table's State()).
-[DdsTopic("hrot/anim/intent/LookAtChannel")]
+[DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
 [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
@@ -53,7 +53,7 @@ public unsafe partial struct DdsLookAtChannelIntent
     public fixed byte ActionParams[32];
 }
 
-[DdsTopic("hrot/anim/status/LookAtChannel")]
+[DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
 [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
@@ -73,7 +73,7 @@ public partial struct DdsLookAtChannelStatus
 //   had no generated serialiser (only the loopback tests' fake writers used them) and the first live DdsWriter threw
 //   "does not have a public static GetDescriptorOps()" at boot. ⭐ CE-3252 added the look-at pair (above); the montage / channel topics
 //   stay test-only (CE-3010).
-[DdsTopic("hrot/anim/StanceIntent")]
+[DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
 [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]
@@ -88,7 +88,7 @@ public partial struct DdsStanceIntent
     public uint Version;
 }
 
-[DdsTopic("hrot/anim/StanceStatus")]
+[DdsTopic]
 [DdsIdlFile("hrot-anim-msgs")]
 [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 [StructLayout(LayoutKind.Sequential)]

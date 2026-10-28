@@ -19,14 +19,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityDoorStateEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityDoorState";
         private const long   OrdinalValue = (long)EDescriptorType.dtDoorState;
 
         private readonly DdsWriter<EntityDoorState> _writer;
         private readonly Dictionary<long, TerrainDoorState> _lastPublished = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDoorState>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -34,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityDoorStateEgressTranslator(DdsParticipant participant)
         {
-            _writer = new DdsWriter<EntityDoorState>(participant, DdsTopicName);
+            _writer = new DdsWriter<EntityDoorState>(participant);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }

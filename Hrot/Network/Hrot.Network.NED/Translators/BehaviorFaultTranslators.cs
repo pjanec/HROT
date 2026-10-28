@@ -25,14 +25,13 @@ namespace Hrot.Network.Translators
     /// </summary>
     public sealed class BehaviorFaultEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "BehaviorFault";
 
         private readonly IDdsWriter<BehaviorFaultReport> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly BehaviorRegistry? _behaviorRegistry;
         private readonly long _localNodeId;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<BehaviorFaultReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBehaviorFault;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -41,7 +40,7 @@ namespace Hrot.Network.Translators
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public BehaviorFaultEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap,
                                              BehaviorRegistry? behaviorRegistry, long localNodeId)
-            : this(new DdsWriterAdapter<BehaviorFaultReport>(participant, DdsTopicName), entityMap, behaviorRegistry, localNodeId)
+            : this(new DdsWriterAdapter<BehaviorFaultReport>(participant), entityMap, behaviorRegistry, localNodeId)
         {
         }
 
@@ -102,13 +101,12 @@ namespace Hrot.Network.Translators
     /// </summary>
     public sealed class BehaviorFaultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "BehaviorFault";
 
         private readonly DdsReader<BehaviorFaultReport>? _reader;
         private readonly BehaviorFaultLog _log;
         private readonly long _localNodeId;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<BehaviorFaultReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBehaviorFault;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -117,7 +115,7 @@ namespace Hrot.Network.Translators
         /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> a no-op (tests).</summary>
         public BehaviorFaultIngressTranslator(DdsParticipant? participant, long localNodeId, BehaviorFaultLog? log = null)
         {
-            _reader      = participant is not null ? new DdsReader<BehaviorFaultReport>(participant, DdsTopicName) : null;
+            _reader      = participant is not null ? new DdsReader<BehaviorFaultReport>(participant) : null;
             _localNodeId = localNodeId;
             _log         = log ?? BehaviorFaultLog.Shared;
         }

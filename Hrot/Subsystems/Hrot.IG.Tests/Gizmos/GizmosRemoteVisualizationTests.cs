@@ -88,7 +88,8 @@ namespace Hrot.IG.Tests.Gizmos
             var attr = (DdsTopicAttribute?)Attribute.GetCustomAttribute(
                 typeof(IGCapabilitiesAnnounce), typeof(DdsTopicAttribute));
             Assert.NotNull(attr);
-            Assert.Equal("IGCapabilitiesAnnounce", attr!.TopicName);
+            Assert.Null(attr!.TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("Hrot_IG_Gizmos_IGCapabilitiesAnnounce", DdsTopicName.Of<IGCapabilitiesAnnounce>());   // ⭐ AQ107 A: no longer the NED type's name too
         }
 
         [Fact]

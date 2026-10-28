@@ -22,13 +22,12 @@ namespace Hrot.Network.NED.IG
     /// </summary>
     public sealed class WeaponFireIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "WeaponFire";
 
         private readonly DdsReader<WeaponFire>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;   // ⭐ CE-1148 S2 — this node's own shots are dropped (SourceNodeId)
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WeaponFire>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtWeaponFire;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -46,7 +45,7 @@ namespace Hrot.Network.NED.IG
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
             _reader    = participant is not null
-                ? new DdsReader<WeaponFire>(participant, DdsTopicName)
+                ? new DdsReader<WeaponFire>(participant)
                 : null;
         }
 

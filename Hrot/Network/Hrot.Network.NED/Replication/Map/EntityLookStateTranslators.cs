@@ -21,7 +21,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityLookStateEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityLookState";
         /// <summary>The head turn below which a change is not sent (1°).</summary>
         internal const float YawEpsilon = MathF.PI / 180f;
         /// <summary>The target move below which a change is not sent (m).</summary>
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.LookState };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLookState>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtLookState;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -41,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityLookStateEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityLookState>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityLookState>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -89,12 +88,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// it). An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityLookStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityLookState";
         private const long OrdinalValue = (long)EDescriptorType.dtLookState;
         private readonly DdsReader<EntityLookState>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLookState>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -103,7 +101,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityLookStateIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityLookState>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityLookState>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

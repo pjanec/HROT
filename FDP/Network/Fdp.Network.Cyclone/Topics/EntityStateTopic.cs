@@ -6,7 +6,7 @@ namespace Fdp.Network.Cyclone.Topics
     /// DDS topic for entity state updates (position, velocity, etc.).
     /// High-frequency updates using best-effort QoS for performance.
     /// </summary>
-    [DdsTopic("SST_EntityState")]
+    [DdsTopic]
     [DdsQos(
         Reliability = DdsReliability.BestEffort,
         Durability = DdsDurability.Volatile,

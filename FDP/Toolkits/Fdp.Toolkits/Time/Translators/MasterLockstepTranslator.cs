@@ -30,14 +30,13 @@ namespace Fdp.Toolkit.Time.Translators
     /// </summary>
     public sealed class MasterLockstepTranslator : IDescriptorTranslator
     {
-        private const string TopicNameValue = "FrameOrder";
         private const long   OrdinalValue   = (long)TimeDescriptorType.MasterFrameOrder;
 
         private readonly DdsWriter<FrameOrderDescriptor>? _orderWriter;
         private readonly DdsReader<FrameAckDescriptor>?   _ackReader;
         private readonly FdpEventBus _eventBus;
 
-        public string TopicName         => TopicNameValue;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<FrameOrderDescriptor>();
         public long   DescriptorOrdinal => OrdinalValue;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount { get; private set; }

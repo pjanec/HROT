@@ -20,7 +20,7 @@ namespace Hrot.Network.NED.IG
         private readonly long _localNodeId;
 
         public long DescriptorOrdinal => 50;
-        public string TopicName => "EntityMission";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMission>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;

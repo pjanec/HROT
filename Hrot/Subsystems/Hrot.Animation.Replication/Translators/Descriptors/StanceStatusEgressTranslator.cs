@@ -18,7 +18,6 @@ namespace Hrot.Animation.Replication.Translators.Descriptors;
 /// </summary>
 internal sealed class StanceStatusEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/StanceStatus";
 
     /// <summary>⭐ <c>CE-2121</c> — NED's <c>dtStanceStatus</c> (105): the MuscleGround group's descriptor for <see cref="StanceStatus"/>
     /// (<c>NedOwnershipGroupBinding</c>); a rail pins the two equal.</summary>
@@ -29,7 +28,7 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
     private readonly Dictionary<Entity, (StanceTransitionPhase, StanceId, uint)> _lastPublished = new();
     private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsStanceStatus>();
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -37,7 +36,7 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
 
     internal StanceStatusEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsStanceStatus>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsStanceStatus>(participant), entityMap)
     {
     }
 

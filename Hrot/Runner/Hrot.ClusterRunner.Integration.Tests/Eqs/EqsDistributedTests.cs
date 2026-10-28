@@ -1151,7 +1151,7 @@ public sealed class EqsDistributedTests
         // ⭐ "publishes nothing": no answer for this key after the end. A fresh reader is drained first (TransientLocal
         //   hands it the last pre-end answer), then watched for 120 frames — several 10 Hz solves.
         using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
-        using var results     = new CycloneDDS.Runtime.DdsReader<EqsResultTopic>(participant, "EqsResult");
+        using var results     = new CycloneDDS.Runtime.DdsReader<EqsResultTopic>(participant);
         rig.H.PumpUntil(() => false, timeoutFrames: 10);
         CountAnswers(results, rig.Commander, part);
         rig.H.PumpUntil(() => false, timeoutFrames: 120);
@@ -1208,7 +1208,7 @@ public sealed class EqsDistributedTests
         var carrier = rig.Carrier(part);
 
         using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
-        using var writer      = new CycloneDDS.Runtime.DdsWriter<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+        using var writer      = new CycloneDDS.Runtime.DdsWriter<EqsSensorConfigTopic>(participant);
         writer.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = rig.Commander, LocalChildIndex = part });
         rig.H.PumpUntil(() => false, timeoutFrames: 60);   // the Muscle takes the dispose and plays its commands back
         Assert.True(rig.Sim.IsAlive(carrier), "A child-sensor dispose must not destroy the carrier (only the parent's death does).");
@@ -1234,8 +1234,8 @@ public sealed class EqsDistributedTests
 
         // The previous owner's last word: an ACTIVE config for a sensor no node runs any more.
         using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
-        using var writer      = new CycloneDDS.Runtime.DdsWriter<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
-        using var reader      = new CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+        using var writer      = new CycloneDDS.Runtime.DdsWriter<EqsSensorConfigTopic>(participant);
+        using var reader      = new CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic>(participant);
         // ⚠ Let this writer finish discovery FIRST. Measured: written at once, it could reach the Muscle only after the
         //   Brain had already suspended the key (the Brain matched sooner) — TransientLocal then delivered the stale active
         //   sample LAST and the carrier stayed active (3 of 5 runs passed). In production the old owner's sample is long
@@ -1631,7 +1631,7 @@ public sealed class EqsDistributedTests
         rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
 
         using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
-        using var configs     = new CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+        using var configs     = new CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic>(participant);
 
         // What the PerceptionTkbTranslator does for list entry 0, on each node.
         var cgfSensor = SensorChildFactory.EnsureTkbChild(rig.Cgf, onCgf, 0, TkbRadar);

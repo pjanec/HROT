@@ -32,7 +32,7 @@ namespace Hrot.Network.Translators
         private readonly DdsWriter<DeferredTakeOwnership>? _writer;
         private readonly long _localNodeId;
 
-        public string TopicName         => "DeferredTakeOwnership";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeferredTakeOwnership>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -41,7 +41,7 @@ namespace Hrot.Network.Translators
         public DeferredTakeOwnershipEgressTranslator(DdsParticipant? participant, long localNodeId)
         {
             _writer = participant != null
-                ? new DdsWriter<DeferredTakeOwnership>(participant, "DeferredTakeOwnership")
+                ? new DdsWriter<DeferredTakeOwnership>(participant)
                 : null;
             _localNodeId = localNodeId;
         }

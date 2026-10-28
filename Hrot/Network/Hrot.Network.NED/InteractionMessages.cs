@@ -262,7 +262,7 @@ namespace Hrot.NED.Messages
     /// result reaches every node as the target's own replicated state — there is no reply message.
     /// </summary>
     // Reliable + KeepAll: requests are events — a KeepLast reader drops one of two taken together (CE-3095).
-    [DdsTopic("EntityInteractionRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-sim-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct EntityInteractionRequest

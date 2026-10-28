@@ -11,7 +11,7 @@ namespace DdsBlob
         // pingsend: writes a ping every 10 ms for <seconds>
         public static void Send(DdsParticipant p, int seconds)
         {
-            using var w = new DdsWriter<BlobPing>(p, "BlobPing");
+            using var w = new DdsWriter<BlobPing>(p);
             Thread.Sleep(3000);
             var end = DateTime.UtcNow.AddSeconds(seconds); int seq = 0;
             while (DateTime.UtcNow < end) { w.Write(new BlobPing { Id = 1, Seq = seq++, SentTicks = Stopwatch.GetTimestamp() }); Thread.Sleep(10); }
@@ -19,7 +19,7 @@ namespace DdsBlob
         }
         public static void Recv(DdsParticipant p, int seconds)
         {
-            using var r = new DdsReader<BlobPing>(p, "BlobPing");
+            using var r = new DdsReader<BlobPing>(p);
             var lat = new List<double>(); var end = DateTime.UtcNow.AddSeconds(seconds);
             while (DateTime.UtcNow < end)
             {

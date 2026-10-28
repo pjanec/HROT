@@ -28,9 +28,9 @@ public class AreaAuthoringIntegrationTests
         var igApp = harness.Ig.App;
 
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
-        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
-        using var overlayReader = new DdsReader<MapVisualOverlay>(observerParticipant, "MapVisualOverlay");
+        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant);
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
+        using var overlayReader = new DdsReader<MapVisualOverlay>(observerParticipant);
 
         iosLogic.StartAreaAuthoringMode();
 

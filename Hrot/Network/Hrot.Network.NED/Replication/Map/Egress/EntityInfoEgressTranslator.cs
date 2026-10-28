@@ -31,7 +31,6 @@ namespace Hrot.Map.Common.Replication.Egress
 	/// </summary>
 	public class EntityInfoEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityInfo";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo;
 
         private readonly IDdsWriter<Hrot.NED.Descriptors.EntityInfo> _writer;
@@ -60,7 +59,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.EntityInfo>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -70,7 +69,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             long localNodeId)
-            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.EntityInfo>(participant, DdsTopicName),
+            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.EntityInfo>(participant),
                    entityMap, localNodeId)
         {
         }

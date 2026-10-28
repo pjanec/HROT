@@ -28,7 +28,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class DestroyEntityCommandEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "DeleteEntityRequest";
 
         // Synthetic ordinal for event-driven translator (PollIngress only).
         private const long OrdinalValue = -1003L;
@@ -38,7 +37,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly long _localNodeId;
         private readonly NetworkEntityMap? _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeleteEntityRequest>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -50,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
             long localNodeId = 0)
-            : this(new DdsWriterAdapter<DeleteEntityRequest>(participant, DdsTopicName), eventBus, localNodeId, entityMap)
+            : this(new DdsWriterAdapter<DeleteEntityRequest>(participant), eventBus, localNodeId, entityMap)
         {
         }
 

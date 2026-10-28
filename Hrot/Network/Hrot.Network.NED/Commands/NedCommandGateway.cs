@@ -60,8 +60,6 @@ namespace Hrot.Map.Common.Commands
             // Initialize the client for CreateEntityRequest
             _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(
                 participant,
-                "CreateEntityRequest",          // Must match [DdsTopic] attribute
-                "CreateUpdateDeleteEntityAck",  // Must match [DdsTopic] attribute
                 req => req.RequestId,
                 ack => ack.RequestId
             );
@@ -69,16 +67,14 @@ namespace Hrot.Map.Common.Commands
             // Initialize the client for MissionControlRequest
             _missionControlClient = new DdsCommandClient<MissionControlRequest, MissionControlAck>(
                 participant,
-                "MissionControlRequest",
-                "MissionControlAck",
                 req => req.RequestId,
                 ack => ack.RequestId
             );
 
             // Fire-and-forget writer for UpdateEntityDescriptorRequest (drag-end position updates).
-            _updateWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            _updateWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
 
-            _attributeWriter = new DdsWriter<UpdateEntityAttributeRequest>(participant, "UpdateEntityAttributeRequest");
+            _attributeWriter = new DdsWriter<UpdateEntityAttributeRequest>(participant);
         }
 
         /// <summary>

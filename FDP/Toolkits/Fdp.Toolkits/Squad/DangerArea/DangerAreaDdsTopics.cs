@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Squad.DangerArea.Topics
     /// <c>EqsResult</c> (the unit, the sensor's part id); its own topic because the ranked entry cannot carry an area.
     /// 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7.
     /// </summary>
-    [DdsTopic("DangerAreaResult")]
+    [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct DangerAreaResultTopic

@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName      => "NavigationIntent";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -40,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap    entityMap,
             long localNodeId)
         {
-            _reader       = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent");
+            _reader       = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(dds);
             _entityMap    = entityMap    ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId  = localNodeId;
         }

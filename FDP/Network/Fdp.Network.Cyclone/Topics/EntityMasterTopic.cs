@@ -7,7 +7,7 @@ namespace Fdp.Network.Cyclone.Topics
     /// Contains ownership and type information for networked entities.
     /// Uses reliable, transient-local QoS for critical descriptor data.
     /// </summary>
-    [DdsTopic("SST_EntityMaster")]
+    [DdsTopic]
     [DdsQos(
         Reliability = DdsReliability.Reliable,
         Durability = DdsDurability.TransientLocal,

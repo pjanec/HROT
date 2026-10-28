@@ -10,6 +10,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
+    <!-- AQ107 A — TheTopicNamesAreDerivedFromTypesTests scans every production assembly that carries [DdsTopic] types: these three are not reached through the NED project. -->
+    <ProjectReference Include="..\..\Subsystems\Hrot.Animation.Replication\Hrot.Animation.Replication.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.IG\Hrot.IG.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CycloneDDS.NET" Version="$(CycloneDdsNetVersion)" />

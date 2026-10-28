@@ -21,12 +21,11 @@ namespace Hrot.Network.NED.CGF
     /// </summary>
     public sealed class DangerAreaResultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "DangerAreaResult";
         private readonly DdsReader<DangerAreaResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
         internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DangerAreaResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -35,7 +34,7 @@ namespace Hrot.Network.NED.CGF
         public DangerAreaResultIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader = participant != null ? new DdsReader<DangerAreaResultTopic>(participant, DdsTopicName) : null;
+            _reader = participant != null ? new DdsReader<DangerAreaResultTopic>(participant) : null;
         }
 
         /// <inheritdoc />

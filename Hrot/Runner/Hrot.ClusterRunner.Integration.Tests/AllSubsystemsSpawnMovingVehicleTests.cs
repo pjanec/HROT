@@ -79,8 +79,8 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         var igApp = harness.Ig.App;
 
         using var observerParticipant = new DdsParticipant((uint)domainId);
-        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
-        using var navIntentReader = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(observerParticipant, "NavigationIntent");
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
+        using var navIntentReader = new DdsReader<Hrot.NED.Descriptors.NavigationIntent>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 

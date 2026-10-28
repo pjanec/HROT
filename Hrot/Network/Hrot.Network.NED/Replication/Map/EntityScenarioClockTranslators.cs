@@ -21,14 +21,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityScenarioClockEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityScenarioClock";
         private readonly DdsWriter<EntityScenarioClock>? _writer;
         private readonly Dictionary<long, EntityScenarioClock> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.ScenarioClock };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityScenarioClock>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtScenarioClock;
         /// <summary>⭐ The pairing the attribute path needs: the <c>"ScenarioStartUtcTicks"</c> attribute writes <see cref="ScenarioClock"/>,
         /// and this descriptor republishes it (<c>TheDescriptorMapIsWiredTests.EveryComponentTheVocabularyWritesIsCoveredByATranslator</c>).</summary>
@@ -38,7 +37,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityScenarioClockEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityScenarioClock>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityScenarioClock>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -82,14 +81,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityScenarioClockIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityScenarioClock";
         private const long OrdinalValue = (long)EDescriptorType.dtScenarioClock;
         private readonly DdsReader<EntityScenarioClock>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, EntityScenarioClock> _pending = new();
         private readonly List<long> _done = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityScenarioClock>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -99,7 +97,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityScenarioClockIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityScenarioClock>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityScenarioClock>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

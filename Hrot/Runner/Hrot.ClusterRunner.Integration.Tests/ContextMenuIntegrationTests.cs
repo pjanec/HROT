@@ -26,7 +26,7 @@ public class ContextMenuIntegrationTests
         igWorld.SetManagedComponent(menuEntity, new ContextMenuState { IsOpen = false });
 
         using var participant = new DdsParticipant((uint)harness.DomainId);
-        using var selectionWriter = new DdsWriter<SelectionChangedEvent>(participant, "SelectionChangedEvent");
+        using var selectionWriter = new DdsWriter<SelectionChangedEvent>(participant);
 
         selectionWriter.Write(new SelectionChangedEvent
         {

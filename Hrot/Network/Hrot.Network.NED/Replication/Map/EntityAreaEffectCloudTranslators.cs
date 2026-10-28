@@ -18,14 +18,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityAreaEffectCloudEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityAreaEffectCloud";
         private readonly DdsWriter<EntityAreaEffectCloud>? _writer;
         private readonly Dictionary<long, EntityAreaEffectCloud> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.AreaEffectCloud };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityAreaEffectCloud>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtAreaEffectCloud;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityAreaEffectCloudEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityAreaEffectCloud>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityAreaEffectCloud>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -78,12 +77,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityAreaEffectCloudIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityAreaEffectCloud";
         private const long OrdinalValue = (long)EDescriptorType.dtAreaEffectCloud;
         private readonly DdsReader<EntityAreaEffectCloud>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityAreaEffectCloud>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -92,7 +90,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityAreaEffectCloudIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityAreaEffectCloud>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityAreaEffectCloud>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

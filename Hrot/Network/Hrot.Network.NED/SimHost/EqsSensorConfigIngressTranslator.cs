@@ -27,7 +27,6 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsReader<EqsSensorConfigTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached entity lookup: (ParentNetworkId, LocalChildIndex) -> child ghost entity.
@@ -55,7 +54,7 @@ namespace Hrot.Network.NED.SimHost
             public bool NewLifetime;
         }
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsSensorConfigTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -79,7 +78,7 @@ namespace Hrot.Network.NED.SimHost
             _entityMap   = entityMap;
             _localNodeId = localNodeId;
             _reader = participant != null
-                ? new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName)
+                ? new DdsReader<EqsSensorConfigTopic>(participant)
                 : null;
         }
 

@@ -23,11 +23,10 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class MissionControlAckEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "MissionControlAck";
 
         private readonly IDdsWriter<MissionControlAck>? _writer;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MissionControlAck>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMissionControlAck;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -36,7 +35,7 @@ namespace Hrot.Network.NED.SimHost
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public MissionControlAckEgressTranslator(DdsParticipant participant)
         {
-            _writer = new DdsWriterAdapter<MissionControlAck>(participant, "MissionControlAck");
+            _writer = new DdsWriterAdapter<MissionControlAck>(participant);
         }
 
         /// <summary>Internal test constructor â€” accepts a stub writer.</summary>

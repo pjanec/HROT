@@ -16,12 +16,11 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class AudioTargetDetectedIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "AudioTargetDetected";
 
         private readonly DdsReader<AudioTargetDetected>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<AudioTargetDetected>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtAudioTargetDetected;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -30,7 +29,7 @@ namespace Hrot.Network.NED.SimHost
         public AudioTargetDetectedIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant is not null ? new DdsReader<AudioTargetDetected>(participant, DdsTopicName) : null;
+            _reader    = participant is not null ? new DdsReader<AudioTargetDetected>(participant) : null;
         }
 
         /// <inheritdoc />

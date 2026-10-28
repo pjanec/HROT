@@ -91,7 +91,7 @@ namespace Hrot.NED.Descriptors
     // What descriptors are to be expected for what entity type is defined just by convention (even different modules
     // within the same system might have different needs).
     // Once this one is removed, the entity instances ceases to exist no matter if its descriptors still exist.
-    [DdsTopic("EntityMaster")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct EntityMaster
@@ -162,7 +162,7 @@ namespace Hrot.NED.Descriptors
 
     // Additional metadata for an entity that is not strictly required for existence
     // but crucial for identification and hierarchy.
-    [DdsTopic("EntityInfo")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
@@ -200,7 +200,7 @@ namespace Hrot.NED.Descriptors
     // - Checked by the Owner when receiving UpdateEntityDescriptorRequest.
     // - Ensures no "Lost Updates" in multi-user editing scenarios.
     // NOT for every descriptor, on demand only! Used just where optimistic locking is needed.
-    [DdsTopic("DescriptorOptimisticLock")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct DescriptorOptimisticLock

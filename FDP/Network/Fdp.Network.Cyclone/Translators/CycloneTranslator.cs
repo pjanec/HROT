@@ -26,10 +26,9 @@ namespace Fdp.Network.Cyclone.Translators
 
         protected CycloneTranslator(
             DdsParticipant? participant, 
-            string topicName, 
             long ordinal,
             NetworkEntityMap entityMap)
-            : base(topicName)
+            : base(CycloneDDS.Schema.DdsTopicName.Of<TDds>())
         {
             DescriptorOrdinal = ordinal;
             EntityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));

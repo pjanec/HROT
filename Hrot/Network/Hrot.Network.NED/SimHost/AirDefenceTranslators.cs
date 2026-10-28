@@ -15,18 +15,17 @@ namespace Hrot.Network.NED.SimHost
     /// (DDS <c>MissileWarning</c>), for the aircraft's Brain. The near-miss pattern (<see cref="NearMissEgressTranslator"/>).</summary>
     public sealed class MissileWarningEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "MissileWarning";
         private readonly IDdsWriter<MissileWarning> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MissileWarning>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMissileWarning;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public MissileWarningEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<MissileWarning>(participant, DdsTopicName), entityMap) { }
+            : this(new DdsWriterAdapter<MissileWarning>(participant), entityMap) { }
 
         internal MissileWarningEgressTranslator(IDdsWriter<MissileWarning> writer, NetworkEntityMap entityMap)
         {
@@ -58,11 +57,10 @@ namespace Hrot.Network.NED.SimHost
     /// aircraft, which <c>MissileWarningSensingSystem</c> turns into <c>SensorChange.MissileWarning</c>.</summary>
     public sealed class MissileWarningIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MissileWarning";
         private readonly DdsReader<MissileWarning>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MissileWarning>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMissileWarning;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -71,7 +69,7 @@ namespace Hrot.Network.NED.SimHost
         public MissileWarningIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant is not null ? new DdsReader<MissileWarning>(participant, DdsTopicName) : null;
+            _reader    = participant is not null ? new DdsReader<MissileWarning>(participant) : null;
         }
 
         /// <inheritdoc />

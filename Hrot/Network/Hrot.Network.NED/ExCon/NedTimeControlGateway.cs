@@ -17,7 +17,7 @@ public sealed class NedTimeControlGateway : ITimeControlGateway
     public NedTimeControlGateway(DdsParticipant participant)
     {
         if (participant == null) throw new ArgumentNullException(nameof(participant));
-        _writer = new DdsWriter<ClusterOpRequest>(participant, "ClusterOpRequest");
+        _writer = new DdsWriter<ClusterOpRequest>(participant);
     }
 
     /// <inheritdoc/>

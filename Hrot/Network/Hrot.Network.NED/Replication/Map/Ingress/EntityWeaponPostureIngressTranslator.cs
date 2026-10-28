@@ -18,12 +18,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityWeaponPostureIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityWeaponPosture";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponPosture;
         private readonly DdsReader<EntityWeaponPosture>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponPosture>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -32,7 +31,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityWeaponPostureIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityWeaponPosture>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityWeaponPosture>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

@@ -44,8 +44,8 @@ public sealed class TraceLoggingTests : IDisposable
     {
         using var logScope = new LogCaptureScope();
         using var participant = new DdsParticipant(DomainId);
-        using var masterWriter = new DdsWriter<EntityMaster>(participant, "EntityMaster");
-        using var geoWriter = new DdsWriter<WorldPos>(participant, "GeoSpatial");
+        using var masterWriter = new DdsWriter<EntityMaster>(participant);
+        using var geoWriter = new DdsWriter<WorldPos>(participant);
 
         const long networkId = 9001;
 

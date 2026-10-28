@@ -20,7 +20,7 @@ namespace Hrot.NED.Descriptors
     // - If MapGroupId == 0, it applies to EVERYONE (Global override).
     // - If MapGroupId > 0, it applies ONLY to IGs configured with that GroupId.
     // - IG Logic: Look for specific override; if none, look for global; if none, use TKB default.
-    [DdsTopic("MapEntitySymbol")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
@@ -54,7 +54,7 @@ namespace Hrot.NED.Descriptors
         MODE_PERSISTENT   // Saved to database, survives restarts
     }
 
-    [DdsTopic("MapVisualOverlay")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
@@ -137,7 +137,7 @@ namespace Hrot.NED.Descriptors
     }
 
     // Defines a navigation route composed of multiple waypoints.
-    [DdsTopic("MapRoute")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
@@ -171,7 +171,7 @@ namespace Hrot.NED.Descriptors
     // Configuration command sent from ExCon to a group of IGs.
     // Uses JSON Merge Patch to support partial updates (e.g., just toggle one layer).
     // Scope: Group-based (Role). All IGs in "Blue Force" group receive this.
-    [DdsTopic("MapInteractionConfig")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
@@ -226,7 +226,7 @@ namespace Hrot.NED.Descriptors
     // Feedback from a concrete IG instance reporting its current state.
     // Used by the ExCon to synchronize its UI (e.g., checkboxes) with the reality.
     // Scope: Instance-based.
-    [DdsTopic("MapConfigStatus")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]
@@ -247,7 +247,7 @@ namespace Hrot.NED.Descriptors
     // Announcement message sent by an IG instance when it starts up.
     // Enables the ExCon to dynamically build its UI based on what the IG supports.
     // IG -> ExCon
-    [DdsTopic("IGCapabilitiesAnnounce")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]

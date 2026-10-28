@@ -5,7 +5,7 @@ namespace Hrot.IG.Gizmos
 {
     // Announces the IG node's gizmo rendering capabilities to remote subscribers
     // so they can configure their requests appropriately.
-    [DdsTopic("IGCapabilitiesAnnounce")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct IGCapabilitiesAnnounce

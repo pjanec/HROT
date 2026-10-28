@@ -34,7 +34,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsWriter<SensorConfig>? _writer;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
-        public string TopicName         => "SensorConfig";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorConfig>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -44,7 +44,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform)   // geoTransform reserved for future geodetic encoding
         {
-            _writer = participant != null ? new DdsWriter<SensorConfig>(participant, TopicName) : null;
+            _writer = participant != null ? new DdsWriter<SensorConfig>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -113,7 +113,7 @@ namespace Hrot.Network.NED.SimHost
         private uint _batchCorrelationId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
-        public string TopicName         => "RaycastRequestBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastRequestBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -126,7 +126,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId  = localNodeId;
-            _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant, TopicName) : null;
+            _writer       = participant != null ? new DdsWriter<RaycastRequestBatch>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -204,7 +204,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
-        public string TopicName         => "SensorTrackState";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorTrackState>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -214,7 +214,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant != null ? new DdsReader<SensorTrackState>(participant, TopicName) : null;
+            _reader    = participant != null ? new DdsReader<SensorTrackState>(participant) : null;
         }
 
         /// <inheritdoc />
@@ -270,7 +270,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly int _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
-        public string TopicName         => "RaycastResponseBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastResponseBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -282,7 +282,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
-            _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant, TopicName) : null;
+            _reader      = participant != null ? new DdsReader<RaycastResponseBatch>(participant) : null;
         }
 
         /// <inheritdoc />
@@ -344,7 +344,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly GhostCreationSystem _ghostCreationSystem;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorConfig;
-        public string TopicName         => "SensorConfig";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorConfig>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -356,7 +356,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
-            _reader    = participant != null ? new DdsReader<SensorConfig>(participant, TopicName) : null;
+            _reader    = participant != null ? new DdsReader<SensorConfig>(participant) : null;
         }
 
         /// <inheritdoc />
@@ -422,7 +422,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
-        public string TopicName         => "RaycastRequestBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastRequestBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -433,8 +433,8 @@ namespace Hrot.Network.NED.SimHost
             IGeographicTransform geoTransform)
         {
             _entityMap    = entityMap    ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant, TopicName) : null;
-            _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, "RaycastResponseBatch") : null;
+            _reader       = participant != null ? new DdsReader<RaycastRequestBatch>(participant) : null;
+            _writer       = participant != null ? new DdsWriter<RaycastResponseBatch>(participant) : null;
         }
 
         /// <inheritdoc />
@@ -543,7 +543,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSensorTrackState;
-        public string TopicName         => "SensorTrackState";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SensorTrackState>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -553,7 +553,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = participant != null ? new DdsWriter<SensorTrackState>(participant, TopicName) : null;
+            _writer    = participant != null ? new DdsWriter<SensorTrackState>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -605,7 +605,7 @@ namespace Hrot.Network.NED.SimHost
         private uint _batchCorrelationId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;
-        public string TopicName         => "RaycastResponseBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RaycastResponseBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -615,7 +615,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = participant != null ? new DdsWriter<RaycastResponseBatch>(participant, TopicName) : null;
+            _writer    = participant != null ? new DdsWriter<RaycastResponseBatch>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)

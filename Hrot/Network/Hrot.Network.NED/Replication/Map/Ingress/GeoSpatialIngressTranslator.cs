@@ -22,7 +22,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public class GeoSpatialIngressTranslator : CycloneTranslator<WorldPos, WorldPos>
     {
-        private const string DdsTopicName = "WorldPos";
         private const long OrdinalValue = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
 
         private readonly GhostCreationSystem _ghostCreationSystem;
@@ -35,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
             long localNodeId)
-            : base(participant, DdsTopicName, OrdinalValue, entityMap)
+            : base(participant, OrdinalValue, entityMap)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;

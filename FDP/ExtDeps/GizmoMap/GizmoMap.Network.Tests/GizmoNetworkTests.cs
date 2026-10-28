@@ -37,20 +37,9 @@ namespace GizmoMap.Network.Tests
             Assert.Contains("PrimitivesData", fieldNames);
         }
 
-        // SC-GZ054-3: EntityAttributeSchema has NodeId (int) and SchemaJson (string).
-        [Fact]
-        public void SC_GZ054_3_EntityAttributeSchemaHasExpectedFields()
-        {
-            var type = typeof(EntityAttributeSchema);
-
-            var nodeIdField = type.GetField("NodeId", BindingFlags.Public | BindingFlags.Instance);
-            Assert.NotNull(nodeIdField);
-            Assert.Equal(typeof(int), nodeIdField!.FieldType);
-
-            var schemaField = type.GetField("SchemaJson", BindingFlags.Public | BindingFlags.Instance);
-            Assert.NotNull(schemaField);
-            Assert.Equal(typeof(string), schemaField!.FieldType);
-        }
+        // SC-GZ054-3 (EntityAttributeSchema has NodeId + SchemaJson): ⭐ AQ107 A — the type lives ONLY in Hrot.Network.NED now
+        // (Hrot.NED.Messages.EntityAttributeSchema, the one the SimHost publishes; its shape is pinned by SC-GZ052-1 in Hrot.Network.NED.Tests).
+        // GizmoMap.Network carried an identical copy that nothing wrote or read, and that shared its topic NAME with the NED one — deleted.
 
         // SC-GZ054-4: GizmoMap.Network does NOT contain any type implementing IEcsModuleSystem.
         [Fact]

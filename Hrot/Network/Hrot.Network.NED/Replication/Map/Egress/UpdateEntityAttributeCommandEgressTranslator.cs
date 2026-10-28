@@ -31,12 +31,11 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class UpdateEntityAttributeCommandEgressTranslator : INetworkEventTranslator
     {
-        private const string DdsTopicName = "UpdateEntityAttributeRequest";
 
         private readonly IDdsWriter<UpdateEntityAttributeRequest> _writer;
 
         /// <inheritdoc/>
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<UpdateEntityAttributeRequest>();
 
         /// <inheritdoc/>
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -49,7 +48,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>Production constructor: creates a live DDS writer.</summary>
         public UpdateEntityAttributeCommandEgressTranslator(DdsParticipant participant)
-            : this(new DdsWriterAdapter<UpdateEntityAttributeRequest>(participant, DdsTopicName))
+            : this(new DdsWriterAdapter<UpdateEntityAttributeRequest>(participant))
         {
         }
 

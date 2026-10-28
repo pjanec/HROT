@@ -17,27 +17,30 @@ public sealed class AnimationReplicationModuleTests
 {
     // ── Topic table constants matching spec ───────────────────────────────────
 
+    /// <summary>⭐ AQ107 A — every name is DERIVED from the DTO type (namespace + type, joined with <c>_</c>), no longer a <c>"hrot/anim/…"</c> literal.</summary>
+    private const string Ns = "Hrot_Animation_Replication_";
+
     private static readonly string[] BrainEgressTopics =
     {
-        "hrot/anim/intent/AnimationChannel",
-        "hrot/anim/intent/LookAtChannel",
-        "hrot/anim/StanceIntent",
-        "hrot/anim/MontageQueue",
+        Ns + "DdsAnimationChannelIntent",
+        Ns + "DdsLookAtChannelIntent",
+        Ns + "DdsStanceIntent",
+        Ns + "DdsMontageQueue",
     };
 
     private static readonly string[] BrainIngressTopics =
     {
-        "hrot/anim/status/AnimationChannel",
-        "hrot/anim/status/LookAtChannel",
-        "hrot/anim/StanceStatus",
-        "hrot/anim/MontageQueueState",
-        "hrot/anim/MontageStarted",
-        "hrot/anim/MontageEnded",
-        "hrot/anim/MontageSectionAdv",
-        "hrot/anim/StanceChanged",
-        "hrot/anim/HitWindowOpened",
-        "hrot/anim/HitWindowClosed",
-        "hrot/anim/AnimNotify",
+        Ns + "DdsAnimationChannelStatus",
+        Ns + "DdsLookAtChannelStatus",
+        Ns + "DdsStanceStatus",
+        Ns + "DdsMontageQueueState",
+        Ns + "DdsMontageStartedEvent",
+        Ns + "DdsMontageEndedEvent",
+        Ns + "DdsMontageSectionAdvancedEvent",
+        Ns + "DdsStanceChangedEvent",
+        Ns + "DdsHitWindowOpenedEvent",
+        Ns + "DdsHitWindowClosedEvent",
+        Ns + "DdsAnimNotifyEvent",
     };
 
     // ── SC-1: Brain module has exactly 15 translators ─────────────────────────
@@ -166,14 +169,14 @@ public sealed class AnimationReplicationModuleTests
     {
         var stateBearingTopics = new[]
         {
-            "hrot/anim/intent/AnimationChannel",
-            "hrot/anim/status/AnimationChannel",
-            "hrot/anim/intent/LookAtChannel",
-            "hrot/anim/status/LookAtChannel",
-            "hrot/anim/StanceIntent",
-            "hrot/anim/StanceStatus",
-            "hrot/anim/MontageQueue",
-            "hrot/anim/MontageQueueState",
+            Ns + "DdsAnimationChannelIntent",
+            Ns + "DdsAnimationChannelStatus",
+            Ns + "DdsLookAtChannelIntent",
+            Ns + "DdsLookAtChannelStatus",
+            Ns + "DdsStanceIntent",
+            Ns + "DdsStanceStatus",
+            Ns + "DdsMontageQueue",
+            Ns + "DdsMontageQueueState",
         };
 
         var policyMap = AnimationReplicationModule.TopicQosPolicies
@@ -195,13 +198,13 @@ public sealed class AnimationReplicationModuleTests
     {
         var eventTopics = new[]
         {
-            "hrot/anim/MontageStarted",
-            "hrot/anim/MontageEnded",
-            "hrot/anim/MontageSectionAdv",
-            "hrot/anim/StanceChanged",
-            "hrot/anim/HitWindowOpened",
-            "hrot/anim/HitWindowClosed",
-            "hrot/anim/AnimNotify",
+            Ns + "DdsMontageStartedEvent",
+            Ns + "DdsMontageEndedEvent",
+            Ns + "DdsMontageSectionAdvancedEvent",
+            Ns + "DdsStanceChangedEvent",
+            Ns + "DdsHitWindowOpenedEvent",
+            Ns + "DdsHitWindowClosedEvent",
+            Ns + "DdsAnimNotifyEvent",
         };
 
         var policyMap = AnimationReplicationModule.TopicQosPolicies
@@ -230,8 +233,8 @@ public sealed class AnimationReplicationModuleTests
             .Select(t => t.TopicName)
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.DoesNotContain("hrot/anim/FootstepEvent", allTopics);
-        Assert.DoesNotContain("hrot/anim/Footstep", allTopics);
-        Assert.DoesNotContain("hrot/anim/FootstepEvent", AnimationReplicationModule.TopicQosPolicies.Select(p => p.TopicName));
+        Assert.DoesNotContain(Ns + "DdsFootstepEvent", allTopics);
+        Assert.DoesNotContain(Ns + "DdsFootstep", allTopics);
+        Assert.DoesNotContain(Ns + "DdsFootstepEvent", AnimationReplicationModule.TopicQosPolicies.Select(p => p.TopicName));
     }
 }

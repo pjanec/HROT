@@ -77,7 +77,7 @@ public sealed class DdsFileReceiver : IDisposable
         if (needed.Count > 0)
         {
             t = new Incoming(offer.TransferId, items, needed,
-                new DdsReader<FileChunk>(_participant, "FileChunk", IntPtr.Zero, offer.Partition), PathOf);
+                new DdsReader<FileChunk>(_participant, partition: offer.Partition), PathOf);
             _active[offer.TransferId] = t;
         }
         _needs.Write(new FileNeed { TransferId = offer.TransferId, NodeId = _nodeId, NeededJson = JsonSerializer.Serialize(needed, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) });

@@ -21,7 +21,7 @@ namespace Fdp.Network.Cyclone.Topics
     /// <c>Fdp.Core.EntityLifecycle</c> as an <c>int</c> to keep the DDS codegen free of a
     /// cross-assembly enum dependency (the established convention for carrying an enum over the wire).</para>
     /// </summary>
-    [DdsTopic("EntityLifecycleStatus")]
+    [DdsTopic]
     [DdsQos(
         Reliability = DdsReliability.Reliable,
         Durability  = DdsDurability.TransientLocal,

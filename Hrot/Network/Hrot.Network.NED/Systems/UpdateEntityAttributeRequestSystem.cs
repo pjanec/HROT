@@ -425,7 +425,7 @@ namespace Hrot.Map.Common.Systems
         private readonly DdsReader<UpdateEntityAttributeRequest> _reader;
 
         public DdsUpdateEntityAttributeRequestSource(DdsParticipant participant)
-            => _reader = new DdsReader<UpdateEntityAttributeRequest>(participant, "UpdateEntityAttributeRequest");
+            => _reader = new DdsReader<UpdateEntityAttributeRequest>(participant);
 
         public void ProcessRequests(Action<UpdateEntityAttributeRequest> processor)
         {
@@ -445,7 +445,7 @@ namespace Hrot.Map.Common.Systems
         private readonly DdsWriter<CreateUpdateDeleteEntityAck> _writer;
 
         public DdsUpdateEntityAttributeAckSink(DdsParticipant participant)
-            => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
+            => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
 
         public void WriteAck(Guid requestId, int errorCode, NodeId respondingNode, ReadOnlySpan<byte> opaqueData)
             => _writer.Write(new CreateUpdateDeleteEntityAck

@@ -44,7 +44,7 @@ namespace Hrot.Network.NED.Gizmos
         //   id. ⚠ And the lookup came with a `return` on the miss, i.e. a node without a map dropped
         //   EVERY incoming interaction in silence. That is gone with it.
 
-        public string TopicName => "GizmoInteractionBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<GizmoInteractionBatch>();
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

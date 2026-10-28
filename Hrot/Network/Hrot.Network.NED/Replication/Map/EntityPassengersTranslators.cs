@@ -19,19 +19,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityPassengersEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityPassengers";
         private readonly DdsWriter<EntityPassengers>? _writer;
         private readonly Dictionary<long, EntityPassengers> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtPassengerBuffer;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityPassengersEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityPassengers>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityPassengers>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -92,14 +91,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityPassengersIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityPassengers";
         private const long OrdinalValue = (long)EDescriptorType.dtPassengerBuffer;
         private readonly DdsReader<EntityPassengers>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, EntityPassengers> _pending = new();
         private readonly List<long> _done = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -109,7 +107,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityPassengersIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityPassengers>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityPassengers>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

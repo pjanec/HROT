@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     /// to the Muscle node via CycloneDDS.
     /// Topic name is stable: wire compatibility depends on the exact string "EqsSensorConfig".
     /// </summary>
-    [DdsTopic("EqsSensorConfig")]
+    [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct EqsSensorConfigTopic
@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     /// Wire-format struct for delivering ranked EQS results from the Muscle back to the Brain.
     /// Topic name is stable: wire compatibility depends on the exact string "EqsResult".
     /// </summary>
-    [DdsTopic("EqsResult")]
+    [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct EqsResultTopic

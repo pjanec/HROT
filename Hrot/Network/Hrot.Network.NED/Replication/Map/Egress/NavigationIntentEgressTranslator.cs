@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly System.Collections.Generic.Dictionary<Entity, (uint IntentId, byte Flags)> _lastPublishedIntentId
             = new System.Collections.Generic.Dictionary<Entity, (uint IntentId, byte Flags)>();
 
-        public string TopicName      => "NavigationIntent";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationIntent;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -56,7 +56,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant      dds,
             NetworkEntityMap    entityMap,
             long localNodeId)
-            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds, "NavigationIntent"),
+            : this(new DdsWriterAdapter<Hrot.NED.Descriptors.NavigationIntent>(dds),
                    entityMap, localNodeId)
         {
         }

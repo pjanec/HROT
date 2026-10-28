@@ -15,11 +15,10 @@ namespace Hrot.Network.NED.SimHost
     /// (DDS <c>RoundImpact</c>), for every map host's puffs and marks.</summary>
     public sealed class RoundImpactEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "RoundImpact";
         private readonly IDdsWriter<RoundImpact> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RoundImpact>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRoundImpact;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -28,7 +27,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
         public RoundImpactEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
-            : this(new DdsWriterAdapter<RoundImpact>(participant, DdsTopicName), entityMap, localNodeId) { }
+            : this(new DdsWriterAdapter<RoundImpact>(participant), entityMap, localNodeId) { }
 
         internal RoundImpactEgressTranslator(IDdsWriter<RoundImpact> writer, NetworkEntityMap entityMap, long localNodeId = 0)
         {
@@ -65,11 +64,10 @@ namespace Hrot.Network.NED.SimHost
     /// by <c>SourceNodeId</c>, so a marking node draws each of its marks once.</summary>
     public sealed class RoundImpactIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "RoundImpact";
         private readonly DdsReader<RoundImpact>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<RoundImpact>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRoundImpact;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -81,7 +79,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
-            _reader    = participant is not null ? new DdsReader<RoundImpact>(participant, DdsTopicName) : null;
+            _reader    = participant is not null ? new DdsReader<RoundImpact>(participant) : null;
         }
 
         /// <inheritdoc />

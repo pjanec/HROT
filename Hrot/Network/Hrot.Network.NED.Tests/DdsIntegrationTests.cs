@@ -16,8 +16,8 @@ namespace Hrot.DDS.DataModel.Tests
             // In FastCycloneDds, topics are usually implicitly handled by Writer/Reader creation
             // or handled inside DdsParticipant.
             
-            using var writer = new DdsWriter<EntityMaster>(participant, "EntityMaster");
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var writer = new DdsWriter<EntityMaster>(participant);
+            using var reader = new DdsReader<EntityMaster>(participant);
             
             var sample = new EntityMaster
             {

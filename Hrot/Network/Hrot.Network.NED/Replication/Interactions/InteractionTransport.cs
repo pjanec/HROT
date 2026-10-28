@@ -294,21 +294,20 @@ namespace Hrot.Map.Common.Replication.Interactions
     /// </summary>
     public sealed class InteractionEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityInteractionRequest";
 
         private readonly IDdsWriter<EntityInteractionRequest> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly IReadOnlyList<IInteractionCodec> _codecs;
         private readonly OutgoingSink _sink;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityInteractionRequest>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtInteractionRequest;
         public long ReceivedSampleCount => 0;
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public InteractionEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, IReadOnlyList<IInteractionCodec>? codecs = null)
-            : this(new DdsWriterAdapter<EntityInteractionRequest>(participant, DdsTopicName), entityMap, codecs) { }
+            : this(new DdsWriterAdapter<EntityInteractionRequest>(participant), entityMap, codecs) { }
 
         internal InteractionEgressTranslator(IDdsWriter<EntityInteractionRequest> writer, NetworkEntityMap entityMap, IReadOnlyList<IInteractionCodec>? codecs = null)
         {
@@ -345,13 +344,12 @@ namespace Hrot.Map.Common.Replication.Interactions
     /// </summary>
     public sealed class InteractionIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityInteractionRequest";
 
         private readonly DdsReader<EntityInteractionRequest>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<EInteractionKind, IInteractionCodec> _byKind = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityInteractionRequest>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtInteractionRequest;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount => 0;
@@ -363,7 +361,7 @@ namespace Hrot.Map.Common.Replication.Interactions
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             foreach (var c in codecs ?? InteractionCodecs.All) _byKind.Add(c.Kind, c);
-            _reader = participant is not null ? new DdsReader<EntityInteractionRequest>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityInteractionRequest>(participant) : null;
         }
 
         /// <inheritdoc />

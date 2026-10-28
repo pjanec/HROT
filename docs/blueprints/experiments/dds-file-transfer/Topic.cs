@@ -1,7 +1,7 @@
 using CycloneDDS.Schema;
 namespace DdsBlob
 {
-    [DdsTopic("FileBlob")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct FileBlob
     {
@@ -14,7 +14,7 @@ namespace DdsBlob
 }
 namespace DdsBlob
 {
-    [CycloneDDS.Schema.DdsTopic("BlobPing")]
+    [CycloneDDS.Schema.DdsTopic]
     [CycloneDDS.Schema.DdsQos(Reliability = CycloneDDS.Schema.DdsReliability.Reliable, Durability = CycloneDDS.Schema.DdsDurability.Volatile, HistoryKind = CycloneDDS.Schema.DdsHistoryKind.KeepLast, HistoryDepth = 16)]
     public partial struct BlobPing
     {
@@ -25,7 +25,7 @@ namespace DdsBlob
 }
 namespace DdsBlob
 {
-    [CycloneDDS.Schema.DdsTopic("XferChunk")]
+    [CycloneDDS.Schema.DdsTopic]
     [CycloneDDS.Schema.DdsQos(Reliability = CycloneDDS.Schema.DdsReliability.Reliable, Durability = CycloneDDS.Schema.DdsDurability.Volatile, HistoryKind = CycloneDDS.Schema.DdsHistoryKind.KeepAll)]
     public partial struct XferChunk
     {
@@ -36,7 +36,7 @@ namespace DdsBlob
         public int ChunkSize;
         [CycloneDDS.Schema.DdsManaged] public byte[] Data;
     }
-    [CycloneDDS.Schema.DdsTopic("XferAck")]
+    [CycloneDDS.Schema.DdsTopic]
     [CycloneDDS.Schema.DdsQos(Reliability = CycloneDDS.Schema.DdsReliability.Reliable, Durability = CycloneDDS.Schema.DdsDurability.Volatile, HistoryKind = CycloneDDS.Schema.DdsHistoryKind.KeepAll)]
     public partial struct XferAck
     {

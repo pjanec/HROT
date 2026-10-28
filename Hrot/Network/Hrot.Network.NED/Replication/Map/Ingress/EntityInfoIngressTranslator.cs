@@ -33,7 +33,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 	/// </summary>
 	public class EntityInfoIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityInfo";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityInfo; 
 
         private readonly DdsReader<Hrot.NED.Descriptors.EntityInfo>? _reader;
@@ -52,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly List<long> _recentlyRegistered = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.EntityInfo>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

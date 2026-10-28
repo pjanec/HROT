@@ -18,14 +18,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityCustodyEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityCustody";
         private readonly DdsWriter<EntityCustody>? _writer;
         private readonly Dictionary<long, EntityCustody> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.Custody };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityCustody>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtCustody;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityCustodyEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityCustody>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityCustody>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -74,12 +73,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// draws the search). An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityCustodyIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityCustody";
         private const long OrdinalValue = (long)EDescriptorType.dtCustody;
         private readonly DdsReader<EntityCustody>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityCustody>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -88,7 +86,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityCustodyIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityCustody>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityCustody>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

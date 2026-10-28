@@ -21,13 +21,12 @@ namespace Hrot.Network.Translators
     /// </summary>
     public sealed class SquadReportEgressTranslator : IDescriptorTranslator
     {
-        internal const string DdsTopicName = "SquadReport";
 
         private readonly IDdsWriter<SquadReport> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SquadReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSquadReport;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -38,7 +37,7 @@ namespace Hrot.Network.Translators
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public SquadReportEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
-            : this(new DdsWriterAdapter<SquadReport>(participant, DdsTopicName), entityMap, localNodeId)
+            : this(new DdsWriterAdapter<SquadReport>(participant), entityMap, localNodeId)
         {
         }
 
@@ -118,7 +117,7 @@ namespace Hrot.Network.Translators
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName         => SquadReportEgressTranslator.DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SquadReport>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtSquadReport;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -130,7 +129,7 @@ namespace Hrot.Network.Translators
         /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> a no-op (tests).</summary>
         public SquadReportIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, long localNodeId)
         {
-            _reader      = participant is not null ? new DdsReader<SquadReport>(participant, SquadReportEgressTranslator.DdsTopicName) : null;
+            _reader      = participant is not null ? new DdsReader<SquadReport>(participant) : null;
             _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }

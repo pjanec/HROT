@@ -33,7 +33,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public class EntityDamageIngressTranslator : CycloneTranslator<EntityDamage, EntityDamage>
     {
-        private const string DdsTopicName = "EntityDamage";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityDamage;
 
         private readonly GhostCreationSystem _ghostCreationSystem;
@@ -46,7 +45,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem,
             long localNodeId)
-            : base(participant, DdsTopicName, OrdinalValue, entityMap)
+            : base(participant, OrdinalValue, entityMap)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;

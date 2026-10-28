@@ -68,7 +68,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
 
         // Observe CreateUpdateDeleteEntityAck to learn the allocated network ID.
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
-        using var ackReader           = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
+        using var ackReader           = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 

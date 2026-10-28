@@ -24,12 +24,11 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class TacticalIntentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "TacticalIntentRequest";
 
         private readonly DdsReader<TacticalIntentRequest>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TacticalIntentRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtTacticalIntentRequest;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -48,7 +47,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _reader    = participant is not null
-                ? new DdsReader<TacticalIntentRequest>(participant, DdsTopicName)
+                ? new DdsReader<TacticalIntentRequest>(participant)
                 : null;
         }
 

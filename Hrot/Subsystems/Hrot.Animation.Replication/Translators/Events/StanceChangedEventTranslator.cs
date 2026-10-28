@@ -14,13 +14,12 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class StanceChangedEventTranslator
     : CycloneNativeEventTranslator<StanceChangedEvent, DdsStanceChangedEvent>
 {
-    private const string TopicNameConst = "hrot/anim/StanceChanged";
 
     public override TranslatorDirection Direction { get; }
 
     internal StanceChangedEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsStanceChangedEvent).Namespace, new[] { nameof(DdsStanceChangedEvent) }))
     {
         Direction = direction;
     }

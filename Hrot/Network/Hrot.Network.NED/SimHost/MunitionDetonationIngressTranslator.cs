@@ -23,13 +23,12 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class MunitionDetonationIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MunitionDetonation";
 
         private readonly DdsReader<MunitionDetonation>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;   // ⭐ CE-1148 S2 — this node's own samples are dropped (SourceNodeId)
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MunitionDetonation>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMunitionDetonation;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -48,7 +47,7 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
             _reader    = participant is not null
-                ? new DdsReader<MunitionDetonation>(participant, DdsTopicName)
+                ? new DdsReader<MunitionDetonation>(participant)
                 : null;
         }
 

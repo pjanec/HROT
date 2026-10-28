@@ -19,14 +19,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityCombatProficiencyEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityCombatProficiency";
         private readonly DdsWriter<EntityCombatProficiency>? _writer;
         private readonly Dictionary<long, EntityCombatProficiency> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.CombatProficiency };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityCombatProficiency>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtCombatProficiency;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -34,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityCombatProficiencyEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityCombatProficiency>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityCombatProficiency>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -75,12 +74,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// sensor's acquisition read it through <c>ProficiencyOf</c>). An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityCombatProficiencyIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityCombatProficiency";
         private const long OrdinalValue = (long)EDescriptorType.dtCombatProficiency;
         private readonly DdsReader<EntityCombatProficiency>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityCombatProficiency>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -89,7 +87,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityCombatProficiencyIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityCombatProficiency>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityCombatProficiency>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

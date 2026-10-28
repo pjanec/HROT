@@ -32,7 +32,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class SpawnEntityCommandEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "CreateEntityRequest";
 
         // Synthetic ordinal — this translator is event-driven (PollIngress only); ScanAndPublish is empty.
         private const long OrdinalValue = -1001L;
@@ -41,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly FdpEventBus _eventBus;
         private readonly long _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<CreateEntityRequest>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -52,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             FdpEventBus eventBus,
             long localNodeId = 0)
-            : this(new DdsWriterAdapter<CreateEntityRequest>(participant, DdsTopicName), eventBus, localNodeId)
+            : this(new DdsWriterAdapter<CreateEntityRequest>(participant), eventBus, localNodeId)
         {
         }
 

@@ -6,7 +6,7 @@ namespace Hrot.NED.Messages
     /// <summary>
     /// Transient combat interaction event published by SimHost and consumed by IG.
     /// </summary>
-    [DdsTopic("FireInteractionEvent")]
+    [DdsTopic]
     [DdsIdlFile("hrot-sim-msgs")]
     public partial struct FireInteractionEvent
     {
@@ -27,7 +27,7 @@ namespace Hrot.NED.Messages
     // ⭐ CE-3095 — events, so Reliable + KeepAll: with no [DdsQos] the reader kept ONE sample, and two shots landing in the same
     //   take overwrote each other. 📐 Measured on WeaponFireRequest (ua-universal-soldier): the rifleman's shot and a hostile's,
     //   both at f5008 — his never reached SimHost. The other fire-pipeline events share the same failure mode.
-    [DdsTopic("WeaponFireRequest")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct WeaponFireRequest
     {
@@ -77,7 +77,7 @@ namespace Hrot.NED.Messages
     /// DDS message published by the Muscle node after a bullet has been spawned.
     /// Consumed by the IG to trigger a muzzle-flash visual effect.
     /// </summary>
-    [DdsTopic("WeaponFire")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct WeaponFire
     {
@@ -128,7 +128,7 @@ namespace Hrot.NED.Messages
     /// ⭐ <c>CE-3064</c> — a round passed close to a unit without being fired by its side (Muscle → Brain): the unit is being
     /// shot at. ⛔ No shooter on purpose. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 G.
     /// </summary>
-    [DdsTopic("NearMiss")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
     public partial struct NearMiss
@@ -154,7 +154,7 @@ namespace Hrot.NED.Messages
     /// ⭐ <c>CE-3266</c> (G3, Civilians §7.18 ST-1) — a blow was struck (any node → every map host): ui draws the swing once. The
     /// <see cref="WeaponFire"/> shape: <see cref="SourceNodeId"/> so a node drops its own sample. Cosmetic ⇒ BestEffort.
     /// </summary>
-    [DdsTopic("MeleeStrike")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
     public partial struct MeleeStrike
@@ -173,7 +173,7 @@ namespace Hrot.NED.Messages
     /// stopped on one. Cosmetic ⇒ BestEffort: a lost puff is better than a backlog. ⛔ Not <see cref="MunitionDetonation"/> — that is a combat
     /// message (area effect, damage, the observer's burst memory). docs/DESIGN_Visual_Effects.md §10 IM-3.
     /// </summary>
-    [DdsTopic("RoundImpact")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
     public partial struct RoundImpact
@@ -212,7 +212,7 @@ namespace Hrot.NED.Messages
     /// ⭐ <c>CE-2189</c> — a guided missile was launched at an aircraft (Muscle → its Brain): where from, its seeker, the flight time to it.
     /// The near-miss pattern; the brain turns it into <c>SensorChange.MissileWarning</c>.
     /// </summary>
-    [DdsTopic("MissileWarning")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
     public partial struct MissileWarning
@@ -236,7 +236,7 @@ namespace Hrot.NED.Messages
     /// DDS message published by the Muscle node when a bullet impact is resolved.
     /// Consumed by the IG (explosion particle) and the Damage Assessment Module.
     /// </summary>
-    [DdsTopic("MunitionDetonation")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct MunitionDetonation
     {
@@ -268,7 +268,7 @@ namespace Hrot.NED.Messages
     /// computed for a bullet impact.  The authoritative node applies the damage to the
     /// entity's <c>Health</c> component upon receiving this message.
     /// </summary>
-    [DdsTopic("EntityHitDamage")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]   // CE-3095
     public partial struct EntityHitDamage
     {

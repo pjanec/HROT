@@ -20,14 +20,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityTrafficDemandEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityTrafficDemand";
         private readonly DdsWriter<EntityTrafficDemand>? _writer;
         private readonly Dictionary<long, EntityTrafficDemand> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.TrafficDemand };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityTrafficDemand>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtTrafficDemand;
         /// <summary>The component this descriptor republishes.</summary>
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
@@ -36,7 +35,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityTrafficDemandEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityTrafficDemand>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityTrafficDemand>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -82,14 +81,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityTrafficDemandIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityTrafficDemand";
         private const long OrdinalValue = (long)EDescriptorType.dtTrafficDemand;
         private readonly DdsReader<EntityTrafficDemand>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, EntityTrafficDemand> _pending = new();
         private readonly List<long> _done = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityTrafficDemand>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -99,7 +97,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityTrafficDemandIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityTrafficDemand>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityTrafficDemand>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

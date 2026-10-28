@@ -45,7 +45,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     public class EntityMasterIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         // --- Named constants (§CODE-STANDARDS §1 — no magic numbers) ---
-        private const string DdsTopicName = "EntityMaster";
         private const long OrdinalValue = (long)EDescriptorType.dtEntityMaster;
 
         private readonly DdsReader<EntityMaster> _reader;
@@ -65,7 +64,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly HashSet<long> _lightweight = new();   // ⭐ LR-2 — the replicated rounds this node holds, destroyed on dispose
         private EntityRepository? _world;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMaster>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

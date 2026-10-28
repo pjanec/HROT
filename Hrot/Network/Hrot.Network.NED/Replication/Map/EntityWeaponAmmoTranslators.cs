@@ -19,19 +19,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponAmmoEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityWeaponAmmo";
         private readonly DdsWriter<EntityWeaponAmmo>? _writer;
         private readonly Dictionary<long, EntityWeaponAmmo> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponAmmo>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponAmmo;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityWeaponAmmoEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityWeaponAmmo>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityWeaponAmmo>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -84,12 +83,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// An unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityWeaponAmmoIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityWeaponAmmo";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponAmmo;
         private readonly DdsReader<EntityWeaponAmmo>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponAmmo>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -98,7 +96,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityWeaponAmmoIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityWeaponAmmo>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityWeaponAmmo>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

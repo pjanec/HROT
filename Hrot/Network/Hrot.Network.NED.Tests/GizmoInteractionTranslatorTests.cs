@@ -64,7 +64,8 @@ namespace Hrot.DDS.DataModel.Tests
             var attr = (DdsTopicAttribute?)Attribute.GetCustomAttribute(
                 typeof(GizmoInteractionBatch), typeof(DdsTopicAttribute));
             Assert.NotNull(attr);
-            Assert.Equal("GizmoInteractionBatch", attr!.TopicName);
+            Assert.Null(attr!.TopicName);   // AQ107 A — never written: derived from the type
+            Assert.Equal("GizmoMap_Network_GizmoInteractionBatch", DdsTopicName.Of<GizmoInteractionBatch>());
         }
 
 

@@ -6,7 +6,7 @@ namespace Hrot.ExCon.Tests;
 
 // Minimal DDS-serializable type used as a placeholder T in DdsWriterAdapter<T> tests.
 // The actual data content is irrelevant; the tests exercise adapter lifecycle behavior.
-[DdsTopic("WriterAdapterTestSmoke")]
+[DdsTopic]
 [DdsManaged]
 public partial class WriterAdapterTestSmoke
 {
@@ -61,7 +61,7 @@ public class DdsWriterAdapterTests
         var exception = Record.Exception(() =>
         {
             using var adapter = new DdsWriterAdapter<WriterAdapterTestSmoke>(
-                participant, "WriterAdapterTestSmoke_Test");
+                participant);
         });
 
         Assert.Null(exception);
@@ -76,7 +76,7 @@ public class DdsWriterAdapterTests
     {
         using var participant = new DdsParticipant(TestDomain);
         var adapter = new DdsWriterAdapter<WriterAdapterTestSmoke>(
-            participant, "WriterAdapterTestSmoke_Test2");
+            participant);
 
         adapter.Dispose();
 
@@ -99,7 +99,7 @@ public class DdsWriterAdapterTests
     {
         using var participant = new DdsParticipant(TestDomain);
         var adapter = new DdsWriterAdapter<WriterAdapterTestSmoke>(
-            participant, "WriterAdapterTestSmoke_Test3");
+            participant);
 
         adapter.Dispose();
 

@@ -17,7 +17,7 @@ namespace Fdp.Network.Cyclone.Topics
         Resp_Status = 2
     }
 
-    [DdsTopic("IdAlloc_Request")]
+    [DdsTopic]
     [DdsQos(
         Reliability = DdsReliability.Reliable,
         Durability = DdsDurability.Volatile,
@@ -33,7 +33,7 @@ namespace Fdp.Network.Cyclone.Topics
         [DdsId(4)] public ulong Count;
     }
 
-    [DdsTopic("IdAlloc_Response")]
+    [DdsTopic]
     [DdsQos(
         Reliability = DdsReliability.Reliable,
         Durability = DdsDurability.Volatile,
@@ -49,7 +49,7 @@ namespace Fdp.Network.Cyclone.Topics
         [DdsId(4)] public ulong Count;
     }
 
-    [DdsTopic("IdAlloc_Status")]
+    [DdsTopic]
     [DdsQos(
         Reliability = DdsReliability.Reliable,
         Durability = DdsDurability.TransientLocal,

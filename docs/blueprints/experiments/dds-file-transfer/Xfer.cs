@@ -15,9 +15,9 @@ namespace DdsBlob
             var data = new byte[mb * 1024 * 1024]; new Random(7).NextBytes(data);
             string sha = Convert.ToHexString(SHA256.HashData(data))[..16];
             int chunk = chunkKb * 1024, n = (data.Length + chunk - 1) / chunk;
-            using var ackR = new DdsReader<XferAck>(p, "XferAck");
+            using var ackR = new DdsReader<XferAck>(p);
             var total = Stopwatch.StartNew();
-            var w = new DdsWriter<XferChunk>(p, "XferChunk", IntPtr.Zero, partition);
+            var w = new DdsWriter<XferChunk>(p, partition: partition);
             while (w.CurrentStatus.CurrentCount < receivers.Length) Thread.Sleep(5);   // no timeout: wait for every receiver's reader
             long matchMs = total.ElapsedMilliseconds;
             var acked = receivers.ToDictionary(r => r, r => -1); var done = new HashSet<int>(); var shaOf = new Dictionary<int, string>();
@@ -51,8 +51,8 @@ namespace DdsBlob
         // Receiver: joins the transfer partition, acks contiguous progress, verifies, acks Done, closes its reader.
         public static void Recv(DdsParticipant p, int nodeId, string partition, int seconds)
         {
-            using var ackW = new DdsWriter<XferAck>(p, "XferAck");
-            var r = new DdsReader<XferChunk>(p, "XferChunk", IntPtr.Zero, partition);
+            using var ackW = new DdsWriter<XferAck>(p);
+            var r = new DdsReader<XferChunk>(p, partition: partition);
             byte[]? buf = null; bool[]? have = null; int contiguous = -1, count = 0, lastAcked = -1; long bytes = 0;
             var deadline = DateTime.UtcNow.AddSeconds(seconds); var sw = new Stopwatch();
             while (DateTime.UtcNow < deadline)

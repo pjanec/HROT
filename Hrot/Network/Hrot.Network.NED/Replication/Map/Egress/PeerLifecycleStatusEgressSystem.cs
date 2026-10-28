@@ -34,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly HashSet<long> _reportedConstructing = new();   // CE-288 (C2): phase-1 Constructing published
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
-        public string TopicName => "EntityLifecycleStatus";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLifecycleStatusDescriptor>();
         public long DescriptorOrdinal => -3; // not a per-entity descriptor; distinct from EntityMaster (-2)
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -45,7 +45,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public PeerLifecycleStatusEgressSystem(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
         {
-            _writer = new DdsWriter<EntityLifecycleStatusDescriptor>(participant, "EntityLifecycleStatus");
+            _writer = new DdsWriter<EntityLifecycleStatusDescriptor>(participant);
             _entityMap = entityMap;
             _localNodeId = (int)localNodeId;
         }

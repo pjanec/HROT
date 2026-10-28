@@ -22,7 +22,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityDoorStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityDoorState";
         private const long OrdinalValue = (long)EDescriptorType.dtDoorState;
 
         private readonly DdsReader<EntityDoorState>? _reader;
@@ -30,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly long _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDoorState>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -39,7 +38,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public EntityDoorStateIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem, long localNodeId)
         {
-            _reader = participant is not null ? new DdsReader<EntityDoorState>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityDoorState>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;

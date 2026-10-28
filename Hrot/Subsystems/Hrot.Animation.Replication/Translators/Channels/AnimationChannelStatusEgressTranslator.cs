@@ -19,14 +19,13 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// </summary>
 internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslator
 {
-    private const string TopicNameConst = "hrot/anim/status/AnimationChannel";
 
     private readonly IAnimDdsWriter<DdsAnimationChannelStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, (NodeStatus, uint)> _lastPublished = new();
     private int _worldEpoch;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsAnimationChannelStatus).Namespace, new[] { nameof(DdsAnimationChannelStatus) });
     public TranslatorDirection Direction => TranslatorDirection.Egress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -34,7 +33,7 @@ internal sealed class AnimationChannelStatusEgressTranslator : INetworkTranslato
 
     internal AnimationChannelStatusEgressTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap)
-        : this(new DdsLiveWriter<DdsAnimationChannelStatus>(participant, TopicNameConst), entityMap)
+        : this(new DdsLiveWriter<DdsAnimationChannelStatus>(participant), entityMap)
     {
     }
 

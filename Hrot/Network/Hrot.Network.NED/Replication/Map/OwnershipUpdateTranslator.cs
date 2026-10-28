@@ -38,13 +38,12 @@ namespace Hrot.Map.Common.Replication
     /// </summary>
     public sealed class OwnershipUpdateTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "SST_OwnershipUpdate";
 
         private readonly int _localNodeId;
         private readonly DdsReader<OwnershipUpdateWire>? _reader;
         private readonly DdsWriter<OwnershipUpdateWire>? _writer;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<OwnershipUpdateWire>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtOwnershipUpdate;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -58,8 +57,8 @@ namespace Hrot.Map.Common.Replication
             _localNodeId = localNodeId;
             if (participant != null)
             {
-                _reader = new DdsReader<OwnershipUpdateWire>(participant, DdsTopicName);
-                _writer = new DdsWriter<OwnershipUpdateWire>(participant, DdsTopicName);
+                _reader = new DdsReader<OwnershipUpdateWire>(participant);
+                _writer = new DdsWriter<OwnershipUpdateWire>(participant);
             }
         }
 

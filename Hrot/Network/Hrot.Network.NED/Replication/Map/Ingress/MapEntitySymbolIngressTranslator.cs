@@ -19,7 +19,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public class MapEntitySymbolIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MapEntitySymbol";
         private const long OrdinalValue = (long)EDescriptorType.dtMapEntitySymbol;
 
         private readonly DdsReader<MapEntitySymbol>? _reader;
@@ -28,7 +27,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly long _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapEntitySymbol>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

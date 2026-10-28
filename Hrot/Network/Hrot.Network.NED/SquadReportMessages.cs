@@ -10,10 +10,10 @@ namespace Hrot.NED.Messages
     ///
     /// <para>Event-shaped, on the <c>BehaviorFaultReport</c> precedent: published once by the node that raised the local
     /// <c>SquadReportNotification</c> (<c>SquadReportEgressTranslator</c>) and raised again as that event on every other node
-    /// (<c>SquadReportIngressTranslator</c>). Topic <c>"SquadReport"</c>, ordinal <see cref="Hrot.NED.Descriptors.EDescriptorType.dtSquadReport"/> = 146.
+    /// (<c>SquadReportIngressTranslator</c>). Topic <c>Hrot_NED_Messages_SquadReport</c> (derived from the type), ordinal <see cref="Hrot.NED.Descriptors.EDescriptorType.dtSquadReport"/> = 146.
     /// ⛔ No delay on the wire: the sender's staff holds a report its <c>ReportDelaySeconds</c> and publishes when due.</para>
     /// </summary>
-    [DdsStruct]
+    [DdsTopic]   // ⭐ AQ107 A — was [DdsStruct] + a name in the translators; now a topic whose name is derived from the type
     [DdsIdlFile("hrot-squad-report")]
     [DdsManaged]
     public partial struct SquadReport

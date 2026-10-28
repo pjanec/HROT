@@ -5,10 +5,19 @@
   python3 scripts/ned-wire-inventory.py --verbose    # + QoS text, [DdsManaged], key members (for authoring the doc)
   python3 scripts/ned-wire-inventory.py --tsv        # machine-readable (used to author the doc's table)
   python3 scripts/ned-wire-inventory.py --all        # ALSO the excluded roots (tests, Examples, ExtDeps, experiments)
-  python3 scripts/ned-wire-inventory.py --check      # exit 1 if code and the doc's "## Inventory" section disagree
+  python3 scripts/ned-wire-inventory.py --check      # exit 1 if code and the doc's "## Inventory" section disagree (full names),
+                                                     # or ANY HROT-owned [DdsTopic] carries an explicit name (AQ107 A: no exceptions),
+                                                     # or two derived topic names collide
   python3 scripts/ned-wire-inventory.py --skeleton   # draft doc rows (role left as TODO) for every type missing from the doc
 
 Full names are REFLECTION style: `Namespace.Type` and `Namespace.Outer+Nested` for nested types.
+AQ107 A: the DDS topic name is DERIVED from the type, by CycloneDDS.NET's one rule (`CycloneDDS.Schema.DdsTopicName`): namespace, containing
+types and type name joined with `_` (`Hrot.NED.Descriptors.WorldPos` -> `Hrot_NED_Descriptors_WorldPos`). The "topic" column below is that
+derived name; a type that still writes an explicit `[DdsTopic("...")]` name is shown as `(explicit) <name>` and FAILS --check.
+The doc's Inventory has NO topic column (the full name determines the topic), so --check compares full names only.
+The explicit-name check covers EVERY HROT-owned source: Hrot/, FDP/, Stride/ including tests, FDP/Examples, FDP/ExtDeps/GizmoMap and
+docs/blueprints/experiments. The ONE exclusion is VENDORED_ROOTS below: SumoSharp (FDP/ExtDeps/SumoSharp) is a read-only vendored copy
+(R-4046) whose `sumo/*` names are written upstream.
 Production roots: Hrot/, FDP/, Stride/.  Excluded (see the doc, "Excluded roots"): *.Tests / Tests projects, FDP/Examples,
 FDP/ExtDeps (vendored GizmoMap + SumoSharp), docs/ (experiments), bin/, obj/.
 Stdlib only.  The parser masks comments and string literals, then walks braces, so [DdsTopic] mentioned in a comment or a
@@ -212,12 +221,12 @@ def parse_file(path):
             if a == "DdsTopic":
                 name = args
                 mm = re.match(r'@?"([^"]*)"', args)
-                if mm:
-                    name = mm.group(1)
-                elif not args:
-                    name = "(bare [DdsTopic] - no name argument)"
+                if mm and mm.group(1).strip():
+                    name = "(explicit) " + mm.group(1)
+                elif not args or mm:
+                    name = BARE   # no name (or an empty one): the name is derived from the type
                 else:
-                    name = "(expr) " + args
+                    name = "(explicit expr) " + args
                 pend["topic"] = name
                 pend["topic_line"] = line_of(t.start())
             elif a == "DdsQos":
@@ -240,8 +249,19 @@ def parse_file(path):
     return results
 
 
+BARE = "(derived)"
+# The only sources the "no explicit topic name" rule does not reach: vendored, read-only copies of third-party code.
+VENDORED_ROOTS = ("FDP/ExtDeps/SumoSharp/",)
+EXPLICIT_CHECK_EXTRA_ROOTS = ["docs/blueprints/experiments"]
+
+
+def derived_name(full):
+    """CycloneDDS.Schema.DdsTopicName.Of: namespace + containing types + type name, joined with '_' (reflection-style full name in)."""
+    return full.replace(".", "_").replace("+", "_")
+
+
 GENERIC_USE = re.compile(r"\b(?:I?Dds(?:Reader|Writer)|I?AnimDds(?:Reader|Writer))\s*<\s*([\w.]+)\s*>")
-TRANSLATOR_BOUND = "(bound in a translator, not by attribute)"
+TRANSLATOR_BOUND = "(no [DdsTopic]: bound in a translator, no derivable name)"
 
 
 def collect(include_excluded=False):
@@ -262,8 +282,24 @@ def collect(include_excluded=False):
         if r["simple"] in used:
             r["topic"] = TRANSLATOR_BOUND
             topics.append(r)
+    for r in topics:
+        if r["topic"] == BARE:
+            r["topic"] = derived_name(r["full"])
     topics.sort(key=lambda r: (r["full"], r["file"]))
     return topics
+
+
+def explicit_name_offenders():
+    """Every HROT-owned type that still writes `[DdsTopic("...")]` (any root, tests/examples/GizmoMap/experiments included; only
+    VENDORED_ROOTS is skipped). Returns rows of collect()."""
+    global ROOTS
+    saved = ROOTS
+    ROOTS = list(ROOTS) + EXPLICIT_CHECK_EXTRA_ROOTS
+    try:
+        rows = collect(True)
+    finally:
+        ROOTS = saved
+    return [r for r in rows if r["topic"].startswith("(explicit") and not r["file"].startswith(VENDORED_ROOTS)]
 
 
 def doc_inventory_names():
@@ -319,7 +355,7 @@ def skeleton_row(r):
     code = qos_code(r["qos"])
     kind = "descriptor" if (r["keyed"] and code in ("S", "SN", "SA", "SL")) else "message"
     asm = r["file"].split("/")[2] if r["file"].count("/") > 2 else r["file"].split("/")[1]
-    topic = r["topic"] if r["topic"] != TRANSLATOR_BOUND else "TODO topic name (translator constant)"
+    topic = r["topic"] if r["topic"] != TRANSLATOR_BOUND else "TODO add [DdsTopic] (no derivable name)"
     return "| `%s` | `%s` | %s | %s | %s | %s | TODO role |" % (r["full"], topic, kind, keyed, code, asm)
 
 
@@ -340,10 +376,26 @@ def main(argv):
             print("STALE in doc inventory (no such wire type in code): " + n)
         for n in dups:
             print("DUPLICATE row in doc inventory: " + n)
-        if missing or stale or dups:
+        # AQ107 A — the topic name is DERIVED, no exceptions: no HROT-owned type may write one (tests, examples, GizmoMap, experiments
+        # included; only the vendored SumoSharp is skipped), no wire type may lack [DdsTopic], and the derived names must be unique.
+        bad_topic = []
+        for r in explicit_name_offenders():
+            print("EXPLICIT TOPIC NAME (remove it, the name is derived from the type): %s  %s  %s:%d" % (r["topic"], r["full"], r["file"], r["line"]))
+            bad_topic.append(r["full"])
+        for r in rows:
+            if r["topic"].startswith("(") and not r["topic"].startswith("(explicit"):
+                print("NOT DERIVED (%s): %s  %s:%d" % (r["topic"], r["full"], r["file"], r["line"]))
+                bad_topic.append(r["full"])
+        by_topic = {}
+        for r in rows:
+            by_topic.setdefault(r["topic"], []).append(r["full"])
+        collisions = {t: ns for t, ns in by_topic.items() if len(ns) > 1 and not t.startswith("(")}
+        for t, ns in sorted(collisions.items()):
+            print("COLLISION: derived topic name %s is the name of %s" % (t, ", ".join(ns)))
+        if missing or stale or dups or bad_topic or collisions:
             print("FAIL: %d in code, %d in doc inventory rows (%d unique)" % (len(set(code_names)), len(doc_names), len(set(doc_names))))
             return 1
-        print("OK: %d wire types in code == %d rows in the doc's Inventory" % (len(set(code_names)), len(doc_names)))
+        print("OK: %d wire types in code == %d rows in the doc's Inventory; no HROT-owned [DdsTopic] has an explicit name (vendored SumoSharp excluded), and all derived topic names are unique" % (len(set(code_names)), len(doc_names)))
         return 0
     if "--skeleton" in argv:
         have = set(doc_inventory_names() or [])

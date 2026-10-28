@@ -38,7 +38,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class UpdateEntityCommandEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "UpdateEntityDescriptorRequest";
 
         // Synthetic ordinal for event-driven translator (PollIngress only).
         private const long OrdinalValue = -1002L;
@@ -48,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<UpdateEntityDescriptorRequest>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -60,7 +59,7 @@ namespace Hrot.Map.Common.Replication.Egress
             FdpEventBus eventBus,
             NetworkEntityMap entityMap,
             long localNodeId = 0)
-            : this(new DdsWriterAdapter<UpdateEntityDescriptorRequest>(participant, DdsTopicName),
+            : this(new DdsWriterAdapter<UpdateEntityDescriptorRequest>(participant),
                    eventBus, entityMap, localNodeId)
         {
         }

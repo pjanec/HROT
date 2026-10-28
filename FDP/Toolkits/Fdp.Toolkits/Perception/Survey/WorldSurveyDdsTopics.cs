@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Perception.Survey.Topics
     /// <c>DangerAreaResult</c> (the unit, the sensor's part id); the answer rides as JSON (WS-11: rooms, portals and rays are lists of
     /// lists, and the payload class is the one the brain reads). 📄 docs/DESIGN_World_Survey_Sensor.md §3.
     /// </summary>
-    [DdsTopic("WorldSurveyResult")]
+    [DdsTopic]
     [DdsIdlFile("hrot-eqs-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct WorldSurveyResultTopic

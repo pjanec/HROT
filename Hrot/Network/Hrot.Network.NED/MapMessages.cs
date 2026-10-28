@@ -39,7 +39,7 @@ namespace Hrot.NED.Messages
 
     // Event sent when the user clicks on the map.
     // Includes a "Hit Stack" of all objects under the cursor (for disambiguation).
-    [DdsTopic("MapClickEvent")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct MapClickEvent
@@ -78,7 +78,7 @@ namespace Hrot.NED.Messages
     | **Backbone on Drop**    | IG emits DragEnd; ExCon commits to backbone        | Standard entity move            |
     | **Continuous Backbone** | Intermediate updates published (explicit opt-in) | Real-time collaborative editing |
     */
-    [DdsTopic("DragEvent")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct DragEvent
@@ -101,7 +101,7 @@ namespace Hrot.NED.Messages
 
     // Event sent when the user modifies the selection set (e.g., Box Select, Ctrl+Click).
     // The IG is authoritative for the selection state.
-    [DdsTopic("SelectionChangedEvent")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     public partial struct SelectionChangedEvent
     {
@@ -154,7 +154,7 @@ namespace Hrot.NED.Messages
 
     // Imperative commands sent from ExCon to a specific IG Instance.
     // Used to force a specific behavior (e.g., "Pan Camera Here", "Enter Edit Mode").
-    [DdsTopic("MapCommandRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     [DdsManaged]
@@ -188,7 +188,7 @@ namespace Hrot.NED.Messages
 
     // Event sent by the IG when the user clicks a specific item in the context menu.
     // Direction: IG -> ExCon
-    [DdsTopic("ContextActionInvoked")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct ContextActionInvoked
@@ -210,7 +210,7 @@ namespace Hrot.NED.Messages
     // Fallback request sent by the IG when the user right-clicks an entity
     // that does NOT have a cached menu definition available.
     // Direction: IG -> ExCon
-    [DdsTopic("ContextMenuRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct ContextMenuRequest
@@ -240,7 +240,7 @@ namespace Hrot.NED.Messages
     // One request can generate multiple responses. For example,
     //   a map placement tool can be configured to create one entity every left click
     //   and finish on right click or ESC key.
-    [DdsTopic("MapCommandAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     [DdsManaged]
@@ -265,7 +265,7 @@ namespace Hrot.NED.Messages
 
     // Proactive update from ExCon containing the context menu definition for a specific selection.
     // Direction: ExCon -> IG
-    [DdsTopic("ContextActionsUpdate")]
+    [DdsTopic]
     [DdsIdlFile("hrot-map-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     [DdsManaged]

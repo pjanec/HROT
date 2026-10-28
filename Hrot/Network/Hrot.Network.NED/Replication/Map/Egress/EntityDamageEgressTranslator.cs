@@ -34,7 +34,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class EntityDamageEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityDamage";
         private const long OrdinalValue   = (long)EDescriptorType.dtEntityDamage;
 
         private readonly DdsWriter<EntityDamage> _writer;
@@ -56,7 +55,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly Dictionary<long, (float Current, float Max)> _lastPublished = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDamage>();
         public long   DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -64,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityDamageEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
         {
-            _writer    = new DdsWriter<EntityDamage>(participant, DdsTopicName);
+            _writer    = new DdsWriter<EntityDamage>(participant);
             _entityMap = entityMap;
         }
 

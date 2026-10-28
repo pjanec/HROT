@@ -73,14 +73,14 @@ namespace Fdp.Toolkit.Time.Tests
             Assert.Empty(events);
         }
 
-        /// <summary>TCU-TR001 metadata — TopicName must be "FrameOrder".</summary>
+        /// <summary>TCU-TR001 metadata — TopicName must be the name DERIVED from FrameOrderDescriptor (AQ107 A).</summary>
         [Fact]
         public void MasterLockstepTranslator_TopicName_IsFrameOrder()
         {
             var bus        = new FdpEventBus();
             var translator = new MasterLockstepTranslator(participant: null, eventBus: bus);
 
-            Assert.Equal("FrameOrder", translator.TopicName);
+            Assert.Equal("Fdp_Toolkit_Time_Messages_FrameOrderDescriptor", translator.TopicName);
         }
 
         /// <summary>TCU-TR001 metadata — DescriptorOrdinal must be 202.</summary>

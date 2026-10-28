@@ -188,7 +188,7 @@ namespace Hrot.SimHost.Tests
         public void AQ107D_APoseOnTheDdsWire_RoundTripsEcsToWorldPosToEcs(string _, Quaternion rotation)
         {
             using var participant = new DdsParticipant(188u);
-            using var reader      = new DdsReader<WorldPos>(participant, "WorldPos");
+            using var reader      = new DdsReader<WorldPos>(participant);
             var translator = new GeoSpatialEgressTranslator(participant, new NetworkEntityMap(), localNodeId: 1);
 
             var (repo, hull) = OwnedHull();
@@ -289,7 +289,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domain = 165u;
             using var participant = new DdsParticipant(domain);
-            using var drReader    = new DdsReader<WorldPos>(participant, "WorldPos");
+            using var drReader    = new DdsReader<WorldPos>(participant);
 
             var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();
@@ -326,7 +326,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domain = 166u;
             using var participant  = new DdsParticipant(domain);
-            using var geoReader    = new DdsReader<WorldPos>(participant, "WorldPos");
+            using var geoReader    = new DdsReader<WorldPos>(participant);
 
             var geoTransform = HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
             var entityMap    = new NetworkEntityMap();

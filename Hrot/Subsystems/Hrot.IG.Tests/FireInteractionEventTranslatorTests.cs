@@ -19,7 +19,7 @@ public class FireInteractionEventTranslatorTests
     {
         const uint domainId = 150u;
         using var participant = new DdsParticipant(domainId);
-        using var writer = new DdsWriter<DdsFireInteractionEvent>(participant, "FireInteractionEvent");
+        using var writer = new DdsWriter<DdsFireInteractionEvent>(participant);
         var entityMap = new NetworkEntityMap();
         var translator = new FireInteractionEventTranslator(participant, entityMap);
 
