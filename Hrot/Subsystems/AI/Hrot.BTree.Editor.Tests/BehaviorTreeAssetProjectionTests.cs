@@ -459,27 +459,32 @@ public sealed class CodeBuiltTreeVariablesProjectionTests
         rows.Should().OnlyContain(r => r.RowKind == Hrot.Editor.AiShared.Variables.VariableRowKind.ReadOnlyPassthrough);
     }
 
-    /// <summary>⭐ <c>CE-1430</c> — EVERY C#-built tree projects exactly the manifest its registry definition carries: the 15 shipped trees
-    /// their variables, the three variable-less SOPs (Civilian / Inert / Pilot) and every tree without <c>PublishesVariables</c> (CE-1431's
-    /// open question) none. 🔴 Red-proof: <c>PublishedVariablesOf</c> ignoring <c>PublishesVariables</c> ⇒ a tree without it projects
-    /// rows its registry does not publish.</summary>
+    /// <summary>⭐ <c>CE-1430</c>/<c>CE-1431</c> — EVERY C#-built tree REGISTERED as a behaviour projects exactly the manifest its registry definition
+    /// carries, and EVERY one of them publishes one (CE-1431: no opt-in — a tree with no <c>ParamsType</c> publishes an empty manifest): the
+    /// 12 shipped trees with variables their variables, the three variable-less SOPs (Civilian / Inert / Pilot) and every other curated tree
+    /// none. 🔴 Red-proof: <c>PublishedVariablesOf</c> returning an empty manifest for every tree ⇒ a tree with a block projects no rows
+    /// while its registry definition publishes them.</summary>
     [Fact]
     public void CE1430_EveryCodeBuiltTree_ProjectsExactlyItsPublishedManifest()
     {
         var (trees, registry) = LoadShipped();
         trees.Should().NotBeEmpty();
-        int withVariables = 0, without = 0;
+        int withVariables = 0, without = 0, registered = 0;
         foreach (var t in trees)
         {
-            IReadOnlyList<Fdp.Toolkit.Behavior.ManagedBlackboardVariable>? manifest = null;
-            if (registry.TryGetId(t.Name, out int id) && registry.TryGetDefinition(id, out var def)) manifest = def!.ManagedBlackboardVariables;
-            Shape(t.BlackboardVariables).Should().Equal(Shape(manifest), $"{t.Name}'s rows are its published manifest");
+            if (!registry.TryGetId(t.Name, out int id) || !registry.TryGetDefinition(id, out var def)) continue;   // not a registered behaviour (e.g. HideInCover_BT)
+            registered++;
+            def!.ManagedBlackboardVariables.Should().NotBeNull($"{t.Name}: every curated tree publishes a manifest (CE-1431)");
+            Shape(t.BlackboardVariables).Should().Equal(Shape(def.ManagedBlackboardVariables), $"{t.Name}'s rows are its published manifest");
             if (t.BlackboardVariables.Count > 0) withVariables++; else without++;
         }
         foreach (var name in new[] { "CivilianSop", "InertSop", "PilotSop" })
             trees.Find(t => t.Name == name)!.BlackboardVariables.Should().BeEmpty($"{name} carries no variables");
-        withVariables.Should().Be(12, "the 15 shipped trees less the three variable-less SOPs");
-        without.Should().BeGreaterThan(3, "trees without PublishesVariables stay as they were (CE-1431)");
+        registered.Should().BeGreaterThan(80, "the curated trees are code-built trees in the catalog");
+        foreach (var name in new[] { "BasicInfantrySop", "BasicSquadSop", "BasicPlatoonSop", "BasicVehicleSop", "TakeCover", "Flank", "Sentry", "DangerCrossing" })
+            trees.Find(t => t.Name == name)!.BlackboardVariables.Should().NotBeEmpty($"{name} publishes its block's variables");
+        withVariables.Should().BeGreaterThan(12, "every curated tree that names a block publishes its fields (CE-1431), not only the 12 shipped ones");
+        without.Should().BeGreaterThanOrEqualTo(3, "a tree that names no block publishes an empty manifest (CE-1431)");
     }
 
     /// <summary>⭐ <c>CE-1430</c> — a C#-built tree's variables are READ-ONLY (CE-1252, the one gate): the code is the source. A Details row's

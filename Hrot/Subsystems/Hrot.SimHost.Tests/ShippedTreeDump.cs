@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             //   name, type and BAKED value. ⚠ No offset, as for the nodes below — the value is read AT the offset, so a wrong one
             //   prints a wrong value; and the JSON block's packing need not be the C# block's.
             var (_, baked) = Parse(def, "{}");
-            if (def.ManagedBlackboardVariables == null) sb.AppendLine("variables none");
+            if (def.ManagedBlackboardVariables is not { Count: > 0 }) sb.AppendLine("variables none");   // CE-1431: a tree with none publishes an EMPTY manifest, printed as before
             else
                 foreach (var v in def.ManagedBlackboardVariables)
                     sb.Append("variable ").Append(v.Name).Append(' ').Append(v.Type.FullName).Append(" = ")

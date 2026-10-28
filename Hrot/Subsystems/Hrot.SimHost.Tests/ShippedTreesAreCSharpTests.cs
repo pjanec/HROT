@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐ <c>CE-1412</c> — each tree publishes the variables manifest its JSON asset's registrar did: the same variables, in order, of
         /// the same TYPES — recorded from the generated registrars at <c>f72d799c3^</c> (the last commit with the JSON assets,
-        /// <c>Snapshots/Golden/Generated/BTree/{name}.Registrar.g.cs.txt</c>) — and the three trees that published none still publish none.
+        /// <c>Snapshots/Golden/Generated/BTree/{name}.Registrar.g.cs.txt</c>) — and the three trees that published none (CE-1431: now an EMPTY manifest, not a missing one) still declare no variable.
         /// The values (the JSON <c>DefaultValueJson</c> / <c>ParamsDefaultJson</c>, measured equal 2026-10-27) are pinned by the snapshot's
         /// <c>variable</c> lines above. ⚠ A NAME is the C# field's: equal to the JSON's up to its first letter (<c>underFire</c> → <c>UnderFire</c>);
         /// the reserved <c>Params</c> is identical.
@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(Registry.Value.TryGetId(name, out int id));
             Assert.True(Registry.Value.TryGetDefinition(id, out var def));
             var json = JsonManifests[name];
-            if (json == null) { Assert.Null(def!.ManagedBlackboardVariables); return; }
+            if (json == null) { Assert.NotNull(def!.ManagedBlackboardVariables); Assert.Empty(def.ManagedBlackboardVariables!); return; }   // CE-1431: published, and empty
             var actual = def!.ManagedBlackboardVariables;
             Assert.NotNull(actual);
             Assert.Equal(json.Length, actual!.Count);

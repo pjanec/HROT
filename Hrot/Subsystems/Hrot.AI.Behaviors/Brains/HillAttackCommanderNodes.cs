@@ -757,7 +757,7 @@ namespace Hrot.AI.Behaviors.Brains
         // ⭐⭐ CE-1410 (R-1042) — the REGISTERED PlatoonHillAttack: node for node the retired Demos/HillAttack/PlatoonHillAttack.btree.json
         //   (ids, titles, comments kept; equal to its registration, ShippedTreesAreCSharpTests). Before CE-1410 this was an unregistered
         //   catalog-only twin of the asset (CE-430).
-        [BTreeDefinition(BehaviorNames.PlatoonHillAttack, AssetId = "1a000000-0000-0000-0000-0000000000dd", Curated = true, PublishesVariables = true, Group = "Demos/HillAttack",
+        [BTreeDefinition(BehaviorNames.PlatoonHillAttack, AssetId = "1a000000-0000-0000-0000-0000000000dd", Curated = true, Group = "Demos/HillAttack",
             ParamsType = typeof(PlatoonHillAttackBlackboard))]
         public static BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext> BuildPlatoonHillAttackTree()
             => new BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext>()

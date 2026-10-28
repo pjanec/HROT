@@ -87,6 +87,32 @@ namespace Hrot.SimHost.Tests
             return (trees, machines);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1431</c> — a curated behaviour states the same two facts a JSON asset does, whatever surface authored it: its params
+        /// CONTRACT (<c>[Behavior(name, Params = …)]</c> ⇒ <c>JsonParamsDtoType</c>) and, for a BTree, its variables MANIFEST
+        /// (<c>ManagedBlackboardVariables</c>, empty when it names no block). A curated HSM has a contract and no manifest (no blob to read
+        /// working state from). 🔴 Red-proof: removing one <c>[Behavior(…)]</c> ⇒ that name is listed under "no contract"; a generator that
+        /// skips the manifest for a tree ⇒ listed under "no manifest".
+        /// </summary>
+        [Fact]
+        public void CE1431_EveryCuratedTreeDeclaresAContractAndPublishesAManifest()
+        {
+            var (trees, machines) = CuratedNames();
+            Assert.True(trees.Count > 80, "the curated BTrees were not found by reflection (" + trees.Count + ")");
+            Assert.NotEmpty(machines);
+            var noContract = new List<string>();
+            var noManifest = new List<string>();
+            foreach (var (name, def) in All())
+            {
+                bool tree = trees.Contains(name), machine = machines.Contains(name);
+                if (!tree && !machine) continue;
+                if (def.JsonParamsDtoType == null) noContract.Add(name);
+                if (tree && def.ManagedBlackboardVariables == null) noManifest.Add(name);
+            }
+            Assert.True(noContract.Count == 0, "curated behaviours with no [Behavior(Params = …)] contract: " + string.Join(", ", noContract));
+            Assert.True(noManifest.Count == 0, "curated BTrees publishing no variables manifest: " + string.Join(", ", noManifest));
+        }
+
         /// <summary>Informational: one row per registered behaviour (written only when <c>HROT_BEHAVIOUR_TABLE</c> names a file).</summary>
         [Fact]
         public void CE1431_PrintBehaviourTable()

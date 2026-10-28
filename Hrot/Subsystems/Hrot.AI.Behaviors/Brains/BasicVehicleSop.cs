@@ -40,7 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.BasicVehicleSop, typeof(NoParams).FullName!);
 
         [Behavior(BehaviorNames.BasicVehicleSop, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.BasicVehicleSop, AssetId = "a2165000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Sop",
+        [BTreeDefinition(BehaviorNames.BasicVehicleSop, AssetId = "a2165000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Sop",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()

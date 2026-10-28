@@ -48,7 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
             "CE-2331 (AQ98 A/B, R-2070): fights from cover (PeekAndFire, per the ROE) and ends after 8 s quiet in cover, so the task resumes.";
 
         [Behavior(BehaviorNames.BasicInfantrySop, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.BasicInfantrySop, AssetId = "a2080000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Sop",
+        [BTreeDefinition(BehaviorNames.BasicInfantrySop, AssetId = "a2080000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Sop",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
