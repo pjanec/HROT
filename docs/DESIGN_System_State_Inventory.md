@@ -166,7 +166,7 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:CycloneNetworkCleanupSystem` | **K** | a system/module, classified on its own | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:594 |
 | `type:CycloneNetworkIngressSystem` | **K** | a system/module, classified on its own | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:26 |
 | `type:DamageAssessmentModule` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Combat/Modules/DamageAssessmentModule.cs:25 |
-| `type:DdsParticipant` | **K** | DDS domain participant, injected dependency | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:69 |
+| `type:DdsParticipant` | **K** | DDS domain participant, injected dependency | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:68 |
 | `type:DdsReader<AudioTargetDetected>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/SimHost/AudioTargetDetectedIngressTranslator.cs:33 |
 | `type:DdsReader<BehaviorFaultReport>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/Translators/BehaviorFaultTranslators.cs:120 |
 | `type:DdsReader<ContextActionsUpdate>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | FDP/Network/Fdp.Network.Cyclone/Translators/CycloneTranslator.cs:38 |
