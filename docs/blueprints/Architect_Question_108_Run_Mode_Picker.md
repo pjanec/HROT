@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
-updated: 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
+updated: 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
 current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
@@ -431,7 +431,9 @@ sequenceDiagram
 ⚠ **Not done here (belongs to CE-4089 / later):** listing recipes, scenarios and recordings from the content folders on the Start surface; the Replay Browser's own file
 open (an `IRecordingOpener` caller) does not push to this list — it is a different host with no cluster inventory.
 
-### 2.8 CE-4097 — the mode picker's core, as designed by ui `2026-10-28` (coordinator NOTE: start the core now; CE-4093's master round and CE-4091 to come)
+### 2.8 CE-4097 — the mode picker's core — ⭐ **AS-BUILT `2026-10-28` (ui; core built, the repeating parts follow)** (coordinator NOTE: start the core now; CE-4093's master round and CE-4091 to come)
+
+⭐ **AS-BUILT:** the CORE is built — the class diagram below is the BUILT one (changes marked ⭐; the pre-build form is where the deviation table says). Build-state of §2.8: **core BUILT · part two PENDING** (list at the end of the section). The as-built block with the deviations table is after the decisions paragraph.
 
 **INVENTORY** (graph + grep; ⚠ coverage not checkable through the CLI): `search_graph .*(RunMode|ArmedMode|ModeIndicator|ModeChoice|TimeControlSection|TimeTransport).*`
 → `ITimeTransportFacade` (one interface), `ClusterTimeTransportAdapter` (its one implementation — built by the editor `EditorSubsystem.cs:2463`, CGF
@@ -450,19 +452,23 @@ EVERY host: the broadcast's `ExerciseId` → `ExerciseInventoryItem.ScenarioId` 
 ```mermaid
 classDiagram
   class ITimeTransportFacade { <<existing>> Mode · IsPaused · TogglePlayPause · Stop · Seek · EnterReviewAtSim · Session }
-  class ClusterTimeTransportAdapter { <<existing>> Stop() ⭐ delegates to the run choice when one is set · ⭐ RecordsLiveRuns (CE-4090 broadcast) · ⭐ ActiveExerciseScenario }
-  class RunModeChoice { <<NEW, per host, Hrot.Presentation>> Armed : Preview|Live|AAR · HostDefault (D12) · LastExercise · Play() · Stop() · Choose(mode) · Pending : RunModeConfirmation? · Indicator }
+  class ClusterTimeTransportAdapter { <<existing>> Stop() · TogglePlayPause() · StepBy() ⭐ delegate to the run choice (Stop in every state, ▶ Step from Edit) · ⭐ AttachRunChoice(hostDefault, control, unsaved) · ⭐ RecordsLiveRuns · ActiveExercise · ActiveExerciseScenario }
+  class IRunTransport { <<NEW seam, implemented by the adapter>> raw: StopRaw · EnterDryRun · Resume · Seek · BranchLive · readings: Mode · IsPaused · TotalTime · RecordsLiveRuns · ActiveExercise · ActiveExerciseScenario }
+  class RunModeChoice { <<NEW, per host, Hrot.Presentation/RunMode>> Armed : Preview|Live|AAR · HostDefault (D12) · LastExercise · Play() · Stop() · Choose(mode) · Moves() · Pending : RunModeConfirmation? · Indicator · Toast · PlayDisabledReason · SaveAsPrompt · OnClusterState(state) }
   class IRunScenarioControl { <<NEW seam>> LoadedScenarioName · LoadForLive · OpenForEdit · OpenRecording · SaveCurrent · TakeCheckpoint }
-  class IScenarioSession { <<existing>> ⭐ : IRunScenarioControl (no second copy) }
-  class IUnsavedChangesQuery { <<NEW seam>> Ask(reply : Changed|Unchanged|NeverSaved) — fake until backend's CE-4093 round }
+  class IScenarioSession { <<existing>> ⭐ : IRunScenarioControl (declares none of the six again) }
+  class IUnsavedChangesQuery { <<NEW seam>> Ask(reply : Changed|Unchanged|NeverSaved) }
+  class ScenarioNameUnsavedChangesQuery { <<NEW, production default until CE-4093's master round>> NeverSaved if no loaded name, else Unchanged }
   class RunModeConfirmation { <<NEW, ONE dialog shape>> Text · Buttons · Resolve(button) }
-  class MainToolbarTimeControlSection { <<existing>> the indicator draws RunModeChoice.Indicator · the menu is RunModeChoice's moves · ▶ ■ call the facade }
+  class MainToolbarTimeControlSection { <<existing>> ctor choice? · the indicator draws RunModeChoice.Indicator · the menu is Moves() after the DAR items · modal for Pending · toast · ▶ ■ call the facade }
   ClusterTimeTransportAdapter ..|> ITimeTransportFacade
-  ClusterTimeTransportAdapter --> RunModeChoice : Stop / TogglePlayPause from Edit
-  RunModeChoice --> ClusterTimeTransportAdapter : the raw transport (dry run, review exit, seek)
+  ClusterTimeTransportAdapter ..|> IRunTransport
+  ClusterTimeTransportAdapter --> RunModeChoice : delegates Stop / Play from Edit · feeds OnClusterState (D12)
+  RunModeChoice --> IRunTransport : the raw transport (dry run, review exit, seek, branch)
   RunModeChoice --> IRunScenarioControl
   RunModeChoice --> IUnsavedChangesQuery
   RunModeChoice --> RunModeConfirmation : R3
+  ScenarioNameUnsavedChangesQuery ..|> IUnsavedChangesQuery
   IScenarioSession --|> IRunScenarioControl
   MainToolbarTimeControlSection --> RunModeChoice
 ```
@@ -504,6 +510,27 @@ Rejected: **R2 in the master** — a new intent in backend's lane, and the inven
 **Built in two parts:** core (this section — Sonnet from this design, reviewed); then the repeating parts (§3's remaining texts and toasts, the
 timeline's right-click menu, the words, `POST /sim/stop` / `POST /run-mode` / `GET /status.armedMode`, Save = checkpoint in Live / AAR, the
 status-bar note, the File-menu fold). CE-4091's *open the recorded copy* item last.
+
+**AS-BUILT `2026-10-28` (ui) — the core.** Rails: `TheOneTimeFacadeTests.CE4097_*` (the adapter + choice on a real bus), `MainToolbarTimeControlTests.CE4097_*` (indicator, moves, confirmations, ■ = the facade's Stop, the draw), `EditorScenarioSessionLoadTests.CE4097_*` (the real session), `TheRunChoiceIsOnEveryHostTests` (the constructed editor + CGF).
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `HostDefault` read from CE-4096's `HostArmedMode` | `AttachRunChoice(hostDefault, …)` takes the default as an argument; the **editor passes Preview, CGF and SimHost pass Live** — the same table as `HostArmedModes.For` (editor ⇒ Preview, else Live) | `HostArmedMode` is `internal` to `Hrot.ClusterRunner`, which references the subsystems (not the reverse): a subsystem cannot read it. `--mode all` requests the token `all`, not `editor`, so the two tables agree today. ⚠ Two places state the default; unify when the runner hands the subsystems a shared host parameter (a follow-up) |
+| 2 | "hook where the host learns a scenario was opened for editing (`IScenarioSession` / the cluster state reaching OperatingEdit with a new scenario)" | **the cluster state**: `RunModeChoice.OnClusterState`, fed by the adapter for every broadcast — the cluster reaching `OperatingEdit` from anything but a dry run resets `Armed` to the host default | one hook for every way in (File menu, Start surface, `POST /scenario/load/edit`) instead of one per opener. The choice's OWN returns to editing (■ in Live, → Preview) set a keep-flag the next Edit consumes — R2 says the armed mode stays. ⚠ If such a return never reaches Edit the flag stays until the next Edit |
+| 3 | `IRunScenarioControl` + `IScenarioSession` extends it | as designed; the interface lives in `Hrot.Presentation` (`Hrot.UI.Common.RunMode`) — `Hrot.Editor.AiShared` already references it, so no third home was needed. The six members moved (with their docs) off `IScenarioSession` | one declaration; a rail pins that the session interface re-declares none |
+| 4 | the raw transport "for the cases that keep today's behaviour" | `IRunTransport` (a narrow interface the adapter implements): `StopRaw` (today's `Stop`: review exit / dry-run exit / else Idle), `EnterDryRun`, `Resume`, `Seek`, `BranchLive` + the readings `RecordsLiveRuns`, `ActiveExercise`, `ActiveExerciseScenario`, `Mode`, `IsPaused`, `TotalTime` | the choice must not hold the whole facade; a fake transport is possible |
+| 5 | `RecordsLiveRuns` "from the CE-4090 field" | in a live run / DAR / AAR: `!ClusterStateUpdateEvent.RunNotRecorded` (the run's own sticky flag); before one (Edit, Preview): `!RecordLiveRunsOff` (the setting) | the armed Live icon shows the setting, the running one shows the run |
+| 6 | `ActiveExerciseScenario` from the events the adapter drains | the adapter folds `AssetInventoryUpdateEvent` (Local + Archived + UnarchivedLocal items, `ExerciseId → ScenarioId`) and reads the broadcast's `ExerciseId`; a ■ whose inventory has not listed the run yet falls back to the session's `LoadedScenarioName`; with neither, ■ does nothing (⛔ never Idle) | no `ClusterUiCache` on a CGF node — the adapter's own bus is the one source on every host |
+| 7 | ■ in Live on a host with no session | keeps TODAY's ■ (to Idle) — the adapter's raw stop | "hosts without one are unchanged"; the choice has no action to return to editing with |
+| 8 | ▶ "live from the world on screen, no reload" (§2.3 sequence: *resume the clock*) | ▶ in Live armed calls `LoadForLive` (the session's load, which lands PAUSED — Q86 §4-G) and the choice then publishes ONE `ResumeTimeIntent` when the cluster reaches `OperatingLive` — only for a load its own ▶ started | without it ▶ would leave a paused live run and a ▶ button to press again. ⚠ Added, not designed in §2.8 — delete `_resumeWhenLive` if the master should resume |
+| 9 | "Save ⇒ SaveCurrent then LoadForLive" | exactly that, back to back on the bus | ⚠ the save is a cluster round (`ExecuteStorageOpIntent`); that the master finishes it before the load's unload is NOT measured here — a rail on a real cluster belongs with CE-4093's round |
+| 10 | "Save as… and go live" | `RunModeChoice.SaveAsPrompt` — a host seam: *asks for a name, SAVES under it, then calls back with the name*; the editor's Save-As dialog (`openScenarioSaveAs`, now taking an optional callback) and CGF's (`OpenScenarioSaveAsDialog`) are wired to it. Null on a host with no dialog ⇒ the button does nothing | `IRunScenarioControl` has no `SaveAs` (the interface lists six members) |
+| 11 | "AAR armed ▶ → `OpenRecording(LastExercise)`" with none yet | ▶ is disabled with the reason *"No exercise to review yet"* unless the host sets `PickRecording` (not wired by any host in this run) | File › Open Recording already is the picker; the indicator's "ask for a recording" is part two |
+| 12 | the menu "offers the moves of §3 that start from the current state" | `RunModeChoice.Moves()` (model, with `ConfirmText` / `DisabledReason`) + the section shows them after the DAR items; the existing DAR items keep their labels ("Review the last 30 s…") | the words DAR / AAR are on the indicator and in the moves; renaming the DAR items touches the pinned label rails — part two |
+| 13 | not in the list | a toast on ■ in Live (`"Exercise recorded (m:ss) — Replay it"` — a button that arms AAR and opens the run at its start — or `"Live run ended"` when not recorded), drawn beside the transport for 8 s | the list asked for exactly these two |
+| 14 | `IRunScenarioControl` from the *session* | `ScenarioNameUnsavedChangesQuery` is the default `IUnsavedChangesQuery` (NeverSaved when no name, else Unchanged) — ⚠ **a LIE for an edited, saved scenario**: ▶ in Live armed goes live without the Save-first prompt until backend's CE-4093 master round replaces it (the TODO is on the class) | the round is backend's |
+
+⚠ **Part two (not built):** the remaining §3 toasts (*Checkpoint taken*, *Keep this recording?* with D15's second setting) and confirmations (Preview/Live → AAR with unsaved edits: *Save / Discard / Cancel*; AAR → Preview hash-differs variant — CE-4091), the timeline's right-click menu (D21), `POST /sim/stop` / `POST /run-mode` / `GET /status.armedMode` (⚠ `POST /sim/play` and `/sim/step` in Edit now follow the armed mode through the facade — on the editor (default Preview) nothing changes; D22 wants the HTTP routes explicit), Save / Ctrl+S = checkpoint in Live / AAR, the status-bar note (D11), the File-menu fold, `EnterReview()`'s "no position = the live point" default (D9).
 
 ## 3. Every move, with what the user is told
 

@@ -349,6 +349,8 @@ namespace Hrot.Editor
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
         private Hrot.UI.Common.Map3D.Director.DirectorPack? _directorPack;
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
+        /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
@@ -2462,6 +2464,9 @@ namespace Hrot.Editor
             // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
             _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(_orchestrationBus!,
                 localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
+            // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
+            //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
+            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Preview, _editorApp?.ScenarioSession);
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -4239,7 +4244,8 @@ namespace Hrot.Editor
                 _shellInputSource);
 
             // BATCH-43 (MTB2-T8b): scenario Save-As → SaveAsBrowserDialog (same browser as New + doc Save-As).
-            Action openScenarioSaveAs = () =>
+            // ⭐ CE-4097 — the optional `onNamed` is the run choice's "Save as… and go live": called with the saved name once the save was published
+            Action<Action<string>?> openScenarioSaveAsThen = onNamed =>
             {
                 if (_editorLogic == null || _newAssetServices == null) return;
 
@@ -4268,8 +4274,11 @@ namespace Hrot.Editor
 
                     _editorLogic?.SaveScenarioAs(fullName);
                     _saveAllStatus = $"[OK] Saved scenario as '{fullName}'.";
+                    onNamed?.Invoke(fullName);
                 });
             };
+            Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
+            if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
@@ -5414,7 +5423,7 @@ namespace Hrot.Editor
                 //    a shared surface takes no host gate. 📄 §5c.14.
                 var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                    windowManager.MainToolbar, timeTransportFacade);
+                    windowManager.MainToolbar, timeTransportFacade, _timeTransport!.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed (silent-default rule)
             }
 
             // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.

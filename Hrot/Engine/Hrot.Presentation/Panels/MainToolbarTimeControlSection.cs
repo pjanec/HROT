@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 using ImGuiNET;
 
 namespace Hrot.UI.Common.Panels;
@@ -23,6 +24,7 @@ public sealed class MainToolbarTimeControlSection
 {
     private readonly ITimeTransportFacade _facade;
     private readonly Func<DateTime> _now;
+    private readonly RunModeChoice? _choice;   // ⭐ CE-4097 — the host's run choice (null: the pre-4097 indicator, which only SHOWS the cluster's mode)
 
     // ⭐ F15 — ■ ignores a press for StopGuard after a review returned to live (a double press across ■ → ⏏ must not stop the exercise)
     private TransportMode _lastMode;
@@ -34,10 +36,13 @@ public sealed class MainToolbarTimeControlSection
 
     /// <param name="facade">THE time facade.</param>
     /// <param name="now">The clock of the F15 guard (tests inject one); default <see cref="DateTime.UtcNow"/>.</param>
-    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null)
+    /// <param name="choice">⭐ CE-4097 (AQ108 §2.8) — the host's <see cref="RunModeChoice"/>: the indicator draws its <see cref="RunModeChoice.Indicator"/>, its menu is the
+    /// choice's moves (each with its confirmation, drawn as a modal), ▶ ■ keep calling the facade. ⛔ A host that HAS one must pass it.</param>
+    public MainToolbarTimeControlSection(ITimeTransportFacade facade, Func<DateTime>? now = null, RunModeChoice? choice = null)
     {
         _facade = facade;
         _now = now ?? (() => DateTime.UtcNow);
+        _choice = choice;
     }
 
     // ── Headless-testable seams ────────────────────────────────────────
@@ -112,7 +117,7 @@ public sealed class MainToolbarTimeControlSection
     public static string? ModeIcon(TransportMode mode) => ModeGlyph(mode)?.Glyph;   // ONE table: the indicator's
 
     /// <summary>One entry of the mode menu: a label, what it does, whether it can be chosen, and (a sub-menu) its children.</summary>
-    public sealed record ModeMenuItem(string Label, Action? Invoke, bool Enabled = true, IReadOnlyList<ModeMenuItem>? Children = null);
+    public sealed record ModeMenuItem(string Label, Action? Invoke, bool Enabled = true, IReadOnlyList<ModeMenuItem>? Children = null, bool Selected = false);
 
     /// <summary>The mode menu: the header line (mode + context) and the items.</summary>
     public sealed record ModeMenuModel(string Header, IReadOnlyList<ModeMenuItem> Items);
@@ -147,6 +152,28 @@ public sealed class MainToolbarTimeControlSection
     /// the deferred items — ⚑ mark, ⑂ go live from here, review from a checkpoint — are not built). Every action goes through the ONE facade.
     /// </summary>
     public ModeMenuModel? ModeMenu()
+    {
+        var legacy = LegacyModeMenu();
+        if (_choice is null) return legacy;
+
+        // ⭐ CE-4097 — the choice's moves (AQ108 §3: only those that start from the current state; each asks its own confirmation), after the DAR items
+        var moves = _choice.Moves();
+        if (moves.Count == 0) return legacy;   // a DAR keeps its own menu (restart / back to live)
+        var items = new List<ModeMenuItem>();
+        if (legacy is not null) items.AddRange(legacy.Items);
+        foreach (var move in moves)
+        {
+            var target = move.Target;
+            var label = move.DisabledReason is { } why ? $"{move.Label} — {why}" : move.Label;
+            items.Add(new(label, () => _choice.Choose(target), move.Enabled, Selected: move.IsArmed));
+        }
+        var header = legacy?.Header ?? (_facade.Mode is TransportMode.Edit or TransportMode.Idle
+            ? $"▶ will start: {_choice.Armed}"
+            : $"{_choice.Indicator.Word} · {TransportIcons.FormatTime(_facade.TotalTime)}");
+        return new(header, items);
+    }
+
+    private ModeMenuModel? LegacyModeMenu()
     {
         switch (_facade.Mode)
         {
@@ -203,9 +230,9 @@ public sealed class MainToolbarTimeControlSection
         return _facade.Mode switch
         {
             TransportMode.Review  => SecondsBehindLive() is { } b ? $"Back to live — {FormatSpan(b)} ahead" : "Back to live",
-            TransportMode.Replay  => "Leave the replay",
+            TransportMode.Replay  => _choice is null ? "Leave the replay" : "Back to the recording's start",
             TransportMode.Preview => "Back to edit",
-            TransportMode.Live    => "Stop the exercise",
+            TransportMode.Live    => _choice is null ? "Stop the exercise" : "Stop the exercise and return to the scenario's start",
             _                     => "Stop",
         };
     }
@@ -279,6 +306,8 @@ public sealed class MainToolbarTimeControlSection
         {
             OnPlayPause();
         }
+        if (_choice?.PlayDisabledReason is { } playWhy && _facade.Mode == TransportMode.Edit && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(playWhy);   // ⭐ CE-4097 §2.8 ⑥ — Live armed with no scenario session
 
         ImGui.SameLine();
 
@@ -332,26 +361,69 @@ public sealed class MainToolbarTimeControlSection
         if (ImGui.SmallButton(AxisFace(_facade.Axis) + "##mt_axis")) OnToggleAxis();
         ImGui.EndDisabled();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(AxisTooltip(_facade.Axis));
+
+        // ── ⭐ CE-4097 — the note after ■ in Live, and the one confirmation shape (R3) ─────────────────────────────────
+        if (_choice?.Toast is { } toast)
+        {
+            ImGui.SameLine();
+            if (toast.ReplayExercise is not null) { if (ImGui.SmallButton(toast.Text + "##mt_toast")) _choice.ReplayLastExercise(); }
+            else ImGui.TextDisabled(toast.Text);
+        }
+        DrawConfirmation();
+    }
+
+    private const string ConfirmPopupId = "Confirm##mt_run_confirm";
+    private RunModeConfirmation? _confirmOpened;
+
+    /// <summary>⭐ CE-4097 — draws <see cref="RunModeChoice.Pending"/> as a modal: its text and buttons; closing it (Esc / ✕) is Cancel, the last button.</summary>
+    private void DrawConfirmation()
+    {
+        var pending = _choice?.Pending;
+        if (pending is null) { _confirmOpened = null; return; }
+        if (!ReferenceEquals(_confirmOpened, pending)) { ImGui.OpenPopup(ConfirmPopupId); _confirmOpened = pending; }
+
+        bool open = true;
+        if (!ImGui.BeginPopupModal(ConfirmPopupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (!open) pending.Resolve(pending.Buttons[^1]);   // (a modal that was closed without a button)
+            return;
+        }
+        ImGui.TextWrapped(pending.Text);
+        ImGui.Separator();
+        RunModeConfirmation.Button? pressed = null;
+        foreach (var button in pending.Buttons)
+        {
+            if (ImGui.Button(button.Label)) pressed = button;
+            ImGui.SameLine();
+        }
+        if (!open) pressed = pending.Buttons[^1];
+        if (pressed is not null) { ImGui.CloseCurrentPopup(); pending.Resolve(pressed); }
+        ImGui.EndPopup();
     }
 
     /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
     private void DrawModeIndicator(float size)
     {
         var mode = _facade.Mode;
-        var ind = ModeGlyph(mode);
+        // ⭐ CE-4097 — with a run choice the indicator draws ITS state (dim = armed, bright = paused run, blinking = playing; the words Preview / Live / DAR / AAR)
+        var chosen = _choice?.Indicator;
+        var ind = chosen is { } c ? new ModeIndicator(c.Glyph, c.Color, c.Word) : ModeGlyph(mode);
         if (ind is null) { ImGui.Dummy(new Vector2(size, size)); return; }
 
         var pos = ImGui.GetCursorScreenPos();
         bool clicked = ImGui.InvisibleButton("##mt_mode", new Vector2(size, size));
         bool hovered = ImGui.IsItemHovered();
         var dl = ImGui.GetWindowDrawList();
-        var icon = ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
+        var icon = chosen?.Glyph ?? ModeIcon(mode)!;   // FontAwesome 6 Solid, drawn in the mode's colour
         var ts = ImGui.CalcTextSize(icon);
-        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(ind.Color with { W = hovered ? 1f : 0.85f }), icon);
+        var alpha = chosen is { } ch ? RunModeIndicator.Alpha(ch.Level, ImGui.GetTime()) * (hovered ? 1f : 0.9f) : (hovered ? 1f : 0.85f);
+        dl.AddText(pos + (new Vector2(size, size) - ts) * 0.5f, ImGui.GetColorU32(ind.Color with { W = alpha }), icon);
         if (hovered)
         {
             var behind = SecondsBehindLive();
-            ImGui.SetTooltip(mode == TransportMode.Review && behind is { } b ? $"Review — {FormatSpan(b)} behind live" : ind.Name);
+            ImGui.SetTooltip(mode == TransportMode.Review && behind is { } b ? $"DAR — {FormatSpan(b)} behind live"
+                           : chosen is { Level: IndicatorLevel.Dim } ? $"▶ will start: {ind.Name} (click to change)"
+                           : ind.Name);
         }
 
         var menu = ModeMenu();
@@ -378,7 +450,7 @@ public sealed class MainToolbarTimeControlSection
                 ImGui.EndMenu();
             }
         }
-        else if (ImGui.MenuItem(item.Label, null, false, item.Enabled))
+        else if (ImGui.MenuItem(item.Label, null, item.Selected, item.Enabled))
             item.Invoke?.Invoke();
     }
 }

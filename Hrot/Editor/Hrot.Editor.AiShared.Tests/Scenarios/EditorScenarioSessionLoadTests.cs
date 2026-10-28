@@ -155,4 +155,54 @@ public sealed class EditorScenarioSessionLoadTests
         session.LoadForLive(" ");                                              // no scenario, no load: the run is not touched
         Assert.Equal(3, left);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4097</c> (AQ108 §2.8) — the session IS the run-mode picker's scenario control: <c>IScenarioSession : IRunScenarioControl</c>, and the
+    /// six actions are DECLARED ONCE (on the narrow interface), never copied onto the session interface — "no second implementation of the actions".
+    /// 🔴 Red-proof: re-declare <c>LoadForLive</c> on <c>IScenarioSession</c> (a second declaration) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4097_TheSessionExtendsTheRunScenarioControl_AndDeclaresNoSecondCopyOfItsActions()
+    {
+        Assert.True(typeof(Hrot.UI.Common.RunMode.IRunScenarioControl).IsAssignableFrom(typeof(IScenarioSession)));
+        Hrot.UI.Common.RunMode.IRunScenarioControl control = NewSession(new FdpEventBus());   // the one class, through the narrow seam
+        Assert.NotNull(control);
+
+        var own = typeof(IScenarioSession).GetMembers(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance
+                                                       | System.Reflection.BindingFlags.DeclaredOnly).Select(m => m.Name).ToHashSet();
+        foreach (var name in new[] { "LoadForLive", "OpenForEdit", "OpenRecording", "SaveCurrent", "TakeCheckpoint", "get_LoadedScenarioName", "LoadedScenarioName" })
+            Assert.DoesNotContain(name, own);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4097</c> — ■ in a live run, through the REAL session: the run's scenario (the inventory's) is opened for editing by the session's ordinary
+    /// two-leg load — the unload the sequence always sends, then <c>OperatingEdit</c> with that scenario once the cluster reports Idle — and nothing stops at Idle.
+    /// 🔴 Red-proof: <c>RunModeChoice.StopLive</c> not calling <c>OpenForEdit</c> ⇒ no <c>OperatingEdit</c> ever follows.
+    /// </summary>
+    [Fact]
+    public void CE4097_StopInALiveRun_ThroughTheRealSession_OpensTheRunsScenarioForEditing()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus);
+        facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
+        var run = Guid.NewGuid();
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = run });
+        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(run, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
+        bus.SwapBuffers();
+        session.Update();
+        facade.Update();
+        bus.SwapBuffers();
+
+        facade.Stop();
+        var unload = Drain(bus);
+        Assert.Single(unload);
+        Assert.Equal(ClusterState.Idle, unload[0].TargetState);                // the sequence's first leg …
+        ClusterIs(bus, session, ClusterState.Idle);
+        var load = Drain(bus);
+        var edit = Assert.Single(load);                                        // … and the second: the run's scenario, for editing
+        Assert.Equal(ClusterState.OperatingEdit, edit.TargetState);
+        Assert.Equal("hill-attack", edit.ScenarioId);
+        Assert.Equal(Hrot.UI.Common.RunMode.RunArmed.Live, facade.RunChoice!.Armed);
+    }
 }
