@@ -303,6 +303,87 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>R-4096</c> (docs/DESIGN_Entity_Control.md C-3′, §8q; Cluster Membership UC-18) — TWO players, two nodes: SimHost possesses the
+    /// Rifleman (his brain is on CGF); the IG, a second STATION, then asks for the same man. ① The IG answers at once from the replicated
+    /// <c>dtPossessedBy</c>: refused, naming the holder. ② A request that reaches the brain anyway (the race of two stations — published on
+    /// the IG's bus, carried by the interaction transport) is ignored: the holder is still SimHost's, its epoch unchanged and its frames
+    /// still drive the man. ③ Once SimHost lets him go the IG takes him — a free unit is free. ✅ Red-proof: <c>PossessionSystem</c> without
+    /// its <c>StationClaims</c> guard (the old C-3) ⇒ step ② ends with the IG holding the man.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task R4096_ASecondStationOnAnotherNode_IsRefused_TheFirstKeepsTheMan_UntilHeLetsGo()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull && !ByName(ig, "Rifleman").IsNull,
+            timeoutFrames: 2000), "the Rifleman must exist on every node");
+        var onBrain = ByName(cgf, "Rifleman");
+        var onMuscle = ByName(sim, "Rifleman");
+        var onIg = ByName(ig, "Rifleman");
+        var simMap = harness.SimHost.App.TestHook_EntityMap;
+        var igMap = harness.Ig.App.TestHook_EntityMap;
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        var first = new EntityOrders(sim, simMap, geo: null);
+        var second = new EntityOrders(ig, igMap, geo: null);
+        long firstStation = first.StationFor(onMuscle), secondStation = second.StationFor(onIg);
+        Assert.NotEqual(firstStation, secondStation);
+
+        Assert.True(first.Possess(id).Accepted);
+        Assert.True(harness.PumpUntil(() => cgf.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain)
+            && second.HolderOf(id) == firstStation, timeoutFrames: 900), "SimHost's hold must reach the CGF brain and then the IG");
+        uint epoch = cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain).Epoch;
+
+        // ① the second station is told at once, from replicated state
+        var refused = second.Possess(id);
+        Assert.Equal(OrderRefusal.Possessed, refused.Refusal);
+        Assert.Contains($"station {firstStation}", refused.Detail);
+
+        // ② a request that arrives at the brain anyway (published on the IG's bus, carried to CGF) is ignored
+        if (!ig.Bus.IsRegistered<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>()) ig.Bus.Register<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+        ig.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
+        {
+            Unit = onIg, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = secondStation,
+        });
+        var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        uint seq = 1;
+        bool moved = harness.PumpUntil(() =>
+        {
+            first.Control(id, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++, Forward = 1f, Yaw = 0f });
+            var p = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+            return System.Numerics.Vector2.Distance(new(p.X, p.Y), new(start.X, start.Y)) > 1.5f;
+        }, timeoutFrames: 1500);
+        Assert.True(moved, "the holder's frames must still drive the man after the second station's request");
+        var held = cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain);
+        Assert.Equal((firstStation, epoch), (held.StationNodeId, held.Epoch));          // never taken, never re-taken
+        Assert.Equal(firstStation, second.HolderOf(id));
+
+        // ③ he lets go; the second station may now have him
+        Assert.True(first.Unpossess(id).Accepted);
+        Assert.True(harness.PumpUntil(() => second.HolderOf(id) is null && first.HolderOf(id) is null, timeoutFrames: 600), "released on every node");
+        Assert.True(second.Possess(id).Accepted);
+        Assert.True(harness.PumpUntil(() => cgf.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain)
+            && cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(onBrain).StationNodeId == secondStation, timeoutFrames: 900),
+            "the second station holds him once the first let go");
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-1154</c> (docs/DESIGN_Entity_Control.md §8h U-2, U-7, §8h.6) — the USE key across the cluster: SimHost is the station;
     /// its frame's use press (counter + the door's network id) crosses to CGF, whose <c>OperatorControl</c> asks the shared rule and
     /// starts the door action on the soldier's interaction channel; the door's state comes back to SimHost, and the brain's verdict
