@@ -239,6 +239,16 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(expected, seen.RunNotRecorded);
     }
 
+    /// <summary>⭐ CE-4090 — the broadcast carries the SETTING too (inverted: an older sender's 0 reads as ON) through the one decoding.</summary>
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(0, false)]
+    public void CE4090_TheClusterStateBroadcast_CarriesTheRecordLiveRunsSetting(int onTheWire, bool expectedOff)
+    {
+        var seen = OrchestrationObserverTranslator.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle, RecordLiveRunsOff = onTheWire });
+        Assert.Equal(expectedOff, seen.RecordLiveRunsOff);
+    }
+
     // ── Test 4: NodeHeartbeatEvent → NodeHeartbeat written to DDS ────────────
 
     [Fact(Timeout = 10_000)]

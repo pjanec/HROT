@@ -100,6 +100,7 @@ public sealed class ClusterOpMasterTranslator
                     TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
                     ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
                     RunNotRecorded   = ev.RunNotRecorded ? 1 : 0,   // ⭐ CE-4090 D14
+                    RecordLiveRunsOff = ev.RecordLiveRunsOff ? 1 : 0,
                 });
             }
         }

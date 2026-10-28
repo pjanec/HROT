@@ -464,6 +464,9 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Example: `exit_review({"waitForReady":true})` — back to the live run.
 - **`seek_review`** — ⭐ CE-3329 — the same seek as POST /replay/seek, named for a review (atSeconds, atSimSeconds, frame, frames, cause, next). `atSeconds?` (number), `atSimSeconds?` (number). Returns as seek_replay
   Example: `seek_review({"atSimSeconds":12})` — move within the review.
+- **`get_run_settings`** — ⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does). The same answer on every host. No params. Returns { recordLiveRuns }
+  Notes: A set_run_settings is visible here once the master has broadcast it (a frame or two)..
+  Example: `get_run_settings({})` — will the next live run be recorded.
 - **`set_run_settings`** — ⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 "this run was not recorded". Live does not imply recording. Req `recordLiveRuns` (boolean). Returns { published, requestId, recordLiveRuns, note }
   Notes: The scenario verifier always records, whatever this says.; A replay → live branch follows the setting like any live run..
   Example: `set_run_settings({"recordLiveRuns":false})` — run live without recording.

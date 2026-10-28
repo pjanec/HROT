@@ -159,6 +159,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// recorded). 0 = recorded, or no run yet. ⭐ Inverse polarity on purpose: an older sender omits it, and 0 is today's behaviour.
         /// Held by the master, the same on every node — what every host's HTTP gates and the Live icon read. Additive on the wire.</summary>
         public int RunNotRecorded;
+        /// <summary>⭐ CE-4090 — 1 = the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load does); 0 = ON, or an older sender. Additive.</summary>
+        public int RecordLiveRunsOff;
     }
 
     /// <summary>

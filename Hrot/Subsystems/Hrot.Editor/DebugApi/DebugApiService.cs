@@ -71,6 +71,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
         private readonly Func<float?>? _editorReplayDuration;
         private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
+        private readonly Func<bool?>? _editorRecordLiveRunsOff;   // CE-4090 — the setting, from the in-process master's broadcast
         private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
@@ -570,8 +571,10 @@ namespace Hrot.Editor.DebugApi
             // ⭐⭐ CE-4087 — the in-process master's load-gate text (GET /cluster/roster → load.notice). ⛔ The editor HOLDS the master.
             Func<string?>? clusterLoadNotice = null,
             // ⭐ CE-4090 (AQ108 D14) — the in-process master's "this run was not recorded" (the core's ClusterUiCache). ⛔ The editor HOLDS it.
-            Func<bool?>? runNotRecorded = null)
+            Func<bool?>? runNotRecorded = null,
+            Func<bool?>? recordLiveRunsOff = null)
         {
+            _editorRecordLiveRunsOff = recordLiveRunsOff;
             _editorRunNotRecorded = runNotRecorded;
             _entityCreationGetter = entityCreation;
             _editorClusterLoadNotice = clusterLoadNotice;

@@ -2602,6 +2602,7 @@ namespace Hrot.Editor
                         replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,
                         replayAxis:        () => _orchestratorCore?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
                         runNotRecorded:    () => _orchestratorCore?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
+                        recordLiveRunsOff: () => _orchestratorCore?.UiCache.RecordLiveRunsOff,
                         // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
                         // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
                         //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records

@@ -1035,6 +1035,7 @@ namespace Hrot.Editor.DebugApi
                 var (result, error, hint, status) = s.DeleteExercise(ctx.RouteValue("id"));
                 return error is null ? Ok(result) : Fail(status, error, hint);
             })));
+            _routes.Add(new("GET", "/run-settings", _ => RunMainResult(s => ResultOf(s.GetRunSettings(), unavailable: 503))));
             _routes.Add(new("POST", "/run-settings", ctx => RunMainResult(s => ResultOf(s.SetRunSettings(ctx.Body), unavailable: 503))));
             _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
             // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a

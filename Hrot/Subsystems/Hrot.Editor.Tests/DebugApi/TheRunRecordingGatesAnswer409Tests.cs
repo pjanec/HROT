@@ -33,6 +33,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
     private readonly RecordingMasterControl _master = new();
     private ClusterState _state = ClusterState.OperatingLive;
     private bool? _notRecorded = true;
+    private bool? _settingOff = false;   // the broadcast's RecordLiveRunsOff
 
     private static int FreePort()
     {
@@ -58,7 +59,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("IG", "IG"),
-                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff),
             },
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
@@ -169,5 +170,16 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.False(Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent)).RecordLiveRuns);
         Assert.False(body["data"]!["recordLiveRuns"]!.GetValue<bool>());
+
+        // GET reads the master's BROADCAST (one source on every host): ON until the broadcast says otherwise, then OFF; unknown ⇒ 503
+        (status, body) = await Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.True(body["data"]!["recordLiveRuns"]!.GetValue<bool>());
+        _settingOff = true;                                                   // the master has broadcast the POSTed setting
+        (status, body) = await Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.False(body["data"]!["recordLiveRuns"]!.GetValue<bool>());
+        _settingOff = null;
+        (status, _) = await Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
     }
 }
