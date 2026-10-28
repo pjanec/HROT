@@ -70,7 +70,8 @@ namespace Hrot.SimHost.Modules.Orchestration
     /// <summary>The objects <see cref="EcsHostClusterHandlers.Compose"/> built that the host keeps using.</summary>
     public sealed record EcsHostClusterHandlers(
         EcsRecordReplayController RecordReplayController,
-        ReferencePreviewHandler   DryRun)
+        ReferencePreviewHandler   DryRun,
+        Fdp.Toolkit.Replay.WorldChangeCheck ChangeCheck)
     {
         /// <summary>
         /// ⭐⭐⭐ <c>D16</c> (<c>R-3046</c>) — <b>THE cluster handlers of an ECS host, composed in ONE place.</b> The recording
@@ -141,21 +142,32 @@ namespace Hrot.SimHost.Modules.Orchestration
             foreach (var handler in h.ScenarioHandlers)
                 slave.RegisterHandler(handler);
 
+            // 6b. ⭐⭐ CE-4093 (AQ108 D20) — the unsaved-changes check, ONE per node: its state lives HERE, in the host composition, never in the ECS
+            //     world (a baseline in the world would itself change it). The handler answers a master's CHECK ROUND; the load chain (7) takes the
+            //     baseline when a load into editing resolves — a late joiner's catch-up is the same chain — and the save wrapper (8) after a
+            //     completed save round: every host passes through all three by construction.
+            var changeCheck = new Fdp.Toolkit.Replay.WorldChangeCheck();
+            slave.RegisterHandler(new WorldChangeCheckHandler(changeCheck, h.World));
+
             // 7. The load-phase chain (L2) — once, after every provider is known; before live load, which keeps FinalizeLive.
             slave.RegisterHandler(LoadPhaseChain.FromRoles(
                 h.Role, h.LoadProviders, h.World,
                 recordingController: controller,
                 storageDirectory:    h.StagingRoot,
                 hostLabel:           h.HostLabel,
-                entityMap:           h.EntityMap));
+                entityMap:           h.EntityMap,
+                changeCheck:         changeCheck));
 
-            // 8. Scenario save + recording archive (CE-279 Layer A).
-            SerializeLocalRegistrar.Register(slave, h.ScenarioSaveHandler, h.StagingRoot, h.NodeId);
+            // 8. Scenario save + recording archive (CE-279 Layer A). ⭐ CE-4093 — a save handler is wrapped so the node's part of a completed save
+            //    round re-baselines the check.
+            SerializeLocalRegistrar.Register(slave,
+                h.ScenarioSaveHandler is null ? null : new BaselineAfterSaveHandler(h.ScenarioSaveHandler, changeCheck, h.World),
+                h.StagingRoot, h.NodeId);
 
             // 9. Live load — LAST: FinalizeLive, and a cold PrepareLive nothing above claimed.
             slave.RegisterHandler(new ReferenceLiveLoadHandler(controller, h.StagingRoot));
 
-            return new EcsHostClusterHandlers(controller, dryRun);
+            return new EcsHostClusterHandlers(controller, dryRun, changeCheck);
         }
     }
 }
