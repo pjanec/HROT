@@ -3259,6 +3259,76 @@ upward `Roof` triangles as its roof, and a red floor read as the brick walls (�
 work as the floor as well"*). ⚠ A floor material of its own needs the terrain producer to tag floors. ⚠ The screenshot above predates it.
 ⭐ **`CE-1340`** — the free fly reaches its 5× in 3 s (was 5) and is ×2 near the ground, fading to ×1 by 30 m eye height (`MapCamera3D.FlySpeed`).
 
+### 6af. CE-4084 — the map's centre is the centre of the VISIBLE area, not of the window — DESIGN `2026-10-28` (ui)
+
+🔒 User (CE-4084): *"usually the panels are placed all around with the map in the center of the space surrounded by docked panels. the map
+zoom center and camera turn center stays in the center of [the screen]"*. ⭐ Frame: [`HANDOFF_Coordinator_To_Ui_Editor_Fixes.md`](blueprints/batches/HANDOFF_Coordinator_To_Ui_Editor_Fixes.md) task 3.
+
+**INVENTORY** (graph + grep, `2026-10-28`; ⚠ `check_index_coverage` is not available through the CLI):
+`search_graph .*(OpenMapArea|VisibleArea|LayoutEvaluator|ViewCentre).*` → one: `OpenMapArea` (CE-1140), its readers `PossessionStation.cs:734`,
+`MapStatsOverlay.cs:85,99` (corners only). Grep for every "centre = viewport / 2" site in `Hrot/ FDP/Engine FDP/Toolkits Stride/`:
+
+| site | what it centres | after CE-4084 |
+|---|---|---|
+| `MapCamera3D.WorldToScreen` :505, `RayDirection` :518, `BeginMode` (Raylib's symmetric `BeginMode3D`) | the projection's principal point = `Viewport / 2` | ⭐ the principal point = `ViewCentre` (the ONE change) |
+| `MapCamera3D.HandleInput` wheel / orbit (look-around the eye) | travel along `Forward` ⇒ toward whatever the projection draws at its principal point | follows from the projection — **no edit** |
+| `PossessionStation.cs:1821` (`camera.Pick(camera.Viewport / 2f, PickFilter.Aim)`) | the crosshair / aim pick | `camera.ViewCentre` |
+| `MapCamera3D.OverheadMatching` :169, `MapViewSwitch.MatchTwoD` :114 | the 2-D ↔ 3-D hand-over point | `ViewCentre` on both sides |
+| `MapCamera.Offset` (2-D; the screen point where `Target` is drawn) | ⚠ **the editor never sets it** — `new MapCamera()` (`EditorSubsystem.cs:2440`) leaves `Offset = (0,0)` ⇒ code-read: a 2-D *Center View* puts the entity at the window's TOP-LEFT (not run live); CGF / SimHost hard-code `(640, 360)` (`CgfSubsystem.cs:1523`, `SimHostVisualization.cs:300`) | ⭐ `Offset` = `ViewCentre` each frame, the picture kept still |
+| `MapCamera.ProcessInput` wheel | zooms at the MOUSE (`MapCamera.cs:261`) | unchanged (not the defect) |
+| `Film.cs:350` | a clean film frame (its own target size) | ⛔ unchanged — a film frame has no docked panels |
+
+```mermaid
+classDiagram
+    class OpenMapArea { <<existing static, CE-1140>> +Current (X,Y,W,H)? · +Corner() · ⭐ +Centre(viewport) Vector2 }
+    class MapCamera { <<existing, 2-D>> +Offset · +Target · ⭐ +ViewCentreSource Func~Vector2,Vector2~ · ⭐ +ViewCentre · ⭐ AnchorAt(screen) keeps the picture still }
+    class MapCamera3D { <<existing>> +LookAt · +Viewport · ⭐ +ViewCentre (read once a frame) · WorldToScreen · RayDirection · BeginMode }
+    class MapViewSwitch { <<existing>> MatchTwoD() }
+    class PossessionStation { <<existing>> aim pick at ViewCentre }
+    class ProgramFrameLoop { <<existing, ClusterRunner Program.cs:749>> ReportCentralNodeOf() after the dockspace }
+    MapCamera <|-- MapCamera3D
+    ProgramFrameLoop --> OpenMapArea : reports each frame
+    MapCamera ..> OpenMapArea : default ViewCentreSource
+    MapViewSwitch --> MapCamera3D : ViewCentre
+    PossessionStation --> MapCamera3D : Pick(ViewCentre)
+```
+
+*What the picture shows that prose hid:* ONE new notion (`ViewCentre`) on the camera BASE class, read from the ONE existing rectangle; every
+consumer reads the camera, never `OpenMapArea` directly — so a test (or a host without a dockspace) sets one source, and `null` ⇒ `Viewport / 2`.
+
+```mermaid
+sequenceDiagram
+    participant L as frame loop (Program.cs)
+    participant A as OpenMapArea
+    participant C as MapCamera3D
+    participant R as Raylib / rlgl
+    Note over L,R: frame N draws the map BEFORE ImGui lays the dockspace ⇒ it uses frame N−1's rectangle (one frame late, harmless)
+    C->>A: ViewCentre = Centre(Viewport) (cached for the frame, like _frameViewport)
+    C->>R: BeginMode3D(cam) then replace the projection: rlFrustum shifted so LookAt lands at ViewCentre
+    C->>C: WorldToScreen / RayDirection use the same principal point (pick = draw)
+    L->>A: ReportCentralNodeOf(dockspace) — for frame N+1
+```
+
+⭐ **Decision — 3-D: an OFF-CENTRE PROJECTION (a lens shift), not a moved pivot.** The principal point moves from `Viewport/2` to `ViewCentre`; the
+field of view's SCALE stays tied to the full viewport height, so `MetresPerPixel` / `ZoomAt` / the wheel step are unchanged. Frustum at the near
+plane `n`, `t = tan(fovy/2)`, `a = vp.X/vp.Y`, `c = ViewCentre`: `left = −n·t·a·(2c.X/vp.X)`, `right = n·t·a·(2(vp.X−c.X)/vp.X)`,
+`top = n·t·(2c.Y/vp.Y)`, `bottom = −n·t·(2(vp.Y−c.Y)/vp.Y)`; `WorldToScreen` = `c + (nx·vp.X/2, −ny·vp.Y/2)`, `RayDirection` the inverse.
+With `c = vp/2` every formula reduces to today's ⇒ **no dockspace, no change** (the rails pin it). Everything that travels along `Forward`
+(wheel, look-around, fly, the director's shots) is untouched and now heads for the visible centre.
+⭐ **2-D:** `Offset = ViewCentre` each frame through `AnchorAt(c)`, which also moves `Target` by `flipY((c − Offset)/Zoom)` so the PICTURE does not
+jump when a panel is docked; *Center View* (`FocusOn`) then lands in the visible centre. ⭐ A dock change in 3-D re-centres the view on its
+look-at point (the lens shift moves the picture) — accepted: rare, and the pivot is what the user asked to follow.
+
+Rejected (one line each): **move the pivot** — every input path (wheel, orbit, fly, focus, director, follow camera) would need the offset ·
+**a second "layout evaluator"** — `OpenMapArea` already is the answer (handoff fence) · **read `OpenMapArea` at each consumer** — a test could not
+drive it per camera and two consumers could disagree within a frame.
+
+Build (Sonnet, then reviewed): `OpenMapArea.Centre` · `MapCamera.ViewCentreSource` / `ViewCentre` / `AnchorAt` · the lens shift in
+`MapCamera3D` (`BeginMode` via `Rlgl` after `BeginMode3D`, `WorldToScreen`, `RayDirection`) · `PossessionStation` aim · `OverheadMatching` /
+`MatchTwoD` · CGF / SimHost / IG drop their hard-coded `Offset` for the same source. Rails in `Fdp.Presentation.Tests` (the cameras) and
+`PossessionStationTests` (the aim): pick-equals-draw at an off-centre `c`; `LookAt` projects to `c`; the wheel's travel heads for the world
+point under `c`; `c = null` byte-identical to today; 2-D `AnchorAt` keeps a world point's screen position and `FocusOn` lands at `c`.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
