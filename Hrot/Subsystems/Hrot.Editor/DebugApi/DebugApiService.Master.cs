@@ -182,6 +182,10 @@ namespace Hrot.Editor.DebugApi
                     ["scenario"]   = x.ScenarioId,
                     ["startUtc"]   = x.StartTimeUtc.ToString("O"),
                     ["durationSeconds"] = Math.Round(x.Duration.TotalSeconds, 3),
+                    // ⭐ CE-4097 (AQ108 D5) — a branched run's parent (null when it began at a load) and the branch point (the parent's
+                    //   wall ticks; atSeconds = (branchWallTicks − the replay's zero) / 1e7)
+                    ["parentExerciseId"] = x.ParentExerciseId == Guid.Empty ? null : x.ParentExerciseId.ToString(),
+                    ["branchWallTicks"]  = x.BranchWallTicks,
                 });
             return (new JsonObject { ["count"] = arr.Count, ["exercises"] = arr }, null, null);
         }

@@ -1597,7 +1597,7 @@ export const TOOLS_CATALOG = [
       "path": "/exercises"
     },
     "params": [],
-    "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+    "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds, parentExerciseId (null = began at a load), branchWallTicks (the parent's wall ticks at the branch; 0 = none)}] } newest first.",
     "notes": [
       "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus."
     ],

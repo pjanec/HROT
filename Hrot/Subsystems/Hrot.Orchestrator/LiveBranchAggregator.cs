@@ -1,6 +1,7 @@
 // LiveBranchAggregator: INodeResponseAggregator for NodeOpType.PrepareLive (CE-3312).
 // Returns a node's LiveBranchResult — the replay clock at the branch — for LiveBranchProcessManager to restore time and snap to.
 
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Fdp.Toolkit.Orchestration;
@@ -24,12 +25,22 @@ public sealed class LiveBranchAggregator : INodeResponseAggregator
     public object? Aggregate(IReadOnlyDictionary<int, Dictionary<NodeOpType, string>> nodeResponses)
     {
         LiveBranchResult? earliest = null;
+        // ⭐ CE-4097 (AQ108 D5) — the parent and point of the EARLIEST recording node (as ExerciseBranch.Of takes them off the sidecars); the
+        //   clock above may come from a node that kept no history, so they are picked on their own.
+        Guid parent = Guid.Empty;
+        long branchTicks = 0;
         foreach (var nodeDict in nodeResponses.Values)
         {
             if (!nodeDict.TryGetValue(NodeOpType.PrepareLive, out var json) || string.IsNullOrWhiteSpace(json)) continue;
             try
             {
                 var result = JsonSerializer.Deserialize<LiveBranchResult>(json, OrchestrationJsonOptions.Default);
+                if (result.ParentExerciseId != Guid.Empty
+                    && (parent == Guid.Empty || (result.BranchWallTicks > 0 && (branchTicks == 0 || result.BranchWallTicks < branchTicks))))
+                {
+                    parent = result.ParentExerciseId;
+                    branchTicks = result.BranchWallTicks;
+                }
                 if (result.HistoricalTime.TotalWallTicks == 0) continue;
                 // ⭐ CE-3337 — a node that restored the frame from its own recording first (its FrameNumber is the recorded step count);
                 //   among those, the earliest clock
@@ -44,6 +55,6 @@ public sealed class LiveBranchAggregator : INodeResponseAggregator
                 // Malformed JSON -- skip without throwing.
             }
         }
-        return earliest;
+        return earliest is { } e ? e with { ParentExerciseId = parent, BranchWallTicks = branchTicks } : null;
     }
 }

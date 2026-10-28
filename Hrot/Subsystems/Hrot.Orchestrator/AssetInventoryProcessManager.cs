@@ -28,9 +28,12 @@ public sealed class AssetInventoryProcessManager
     private readonly string _ledgerDirectory;
     private readonly string _stagingRoot;
     private DateTime _lastInventoryScan = DateTime.MinValue;
+    private readonly TimeSpan _scanInterval;
     private ClusterState _lastState = ClusterState.Idle;
     private string? _pendingScenarioId;
     private RecordingLedgerEntry? _currentRecording;
+    // ⭐ CE-4097 (AQ108 D5) — the branch the nodes reported (LiveBranchResult) before the live run's ledger entry exists; consumed by it.
+    private (Guid Parent, long Ticks)? _pendingBranch;
     private readonly Dictionary<Guid, Guid> _pendingExports = new();
     private readonly Dictionary<Guid, RecordingLedgerEntry> _unarchivedLedger = new();
 
@@ -39,8 +42,10 @@ public sealed class AssetInventoryProcessManager
         StorageGatewayModule gateway,
         string nasBasePath,
         string localStagingRoot,
-        int nodeId)
+        int nodeId,
+        TimeSpan? scanInterval = null)   // default 5 s; a test passes TimeSpan.Zero to scan on every tick
     {
+        _scanInterval    = scanInterval ?? TimeSpan.FromSeconds(5);
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
@@ -73,10 +78,13 @@ public sealed class AssetInventoryProcessManager
                 //   that does not exist (and no empty archive is written). ⛔ Not gated again downstream: every consumer reads this ledger.
                 FdpLog<AssetInventoryProcessManager>.Info("[AssetInventory] CE-4090: live run {0} is not recorded — no ledger entry.", ev.ExerciseId);
                 _currentRecording = null;
+                _pendingBranch = null;
             }
             else if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive)
             {
-                _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero);
+                _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero,
+                    _pendingBranch?.Parent ?? Guid.Empty, _pendingBranch?.Ticks ?? 0);
+                _pendingBranch = null;
                 SnapshotScenario(ev.ExerciseId, _pendingScenarioId);
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
@@ -93,7 +101,23 @@ public sealed class AssetInventoryProcessManager
                 _pendingScenarioId = null;
             }
 
+            // ⭐ CE-4097 — a branch that never reached OperatingLive (back to a replay / Idle) must not label the next load
+            if (ev.CurrentState is ClusterState.Idle or ClusterState.OperatingReplay) _pendingBranch = null;
+
             _lastState = ev.CurrentState;
+        }
+
+        // ⭐ CE-4097 (AQ108 D5) — a replay → live branch: the nodes answer PrepareLive with the parent and branch point of the recording they
+        //   start (the SAME RecordingBranch their sidecar is written from); the master's aggregator hands the earliest on ClusterOpCompletedEvent.
+        //   The result may land before or after the cluster state reaches OperatingLive, so it labels the run's entry if that exists, else waits.
+        foreach (var done in _bus.ReadManaged<ClusterOpCompletedEvent>())
+        {
+            if (done.StatusCode != OrchestrationStatusCode.Success
+                || done.ResultPayload is not LiveBranchResult { ParentExerciseId: var parent } branch || parent == Guid.Empty) continue;
+            if (_currentRecording is { } run)
+                _currentRecording = run with { ParentExerciseId = parent, BranchWallTicks = branch.BranchWallTicks };
+            else
+                _pendingBranch = (parent, branch.BranchWallTicks);
         }
 
         foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
@@ -127,13 +151,13 @@ public sealed class AssetInventoryProcessManager
             }
         }
 
-        if ((DateTime.UtcNow - _lastInventoryScan).TotalSeconds >= 5.0)
+        if (DateTime.UtcNow - _lastInventoryScan >= _scanInterval)
         {
             var scenariosNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName);
             var exercisesNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName);
             var localScenarios    = _gateway.ScanLocalScenarios(scenariosNasPath);
             var localExercises = _unarchivedLedger.Values
-                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId))
+                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId, e.ParentExerciseId, e.BranchWallTicks))
                 .OrderByDescending(e => e.StartTimeUtc)
                 .ToArray();
             var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath)
@@ -147,7 +171,7 @@ public sealed class AssetInventoryProcessManager
             //   POST /replay found "the run in progress". ⛔ Not among the UNARCHIVED: a run still recording is not offered for export.
             var replayable = _currentRecording is { } live && live.ExerciseId != Guid.Empty
                 ? localExercises.Where(e => e.ExerciseId != live.ExerciseId)
-                      .Prepend(new ExerciseInventoryItem(live.ExerciseId, live.StartTimeUtc, DateTime.UtcNow - live.StartTimeUtc, live.ScenarioId))
+                      .Prepend(new ExerciseInventoryItem(live.ExerciseId, live.StartTimeUtc, DateTime.UtcNow - live.StartTimeUtc, live.ScenarioId, live.ParentExerciseId, live.BranchWallTicks))
                       .ToArray()
                 : localExercises;
 

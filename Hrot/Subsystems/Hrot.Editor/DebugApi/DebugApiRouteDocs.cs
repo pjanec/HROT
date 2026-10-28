@@ -2013,7 +2013,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "list_exercises",
             Group:   "I — Replay",
             Summary: "The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053).",
-            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds, parentExerciseId (null = began at a load), branchWallTicks (the parent's wall ticks at the branch; 0 = none)}] } newest first.",
             Hint:    "No params. Example: list_exercises({})",
             Notes: new[] { "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus." },
             ExampleArgsJson: "{}",

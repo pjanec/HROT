@@ -2,7 +2,18 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration
 {
-    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId);
+    /// <summary>
+    /// One exercise of the cluster's inventory (what can be replayed / kept / exported).
+    /// </summary>
+    /// <param name="ParentExerciseId">⭐ CE-4097 (AQ108 D5) — the exercise this one BRANCHED from (a replay going live); <c>Guid.Empty</c> for a run
+    /// that began at a load. ⛔ Not a second record of the branch: it is the recording's own <c>RecordingMetadata.ParentExerciseId</c>
+    /// (<see cref="ExerciseBranch"/> reads it), and the live run's is what the nodes report from the very <c>RecordingBranch</c> they write it from.
+    /// Default = not a branch, so an old peer's inventory reads as one.</param>
+    /// <param name="BranchWallTicks">⭐ The branch point in the metadata's own unit: the parent's WALL time at the frame the branch left it
+    /// (<c>RecordingMetadata.BranchWallTicks</c>; 0 when not a branch). A host converts it to the replay axis as
+    /// <c>atSeconds = (BranchWallTicks − zero) / 1e7</c> with the replay's zero (<c>ReplayPosition</c>) — no sim-seconds twin.</param>
+    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId,
+                                               Guid ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes

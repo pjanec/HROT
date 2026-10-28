@@ -335,7 +335,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     historicalTime.TotalWallTicks,
                     history == null ? "none (listener)" : $"{history.FrameCount} frame(s) of {history.ParentExerciseId}");
 
-                return new LiveBranchResult(historicalTime, fromRecording);
+                // ⭐ CE-4097 (AQ108 D5) — the branch's parent and point ride the answer: the SAME RecordingBranch the sidecar is written from.
+                return new LiveBranchResult(historicalTime, fromRecording, history?.ParentExerciseId ?? Guid.Empty, history?.BranchWallTicks ?? 0);
             }
 
             return null;

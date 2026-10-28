@@ -741,7 +741,8 @@ public sealed class StorageGatewayModule
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             var startTime = Directory.GetCreationTimeUtc(d);
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null));
+            var (parent, branchTicks) = ExerciseBranch.Of(ReadSidecars(d));   // ⭐ CE-4097 — the recording's own sidecar
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null, parent, branchTicks));
         }
         return result;
     }
@@ -788,31 +789,44 @@ public sealed class StorageGatewayModule
                 }
             }
 
-            // Case-insensitive match: *.meta.json files may have drifted extension casing
-            // when authored on Windows; PlatformDefault would silently miss them on Linux.
-            var metaFiles = Directory.GetFiles(d, "*.meta.json",
-                new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive });
-            foreach (var metaPath in metaFiles)
+            // ⭐ CE-4097 (AQ108 D5) — every node's sidecar: the duration of the first that has one (as before), and the branch's parent
+            //   and point through ExerciseBranch — the recording's metadata is the ONE source, the inventory keeps no second record.
+            var metas = ReadSidecars(d);
+            foreach (var meta in metas)
             {
-                try
+                if (meta.Duration > TimeSpan.Zero)
                 {
-                    var metaJson = File.ReadAllText(metaPath);
-                    var meta = JsonSerializer.Deserialize<RecordingMetadata>(metaJson,
-                        Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                    if (meta != null && meta.Duration > TimeSpan.Zero)
-                    {
-                        duration = meta.Duration;
-                        break;
-                    }
-                }
-                catch
-                {
+                    duration = meta.Duration;
+                    break;
                 }
             }
+            var (parent, branchTicks) = ExerciseBranch.Of(metas);
 
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId));
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId, parent, branchTicks));
         }
         return result;
+    }
+
+    /// <summary>The recording sidecars (<c>*.meta.json</c>) in an exercise directory, in name order; an unreadable one is skipped.</summary>
+    private static List<RecordingMetadata> ReadSidecars(string exerciseDir)
+    {
+        var list = new List<RecordingMetadata>();
+        // Case-insensitive match: *.meta.json files may have drifted extension casing
+        // when authored on Windows; PlatformDefault would silently miss them on Linux.
+        foreach (var metaPath in Directory.GetFiles(exerciseDir, "*.meta.json",
+                     new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive }).OrderBy(f => f, StringComparer.Ordinal))
+        {
+            try
+            {
+                var meta = JsonSerializer.Deserialize<RecordingMetadata>(File.ReadAllText(metaPath),
+                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                if (meta != null) list.Add(meta);
+            }
+            catch
+            {
+            }
+        }
+        return list;
     }
 
     // CE-278: WriteScenarioManifestAsync (scenario_manifest.json) retired — it was written only by the
