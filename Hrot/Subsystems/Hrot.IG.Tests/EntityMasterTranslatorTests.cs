@@ -341,43 +341,6 @@ public class EntityMasterTranslatorTests
         Assert.False(cmd.SetComponentCalled);
     }
 
-    [Fact]
-    public void RetryUnresolvedOwners_AGhostCreatedBeforeItsWritersIdentityArrived_LearnsTheOwnerLater()
-    {
-        // Measured: under thread-pool starvation a sample can be delivered before the library has looked up its writer's
-        // identity (an async loop); the handle resolves once it has. The resolver stands in for the sender registry.
-        const long handle = 7;
-        var (repo, entityMap, _, translator) = CreateFixture();
-        repo.RegisterComponent<NetworkAuthority>();
-        repo.RegisterComponent<TkbIdentity>();
-        int? identity = null;
-        translator.WriterResolverForTests = h => h == handle ? identity : null;
-        var master = new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType };
-
-        using (var cmd = new EntityCommandBuffer())
-        {
-            translator.ProcessSample(in master, cmd, repo, writerNodeId: -1, publicationHandle: handle);
-            cmd.Playback(repo);
-        }
-        Assert.True(entityMap.TryGetEntity(TestNetworkId, out var ghost));
-        Assert.Equal(-1, repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId);
-
-        using (var cmd = new EntityCommandBuffer())                 // identity not here yet: still unknown
-        {
-            translator.RetryUnresolvedOwners(cmd, repo);
-            cmd.Playback(repo);
-        }
-        Assert.Equal(-1, repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId);
-
-        identity = WriterNode;                                       // the handshake arrives
-        using (var cmd = new EntityCommandBuffer())
-        {
-            translator.RetryUnresolvedOwners(cmd, repo);
-            cmd.Playback(repo);
-        }
-        Assert.Equal(WriterNode, repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId);
-    }
-
     private sealed class RecordingCommandBuffer : IEntityCommandBuffer
     {
         public bool AddComponentCalled { get; private set; }
@@ -652,13 +615,14 @@ public class EntityMasterTranslatorTests
     }
 
     /// <summary>
-    /// ⭐ CE-517, end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
-    /// <c>EntityMaster</c> (sender identity). Written ONCE. ⚠ Whether that sample's sender resolves on take or only later
-    /// depends on the thread pool (the library looks identities up from an async loop; measured: both happen) — the late path is
-    /// railed deterministically by <see cref="RetryUnresolvedOwners_AGhostCreatedBeforeItsWritersIdentityArrived_LearnsTheOwnerLater"/>.
+    /// ⭐ CE-517 + CE-4078 ① — end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
+    /// <c>EntityMaster</c> (sender identity), and does so <b>on the first poll that sees the sample</b>. Written ONCE.
+    /// CycloneDDS.NET 1.2.20 resolves the sender when the sample is delivered (a lookup miss drains the identity reader
+    /// synchronously), so there is no "owner unknown, learn it later" path any more — the 0.3.2 retry by publication handle is gone.
+    /// The loop only waits for DISCOVERY (the first poll that returns the sample); the owner is asserted in THAT poll.
     /// </summary>
     [Fact]
-    public void PollIngress_RecordsTheEntityMastersWriter_AsTheGhostsPrimaryOwner()
+    public void PollIngress_RecordsTheEntityMastersWriter_AsTheGhostsPrimaryOwner_OnTheFirstPoll()
     {
         const uint domain  = 171u;
         const int  ownerId = 42;
@@ -677,18 +641,20 @@ public class EntityMasterTranslatorTests
         using var writer = new DdsWriter<EntityMaster>(senderParticipant);
         writer.Write(new EntityMaster { EntityId = TestNetworkId, TkbType = TestTkbType });   // once, no re-send
 
-        int owner = int.MinValue;
+        int ownerOnTheFirstPollThatSawIt = int.MinValue;
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (owner != ownerId && DateTime.UtcNow < deadline)
+        while (ownerOnTheFirstPollThatSawIt == int.MinValue && DateTime.UtcNow < deadline)
         {
             using var cmd = new EntityCommandBuffer();
             translator.PollIngress(cmd, repo);
             cmd.Playback(repo);
+            // The ghost exists only once a poll has delivered the sample — read its owner right there, never on a later poll.
             if (entityMap.TryGetEntity(TestNetworkId, out var ghost) && repo.HasComponent<NetworkAuthority>(ghost))
-                owner = repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId;
-            Thread.Sleep(20);
+                ownerOnTheFirstPollThatSawIt = repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId;
+            else
+                Thread.Sleep(20);
         }
 
-        Assert.Equal(ownerId, owner);
+        Assert.Equal(ownerId, ownerOnTheFirstPollThatSawIt);
     }
 }

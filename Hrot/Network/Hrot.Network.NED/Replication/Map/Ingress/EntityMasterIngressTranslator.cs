@@ -31,12 +31,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <i>"Ownership is determined by the most recent writer"</i>; <c>EntityMaster</c> carries no owner field. Every
     /// production participant enables CycloneDDS sender tracking with <c>AppInstanceId</c> = its node id
     /// (<c>BUG2-DESIGN.md</c> §1.2), so the reader resolves the writer of each sample to a node.
-    /// ⚠ <b>Why a retry by publication handle exists:</b> CycloneDDS.NET 0.3.2 maps a writer's handle to its participant
-    /// synchronously (subscription-matched listener), but moves an arrived identity sample into its lookup only from an
-    /// async loop (<c>SenderRegistry.MonitorIdentitiesAsync</c>, a thread-pool continuation). Under thread-pool starvation
-    /// an identity that has ARRIVED is not yet LOOKED UP, so a sample delivered in that window has no sender — measured:
-    /// once in four full <c>Hrot.IG.Tests</c> runs, and in a starved-pool probe. Such a ghost keeps -1 and is resolved by
-    /// its writer's handle on a later poll. ⭐ Remove the retry once the library drains pending identities on a miss (CE-3000).
+    /// ⭐ <b>CE-4078 ① — the sender is resolved WHEN THE SAMPLE IS DELIVERED.</b> CycloneDDS.NET 1.2.20 drains the identity reader
+    /// synchronously on a lookup miss (<c>CHANGELOG.md</c> 1.2.20, "Sender identity could stay unresolved for a delivered
+    /// sample"), so a ghost is created with its owner on the first poll. The retry by publication handle this class used to keep
+    /// (for the 0.3.2 thread-pool-starvation window) is gone; a ghost still at -1 can only mean a participant WITHOUT sender
+    /// tracking, and is filled from a later sample's writer if one resolves.
     /// A KNOWN owner is never overwritten here: a master move reaches every node as an <c>OwnershipUpdate</c> through
     /// <c>OwnershipApplier</c>, and an old writer's late sample must not flip it back.
     ///
@@ -52,15 +51,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly long _localNodeId;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
-        private readonly SenderRegistry? _senders;
-
-        /// <summary>CE-517: resolves a writer's publication handle to its node id, or null while its identity is unknown.</summary>
-        private Func<long, int?>? _resolveWriter;
-
-        /// <summary>CE-517: ghosts whose owner is still unknown, keyed by network id → the writer's publication handle.</summary>
-        private readonly Dictionary<long, long> _ownerUnresolved = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
-        private readonly List<long> _resolvedScratch = new();
         private readonly HashSet<long> _lightweight = new();   // ⭐ LR-2 — the replicated rounds this node holds, destroyed on dispose
         private EntityRepository? _world;
 
@@ -80,13 +71,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // participant may be null in unit-test mode — PollIngress becomes a no-op
             _reader = participant is not null ? new DdsReader<EntityMaster>(participant) : null!;
             // CE-517: resolve each sample's writer to a node (a participant without sender tracking yields none).
-            _senders = participant?.SenderRegistry;
-            if (_senders != null)
-            {
-                _reader.EnableSenderTracking(_senders);
-                var senders = _senders;
-                _resolveWriter = handle => senders.TryGetIdentity(handle, out var id) ? id.AppInstanceId : null;
-            }
+            if (participant?.SenderRegistry is { } senders) _reader.EnableSenderTracking(senders);
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
@@ -100,9 +85,8 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _ownerUnresolved.Clear(); _lightweight.Clear(); }   // CE-2101
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _lightweight.Clear();   // CE-2101
             if (_reader is null) return; // test mode — no DDS participant supplied
-            RetryUnresolvedOwners(cmd, view);
             using var loan = _reader.Take();
             int index = -1;
             foreach (var sample in loan)
@@ -127,7 +111,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 ReceivedSampleCount++;
                 var master = sample.Data;
                 int writer = loan.GetSender(index) is { } id ? id.AppInstanceId : UnknownOwner;
-                ProcessSample(in master, cmd, view, writer, info.PublicationHandle);
+                ProcessSample(in master, cmd, view, writer);
             }
         }
 
@@ -173,7 +157,6 @@ namespace Hrot.Map.Common.Replication.Ingress
                 }
             }
 
-            _ownerUnresolved.Remove(networkEntityId);
             // ⭐ LR-2 (R-271) — a lightweight round has no lifecycle to tear down: it simply goes (the map prunes it as dead).
             if (_lightweight.Remove(networkEntityId) && _entityMap.TryGetEntity(networkEntityId, out var round) && _world is { } world
                 && world.IsAlive(round))
@@ -192,9 +175,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const int UnknownOwner = -1;
 
         /// <param name="writerNodeId">CE-517: the node that wrote this sample (sender identity), or -1 when unknown.</param>
-        /// <param name="publicationHandle">The writer's handle, to resolve an unknown writer on a later poll.</param>
         internal void ProcessSample(in EntityMaster master, IEntityCommandBuffer cmd, ISimulationView view,
-                                    int writerNodeId = UnknownOwner, long publicationHandle = 0)
+                                    int writerNodeId = UnknownOwner)
         {
             long netId = master.EntityId;
 
@@ -251,7 +233,6 @@ namespace Hrot.Map.Common.Replication.Ingress
                     PrimaryOwnerId = writerNodeId,      // CE-517: the writer; -1 until its identity resolves
                     LocalNodeId = (int)_localNodeId
                 });
-                if (writerNodeId == UnknownOwner) RememberUnresolved(netId, publicationHandle);
 
                 // Reliable-init barrier (CE-283, §3a.2): the creator marked this entity WaitForAcks,
                 // so this peer must report its Active status once the ghost finishes local
@@ -267,11 +248,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 // CE-517: an owner still unknown is filled from the writer; a known one is never overwritten (see class doc).
                 if (writerNodeId != UnknownOwner)
-                {
                     cmd.SetComponent(entity, new NetworkAuthority { PrimaryOwnerId = writerNodeId, LocalNodeId = (int)_localNodeId });
-                    _ownerUnresolved.Remove(netId);
-                }
-                else RememberUnresolved(netId, publicationHandle);
             }
 
             // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.
@@ -289,31 +266,6 @@ namespace Hrot.Map.Common.Replication.Ingress
             // Store DIS entity type natively in the entity header.
             if (view is EntityRepository repoForDis)
                 repoForDis.SetDisType(entity, new DISEntityType { Value = disValue });
-        }
-
-        /// <summary>Test seam: stands in for the sender registry (a live participant cannot force a late identity).</summary>
-        internal Func<long, int?>? WriterResolverForTests { set => _resolveWriter = value; }
-
-        private void RememberUnresolved(long netId, long publicationHandle)
-        {
-            if (_resolveWriter != null && publicationHandle != 0) _ownerUnresolved[netId] = publicationHandle;
-        }
-
-        /// <summary>CE-517: a ghost created before its writer's identity arrived learns its owner once it does.</summary>
-        internal void RetryUnresolvedOwners(IEntityCommandBuffer cmd, ISimulationView view)
-        {
-            if (_resolveWriter == null || _ownerUnresolved.Count == 0) return;
-            _resolvedScratch.Clear();
-            foreach (var (netId, handle) in _ownerUnresolved)
-            {
-                if (!_entityMap.TryGetEntity(netId, out var entity)) { _resolvedScratch.Add(netId); continue; }
-                if (!view.HasComponent<NetworkAuthority>(entity)) continue;     // its ghost's record lands next playback
-                if (_resolveWriter(handle) is not int writer) continue;
-                _resolvedScratch.Add(netId);
-                if (view.GetComponentRO<NetworkAuthority>(entity).PrimaryOwnerId == UnknownOwner)
-                    cmd.SetComponent(entity, new NetworkAuthority { PrimaryOwnerId = writer, LocalNodeId = (int)_localNodeId });
-            }
-            foreach (long netId in _resolvedScratch) _ownerUnresolved.Remove(netId);
         }
     }
 }
