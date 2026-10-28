@@ -125,7 +125,6 @@ on top of FDP. Key concerns exclusive to HROT:
 |  +------------------------------------------------------------------+  |
 |  | HROT Network Layer                                               |  |
 |  | Hrot.Network.NED (full 30+ topics)                              |  |
-|  | Hrot.Network.BDC (lightweight 2-topic federation)               |  |
 |  | Hrot.Network.Orchestration (cluster 2PC protocol)               |  |
 |  +------------------------------------------------------------------+  |
 +========================================================================+
@@ -331,11 +330,10 @@ subsystems) consists of:
 | Project | Protocol | Topics | Use Case |
 |---------|----------|--------|----------|
 | `Hrot.Network.NED` | NED (full) | 30+ DDS topics | All production multi-node runs |
-| `Hrot.Network.BDC` | BDC (minimal) | 2 DDS topics (`BDC_EntityMaster`, `BDC_WorldPos`) | Lightweight IG tracking, federation gateways |
 | `Hrot.Network.Orchestration` | Orchestration | 7 DDS topics | Cluster 2PC, state machine, heartbeat |
 
-Both NED and BDC implement the same `INetworkFactory` / `IReplicationModule` interfaces.
-Selection is configuration-time: higher-level code is protocol-agnostic.
+NED implements the `INetworkFactory` / `IReplicationModule` interfaces; higher-level code is protocol-agnostic.
+*(The lightweight BDC stack was removed 2026-10-28, R-4095: NED is the one network implementation.)*
 
 ### 5.7 Links to HROT Project Documentation
 
@@ -347,7 +345,6 @@ Selection is configuration-time: higher-level code is protocol-agnostic.
 
 **Network layer:**
 - [Hrot.Network.NED](Hrot/Network/Hrot.Network.NED.md)
-- [Hrot.Network.BDC](Hrot/Network/Hrot.Network.BDC.md)
 - [Hrot.Network.Orchestration](Hrot/Network/Hrot.Network.Orchestration.md)
 
 **Runner:**
@@ -708,7 +705,6 @@ See [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) and
 | Project | Category | Description | Doc |
 |---------|----------|-------------|-----|
 | `Hrot.Network.NED` | Network | Full NED protocol (30+ DDS topics) -- production inter-node communication | [link](Hrot/Network/Hrot.Network.NED.md) |
-| `Hrot.Network.BDC` | Network | Lightweight BDC protocol (2 DDS topics) -- federation / IG tracking | [link](Hrot/Network/Hrot.Network.BDC.md) |
 | `Hrot.Network.Orchestration` | Network | Cluster 2PC protocol, orchestration DDS topics (7) | [link](Hrot/Network/Hrot.Network.Orchestration.md) |
 
 ### 9.9 HROT Runner
@@ -775,8 +771,8 @@ allows the CGF (Brain) to be scaled, replaced, or tested independently of the Si
 (Muscle), and vice versa. It also allows the IG to be a pure read-only ghost node.
 
 **4. Protocol-neutral network interfaces**
-`INetworkFactory` and `IReplicationModule` abstract the DDS protocol. The NED (full)
-and BDC (lightweight) protocols are drop-in replacements at configuration time. No
+`INetworkFactory` and `IReplicationModule` abstract the DDS protocol. The NED protocol
+is the one implementation (the BDC stack was removed, R-4095). No
 subsystem logic knows which protocol it is running on. This also enables the Editor
 to operate fully offline by injecting an `OfflineNetworkFactory` that returns null stubs.
 
@@ -859,7 +855,7 @@ All generated documentation lives under `docs/`.
 |----------|--------|
 | [FDP Core Framework](relationships/FDP-Core-Framework.md) | Fdp.Core + Fdp.ModuleHost + Fdp.Presentation + Fdp.Diagnostics.Contracts as a unified framework |
 | [Hrot Simulation Pipeline](relationships/Hrot-Simulation-Pipeline.md) | Full IOS/IG/SimHost distributed pipeline with Brain/Muscle split |
-| [FDP Network Stack](relationships/FDP-Network-Stack.md) | All network layers from CycloneDDS up through NED/BDC/Orchestration |
+| [FDP Network Stack](relationships/FDP-Network-Stack.md) | All network layers from CycloneDDS up through NED/Orchestration |
 | [AI Behavior Authoring](relationships/AI-Behavior-Authoring.md) | BTree/HSM authoring pipeline from editor to runtime execution |
 | [Blueprint Scripting System](relationships/Blueprint-Scripting-System.md) | Full Blueprint compiler/editor/generator/runtime stack |
 
@@ -892,7 +888,6 @@ All generated documentation lives under `docs/`.
 | Document | Project |
 |----------|---------|
 | [Hrot.Network.NED](Hrot/Network/Hrot.Network.NED.md) | Full NED protocol |
-| [Hrot.Network.BDC](Hrot/Network/Hrot.Network.BDC.md) | Lightweight BDC protocol |
 | [Hrot.Network.Orchestration](Hrot/Network/Hrot.Network.Orchestration.md) | Cluster orchestration protocol |
 
 ### 12.5 HROT Runner Documents

@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-22 (created — backend; R-3039 S4 / R2: the full inventory, read by the rail EverySystemStateFieldIsClassifiedTests)
+updated: 2026-10-28
 current-answer: §2 (the work list) — the rest is the evidence the rail checks
 stale-below: none
-known-rot: none
+known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): the 7 rows that cited `Hrot/Network/Hrot.Network.BDC/**` (BDC readers, writers and translator fields) were DELETED with the stack (the one shared `type:DdsParticipant` row now cites `NedReplicationModule.cs:69`); §1's totals were measured before and still count them.
 known-conflict: docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md §7g.1 lists ~25 fields "SO FAR" — this replaces that list (it names ThreatEvaluationSystem as class A whole; measured here: _lastThreats is A, _lastHealth is C)
 related-designs:
   - DESIGN_Replay_Time_Axis_And_Review.md — During Action Review: which classes survive a review (C in the keyframe, A/B re-derived, S/X frozen and deaf by the ReviewGate)
@@ -11,6 +11,8 @@ related-designs:
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — owns the keyframe restore that makes every C row here a lost value; its oracle R1 stays red until §2 is empty
   - docs/designs/replay-and-modules/DESIGN.md §2.1d — owns "restore the world, re-derive the protocol" (the B rows' S3 step)
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the 7 rows that cited `Hrot/Network/Hrot.Network.BDC/**` (BDC readers, writers and translator fields) were DELETED with the stack (the one shared `type:DdsParticipant` row now cites `NedReplicationModule.cs:69`); §1's totals were measured before and still count them. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # System state inventory — **every field a system, module or translator carries between frames** (R-3039 S4)
 
@@ -164,10 +166,8 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:CycloneNetworkCleanupSystem` | **K** | a system/module, classified on its own | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:594 |
 | `type:CycloneNetworkIngressSystem` | **K** | a system/module, classified on its own | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:26 |
 | `type:DamageAssessmentModule` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Combat/Modules/DamageAssessmentModule.cs:25 |
-| `type:DdsParticipant` | **K** | DDS domain participant, injected dependency | Hrot/Network/Hrot.Network.BDC/Replication/BdcReplicationModule.cs:51 |
+| `type:DdsParticipant` | **K** | DDS domain participant, injected dependency | Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:69 |
 | `type:DdsReader<AudioTargetDetected>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/SimHost/AudioTargetDetectedIngressTranslator.cs:33 |
-| `type:DdsReader<BdcEntityMaster>` | **K** | DDS reader endpoint created in translator ctor | Hrot/Network/Hrot.Network.BDC/Replication/BdcEntityMasterTranslator.cs:56 |
-| `type:DdsReader<BdcWorldPos>` | **K** | DDS reader endpoint created in translator ctor | Hrot/Network/Hrot.Network.BDC/Replication/BdcWorldPosTranslator.cs:54 |
 | `type:DdsReader<BehaviorFaultReport>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/Translators/BehaviorFaultTranslators.cs:120 |
 | `type:DdsReader<ContextActionsUpdate>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | FDP/Network/Fdp.Network.Cyclone/Translators/CycloneTranslator.cs:38 |
 | `type:DdsReader<DangerAreaResultTopic>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/CGF/DangerAreaResultIngressTranslator.cs:38 |
@@ -263,8 +263,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:DdsReader<WeaponFireRequest>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/SimHost/WeaponFireRequestIngressTranslator.cs:50 |
 | `type:DdsReader<WorldPos>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | FDP/Network/Fdp.Network.Cyclone/Translators/CycloneTranslator.cs:38 |
 | `type:DdsReader<WorldSurveyResultTopic>` | **K** | transport read endpoint; samples consumed at poll, wire state is protocol | Hrot/Network/Hrot.Network.NED/CGF/WorldSurveyResultIngressTranslator.cs:39 |
-| `type:DdsWriter<BdcEntityMaster>` | **K** | DDS writer endpoint created in translator ctor | Hrot/Network/Hrot.Network.BDC/Replication/BdcEntityMasterTranslator.cs:55 |
-| `type:DdsWriter<BdcWorldPos>` | **K** | DDS writer endpoint created in translator ctor | Hrot/Network/Hrot.Network.BDC/Replication/BdcWorldPosTranslator.cs:53 |
 | `type:DdsWriter<ContextActionsUpdate>` | **K** | transport write endpoint handle; re-announced from world, not saved | Hrot/Network/Hrot.Network.NED/ExCon/NedExConEgressWriters.cs:32 |
 | `type:DdsWriter<DangerAreaResultTopic>` | **K** | transport write endpoint handle; re-announced from world, not saved | Hrot/Network/Hrot.Network.NED/SimHost/DangerAreaResultEgressTranslator.cs:36 |
 | `type:DdsWriter<DdsAnimNotifyEvent>` | **K** | DDS writer endpoint created in translator ctor | FDP/Network/Fdp.Network.Cyclone/Translators/CycloneNativeEventTranslator.cs:33 |
@@ -444,7 +442,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Animation.Replication.Translators.Descriptors.StanceStatusEgressTranslator._lastPublished` | **B** | last-published value for egress change detection; empty republishes | Hrot/Subsystems/Hrot.Animation.Replication/Translators/Descriptors/StanceStatusEgressTranslator.cs:89 |
 | `Hrot.Animation.Replication.Translators.SideBuffers.AnimationMontageQueueEgressTranslator._lastPublishedQueueVersion` | **B** | last-published value for egress change detection; empty republishes | Hrot/Subsystems/Hrot.Animation.Replication/Translators/SideBuffers/AnimationMontageQueueEgressTranslator.cs:101 |
 | `Hrot.Animation.Replication.Translators.SideBuffers.AnimationMontageQueueStateEgressTranslator._lastPublished` | **B** | last-published value for egress change detection; empty republishes | Hrot/Subsystems/Hrot.Animation.Replication/Translators/SideBuffers/AnimationMontageQueueStateEgressTranslator.cs:80 |
-| `Hrot.BDC.Replication.BdcEntityMasterTranslator._publishedNetIds` | **B** | net ids already published as EntityMaster; empty republishes | Hrot/Network/Hrot.Network.BDC/Replication/BdcEntityMasterTranslator.cs:90 |
 | `Hrot.Common.Systems.CreateEntityRequestSystem._pendingQueue` | **B** | accepted requests (already InProgress-acked) awaiting time-sliced spawn; requester handshake | Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs:221 |
 | `Hrot.Common.Systems.EntityRequestFinalizationSystem._tracked` | **B** | pending phase-2 ack tracking for create/delete requests | Hrot/Engine/Hrot.Common/Systems/EntityRequestFinalizationSystem.cs:84 |
 | `Hrot.Common.Systems.MissionControlExecutionSystem._retryQueue` | **B** | command intents waiting for their entity to be ready; retried with frame budget | Hrot/Engine/Hrot.Common/Systems/MissionControlExecutionSystem.cs:177 |
@@ -859,8 +856,6 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Fdp.Toolkit.Replication.Systems.OwnershipRecomputeSystem._descriptorMasks` | **K** | bit masks built once from static descriptor map | FDP/Toolkits/Fdp.Toolkits/Replication/Systems/OwnershipRecomputeSystem.cs:228 |
 | `Fdp.Toolkit.Squad.Command.StaffComposerSystem.s_relayed` | **K** | static readonly constant array | FDP/Toolkits/Fdp.Toolkits/Squad/Command/StaffSystems.cs:272 |
 | `Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem.<MergeIntervalTicks>k__BackingField` | **K** | tuning property, never written by system | FDP/Toolkits/Fdp.Toolkits/Squad/Systems/SquadCoordinationSystem.cs:41 |
-| `Hrot.BDC.Replication.BdcEntityMasterTranslator._targetIds` | **K** | static readonly component id list | Hrot/Network/Hrot.Network.BDC/Replication/BdcEntityMasterTranslator.cs:40 |
-| `Hrot.BDC.Replication.BdcWorldPosTranslator._targetIds` | **K** | static readonly component id list | Hrot/Network/Hrot.Network.BDC/Replication/BdcWorldPosTranslator.cs:40 |
 | `Hrot.CGF.CgfLogicPack.<InputSystems>k__BackingField` | **K** | system list assembled once in ctor | Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs:275 |
 | `Hrot.CGF.CgfLogicPack.<SimulationSystems>k__BackingField` | **K** | system list assembled once in ctor | Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs:272 |
 | `Hrot.CGF.Systems.Routing.RouteContextSystem.<TickIntervalSeconds>k__BackingField` | **K** | configuration property, default 0.5 s, set at setup | Hrot/Subsystems/Hrot.CGF/Systems/Routing/RouteContextSystem.cs:42 |

@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
+updated: 2026-10-28
 current-answer: §3, §4 and §5 are the three OPEN asks. §2 records the one sub-question the USER
   already settled (the module barrier awaits adoption). No section here carries a recommendation.
 stale-below: nothing.
-known-rot: nothing yet — this document is new.
+known-rot: nothing yet — this document is new. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `Hrot.Network.BDC` (a sweep target) and `BdcReplicationModule.cs:464` were removed; the sweep is NED only.
 known-conflict: none known.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `Hrot.Network.BDC` (a sweep target) and `BdcReplicationModule.cs:464` were removed; the sweep is NED only. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # Architect Question 69 — the entity construction barrier, and the rewind contract for protocol state
 

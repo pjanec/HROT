@@ -637,7 +637,6 @@ namespace Hrot.SimHost.Tests
             foreach (var path in new[]
             {
                 "Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs",
-                "Hrot/Network/Hrot.Network.BDC/Replication/BdcReplicationModule.cs",
             })
             {
                 var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(path));

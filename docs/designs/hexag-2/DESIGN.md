@@ -1,5 +1,7 @@
 # Design: OrchestratorSubsystem Hexagonal Architecture & Bus Unification
 
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcNetworkFactory` (the "no-op stubs" implementer) was removed with the BDC stack. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 **Status:** In Design
 **Folder:** `.dev/hexag-2/`
 **Design Talk:** [design-talk.md](./design-talk.md)

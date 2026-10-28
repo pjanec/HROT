@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-23
 **Scope:** How `Fdp.Network.Cyclone`, `Fdp.Diagnostics.Network`, `Hrot.Network.NED`,
-`Hrot.Network.BDC`, and `Hrot.Network.Orchestration` work together to provide
+and `Hrot.Network.Orchestration` work together to provide
 distributed communication across the HROT simulation cluster.
 
 ---
@@ -12,9 +12,9 @@ distributed communication across the HROT simulation cluster.
 1. [DDS Communication Architecture Overview](#1-dds-communication-architecture-overview)
 2. [Layer Stack](#2-layer-stack)
 3. [The FDP CycloneDDS Adapter (Fdp.Network.Cyclone)](#3-the-fdp-cyclonedds-adapter-fdpnetworkcyclone)
-4. [HROT Network Protocol Comparison: NED vs BDC](#4-hrot-network-protocol-comparison-ned-vs-bdc)
+4. [HROT Network Protocol (NED; the BDC comparison was removed)](#4-hrot-network-protocol-comparison-ned-vs-bdc)
 5. [NED Protocol Deep Dive](#5-ned-protocol-deep-dive)
-6. [BDC Protocol](#6-bdc-protocol)
+6. [BDC Protocol (removed)](#6-bdc-protocol)
 7. [Orchestration Protocol](#7-orchestration-protocol)
 8. [Diagnostics Channel (Fdp.Diagnostics.Network)](#8-diagnostics-channel-fdpdiagnosticsnetwork)
 9. [DDS QoS Reference Table](#9-dds-qos-reference-table)
@@ -73,7 +73,7 @@ OMG-compliant DDS implementation (RTI Connext, OpenDDS, etc.).
 +----------------------------------------------------------+
 | Hrot.Network.Orchestration  (cluster 2PC protocol)       |
 +----------------------------------------------------------+
-| Hrot.Network.NED / Hrot.Network.BDC (entity protocols)   |
+| Hrot.Network.NED (entity protocol)                       |
 +----------------------------------------------------------+
 | Fdp.Network.Cyclone  (FDP DDS adapter, ECS integration)  |
 +----------------------------------------------------------+
@@ -86,7 +86,7 @@ OMG-compliant DDS implementation (RTI Connext, OpenDDS, etc.).
 ```
 
 The layers are strict: upper layers depend on lower layers, never the reverse.
-NED/BDC depend on `Fdp.Network.Cyclone` for the `CycloneTranslator` base class,
+NED depends on `Fdp.Network.Cyclone` for the `CycloneTranslator` base class,
 `DdsParticipant`, and `NetworkEntityMap`. Orchestration constructs its own
 `DdsWriter<T>` / `DdsReader<T>` directly on the shared `DdsParticipant`.
 
@@ -97,7 +97,6 @@ NED/BDC depend on `Fdp.Network.Cyclone` for the `CycloneTranslator` base class,
 ```
 +===================================+
 | Hrot.Network.NED                  | <- Full entity protocol (30+ topics)
-| Hrot.Network.BDC                  | <- Lightweight entity protocol (2 topics)
 | Hrot.Network.Orchestration        | <- Cluster lifecycle / 2PC
 +===================================+
 | Fdp.Network.Cyclone               | <- FDP ECS-DDS adapter layer
@@ -256,7 +255,7 @@ logs a warning at 5 seconds if the orchestrator has not yet appeared.
 1. Holds the shared `DdsParticipant` and `NodeIdMapper`.
 2. Registers serialization providers for `NetworkTransform`, `NetworkVelocity`,
    `NetworkIdentity`, and `TkbIdentity` (component IDs 1001-1004).
-3. Accepts custom translators injected by higher-level modules (NED, BDC).
+3. Accepts custom translators injected by higher-level modules (NED).
 4. Creates `CycloneIngressSystem` (scheduled in `SystemPhase.Input`) and
    `CycloneEgressSystem` (scheduled in `SystemPhase.Export`).
 5. Creates `NetworkGatewaySystem` for handling ownership arbitration.
@@ -265,45 +264,10 @@ logs a warning at 5 seconds if the orchestrator has not yet appeared.
 
 ## 4. HROT Network Protocol Comparison: NED vs BDC
 
-### 4.1 Feature Comparison Table
-
-| Feature                   | NED (Hrot.Network.NED)                        | BDC (Hrot.Network.BDC)                |
-|---------------------------|-----------------------------------------------|---------------------------------------|
-| Topic count               | 30+ topics across 8 IDL files                 | 4 topics in 1 IDL file                |
-| Entity lifecycle          | `EntityMaster` (full SST)                     | `BDC_EntityMaster` (minimal)          |
-| Position/orientation      | `WorldPos` (pos + ori + vel + acc + rotvel)   | `BDC_WorldPos` (pos + ori + vel)      |
-| Mission control           | `MissionControlRequest` + `MissionControlAck` | `BDC_MissionControlRequest` + `BDC_MissionControlAck` |
-| Descriptor ownership      | Per-descriptor granular ownership (SST rules) | No ownership model                    |
-| CQRS navigation           | `NavigationIntent` (Brain) / `NavigationStatus` (Muscle) | Not supported             |
-| Damage model              | `EntityDamage`, `EntityHitDamage`             | Not supported                         |
-| Weapon interactions       | `WeaponFireRequest`, `WeaponFire`, `MunitionDetonation` | Not supported             |
-| Map overlays              | `MapVisualOverlay`, `MapEntitySymbol`, `MapRoute` | Not supported                     |
-| Tactical intent           | `TacticalIntentRequest`                       | Not supported                         |
-| Entity attributes (ATTR2) | `UpdateEntityAttributeRequest` + typed union  | `PayloadJson` string                  |
-| DIS type encoding         | `DisTypeStruct` (7 named fields)              | `Diskind` (byte)                      |
-| Sensor / raycast pipeline | `SensorConfig`, `RaycastRequestBatch`, etc.   | Not supported                         |
-| EQS area-query pipeline   | `AreaQueryRequestBatch/Response`              | Not supported                         |
-| Topic prefix              | No prefix (e.g., `EntityMaster`)              | `BDC_` prefix (e.g., `BDC_EntityMaster`) |
-| Primary use case          | Full simulation cluster                       | Lightweight nodes, tooling, testing   |
-| Assembly                  | `Hrot.Network.NED.csproj`                     | `Hrot.Network.BDC.csproj`             |
-
-### 4.2 When to Use NED vs BDC
-
-**Use NED when:**
-- The node participates as Brain, Muscle, or Image Generator in a full
-  simulation cluster.
-- The node needs CQRS mission control (`MissionControlRequest`/`Ack`).
-- The node needs sensor, weapon, or map overlay data.
-- The node needs per-descriptor ownership with `OwnershipUpdate`.
-- Interoperability with all other HROT nodes is required.
-
-**Use BDC when:**
-- Building a minimal test harness that only needs entity positions.
-- Writing a standalone tool that monitors entities without participating in
-  full simulation semantics.
-- Prototyping a new node type before committing to the full NED schema.
-- A lightweight ExCon variant that only sends mission commands without caring
-  about SST ownership.
+> ⛔ **REMOVED `2026-10-28` (R-4095, CE-4077).** The lightweight BDC stack (`Hrot.Network.BDC`: four `BDC_*` topics, its own
+> factory and replication module) was deleted -- no external system used it; **NED is the one network implementation.**
+> The 4.1 comparison table and the 4.2 "when to use BDC" guidance went with it. The descriptor/ownership **spec** NED follows
+> stays: [BDC_NED_SST_Descriptor_Rules.md](../../reference/BDC_NED_SST_Descriptor_Rules.md) ("BDC/NED" names that protocol family).
 
 ### 4.3 Protocol Selection in ClusterRunner
 
@@ -488,56 +452,8 @@ request/response semantics on top of raw pub/sub DDS.
 
 ## 6. BDC Protocol
 
-### 6.1 Overview
-
-BDC (Bare-bones DDS Communication) is the minimal viable entity protocol.
-It has exactly four topics and no SST complexity.
-
-### 6.2 BDC Topics
-
-| Topic Name                 | QoS                                     | Direction       |
-|----------------------------|-----------------------------------------|-----------------|
-| `BDC_EntityMaster`         | Reliable / TransientLocal / KeepLast-1  | Publisher       |
-| `BDC_WorldPos`             | BestEffort / TransientLocal / KeepLast-1| Kinematic owner |
-| `BDC_MissionControlRequest`| Reliable / Volatile / KeepAll           | ExCon -> CGF    |
-| `BDC_MissionControlAck`    | Reliable / Volatile / KeepAll           | CGF -> ExCon    |
-
-All BDC topic names are prefixed with `BDC_` to avoid collisions with NED
-topics on the same DDS domain. A node can run both NED and BDC translators
-on the same `DdsParticipant` without interference.
-
-### 6.3 BDC Topic Structs
-
-`BdcEntityMaster` carries:
-- `EntityId` (int, keyed)
-- `TkbType` (long) -- TKB blueprint index
-- `Diskind` (byte) -- DIS kind only (1=Platform, 2=Munition, etc.)
-
-`BdcWorldPos` carries:
-- `EntityId` (int, keyed)
-- `Time` (DateTime)
-- `Pos` (BdcGeoPoint: lat/lon/alt)
-- `Ori` (BdcEulerOri: heading/pitch/roll)
-- `Vel` (BdcAngularVector: azimuth/elevation/length)
-
-`BdcMissionControlRequest` carries:
-- `RequestId` (Guid, correlation)
-- `TargetEntityId` (long)
-- `CommandType` (enum: ReplaceMission / AbortAll / JumpToTask)
-- `PayloadJson` (string, command-specific JSON)
-
-`BdcMissionControlAck` carries:
-- `RequestId` (Guid, echoed)
-- `ErrorCode` (int, 0 = success)
-- `ErrorMessage` (string?, null on success)
-
-### 6.4 BDC vs NED Wire Compatibility
-
-BDC and NED are **not wire-compatible**. They share the same DDS domain but
-use different topic names, different struct layouts, and different namespaces.
-A BDC subscriber will never receive NED `EntityMaster` samples and vice versa.
-This is intentional: the `BDC_` prefix namespace separation allows mixed
-deployments.
+> ⛔ **REMOVED `2026-10-28` (R-4095, CE-4077)** -- sections 6.1-6.4 (the four `BDC_*` topics, their structs and the wire-compatibility
+> note) described `Hrot.Network.BDC`, which no longer exists. See [NED_DDS_Protocol.md](../../reference/NED_DDS_Protocol.md) for the wire.
 
 ---
 
@@ -1049,32 +965,8 @@ long newEntityId = allocator.AllocateId();
 
 ### 11.6 BDC Entity Lifecycle
 
-```csharp
-// Publisher (lightweight node):
-using var writer = new DdsWriter<BdcEntityMaster>(participant);
-using var posWriter = new DdsWriter<BdcWorldPos>(participant);
-
-// Announce entity:
-writer.Write(new BdcEntityMaster
-{
-    EntityId = 42,
-    TkbType  = tkbVehicleIndex,
-    Diskind  = 1  // Platform
-});
-
-// Publish position:
-posWriter.Write(new BdcWorldPos
-{
-    EntityId = 42,
-    Time     = DateTime.UtcNow,
-    Pos      = new BdcGeoPoint { Latitude = 50.0, Longitude = 14.5, Altitude = 200.0 },
-    Ori      = new BdcEulerOri { Heading = 90.0f, Pitch = 0.0f, Roll = 0.0f },
-    Vel      = new BdcAngularVector { Azimuth = 90.0f, Elevation = 0.0f, Length = 15.0f }
-});
-
-// Remove entity (DDS dispose):
-writer.DisposeInstance(new BdcEntityMaster { EntityId = 42 });
-```
+> ⛔ **REMOVED `2026-10-28` (R-4095):** the `BdcEntityMaster` / `BdcWorldPos` example went with `Hrot.Network.BDC`. Use the NED
+> `EntityMaster` / `WorldPos` (§5) instead.
 
 ---
 
@@ -1139,7 +1031,7 @@ owner (per NED SST rules). To avoid conflicts:
 > ⛔⛔ **SUPERSEDED `2026-09-07` by [`docs/DESIGN_Dead_Reckoning.md`](../../DESIGN_Dead_Reckoning.md).**
 > ⛔ DR is **not** IG-scoped — 🔒 user, `2026-09-05`: *"in general DR/smoothing is nothing special to IG
 > role only"* ⇒ **every node runs it, on BOTH stacks**, with the drive flag derived from OWNERSHIP
-> *(`!roleHasMuscle && !roleHasBrain`, already BDC's predicate at `BdcReplicationModule:58`)*.
+> *(`!roleHasMuscle && !roleHasBrain`, which the since-removed BDC module (R-4095) already used)*.
 > ⚠ **Also inaccurate below:** it says velocity **and acceleration** are used — 📐 `Acc` is on the NED wire
 > and **never read**. ⭐ Implementation: `CE-211`.
 
@@ -1189,7 +1081,6 @@ policies consistently across the cluster.
 | `Fdp.Network.Cyclone`                | [Fdp.Network.Cyclone source](../../../FDP/Network/Fdp.Network.Cyclone/) |
 | `Fdp.Diagnostics.Network`            | [Fdp.Diagnostics.Network source](../../../FDP/Diagnostics/Fdp.Diagnostics.Network/) |
 | `Hrot.Network.NED`                   | [Hrot.Network.NED source](../../../Hrot/Network/Hrot.Network.NED/) |
-| `Hrot.Network.BDC`                   | [Hrot.Network.BDC source](../../../Hrot/Network/Hrot.Network.BDC/) |
 | `Hrot.Network.Orchestration`         | [Hrot.Network.Orchestration source](../../../Hrot/Network/Hrot.Network.Orchestration/) |
 | FDP Engine README                    | [FDP/Engine/README.md](../../../FDP/Engine/README.md)         |
 | AI Dev Guide                         | [docs/AI_DEV_GUIDE.md](../../AI_DEV_GUIDE.md)                 |

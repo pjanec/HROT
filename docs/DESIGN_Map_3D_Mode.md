@@ -499,7 +499,7 @@ per call — card when it describes *the entity*, loose when it marks *a place* 
 ### 3.7 Entity colour — a scenario-settable value with a TKB default *(U19)*
 
 📐 Measured `2026-10-10`: a TKB colour **already exists** — `VisualData.ColorHex`, filled from the TKB visual definition
-at spawn (`PresentationTkbTranslator.cs:65`; e.g. `#2E4057` for the M1, `BdcTkbCatalog.cs:30`), already used by IG's 2-D
+at spawn (`PresentationTkbTranslator.cs:65`; e.g. `#2E4057` for the M1, `NedTkbCatalog.cs:30`), already used by IG's 2-D
 style as a tint (`StyleResolutionSystem.cs:103`).
 
 🔒🔒 ⛔ **But it may NOT be overridden in place.** `R-136`: *"entity state has exactly two legal sources: the TKB, or a
@@ -1467,7 +1467,7 @@ there (and when dismounting they could jump down to ground)"* — the four leans
 | injury is DERIVED: `Injury.StateOf` from replicated `Health` + `InjuryThresholds` (type data) | `Injury.cs:8-56`, `DESIGN_Injury_States.md` I1 | every host knows wounded / incapacitated — no new wire |
 | speed = `StanceSpeed × CarryLoad`; the wounded factor is slice **I-b**, open | `CarKinematicsSystem.cs:149-153`, Injury §I-b | ⭐ the 0.6× is ONE more factor there, its value a TKB field beside the thresholds |
 | a seat knows its role and whether it is exposed — **no position** | `CarrierSeats`, `SeatDto { Role, Exposed }`, `DESIGN_Map_3D_Mode.md:817` | `SeatDto` grows a place, a facing and a pose |
-| "no side doors" = `CarrierDefDto.Exposure = Open` → `IsEmbarkedTag.Exposed`; ⚠ no production type is Open but the person carrier; the UH-60 has no `Gen.Carrier` at all | `CarrierTkbTranslator.cs:64-82`, `BdcTkbCatalog.cs:376` | a new type **UH-60A (doors off)**, 8 door seats |
+| "no side doors" = `CarrierDefDto.Exposure = Open` → `IsEmbarkedTag.Exposed`; ⚠ no production type is Open but the person carrier; the UH-60 has no `Gen.Carrier` at all | `CarrierTkbTranslator.cs:64-82`, `NedTkbCatalog.cs:376` | a new type **UH-60A (doors off)**, 8 door seats |
 | an exposed rider is drawn at the vehicle's reference point in his stance; an enclosed one not at all | `EntityBodyLayer3D.cs:101`, `PhysicalPresence.IsEnclosedPassenger` | the seat's place puts him where he sits |
 | dismount: a column beside the vehicle at the vehicle's Z; the pedestrian clamp then puts him on the surface | `Embarkation.DismountPoint`, `CarKinematicsSystem.cs:464` | the jump is a DRAWING of that drop, from the seat he left |
 
@@ -1486,7 +1486,7 @@ classDiagram
     class SeatDto { <<TKB, grows>> + X Y Z · FacingDegrees · Pose (Sit · SitLegsOut) }
     class CarKinematicsSystem { <<existing>> × Injury.SpeedFactor }
     class IsEmbarkedTag { <<existing, every node>> VehicleEntity · Exposed · Seat · Mode }
-    class BdcTkbCatalog { <<existing, grows>> + UH-60A (doors off), 8 open door seats }
+    class NedTkbCatalog { <<existing, grows>> + UH-60A (doors off), 8 open door seats }
     EntityBodyLayer3D ..> Carriage
     Carriage ..> IsEmbarkedTag : reads
     Carriage ..> SeatDto : the seat's place
@@ -1496,7 +1496,7 @@ classDiagram
     EntityBodyLayer3D *-- DeathFall
     CarKinematicsSystem ..> Injury
     InjuryDefDto ..> InjuryThresholds : stamped
-    BdcTkbCatalog ..> SeatDto
+    NedTkbCatalog ..> SeatDto
 ```
 
 *What the picture shows that prose hid:* ONE classifier (`Carriage`) answers "how is this man held?" from facts every host already has, and
@@ -1610,8 +1610,8 @@ none in Presentation; three Explore sweeps of `docs/` + `.dev/`; the load-bearin
 | ⛔ `Carriage.Of` reads `ModeOf(0)` whenever the carrier's list is not empty — a man with only a weapon in his carry station (seat 1) is drawn CARRYING a casualty | `Carriage.cs:74` (CE-1081, mine) | fix: the casualty seat and the carry station are read separately |
 | a weapon system turns on its OWN turret part; its fire is the weapon entity's (`WeaponFireNotification.Shooter` = the weapon) | WS-3, `f656cb38b` | the kits articulate (§3.11) with `_poseOf`; the muzzle flash finds the weapon |
 | no replicated "which mount is in his hands"; `WeaponFireNotification { Shooter, WeaponIndex }` reaches every map host (NED ingress on the IG) | `WeaponPosture.cs` (Kind, Target, Point), `WeaponFireIngressTranslator.cs` | ⭐ the launcher in hands follows the LAST SHOT |
-| the FPV drone (403) is class `Uav` (1.2.*.50) ⇒ family Jet ⇒ a 15 m F-16; its body is 0.3 m (`Gen.Flight` body radius / height) | `BdcTkbCatalog.DefineFpvDrone`, `EntityBodyLayer3D.Resolve` | a `Drone` family for a ROTORCRAFT Uav, sized from its flight body |
-| the A-10 (405) is class `AttackAircraft` (1.2.*.2) ⇒ family Jet; its bombs count down in the replicated `WeaponAmmo` mirror | `BdcTkbCatalog.DefineAttackPlane`, CE-1079 | an attack-plane kit with pylons; the bombs drawn = rounds left |
+| the FPV drone (403) is class `Uav` (1.2.*.50) ⇒ family Jet ⇒ a 15 m F-16; its body is 0.3 m (`Gen.Flight` body radius / height) | `NedTkbCatalog.DefineFpvDrone`, `EntityBodyLayer3D.Resolve` | a `Drone` family for a ROTORCRAFT Uav, sized from its flight body |
+| the A-10 (405) is class `AttackAircraft` (1.2.*.2) ⇒ family Jet; its bombs count down in the replicated `WeaponAmmo` mirror | `NedTkbCatalog.DefineAttackPlane`, CE-1079 | an attack-plane kit with pylons; the bombs drawn = rounds left |
 | a bomb release goes through the ordinary fire path ⇒ a muzzle flash at the nose | `EffectSpawnSystem.cs:63-74` | skip the flash for a `Bomb` mount |
 | a smoke trail runs STRAIGHT back to the muzzle (combat node) or along the velocity (viewer) | `ProjectileLayer.TrailOf`, `:130` | a remembered path ⇒ a curved trail on every host |
 | a rotor turns only while ≥ 5 m above its resting height | `EntityBodyLayer3D.IsAirborne`, `MotionTracker` | the rotor follows movement too, and spins up / down |
@@ -1768,7 +1768,7 @@ fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-11
 rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
 Now the pickup gunner KNEELS in the bed behind his pintle (x −2.0, feet at 0.85 m) and the HMMWV's STANDS in the hatch (feet at 0.7 m) — the
 gun's pivot at his chest. A gunner seat's place and pose are read only by the 3-D drawing (the sim reads a STATION's place, unchanged). ⚠ A
-cross-lane data edit to backend's `BdcTkbCatalog` (`Pickup`, `HmmwvSeats`). Rails `Map3DTests.CE1108_*` (×5), `CE1107_*`; frame rail
+cross-lane data edit to backend's `NedTkbCatalog` (`Pickup`, `HmmwvSeats`). Rails `Map3DTests.CE1108_*` (×5), `CE1107_*`; frame rail
 `CE1102_V` crews each preset from its own catalogue seats:
 
 ![](assets/map-3d/presets-1.png)
@@ -2000,7 +2000,7 @@ untouched, and a scenario that wants a desert-clad friendly force names the colo
 | pattern | `CamoPattern.Desert` / `SurfaceKind.Desert` (shader `bodyPattern 4`): tan / pale sand / brown at a 4.5 per-metre scale (larger than woodland's 5.5); woodland's thresholds lowered 0.60/0.62/0.64 → 0.56/0.58/0.60 (denser). `Fleck` stays a pattern, no longer any side's |
 | rails | `Map3DTests.CE1235_ASoldiersSide_PicksHisCloth_*` (cloth gap > 90, trousers > 70, own colour wins, police navy); `CE1099_ASoldiersSide_*` now expects Desert |
 | not measured | ⚠ the look in a real dim room — a Windows visual check is owed |
-| ~~⚠ found while building~~ ✅ resolved `2026-10-21` (R-1021) | the BDC catalogue's soldier types carry a TYPE colour, olive `#556B2F` (`BdcTkbCatalog.cs:105,281,313`) ⇒ under "the type's colour wins" their men kept olive cloth. A type colour is per type, never per side (one type serves both sides), so it can only make the sides alike. 🔒 User, `2026-10-21`, on the lean to let the side beat it: *"Yes. Another topic."* ⇒ **a SOLDIER's cloth ignores his type's colour; only a colour HE names wins** (`EntityBodyLayer3D.OwnColourOf`). ⚠ The type's colour is stamped onto every spawned entity (`PresentationTkbTranslator.cs:59-69`, `VisualData` + `EntityAppearance`), so "his own" is an entity colour that DIFFERS from his type's. Civilians (O-1) and police keep their type's colour. Rail `Map3DTests.CE1235_ASoldiersTypeColour_*` |
+| ~~⚠ found while building~~ ✅ resolved `2026-10-21` (R-1021) | the BDC catalogue's soldier types carry a TYPE colour, olive `#556B2F` (`NedTkbCatalog.cs:105,281,313`) ⇒ under "the type's colour wins" their men kept olive cloth. A type colour is per type, never per side (one type serves both sides), so it can only make the sides alike. 🔒 User, `2026-10-21`, on the lean to let the side beat it: *"Yes. Another topic."* ⇒ **a SOLDIER's cloth ignores his type's colour; only a colour HE names wins** (`EntityBodyLayer3D.OwnColourOf`). ⚠ The type's colour is stamped onto every spawned entity (`PresentationTkbTranslator.cs:59-69`, `VisualData` + `EntityAppearance`), so "his own" is an entity colour that DIFFERS from his type's. Civilians (O-1) and police keep their type's colour. Rail `Map3DTests.CE1235_ASoldiersTypeColour_*` |
 
 ### 6r. CE-1101 — camouflage and faces drawn by the SHADER, not by boxes — DESIGN + AS-BUILT `2026-10-15` (ui)
 
@@ -2076,7 +2076,7 @@ frame rails `CE1097_V` / `CE1099_V` (`FacesPainted`, `CamoPainted`).
 
 | the design rests on | code — how it is | design basis |
 |---|---|---|
-| the type exists, drawn as the generic helicopter | ✅ 406 `Heli_AH64`, DIS 1.2.225.20 (`BdcTkbCatalog.DefineAttackHelicopter`); the class table names `AttackHelicopter` 1.2.*.20 (`EntityClassTable.cs:159`) but the map maps no family to it | Air Operations §7a AW-5 |
+| the type exists, drawn as the generic helicopter | ✅ 406 `Heli_AH64`, DIS 1.2.225.20 (`NedTkbCatalog.DefineAttackHelicopter`); the class table names `AttackHelicopter` 1.2.*.20 (`EntityClassTable.cs:159`) but the map maps no family to it | Air Operations §7a AW-5 |
 | its body is CG-referenced | ✅ `Body.Geometry` 17.73 × 14.63 × 3.87, `BodyCentreX = −1.5`, `BodyCentreZ = 0.6` | G4 (Body Geometry) |
 | its chin gun is turret 0 / mount 0 | ✅ `TurretDto` pivot (4.3, 0, −1.0), trunnion +0.2; mount 0 the M134, muzzle +0.8 | AW-5 |
 | ⛔ `KitFromTkb` reads the TKB pivot as a box-frame offset | ✅ `KitFromTkb.cs:24` — `turret.PivotX / size.X`, no reference-point shift: right for a ground-referenced tank (offset 0), **wrong for a CG body** (1.5 m aft, 1.3 m low on the AH-64) | — |
@@ -2248,7 +2248,7 @@ right door gun):
 
 ⭐ **CE-1106 — found by this rail:** the doors-off UH-60's door gunner (seats 8 / 10) sat 0.95 m off the centreline, INSIDE the fuselage box —
 only his legs and arms showed, below his gun. His seat moved into the door like the riders' (|Y| 1.05, `SitLegsOut`), and his station in front
-of him with its pivot at his chest (`BdcTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
+of him with its pivot at his chest (`NedTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
 
 | ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
 |---|---|---|
@@ -2273,7 +2273,7 @@ CE-2190; Weapon Systems §5c) added launchers 613 / 614 (DIS 1.1.*.50.6), the ZU
 | …so a Stinger gunner never shoulders it, and wears an HMG on his back | ✅ `EntityBodyLayer3D.Shouldering` (`:659`, `:667`) and `BlastOf` key on `Launcher or Atgm` | §6n N-3, N-4 |
 | the missiles and 23 mm rounds already have looks (smoke trail, tracer) and the ZU-23 streams | ✅ `MunitionTkbCatalog` visuals 6030–6033 (backend); `FireStreams.IsAutomatic` takes `MachineGun` | §6u B-1 |
 | a proximity burst has no target ⇒ the hit draws a ground decal under it, however high | ✅ `BallisticsSystem.cs:237` `Target = Entity.Null`; `EffectSystems.cs:107-111` | VE-M |
-| a pickup's station puts the weapon's ORIGIN at 1.6 m (an HMG pivot at 1.9 m) and its gunner kneels behind | ✅ `BdcTkbCatalog.Pickup` (`PintleZ`, the CE-1108 seat) | §6n CE-1108 |
+| a pickup's station puts the weapon's ORIGIN at 1.6 m (an HMG pivot at 1.9 m) and its gunner kneels behind | ✅ `NedTkbCatalog.Pickup` (`PintleZ`, the CE-1108 seat) | §6n CE-1108 |
 
 ```mermaid
 classDiagram
@@ -2322,7 +2322,7 @@ a plain Launcher* — a 1.5 m Stinger with a grip stock is not a 1.1 m Javelin t
 `AaGun` with their kits (`WeaponKits.Manpads`, `AaGun`: 17 parts, stowed on its wheels / deployed on its jacks); `GunnerSpot` returns a
 `SeatPose` and `EntityBodyLayer3D`'s manning branch draws `Sit` as `BlockFigure.Seated` with the hips at the spot (its `GunnerFrame` gives the
 pose); `WeaponKits.IsShoulderFired` replaces the three `Launcher or Atgm` copies (`Shouldering` ×2, `BlastOf`). `EffectSpawnSystem` scorches
-only for a burst within `DecalMaxBurstHeight` (2 m). Technical 110: `BdcTkbCatalog.Pickup` gained `stationZ` and `gunnerSeat` (defaults
+only for a burst within `DecalMaxBurstHeight` (2 m). Technical 110: `NedTkbCatalog.Pickup` gained `stationZ` and `gunnerSeat` (defaults
 unchanged for 104–109), and 110 passes the bed floor (`BedFloorZ` 0.85 m) and a `Sit` seat on the gun's left seat.
 ⭐ **Found by the frame:** on the technical the deployed gun's lifted wheels stood out of the bed ⇒ **AD-V5b** `WeaponKits.Mounted`: a weapon
 embarked in a vehicle's station draws without its ground carriage (the ZU-23's jacks and wheels; every other kind keeps all parts). Rails

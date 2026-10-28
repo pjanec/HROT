@@ -5,7 +5,6 @@ using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Presentation.Windows;
 using Fdp.Presentation.WindowManager;
-using Hrot.BDC.Factory;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Scenarios;
 using Hrot.ClusterRunner.Services;
@@ -291,9 +290,8 @@ class Program
                 });
 
                 // 4. Create the dedicated Network Factory
-                INetworkFactory networkFactory = string.Equals(config.NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase)
-                    ? (INetworkFactory)new BdcNetworkFactory(participant, entityMap, geoTransform, eventBus, (long)subNodeId, NodeRole.None)
-                    : new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, subNodeId, NodeRole.None);
+                INetworkFactory networkFactory =
+                    new NedNetworkFactory(participant, entityMap, geoTransform, eventBus, subNodeId, NodeRole.None);
 
                 // 5. Inject the isolated factory into the subsystem
                 return TryCreateSubsystem(type, networkFactory);

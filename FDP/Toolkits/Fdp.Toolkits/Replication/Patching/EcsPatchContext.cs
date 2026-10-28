@@ -41,8 +41,8 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// fed by <c>IDescriptorTranslator.{DescriptorOrdinal, TargetComponentIds}</c> — says which descriptors
     /// cover it. ⇒ <c>Fdp.Toolkit.Replication.DescriptorOrdinal</c> and its conversion were deleted outright.</para>
     ///
-    /// <para>⚠ A component maps to a SET of ordinals — measured: <c>SimTransform</c> is covered by both
-    /// <c>BdcWorldPosTranslator</c> and <c>GeoSpatialEgressTranslator</c>.</para>
+    /// <para>⚠ A component maps to a SET of ordinals — measured: <c>SimTransform</c> was covered by both
+    /// the BDC stack's world-position translator (removed since, R-4095) and <c>GeoSpatialEgressTranslator</c>.</para>
     /// </summary>
     private readonly Services.DescriptorOwnershipMap _descriptorMap;
 

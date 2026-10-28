@@ -28,7 +28,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
         /// <c>2026-09-12</c>; 📄 <c>docs/designs/replay-and-modules/DESIGN.md</c> §2.1m)*. §8.10 says to put
         /// this system inside <c>NetworkLifecycleSystemGroup</c>. 📐 Measured: that group's
         /// <c>ExecuteGroup</c> has <b>exactly ONE caller</b> — <c>NedReplicationModule.Tick</c> — so it never
-        /// ticks on the editor (<c>NullReplicationModule</c>) or on BDC nodes ⇒ relocating would STOP entity
+        /// ticks on the editor (<c>NullReplicationModule</c>) or on BDC nodes (that stack is removed since, R-4095) ⇒ relocating would STOP entity
         /// lifecycle on those hosts, and a system in both the group and the scheduler would run TWICE a
         /// frame. ⭐ Gating in place delivers §8.10's intent on EVERY host instead.</para>
         ///

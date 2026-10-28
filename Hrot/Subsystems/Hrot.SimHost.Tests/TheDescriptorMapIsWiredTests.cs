@@ -127,7 +127,7 @@ public class TheDescriptorMapIsWiredTests
     /// ⭐⭐ <b>And two DIFFERENT ordinals on one component both survive — the multi-valued case.</b>
     ///
     /// <para>📐 Measured <c>2026-08-26</c>: real production data needs this — <c>SimTransform</c> is declared
-    /// by <b>both</b> <c>BdcWorldPosTranslator</c> and <c>GeoSpatialEgressTranslator</c>. ⛔ A single-valued
+    /// by <b>both</b> the BDC stack's world-position translator (removed since, R-4095) and <c>GeoSpatialEgressTranslator</c>. ⛔ A single-valued
     /// map would mark the wrong descriptor for one of them.</para>
     /// </summary>
     [Fact]

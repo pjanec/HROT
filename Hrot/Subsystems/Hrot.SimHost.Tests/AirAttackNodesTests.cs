@@ -551,7 +551,7 @@ namespace Hrot.SimHost.Tests
 
         private void Reg<T>() where T : unmanaged { if (!_w.IsComponentTypeRegistered<T>()) _w.RegisterComponent<T>(); }
 
-        /// <summary>The doors-off UH-60 as 404 has it (BdcTkbCatalog DoorSeats): no weapon of its own; per side a door gunner (seat 8 left,
+        /// <summary>The doors-off UH-60 as 404 has it (NedTkbCatalog DoorSeats): no weapon of its own; per side a door gunner (seat 8 left,
         /// 10 right) and a Door station operated by him (9, 11) holding an M134, its arc 20…160° on its side. The M134s are mounts 32 / 33.</summary>
         private Entity SpawnDoorHeli(Vector3 at, out Entity leftGun, out Entity rightGun, out Entity leftGunner, out Entity rightGunner)
         {
@@ -788,7 +788,7 @@ namespace Hrot.SimHost.Tests
         private const long CmHeli = 9414, TestFlare = 9415, TestChaff = 9416;
 
         /// <summary>The attack helicopter of <see cref="SpawnHeli"/> with a flare / chaff dispenser as its LAST mount (2), as
-        /// <c>BdcTkbCatalog.Dispenser</c> gives the AH-64: 60 flares, 60 chaff, 120 rpm.</summary>
+        /// <c>NedTkbCatalog.Dispenser</c> gives the AH-64: 60 flares, 60 chaff, 120 rpm.</summary>
         private Entity SpawnCmHeli(Vector3 at, out Entity pod, out Entity dispenser)
         {
             Reg<AmmoLoadout>();
@@ -1014,7 +1014,7 @@ namespace Hrot.SimHost.Tests
         private const long Drone = 9412;
         private const float DroneSpeed = 30f, DroneClimb = 8f, DroneAccel = 15f;
 
-        /// <summary>An FPV drone as <c>BdcTkbCatalog.DefineFpvDrone</c> states it: a Rotorcraft that DETONATES on impact, 30 m/s, climbs 8 m/s,
+        /// <summary>An FPV drone as <c>NedTkbCatalog.DefineFpvDrone</c> states it: a Rotorcraft that DETONATES on impact, 30 m/s, climbs 8 m/s,
         /// its warhead its mount 0 (450 damage); hostile.</summary>
         private Entity SpawnDrone(Vector3 at, float enduranceSeconds = 0f)
         {
@@ -1026,7 +1026,7 @@ namespace Hrot.SimHost.Tests
                 db.Register(t);
             }
             var e = SpawnPlane(at, Drone, 1, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
-            // ⭐ the FPV drone's own catalogue data (BdcTkbCatalog.DefineFpvDrone: 30 m/s, climb 8, 120°/s, 15 m/s², its warhead), flown by the
+            // ⭐ the FPV drone's own catalogue data (NedTkbCatalog.DefineFpvDrone: 30 m/s, climb 8, 120°/s, 15 m/s², its warhead), flown by the
             //   REAL RotorcraftModel (FlyDrone) — 📐 a stand-in that changed velocity instantly hit an evading tank to 0.1 m while the live
             //   drone, flying along its nose at 15 m/s², overshot it by 10 m and looped into the ground (CE-2213)
             _w.SetComponent(e, Fdp.Toolkit.Motion.FlightParams.From(new Fdp.Toolkit.Tkb.Domain.FlightParamsDto

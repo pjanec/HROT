@@ -14,8 +14,8 @@ namespace Hrot.Core.Network;
 /// <c>SpawnEntityCommandEgressTranslator</c> (IG, and at the wrong LEVEL — it reads the local
 /// <c>SpawnEntityCommand</c> ORDER rather than the request). ⇒ this is the general form.</para>
 ///
-/// <para>⛔ <b>Deliberately protocol-neutral</b>, like every other seam in this file: the NED and BDC
-/// stacks implement it, and an offline host simply has none.</para>
+/// <para>⛔ <b>Deliberately protocol-neutral</b>, like every other seam in this file: the NED
+/// stack implements it, and an offline host simply has none.</para>
 /// </summary>
 public interface IEntityCreationRequestEgress
 {

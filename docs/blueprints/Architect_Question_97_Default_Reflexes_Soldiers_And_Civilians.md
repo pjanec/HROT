@@ -36,7 +36,7 @@ the scenario stamp).
 |---|---|---|
 | `search_graph(name_pattern=".*(Sop\|Civilian(Fear\|Mind\|State\|Hsm)).*", label=Class)` | 37 | the SOP slot (`SopState`, `AssignSopEvent`, `ClearSopEvent`, `SopActions`, `SopConditions` with 5 conditions), the SOP order node in BTree / blueprint / HSM emit, the civilian fear (`CivilianFear`, `CivilianFearSystem`, `CivilianState`, `CivilianMind`) and their suites (`BasicInfantrySopTests`, `BasicVehicleSopTests`, `SopSlotTests`, `CivilianHsmTests`, `CivilianFearSystemTests`) |
 | shipped SOP assets (`Assets/BTrees/Library/Sop/`) | 5 | `BasicInfantrySop` · `BasicSquadSop` · `BasicPlatoonSop` · `BasicVehicleSop` · `PilotSop` |
-| TKB types naming a `DefaultSop` (`BdcTkbCatalog`) | 2 call sites | the platoon (`BasicPlatoonSop`, `:884`) and the paratroopers (`Jumper`, `:324`) — ⛔ no soldier type |
+| TKB types naming a `DefaultSop` (`NedTkbCatalog`) | 2 call sites | the platoon (`BasicPlatoonSop`, `:884`) and the paratroopers (`Jumper`, `:324`) — ⛔ no soldier type |
 | scenario sweep, 88 files | 394 person units | 390 carry no `Sop`; ~160 soldiers have no commander (no `UnitSubordinate`), many with a task; all 133 civilians run `CivilianHsm` (102 named, 29 by the TKB default, 2 `Idle` on purpose) |
 
 ⚠ `check_index_coverage` was not run; the inventory is the graph query above plus grep and the scenario sweep.
@@ -205,7 +205,7 @@ As §2a–§2c, with these differences (each measured during the build):
 | deviation | why |
 |---|---|
 | ① **no separate "heard gunfire" row** (lean B's second row) | 📐 the existing *first threat* row already fires on a HEARD contact (memory goes from empty to holding one — an anonymous slot counts), and `TakeCover` hides from the heard point (CE-3063 ③). ⛔ The "hold and watch" variant was not buildable as leaned: `CombatPosture "{}"` walks to the origin (the trap of 2026-10-20) and `PersonHold` does not fire. B as built = the near-miss row only |
-| ② **a second gate: `SopConditions.Aboard`** beside `UnderCommand` | 📐 vehicles start with rifleman crews in their seats (`BdcTkbCatalog` seats: driver, gunner, loaders) — no commander, so they read as lone soldiers; a crewman's seat and his vehicle decide |
+| ② **a second gate: `SopConditions.Aboard`** beside `UnderCommand` | 📐 vehicles start with rifleman crews in their seats (`NedTkbCatalog` seats: driver, gunner, loaders) — no commander, so they read as lone soldiers; a crewman's seat and his vehicle decide |
 | ③ the civilian reaction is ONE machine, **`CivilianReact`** (not `CivilianFlee` + an alarm behaviour), and the SOP has ONE react row (frightened past the alarm, or wounded) | the machine escalates by itself exactly as the HSM does (Alarmed → Panic → Shelter / Cower → Inside; Casualty first), so one row and one urgency are enough; ⭐ a rail holds its fear edges to the HSM's (`CE2322_TheReaction_HasTheHsmsFearEdges`, guards compared by method — their names carry the state's byte offset in each blackboard) |
 | ④ no new "fear defaults table": both machines read `CivilianBehavior.Defaults()` | it already IS the one table (the HSM's resolver starts from it) |
 | ⑤ the civilian conditions are `CivilianBehavior.NotOnHisRoutine` / `FrightenedOrHurt` (no params), not `TaskIs` / `FearAtLeast` | a params variable would repeat the thresholds in the SOP asset; no-params conditions read the one table |

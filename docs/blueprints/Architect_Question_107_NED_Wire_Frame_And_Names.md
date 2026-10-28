@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ✅ ALL APPROVED 2026-10-27: A, B, D ruled (R-4092); E, F, G, H, I approved as leaned (R-4093); C decided by the user (R-4094: the orchestrator publishes)
-updated: 2026-10-27
+updated: 2026-10-28
 build-state: BUILDING — §5 the order; step 1 (CycloneDDS.NET 0.4) under test from a local build; step 4 B + D + E + F BUILT 2026-10-27 (rows B / D / E / F carry the as-built); step 3 C BUILT 2026-10-27 (row C carries the as-built); step 4 I (SI units) BUILT 2026-10-27 (row I carries the as-built); the gateway-formula acceptance rail BUILT (§5)
 current-answer: §4 the sub-questions with leans and verdicts · §3 the diagrams (the wire AFTER) · §2 the claims · §5 the order
 stale-below: nothing
-known-rot: none yet
+known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): row F (the BDC stack follows the same rules) is moot: `BDC_WorldPos`, `BdcGeoPoint` and `BdcOrientationQuat` were removed with the stack. The NED rulings (A–E) stand.
 known-conflict: ../reference/BDC_NED_SST_Descriptor_Rules.md (the authoritative descriptor spec) says entity ids are `long` and is silent on frames — this question rules frames and makes every id int64, which AGREES with it; the spec's other code-vs-spec gaps (NED_DDS_Protocol.md §"Code versus the spec") are not touched here
 related-designs:
   - ../reference/NED_DDS_Protocol.md — OWNS the living description of the wire (concepts, rules, every type); this question changes §11 (frames), §15 (names) and the inventory; it is updated when each step lands
@@ -15,6 +15,8 @@ related-designs:
   - ../designs/mgmt-1/DESIGN.md — §8.10: recordings are ECS frames, not DDS captures — why H needs no recording migration
   - Blueprint_Issues_Tracker.md CE-3000 ⑤ — the CycloneDDS.NET default topic name A depends on; CE-4068 — the vertical-heading loss D removes by construction
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** row F (the BDC stack follows the same rules) is moot: `BDC_WorldPos`, `BdcGeoPoint` and `BdcOrientationQuat` were removed with the stack. The NED rulings (A–E) stand. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # Architect Question 107 — the NED wire: one frame (local metres + a published origin), names from types, `WorldPos` as a quaternion pose
 

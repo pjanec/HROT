@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ⛔ SUPERSEDED IN PART 2026-10-02 by push-only ownership (R-164/R-165, Architect_Question_79 §0.7-§0.8); see the banner under the title for which sections survive
 known-rot: ⛔ §6's embarkation rows (EmbarkationComponentRegistry, the strays table) name EmbarkExecutor / EjectPassengersExecutor / EditorCargoSystem / genesis as WRITERS of PassengerBuffer and IsEmbarkedTag — superseded 2026-10-12 by CE-3110 I-2a/I-2b: ONE rules class (Embarkation) written by EmbarkationSystem on the dtPassengerBuffer owner and EmbarkedStateSystem on every node, composed by the cross-role CoreInfrastructureCapabilities.Interactions (docs/DESIGN_Entity_Interactions.md §7.1d). The "belongs to no single role" conclusion stands.
-  ⛔⛔ AS-BUILT 2026-10-02 (DESIGN_Ownership_Groups_And_Grants.md §5.6 S4): the CREATE leg's decline (P3 step 2, §3.2) and the PROMOTE leg's claim (P3 step 3) are REMOVED from the code — NetworkSpawningSystem and GhostPromotionSystem no longer take an IRoleAffinityPolicy, and no host passes one. The creator claims everything it materialised and the yield gives up exactly the granted role groups. The policy TYPE survives (registration sets, D-7). Any section here describing either leg as live, including build-state's "STEP 4 … CGF holds a Brain policy, SimHost a Muscle policy", describes retired code.
-updated: 2026-10-02
+  ⛔⛔ AS-BUILT 2026-10-02 (DESIGN_Ownership_Groups_And_Grants.md §5.6 S4): the CREATE leg's decline (P3 step 2, §3.2) and the PROMOTE leg's claim (P3 step 3) are REMOVED from the code — NetworkSpawningSystem and GhostPromotionSystem no longer take an IRoleAffinityPolicy, and no host passes one. The creator claims everything it materialised and the yield gives up exactly the granted role groups. The policy TYPE survives (registration sets, D-7). Any section here describing either leg as live, including build-state's "STEP 4 … CGF holds a Brain policy, SimHost a Muscle policy", describes retired code. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcNetworkFactory` / `BdcReplicationModule` (the "second, independent implementation" and the never-promoted-ghosts defect, §3.7/§6) no longer exist; the defect closed by deletion as well as by P2.
+updated: 2026-10-28
 build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS and that is now a RULING, not a stopgap (§3.9c, 2026-09-13): the positive enumeration is NOT the upgrade path and NOT a gating item — it fails toward UN-ownership (CE-256) where the complement fails toward inert over-ownership. Revisit ONLY on the trigger §3.9c names. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainInterrupts checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the ABSENT set, adding four more (the three channels + PreviousCapabilities) for SEVEN droppable -- the absent set is three entries since BrainBTreeState/BrainHsm64/BrainHsm128 no longer exist to decline, the brain's own state being occurrence slots inside the BlueprintBlackboard* tiers. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoScenario governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
@@ -188,6 +188,9 @@ related-designs:
     locally, which a Muscle-only node cannot answer. ⚠ Measured 2026-09-12: that routing has no
     production caller today (CE-259bg), so the breakage is latent, not live.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcNetworkFactory` / `BdcReplicationModule` (the "second, independent implementation" and the never-promoted-ghosts defect, §3.7/§6) no longer exist; the defect closed by deletion as well as by P2. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 # ⭐⭐⭐ Role-Affinity Ownership — **every node decides locally what it owns, so no two nodes ever claim the same component**
 
 > ⛔⛔⛔ **`2026-10-02` — SUPERSEDED IN PART by push-only ownership** (`R-164`, `R-165`; [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §0.7-§0.8).
@@ -1221,10 +1224,9 @@ graph TD
         SHARD["IRoleShardProvider<br/>NOT BUILT - step 1a"]
     end
 
-    subgraph REPL["IReplicationModule - THREE implementations"]
+    subgraph REPL["IReplicationModule - TWO implementations (the third, BDC, was removed 2026-10-28 R-4095)"]
         GCS["GhostCreationSystem<br/>stays here"]
         NED["NedReplicationModule"]
-        BDC["BdcReplicationModule"]
         NUL["NullReplicationModule<br/>editor / offline"]
     end
 
@@ -1245,7 +1247,6 @@ graph TD
     POL -->|OwnableMask| GPS
     GCS -->|makes the ghost| GPS
     NED --> GCS
-    BDC --> GCS
     NUL -.->|no wire at all| GCS
     REG -->|decides what exists| BT
     NSS -->|AuthorityMask| BT
@@ -2117,7 +2118,7 @@ never says which assembly, and a reader assuming `Fdp.Toolkits` will not find it
 |---|---|
 | ⭐ **the API** | `List<int> BirthCriticalComponents` + `AddBirthCriticalComponent<T>()`, **idempotent** *(a duplicate id would contribute the same mask bit twice and hide an authoring mistake behind a harmless-looking result)* |
 | ⭐ **a `List<int>`, not a struct list** | ⚠ a DEVIATION from the "mirror `MandatoryComponent`" reading: that struct carries three fields because promotion has hard/soft semantics. **Birth-criticality has no such variation** — it is one bit per component — so a parallel struct would have been ceremony. ⭐ The AUTHORING style is what §3.1 asked to mirror, and that is preserved |
-| ⭐ **seeded on EVERY production template** | `NedTkbBuilder.DefineVehicle` *(which already declared `SimTransform` mandatory, so the spatial nature was pre-decided)* · all five `UrbanCombatTkbCatalog` templates · both `BdcTkbCatalog` tac-graphics |
+| ⭐ **seeded on EVERY production template** | `NedTkbBuilder.DefineVehicle` *(which already declared `SimTransform` mandatory, so the spatial nature was pre-decided)* · all five `UrbanCombatTkbCatalog` templates · both `NedTkbCatalog` tac-graphics |
 | ⭐⭐⭐ **AND A RAIL THAT MAKES THE NEXT TEMPLATE LOUD** | `HrotEnvironmentTests.CreateTkb_EveryTemplateDeclaresSimTransformBirthCritical` — ⛔ **seeding is a one-off edit; the durable risk is the template authored months from now by someone who never read this design**, and an unseeded one is SILENT until steps 1-3 turn it into the origin flash. ⭐ Red-proofed by un-seeding one template |
 
 ### ⚠⚠ THE ONE GAP STEP 0 DOES **NOT** CLOSE — **file-loaded templates**

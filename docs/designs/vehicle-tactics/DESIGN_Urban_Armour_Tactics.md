@@ -76,11 +76,11 @@ away before the face is chosen. Top attack is one field and one angle away, not 
 | a source straight above the hull resolves to **Front**, the thickest face | `ArmorModel.cs:29-38` |
 | a vehicle is hit as a 2-D circle at any height — a round passing high over it hits it | `RaycastSolverSystem.cs:157-170` (people get a body band, vehicles not) |
 | a round lives 120 ticks (≈ 2 s): a missile over 2 km vanishes mid-flight; arc rounds live 3600 | `CombatConstants.cs:80,88` |
-| missile speed is generated as range × 0.5 (TOW 1875 m/s, ~7× too fast) | `BdcTkbBuilder.cs:244`, `EngineFallbacks.cs:58` |
+| missile speed is generated as range × 0.5 (TOW 1875 m/s, ~7× too fast) | `NedTkbBuilder.cs:244`, `EngineFallbacks.cs:58` |
 | no guidance, no lock-on, no min range, no top-attack profile anywhere; `WeaponMountDto` has `AimSeconds`, `ReloadSeconds`, `MagazineSize`, `DispersionMils`, `Range`, `Category` | `WeaponSuiteDto.cs:21-97` |
 | `WarheadKind.ShapedCharge` exists but only labels a log line; the "RPG-7 rocket" / "TOW missile" names do not match the library's "PG-7V HEAT" / "TOW-2 HEAT", so neither has a warhead | `WarheadDto.cs:18`, `MunitionTkbCatalog.cs:26-31` |
 | ammo library: PG-7V 298 mm, TOW-2 806 mm, 120 mm HEAT, 40 mm HEDP; no LAW / AT4 / NLAW / Javelin / PG-7VL / PG-7VR | `Tkb/Reference/Data/ammo.json:16-18` |
-| vehicles: M1 600/350/200, Bradley 100/60/40, T-72 500/250/150, health = front × 5; MilitaryAPC no armour; no light vehicle with armour | `BdcTkbCatalog.cs:50-52,98-100,171-173`, `BdcTkbBuilder.cs:217` |
+| vehicles: M1 600/350/200, Bradley 100/60/40, T-72 500/250/150, health = front × 5; MilitaryAPC no armour; no light vehicle with armour | `NedTkbCatalog.cs:50-52,98-100,171-173`, `NedTkbBuilder.cs:217` |
 | R-263 D1 vehicle damage states (mobility / firepower kill / destroyed, per compartment) — decided, not built | Operations catalogue §10.1 |
 
 ### 1.2 The vehicle side
@@ -88,7 +88,7 @@ away before the face is chosen. Top attack is one field and one angle away, not 
 | fact | where |
 |---|---|
 | AI reverse: `MoveTo` + `ReverseAllowed` backs up while the point is BEHIND the hull; only `HullDownAttackRun` uses it; no AI reverse rail; no pivot turn | `CarKinematicsSystem.cs:329-335` |
-| turret part slews on its own; `TrackTarget` keeps the gun on a target; elevation M1 −10…+20°, Bradley −10…+60°, T-72 −6…+14° | `TurretSlew.cs`, `BdcTkbCatalog.cs:69,113,181` |
+| turret part slews on its own; `TrackTarget` keeps the gun on a target; elevation M1 −10…+20°, Bradley −10…+60°, T-72 −6…+14° | `TurretSlew.cs`, `NedTkbCatalog.cs:69,113,181` |
 | `ThreatDanger.Of(view, self, target)` = armed 1 / unarmed 0.3 — `self` is unused | `ThreatDanger.cs:21-28` |
 | `WeaponEffectivenessVsTarget` = MY mount vs HIS armour + facing + hit chance — "danger to me" is the same maths swapped (⚠ it reads the mount's penetration, not the resolved round's) | `StandardInputs.cs:398-434` |
 | cover points 0.75 m off walls (man-sized); exposure judged from a soldier's eye | `TerrainCoverProvider.cs:22-23,70` |
@@ -101,7 +101,7 @@ away before the face is chosen. Top attack is one field and one angle away, not 
 
 | fact | where |
 |---|---|
-| **no drone** in code; air types (UH-60, F-16, C-130) are data with no flight model; `KinematicsMode.Flying` declared, unread; `LinearKinematicsSystem` already moves any entity by a 3-D velocity | `BdcTkbCatalog.cs:284-318`, `NavigationEnums.cs:23`, `LinearKinematicsSystem.cs:91-110` |
+| **no drone** in code; air types (UH-60, F-16, C-130) are data with no flight model; `KinematicsMode.Flying` declared, unread; `LinearKinematicsSystem` already moves any entity by a 3-D velocity | `NedTkbCatalog.cs:284-318`, `NavigationEnums.cs:23`, `LinearKinematicsSystem.cs:91-110` |
 | a 3-D path provider exists but returns a straight line; no 3-D route type | `EngineBackedVolumetricPathProvider.cs:14-39` |
 | sight works in 3-D (the LOS line is raised from the target's own Z); the broadphase is 2-D and skips a target at exactly the observer's X/Y (a drone straight overhead) | `LosStrategies.cs:211-233`, `VisionBroadphase.cs:86` |
 | hearing is 3-D; no rotor sound class (3 bits, one value free); a hovering entity (speed 0) makes no sound | `SignaturesDto.cs:84-93`, `AcousticPerception.cs:36` |

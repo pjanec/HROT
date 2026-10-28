@@ -4,8 +4,7 @@ using System.Numerics;
 namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
-    /// The ONE encoding of an orientation on a position wire (<c>WorldPos.OrientationXyz</c> on the NED stack,
-    /// <c>BdcWorldPos.OrientationXyz</c> on BDC) — <c>docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md</c> D / F.
+    /// The ONE encoding of an orientation on a position wire (<c>WorldPos.OrientationXyz</c> on the NED stack) — <c>docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md</c> D / F.
     ///
     /// <para><b>The form.</b> The quaternion's vector part <c>(x, y, z)</c> travels; <c>w</c> is implied:
     /// <c>w = +sqrt(max(0, 1 − |v|²))</c>. The sender first makes <c>w ≥ 0</c> (a quaternion and its negation are the same rotation,
@@ -16,8 +15,8 @@ namespace Fdp.Toolkit.Replication.Components
     ///   <item>there is no Euler convention to get wrong and no gimbal case — a nose straight up or down (CE-4068) round-trips like any
     ///   other attitude.</item>
     /// </list>
-    /// <para>⛔ Both stacks call THIS class; a second copy of the arithmetic is how two wires come to disagree. The field's TYPE is
-    /// <c>OrientationQuat</c> (NED) / <c>BdcOrientationQuat</c> (BDC) — the bytes of a Vec3f, a type of its own so <c>ddsmonitor</c> shows it
+    /// <para>⛔ Every wire calls THIS class; a second copy of the arithmetic is how two wires come to disagree. The field's TYPE is
+    /// <c>OrientationQuat</c> — the bytes of a Vec3f, a type of its own so <c>ddsmonitor</c> shows it
     /// as heading/pitch/roll + quaternion via <see cref="OrientationDisplay"/>.</para>
     /// </summary>
     public static class QuaternionWireCodec

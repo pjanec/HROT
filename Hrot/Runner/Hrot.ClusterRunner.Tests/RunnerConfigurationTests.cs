@@ -386,30 +386,22 @@ namespace Hrot.ClusterRunner.Tests
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
         }
 
-        // -- --network option --------------------------------------------------
+        // -- --network option is gone (R-4095 / CE-4077: NED is the one network stack) -----------
 
         [Fact]
-        public void NetworkProtocol_Default_IsNed()
+        public void NetworkOption_IsNoLongerAccepted()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
-            config.Validate();
-            Assert.Equal("ned", config.NetworkProtocol, StringComparer.OrdinalIgnoreCase);
+            using var parser = new CommandLine.Parser(s => s.HelpWriter = null);
+            var result = parser.ParseArguments<RunnerConfiguration>(new[] { "--mode", "simhost", "--network", "ned" });
+            Assert.IsType<CommandLine.NotParsed<RunnerConfiguration>>(result);
         }
 
         [Fact]
-        public void NetworkProtocol_Bdc_SetCorrectly()
+        public void NoNetworkOption_Parses()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NetworkProtocol = "bdc" };
-            config.Validate();
-            Assert.Equal("bdc", config.NetworkProtocol, StringComparer.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void NetworkProtocol_InvalidValue_ThrowsInvalidOperation()
-        {
-            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NetworkProtocol = "unknown" };
-            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
-            Assert.Contains("--network", ex.Message, StringComparison.OrdinalIgnoreCase);
+            using var parser = new CommandLine.Parser(s => s.HelpWriter = null);
+            var result = parser.ParseArguments<RunnerConfiguration>(new[] { "--mode", "simhost" });
+            Assert.IsType<CommandLine.Parsed<RunnerConfiguration>>(result);
         }
     }
 }

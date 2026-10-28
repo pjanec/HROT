@@ -1317,7 +1317,7 @@ on SimHost and the IG) this closes the owed run; ⏳ dragging and manning a ZU-2
 on one node, `CE-1155`).
 
 ⚠ **Found on the way — a ruling meeting a verb, NOT a defect:** an **abstract-crew** vehicle has no Driver seat at all — the Bradley
-(`BdcTkbCatalog.cs:713`, *"six dismounts; the crew stay abstract (R-2009 B5)"*), and the same for any `PassengerSeats(n)` carrier — so
+(`NedTkbCatalog.cs:713`, *"six dismounts; the crew stay abstract (R-2009 B5)"*), and the same for any `PassengerSeats(n)` carrier — so
 `OperatorUseActions.Vehicle` offers no Drive there and **`E` boards him as a PASSENGER** (measured: seat 0, all six seats Passenger, on every
 node). ⭐ **Lean, not built (the user decides):** keep it — the rule is honest about the data — but make the prompt say it (`E  Board M2
 Bradley IFV`, which it already does by the verb's label) and let the operator drive such a vehicle by possessing it from the menu, as today.
@@ -1909,14 +1909,14 @@ that registers none would refuse the action, as it already would for a door.
 | a man in a gunner seat | `WeaponSystems.Controlled` (:134–155); `Embarkation` CanShoot (:465) | ⛔ controls NOTHING (his tag points at the vehicle, not a weapon) and loses CanShoot aboard |
 | the arc | `SeatDto.Traverse*/Elevation*Deg` (`CarrierDefDto.cs:127`); `WeaponSystems.InStationArc` (:114) | a yes/no test used by the AI's fire paths; ⛔ nothing clamps a LOOK |
 | the eye | `FpsCameraDriver.EyeOf` (`PossessionStation.cs:1106`) | a vehicle's eye 2.5 m over its origin (§8d deferred the turret eye); seats have places only the 3-D map reads (riders drawn there) |
-| the vehicles | `BdcTkbCatalog.cs` | UH-60 doors-off: per side a Gunner seat with a rifleman + a Door station (M134, NeedsGunner, arc 20…160°) — ⚠ **no Driver seat** (Pilot falls to SeatTaken); technicals: Driver 0, Gunner 1, Station 2 (OperatedBy 1); HMMWV: Gunner 3, Station 4 |
+| the vehicles | `NedTkbCatalog.cs` | UH-60 doors-off: per side a Gunner seat with a rifleman + a Door station (M134, NeedsGunner, arc 20…160°) — ⚠ **no Driver seat** (Pilot falls to SeatTaken); technicals: Driver 0, Gunner 1, Station 2 (OperatedBy 1); HMMWV: Gunner 3, Station 4 |
 
 ### 8n.2 Claim table
 
 | the leans rest on | code — how it IS | design — how it was MEANT |
 |---|---|---|
 | possessing the vehicle pauses its brain | ✅ `Possession.cs:252–266` | ✅ §8d M-2 — ⚠ MW-1 wants the vehicle's brain to KEEP its order while a gun is manned ⇒ the gunner seat cannot be "possess the vehicle" |
-| a gunner seat's man is a real entity on most crewed types | ✅ the UH-60's door riflemen, the technical's rifleman (`BdcTkbCatalog.cs:1321`, :697) | ✅ Weapon Systems W-I (crew presets; killing the gunner silences the gun) |
+| a gunner seat's man is a real entity on most crewed types | ✅ the UH-60's door riflemen, the technical's rifleman (`NedTkbCatalog.cs:1321`, :697) | ✅ Weapon Systems W-I (crew presets; killing the gunner silences the gun) |
 | the station gun's controller is the host | ✅ `WeaponSystems.cs:41–56` | ✅ W-H *"the HOST's gunner seat operates its station weapon"* — ⭐ it already names the SEAT; MS-2 makes that literal while the seat's man is possessed |
 | the arc is TKB data per station | ✅ `SeatDto` traverse / elevation | ✅ R-1006 / LK-1, LK-6 (the clamp is the gunner seat's) |
 | a seat has a place on the vehicle | ✅ `SeatDto` X/Y/Z/Facing (drawn by the 3-D map) | ⛔ searched §8d, Map 3-D §6m: the eye was deferred, no seat-eye design |

@@ -1,5 +1,7 @@
 # IG Mock Design
 
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcReplicationModule` (`Hrot.Network.BDC`) named as the alternative to `NedReplicationModule` was removed; NED is the only module an IG node gets. The reasoning below is kept as the record of that stack; do not read it as a live host.
+
 **Version:** 1.0 (Infrastructure Audit Complete)  
 **Date:** 2026-02-14  
 **Status:** Ready for Implementation

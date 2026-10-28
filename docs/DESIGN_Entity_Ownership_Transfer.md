@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-15
+updated: 2026-10-28
 build-state: READY-TO-BUILD
 current-answer: §1 the level ruling (descriptor-level, NED-initiated), §2 the diagrams (class +
   sequence + module + §2.4 HTTP surface), §3 the scope model, §4 the save-ownership rule, §5
@@ -8,7 +8,7 @@ current-answer: §1 the level ruling (descriptor-level, NED-initiated), §2 the 
   RECEIVE side is already built (OQ12 / CE-275 ④, see the persistence design §6c); THIS doc is the
   INITIATION side (CE-276) PLUS its HTTP surface, built as one feature.
 stale-below: nothing yet (new document).
-known-rot: nothing known.
+known-rot: nothing known. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcWorldPosTranslator` (the second translator covering `SimTransform`) was removed; the multi-valued component-to-ordinal case remains supported.
 known-conflict: DESIGN_Distributed_Scenario_Persistence.md §6c's "measured gap" note prescribes making
   NetworkAuthority a REPLICATED descriptor to enable transfer. THIS doc supersedes that: initiation is
   descriptor-level (emit an EntityMaster OwnershipUpdate), and PrimaryOwnerId is DERIVED from that on both
@@ -34,6 +34,8 @@ related-designs:
   - DESIGN_Entity_Genesis_End_To_End.md — owns the genesis stage sequence incl. the per-component takeover
     (DeferredTakeoverSystem, the PULL model); THIS doc is the PUSH (hand-away) counterpart on the same wire.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcWorldPosTranslator` (the second translator covering `SimTransform`) was removed; the multi-valued component-to-ordinal case remains supported. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # Entity ownership transfer — INITIATION (CE-276)
 

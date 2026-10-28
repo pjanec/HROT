@@ -62,7 +62,7 @@ A secondary class of bugs deals with entities that are not properly registered i
 | Mission adapter (existing) | `Hrot.SimHost/Systems/MissionAdapterSystem.cs` |
 | Mission abort | `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` |
 | RVO spatial grid | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/SpatialHashSystem.cs` |
-| TKB vehicle builder | `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs` |
+| TKB vehicle builder | `Hrot.Map.Definitions/Tkb/NedTkbBuilder.cs` |
 | SimHost local spawner | `Hrot.SimHost/UI/SimHostScenarioManager.cs` |
 | SimHost right-click UI | `Hrot.SimHost/SimHostVisualization.cs` |
 | DDS data model — DisType | `Hrot.NED/GenericDescriptors.cs` |
@@ -331,9 +331,9 @@ case eMissionCommandType.CMD_ABORT_ALL:
 
 **Goal:** Restore vehicle-to-vehicle collision avoidance in SimHost standalone.
 
-### 3.1 BdcTkbBuilder — Add PhysicsCollider to WithPhysics
+### 3.1 NedTkbBuilder — Add PhysicsCollider to WithPhysics
 
-**Problem:** `SpatialHashSystem` requires both `SimTransform` and `PhysicsCollider` (queried via `GlobalComponentIds.PhysicsCollider`) to insert an entity into the broadphase grid. The `WithPhysics` method in `BdcTkbBuilder` adds `VehicleParams` but **not** `PhysicsCollider`. Vehicles built purely via `WithPhysics` are invisible to the spatial hash; RVO neighbor queries return 0 results; no avoidance forces are generated.
+**Problem:** `SpatialHashSystem` requires both `SimTransform` and `PhysicsCollider` (queried via `GlobalComponentIds.PhysicsCollider`) to insert an entity into the broadphase grid. The `WithPhysics` method in `NedTkbBuilder` adds `VehicleParams` but **not** `PhysicsCollider`. Vehicles built purely via `WithPhysics` are invisible to the spatial hash; RVO neighbor queries return 0 results; no avoidance forces are generated.
 
 Note: `WithCombat` already adds `PhysicsCollider` correctly, so combat-capable entities are unaffected. The omission is specific to `WithPhysics` for non-combat vehicle templates.
 

@@ -44,7 +44,7 @@ coordinator (terrain bounds).
 | claim | code (how it IS) | design (how it was MEANT) |
 |---|---|---|
 | a heard contact carries a coarse class, 8 values | ✅ `SoundSourceClass` (`SignaturesDto.cs:84`); 3 bits of the answer's flags (`AcousticPerception.cs:36`) | ✅ Sensing §6 D, R-207 *"a coarse source class"* |
-| mortar = howitzer = HMG = ZU-23 | ✅ all `HeavyWeapon` (`BdcTkbCatalog.cs:351–353`, CE-3273) | ⛔ searched Sensing §4/§6/§8, Indirect Fire, CE-3273's row: **no reason recorded** — it was the coarsest bucket that existed |
+| mortar = howitzer = HMG = ZU-23 | ✅ all `HeavyWeapon` (`NedTkbCatalog.cs:351–353`, CE-3273) | ⛔ searched Sensing §4/§6/§8, Indirect Fire, CE-3273's row: **no reason recorded** — it was the coarsest bucket that existed |
 | a loud sound is heard by DISTANCE, not by terrain | ✅ the loud list is a query over every emitter, no grid (`LoudSoundCache.For`, `AcousticPerception.cs:~205`); a loud sound is heard within its carry × weather (`Sound`, `:158`) | ✅ §8.2 CE-3276 / R-3023 |
 | ⭐ the source may stand off the terrain | ✅ `SoundEmissionSystem` stamps every emitter on its owner, wherever it stands; ⭐ backend measured an off-terrain launch heard and delivered (9 `AudioTargetDetected` sent, 9 received — their note) | ✅ `indirect-fire-range` declares its guns *"2–5 km west, outside the bounds"*; `ua-indirect-fire` passes |
 | quiet sounds are found through the grid | ✅ the broadphase within the ear range (`AcousticSensorGenerator.Generate`) | ✅ §8.2 (unchanged for quiet classes) |

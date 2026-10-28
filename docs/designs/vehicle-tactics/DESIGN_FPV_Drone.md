@@ -29,7 +29,7 @@ jamming and the full 3-D route type are later (R-263, catalogue AIR-1…AIR-4).
 
 | fact | where |
 |---|---|
-| no drone in code; air types (UH-60 400, F-16 401, C-130 402) are data only, with no kinematics and no behaviour; air TKB ids 403–499 free | `BdcTkbCatalog.cs:284-330`, `TkbEntityTypes.cs` |
+| no drone in code; air types (UH-60 400, F-16 401, C-130 402) are data only, with no kinematics and no behaviour; air TKB ids 403–499 free | `NedTkbCatalog.cs:284-330`, `TkbEntityTypes.cs` |
 | entity routing to motion is by COMPONENT today (no motion-model seam): `VehicleState + VehicleParams + NavState` ⇒ CarKinematics; `CrowdAgent` ⇒ crowd; else `SimTransform + SimVelocity` ⇒ `LinearKinematicsSystem` (projectiles) — the seam is Motion Domains (MD-C) | `LinearKinematicsSystem.cs:91-111`, `GroundKinematicsModule.cs:88-102` |
 | `NavigationIntent { Mode, Flags, MaxReplans, ReverseAllowed, Vector3 FinalDestination (Z carried), TargetSpeed, … }` is replicated Brain → Muscle and written by `MoveToExecutor`; the bridge skips an entity with no `NavState` unless it is `PathToPoint` | `NavigationComponents.cs:230-260`, `NavigationIntentBridgeSystem.cs:134-169` |
 | `KinematicsMode.Flying = 7` declared, read by nothing; a volumetric provider exists but SimHost never passes it | `NavigationEnums.cs:23`, `SimHostNodeBootstrapper.cs:319` |

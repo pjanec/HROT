@@ -33,7 +33,7 @@ namespace Hrot.NED.Descriptors
 
         // Orientation as the quaternion VECTOR part (x, y, z); w is implied: w = +sqrt(max(0, 1 - |v|^2)). The sender
         // canonicalises w >= 0 (negates q when w < 0), so an ALL-ZERO struct is the identity rotation, never NaN.
-        // 📐 One encoder/decoder for NED and BDC: Fdp.Toolkit.Replication.Components.QuaternionWireCodec.
+        // 📐 One encoder/decoder: Fdp.Toolkit.Replication.Components.QuaternionWireCodec.
         public OrientationQuat OrientationXyz;
 
         // Linear velocity [m/s], local ENU (`SimVelocity.Linear` as is).

@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Replication.Systems
     /// <c>NedReplicationModule.RegisterSystems</c> — <b>one</b> network implementation — for
     /// <c>EntityCreationPack</c>, which every ECS host builds. ⭐ Ghost CREATION is a network concern and
     /// stays in the replication module; ghost PROMOTION consumes the TKB and the translator list and is a
-    /// SIMULATION concern. ⇒ the BDC gap closes as a side effect: <c>BdcReplicationModule</c> creates
+    /// SIMULATION concern. ⇒ the BDC gap closed as a side effect: the BDC replication module (removed since, R-4095) created
     /// ghosts and registered no promotion, so its ghosts were never promoted.
     ///
     /// <para>⭐⭐ <see cref="UpdateAfterAttribute"/> — <b>the ordering was true BY REGISTRATION ORDER and is
@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Replication.Systems
         ///
         /// <para>⛔ Gated IN PLACE rather than relocated into <c>NetworkLifecycleSystemGroup</c> as §8.10
         /// prescribes — that group's <c>ExecuteGroup</c> has exactly ONE caller, so it never ticks on the
-        /// editor or on BDC nodes, and this system is <c>[SingleInstance]</c> and already scheduler-
+        /// editor (or on the since-removed BDC nodes), and this system is <c>[SingleInstance]</c> and already scheduler-
         /// registered by <c>EntityCreationPack</c>. Authorised deviation; 📄 <c>DESIGN.md</c> §2.1m.</para>
         ///
         /// <para>⭐ CE-3329 P2 — read from the world (<see cref="Fdp.Toolkit.Replay.ReplayState"/>). ⛔ SUPERSEDED: an injected

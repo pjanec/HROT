@@ -39,41 +39,16 @@ fire, perception, pathfinding, map interaction, time control, and cluster orches
 is transported over DDS topics defined and translated in this project.
 
 NED is implemented as a concrete realisation of `INetworkFactory` and `IReplicationModule`,
-the same protocol-neutral contracts that are also satisfied by the lightweight BDC protocol.
+the protocol-neutral contracts the hosts program against. NED is the one network implementation
+(the lightweight BDC stack was removed 2026-10-28, R-4095).
 Callers (e.g. `NodeBootstrapper`, `ClusterRunner`) select NED at configuration time and
 receive the same interfaces; the protocol detail is invisible to higher-level code.
 
-### NED vs BDC
+### NED is the one network stack
 
-NED and BDC both implement `INetworkFactory` / `IReplicationModule`. The difference is
-scope:
-
-| Capability                              | BDC           | NED            |
-|-----------------------------------------|---------------|----------------|
-| Entity lifecycle (spawn / destroy)      | Yes           | Yes            |
-| World position replication              | Yes           | Yes            |
-| Mission control (CQRS)                  | Defined stub  | Yes (full)     |
-| Navigation intent / status              | No            | Yes            |
-| Perception (sensor tracks)              | No            | Yes            |
-| Pathfinding (ray/path batches)          | No            | Yes            |
-| Weapon fire pipeline                    | No            | Yes            |
-| Damage assessment pipeline              | No            | Yes            |
-| Tactical intent (Brain-to-Brain)        | No            | Yes            |
-| EQS area queries (Brain-Muscle)         | No            | Yes            |
-| Map interaction (click, drag, select)   | No            | Yes            |
-| ExCon ingress handlers                  | Stub          | Yes (full)     |
-| CGF entity lifecycle adapters           | No            | Yes            |
-| IG network adapter                      | No            | Yes            |
-| Time control gateway                    | Stub          | Yes            |
-| Cluster orchestration                   | No            | Yes            |
-| ID allocator server                     | Sequential    | DDS-based      |
-| DDS topic prefix isolation              | Yes (BDC_)    | No (global)    |
-| Deferred ownership protocol             | No            | Yes            |
-| Attribute patching (JSON + binary)      | No            | Yes            |
-| Gizmo debug interaction                 | No            | Yes            |
-
-BDC is suitable for minimal federation or lightweight IG tracking. NED is required for
-all production multi-node simulation runs.
+*(2026-10-28, R-4095)* The former lightweight BDC stack (`Hrot.Network.BDC`, two topics) was removed -- no external
+system used it. NED carries every capability the cluster needs; the descriptor/ownership **spec** it follows is
+[BDC_NED_SST_Descriptor_Rules.md](../../../reference/BDC_NED_SST_Descriptor_Rules.md) ("BDC/NED" names that protocol family).
 
 ---
 
@@ -246,12 +221,12 @@ The SST (Shared-State Topics) model governs how entities exist and are updated:
 > ⚠ **ONE CORRECTION.** `GhostPromotionSystem` is **no longer part of this module**. `P2`
 > *(`2026-09-11`)* moved its registrar out of `NedReplicationModule.RegisterSystems` into
 > `EntityCreationPack`, which **every** ECS host builds — so ghost promotion now happens on hosts with
-> no NED module at all, and the BDC gap *("a BDC node never promotes its ghosts")* closed with it.
+> no NED module at all, and the BDC gap *("a BDC node never promotes its ghosts")* closed with it (that stack is removed since, R-4095).
 > 📄 `docs/DESIGN_Role_Affinity_Ownership.md` §6a.
 >
 > ⚠ **And the reverse is worth knowing:** `DeferredTakeoverSystem` **did not** move. It sits inside this
 > module's private `NetworkLifecycleSystemGroup`, whose `ExecuteGroup` has exactly **one** production
-> caller — `NedReplicationModule.Tick` — so on a host without this module *(BDC, the editor's
+> caller — `NedReplicationModule.Tick` — so on a host without this module *(the editor's
 > `NullReplicationModule`)* deferred grants are never claimed.
 >
 > ⭐ **For the whole genesis path, of which this diagram is one stage:**
@@ -1013,8 +988,6 @@ live DDS stack. The factory returns null-object stubs for all subsystems in that
 
 | Project | Relationship |
 |---------|-------------|
-| `Hrot.Network.BDC` | Alternative minimal protocol. Implements the same `INetworkFactory` / `IReplicationModule` contracts but with only `BDC_EntityMaster` and `BDC_WorldPos` topics. Used for lightweight federation or heterogeneous simulator integration. See [Hrot.Network.BDC.md](Hrot.Network.BDC.md). |
-| `Hrot.Network.BDC.Tests` | Unit tests for the BDC protocol. |
 | `Hrot.Network.NED.Tests` | Unit and integration tests for NED translators, attribute patching, DeferredTakeOwnership, and ownership strategy. Uses null-participant headless mode and injectable stubs. |
 | `Hrot.NED.Tests` | Additional test project with InternalsVisibleTo access; covers internal wire types and descriptor union logic. |
 | `Hrot.Network.Orchestration` | Defines `NedStatusCode`, cluster operation request/status types, node heartbeat topics, and the orchestration translator implementations that `NedOrchestrationTranslator` and `NedSlaveOrchestrationTranslator` delegate to. |
@@ -1040,41 +1013,3 @@ live DDS stack. The factory returns null-object stubs for all subsystems in that
 | `Fdp.Toolkits` | `JsonAttributeCompiler`, `BinaryInterpreter`, `NavigationMode`, `NavigationResult`, `BehaviorRegistry`, `EntityLifecycleModule`, replication services, `NetworkEntityMap`, `DescriptorOwnershipMap` |
 | `Fdp.Diagnostics.Network` | `GizmoInteractionBatch`, `DebugPrimitivesBatch` schema types |
 
-### Protocol Comparison Table (NED vs BDC)
-
-```
-+--------------------------------------+------------------+------------------+
-| Capability                           |       NED        |       BDC        |
-+--------------------------------------+------------------+------------------+
-| DDS topic prefix                     | (none, shared)   | BDC_             |
-| Entity lifecycle                     | EntityMaster     | BDC_EntityMaster |
-| World position                       | WorldPos         | BDC_WorldPos     |
-| Mission / behavior                   | EntityMission,   | Not available    |
-|                                      | MissionControl   |                  |
-| Navigation CQRS                      | NavigationIntent | Not available    |
-|                                      | NavigationStatus |                  |
-| Perception sensor tracks             | SensorTrackState | Not available    |
-| Pathfinding (ray/path)               | *RequestBatch    | Not available    |
-| Weapon fire pipeline                 | WeaponFire*,     | Not available    |
-|                                      | MunitionDetonat. |                  |
-| Damage pipeline                      | EntityHitDamage  | Not available    |
-| Tactical intent (Brain-to-Brain)     | TacticalIntent   | Not available    |
-| Area queries (EQS)                   | AreaQuery*Batch  | Not available    |
-| Map interaction                      | MapClickEvent,   | Not available    |
-|                                      | DragEvent, etc.  |                  |
-| ExCon commands                       | CreateEntity,    | Not available    |
-|                                      | MapCommand, etc. |                  |
-| Time control                         | ClusterOpRequest | Not available    |
-| Orchestration                        | NodeOp/Cluster   | Not available    |
-|                                      | Op topics        |                  |
-| Pre-genesis ownership routing        | DeferredTake     | Not available    |
-|                                      | Ownership        |                  |
-| Binary attribute patching            | UpdateEntity     | Not available    |
-|                                      | AttributeRequest |                  |
-| ID allocator                         | DdsIdAllocator   | Sequential       |
-|                                      | Server           | counter          |
-| Descriptor count (per entity)        | 10+              | 2                |
-| Suitable for external federation     | Limited          | Yes              |
-| Suitable for full HROT cluster       | Yes              | No               |
-+--------------------------------------+------------------+------------------+
-```

@@ -209,7 +209,7 @@ receiver's node, read from the receiver's own type, so adding a unit type touche
   2. That drill decides each squad's part (lead squad to the point, the others following at an interval) and sends each squad commander `Order.Move(its point)`. It never names `SquadMarch`.
   3. Each squad commander resolves that order through its own type and starts `SquadMarch`, which directs its soldiers.
 
-  Not built: there is no platoon-of-squads type (`BdcTkbCatalog.cs:230-235`), and the tank platoon's members are vehicles,
+  Not built: there is no platoon-of-squads type (`NedTkbCatalog.cs:230-235`), and the tank platoon's members are vehicles,
   ordered by behaviour (`HillAttackCommanderNodes.cs:161-164,484-487`).
 - **Parameters (A2):** the order does NOT carry the behaviour's params DTO, because that would force the sender to know which
   behaviour runs. Each order kind has its own small DTO. The behaviour's params are built on the receiver in two layers:
@@ -338,7 +338,7 @@ classes, params types, without compiled trees) should be split from the registry
 | it does three jobs: binds behaviour name → authored DTO for every host (`BindJsonParamsDtoTypes`, CE-235); the category filter; the blueprint Send Intent palette and the UI schema / remapper | ✅ `CgfBehaviorSetup.cs:57-62`, `BehaviorCatalog.cs:45-64`, `IntentContractPaletteEntries.cs:50`, `BehaviorSchemaDiscovery` | ✅ CE-235: *"[BehaviorContract] on the DTOs in Hrot.Core is the one producer"* |
 | it sits in Hrot.Core so readers without the AI assembly can see it; ExCon is the one such reader (it references Presentation / Common, not `Hrot.AI.Behaviors`) | ✅ `Hrot.ExCon.csproj`, `MissionEditorService.cs:73` | — |
 | the behaviour's own attribute `[BTreeDefinition]` lives in the generic FastBTree kernel (`FDP/ExtDeps`), BTree only | ✅ `BTreeDefinitionAttribute.cs` | — |
-| entity TYPES are already C# constants (`TkbEntityTypes`) and the TKB catalog is C# (`BdcTkbCatalog`) | ✅ | — |
+| entity TYPES are already C# constants (`TkbEntityTypes`) and the TKB catalog is C# (`NedTkbCatalog`) | ✅ | — |
 
 | question | ⭐ lean |
 |---|---|
@@ -595,7 +595,7 @@ embarkation until we finish this order/param/unit stuff."* ⇒ CE-3110 I-2d and 
 | 2 | *"Unit drill is a behavior as any other, just having its authored param dto marked as the order param, correct?"* | ✅ yes. A behaviour fulfils an order exactly when its params DTO is that order's DTO; nothing else marks it |
 | 3 | *"Order is undistinguishable from other behavior … Ai debug and mcp might keep sending behaviors to any entity?"* | ✅ yes. An order is "start the behaviour that fulfils this order DTO for me"; once chosen, it runs like any behaviour. The debug API and MCP keep assigning a behaviour by name directly (§2.2 A6) |
 | 4 | *"Unit entity is responsible for making sure members know what to do … and there is no strict way how?"* | ✅ yes. The fulfilling behaviour decides. `SquadManeuverRunner` is one library helper, not a mandate |
-| 5 | *"Could the entity class be derived from its tkb dis entity type … so no new extra class for orders is necessary?"* | ⭐ yes, and it removes `EntityClass`. `DISEntityType` is hierarchical (`Kind · Domain · Country · Category · Subcategory · Specific`, packed in one `ulong`, `FDP/Engine/Fdp.Core/DISEntityType.cs`). A behaviour declares the DIS PATTERN it serves (0 = any), e.g. tanks = `{Kind 1, Domain 1, Category 1}` covering M1 and T-72 across countries. **Lookup:** among the behaviours whose params DTO is the order's DTO, take those whose pattern matches the entity's DIS type; the most specific wins; a tie is a load error. ⇒ the `<Class><Order>` NAME stops being the key and becomes only a naming guideline. ⛔ **Measured blocker:** the unit types are not distinguishable by DIS today. `Unit_TankPlatoon`, `Unit_InfantrySquad` and `Unit_TankPlatoon_Auto` all carry `{Kind 1, Domain 1, US}` with Category 0, i.e. "any US land platform" (`BdcTkbCatalog.cs:236,257,277`), which also matches every tank. ⇒ units need real aggregate types (SISO-REF-010 aggregate / echelon codes). ⛔ Not measured: who else reads a unit's DIS type (scenario translator `DisEntityTypeTranslator`, IG `SetDisType` at `IgApplication.cs:2235`) |
+| 5 | *"Could the entity class be derived from its tkb dis entity type … so no new extra class for orders is necessary?"* | ⭐ yes, and it removes `EntityClass`. `DISEntityType` is hierarchical (`Kind · Domain · Country · Category · Subcategory · Specific`, packed in one `ulong`, `FDP/Engine/Fdp.Core/DISEntityType.cs`). A behaviour declares the DIS PATTERN it serves (0 = any), e.g. tanks = `{Kind 1, Domain 1, Category 1}` covering M1 and T-72 across countries. **Lookup:** among the behaviours whose params DTO is the order's DTO, take those whose pattern matches the entity's DIS type; the most specific wins; a tie is a load error. ⇒ the `<Class><Order>` NAME stops being the key and becomes only a naming guideline. ⛔ **Measured blocker:** the unit types are not distinguishable by DIS today. `Unit_TankPlatoon`, `Unit_InfantrySquad` and `Unit_TankPlatoon_Auto` all carry `{Kind 1, Domain 1, US}` with Category 0, i.e. "any US land platform" (`NedTkbCatalog.cs:236,257,277`), which also matches every tank. ⇒ units need real aggregate types (SISO-REF-010 aggregate / echelon codes). ⛔ Not measured: who else reads a unit's DIS type (scenario translator `DisEntityTypeTranslator`, IG `SetDisType` at `IgApplication.cs:2235`) |
 | 6 | *"Can we enforce no param == empty param dto to eliminate the no param dto case?"* | ✅ yes. Every behaviour has exactly one params DTO; a behaviour that takes nothing names the shared empty `NoParams`. An order with no fields gets its OWN empty DTO (`HoldOrder`), because the type is what identifies the order. An empty DTO stores nothing: AQ76 already omits an empty half (*"an empty C# struct is one byte"*, :1811) |
 
 ### 2.3l Two more user decisions *(2026-10-12)*
@@ -622,10 +622,10 @@ consumers, the rename radius, ExCon's channel to a node, IG and the catalogue sc
 | ⛔ defect: the same function reads Category from the Country's high byte (`>> 40`; Category is bits 24–31) | → **CE-2127** |
 | map layers: `units_ground` = Domain 1, `vehicles` = Kind 1; a unit is in "vehicles" today | `MapLayerRegistry.cs:77-89` |
 | 3-D view, icons, Add-Entity picker are keyed on the composite, not on DIS (the picker reads Country only) | `VisualFamily.cs:35`, `EntityTypeCatalog.cs:88-89` |
-| a rail requires every built-in type to keep Country = US and Kind ≠ 0 | `BdcTkbBuilderVisualTests.cs:163-176` |
+| a rail requires every built-in type to keep Country = US and Kind ≠ 0 | `NedTkbBuilderVisualTests.cs:163-176` |
 | the ONE existing matcher is value + byte mask (exact or whole-segment wildcard; no ranges or lists), used by nothing in production | `QueryBuilder.WithDisType` (`QueryBuilder.cs:117-121`), `EntityQuery.cs:163,274`, `DisFilterTests` |
 | a "most specific first" DIS lookup was designed for the Terrain Reference Library and never built | DESIGN_Terrain_Combat_Tuning.md:90; `ParameterResolver.ReferenceByDis` has no producer |
-| no aggregate / echelon model exists; echelon is a free string on `TkbCompositionDef` (read by nothing) and inside the MIL-STD symbol code; `DisNames.json` names Kinds 1–9 and Categories for 1.1, 1.2 and 3.1 only | `TkbCompositionDef.cs:40`, `BdcTkbCatalog.cs:224-274`, `DisNameTable.cs:16-83` |
+| no aggregate / echelon model exists; echelon is a free string on `TkbCompositionDef` (read by nothing) and inside the MIL-STD symbol code; `DisNames.json` names Kinds 1–9 and Categories for 1.1, 1.2 and 3.1 only | `TkbCompositionDef.cs:40`, `NedTkbCatalog.cs:224-274`, `DisNameTable.cs:16-83` |
 
 **Lean (A):**
 - **Units get a Kind of their own** (a value DIS leaves unused, e.g. 11 "HROT aggregate"). Domain stays the arena (1 land), Country stays the side's country, Category = arm (infantry, armour, …), Subcategory = echelon (squad, platoon, company, …), Specific = variant.
@@ -746,7 +746,7 @@ answer. Once units have their own Kind:
 **Lean — the class table subsumes the DIS names:**
 - A name for a DIS level IS a class: `Platform = 1.*`, `LandPlatform = 1.1.*`, `Tank = 1.1.*.1`, `AttackHelicopter = 1.2.*.20`, `Person = 3.*`, `Infantry = 3.1.*.1`, and the units under Kind 11.
 - So the picker's folder path is the chain of matching classes from general to specific (`Platform / Land / Tank`), drawn from the SAME hard-coded table as the 3-D shape, the 2-D symbol and the behaviour.
-- Countries are not classes; they get a small hard-coded table beside it (SISO-REF-010 codes; `BdcTkbCatalog` already holds the five as constants, `BdcTkbCatalog.cs:12`).
+- Countries are not classes; they get a small hard-coded table beside it (SISO-REF-010 codes; `NedTkbCatalog` already holds the five as constants, `NedTkbCatalog.cs:12`).
 - `DisNameTable` keeps its API (`Path`, `CountryName`, the `"Category 7"` fallback for an unknown number) but is built from the C# table; the JSON resource is deleted.
 - D2b's worry (names in code rot silently) gets a rail instead: every built-in TKB type resolves to a named class path, and no two classes share a name or an identical mask.
 

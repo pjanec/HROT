@@ -4,12 +4,12 @@ namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
     /// Encodes and decodes the <b>simulation-time stamp</b> carried in a <see cref="DateTime"/> field of a sample.
-    /// ⭐ AQ107 D / F: <c>WorldPos</c> and <c>BdcWorldPos</c> no longer use it — they carry <c>double SimTime</c> (seconds); what remains
+    /// ⭐ AQ107 D / F: <c>WorldPos</c> no longer uses it — they carry <c>double SimTime</c> (seconds); what remains
     /// on this encoding is <c>EntityTurretPose</c> (<c>EntityTurretPoseEgressTranslator</c>). The remarks below describe the encoding,
     /// not the position wires.
     ///
     /// <para>
-    /// <b>Why this type exists.</b> Both stacks carry the stamp in a pre-existing
+    /// <b>Why this type exists</b> <i>(written when NED and the since-removed BDC stack, R-4095, both carried it)</i>. Both stacks carry the stamp in a pre-existing
     /// <see cref="DateTime"/> field whose own declaration documents it as
     /// <c>"Sync timestamp (exercise FILETIME). 0 = unspecified"</c>. Both are IDL-backed
     /// (<c>hrot-sim-desc</c> and <c>bdc-entity-msgs</c>), so a type change would touch every node —

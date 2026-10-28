@@ -328,15 +328,11 @@ noted. All are named constants in code (cite shown).
 - 🔵 `ManagedSerializationProvider` allocates on every `Encode`/`Apply` — a known hot spot for
   managed descriptors. `FDP/Network/Fdp.Network.Cyclone/Providers/ManagedSerializationProvider.cs:11`
 
-### 4.2 HROT protocols (NED / BDC / Orchestration)
+### 4.2 HROT protocols (NED / Orchestration)
 - 🔴 **Orchestrator (ID allocator) must be running before any node starts** (30 s wait, then
   throw). `Hrot/Network/Hrot.Network.Orchestration/DdsIdAllocatorHelper.cs:18,51-53`
 - 🔴 **`IClusterOpHandler.PrepareAsync` must not mutate ECS** — only `Commit` (main thread)
   may. `Hrot/Network/Hrot.Network.Orchestration/IClusterOpHandler.cs:33-35`
-- 🔴 **BDC is position+entity-master only.** Its factory returns null/no-op for command
-  gateway, ExCon, mission, pathfinding, perception — those need NED. `Hrot/Network/Hrot.Network.BDC/Factory/BdcNetworkFactory.cs:50-79`
-- 🔴 **BDC ordinals start at 1000** to avoid NED collisions (shared `DescriptorOwnershipMap`
-  key space). `Hrot/Network/Hrot.Network.BDC/Replication/BdcEntityMasterTranslator.cs:33-34`
 - 🔴 **`NedReplicationModule` requires `MuscleGround|ImageGenerator|Brain` in the role** (else
   throws). Pure-IG (`driveFromNetwork`) only when neither Muscle nor Brain. `Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs:187-194`
 - 🔴 **Gizmo egress & ingress translators must never co-exist on one node** (broadcast loop). `Hrot/Network/Hrot.Network.NED/Gizmos/GizmoTranslatorPack.cs:12-13`

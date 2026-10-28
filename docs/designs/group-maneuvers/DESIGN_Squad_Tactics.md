@@ -490,7 +490,7 @@ that hides a passenger.*
 
 | measured, `2026-10-11` | where |
 |---|---|
-| the TKB already models it: `Unit_InfantrySquad` is a composite of one `Infantry_Officer` (`SquadLeader`) + nine riflemen | `BdcTkbCatalog.cs:244-247` |
+| the TKB already models it: `Unit_InfantrySquad` is a composite of one `Infantry_Officer` (`SquadLeader`) + nine riflemen | `NedTkbCatalog.cs:244-247` |
 | a body-less commander already runs on the cluster (hill-attack "Tank Platoon", TKB 303: no Health, collider or weapon); it needs `NetworkIdentity` + `TkbIdentity` | `EntityMasterEgressTranslator.cs:62-67`, `GhostPromotionSystem.cs:196` |
 | nothing writes a commander's position today | searched centroid / average writers: none |
 | a positioned commander would be SEEN (`EntityInfo` is the only sight filter), found by EQS area searches (`SimTransform`), near-missed (`EntityInfo`), and never die (no Health) | `VisionBroadphase.cs:182`, `EntitiesInAreaGenerator.cs:66`, `BallisticsSystem.cs:256`, `CombatLife.cs:21-24` |
@@ -504,7 +504,7 @@ that hides a passenger.*
 | the composite description reaches NO component today; a TKB translator runs on the creator AND on every ghost promotion (all nodes) | `TkbTranslatorSet.cs:90-106`; `NetworkSpawningSystem.cs:141`; `GhostPromotionSystem.cs:271` | tkb-1 §6.6a (translators derive components per node) |
 | who can be SEEN or found by an area search enters through the perception grid (visual, thermal, acoustic) and `EntitiesInAreaGenerator`; hit, near-miss and `EntitiesInRadius` read the COLLIDER hash, which a body-less unit is never in | `LocalGridBuilderSystem.cs:106`, `EqsModule.cs:56-80`; `EntitiesInAreaGenerator.cs:66`; `SpatialHashSystem.cs:73`, `BallisticsSystem.cs:64` | R-271 §7.2 names the same choke points for the passenger |
 | a member's `Designation` written on CGF stays CGF-local unless marked dirty; a re-sent `CmdAssignSubordinate` appends a duplicate roster entry | `UnitSubordinate.cs:21,24`; `EntityInfoEgressTranslator.cs:116-121`; `UnitHierarchySystem.cs:117-149` | ⛔ searched: no design for succession ⇒ new here |
-| `Unit_InfantrySquad` (302) has no `.WithBehavior` ⇒ no brain on it; `Infantry_Officer` (201) has no template | `BdcTkbCatalog.cs:234-251` | the TKB composite's own slot list (officer = `SquadLeader`) |
+| `Unit_InfantrySquad` (302) has no `.WithBehavior` ⇒ no brain on it; `Infantry_Officer` (201) has no template | `NedTkbCatalog.cs:234-251` | the TKB composite's own slot list (officer = `SquadLeader`) |
 
 ```mermaid
 classDiagram
@@ -617,7 +617,7 @@ whole squad on a leader loss** (doctrine keeps the teams and fills the gap; form
 | `Fdp.Toolkits/Squad/SquadLeadership.cs` (NEW, id 275) · `SquadSensing.Succession` (called by `SquadCoordinationSystem` each frame) | L1 successor (⭐ `2026-10-13`, R-e: the roster-order fallback passes over a `Medic` while anyone else can lead — §7.5.7) · L2 `SilentUntil` · L3 `SquadLeaderDown` (14, HSM `Sensor.SquadLeaderDown`) |
 | `SquadManeuverRunner` · `ReactToContactBehavior` · `BasicSquadSop` (third row) | silent ⇒ no orders, re-sent after · the leader lost mid-drill ⇒ hold and decide again · leader down ⇒ React |
 | `SquadSensing.UnderFire` | the commander's own Hit / NearMiss no longer counts (it is body-less) |
-| `BdcTkbCatalog` 302 `.WithBehavior` | the squad commander can run the squad SOP and drills |
+| `NedTkbCatalog` 302 `.WithBehavior` | the squad commander can run the squad SOP and drills |
 | scenarios `tt-suppress-flank`, `tt-react-contact`, `ua-fire-distribution` | a body-less "Squad" (302) holds the task and SOP; "Leader" is a member designated `SquadLeader` (in `ua-fire-distribution` it keeps fighting with its own `CombatPosture`) |
 
 **Deviations from §7.1 — none in structure.** Two things measured while building: near-miss reads the COLLIDER hash

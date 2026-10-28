@@ -875,7 +875,7 @@ namespace Hrot.SimHost
             // --- 3. TKB Setup ---
             
             var tkb = new TkbDatabase();
-            BdcTkbCatalog.RegisterAll(tkb);
+            NedTkbCatalog.RegisterAll(tkb);
             FdpLog.Info("[SimHost] TKB templates registered");
             
             // --- 4. Geographic Transform ---

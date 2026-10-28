@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-09-11
+updated: 2026-10-28
 current-answer: §13.8 (CE-209 slice S9 AS BUILT, 2026-09-09) -- THE SELF-CONTAINED MODE IS
   RETIRED, so EVERY slice in §13's table is now BUILT. Read §13.8 for what the retirement cost
   (the deleted arm was the test fixture for 14 classes) and for the suite-rotation finding CE-262.
@@ -31,7 +31,7 @@ known-rot: §11.1's table cell ① claimed the motors were already gated while p
   has no shell; option B shipped there and A moves to CE-207. §11.1a argues both.
   §7.3a's StrideViewBracket table was wrong in four ways (assembly, a unit already bracketed
   elsewhere, a missing step, and gizmos-before-selection which inverts the BATCH-S2-AG fix).
-  It is replaced by §7.3b, the as-built.
+  It is replaced by §7.3b, the as-built. · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule.cs:87` (the third `DeadReckoningSyncSystem` registration) was removed with the BDC stack; two registrations remain.
 known-conflict: docs/DESIGN_Subsystem_Composition_Unification.md §4.1aa carried an earlier, thinner
   version of the mode plan. §4.1aa is SUPERSEDED BY THIS FILE for anything about the Stride modes; it
   keeps only the capability-seam half. Its "ImageGenerator: drop from both modes" resolution is
@@ -41,6 +41,8 @@ related-designs:
     IDebugDrawSink3D) into shared code — Stride keeps its sink, the map adds a Raylib one. Stride stays untouched otherwise
     (user, 2026-10-10). DESIGN_Godot_3D_Viewer.md is the DEFERRED Godot alternative.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** `BdcReplicationModule.cs:87` (the third `DeadReckoningSyncSystem` registration) was removed with the BDC stack; two registrations remain. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # DESIGN — the Stride story: two modes, one composition
 

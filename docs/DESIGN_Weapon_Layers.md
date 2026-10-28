@@ -202,7 +202,7 @@ the measured shape argues for keying them by the **turret part** instead (the `T
 
 | the lean rests on | code — how it IS | design — how it was MEANT |
 |---|---|---|
-| two mounts share one turret | ✅ catalog Bradley: 25 mm and TOW both `TurretIndex = 0` (`BdcTkbCatalog.cs`) | ✅ W-9 "two mounts share one turret" |
+| two mounts share one turret | ✅ catalog Bradley: 25 mm and TOW both `TurretIndex = 0` (`NedTkbCatalog.cs`) | ✅ W-9 "two mounts share one turret" |
 | a turret aims at ONE point at a time | ✅ one azimuth + one elevation (`TurretPose.cs`) | ✅ M23 "the turret and its gun are ONE assembly" |
 | per-part ownership needs a PART entity | ✅ `SyncPartClaims` walks `PartMetadata` entities only (`OwnershipRecomputeSystem.cs:125`) | ✅ Ownership G-3 (a multi-instance descriptor covers every instance) |
 | turret parts exist on every node; mount children on CGF only, and mount 0 is the hull itself | ✅ `TurretTkbTranslator` in the base set; `CgfComponentRegistry.cs:38`; `CombatTkbTranslator.cs:90` | ⛔ searched `docs/` + `.dev/`: no design puts mount parts on the Muscle |

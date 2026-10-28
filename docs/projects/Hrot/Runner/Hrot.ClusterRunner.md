@@ -77,7 +77,7 @@ Scan AppDomain for ISubsystem implementations
 For each type:
   - create isolated NetworkEntityMap, GeoTransform, FdpEventBus
   - create DDS participant with per-node SenderIdentityConfig
-  - create INetworkFactory (NED or BDC)
+  - create INetworkFactory (NedNetworkFactory)
   - TryCreateSubsystem(type, networkFactory)
   |
   v
@@ -113,10 +113,8 @@ compatibility with single-node dev setups.
 
 ### Network Factory Selection
 
-Two network protocols are supported, selected via `--network`:
-
-- **ned** (default) -- `NedNetworkFactory` backed by CycloneDDS via `Hrot.Network.NED`
-- **bdc** -- `BdcNetworkFactory` backed by a custom binary transport via `Hrot.Network.BDC`
+Every node gets a `NedNetworkFactory` (CycloneDDS, `Hrot.Network.NED`) -- the one network stack.
+*(The `--network` option and the BDC stack were removed 2026-10-28, R-4095.)*
 
 ### Perspective System
 
@@ -276,7 +274,6 @@ Hrot.ClusterRunner.Configuration
     class HrotRunnerConfiguration : RunnerConfiguration
       - ModeString : string        [CLI: -m/--mode]
       - ScenarioName : string      [CLI: -s/--scenario]
-      - NetworkProtocol : string   [CLI: --network]
       - LogDirectory : string      [CLI: --log-dir]
       - ConfigFile : string        [CLI: -c/--config]
       - AiBehaviorsProjectPath : string[]
@@ -396,7 +393,6 @@ Extends `Fdp.Toolkit.Runner.RunnerConfiguration`.
 |--------|------|-------------|
 | `ModeString` | `string` prop | Raw CLI mode string (required). |
 | `ScenarioName` | `string` prop | CI scenario name (`--scenario`). |
-| `NetworkProtocol` | `string` prop | `ned` or `bdc` (`--network`). Default: `ned`. |
 | `LogDirectory` | `string` prop | NLog file output directory (`--log-dir`). |
 | `ConfigFile` | `string` prop | JSON override file (`-c/--config`). |
 | `AiBehaviorsProjectPath` | `string[]` prop | Relative path to AI behaviors .csproj for hot-reload. |
@@ -512,7 +508,6 @@ Exit codes: `0` = both entities alive after 600 ticks; `1` = entity died early.
 | `Fdp.Toolkits` | `ISubsystem`, `SubsystemOrchestrator`, `RunnerConfiguration`, `SubsystemConfig`, `INetworkFactory`, `ITestActionHandler`, `ScenarioSubsystem` |
 | `Fdp.Presentation` | `IWindowRegistrar`, `WindowManager`, `MessageLogWindow`, `IconAtlas` |
 | `Hrot.Network.NED` | `NedNetworkFactory`, NED/DDS topology descriptors |
-| `Hrot.Network.BDC` | `BdcNetworkFactory`, binary transport |
 | `Hrot.Common` | `HrotNodeBuilder`, `HrotNodeContext`, `HrotEnvironment`, `NodeRole`, `IGizmoControllable` |
 | `Hrot.Orchestrator` | `OrchestratorSubsystem`, `ClusterMaster` |
 | `Hrot.SimHost` | `SimHostSubsystem`, `SimHostComponentRegistry` |
@@ -631,9 +626,9 @@ Hrot.ClusterRunner.exe --mode excon        --node-id 1000 --wait-for orchestrato
 Hrot.ClusterRunner.exe --mode cgf          --node-id 1000 --wait-for orchestrator
 ```
 
-Run on an alternative DDS domain with BDC transport:
+Run on an alternative DDS domain:
 ```
-Hrot.ClusterRunner.exe --mode all --domain 5 --network bdc
+Hrot.ClusterRunner.exe --mode all --domain 5
 ```
 
 Run headless (no window):
@@ -675,7 +670,6 @@ A JSON config file merges over CLI defaults. Only non-default values need to be 
   "ModeString": "orchestrator,simhost,ig,excon,cgf",
   "DomainId": 3,
   "Headless": false,
-  "NetworkProtocol": "ned",
   "LogDirectory": "C:\\Logs\\HROT",
   "AiBehaviorsProjectPath": [
     "Subsystems",
@@ -837,6 +831,5 @@ wired into any production boot path. They are constructed and registered only by
 | `Hrot.ReplayBrowser` | Standalone replay review subsystem. |
 | `Hrot.AI.Behaviors` | Hot-reloadable AI behaviour tree assembly. Delivered as copy-local only; loaded by `EditorSubsystem` in a collectible ALC. |
 | `Hrot.Network.NED` | NED/DDS network factory and topology descriptors. |
-| `Hrot.Network.BDC` | BDC binary-transport network factory. |
 | `Hrot.ClusterRunner.Tests` | Unit tests for runner internals (`InternalsVisibleTo`). |
 | `Hrot.ClusterRunner.Integration.Tests` | Integration / E2E tests using `HeadlessTestExecutor` and the action handlers in `Hrot.ClusterRunner.Testing`. |

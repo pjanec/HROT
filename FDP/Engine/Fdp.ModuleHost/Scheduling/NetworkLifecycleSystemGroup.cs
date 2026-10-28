@@ -18,7 +18,7 @@ namespace Fdp.ModuleHost.Scheduling
     ///     <c>GhostCreationSystem.CreateGhost(...)</c>, called DIRECTLY by the ingress translators on
     ///     the Input phase — a path this gate cannot reach. ⇒ disabling the group stops a no-op.</item>
     ///   <item>⛔ <b>The same instance is ALSO registered with the scheduler</b>
-    ///     (<c>NedReplicationModule.RegisterSystems</c>, <c>BdcReplicationModule</c>), which knows
+    ///     (<c>NedReplicationModule.RegisterSystems</c>; formerly also the BDC replication module, removed R-4095), which knows
     ///     nothing about <see cref="Enabled"/>. ⚠ Harmless only because the method is a no-op; it
     ///     means the gate would not hold even if the member did work.</item>
     /// </list></para>

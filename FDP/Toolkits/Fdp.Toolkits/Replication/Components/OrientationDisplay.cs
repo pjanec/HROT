@@ -9,8 +9,7 @@ using Fdp.Modules.Geographic.Systems;
 namespace Fdp.Toolkit.Replication.Components
 {
     /// <summary>
-    /// The ONE human-readable rendering of a position wire's orientation (<c>OrientationQuat</c> on the NED stack,
-    /// <c>BdcOrientationQuat</c> on BDC) — what <c>ddsmonitor</c> shows, while the wire still carries the quaternion's vector part
+    /// The ONE human-readable rendering of a position wire's orientation (<c>OrientationQuat</c> on the NED stack) — what <c>ddsmonitor</c> shows, while the wire still carries the quaternion's vector part
     /// (<see cref="QuaternionWireCodec"/>, <c>docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md</c> D).
     ///
     /// <para><b>Shape</b>: <c>HPR [045.0, 3.2, -1.0] deg, Quat [0.010, 0.030, 0.380, 0.924]</c> — heading (3 integer digits, one decimal),

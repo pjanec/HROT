@@ -45,8 +45,8 @@ namespace Hrot.Common.EntityCreation
     ///     <para>⛔⛔ <b>Ghost PROMOTION IS NO LONGER IN THIS LIST — it MOVED HERE, <c>P2</c>,
     ///     <c>2026-09-11</c>.</b> ⚠ An earlier version of this bullet said registering it here *"would
     ///     create a SECOND registrar — the duplicate-implementation trap."* 📐 **That reasoning assumed
-    ///     `NedReplicationModule` is THE registrar; it is one of THREE modules and two never registered
-    ///     it** *(BDC created ghosts and never promoted them; Offline returns a
+    ///     `NedReplicationModule` is THE registrar; it was one of THREE modules and two never registered
+    ///     it** *(BDC — since removed, R-4095 — created ghosts and never promoted them; Offline returns a
     ///     `NullReplicationModule`)*. ⇒ this is a MOVE: the pack became the registrar and the NED module
     ///     stopped, in one commit. 📄 <c>DESIGN_Role_Affinity_Ownership.md</c> §3.7.</para></item>
     ///   <item><b>The TKB catalogue.</b> <see cref="EntityCreationContext.TkbDb"/> is required input,
@@ -208,8 +208,8 @@ namespace Hrot.Common.EntityCreation
             //   stays on IReplicationModule; ghost PROMOTION applies the TKB template and consumes the
             //   translator list, neither of which is networked.
             //
-            //   🔴 It was already a defect independent of that design: BdcReplicationModule registers
-            //     GhostCreationSystem and NO promotion, so a BDC node's ghosts were never promoted — they
+            //   🔴 It was already a defect independent of that design: the BDC replication module (removed since,
+            //     R-4095) registered GhostCreationSystem and NO promotion, so a BDC node's ghosts were never promoted — they
             //     kept only their replicated components and stayed in EntityLifecycle.Ghost forever. ⭐ That
             //     closes here as a side effect rather than as separate work.
             //

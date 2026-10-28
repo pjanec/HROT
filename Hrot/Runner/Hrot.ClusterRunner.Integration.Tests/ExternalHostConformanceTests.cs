@@ -55,7 +55,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// 2026-09-16: separate process, not in-process; to avoid a new app it lives HERE as the env-gated
 /// <see cref="FakeExternalHostSubprocess"/> <c>[Fact]</c>, launched via <c>dotnet vstest</c>; a normal suite
 /// run with no <c>FAKE_HOST_MODE</c> is a no-op). The cluster CREATOR runs in-process via
-/// <see cref="CgfHarness"/> on the same Cyclone loopback domain. NED wire only — BDC is out of scope (§3d).</para>
+/// <see cref="CgfHarness"/> on the same Cyclone loopback domain. NED wire only (the BDC stack was out of scope, §3d, and is removed since, R-4095).</para>
 /// </summary>
 public sealed class ExternalHostConformanceTests
 {

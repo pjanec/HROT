@@ -78,7 +78,7 @@ Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3073` (F10, fixe
 | # | finding | evidence | consequence |
 |---|---|---|---|
 | **F1** | `DistanceToContext` and `WeaponRangeBandFit` read the GEOGRAPHIC `Position`, which no Hrot node registers; live units carry `SimTransform` | `StandardInputs.cs:7,141`; `RegisterComponent<Position>` only in `Fdp.Examples.Showcase` and a benchmark | ThreatRanking is a weighted product ⇒ every contact scores 0 ⇒ `TopThreat` keeps the current threat or takes the first in memory order. **A live defect today (filed `CE-3070`)**: TakeCover, FallBack and CombatPosture aim at memory order, not the ranked threat |
-| **F2** | WeaponSelection has 0 candidates: `WeaponMountInfo` is never registered, so mount children are never made; the fire executor always fires `WeaponIndex 0`; every mount gets the primary's range; `TopCandidate` passes a null context | `CombatTkbTranslator.cs:87,98`; `AimAndFireExecutor.cs:77,111-117`; `BdcTkbBuilder.cs:178`; `UtilityScorer.cs:206` | weapon choice needs engine work, not a scenario |
+| **F2** | WeaponSelection has 0 candidates: `WeaponMountInfo` is never registered, so mount children are never made; the fire executor always fires `WeaponIndex 0`; every mount gets the primary's range; `TopCandidate` passes a null context | `CombatTkbTranslator.cs:87,98`; `AimAndFireExecutor.cs:77,111-117`; `NedTkbBuilder.cs:178`; `UtilityScorer.cs:206` | weapon choice needs engine work, not a scenario |
 | **F3** | the trace's winner record is written BEFORE hysteresis is applied | `UtilityScorer.cs:398-405` vs `:456-485` | a trace can name a different option from the one chosen |
 | **F4** | fire distribution reads the commander's OWN `TargetMemory`, not the squad's merged pool | `ThreatMatrixAssignmentSystem.cs:50,56` | a commander without sensors assigns nothing |
 | **F5** | ManeuverSelect's option ids (0/1/2) are not `ManeuverKind`'s (1/2/…); it is not in the catalog; `ChooseOption` takes only PostureSelect decisions | `ManeuverSelectStarterDecision.cs:20-22`, `CommanderUtilityTickSystem.cs:65`, `DangerAreaCrossingManeuver.cs:30` | "Hold" would run bounding overwatch |
@@ -359,11 +359,11 @@ mount index and `EntityHitDamage` already carries the damage; only local events 
 | AI effectiveness | `min(1, ExpectedDamage / target Health.Max)` at the current facing — "share of a kill per hit". The unit's own `Health.Max`, not the TKB's: scenarios override it (hill-attack's M1s carry 50) |
 | WeaponSelection | gains `RoundsLeft` (log scale, `ln(1+ammo)/ln(1+300)`, weight 1): with 7 TOW rounds and 300 of 25 mm, the 25 mm wins on infantry and the TOW on a tank |
 
-**Calibration (catalog code, `BdcTkbCatalog` / `UrbanCombatTkbCatalog`):**
+**Calibration (catalog code, `NedTkbCatalog` / `UrbanCombatTkbCatalog`):**
 
 | weapon | penetration mm | damage / hit | ⇒ vs (computed, not run) |
 |---|---|---|---|
-| rifle (M4, 2002's rifle) | 5 | 25 | **unchanged for the UrbanCombat soldier** (2002: 100 HP, no armour ⇒ P 1, 4 hits). ⚠ **Corrected `2026-10-05`:** the BDC Rifleman (200: `ArmorFront` 5 mm, side/rear 0, `MaxHealth` 5×5 = 25, `BdcTkbBuilder.cs:169`) goes from 1 hit to 2 from the front (r = 1 ⇒ P 0.5), still 1 from side/rear |
+| rifle (M4, 2002's rifle) | 5 | 25 | **unchanged for the UrbanCombat soldier** (2002: 100 HP, no armour ⇒ P 1, 4 hits). ⚠ **Corrected `2026-10-05`:** the BDC Rifleman (200: `ArmorFront` 5 mm, side/rear 0, `MaxHealth` 5×5 = 25, `NedTkbBuilder.cs:169`) goes from 1 hit to 2 from the front (r = 1 ⇒ P 0.5), still 1 from side/rear |
 | RPG (2003) | 300 | 400 | Bradley side 60 ⇒ P 1, 2 hits (500 HP); T-72 front 500 ⇒ 0 |
 | 25 mm M242 | 60 | 60 | 2 hits on infantry; T-72 any face ⇒ 0 |
 | TOW | 800 | 2000 | T-72 front ⇒ P 1, ~2 hits |
@@ -378,7 +378,7 @@ will kill in a handful of rounds instead of running out of ammo, so its baseline
 |---|---|
 | **A1** the model drives the REAL damage and the AI estimate (one function) | estimate-only, damage stays flat — the AI would pick weapons for a world that does not exist |
 | **A2** expected damage, no random roll | a seeded roll per hit — more "realistic", but needs a sim RNG stream and makes every combat rail statistical |
-| **A3** ⚠ **REVISED `2026-10-05`, approved:** no copy on any component — armour (`CombatPlatformDefDto`) and the weapon numbers (`WeaponMountDto` + `Range`, `Penetration`, `DamagePerHit`) are read from the TKB by type (`TkbIdentity` → the world's `ITkbDatabase`) where they are used; the bullet carries the fired mount's numbers to the hit | a new `Armor` component — a copy of fixed per-type data, nothing changes it after spawn (measured: armour is written only by the catalog, `BdcTkbCatalog.cs:40,79,139,172`) · on `WeaponState` — scenario files override `WeaponState` whole, so a missing field would silently zero the penetration · on `WeaponMountInfo` — mount 0 has none, and mount children are not made today (F2) |
+| **A3** ⚠ **REVISED `2026-10-05`, approved:** no copy on any component — armour (`CombatPlatformDefDto`) and the weapon numbers (`WeaponMountDto` + `Range`, `Penetration`, `DamagePerHit`) are read from the TKB by type (`TkbIdentity` → the world's `ITkbDatabase`) where they are used; the bullet carries the fired mount's numbers to the hit | a new `Armor` component — a copy of fixed per-type data, nothing changes it after spawn (measured: armour is written only by the catalog, `NedTkbCatalog.cs:40,79,139,172`) · on `WeaponState` — scenario files override `WeaponState` whole, so a missing field would silently zero the penetration · on `WeaponMountInfo` — mount 0 has none, and mount children are not made today (F2) |
 | **A4** per-mount range comes from the mount (fixes the TOW's 3750 m being read as the 25 mm's 2500 m) | — |
 
 📐 **Measured for the build (`2026-10-05`, graph CLI + grep):** `AimAndFireExecutor.cs:113-116` always fires `WeaponIndex 0`
@@ -392,7 +392,7 @@ detonation (`MunitionDetonationIngressTranslator`) carries `Penetration 0` ⇒ t
 | what | where |
 |---|---|
 | `ArmorModel` (facing, armour of a face, `P`, expected damage, `HitDamage` with the unknown-munition rule) and `CombatTkb` (TKB entry by `TkbIdentity`, platform, mount, owner of a mount) | `FDP/Toolkits/Fdp.Toolkits/Combat/ArmorModel.cs` |
-| `WeaponMountDto` + `Range`, `Penetration`, `DamagePerHit`; both catalogs calibrated per the table (`SimCombatDef.WeaponMount` → `BdcTkbBuilder`, `UrbanCombatTkbCatalog`) | TKB |
+| `WeaponMountDto` + `Range`, `Penetration`, `DamagePerHit`; both catalogs calibrated per the table (`SimCombatDef.WeaponMount` → `NedTkbBuilder`, `UrbanCombatTkbCatalog`) | TKB |
 | the bullet takes the fired mount's numbers (`FireProcessingSystem`), the hit copies them into `DetonationNotification` (`HitResolutionSystem`), `DamageCalculationSystem` applies `ArmorModel` (face from the shooter, else the hit point) | SimHost path |
 | `WeaponEffectivenessVsTarget` = share of a kill (own `Health.Max`, else TKB `MaxHealth`); `WeaponRangeBandFit` reads the mount's OWN TKB range first — ⚠ also for mount 0 on the unit itself (was 0 with no mount child); new input `RoundsLeft` (`0xCAE9`) in `WeaponSelection` | CGF inputs |
 | ⛔ unchanged: no network message (R-158); `AimAndFireExecutor` still fires mount 0 — choosing another mount is **G7** | — |

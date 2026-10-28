@@ -69,7 +69,7 @@ negative claim below is a coverage-checked one)*
 | `.*(UnderFire\|NearMiss\|Suppress).*` | 35 | `NearMissSensingSystem`, `EntityUnderFire` (wire), `SuppressAndManeuverBehavior/Play/Maneuver`, `SuppressBehavior`, `SuppressNodes` |
 | `.*(Grenade\|Throw\|PickUp).*` | 32 | `RoomGrenade.GrenadeCheck`, `HiddenTargetThrow`, `RoundPickUp` (+ `PickUpRoundEvent`/`PickUpGrantEvent`, wire payloads), `RoundPickUpSystem`, `ThrowArc`, `Civilians.Throwables` |
 | `.*(Look\|Gaze).*Node.*` | 5 | `LookNodes`, `LookNodeState`, `LookAtEntityNode`, `LookAtPointNode` |
-| grep `Obstacle_` (TKB) | 4 types | the parked car 8806 (4.5×1.8×1.5 m, `car-body`), sandbags 8807, concrete block 8808, crate 8809 — `BdcTkbCatalog.cs:1106-1114` |
+| grep `Obstacle_` (TKB) | 4 types | the parked car 8806 (4.5×1.8×1.5 m, `car-body`), sandbags 8807, concrete block 8808, crate 8809 — `NedTkbCatalog.cs:1106-1114` |
 | grep `.*GrenadeDanger.*\|LiveGrenade\|grenade.{0,40}(flee\|evade\|prone)` | 0 | ⛔ nothing senses a grenade near a man |
 
 ## 2. How it is — the claims the leans rest on
@@ -87,7 +87,7 @@ negative claim below is a coverage-checked one)*
 | ⇒ after the live window a hidden enemy leaves only Hold (idle) | ⚠ inferred from the two rows above — ⭐ **the baseline scenario S1 measures it first** | — |
 | the next peek spot is the best-scoring one, cooled by heat — deterministic | ✅ `PeekAndFireNodes.cs:292-295` (heat rules); no random | ✅ Peek & Fire §8 B2–B4 |
 | the squad's suppress-and-flank exists | ✅ `SuppressAndManeuverBehavior.cs:1-80` (who sees = base of fire; the rest flank via `FindFlankingPosition`) | ✅ Squad Tactics §3 (CE-2123) |
-| a squad type may have NO default SOP | ✅ squad 302 in `pc-defend-house` (`BdcTkbCatalog.cs:901,923`) | ⛔ none says a squad may have no SOP |
+| a squad type may have NO default SOP | ✅ squad 302 in `pc-defend-house` (`NedTkbCatalog.cs:901,923`) | ⛔ none says a squad may have no SOP |
 | a frag grenade lies where it lands until its fuse | ✅ `BallisticsSystem.cs:93-119` (CE-1032 W-4) | ✅ Building Interiors §3k |
 | a landed grenade can be picked up and thrown | ✅ `RoundPickUp`, `RoundPickUpSystem` (CE-3235); a thrown-back canister keeps its burn | ✅ Civilians AW-8 (*"a canister, a grenade"*), B-14 |
 | prone protects from a burst | ✅ `bt-grenade-posture` (B4) | ✅ Building Interiors §3f |

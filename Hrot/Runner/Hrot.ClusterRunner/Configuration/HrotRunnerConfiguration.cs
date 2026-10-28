@@ -22,10 +22,6 @@ namespace Hrot.ClusterRunner.Configuration
         [Option('s', "scenario", Required = false, HelpText = "Scenario name for --mode ci (e.g. MinimalCI_01)")]
         public string ScenarioName { get; set; } = string.Empty;
 
-        /// <summary>Network protocol: <c>ned</c> (default) or <c>bdc</c>.</summary>
-        [Option("network", Default = "ned", HelpText = "Network protocol: ned (default) or bdc")]
-        public string NetworkProtocol { get; set; } = "ned";
-
         /// <summary>Directory for NLog file target output. Defaults to <c>AppContext.BaseDirectory\logs</c>.</summary>
         [Option("log-dir", Required = false, HelpText = "Directory for log file output. Defaults to <AppBase>\\logs.")]
         public string LogDirectory { get; set; } = string.Empty;
@@ -247,12 +243,6 @@ namespace Hrot.ClusterRunner.Configuration
                 }
             }
 
-            // Validate network protocol.
-            if (!string.Equals(NetworkProtocol, "ned", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(NetworkProtocol, "bdc", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException(
-                    $"Unknown --network value: '{NetworkProtocol}'. Use 'ned' or 'bdc'.");
-
             // CI mode is always standalone (no peer synchronisation required).
             if (RequestedSubsystems.Contains("ci")) return;
 
@@ -325,9 +315,6 @@ namespace Hrot.ClusterRunner.Configuration
                 WaitForString = overrides.WaitForString;
             if (!string.IsNullOrEmpty(overrides.ConfigFile))
                 ConfigFile = overrides.ConfigFile;
-            if (!string.IsNullOrEmpty(overrides.NetworkProtocol) &&
-                !string.Equals(overrides.NetworkProtocol, "ned", StringComparison.OrdinalIgnoreCase))
-                NetworkProtocol = overrides.NetworkProtocol;
         }
     }
 }

@@ -10,8 +10,8 @@ namespace Fdp.Network.Cyclone.Topics
     /// to learn every present node's readiness with no live transition
     /// (docs/DESIGN_Cross_Node_Construction_Barrier.md §2a/§3a.1).
     ///
-    /// <para>Lives in the generic <c>Fdp.Network.Cyclone</c> layer so both the NED and BDC
-    /// transports publish/subscribe the one type (§2c). QoS is Reliable + TransientLocal +
+    /// <para>Lives in the generic <c>Fdp.Network.Cyclone</c> layer so every transport
+    /// publishes/subscribes the one type (§2c). QoS is Reliable + TransientLocal +
     /// KeepLast 1 so the LAST status per instance is retained for late joiners; the composite
     /// key <c>(EntityId, NodeId)</c> gives one retained instance per reporting node.</para>
     ///

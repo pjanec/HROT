@@ -1,6 +1,6 @@
 <!--STATUS
 state: HISTORICAL
-updated: 2026-09-05
+updated: 2026-10-28
 current-answer: Phases 1, 2 and 4 SHIPPED and are LIVE — HrotNodeBuilder / SharedApplicationBootstrapper,
   NedReplicationModule, and the migration of SimHostApp / IgApplication / CgfSubsystem onto them. Those
   are the parts of this document still worth reading.
@@ -15,7 +15,10 @@ stale-below: ⛔ PHASE 3 — the EyesAndMuscleSubsystem / EyesAndMuscleModule ar
 superseded-by: docs/DESIGN_Stride_Node_Modes.md (for the Stride half) ·
   docs/DESIGN_Subsystem_Composition_Unification.md (for the composition half).
 known-conflict: none.
+known-rot: ⛔ SUPERSEDED 2026-10-28 (R-4095): the "future `BdcReplicationModule` with its own `BdcDeadReckoningSystem`" never shipped as such and the BDC stack is removed.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-28` (R-4095, CE-4077):** the "future `BdcReplicationModule` with its own `BdcDeadReckoningSystem`" never shipped as such and the BDC stack is removed. The reasoning below is kept as the record of that stack; do not read it as a live host.
 
 # EyesAndMuscle Design
 
