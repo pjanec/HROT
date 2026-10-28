@@ -51,6 +51,7 @@ public sealed partial class ClusterMaster
     private void ProcessSetRunSettingsIntent(SetRunSettingsIntent intent)
     {
         RecordLiveRuns = intent.RecordLiveRuns;
+        PublishClusterState(_currentDsmState);   // every host reads the setting off the broadcast, so tell them now
         FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090: Record live runs is now {0} (from the next live load).", intent.RecordLiveRuns);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
     }

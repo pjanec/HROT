@@ -34,6 +34,16 @@ namespace Hrot.Editor.DebugApi
                 ? (null, $"{RunRecordingGates.NotRecordedReason}: {what} needs the run's recording (start the run with 'Record live runs' on — POST /run-settings {{\"recordLiveRuns\": true}}).", DebugApiHints.Scenario)
                 : null;
 
+        /// <summary>⭐ CE-4090 — <c>GET /run-settings</c>: <c>{recordLiveRuns}</c>, read off the master's broadcast (the same fact on every host); a host
+        /// that tracks no cluster read model answers 503-class "No subsystem…".</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) GetRunSettings()
+        {
+            var off = _editorRecordLiveRunsOff?.Invoke() ?? _dispatcher?.RecordLiveRunsOffAnyNode;
+            if (off is null)
+                return (null, "No subsystem on this host keeps the cluster's read model (a ClusterUiCache / ClusterSlave) that carries the run settings.", DebugApiHints.Panel);
+            return (new JsonObject { ["recordLiveRuns"] = !off.Value }, null, null);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-4090</c> (AQ108 D14) — <c>POST /run-settings {recordLiveRuns: bool}</c>: the cluster-wide <i>Record live runs</i> setting (default ON),
         /// held by the MASTER and applied from the NEXT live load; the run on screen is not touched. Any host asks.

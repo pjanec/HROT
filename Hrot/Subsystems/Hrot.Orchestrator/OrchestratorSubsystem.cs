@@ -50,7 +50,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             exercises:         () => _core?.UiCache.AvailableExercises,
             replayDuration:    () => _core?.UiCache.ReplayDuration,
             replayAxis:        () => _core?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
-            runNotRecorded:    () => _core?.UiCache.RunNotRecorded);   // ⭐ CE-4090 D14
+            runNotRecorded:    () => _core?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
+            recordLiveRunsOff: () => _core?.UiCache.RecordLiveRunsOff);
 
     // ⭐ Q86 (R-215) — the master and every process manager live in the ONE core the editor builds too.
     private OrchestratorCore? _core;

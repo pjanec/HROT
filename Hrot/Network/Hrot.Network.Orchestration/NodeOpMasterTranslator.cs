@@ -244,6 +244,14 @@ public sealed class NodeOpMasterTranslator
                 catch { return resultJson; }
             }
 
+            // ⭐ CE-4093 — a node's check answer is the string "changed" | "unchanged" | "no-baseline" (a JSON string on the wire). ⛔ Without
+            //   this case it fell to `default: null` and the master read every node as silent.
+            case FdpNodeOpType.CheckUnsaved:
+            {
+                try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
             case FdpNodeOpType.NodeReplaySeek:
             {
                 try

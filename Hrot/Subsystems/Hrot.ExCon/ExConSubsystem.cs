@@ -127,7 +127,8 @@ namespace Hrot.ExCon
                 exercises:          () => _uiCache?.AvailableExercises,
                 replayDuration:     () => _uiCache?.ReplayDuration,
                 replayAxis:         () => _uiCache?.ReplayAxis,   // ⭐ CE-3329 R-3058
-                runNotRecorded:     () => _uiCache?.RunNotRecorded);   // ⭐ CE-4090 D14
+                runNotRecorded:     () => _uiCache?.RunNotRecorded,   // ⭐ CE-4090 D14
+                recordLiveRunsOff:  () => _uiCache?.RecordLiveRunsOff);
 
         /// <inheritdoc/>
         /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>
