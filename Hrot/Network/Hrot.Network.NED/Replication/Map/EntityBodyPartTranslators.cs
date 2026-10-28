@@ -18,19 +18,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityPartDamageEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityPartDamage";
         private readonly DdsWriter<EntityPartDamage>? _writer;
         private readonly Dictionary<long, EntityPartDamage> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtPartDamage;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityPartDamageEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityPartDamage>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityPartDamage>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -72,19 +71,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityHitMarksEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityHitMarks";
         private readonly DdsWriter<EntityHitMarks>? _writer;
         private readonly Dictionary<long, ushort> _lastSeq = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitMarks>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtHitMarks;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityHitMarksEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityHitMarks>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityHitMarks>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -132,12 +130,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// An unknown entity is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityPartDamageIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityPartDamage";
         private const long OrdinalValue = (long)EDescriptorType.dtPartDamage;
         private readonly DdsReader<EntityPartDamage>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -146,7 +143,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityPartDamageIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityPartDamage>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityPartDamage>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
@@ -186,12 +183,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <summary>⭐ <c>CE-3210</c> (HL-8) — applies a body's published <see cref="HitMarks"/> on this node (every renderer draws them).</summary>
     public sealed class EntityHitMarksIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityHitMarks";
         private const long OrdinalValue = (long)EDescriptorType.dtHitMarks;
         private readonly DdsReader<EntityHitMarks>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitMarks>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -200,7 +196,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityHitMarksIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityHitMarks>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityHitMarks>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

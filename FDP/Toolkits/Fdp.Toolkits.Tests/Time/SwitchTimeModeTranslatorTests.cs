@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Time.Tests
         {
             var bus = new FdpEventBus();
             var translator = CreateNullParticipantTranslator(bus);
-            Assert.Equal("SwitchTimeModeEvent", translator.TopicName);
+            Assert.Equal("Fdp_Toolkit_Time_Messages_SwitchTimeModeWireDto", translator.TopicName);
         }
 
         [Fact]
@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Time.Tests
             var translator = TimeNetworkModule.CreateDescriptorTranslator(null, bus)
                 as SwitchTimeModeDescriptorTranslator;
             Assert.NotNull(translator);
-            Assert.Equal("SwitchTimeModeEvent", translator!.TopicName);
+            Assert.Equal("Fdp_Toolkit_Time_Messages_SwitchTimeModeWireDto", translator!.TopicName);
         }
 
         [Fact]

@@ -10,7 +10,7 @@ namespace Hrot.DDS.DataModel.Runner
     /// <para>QoS: Reliable + TransientLocal (KeepLast/1) ensures late-joining
     /// processes receive the most recent announcement from all peers.</para>
     /// </summary>
-    [DdsTopic("SubsystemStatusAnnounce")]
+    [DdsTopic]
     [DdsIdlFile("runner-msgs")]
     [DdsManaged]
     [DdsQos(

@@ -15,12 +15,11 @@ namespace Hrot.Animation.Replication.Translators.SideBuffers;
 /// </summary>
 internal sealed class AnimationMontageQueueIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/MontageQueue";
 
     private readonly DdsReader<DdsMontageQueue>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsMontageQueue).Namespace, new[] { nameof(DdsMontageQueue) });
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -29,7 +28,7 @@ internal sealed class AnimationMontageQueueIngressTranslator : INetworkTranslato
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsMontageQueue>(participant, TopicNameConst)
+            ? new DdsReader<DdsMontageQueue>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }

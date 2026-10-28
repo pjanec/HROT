@@ -19,14 +19,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityUtteranceEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityUtterance";
         private readonly DdsWriter<EntityUtterance>? _writer;
         private readonly Dictionary<long, EntityUtterance> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.Utterance };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUtterance>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtUtterance;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -37,7 +36,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityUtteranceEgressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _writer = participant is not null ? new DdsWriter<EntityUtterance>(participant, DdsTopicName) : null;
+            _writer = participant is not null ? new DdsWriter<EntityUtterance>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
@@ -83,12 +82,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// sample back.</summary>
     public sealed class EntityUtteranceIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityUtterance";
         private const long OrdinalValue = (long)EDescriptorType.dtUtterance;
         private readonly DdsReader<EntityUtterance>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUtterance>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -97,7 +95,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityUtteranceIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityUtterance>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityUtterance>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

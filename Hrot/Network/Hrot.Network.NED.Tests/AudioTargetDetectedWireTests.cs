@@ -68,8 +68,8 @@ namespace Hrot.DDS.DataModel.Tests
         {
             using var participant = new DdsParticipant(TestDomain + 1);
             var translator = new AudioTargetDetectedIngressTranslator(participant, new NetworkEntityMap());
-            using var probe  = new DdsReader<AudioTargetDetected>(participant, translator.TopicName);   // proves the samples have ARRIVED
-            using var writer = new DdsWriter<AudioTargetDetected>(participant, translator.TopicName);
+            using var probe  = new DdsReader<AudioTargetDetected>(participant);   // proves the samples have ARRIVED
+            using var writer = new DdsWriter<AudioTargetDetected>(participant);
             Thread.Sleep(400); // DDS discovery
 
             for (long listener = 1; listener <= 3; listener++)
@@ -96,8 +96,8 @@ namespace Hrot.DDS.DataModel.Tests
         {
             using var participant = new DdsParticipant(TestDomain + 2);
             var translator = new NearMissIngressTranslator(participant, new NetworkEntityMap());
-            using var probe  = new DdsReader<NearMiss>(participant, translator.TopicName);
-            using var writer = new DdsWriter<NearMiss>(participant, translator.TopicName);
+            using var probe  = new DdsReader<NearMiss>(participant);
+            using var writer = new DdsWriter<NearMiss>(participant);
             Thread.Sleep(400); // DDS discovery
 
             for (int i = 0; i < 3; i++) writer.Write(new NearMiss { UnitEntityId = 7, X = i });

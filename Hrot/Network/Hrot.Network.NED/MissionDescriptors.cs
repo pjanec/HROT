@@ -69,7 +69,7 @@ namespace Hrot.NED.Descriptors
     // 4. TOPIC: ENTITY MISSION (STATE)
     // ==============================================================================
 
-    [DdsTopic("EntityMission")]
+    [DdsTopic]
     [DdsIdlFile("hrot-missions-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct EntityMission

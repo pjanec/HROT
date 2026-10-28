@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Fdp.Toolkit.Commands.Tests
 {
-    [DdsTopic("TestRequest")]
+    [DdsTopic]
     [DdsManaged]
     public partial struct TestRequest
     {
@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Commands.Tests
         public string Message;
     }
 
-    [DdsTopic("TestAck")]
+    [DdsTopic]
     [DdsManaged]
     public partial struct TestAck
     {
@@ -33,18 +33,17 @@ namespace Fdp.Toolkit.Commands.Tests
         public async Task SendAsync_ReceivesAck_Success()
         {
             // Setup
-            using var participant = new DdsParticipant();
+            // ⭐ AQ107 A — isolation used to be a private topic NAME per test; the names are derived from the types now, so each test takes a private DOMAIN.
+            using var participant = new DdsParticipant(67u);
             
             // Client Side
             using var client = new DdsCommandClient<TestRequest, TestAck>(
                 participant,
-                "TestRequest",
-                "TestAck",
                 req => req.RequestId,
                 ack => ack.RequestId);
 
             // Server Side (Simulated)
-            // Note: DdsTopic<T> not available, using topic name string directly in Reader/Writer constructor
+            // Note: the topic names are derived from the types (AQ107 A)
             using var serverReader = new DdsReader<TestRequest>(participant);
             using var serverWriter = new DdsWriter<TestAck>(participant);
 
@@ -105,12 +104,10 @@ namespace Fdp.Toolkit.Commands.Tests
         [TestMethod]
         public async Task SendAsync_Timeout_ThrowsTimeoutException()
         {
-            // Setup
-            using var participant = new DdsParticipant();
+            // Setup (own domain: another test's server must not answer this one's request)
+            using var participant = new DdsParticipant(68u);
             using var client = new DdsCommandClient<TestRequest, TestAck>(
                 participant,
-                "TestRequest_Timeout",
-                "TestAck_Timeout",
                 req => req.RequestId,
                 ack => ack.RequestId);
 

@@ -35,7 +35,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly Dictionary<long, (ulong Outcomes, int Head)> _lastSentProgress = new();
         private int _worldEpoch;
 
-        public string TopicName => "EntityMission";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMission>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -46,7 +46,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             BehaviorRegistry? behaviorRegistry = null)
         {
-            _writer           = new DdsWriter<EntityMission>(participant, "EntityMission");
+            _writer           = new DdsWriter<EntityMission>(participant);
             _entityMap        = entityMap;
             _behaviorRegistry = behaviorRegistry;
         }

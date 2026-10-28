@@ -36,7 +36,7 @@ namespace Hrot.NED.Messages
     /// Because the list is unbounded there is no constraint on the number of descriptors.
     /// </para>
     /// </summary>
-    [DdsTopic("DeferredTakeOwnership")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(
         Reliability   = DdsReliability.Reliable,

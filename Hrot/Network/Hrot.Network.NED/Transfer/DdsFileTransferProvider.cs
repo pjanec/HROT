@@ -177,7 +177,7 @@ public sealed class DdsFileTransferProvider : IFileTransferProvider, IDisposable
             if (receivers.Length > 0)
             {
                 // ③ the chunks, in the transfer's own partition — wait until every receiving target's reader is matched
-                using var writer = new DdsWriter<FileChunk>(_owner._participant, "FileChunk", IntPtr.Zero, partition);
+                using var writer = new DdsWriter<FileChunk>(_owner._participant, partition: partition);
                 while (writer.CurrentStatus.CurrentCount < receivers.Length) { ct.ThrowIfCancellationRequested(); Thread.Sleep(5); }
 
                 var acked = new Dictionary<(int Node, int File), int>();

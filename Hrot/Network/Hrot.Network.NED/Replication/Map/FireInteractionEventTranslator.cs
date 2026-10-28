@@ -27,12 +27,11 @@ namespace Hrot.Map.Common.Replication
     public class FireInteractionEventTranslator
         : CycloneNativeEventTranslator<EcsFireInteractionEvent, DdsFireInteractionEvent>
     {
-        private const string DdsTopicName = "FireInteractionEvent";
 
         public override TranslatorDirection Direction => TranslatorDirection.Bidirectional;
 
         public FireInteractionEventTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : base(participant, DdsTopicName, entityMap)
+            : base(participant, entityMap)
         {
         }
 

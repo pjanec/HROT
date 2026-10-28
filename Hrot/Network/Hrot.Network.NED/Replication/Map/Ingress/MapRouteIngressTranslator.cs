@@ -31,7 +31,6 @@ namespace Hrot.Map.Common.Replication.Ingress;
 /// </summary>
 public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngress
 {
-    private const string DdsTopicName = "MapRoute";
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
 
     private readonly DdsReader<MapRoute>? _reader;
@@ -53,7 +52,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     private readonly HashSet<long> _recentlyRegistered = new();
     private int _worldEpoch;   // ⭐ CE-2101 — deferred samples belong to ONE world (WorldEpoch)
 
-    public string TopicName => DdsTopicName;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
     public long DescriptorOrdinal => OrdinalValue;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }

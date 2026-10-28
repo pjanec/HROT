@@ -15,7 +15,6 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class MontageStartedEventTranslator
     : CycloneNativeEventTranslator<MontageStartedEvent, DdsMontageStartedEvent>
 {
-    private const string TopicNameConst = "hrot/anim/MontageStarted";
 
     // Mutable proxy with identical layout to MontageStartedEvent (no constructors on source type).
     private struct Proxy
@@ -30,7 +29,7 @@ internal sealed class MontageStartedEventTranslator
 
     internal MontageStartedEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsMontageStartedEvent).Namespace, new[] { nameof(DdsMontageStartedEvent) }))
     {
         Direction = direction;
     }

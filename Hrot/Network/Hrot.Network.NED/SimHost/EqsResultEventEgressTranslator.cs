@@ -19,11 +19,10 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EqsResultEventEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EqsResult";
         private readonly DdsWriter<EqsResultTopic>? _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Network.NED.SimHost
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
-            _writer    = new DdsWriter<EqsResultTopic>(participant, DdsTopicName);
+            _writer    = new DdsWriter<EqsResultTopic>(participant);
             _entityMap = entityMap;
         }
 

@@ -106,7 +106,7 @@ public class TheEgressShadowExistsAtBirthTests
 
         // ⚠ Subscribe BEFORE the spawn — WorldPos is volatile; a late reader misses the samples.
         using var observer = new CycloneDDS.Runtime.DdsParticipant((uint)harness.DomainId);
-        using var reader   = new CycloneDDS.Runtime.DdsReader<WorldPos>(observer, "WorldPos");
+        using var reader   = new CycloneDDS.Runtime.DdsReader<WorldPos>(observer);
         harness.PumpFrames(10);
 
         Spawn(harness);
@@ -166,7 +166,7 @@ public class TheEgressShadowExistsAtBirthTests
         using var harness = new HrotRunnerHarness();
 
         using var observer = new CycloneDDS.Runtime.DdsParticipant((uint)harness.DomainId);
-        using var reader   = new CycloneDDS.Runtime.DdsReader<WorldPos>(observer, "WorldPos");
+        using var reader   = new CycloneDDS.Runtime.DdsReader<WorldPos>(observer);
         harness.PumpFrames(10);
 
         Spawn(harness, pumpFrames: 0);   // ⚠ do not settle — we are timing the FIRST publish

@@ -20,12 +20,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityManualDriveIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityManualDrive";
         private const long OrdinalValue = (long)EDescriptorType.dtManualDrive;
         private readonly DdsReader<EntityManualDrive>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityManualDrive>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -34,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityManualDriveIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityManualDrive>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityManualDrive>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
@@ -76,12 +75,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityPossessedByIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityPossessedBy";
         private const long OrdinalValue = (long)EDescriptorType.dtPossessedBy;
         private readonly DdsReader<EntityPossessedBy>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPossessedBy>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -90,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityPossessedByIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityPossessedBy>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityPossessedBy>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

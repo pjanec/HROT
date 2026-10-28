@@ -44,7 +44,7 @@ namespace Hrot.NED.Messages
         public bool UnusedPlaceholder;
     }
 
-    [DdsTopic("MissionControlRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-missions-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct MissionControlRequest
@@ -65,7 +65,7 @@ namespace Hrot.NED.Messages
     }
 
     // Acknowledgment sent by the CGF/SimHost for a MissionControlRequest.
-    [DdsTopic("MissionControlAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-missions-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     [DdsManaged]

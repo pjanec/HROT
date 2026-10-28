@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Time;
 
 namespace Fdp.Toolkit.Time.Messages
 {
-    [DdsTopic("FrameOrder")]
+    [DdsTopic]
     [EventId(101)]
     [DataPolicy(DataPolicy.NoReplay)]
     public partial struct FrameOrderDescriptor
@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Time.Messages
     }
 
     
-    [DdsTopic("FrameAck")]
+    [DdsTopic]
     [DdsQos(HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 16)]
     [EventId(102)]
     [DataPolicy(DataPolicy.NoReplay)]
@@ -129,7 +129,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// Conversion helpers: <see cref="ToWire"/> / <see cref="ToEvent"/>.
     /// </para>
     /// </summary>
-    [DdsTopic("SwitchTimeModeEvent")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct SwitchTimeModeWireDto
     {
@@ -199,7 +199,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// Sent by a slave node to initiate the NTP-style two-way time handshake.
     /// The master echoes it back inside a <see cref="TimeSyncResponse"/>.
     /// </summary>
-    [DdsTopic("TimeSyncRequest")]
+    [DdsTopic]
     [EventId(108)]
     [DataPolicy(DataPolicy.NoReplay)]
     public partial struct TimeSyncRequest
@@ -217,7 +217,7 @@ namespace Fdp.Toolkit.Time.Messages
     /// Published by the master node in reply to a <see cref="TimeSyncRequest"/>.
     /// Contains all four timestamps needed to compute clock offset via the NTP formula.
     /// </summary>
-    [DdsTopic("TimeSyncResponse")]
+    [DdsTopic]
     [EventId(109)]
     [DataPolicy(DataPolicy.NoReplay)]
     public partial struct TimeSyncResponse

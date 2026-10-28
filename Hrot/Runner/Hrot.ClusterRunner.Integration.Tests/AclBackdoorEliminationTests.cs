@@ -67,7 +67,7 @@ public sealed class AclBackdoorEliminationTests
         // Observer participant on the same domain â€” reads the CreateEntityRequest
         // that the SpawnEntityCommandEgressTranslator writes over DDS.
         using var observer     = new DdsParticipant((uint)domainId);
-        using var reqReader    = new DdsReader<CreateEntityRequest>(observer, "CreateEntityRequest");
+        using var reqReader    = new DdsReader<CreateEntityRequest>(observer);
 
         // Activate area authoring via IG test hook (no ExCon needed).
         var requestId = Guid.NewGuid();

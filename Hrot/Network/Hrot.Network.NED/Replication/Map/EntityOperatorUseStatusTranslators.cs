@@ -18,14 +18,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityOperatorUseStatusEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityOperatorUseStatus";
         private readonly DdsWriter<EntityOperatorUseStatus>? _writer;
         private readonly Dictionary<long, EntityOperatorUseStatus> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.OperatorUseStatus };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityOperatorUseStatus>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtOperatorUseStatus;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityOperatorUseStatusEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityOperatorUseStatus>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityOperatorUseStatus>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -76,12 +75,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityOperatorUseStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityOperatorUseStatus";
         private const long OrdinalValue = (long)EDescriptorType.dtOperatorUseStatus;
         private readonly DdsReader<EntityOperatorUseStatus>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityOperatorUseStatus>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -90,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityOperatorUseStatusIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityOperatorUseStatus>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityOperatorUseStatus>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

@@ -12,7 +12,7 @@ namespace Hrot.NED.Messages
     /// holds the last intent, which is what a failover needs.</para>
     /// <para>⚠ R-165 holds: behaviour COMPONENTS stay unsent; this is a declarative projection of them.</para>
     /// </summary>
-    [DdsTopic("EntityBrainIntent")]
+    [DdsTopic]
     [DdsIdlFile("hrot-brain-intent")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]

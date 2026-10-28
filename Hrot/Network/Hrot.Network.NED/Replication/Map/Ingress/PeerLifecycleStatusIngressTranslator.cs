@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NetworkGatewaySystem _gateway;
         private readonly int _localNodeId;
 
-        public string TopicName => "EntityLifecycleStatus";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLifecycleStatusDescriptor>();
         public long DescriptorOrdinal => -3;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

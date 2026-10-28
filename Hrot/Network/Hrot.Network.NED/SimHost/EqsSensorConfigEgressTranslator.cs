@@ -23,7 +23,6 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EqsSensorConfigEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsWriter<EqsSensorConfigTopic>? _writer;
         // ⭐ CE-490 — the brain READS its own topic too: TransientLocal hands a node every live instance, including the
         //   ones a previous owner wrote. Only keys and last configs are kept — ⛔ no carrier is ever built on a brain.
@@ -57,7 +56,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly HashSet<(long ParentNetworkId, int LocalChildIndex)> _liveKeys = new();
         private readonly List<Entity> _gone = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsSensorConfigTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -74,8 +73,8 @@ namespace Hrot.Network.NED.SimHost
             _entityMap    = entityMap;
             _clusterCache = clusterCache;
             _localNodeId  = localNodeId;
-            _writer = new DdsWriter<EqsSensorConfigTopic>(participant, DdsTopicName);
-            _reader = new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName);
+            _writer = new DdsWriter<EqsSensorConfigTopic>(participant);
+            _reader = new DdsReader<EqsSensorConfigTopic>(participant);
         }
 
         /// <inheritdoc/>

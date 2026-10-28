@@ -29,7 +29,6 @@ namespace Fdp.Toolkit.DER
         public MasterIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
-            string topicName, 
             Func<T, int> getEntityId,
             Func<T, long> getTkbType,
             long localNodeId = 0)
@@ -89,7 +88,6 @@ namespace Fdp.Toolkit.DER
         public DescriptorIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
-            string topicName, 
             Func<T, int> getEntityId, 
             Func<T, int>? getPartId = null)
         {

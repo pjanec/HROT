@@ -58,13 +58,13 @@ namespace Hrot.Network.NED.IG
 
             _participant       = participant;
             _mapId             = (int)nodeId;
-            _clickWriter       = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
-            _selectionWriter   = new DdsWriter<SelectionChangedEvent>(participant, "SelectionChangedEvent");
-            _ackWriter         = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
-            _contextMenuWriter = new DdsWriter<ContextMenuRequest>(participant, "ContextMenuRequest");
+            _clickWriter       = new DdsWriter<MapClickEvent>(participant);
+            _selectionWriter   = new DdsWriter<SelectionChangedEvent>(participant);
+            _ackWriter         = new DdsWriter<MapCommandAck>(participant);
+            _contextMenuWriter = new DdsWriter<ContextMenuRequest>(participant);
             _configReader      = new DdsReader<MapInteractionConfig>(participant);
-            _commandReader     = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
-            _ackReader         = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
+            _commandReader     = new DdsReader<MapCommandRequest>(participant);
+            _ackReader         = new DdsReader<CreateUpdateDeleteEntityAck>(participant);
             _commandGateway    = new NedCommandGateway(participant, nodeId);
             _gizmoInteractionWriter = new DdsWriterGizmoAdapter<GizmoInteractionBatch>(participant);
             _debugPrimitivesReader  = new DdsReaderGizmoAdapter<DebugPrimitivesBatch>(participant);
@@ -125,7 +125,7 @@ namespace Hrot.Network.NED.IG
         {
             try
             {
-                using var writer = new DdsWriter<IGCapabilitiesAnnounce>(_participant, "IGCapabilitiesAnnounce");
+                using var writer = new DdsWriter<IGCapabilitiesAnnounce>(_participant);
                 writer.Write(new IGCapabilitiesAnnounce
                 {
                     MapId                    = mapId,

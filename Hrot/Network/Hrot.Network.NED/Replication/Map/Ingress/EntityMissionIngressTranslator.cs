@@ -32,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly BehaviorRegistry _behaviorRegistry;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public string TopicName => "EntityMission";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMission>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -44,7 +44,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             BehaviorRegistry behaviorRegistry,
             GhostCreationSystem ghostCreationSystem)
         {
-            _reader = new DdsReader<EntityMission>(participant, "EntityMission");
+            _reader = new DdsReader<EntityMission>(participant);
             _entityMap = entityMap;
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));

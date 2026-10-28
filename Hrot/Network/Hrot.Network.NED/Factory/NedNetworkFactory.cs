@@ -209,14 +209,14 @@ public sealed class NedNetworkFactory : INetworkFactory
         yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
         yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);
         yield return new MasterIngressHandler<EntityMaster>(
-            participant, repo, "EntityMaster",
+            participant, repo,
             master => checked((int)master.EntityId), master => master.TkbType, localNodeId: localNodeId);
-        yield return new DescriptorIngressHandler<WorldPos>(participant, repo, "GeoSpatial", d => checked((int)d.EntityId));
+        yield return new DescriptorIngressHandler<WorldPos>(participant, repo, d => checked((int)d.EntityId));
         yield return new NedEntityInfoBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<EntityDamage>(participant, repo, "EntityDamage", d => checked((int)d.EntityId));
+        yield return new DescriptorIngressHandler<EntityDamage>(participant, repo, d => checked((int)d.EntityId));
         yield return new NedEntityMissionBridgingHandler(participant, repo);
         yield return new NedMapOverlayBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<MapRoute>(participant, repo, "MapRoute", d => checked((int)d.EntityId));
+        yield return new DescriptorIngressHandler<MapRoute>(participant, repo, d => checked((int)d.EntityId));
     }
 
     /// <inheritdoc/>

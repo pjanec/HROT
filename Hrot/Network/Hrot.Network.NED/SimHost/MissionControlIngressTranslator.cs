@@ -35,11 +35,10 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class MissionControlIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MissionControlRequest";
 
         private readonly DdsReader<MissionControlRequest>? _reader;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MissionControlRequest>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMissionControlRequest;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

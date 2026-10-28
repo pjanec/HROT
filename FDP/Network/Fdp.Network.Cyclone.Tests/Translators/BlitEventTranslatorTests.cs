@@ -56,7 +56,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
         {
             if (_participant == null) return;
 
-            var translator = new BlitEventTranslator<EntityMasterTopic>(_participant, "mock_blit_topic");
+            var translator = new BlitEventTranslator<EntityMasterTopic>(_participant);
             var mockBus = new Mock<IEventBus>();
             
             var writer = new DdsWriter<EntityMasterTopic>(_participant);
@@ -74,7 +74,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
         {
             if (_participant == null) return;
 
-            var translator = new BlitEventTranslator<EntityMasterTopic>(_participant, "mock_blit_egress");
+            var translator = new BlitEventTranslator<EntityMasterTopic>(_participant);
             var dummyView = new DummySimulationView();
             dummyView.EventsToReturn.Add(new EntityMasterTopic { EntityId = 99 });
             

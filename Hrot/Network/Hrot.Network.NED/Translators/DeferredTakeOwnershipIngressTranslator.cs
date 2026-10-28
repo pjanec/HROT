@@ -34,14 +34,13 @@ namespace Hrot.Network.Translators
     /// </summary>
     public sealed class DeferredTakeOwnershipIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "DeferredTakeOwnership";
 
         private readonly DdsReader<DeferredTakeOwnership>? _reader;
         private readonly NetworkEntityMap                  _entityMap;
         private readonly GhostCreationSystem               _ghostCreationSystem;
         private readonly int                               _localNodeId;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DeferredTakeOwnership>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtDeferredTakeOwnership;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -54,7 +53,7 @@ namespace Hrot.Network.Translators
             int                  localNodeId)
         {
             _reader              = participant != null
-                ? new DdsReader<DeferredTakeOwnership>(participant, DdsTopicName)
+                ? new DdsReader<DeferredTakeOwnership>(participant)
                 : null;
             _entityMap           = entityMap           ?? throw new ArgumentNullException(nameof(entityMap));
             _ghostCreationSystem = ghostCreationSystem  ?? throw new ArgumentNullException(nameof(ghostCreationSystem));

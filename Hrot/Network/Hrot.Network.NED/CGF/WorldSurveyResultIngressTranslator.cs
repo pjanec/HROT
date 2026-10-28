@@ -21,13 +21,12 @@ namespace Hrot.Network.NED.CGF
     /// </summary>
     public sealed class WorldSurveyResultIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "WorldSurveyResult";
 
         private readonly DdsReader<WorldSurveyResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
         internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WorldSurveyResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -36,7 +35,7 @@ namespace Hrot.Network.NED.CGF
         public WorldSurveyResultIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader = participant != null ? new DdsReader<WorldSurveyResultTopic>(participant, DdsTopicName) : null;
+            _reader = participant != null ? new DdsReader<WorldSurveyResultTopic>(participant) : null;
         }
 
         /// <inheritdoc />

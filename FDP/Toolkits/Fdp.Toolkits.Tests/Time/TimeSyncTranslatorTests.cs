@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.Time.Tests
         {
             var t = new MasterTimeSyncTranslator(participant: null);
             Assert.Equal(205L, t.DescriptorOrdinal);
-            Assert.Equal("TimeSyncRequest", t.TopicName);
+            Assert.Equal("Fdp_Toolkit_Time_Messages_TimeSyncRequest", t.TopicName);
         }
 
         // ── SlaveTimeSyncTranslator ───────────────────────────────────────────
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var t = new SlaveTimeSyncTranslator(participant: null, eventBus: bus, localNodeId: 1);
             Assert.Equal(206L, t.DescriptorOrdinal);
-            Assert.Equal("TimeSyncResponse", t.TopicName);
+            Assert.Equal("Fdp_Toolkit_Time_Messages_TimeSyncResponse", t.TopicName);
         }
 
         // ── TimeNetworkModule factory methods ─────────────────────────────────

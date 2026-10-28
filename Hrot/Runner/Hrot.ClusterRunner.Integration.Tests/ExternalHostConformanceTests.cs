@@ -91,8 +91,8 @@ public sealed class ExternalHostConformanceTests
         using var participant  = new DdsParticipant((uint)domain);
         using var hbWriter     = new DdsWriter<NodeHeartbeat>(participant);
         using var capWriter    = new DdsWriter<NodeCapabilitiesTopic>(participant);
-        using var masterReader = new DdsReader<EntityMaster>(participant, "EntityMaster");
-        using var statusWriter = new DdsWriter<EntityLifecycleStatusDescriptor>(participant, "EntityLifecycleStatus");
+        using var masterReader = new DdsReader<EntityMaster>(participant);
+        using var statusWriter = new DdsWriter<EntityLifecycleStatusDescriptor>(participant);
 
         // Durable capabilities: UNAWARE advertises NO fdp.reliable-init token (⇒ C1 excludes it); AWARE modes do.
         var caps = aware ? new[] { CapabilityTokens.ReliableInit } : Array.Empty<string>();
@@ -215,7 +215,7 @@ public sealed class ExternalHostConformanceTests
         // has InstanceState != Alive and IsValid == false — the KEY is read from the native buffer, exactly as the
         // production EntityMasterIngressTranslator does (never from sample.Data).
         using var obsParticipant = new DdsParticipant((uint)cgf.DomainId);
-        using var masterObserver = new DdsReader<EntityMaster>(obsParticipant, "EntityMaster");
+        using var masterObserver = new DdsReader<EntityMaster>(obsParticipant);
         cgf.PumpFrames(30);   // let the observer discover CGF's EntityMaster writer before the birth sample
         long netId = SplitAuthoritySpawn(cgf);
         try

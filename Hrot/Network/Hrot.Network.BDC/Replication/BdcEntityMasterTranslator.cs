@@ -30,7 +30,7 @@ namespace Hrot.BDC.Replication
         private readonly HashSet<long> _publishedNetIds = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
-        public string TopicName => "BDC_EntityMaster";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<BdcEntityMaster>();
         // BDC ordinal space starts at 1000 to avoid collisions with NED
         public long DescriptorOrdinal => (long)BdcDescriptorType.EntityMaster;
         public long ReceivedSampleCount { get; private set; }
@@ -52,7 +52,7 @@ namespace Hrot.BDC.Replication
             _localNodeId   = localNodeId;
             _eventBus      = eventBus;
             _ghostCreation = ghostCreation;
-            _writer        = new DdsWriter<BdcEntityMaster>(participant, "BDC_EntityMaster");
+            _writer        = new DdsWriter<BdcEntityMaster>(participant);
             _reader        = new DdsReader<BdcEntityMaster>(participant);
         }
 

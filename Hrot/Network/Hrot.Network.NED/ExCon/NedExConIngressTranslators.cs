@@ -28,7 +28,7 @@ public sealed class NedMapClickIngressHandler : IIngressHandler, IDisposable
         int                       maxSamples  = 10,
         long                      localNodeId = 0)
     {
-        _reader      = new DdsReader<MapClickEvent>(participant, "MapClickEvent");
+        _reader      = new DdsReader<MapClickEvent>(participant);
         _enqueue     = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         _maxSamples  = Math.Max(1, maxSamples);
         _localNodeId = localNodeId;
@@ -77,7 +77,7 @@ public sealed class NedSelectionChangedIngressHandler : IIngressHandler, IDispos
         Action<SelectionChangedEventDto> enqueue,
         int                             maxSamples = 10)
     {
-        _reader     = new DdsReader<SelectionChangedEvent>(participant, "SelectionChangedEvent");
+        _reader     = new DdsReader<SelectionChangedEvent>(participant);
         _enqueue    = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         _maxSamples = Math.Max(1, maxSamples);
     }
@@ -121,7 +121,7 @@ public sealed class NedEntityLifecycleAckIngressHandler : IIngressHandler, IDisp
         int                          maxSamples  = 10,
         long                         localNodeId = 0)
     {
-        _reader      = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
+        _reader      = new DdsReader<CreateUpdateDeleteEntityAck>(participant);
         _enqueue     = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         _maxSamples  = Math.Max(1, maxSamples);
         _localNodeId = localNodeId;
@@ -167,7 +167,7 @@ public sealed class NedMapCommandAckIngressHandler : IIngressHandler, IDisposabl
         int                       maxSamples  = 10,
         long                      localNodeId = 0)
     {
-        _reader      = new DdsReader<MapCommandAck>(participant, "MapCommandAck");
+        _reader      = new DdsReader<MapCommandAck>(participant);
         _enqueue     = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         _maxSamples  = Math.Max(1, maxSamples);
         _localNodeId = localNodeId;
@@ -211,7 +211,7 @@ public sealed class NedContextActionInvokedIngressHandler : IIngressHandler, IDi
         Action<ContextActionInvokedDto>  enqueue,
         int                              maxSamples = 10)
     {
-        _reader     = new DdsReader<ContextActionInvoked>(participant, "ContextActionInvoked");
+        _reader     = new DdsReader<ContextActionInvoked>(participant);
         _enqueue    = enqueue ?? throw new ArgumentNullException(nameof(enqueue));
         _maxSamples = Math.Max(1, maxSamples);
     }
@@ -253,7 +253,7 @@ public sealed class NedEntityInfoBridgingHandler : IIngressHandler, IDisposable
         IDerRepo       repo,
         int            maxSamples = 10)
     {
-        _reader     = new DdsReader<EntityInfo>(participant, "EntityInfo");
+        _reader     = new DdsReader<EntityInfo>(participant);
         _repo       = repo ?? throw new ArgumentNullException(nameof(repo));
         _maxSamples = Math.Max(1, maxSamples);
     }
@@ -297,7 +297,7 @@ public sealed class NedEntityMissionBridgingHandler : IIngressHandler, IDisposab
         IDerRepo       repo,
         int            maxSamples = 10)
     {
-        _reader     = new DdsReader<EntityMission>(participant, "EntityMission");
+        _reader     = new DdsReader<EntityMission>(participant);
         _repo       = repo ?? throw new ArgumentNullException(nameof(repo));
         _maxSamples = Math.Max(1, maxSamples);
     }
@@ -346,7 +346,7 @@ public sealed class NedMapOverlayBridgingHandler : IIngressHandler, IDisposable
         IDerRepo       repo,
         int            maxSamples = 10)
     {
-        _reader     = new DdsReader<MapVisualOverlay>(participant, "MapVisualOverlay");
+        _reader     = new DdsReader<MapVisualOverlay>(participant);
         _repo       = repo ?? throw new ArgumentNullException(nameof(repo));
         _maxSamples = Math.Max(1, maxSamples);
     }

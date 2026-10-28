@@ -14,18 +14,17 @@ namespace Hrot.Network.NED.SimHost
     /// <summary>⭐ <c>CE-3064</c> — the Muscle's local <see cref="NearMissEvent"/>s to the wire (DDS <c>NearMiss</c>), for the unit's Brain.</summary>
     public sealed class NearMissEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "NearMiss";
         private readonly IDdsWriter<NearMiss> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<NearMiss>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNearMiss;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public NearMissEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<NearMiss>(participant, DdsTopicName), entityMap) { }
+            : this(new DdsWriterAdapter<NearMiss>(participant), entityMap) { }
 
         internal NearMissEgressTranslator(IDdsWriter<NearMiss> writer, NetworkEntityMap entityMap)
         {
@@ -60,11 +59,10 @@ namespace Hrot.Network.NED.SimHost
     /// which <c>NearMissSensingSystem</c> turns into <c>SensorChange.NearMiss</c>.</summary>
     public sealed class NearMissIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "NearMiss";
         private readonly DdsReader<NearMiss>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<NearMiss>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNearMiss;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -73,7 +71,7 @@ namespace Hrot.Network.NED.SimHost
         public NearMissIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _reader    = participant is not null ? new DdsReader<NearMiss>(participant, DdsTopicName) : null;
+            _reader    = participant is not null ? new DdsReader<NearMiss>(participant) : null;
         }
 
         /// <inheritdoc />

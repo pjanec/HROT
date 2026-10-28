@@ -124,7 +124,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         FinalizeReview = 34,
     }
 
-    [DdsTopic("ClusterState")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct ClusterStateTopic
@@ -150,7 +150,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// The master republishes it on every change; TransientLocal + KeepLast 1 hands the newest to a late joiner. A host matches it to
     /// <see cref="ClusterStateTopic"/> by <see cref="SessionId"/> / <see cref="ExerciseId"/>, never by arrival order.
     /// </summary>
-    [DdsTopic("ReplaySession")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct ReplaySessionTopic
@@ -171,7 +171,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// keeps it, so a gateway re-bases its entities only when it changes. Nothing in HROT reads it (every node holds the terrain).</para>
     /// <para>📄 docs/blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md §3, §4 row C; docs/reference/NED_DDS_Protocol.md §11.</para>
     /// </summary>
-    [DdsTopic("GeoReference")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct GeoReference
@@ -198,7 +198,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// with no direct reference to <see cref="Hrot.Orchestrator.ClusterMaster"/>
     /// or <see cref="Hrot.Orchestrator.StorageGatewayModule"/>.
     /// </summary>
-    [DdsTopic("AssetInventory")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable,
             Durability  = DdsDurability.TransientLocal,
@@ -225,7 +225,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     // ⭐ CE-3023 — KeepAll: a QUEUE of requests (mgmt-1 DESIGN "consume ClusterOpRequest DDS queue"). The default depth-1
     //   history collapsed a same-frame burst to its newest sample (measured: ops lost). Volatile, so nothing is retained
     //   for late joiners — the NodeOpCommand shape.
-    [DdsTopic("ClusterOpRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct ClusterOpRequest
@@ -238,7 +238,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     // ⭐ CE-3023 — the reply leg had the same depth-1 collapse (measured: 1 of 5 same-frame statuses arrived), so a remote
     //   panel waited forever on an op whose completion was overwritten. ⚠ BOUNDED, not KeepAll: the topic is
     //   TransientLocal, so its history is what a late-joining panel replays; every reader filters by RequestId.
-    [DdsTopic("SysOpStatus")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
@@ -249,7 +249,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string ResultJson;
     }
 
-    [DdsTopic("NodeOpCommand")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct NodeOpCommand
@@ -266,7 +266,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string PayloadJson;
     }
 
-    [DdsTopic("NodeOpStatus")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct NodeOpStatus
@@ -288,7 +288,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     // ══ P6 part 2 (Q91 §4-E2, R-4002) — the DDS file transfer. Commands, not state: Reliable + Volatile (R-136 §1.1). ══
 
     /// <summary>⭐ The sender offers files to named targets: path relative to the node's staging root, length, mtime, SHA-256.</summary>
-    [DdsTopic("FileOffer")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct FileOffer
@@ -303,7 +303,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     }
 
     /// <summary>⭐ A target's answer to an offer: the file indices it lacks (the rest it already holds — same length + mtime).</summary>
-    [DdsTopic("FileNeed")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct FileNeed
@@ -315,7 +315,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     }
 
     /// <summary>⭐ One 64 KB piece of one file, in the transfer's own partition.</summary>
-    [DdsTopic("FileChunk")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct FileChunk
@@ -331,7 +331,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// ⭐ A target's progress: the highest gap-free chunk of a file (every 8 chunks), or — with <c>FileIndex = -1</c> and
     /// <c>Done</c> — its verdict on the whole transfer (<c>Code</c> is an <c>OrchestrationStatusCode</c>).
     /// </summary>
-    [DdsTopic("FileAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct FileAck
@@ -345,7 +345,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string Message;
     }
 
-    [DdsTopic("NodeIdRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct NodeIdRequest
@@ -360,7 +360,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     }
 
     /// <summary>⭐⭐ <c>C1</c> — the master's answer, on the same key as the request.</summary>
-    [DdsTopic("NodeIdGrant")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct NodeIdGrant
@@ -373,7 +373,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string Reason;
     }
 
-    [DdsTopic("NodeHeartbeat")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct NodeHeartbeat
@@ -403,7 +403,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// a <c>NodeRole</c> mask at ingest — superseding CE-282's <see cref="NodeHeartbeat.RolesMask"/>) plus feature
     /// tokens such as <c>fdp.reliable-init</c>.
     /// </summary>
-    [DdsTopic("NodeCapabilities")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct NodeCapabilitiesTopic
@@ -415,7 +415,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string CapabilitiesJson;
     }
 
-    [DdsTopic("OrchestratorContext")]
+    [DdsTopic]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct OrchestratorContextTopic

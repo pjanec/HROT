@@ -5,6 +5,8 @@ related-designs:
 
 # Hrot.Network.NED
 
+> ⛔ **Topic names (AQ107 A, 2026-10-28):** this document predates DERIVED topic names (namespace + containing types + type name, joined with `_`). Where it prints a topic in the old explicit spelling (`SST_…`, `IdAlloc_…`, `BDC_…`, `hrot/anim/…`, or a bare `EntityMaster`) read `<namespace>_<Type>`, e.g. `Fdp_Network_Cyclone_Topics_EntityMasterTopic`, `Hrot_BDC_Messages_BdcWorldPos`. The current type → topic table is [`NED_DDS_Protocol.md`](../../../reference/NED_DDS_Protocol.md) §Inventory.
+
 **Project path**: `Hrot/Network/Hrot.Network.NED/Hrot.Network.NED.csproj`
 **Date**: 2026-05-23
 **Target framework**: net8.0

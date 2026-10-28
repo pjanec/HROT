@@ -21,7 +21,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityUnderFireEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityUnderFire";
         private readonly IDdsWriter<EntityUnderFire>? _writer;
         private readonly Dictionary<long, EntityUnderFire> _last = new();
         private int _worldEpoch;
@@ -31,7 +30,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>A newer stamp is sent only this long (s) after the last one sent: the remote window ends at most this early.</summary>
         public const double RefreshSeconds = 0.5;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUnderFire>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtUnderFire;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -39,7 +38,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityUnderFireEgressTranslator(DdsParticipant? participant)
-            : this(participant is not null ? new DdsWriterAdapter<EntityUnderFire>(participant, DdsTopicName) : null) { }
+            : this(participant is not null ? new DdsWriterAdapter<EntityUnderFire>(participant) : null) { }
 
         /// <summary>The test seam: a capturing writer instead of a live participant.</summary>
         internal EntityUnderFireEgressTranslator(IDdsWriter<EntityUnderFire>? writer) => _writer = writer;
@@ -88,12 +87,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityUnderFireIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityUnderFire";
         private const long OrdinalValue = (long)EDescriptorType.dtUnderFire;
         private readonly DdsReader<EntityUnderFire>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUnderFire>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -102,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityUnderFireIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityUnderFire>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityUnderFire>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

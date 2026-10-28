@@ -62,14 +62,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             NetworkEntityMap     entityMap,
             IDdsWriter<UpdateEntityDescriptorAck>? ackWriter = null)
         {
-            _reader    = new DdsReader<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            _reader    = new DdsReader<UpdateEntityDescriptorRequest>(participant);
             if (ackWriter != null)
             {
                 _ackWriter      = ackWriter;
             }
             else
             {
-                var owned       = new DdsWriterAdapter<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+                var owned       = new DdsWriterAdapter<UpdateEntityDescriptorAck>(participant);
                 _ackWriter      = owned;
                 _ownedAckWriter = owned;
             }

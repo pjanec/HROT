@@ -13,7 +13,7 @@ namespace Hrot.BDC.Messages
 
     // BDC mission control request sent from ExCon/Editor to CGF.
     // Topic name BDC_MissionControlRequest is distinct from NED's MissionControlRequest.
-    [DdsTopic("BDC_MissionControlRequest")]
+    [DdsTopic]
     [DdsIdlFile("bdc-mission-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepAll)]
@@ -28,7 +28,7 @@ namespace Hrot.BDC.Messages
     }
 
     // BDC acknowledgment sent by CGF/SimHost for a BdcMissionControlRequest.
-    [DdsTopic("BDC_MissionControlAck")]
+    [DdsTopic]
     [DdsIdlFile("bdc-mission-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
             HistoryKind = DdsHistoryKind.KeepAll)]

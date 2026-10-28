@@ -35,7 +35,6 @@ namespace Fdp.Toolkit.Time
     /// </summary>
     public sealed class SwitchTimeModeDescriptorTranslator : IDescriptorTranslator
     {
-        private const string TopicNameValue = "SwitchTimeModeEvent";
         private const long   OrdinalValue   = (long)TimeDescriptorType.SwitchTimeModeEvent;
 
         private readonly DdsReader<SwitchTimeModeWireDto>? _reader;
@@ -45,7 +44,7 @@ namespace Fdp.Toolkit.Time
         // Tracks the last message received from the network to break the echo loop.
         private SwitchTimeModeWireDto? _lastIngressed;
 
-        public string TopicName         => TopicNameValue;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SwitchTimeModeWireDto>();
         public long   DescriptorOrdinal => OrdinalValue;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount { get; private set; }

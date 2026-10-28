@@ -27,14 +27,13 @@ namespace Fdp.Toolkit.Time.Translators
     /// </summary>
     public sealed class MasterTimeSyncTranslator : IDescriptorTranslator
     {
-        private const string TopicNameValue = "TimeSyncRequest";
         private const long   OrdinalValue   = (long)TimeDescriptorType.TimeSyncRequest;
 
         private readonly DdsReader<TimeSyncRequest>?  _requestReader;
         private readonly DdsWriter<TimeSyncResponse>? _responseWriter;
         private readonly Func<long>                   _getTick;
 
-        public string TopicName         => TopicNameValue;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TimeSyncRequest>();
         public long   DescriptorOrdinal => OrdinalValue;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount { get; private set; }

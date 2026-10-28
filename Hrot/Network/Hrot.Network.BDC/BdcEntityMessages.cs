@@ -7,7 +7,7 @@ namespace Hrot.BDC.Messages
     // When this topic instance is alive the entity exists.
     // When it is disposed the entity is deleted.
     // Topic name BDC_EntityMaster is distinct from NED's EntityMaster.
-    [DdsTopic("BDC_EntityMaster")]
+    [DdsTopic]
     [DdsIdlFile("bdc-entity-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
@@ -26,7 +26,7 @@ namespace Hrot.BDC.Messages
 
     // Merged BDC spatial topic: position, orientation, velocity, angular velocity — the same shape and rules as NED's WorldPos
     // (AQ107 D / F), in BDC's own types. Topic name BDC_WorldPos is distinct from NED's WorldPos.
-    [DdsTopic("BDC_WorldPos")]
+    [DdsTopic]
     [DdsIdlFile("bdc-entity-msgs")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

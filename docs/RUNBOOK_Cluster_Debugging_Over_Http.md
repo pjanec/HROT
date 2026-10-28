@@ -194,7 +194,7 @@ ECS system and DDS translator, and for each translator **`sentSamples` / `receiv
 
 ```json
 {"systemName":"CycloneNetworkIngressSystem","direction":"Ingress",
- "topic":"SensorConfig","descriptorOrdinal":60,"receivedSamples":6,"sentSamples":0}
+ "topic":"Hrot_NED_Descriptors_SensorConfig","descriptorOrdinal":60,"receivedSamples":6,"sentSamples":0}
 ```
 
 ⭐⭐⭐ **This answers "is the wire carrying X?" without touching the engine.** 📌 The lesson that produced
@@ -205,10 +205,14 @@ along.
 
 | topic | sent → recv | reading |
 |---|---|---|
-| `SensorConfig` | CGF **6** → SimHost **6** | ✅ that direction of the wire is healthy |
-| `SST_OwnershipUpdate` | SimHost **16** → CGF **16** | ✅ ownership handover crossing |
-| `EntityMaster` | CGF **8** → both **8** | ✅ spawn path fine |
-| 🔴 `SensorTrackState` | **0 → 0** | the only silent topic — **and silent on the SEND side** |
+| `Hrot_NED_Descriptors_SensorConfig` | CGF **6** → SimHost **6** | ✅ that direction of the wire is healthy |
+| `Fdp_Network_Cyclone_Topics_OwnershipUpdate` | SimHost **16** → CGF **16** | ✅ ownership handover crossing |
+| `Hrot_NED_Descriptors_EntityMaster` | CGF **8** → both **8** | ✅ spawn path fine |
+| 🔴 `Hrot_NED_Descriptors_SensorTrackState` | **0 → 0** | the only silent topic — **and silent on the SEND side** |
+
+⭐ **Topic names are DERIVED from the C# type** *(AQ107 A, 2026-10-28)*: namespace + containing types + type name joined with `_`
+(`Hrot.NED.Descriptors.SensorConfig` → `Hrot_NED_Descriptors_SensorConfig`). Before it the column read `SensorConfig`, `SST_OwnershipUpdate`, `EntityMaster` —
+a short name written beside the type. 📄 [`NED_DDS_Protocol.md`](reference/NED_DDS_Protocol.md) §Concepts 15 and its Inventory (type → topic).
 
 ⇒ ⭐⭐ **`sent == 0` means the producer never published; it does NOT mean DDS is broken.** With other
 topics flowing in both directions, DDS is *proven* healthy and the fault is upstream of the egress.
@@ -244,7 +248,7 @@ GENERIC sniffer: it discovers every topic over SEDP but can only DECODE/record a
 has loaded. Point it at the cluster's **build-output dir** *(the message DLLs: `Hrot.Network.NED`, `Fdp.Network.Cyclone`,
 `Fdp.Core`, …)*. ⛔ **Without it the capture is an empty `[`** — it only knows its own self-test types. Multiple dirs/DLLs:
 `--AppSettings:TopicSources:0=… --AppSettings:TopicSources:1=…`. *(A persisted list also lives at `$APPDATA/DdsMonitor/assembly-sources.json`; the CLI list overrides it.)*
-Filter to just the barrier topics *(glob on the fully-qualified type name)*:
+Filter to just the barrier topics *(the glob is matched against the TYPE's fully-qualified name — `Hrot.NED.Descriptors.EntityMaster` — not the topic name, so AQ107 A's derived names (`Hrot_NED_Descriptors_EntityMaster`, `Fdp_Network_Cyclone_Topics_EntityLifecycleStatusDescriptor`, `Fdp_Network_Cyclone_Topics_OwnershipUpdate`, which is what a capture and `/diagnostics/architecture` print as the topic) do not change these filters; verified in the library: `TopicFilterService.cs`, `topic.TopicType.FullName`)*:
 ```bash
 ddsmonitor --DdsSettings:HeadlessMode=Record --DdsSettings:HeadlessFilePath=/tmp/cap.json \
   --AppSettings:IncludeTopics:0="*EntityMaster*" \
@@ -274,6 +278,7 @@ Replay a capture back onto the bus: `--DdsSettings:HeadlessMode=Replay --DdsSett
 | ⚠ **SUMO topics (`sumo/*`)** | since SumoSharp H11 (`2026-10-17`) every SUMO topic is NAMED on its type, so ddsmonitor discovers them: `DdsVehicleLifecycle` (`sumo/lifecycle`) is captured. ⛔ The blob topics (`sumo/vehicles`, `sumo/tl`, `sumo/geometry`, ped crowd/legs) still are NOT — their 64 KB `fixed byte Payload[65536]` makes ddsmonitor's `DynamicReader.DrainReader` throw `InvalidProgramException` (it surfaces at shutdown; the capture just lacks them). ✅ **Not with ddsmonitor 1.2.6 (CycloneDDS.NET 0.4, unreleased as of 2026-10-27): the same blob topics are captured, measured live (`CE-4018`) — the warning applies to the older installed tool.** HROT's own large blob (`DebugPrimitivesBatch`, `[DdsManaged] byte[]`) is captured fine. `CE-4018` |
 | ⚠ **run it BESIDE the cluster** | start the capture, then run the scenario *(§1/§3)*; a late-started capture misses the create/spawn burst unless the topic is durable |
 
+> ⚠ *(the dated measurement below predates AQ107 A: the topic names it lists — `EntityAttributeSchema`, `IdStatus`, … — are now the derived `Hrot_NED_Messages_EntityAttributeSchema`, `Fdp_Network_Cyclone_Topics_IdStatus`, …; the type names are unchanged)*
 > ✅✅ **VERIFIED WORKING `2026-09-16`** *(corrects an earlier wrong note that claimed cross-process discovery was
 > blocked here — it is NOT)*. Against a live **multi-process** cluster *(§1.2: separate orchestrator/cgf/simhost/ig
 > processes)* on domain 0, a separate ddsmonitor process **captured 2167 fully-decoded samples** across 10 HROT

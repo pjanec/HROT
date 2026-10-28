@@ -86,7 +86,7 @@ public class AttributeChangeRequestRoundTripTests
 
         using var observerParticipant = new CycloneDDS.Runtime.DdsParticipant((uint)harness.DomainId);
         using var reader = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Messages.UpdateEntityAttributeRequest>(
-            observerParticipant, "UpdateEntityAttributeRequest");
+            observerParticipant);
 
         // ⚠ Discovery first — a reader created after the write misses the sample.
         harness.PumpFrames(20);

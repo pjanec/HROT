@@ -108,8 +108,8 @@ namespace Hrot.SimHost.Tests
             var system     = new UpdateEntityDescriptorRequestSystem(participant, entityMap);
             var repo       = CreateWorld();
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(100); // allow pub/sub matching
 
@@ -140,8 +140,8 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(50);
 
@@ -171,8 +171,8 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(50);
 
@@ -202,8 +202,8 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
+            using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant);
 
             Thread.Sleep(50);
 
@@ -250,7 +250,7 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); // NOT auth
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
             Thread.Sleep(50);
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);
@@ -277,7 +277,7 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); // auth
             entityMap.Register(EntityId, entity);
 
-            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant);
             Thread.Sleep(50);
             reqWriter.Write(MakeGeoRequest(EntityId));
             Thread.Sleep(30);

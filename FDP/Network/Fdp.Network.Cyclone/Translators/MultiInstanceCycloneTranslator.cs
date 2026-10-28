@@ -32,7 +32,6 @@ namespace Fdp.Network.Cyclone.Translators
 
         public MultiInstanceCycloneTranslator(
             DdsParticipant participant, 
-            string topicName, 
             long ordinal,
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem)
@@ -41,7 +40,7 @@ namespace Fdp.Network.Cyclone.Translators
                 throw new InvalidOperationException(
                     $"Type {typeof(T).Name} must have EntityId and InstanceId fields");
 
-            TopicName = topicName;
+            TopicName = CycloneDDS.Schema.DdsTopicName.Of<T>();
             DescriptorOrdinal = ordinal;
             _entityMap = entityMap;
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));

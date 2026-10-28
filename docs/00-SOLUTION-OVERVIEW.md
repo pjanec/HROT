@@ -331,7 +331,7 @@ subsystems) consists of:
 | Project | Protocol | Topics | Use Case |
 |---------|----------|--------|----------|
 | `Hrot.Network.NED` | NED (full) | 30+ DDS topics | All production multi-node runs |
-| `Hrot.Network.BDC` | BDC (minimal) | 2 DDS topics (`BDC_EntityMaster`, `BDC_WorldPos`) | Lightweight IG tracking, federation gateways |
+| `Hrot.Network.BDC` | BDC (minimal) | 2 DDS topics (`Hrot_BDC_Messages_BdcEntityMaster`, `Hrot_BDC_Messages_BdcWorldPos`) | Lightweight IG tracking, federation gateways |
 | `Hrot.Network.Orchestration` | Orchestration | 7 DDS topics | Cluster 2PC, state machine, heartbeat |
 
 Both NED and BDC implement the same `INetworkFactory` / `IReplicationModule` interfaces.

@@ -15,7 +15,7 @@ namespace Fdp.Network.Cyclone.Translators
         protected readonly DdsReader<T> Reader;
         protected readonly DdsWriter<T> Writer;
 
-        public BlitEventTranslator(DdsParticipant participant, string topicName)
+        public BlitEventTranslator(DdsParticipant participant)
         {
             Reader = new DdsReader<T>(participant);
             Writer = new DdsWriter<T>(participant);

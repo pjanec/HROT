@@ -11,7 +11,7 @@ using Fdp.Core;
 namespace Fdp.Network.Cyclone.Tests.Translators
 {
     [StructLayout(LayoutKind.Sequential)]
-    [DdsTopic("TestTopic_Multi_1")]
+    [DdsTopic]
     public partial struct MultiInstanceTestComponent
     {
         [DdsKey, DdsId(0)]
@@ -52,7 +52,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
         public void Constructor_ValidatesLayout()
         {
             var translator = new MultiInstanceCycloneTranslator<MultiInstanceTestComponent>(
-                _participant, "TestTopic_Multi_1", 1, _entityMap, new GhostCreationSystem(_entityMap));
+                _participant, 1, _entityMap, new GhostCreationSystem(_entityMap));
             
             Assert.NotNull(translator);
         }
@@ -62,7 +62,7 @@ namespace Fdp.Network.Cyclone.Tests.Translators
         {
             Assert.Throws<InvalidOperationException>(() => {
                 new MultiInstanceCycloneTranslator<InvalidMultiTestComponent>(
-                    _participant, "TestTopic_Multi_Invalid", 2, _entityMap, new GhostCreationSystem(_entityMap));
+                    _participant, 2, _entityMap, new GhostCreationSystem(_entityMap));
             });
         }
     }

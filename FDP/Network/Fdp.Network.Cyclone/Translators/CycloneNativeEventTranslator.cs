@@ -21,11 +21,18 @@ namespace Fdp.Network.Cyclone.Translators
         protected readonly DdsWriter<TDds> Writer;
         protected readonly NetworkEntityMap EntityMap;
 
+        /// <param name="participant">The DDS participant (null in unit-test mode).</param>
+        /// <param name="entityMap">Entity map.</param>
+        /// <param name="topicNameForNonTopicDto">
+        /// ⭐ AQ107 A — normally <c>null</c>: the name is DERIVED from <typeparamref name="TDds"/> (<c>DdsTopicName.Of</c>, the one rule).
+        /// ⛔ Only for a DTO that has no <c>[DdsTopic]</c> yet (the CE-3010 animation events: test-only, no generated serialiser, so no live reader exists) —
+        /// the caller passes the name the rule WILL give it once it is a topic.
+        /// </param>
         protected CycloneNativeEventTranslator(
             DdsParticipant participant, 
-            string topicName, 
-            NetworkEntityMap entityMap)
-            : base(topicName)
+            NetworkEntityMap entityMap,
+            string? topicNameForNonTopicDto = null)
+            : base(topicNameForNonTopicDto ?? CycloneDDS.Schema.DdsTopicName.Of<TDds>())
         {
             EntityMap = entityMap;
             // participant may be null in unit-test mode — Reader/Writer become no-ops.

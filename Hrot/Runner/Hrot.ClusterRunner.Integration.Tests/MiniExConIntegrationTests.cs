@@ -31,8 +31,8 @@ public class MiniExConIntegrationTests
 
         var igApp = harness.Ig.App;
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
-        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
+        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant);
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
         igApp.TestHook_SubmitMiniExConSpawn(tkbType, ForceId.Friend, 125f, 210f);
@@ -196,10 +196,10 @@ public class MiniExConIntegrationTests
         var igApp = harness.Ig.App;
 
         using var observerParticipant  = new DdsParticipant((uint)harness.DomainId);
-        using var reqReader            = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader            = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
-        using var updateReqReader      = new DdsReader<UpdateEntityDescriptorRequest>(observerParticipant, "UpdateEntityDescriptorRequest");
-        using var updateAckReader      = new DdsReader<UpdateEntityDescriptorAck>(observerParticipant, "UpdateEntityDescriptorAck");
+        using var reqReader            = new DdsReader<CreateEntityRequest>(observerParticipant);
+        using var ackReader            = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
+        using var updateReqReader      = new DdsReader<UpdateEntityDescriptorRequest>(observerParticipant);
+        using var updateAckReader      = new DdsReader<UpdateEntityDescriptorAck>(observerParticipant);
 
         // ── 1. Spawn an entity via IG ─────────────────────────────────────────
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
@@ -340,9 +340,9 @@ public class MiniExConIntegrationTests
 
         var igApp = harness.Ig.App;
         using var observerParticipant   = new DdsParticipant((uint)harness.DomainId);
-        using var missionReqReader      = new DdsReader<MissionControlRequest>(observerParticipant, "MissionControlRequest");
-        using var missionAckReader      = new DdsReader<MissionControlAck>(observerParticipant, "MissionControlAck");
-        using var entityMissionReader   = new DdsReader<EntityMission>(observerParticipant, "EntityMission");
+        using var missionReqReader      = new DdsReader<MissionControlRequest>(observerParticipant);
+        using var missionAckReader      = new DdsReader<MissionControlAck>(observerParticipant);
+        using var entityMissionReader   = new DdsReader<EntityMission>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
@@ -479,8 +479,8 @@ public class MiniExConIntegrationTests
 
         var igApp = harness.Ig.App;
         using var participant = new DdsParticipant((uint)harness.DomainId);
-        using var reqReader   = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
-        using var ackReader   = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
+        using var reqReader   = new DdsReader<CreateEntityRequest>(participant);
+        using var ackReader   = new DdsReader<CreateUpdateDeleteEntityAck>(participant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
         igApp.TestHook_SubmitMiniExConSpawn(tkbType, ForceId.Hostile, 100f, 200f);
@@ -560,8 +560,8 @@ public class MiniExConIntegrationTests
 
         var igApp = harness.Ig.App;
         using var participant = new DdsParticipant((uint)harness.DomainId);
-        using var reqReader   = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
-        using var ackReader   = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
+        using var reqReader   = new DdsReader<CreateEntityRequest>(participant);
+        using var ackReader   = new DdsReader<CreateUpdateDeleteEntityAck>(participant);
 
         // First spawn — must succeed.
         igApp.TestHook_SubmitMiniExConSpawn(TkbEntityTypes.Tank_M1Abrams, ForceId.Friend, 0f, 0f);

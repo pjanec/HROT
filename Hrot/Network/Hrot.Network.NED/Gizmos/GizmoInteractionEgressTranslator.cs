@@ -27,7 +27,7 @@ namespace Hrot.Network.NED.Gizmos
 
         // 🔴 §6.7 — `NetworkEntityMap? _entityMap` DELETED. S2 used it for the Entity -> network id
         //   direction; the token now carries the network id, so there is nothing to look up.
-        public string TopicName => "GizmoInteractionBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<GizmoInteractionBatch>();
         public TranslatorDirection Direction => TranslatorDirection.Egress;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

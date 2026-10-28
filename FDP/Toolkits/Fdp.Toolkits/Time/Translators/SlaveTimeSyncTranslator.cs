@@ -31,7 +31,6 @@ namespace Fdp.Toolkit.Time.Translators
     /// </summary>
     public sealed class SlaveTimeSyncTranslator : IDescriptorTranslator
     {
-        private const string TopicNameValue = "TimeSyncResponse";
         private const long   OrdinalValue   = (long)TimeDescriptorType.TimeSyncResponse;
 
         private readonly DdsWriter<TimeSyncRequest>?  _requestWriter;
@@ -40,7 +39,7 @@ namespace Fdp.Toolkit.Time.Translators
         private readonly int         _localNodeId;
         private readonly Func<long>  _getTick;
 
-        public string TopicName         => TopicNameValue;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<TimeSyncResponse>();
         public long   DescriptorOrdinal => OrdinalValue;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount { get; private set; }

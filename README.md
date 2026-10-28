@@ -439,7 +439,7 @@ Current capability list and open gaps: `docs/blueprints/Blueprints_Overview.md` 
 | Profile | Topics | Use Case |
 |---------|--------|----------|
 | **NED** (full) | 30+ DDS topics | All production multi-node runs |
-| **BDC** (minimal) | 2 topics (`BDC_EntityMaster`, `BDC_WorldPos`) | Lightweight IG tracking, federation gateways |
+| **BDC** (minimal) | 2 topics (`Hrot_BDC_Messages_BdcEntityMaster`, `Hrot_BDC_Messages_BdcWorldPos`) | Lightweight IG tracking, federation gateways |
 | **Orchestration** | 7 topics | Cluster 2PC, state machine, heartbeat |
 
 Both NED and BDC implement `INetworkFactory` / `IReplicationModule`; higher-level

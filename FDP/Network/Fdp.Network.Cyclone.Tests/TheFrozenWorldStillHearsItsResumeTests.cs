@@ -239,8 +239,8 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
     private abstract class ReaderOwningBase
     {
         private readonly CycloneDDS.Runtime.DdsReader<Fdp.Network.Cyclone.Topics.EntityMasterTopic> _reader;
-        protected ReaderOwningBase(CycloneDDS.Runtime.DdsParticipant p, string topic)
-            => _reader = new CycloneDDS.Runtime.DdsReader<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(p, topic);
+        protected ReaderOwningBase(CycloneDDS.Runtime.DdsParticipant p)
+            => _reader = new CycloneDDS.Runtime.DdsReader<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(p);
         protected int TakeAll()
         {
             int n = 0;
@@ -253,7 +253,7 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
     private sealed class StateTranslator : ReaderOwningBase, INetworkTranslator, IDiscardableIngress
     {
         public int DiscardIngress() => Discard();
-        public StateTranslator(CycloneDDS.Runtime.DdsParticipant p, string topic) : base(p, topic) => TopicName = topic;
+        public StateTranslator(CycloneDDS.Runtime.DdsParticipant p) : base(p) => TopicName = CycloneDDS.Schema.DdsTopicName.Of<Fdp.Network.Cyclone.Topics.EntityMasterTopic>();
         public int Applied { get; private set; }
         public string TopicName { get; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -272,15 +272,15 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
     [Fact(Timeout = 30_000)]
     public async Task CE3329_W5_TheReleasedExitDropsTheReplayEraState_ThenIngressResumes()
     {
-        using var participant = new CycloneDDS.Runtime.DdsParticipant(0);
-        string topic = "ce3329-w5-" + System.Guid.NewGuid().ToString("N");
-        var state   = new StateTranslator(participant, topic);
+        // ⭐ AQ107 A — isolation used to be a private TOPIC NAME (a Guid); a topic name is derived from the type now, so the test takes a private DOMAIN instead.
+        using var participant = new CycloneDDS.Runtime.DdsParticipant(66u);
+        var state   = new StateTranslator(participant);
         var events  = new EventSpy();
         var control = new SpyTranslator("time-mode", TranslatorClass.ControlPlane);
         bool held = true;   // the controller's gate: restoring, then held from the teardown until the release
         var system = new CycloneNetworkIngressSystem(new INetworkTranslator[] { state, events, control }) { IsReplayRestoring = () => held };
 
-        using var writer = new CycloneDDS.Runtime.DdsWriter<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(participant, topic);
+        using var writer = new CycloneDDS.Runtime.DdsWriter<Fdp.Network.Cyclone.Topics.EntityMasterTopic>(participant);
         for (long id = 1; id <= 3; id++) writer.Write(new Fdp.Network.Cyclone.Topics.EntityMasterTopic { EntityId = id });
         await WaitFor(() => state.Peek() == 3);
 

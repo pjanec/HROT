@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-27
-current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check
+updated: 2026-10-28
+current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check; §Concepts 15 states the one topic-name rule
 stale-below: nothing
 known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 129 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
-known-conflict: BDC_NED_SST_Descriptor_Rules.md (the authoritative spec) and the code differ in the places listed in §Code versus the spec; neither side has been reconciled by a ruling. Two C# types share the topic name "IGCapabilitiesAnnounce" (see §Inventory F).
+known-conflict: BDC_NED_SST_Descriptor_Rules.md (the authoritative spec) and the code differ in the places listed in §Code versus the spec; neither side has been reconciled by a ruling. (Topic names have no conflict left: every name is derived from the C# type, no exceptions — §Concepts 15.)
 related-designs:
   - ../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the planned wire change: one frame (local metres + GeoReference), names from types, WorldPos as a quaternion pose (R-4092); this reference is updated as each step lands
   - BDC_NED_SST_Descriptor_Rules.md — OWNS the authoritative descriptor/ownership rules this reference summarises
@@ -73,7 +73,7 @@ classDiagram
         parts and child sensors
     }
     class OwnershipUpdate {
-        <<message - SST_OwnershipUpdate>>
+        <<message - Fdp_Network_Cyclone_Topics_OwnershipUpdate>>
         entity id
         descriptor type id
         instance id
@@ -119,8 +119,8 @@ sequenceDiagram
     participant R as Receiving node
     participant I as Initiator (any node)
     participant N as New owner
-    C->>A: IdAlloc_Request (client id, count)
-    A-->>C: IdAlloc_Response (start, count)
+    C->>A: IdRequest (client id, count)
+    A-->>C: IdResponse (start, count)
     opt HROT creator granting descriptors to other nodes
         C-->>W: DeferredTakeOwnership (entity id, list of descriptor type to node id)
     end
@@ -182,7 +182,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 
 | Rule | Evidence |
 |---|---|
-| DDS stack is **CycloneDDS** through the **CycloneDDS.NET 0.3.2** bindings (`DdsParticipant`, `DdsReader<T>`, `DdsWriter<T>`); one participant per node | `Hrot/Engine/Hrot.Core/HrotEnvironment.cs:76`; package `cyclonedds.net/0.3.2` |
+| DDS stack is **CycloneDDS** through the **CycloneDDS.NET** bindings (`DdsParticipant`, `DdsReader<T>`, `DdsWriter<T>`); one participant per node. ⭐ **The package version is ONE MSBuild property, `CycloneDdsNetVersion`** (`Directory.Build.props`; shipped value `0.3.2`; a local build is tried with `-p:CycloneDdsNetVersion=<v>` and its `.nupkg` in the gitignored `nugets/` feed). ⛔ **The derived topic names below need the library's 1.2 line** (`DdsTopicName`, applied by `DdsWriter` / `DdsReader` when no name is passed): on `0.3.2` a name-less `[DdsTopic]` opens a null topic | `Hrot/Engine/Hrot.Core/HrotEnvironment.cs:76`; `Directory.Build.props:17`; library `src/CycloneDDS.Schema/DdsTopicName.cs`, `DdsWriter.cs:97`, `DdsReader.cs:152` (CycloneDds.NET `dds-security`, 1.2.1 candidate) |
 | **One DDS domain per deployment**, chosen by configuration (`DdsDomainId`; shipped default 0, code default 42 when absent). Tests use other ids | `Hrot/Subsystems/Hrot.SimHost/config.json:2`, `Hrot/Subsystems/Hrot.SimHost/NodeConfiguration.cs:54` |
 | **No partitions on entity or message topics.** The only partition use: file-transfer chunks travel in a per-transfer partition | `Hrot/Network/Hrot.Network.NED/Transfer/DdsFileTransferProvider.cs:151,180` (searched: `grep -rniE partition Hrot/Network FDP/Network`) |
 | A node's **identity** = `(AppDomainId = DDS domain id, AppInstanceId = node id)`, attached to every writer by `EnableSenderTracking`, which must be called **before** writers exist. Receivers resolve the writer of each sample to a node id from it. A writer without it is anonymous (owner −1) | `Hrot/Runner/Hrot.ClusterRunner/Program.cs:286-291`, `Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs:360`, `Hrot/Subsystems/Hrot.IG/IgApplication.cs:714`, `Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs:650`; reader side `Hrot/Network/Hrot.Network.NED/Replication/Map/Ingress/EntityMasterIngressTranslator.cs:84-91,252`; §[BUG2-DESIGN](../designs/bugs-2/BUG2-DESIGN.md) 1.2 |
@@ -224,7 +224,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 
 | Rule | Evidence |
 |---|---|
-| Ids come from a **central DDS id-allocator server** (blocks of ids): client writes `IdAlloc_Request` (alloc / reset / status), server answers `IdAlloc_Response` keyed by client id and publishes `IdAlloc_Status` (highest id) | `FDP/Network/Fdp.Network.Cyclone/Topics/IdAllocTopics.cs:20-60`; `FDP/Network/Fdp.Network.Cyclone/Services/DdsIdAllocatorServer.cs:13-100`; client `FDP/Network/Fdp.Network.Cyclone/Services/DdsIdAllocator.cs:22` |
+| Ids come from a **central DDS id-allocator server** (blocks of ids): client writes `IdRequest` (alloc / reset / status), server answers `IdResponse` keyed by client id and publishes `IdStatus` (highest id) — topic names in §Inventory E | `FDP/Network/Fdp.Network.Cyclone/Topics/IdAllocTopics.cs:20-60`; `FDP/Network/Fdp.Network.Cyclone/Services/DdsIdAllocatorServer.cs:13-100`; client `FDP/Network/Fdp.Network.Cyclone/Services/DdsIdAllocator.cs:22` |
 | The server is hosted by the **orchestrator** (`CreateIdAllocatorServer`) | `Factory/NedNetworkFactory.cs:336`; `Factory/HostedIdAllocatorServer.cs:17`; `FDP/Network/Fdp.Network.Cyclone/Services/DdsIdAllocatorServer.cs:107-111` |
 | **One allocator per DDS domain.** The topics carry no drill/session id | `FDP/Network/Fdp.Network.Cyclone/Topics/IdAllocTopics.cs` (no such member). *Differs from the spec's "multi-drill capable"* — see §Code versus the spec |
 | At a **world boundary** the master resets the counter to **1000** and broadcasts `Resp_Reset`: entity ids **repeat across worlds/runs**, they are not globally unique over time | `FDP/Network/Fdp.Network.Cyclone/Services/DdsIdAllocatorServer.cs:119-136`; §[Deterministic Network Ids](../DESIGN_Deterministic_Network_Ids.md) 11 |
@@ -247,7 +247,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 |---|---|
 | Ownership is **per descriptor** (and per instance); the owner is the node that writes it; **only the owner publishes** — enforced by the *writer* (a send gate on the node's own claim), not by DDS | Spec L129-137; `FDP/Network/Fdp.Network.Cyclone/Systems/CycloneEgressSystem.cs:19`; §[Q79](../blueprints/Architect_Question_79_One_Ownership_Truth.md) 0.7 (push-only) |
 | **Default owners** are *role groups*: Brain group (mission, navigation intent, health, sensor/EQS config, brain intent, most state descriptors), MuscleGround group (`WorldPos`, `NavigationStatus`, turret pose, hit marks, descent), Perception group (EQS results); the **creator** keeps `EntityMaster`, `EntityInfo`, map descriptors | §[Ownership Groups](../DESIGN_Ownership_Groups_And_Grants.md) 2 |
-| **Handoff**: any node sends `OwnershipUpdate` (topic `SST_OwnershipUpdate`, no key, `Reliable·Volatile·KeepAll`); the old owner stops writing **without dispose**; the new owner writes the descriptor to confirm. **External nodes use this very message** (no bridge, no mapping) | `FDP/Network/Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10`; `Replication/Map/OwnershipUpdateTranslator.cs:41,120`; R-166 in [RULINGS](../blueprints/RULINGS.md); §[Ownership Transfer](../DESIGN_Entity_Ownership_Transfer.md) |
+| **Handoff**: any node sends `OwnershipUpdate` (topic `Fdp_Network_Cyclone_Topics_OwnershipUpdate`, no key, `Reliable·Volatile·KeepAll`); the old owner stops writing **without dispose**; the new owner writes the descriptor to confirm. **External nodes use this very message** (no bridge, no mapping) | `FDP/Network/Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10`; `Replication/Map/OwnershipUpdateTranslator.cs:41,120`; R-166 in [RULINGS](../blueprints/RULINGS.md); §[Ownership Transfer](../DESIGN_Entity_Ownership_Transfer.md) |
 | The owner ids in `OwnershipUpdate` and in `DeferredTakeOwnership` are **node ids** = `AppInstanceId` of the sender identity (a single `int32`), the same value the receivers record as `PrimaryOwnerId` | `OwnershipUpdateTranslator.cs:80-90`; `EntityMasterIngressTranslator.cs:252` |
 | The receiver of an `OwnershipUpdate` drops its own echo (`OriginNodeId == local`) | `OwnershipUpdateTranslator.cs:120` |
 | **Grants at creation**: `DeferredTakeOwnership` (keyed by entity; list of *(descriptor type id → node id)*) arrives *before* the master; the target claims after promotion. HROT-specific — not in the spec | `Hrot/Network/Hrot.Network.NED/Messages/DeferredTakeOwnership.cs:39-75`; `Systems/DeferredTakeoverSystem.cs:44` |
@@ -334,195 +334,195 @@ Counts over the 129 types: S 67 · Q 33 · D 9 · SL 6 · L 6 · B 4 · SN 2 · 
 |---|---|
 | Types are generated to **IDL at build** into `<project>/obj/<cfg>/<tfm>/CycloneDdsGenerated/*.idl`, one file per `[DdsIdlFile("…")]` name (`hrot-generic-desc`, `hrot-sim-desc`, `hrot-map-desc`, `hrot-orchestration`, `hrot-anim-msgs`, …); **not committed** | `Hrot/Network/Hrot.Network.NED/obj/Debug/net8.0/CycloneDdsGenerated/hrot-generic-desc.idl` (build output) |
 | The DDS **type name** is the C# namespace as IDL modules + type name (`Hrot::NED::Descriptors::EntityMaster`); extensibility is **`@appendable`**: new fields are only ever **appended** (marked "APPENDED" in comments), so an older reader keeps working | same generated IDL; R-169 in RULINGS |
-| The **topic name** is the `[DdsTopic("…")]` string — and a **writer may override it** by name (`DdsWriterAdapter`); three types are bound to a topic only by a translator constant (marked † in the inventory) | `Hrot/Engine/Hrot.Core/Dds/DdsWriterAdapter.cs:31`; translators `BehaviorFaultTranslators.cs:28`, `SquadReportTranslators.cs:24`, `SimHost/TacticalIntentIngressTranslator.cs:27` |
+| ⭐ **One rule, no exceptions: the topic name is CycloneDDS.NET's derived name of the C# type** *(AQ107 A, R-4092/R-4093)* — `CycloneDDS.Schema.DdsTopicName.Of<T>()`: **the namespace, the containing types and the type name, each part joined with `_`**. `Hrot.NED.Descriptors.WorldPos` is the topic `Hrot_NED_Descriptors_WorldPos`; a nested `A.B.Outer.Inner` is `A_B_Outer_Inner`. So the **Full name** column of §Inventory *is* the topic: replace every `.` (and the `+` of a nested type) with `_`. No `[DdsTopic]`, reader, writer, translator or helper in HROT writes a name (a bare `[DdsTopic]` is the only form; `DdsWriterAdapter` / `DdsCommandClient` take none), and no type has a name that differs from its own — `scripts/ned-wire-inventory.py --check` FAILS on an explicit name anywhere in HROT-owned code (the one place it does not look: vendored SumoSharp, R-4046). The same rule is used by the library's runtime, its code generator and DdsMonitor. An external client gets the name from the type's IDL name: for a top-level type, the DDS *type* name with `::` replaced by `_`. ⚠ A namespace or type rename is therefore a **wire break**. The one pair of spellings the rule cannot tell apart (`A.B` + `C` vs `A` + `B_C`) is rejected by `--check` and by the NED test `TheTopicNamesAreDerivedFromTypesTests` (no explicit name · all derived names unique · a name-less pair exchanges a sample on a private domain) | `Hrot/Network/Hrot.Network.NED.Tests/TheTopicNamesAreDerivedFromTypesTests.cs`; `scripts/ned-wire-inventory.py`; library `src/CycloneDDS.Schema/DdsTopicName.cs`; [AQ107](../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md) item A |
 | Some types are `[DdsManaged]` (strings, sequences, unions): variable length; a few payloads are **JSON text** (`ClusterOpRequest.PayloadJson`, EQS/survey results, attribute patches) | inventory; `GenericMessages.cs`, `OrchestrationMessages.cs` |
-| The BDC stack uses the same layout under a **`BDC_` topic prefix** (4 types) | `Hrot/Network/Hrot.Network.BDC/BdcEntityMessages.cs:10,29`; inventory §J |
+| The BDC stack uses the same layout in its own namespace (`Hrot.BDC.Messages`, hence `Hrot_BDC_Messages_*` topics, 4 types) — the old `BDC_` prefix is gone | `Hrot/Network/Hrot.Network.BDC/BdcEntityMessages.cs:10,29`; inventory §J |
 
 ## Inventory
 
-All **129** production wire types: **126** carry `[DdsTopic]`, **3** are bound to a topic by a translator constant (†). Full names are
+All **129** production wire types carry a bare `[DdsTopic]` — the topic name of each is DERIVED from its full name (§Concepts 15), so there is no topic column. Full names are
 **reflection style** (`Namespace.Type`; a nested type would print `Namespace.Outer+Nested` — none exists today). Kind and QoS legend
 are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: `Hrot/`, `FDP/`, `Stride/`; excluded roots: see
-§Excluded roots. Family counts are informational; `--check` compares the full names only.
+§Excluded roots. Family counts are informational; `--check` compares the full names only (and fails on an explicit topic name anywhere in HROT-owned code).
 
 ### A. Entity descriptors (keyed state of an entity) — 37
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Hrot.NED.Descriptors.DescriptorOptimisticLock` | `DescriptorOptimisticLock` | descriptor | yes: entity id + descriptor type | SA | Hrot.Network.NED | Version sidecar for optimistic descriptor updates |
-| `Hrot.NED.Descriptors.EntityAreaEffectCloud` | `EntityAreaEffectCloud` | descriptor | yes: entity id | S | Hrot.Network.NED | Gas or smoke cloud description |
-| `Hrot.NED.Descriptors.EntityCombatProficiency` | `EntityCombatProficiency` | descriptor | yes: entity id | S | Hrot.Network.NED | Soldier's combat proficiency values |
-| `Hrot.NED.Descriptors.EntityCustody` | `EntityCustody` | descriptor | yes: entity id | S | Hrot.Network.NED | Person detained, restrained or searched |
-| `Hrot.NED.Descriptors.EntityDamage` | `EntityDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Current and max health of the entity |
-| `Hrot.NED.Descriptors.EntityDemeanour` | `EntityDemeanour` | descriptor | yes: entity id | S | Hrot.Network.NED | Civilian mode, fear and anger |
-| `Hrot.NED.Descriptors.EntityDescent` | `EntityDescent` | descriptor | yes: entity id | S | Hrot.Network.NED | Body on a rope or under a canopy |
-| `Hrot.NED.Descriptors.EntityDoorState` | `EntityDoorState` | descriptor | yes: entity id | S | Hrot.Network.NED | Live state of a terrain door |
-| `Hrot.NED.Descriptors.EntityEffectState` | `EntityEffectState` | descriptor | yes: entity id | S | Hrot.Network.NED | Stored non-lethal effects of a person |
-| `Hrot.NED.Descriptors.EntityEngagementArea` | `EntityEngagementArea` | descriptor | yes: entity id | S | Hrot.Network.NED | Sector assigned to a man or commander |
-| `Hrot.NED.Descriptors.EntityGesture` | `EntityGesture` | descriptor | yes: entity id | S | Hrot.Network.NED | Arm gesture or idle mood of a person |
-| `Hrot.NED.Descriptors.EntityHitMarks` | `EntityHitMarks` | descriptor | yes: entity id | SL | Hrot.Network.NED | Where rounds struck a body (ring) |
-| `Hrot.NED.Descriptors.EntityHostileAct` | `EntityHostileAct` | descriptor | yes: entity id | S | Hrot.Network.NED | A man's hostile act and its kind |
-| `Hrot.NED.Descriptors.EntityInfo` | `EntityInfo` | descriptor | yes: entity id | S | Hrot.Network.NED | Name, force/side, commander, tactical role |
-| `Hrot.NED.Descriptors.EntityLean` | `EntityLean` | descriptor | yes: entity id | S | Hrot.Network.NED | Person leaning round a corner |
-| `Hrot.NED.Descriptors.EntityLookState` | `EntityLookState` | descriptor | yes: entity id | S | Hrot.Network.NED | Wanted look direction and head turn |
-| `Hrot.NED.Descriptors.EntityManualDrive` | `EntityManualDrive` | descriptor | yes: entity id | SL | Hrot.Network.NED | Operator motion axes for a manually driven body |
-| `Hrot.NED.Descriptors.EntityMaster` | `EntityMaster` | descriptor | yes: entity id | S | Hrot.Network.NED | Entity existence, TKB type, DIS type, flags |
-| `Hrot.NED.Descriptors.EntityObstacleShape` | `EntityObstacleShape` | descriptor | yes: entity id | S | Hrot.Network.NED | Static obstacle box, applied before promotion |
-| `Hrot.NED.Descriptors.EntityOperatorUseStatus` | `EntityOperatorUseStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Verdict on the operator's last use press |
-| `Hrot.NED.Descriptors.EntityPartDamage` | `EntityPartDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Damage level per body part |
-| `Hrot.NED.Descriptors.EntityPassengers` | `EntityPassengers` | descriptor | yes: entity id | S | Hrot.Network.NED | Passenger list of a vehicle |
-| `Hrot.NED.Descriptors.EntityPossessedBy` | `EntityPossessedBy` | descriptor | yes: entity id | S | Hrot.Network.NED | Which operator station holds the unit |
-| `Hrot.NED.Descriptors.EntityScenarioClock` | `EntityScenarioClock` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario start time and display UTC offset |
-| `Hrot.NED.Descriptors.EntitySpawnLevel` | `EntitySpawnLevel` | descriptor | yes: entity id | S | Hrot.Network.NED | Birth level and whether position owner applied it |
-| `Hrot.NED.Descriptors.EntityTrafficDemand` | `EntityTrafficDemand` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario traffic settings |
-| `Hrot.NED.Descriptors.EntityTurretPose` | `EntityTurretPose` | descriptor | yes: parent entity id + part instance id | SL | Hrot.Network.NED | Turret part pose, per part instance |
-| `Hrot.NED.Descriptors.EntityUnderFire` | `EntityUnderFire` | descriptor | yes: entity id | S | Hrot.Network.NED | When the man was last hit or nearly missed |
-| `Hrot.NED.Descriptors.EntityUtterance` | `EntityUtterance` | descriptor | yes: entity id | S | Hrot.Network.NED | What a person says now |
-| `Hrot.NED.Descriptors.EntityWeaponAmmo` | `EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and heat per weapon mount |
-| `Hrot.NED.Descriptors.EntityWeaponPosture` | `EntityWeaponPosture` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon posture: at ease, ready, aimed |
-| `Hrot.NED.Descriptors.EntityWeaponSystemState` | `EntityWeaponSystemState` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon system deploy state |
-| `Hrot.NED.Descriptors.EntityWeaponTask` | `EntityWeaponTask` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Standing order to one turret (Brain to Muscle) |
-| `Hrot.NED.Descriptors.EntityWeaponTaskStatus` | `EntityWeaponTaskStatus` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Muscle's report on a turret order |
-| `Hrot.NED.Descriptors.EntityWeather` | `EntityWeather` | descriptor | yes: entity id | S | Hrot.Network.NED | Authored weather, global or regional |
-| `Hrot.NED.Descriptors.GroundClampingOverride` | `GroundClampingOverride` | descriptor | yes: entity id | S | Hrot.Network.NED | Per-entity ground clamping override for the IG |
-| `Hrot.NED.Descriptors.WorldPos` | `WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Hrot.NED.Descriptors.DescriptorOptimisticLock` | descriptor | yes: entity id + descriptor type | SA | Hrot.Network.NED | Version sidecar for optimistic descriptor updates |
+| `Hrot.NED.Descriptors.EntityAreaEffectCloud` | descriptor | yes: entity id | S | Hrot.Network.NED | Gas or smoke cloud description |
+| `Hrot.NED.Descriptors.EntityCombatProficiency` | descriptor | yes: entity id | S | Hrot.Network.NED | Soldier's combat proficiency values |
+| `Hrot.NED.Descriptors.EntityCustody` | descriptor | yes: entity id | S | Hrot.Network.NED | Person detained, restrained or searched |
+| `Hrot.NED.Descriptors.EntityDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Current and max health of the entity |
+| `Hrot.NED.Descriptors.EntityDemeanour` | descriptor | yes: entity id | S | Hrot.Network.NED | Civilian mode, fear and anger |
+| `Hrot.NED.Descriptors.EntityDescent` | descriptor | yes: entity id | S | Hrot.Network.NED | Body on a rope or under a canopy |
+| `Hrot.NED.Descriptors.EntityDoorState` | descriptor | yes: entity id | S | Hrot.Network.NED | Live state of a terrain door |
+| `Hrot.NED.Descriptors.EntityEffectState` | descriptor | yes: entity id | S | Hrot.Network.NED | Stored non-lethal effects of a person |
+| `Hrot.NED.Descriptors.EntityEngagementArea` | descriptor | yes: entity id | S | Hrot.Network.NED | Sector assigned to a man or commander |
+| `Hrot.NED.Descriptors.EntityGesture` | descriptor | yes: entity id | S | Hrot.Network.NED | Arm gesture or idle mood of a person |
+| `Hrot.NED.Descriptors.EntityHitMarks` | descriptor | yes: entity id | SL | Hrot.Network.NED | Where rounds struck a body (ring) |
+| `Hrot.NED.Descriptors.EntityHostileAct` | descriptor | yes: entity id | S | Hrot.Network.NED | A man's hostile act and its kind |
+| `Hrot.NED.Descriptors.EntityInfo` | descriptor | yes: entity id | S | Hrot.Network.NED | Name, force/side, commander, tactical role |
+| `Hrot.NED.Descriptors.EntityLean` | descriptor | yes: entity id | S | Hrot.Network.NED | Person leaning round a corner |
+| `Hrot.NED.Descriptors.EntityLookState` | descriptor | yes: entity id | S | Hrot.Network.NED | Wanted look direction and head turn |
+| `Hrot.NED.Descriptors.EntityManualDrive` | descriptor | yes: entity id | SL | Hrot.Network.NED | Operator motion axes for a manually driven body |
+| `Hrot.NED.Descriptors.EntityMaster` | descriptor | yes: entity id | S | Hrot.Network.NED | Entity existence, TKB type, DIS type, flags |
+| `Hrot.NED.Descriptors.EntityObstacleShape` | descriptor | yes: entity id | S | Hrot.Network.NED | Static obstacle box, applied before promotion |
+| `Hrot.NED.Descriptors.EntityOperatorUseStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Verdict on the operator's last use press |
+| `Hrot.NED.Descriptors.EntityPartDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Damage level per body part |
+| `Hrot.NED.Descriptors.EntityPassengers` | descriptor | yes: entity id | S | Hrot.Network.NED | Passenger list of a vehicle |
+| `Hrot.NED.Descriptors.EntityPossessedBy` | descriptor | yes: entity id | S | Hrot.Network.NED | Which operator station holds the unit |
+| `Hrot.NED.Descriptors.EntityScenarioClock` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario start time and display UTC offset |
+| `Hrot.NED.Descriptors.EntitySpawnLevel` | descriptor | yes: entity id | S | Hrot.Network.NED | Birth level and whether position owner applied it |
+| `Hrot.NED.Descriptors.EntityTrafficDemand` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario traffic settings |
+| `Hrot.NED.Descriptors.EntityTurretPose` | descriptor | yes: parent entity id + part instance id | SL | Hrot.Network.NED | Turret part pose, per part instance |
+| `Hrot.NED.Descriptors.EntityUnderFire` | descriptor | yes: entity id | S | Hrot.Network.NED | When the man was last hit or nearly missed |
+| `Hrot.NED.Descriptors.EntityUtterance` | descriptor | yes: entity id | S | Hrot.Network.NED | What a person says now |
+| `Hrot.NED.Descriptors.EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and heat per weapon mount |
+| `Hrot.NED.Descriptors.EntityWeaponPosture` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon posture: at ease, ready, aimed |
+| `Hrot.NED.Descriptors.EntityWeaponSystemState` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon system deploy state |
+| `Hrot.NED.Descriptors.EntityWeaponTask` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Standing order to one turret (Brain to Muscle) |
+| `Hrot.NED.Descriptors.EntityWeaponTaskStatus` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Muscle's report on a turret order |
+| `Hrot.NED.Descriptors.EntityWeather` | descriptor | yes: entity id | S | Hrot.Network.NED | Authored weather, global or regional |
+| `Hrot.NED.Descriptors.GroundClampingOverride` | descriptor | yes: entity id | S | Hrot.Network.NED | Per-entity ground clamping override for the IG |
+| `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
 ### B. Interactions and events (fire, impact, damage, interaction) — 11
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Hrot.NED.Descriptors.AudioTargetDetected` | `AudioTargetDetected` | message | no | L | Hrot.Network.NED | Sound contact heard by a listener |
-| `Hrot.NED.Messages.EntityHitDamage` | `EntityHitDamage` | message | no | Q | Hrot.Network.NED | Computed damage applied to a struck entity |
-| `Hrot.NED.Messages.EntityInteractionRequest` | `EntityInteractionRequest` | message | no | Q | Hrot.Network.NED | Actor asks the target's owner to apply an interaction |
-| `Hrot.NED.Messages.FireInteractionEvent` | `FireInteractionEvent` | message | no | D | Hrot.Network.NED | Shooter-to-target line for the IG (2-D) |
-| `Hrot.NED.Messages.MeleeStrike` | `MeleeStrike` | message | no | L | Hrot.Network.NED | A blow was struck (cosmetic) |
-| `Hrot.NED.Messages.MissileWarning` | `MissileWarning` | message | no | QN | Hrot.Network.NED | A guided missile was launched at an aircraft |
-| `Hrot.NED.Messages.MunitionDetonation` | `MunitionDetonation` | message | no | Q | Hrot.Network.NED | A round detonated at a point or entity |
-| `Hrot.NED.Messages.NearMiss` | `NearMiss` | message | no | L | Hrot.Network.NED | A round passed close to a unit |
-| `Hrot.NED.Messages.RoundImpact` | `RoundImpact` | message | no | L | Hrot.Network.NED | A round marked a world surface (cosmetic) |
-| `Hrot.NED.Messages.WeaponFire` | `WeaponFire` | message | no | Q | Hrot.Network.NED | A shot was fired (or refused) |
-| `Hrot.NED.Messages.WeaponFireRequest` | `WeaponFireRequest` | message | no | Q | Hrot.Network.NED | Brain asks Muscle to fire a weapon |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Hrot.NED.Descriptors.AudioTargetDetected` | message | no | L | Hrot.Network.NED | Sound contact heard by a listener |
+| `Hrot.NED.Messages.EntityHitDamage` | message | no | Q | Hrot.Network.NED | Computed damage applied to a struck entity |
+| `Hrot.NED.Messages.EntityInteractionRequest` | message | no | Q | Hrot.Network.NED | Actor asks the target's owner to apply an interaction |
+| `Hrot.NED.Messages.FireInteractionEvent` | message | no | D | Hrot.Network.NED | Shooter-to-target line for the IG (2-D) |
+| `Hrot.NED.Messages.MeleeStrike` | message | no | L | Hrot.Network.NED | A blow was struck (cosmetic) |
+| `Hrot.NED.Messages.MissileWarning` | message | no | QN | Hrot.Network.NED | A guided missile was launched at an aircraft |
+| `Hrot.NED.Messages.MunitionDetonation` | message | no | Q | Hrot.Network.NED | A round detonated at a point or entity |
+| `Hrot.NED.Messages.NearMiss` | message | no | L | Hrot.Network.NED | A round passed close to a unit |
+| `Hrot.NED.Messages.RoundImpact` | message | no | L | Hrot.Network.NED | A round marked a world surface (cosmetic) |
+| `Hrot.NED.Messages.WeaponFire` | message | no | Q | Hrot.Network.NED | A shot was fired (or refused) |
+| `Hrot.NED.Messages.WeaponFireRequest` | message | no | Q | Hrot.Network.NED | Brain asks Muscle to fire a weapon |
 
 ### C. Mission, AI, perception and navigation — 16
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Hrot.NED.Descriptors.EntityMission` | `EntityMission` | descriptor | yes: entity id | S | Hrot.Network.NED | Active mission plan of an entity |
-| `Hrot.NED.Descriptors.NavigationIntent` | `NavigationIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Brain's navigation command (CQRS command side) |
-| `Hrot.NED.Descriptors.NavigationStatus` | `NavigationStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Muscle's navigation feedback (CQRS status side) |
-| `Hrot.NED.Descriptors.PathRequestBatch` | `PathRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched path requests to the navigation solver |
-| `Hrot.NED.Descriptors.PathResponseBatch` | `PathResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched path answers |
-| `Hrot.NED.Descriptors.RaycastRequestBatch` | `RaycastRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched raycast requests to the navigation solver |
-| `Hrot.NED.Descriptors.RaycastResponseBatch` | `RaycastResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched raycast answers |
-| `Hrot.NED.Descriptors.SensorConfig` | `SensorConfig` | descriptor | yes: entity id | S | Hrot.Network.NED | Sensor configuration of an observer entity |
-| `Hrot.NED.Descriptors.SensorTargets` | `SensorTargets` | descriptor | yes: observer entity id | L | Hrot.Network.NED | Per-observer snapshot of detected targets |
-| `Hrot.NED.Descriptors.SensorTrackState` | `SensorTrackState` | descriptor | yes: observer entity id + target entity id | S | Hrot.Network.NED | Contact detected or lost, per observer and target |
-| `Hrot.NED.Messages.BehaviorFaultReport` | `BehaviorFault` † | message | no | D | Hrot.Network.NED | A behaviour faulted; operator notification |
-| `Hrot.NED.Messages.EntityBrainIntent` | `EntityBrainIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Unit's AI task, SOP and ROE |
-| `Hrot.NED.Messages.MissionControlAck` | `MissionControlAck` | message | no | Q | Hrot.Network.NED | Reply to a mission control request |
-| `Hrot.NED.Messages.MissionControlRequest` | `MissionControlRequest` | message | no | Q | Hrot.Network.NED | Command to start, stop or change a mission |
-| `Hrot.NED.Messages.SquadReport` | `SquadReport` † | message | no | D | Hrot.Network.NED | Report up the chain of command |
-| `Hrot.NED.Messages.TacticalIntentRequest` | `TacticalIntentRequest` † | message | no | D | Hrot.Network.NED | Commander brain to subordinate brain intent |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Hrot.NED.Descriptors.EntityMission` | descriptor | yes: entity id | S | Hrot.Network.NED | Active mission plan of an entity |
+| `Hrot.NED.Descriptors.NavigationIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Brain's navigation command (CQRS command side) |
+| `Hrot.NED.Descriptors.NavigationStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Muscle's navigation feedback (CQRS status side) |
+| `Hrot.NED.Descriptors.PathRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched path requests to the navigation solver |
+| `Hrot.NED.Descriptors.PathResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched path answers |
+| `Hrot.NED.Descriptors.RaycastRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched raycast requests to the navigation solver |
+| `Hrot.NED.Descriptors.RaycastResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched raycast answers |
+| `Hrot.NED.Descriptors.SensorConfig` | descriptor | yes: entity id | S | Hrot.Network.NED | Sensor configuration of an observer entity |
+| `Hrot.NED.Descriptors.SensorTargets` | descriptor | yes: observer entity id | L | Hrot.Network.NED | Per-observer snapshot of detected targets |
+| `Hrot.NED.Descriptors.SensorTrackState` | descriptor | yes: observer entity id + target entity id | S | Hrot.Network.NED | Contact detected or lost, per observer and target |
+| `Hrot.NED.Messages.BehaviorFaultReport` | message | no | D | Hrot.Network.NED | A behaviour faulted; operator notification |
+| `Hrot.NED.Messages.EntityBrainIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Unit's AI task, SOP and ROE |
+| `Hrot.NED.Messages.MissionControlAck` | message | no | Q | Hrot.Network.NED | Reply to a mission control request |
+| `Hrot.NED.Messages.MissionControlRequest` | message | no | Q | Hrot.Network.NED | Command to start, stop or change a mission |
+| `Hrot.NED.Messages.SquadReport` | message | no | D | Hrot.Network.NED | Report up the chain of command |
+| `Hrot.NED.Messages.TacticalIntentRequest` | message | no | D | Hrot.Network.NED | Commander brain to subordinate brain intent |
 
 ### D. Entity lifecycle, ownership and change requests — 10
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Fdp.Network.Cyclone.Topics.EntityLifecycleStatusDescriptor` | `EntityLifecycleStatus` | descriptor | yes: entity id + node id | S | Fdp.Network.Cyclone | Per-node readiness for reliable-init construction barrier |
-| `Fdp.Network.Cyclone.Topics.OwnershipUpdate` | `SST_OwnershipUpdate` | message | no | Q | Fdp.Network.Cyclone | Per-descriptor ownership handoff (the spec's OwnershipUpdate) |
-| `Hrot.NED.Messages.CreateEntityRequest` | `CreateEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the creator node to create an entity |
-| `Hrot.NED.Messages.CreateUpdateDeleteEntityAck` | `CreateUpdateDeleteEntityAck` | message | no | Q | Hrot.Network.NED | Unified ack for create, update and delete requests |
-| `Hrot.NED.Messages.DeferredTakeOwnership` | `DeferredTakeOwnership` | message | yes: entity id | Q | Hrot.Network.NED | Pre-genesis grant table: who will own which descriptor |
-| `Hrot.NED.Messages.DeleteEntityRequest` | `DeleteEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the owner to delete an entity |
-| `Hrot.NED.Messages.EntityAttributeSchema` | `EntityAttributeSchema` | descriptor | yes: node id | S | Hrot.Network.NED | JSON schema of attributes a node accepts |
-| `Hrot.NED.Messages.UpdateEntityAttributeRequest` | `UpdateEntityAttributeRequest` | message | no | Q | Hrot.Network.NED | JSON or binary attribute patch for an owned entity |
-| `Hrot.NED.Messages.UpdateEntityDescriptorAck` | `UpdateEntityDescriptorAck` | message | no | Q | Hrot.Network.NED | Result of a descriptor update request |
-| `Hrot.NED.Messages.UpdateEntityDescriptorRequest` | `UpdateEntityDescriptorRequest` | message | no | Q | Hrot.Network.NED | Ask the owner to change a descriptor it owns |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Fdp.Network.Cyclone.Topics.EntityLifecycleStatusDescriptor` | descriptor | yes: entity id + node id | S | Fdp.Network.Cyclone | Per-node readiness for reliable-init construction barrier |
+| `Fdp.Network.Cyclone.Topics.OwnershipUpdate` | message | no | Q | Fdp.Network.Cyclone | Per-descriptor ownership handoff (the spec's OwnershipUpdate) |
+| `Hrot.NED.Messages.CreateEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the creator node to create an entity |
+| `Hrot.NED.Messages.CreateUpdateDeleteEntityAck` | message | no | Q | Hrot.Network.NED | Unified ack for create, update and delete requests |
+| `Hrot.NED.Messages.DeferredTakeOwnership` | message | yes: entity id | Q | Hrot.Network.NED | Pre-genesis grant table: who will own which descriptor |
+| `Hrot.NED.Messages.DeleteEntityRequest` | message | no | Q | Hrot.Network.NED | Ask the owner to delete an entity |
+| `Hrot.NED.Messages.EntityAttributeSchema` | descriptor | yes: node id | S | Hrot.Network.NED | JSON schema of attributes a node accepts |
+| `Hrot.NED.Messages.UpdateEntityAttributeRequest` | message | no | Q | Hrot.Network.NED | JSON or binary attribute patch for an owned entity |
+| `Hrot.NED.Messages.UpdateEntityDescriptorAck` | message | no | Q | Hrot.Network.NED | Result of a descriptor update request |
+| `Hrot.NED.Messages.UpdateEntityDescriptorRequest` | message | no | Q | Hrot.Network.NED | Ask the owner to change a descriptor it owns |
 
 ### E. Id allocation and node identity — 5
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Fdp.Network.Cyclone.Topics.IdRequest` | `IdAlloc_Request` | message | yes: client id | Q | Fdp.Network.Cyclone | Entity-id block request to the allocator server |
-| `Fdp.Network.Cyclone.Topics.IdResponse` | `IdAlloc_Response` | message | yes: client id | Q | Fdp.Network.Cyclone | Allocator's granted id block, reset broadcast |
-| `Fdp.Network.Cyclone.Topics.IdStatus` | `IdAlloc_Status` | message | no | S | Fdp.Network.Cyclone | Highest entity id allocated so far |
-| `Hrot.NED.Descriptors.Orchestration.NodeIdGrant` | `NodeIdGrant` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Master's node-id grant or refusal |
-| `Hrot.NED.Descriptors.Orchestration.NodeIdRequest` | `NodeIdRequest` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Process asks the master for a node id |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Fdp.Network.Cyclone.Topics.IdRequest` | message | yes: client id | Q | Fdp.Network.Cyclone | Entity-id block request to the allocator server |
+| `Fdp.Network.Cyclone.Topics.IdResponse` | message | yes: client id | Q | Fdp.Network.Cyclone | Allocator's granted id block, reset broadcast |
+| `Fdp.Network.Cyclone.Topics.IdStatus` | message | no | S | Fdp.Network.Cyclone | Highest entity id allocated so far |
+| `Hrot.NED.Descriptors.Orchestration.NodeIdGrant` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Master's node-id grant or refusal |
+| `Hrot.NED.Descriptors.Orchestration.NodeIdRequest` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Process asks the master for a node id |
 
 ### F. Map, gizmo and operator UI — 15
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Hrot.IG.Gizmos.IGCapabilitiesAnnounce` | `IGCapabilitiesAnnounce` | descriptor | yes: node id | S | Hrot.IG | Same topic name, different type (dormant, not registered) |
-| `Hrot.NED.Descriptors.IGCapabilitiesAnnounce` | `IGCapabilitiesAnnounce` | descriptor | yes: map id | S | Hrot.Network.NED | IG announces layer tree and config schemas (map keyed) |
-| `Hrot.NED.Descriptors.MapConfigStatus` | `MapConfigStatus` | descriptor | yes: map id | S | Hrot.Network.NED | Full map configuration state reported by an IG |
-| `Hrot.NED.Descriptors.MapEntitySymbol` | `MapEntitySymbol` | descriptor | yes: entity id + map group id | S | Hrot.Network.NED | Per-map-group symbol override for an entity |
-| `Hrot.NED.Descriptors.MapInteractionConfig` | `MapInteractionConfig` | descriptor | yes: map group id + map id | S | Hrot.Network.NED | Map layers and tools configuration, ExCon to IG |
-| `Hrot.NED.Descriptors.MapRoute` | `MapRoute` | descriptor | yes: entity id | S | Hrot.Network.NED | Waypoint route of an entity |
-| `Hrot.NED.Descriptors.MapVisualOverlay` | `MapVisualOverlay` | descriptor | yes: entity id | S | Hrot.Network.NED | Tactical graphic overlay attached to an entity |
-| `Hrot.NED.Messages.ContextActionInvoked` | `ContextActionInvoked` | message | no | Q | Hrot.Network.NED | User picked a context-menu action |
-| `Hrot.NED.Messages.ContextActionsUpdate` | `ContextActionsUpdate` | message | no | Q | Hrot.Network.NED | Pushed context-menu definition for a selection |
-| `Hrot.NED.Messages.ContextMenuRequest` | `ContextMenuRequest` | message | no | Q | Hrot.Network.NED | IG asks ExCon for a missing context menu |
-| `Hrot.NED.Messages.DragEvent` | `DragEvent` | message | no | Q | Hrot.Network.NED | Drag gesture on the map |
-| `Hrot.NED.Messages.MapClickEvent` | `MapClickEvent` | message | no | Q | Hrot.Network.NED | Click on the map with the hit stack |
-| `Hrot.NED.Messages.MapCommandAck` | `MapCommandAck` | message | no | Q | Hrot.Network.NED | IG's answer to a map command |
-| `Hrot.NED.Messages.MapCommandRequest` | `MapCommandRequest` | message | no | Q | Hrot.Network.NED | Imperative command from ExCon to one IG |
-| `Hrot.NED.Messages.SelectionChangedEvent` | `SelectionChangedEvent` | message | no | D | Hrot.Network.NED | Selection set changed (IG is authoritative) |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Hrot.IG.Gizmos.IGCapabilitiesAnnounce` | descriptor | yes: node id | S | Hrot.IG | Same simple name as the NED type but a different type with a different layout, hence a different topic; its publisher is registered by no host and nothing reads it (§Not determinable 8) |
+| `Hrot.NED.Descriptors.IGCapabilitiesAnnounce` | descriptor | yes: map id | S | Hrot.Network.NED | IG announces layer tree and config schemas (map keyed) |
+| `Hrot.NED.Descriptors.MapConfigStatus` | descriptor | yes: map id | S | Hrot.Network.NED | Full map configuration state reported by an IG |
+| `Hrot.NED.Descriptors.MapEntitySymbol` | descriptor | yes: entity id + map group id | S | Hrot.Network.NED | Per-map-group symbol override for an entity |
+| `Hrot.NED.Descriptors.MapInteractionConfig` | descriptor | yes: map group id + map id | S | Hrot.Network.NED | Map layers and tools configuration, ExCon to IG |
+| `Hrot.NED.Descriptors.MapRoute` | descriptor | yes: entity id | S | Hrot.Network.NED | Waypoint route of an entity |
+| `Hrot.NED.Descriptors.MapVisualOverlay` | descriptor | yes: entity id | S | Hrot.Network.NED | Tactical graphic overlay attached to an entity |
+| `Hrot.NED.Messages.ContextActionInvoked` | message | no | Q | Hrot.Network.NED | User picked a context-menu action |
+| `Hrot.NED.Messages.ContextActionsUpdate` | message | no | Q | Hrot.Network.NED | Pushed context-menu definition for a selection |
+| `Hrot.NED.Messages.ContextMenuRequest` | message | no | Q | Hrot.Network.NED | IG asks ExCon for a missing context menu |
+| `Hrot.NED.Messages.DragEvent` | message | no | Q | Hrot.Network.NED | Drag gesture on the map |
+| `Hrot.NED.Messages.MapClickEvent` | message | no | Q | Hrot.Network.NED | Click on the map with the hit stack |
+| `Hrot.NED.Messages.MapCommandAck` | message | no | Q | Hrot.Network.NED | IG's answer to a map command |
+| `Hrot.NED.Messages.MapCommandRequest` | message | no | Q | Hrot.Network.NED | Imperative command from ExCon to one IG |
+| `Hrot.NED.Messages.SelectionChangedEvent` | message | no | D | Hrot.Network.NED | Selection set changed (IG is authoritative) |
 
 ### G. Time, session and cluster orchestration — 21
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Fdp.Toolkit.Time.Messages.FrameAckDescriptor` | `FrameAck` | message | no | D | Fdp.Toolkits | Lock-step: node acknowledges a frame |
-| `Fdp.Toolkit.Time.Messages.FrameOrderDescriptor` | `FrameOrder` | message | no | D | Fdp.Toolkits | Lock-step: master orders the next frame |
-| `Fdp.Toolkit.Time.Messages.SwitchTimeModeWireDto` | `SwitchTimeModeEvent` | message | no | S | Fdp.Toolkits | Switch continuous / deterministic time at a barrier |
-| `Fdp.Toolkit.Time.Messages.TimeSyncRequest` | `TimeSyncRequest` | message | yes: client node id | D | Fdp.Toolkits | Slave starts the NTP-style clock handshake |
-| `Fdp.Toolkit.Time.Messages.TimeSyncResponse` | `TimeSyncResponse` | message | yes: client node id | D | Fdp.Toolkits | Master's reply with four timestamps |
-| `Hrot.DDS.DataModel.Runner.SubsystemStatusAnnounce` | `SubsystemStatusAnnounce` | descriptor | yes: node id | S | Hrot.Network.NED | Subsystem presence for the waiting-room protocol |
-| `Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic` | `AssetInventory` | descriptor | yes: node id | S | Hrot.Network.Orchestration | Scenario and exercise asset lists (every 5 s) |
-| `Hrot.NED.Descriptors.Orchestration.ClusterOpRequest` | `ClusterOpRequest` | message | no | Q | Hrot.Network.Orchestration | Operator request: state change, pause, step, save ... |
-| `Hrot.NED.Descriptors.Orchestration.ClusterOpStatus` | `SysOpStatus` | message | no | SN | Hrot.Network.Orchestration | Result of a cluster operation (SysOpStatus) |
-| `Hrot.NED.Descriptors.Orchestration.ClusterStateTopic` | `ClusterState` | message | no | S | Hrot.Network.Orchestration | Cluster state machine state and session id |
-| `Hrot.NED.Descriptors.Orchestration.FileAck` | `FileAck` | message | yes: transfer id + node id + file index | Q | Hrot.Network.Orchestration | Target's transfer progress or verdict |
-| `Hrot.NED.Descriptors.Orchestration.FileChunk` | `FileChunk` | message | yes: transfer id | Q | Hrot.Network.Orchestration | 64 KB file piece in the transfer's partition |
-| `Hrot.NED.Descriptors.Orchestration.FileNeed` | `FileNeed` | message | yes: transfer id + node id | Q | Hrot.Network.Orchestration | Target lists the files it lacks |
-| `Hrot.NED.Descriptors.Orchestration.FileOffer` | `FileOffer` | message | yes: transfer id | Q | Hrot.Network.Orchestration | Master offers a file transfer to targets |
-| `Hrot.NED.Descriptors.Orchestration.GeoReference` | `GeoReference` | message | no | S | Hrot.Network.Orchestration | Origin of the local ENU frame (retained; published by the cluster master) |
-| `Hrot.NED.Descriptors.Orchestration.NodeCapabilitiesTopic` | `NodeCapabilities` | descriptor | yes: node id | S | Hrot.Network.Orchestration | Static capability and role tokens of a node |
-| `Hrot.NED.Descriptors.Orchestration.NodeHeartbeat` | `NodeHeartbeat` | descriptor | yes: node id | SL | Hrot.Network.Orchestration | Node liveness and cluster state telemetry |
-| `Hrot.NED.Descriptors.Orchestration.NodeOpCommand` | `NodeOpCommand` | message | yes: target node id | Q | Hrot.Network.Orchestration | Master's per-node operation command |
-| `Hrot.NED.Descriptors.Orchestration.NodeOpStatus` | `NodeOpStatus` | message | no | Q | Hrot.Network.Orchestration | Node's reply to a node operation |
-| `Hrot.NED.Descriptors.Orchestration.OrchestratorContextTopic` | `OrchestratorContext` | message | no | S | Hrot.Network.Orchestration | Exercise, scenario and required nodes context |
-| `Hrot.NED.Descriptors.Orchestration.ReplaySessionTopic` | `ReplaySession` | message | no | S | Hrot.Network.Orchestration | Replay session layer: zero, length, axis, marks |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Fdp.Toolkit.Time.Messages.FrameAckDescriptor` | message | no | D | Fdp.Toolkits | Lock-step: node acknowledges a frame |
+| `Fdp.Toolkit.Time.Messages.FrameOrderDescriptor` | message | no | D | Fdp.Toolkits | Lock-step: master orders the next frame |
+| `Fdp.Toolkit.Time.Messages.SwitchTimeModeWireDto` | message | no | S | Fdp.Toolkits | Switch continuous / deterministic time at a barrier |
+| `Fdp.Toolkit.Time.Messages.TimeSyncRequest` | message | yes: client node id | D | Fdp.Toolkits | Slave starts the NTP-style clock handshake |
+| `Fdp.Toolkit.Time.Messages.TimeSyncResponse` | message | yes: client node id | D | Fdp.Toolkits | Master's reply with four timestamps |
+| `Hrot.DDS.DataModel.Runner.SubsystemStatusAnnounce` | descriptor | yes: node id | S | Hrot.Network.NED | Subsystem presence for the waiting-room protocol |
+| `Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic` | descriptor | yes: node id | S | Hrot.Network.Orchestration | Scenario and exercise asset lists (every 5 s) |
+| `Hrot.NED.Descriptors.Orchestration.ClusterOpRequest` | message | no | Q | Hrot.Network.Orchestration | Operator request: state change, pause, step, save ... |
+| `Hrot.NED.Descriptors.Orchestration.ClusterOpStatus` | message | no | SN | Hrot.Network.Orchestration | Result of a cluster operation (SysOpStatus) |
+| `Hrot.NED.Descriptors.Orchestration.ClusterStateTopic` | message | no | S | Hrot.Network.Orchestration | Cluster state machine state and session id |
+| `Hrot.NED.Descriptors.Orchestration.FileAck` | message | yes: transfer id + node id + file index | Q | Hrot.Network.Orchestration | Target's transfer progress or verdict |
+| `Hrot.NED.Descriptors.Orchestration.FileChunk` | message | yes: transfer id | Q | Hrot.Network.Orchestration | 64 KB file piece in the transfer's partition |
+| `Hrot.NED.Descriptors.Orchestration.FileNeed` | message | yes: transfer id + node id | Q | Hrot.Network.Orchestration | Target lists the files it lacks |
+| `Hrot.NED.Descriptors.Orchestration.FileOffer` | message | yes: transfer id | Q | Hrot.Network.Orchestration | Master offers a file transfer to targets |
+| `Hrot.NED.Descriptors.Orchestration.GeoReference` | message | no | S | Hrot.Network.Orchestration | Origin of the local ENU frame (retained; published by the cluster master) |
+| `Hrot.NED.Descriptors.Orchestration.NodeCapabilitiesTopic` | descriptor | yes: node id | S | Hrot.Network.Orchestration | Static capability and role tokens of a node |
+| `Hrot.NED.Descriptors.Orchestration.NodeHeartbeat` | descriptor | yes: node id | SL | Hrot.Network.Orchestration | Node liveness and cluster state telemetry |
+| `Hrot.NED.Descriptors.Orchestration.NodeOpCommand` | message | yes: target node id | Q | Hrot.Network.Orchestration | Master's per-node operation command |
+| `Hrot.NED.Descriptors.Orchestration.NodeOpStatus` | message | no | Q | Hrot.Network.Orchestration | Node's reply to a node operation |
+| `Hrot.NED.Descriptors.Orchestration.OrchestratorContextTopic` | message | no | S | Hrot.Network.Orchestration | Exercise, scenario and required nodes context |
+| `Hrot.NED.Descriptors.Orchestration.ReplaySessionTopic` | message | no | S | Hrot.Network.Orchestration | Replay session layer: zero, length, axis, marks |
 
 ### H. EQS (environment-query sensors) — 4
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Fdp.Toolkit.Perception.Survey.Topics.WorldSurveyResultTopic` | `WorldSurveyResult` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | World-survey sensor answer (JSON payload) |
-| `Fdp.Toolkit.Spatial.Eqs.Topics.EqsResultTopic` | `EqsResult` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | Ranked EQS results back to the brain |
-| `Fdp.Toolkit.Spatial.Eqs.Topics.EqsSensorConfigTopic` | `EqsSensorConfig` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | Brain's EQS sensor parameters, per child sensor |
-| `Fdp.Toolkit.Squad.DangerArea.Topics.DangerAreaResultTopic` | `DangerAreaResult` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | Danger-area sensor answer |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Fdp.Toolkit.Perception.Survey.Topics.WorldSurveyResultTopic` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | World-survey sensor answer (JSON payload) |
+| `Fdp.Toolkit.Spatial.Eqs.Topics.EqsResultTopic` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | Ranked EQS results back to the brain |
+| `Fdp.Toolkit.Spatial.Eqs.Topics.EqsSensorConfigTopic` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | Brain's EQS sensor parameters, per child sensor |
+| `Fdp.Toolkit.Squad.DangerArea.Topics.DangerAreaResultTopic` | descriptor | yes: parent entity id + child instance id | S | Fdp.Toolkits | Danger-area sensor answer |
 
 ### I. Animation — 4
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Hrot.Animation.Replication.DdsLookAtChannelIntent` | `hrot/anim/intent/LookAtChannel` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Look-at channel intent, Brain to Muscle |
-| `Hrot.Animation.Replication.DdsLookAtChannelStatus` | `hrot/anim/status/LookAtChannel` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Look-at channel status, Muscle to Brain |
-| `Hrot.Animation.Replication.DdsStanceIntent` | `hrot/anim/StanceIntent` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Wanted stance, Brain to Muscle |
-| `Hrot.Animation.Replication.DdsStanceStatus` | `hrot/anim/StanceStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Current stance and transition, Muscle to Brain |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Hrot.Animation.Replication.DdsLookAtChannelIntent` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Look-at channel intent, Brain to Muscle |
+| `Hrot.Animation.Replication.DdsLookAtChannelStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Look-at channel status, Muscle to Brain |
+| `Hrot.Animation.Replication.DdsStanceIntent` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Wanted stance, Brain to Muscle |
+| `Hrot.Animation.Replication.DdsStanceStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Current stance and transition, Muscle to Brain |
 
 ### J. Other (alternative BDC stack, library demo topics, status) — 6
 
-| Full name | Topic | Kind | Keyed | QoS | Assembly | Role |
-|---|---|---|---|---|---|---|
-| `Fdp.Network.Cyclone.Topics.EntityMasterTopic` | `SST_EntityMaster` | descriptor | yes: entity id | SN | Fdp.Network.Cyclone | FDP library demo master; no HROT production use |
-| `Fdp.Network.Cyclone.Topics.EntityStateTopic` | `SST_EntityState` | descriptor | yes: entity id | L | Fdp.Network.Cyclone | FDP library demo state; no HROT production use |
-| `Hrot.BDC.Messages.BdcEntityMaster` | `BDC_EntityMaster` | descriptor | yes: entity id | S | Hrot.Network.BDC | BDC stack: entity existence (BDC_ prefix) |
-| `Hrot.BDC.Messages.BdcMissionControlAck` | `BDC_MissionControlAck` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control ack |
-| `Hrot.BDC.Messages.BdcMissionControlRequest` | `BDC_MissionControlRequest` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control request |
-| `Hrot.BDC.Messages.BdcWorldPos` | `BDC_WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.BDC | BDC stack: the same local-ENU pose (AQ107 F) |
+| Full name | Kind | Keyed | QoS | Assembly | Role |
+|---|---|---|---|---|---|
+| `Fdp.Network.Cyclone.Topics.EntityMasterTopic` | descriptor | yes: entity id | SN | Fdp.Network.Cyclone | FDP library demo master; no HROT production use |
+| `Fdp.Network.Cyclone.Topics.EntityStateTopic` | descriptor | yes: entity id | L | Fdp.Network.Cyclone | FDP library demo state; no HROT production use |
+| `Hrot.BDC.Messages.BdcEntityMaster` | descriptor | yes: entity id | S | Hrot.Network.BDC | BDC stack: entity existence (BDC_ prefix) |
+| `Hrot.BDC.Messages.BdcMissionControlAck` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control ack |
+| `Hrot.BDC.Messages.BdcMissionControlRequest` | message | no | Q | Hrot.Network.BDC | BDC stack: mission control request |
+| `Hrot.BDC.Messages.BdcWorldPos` | descriptor | yes: entity id | SL | Hrot.Network.BDC | BDC stack: the same local-ENU pose (AQ107 F) |
 
 
 ## Excluded roots
@@ -532,10 +532,10 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | Root | Why excluded | What is there |
 |---|---|---|
 | any `*.Tests` / `Tests` project | test doubles and rails, not product protocol | 4 types (`ned-wire-inventory.py --all` lists them) |
-| `FDP/Examples/**` | demo programs | 8 types (`Fdp.Examples.DDS` 5, `Fdp.Examples.DER` 3) |
-| `docs/blueprints/experiments/**` | experiments, not built into the product; outside the three scanned roots | 1 file with `[DdsTopic("FileBlob")]` (found by grep, not by the script) |
-| `FDP/ExtDeps/GizmoMap` | vendored third-party library (not HROT-owned); **but its topics ride the same domain**: `GizmoInteractionBatch`, `DebugPrimitivesBatch`, `GizmoUiState`, `StringInternEntry`, and a second **`EntityAttributeSchema`** type — the same topic name as `Hrot.NED.Messages.EntityAttributeSchema` | 5 types |
-| `FDP/ExtDeps/SumoSharp` | vendored SUMO traffic bridge; **SUMO vehicles are not NED entities** — they travel on `sumo/*` topics (`sumo/vehicles`, `sumo/vehicles-structured`, `sumo/lifecycle`, `sumo/geometry`, `sumo/tl`, `sumo/commands`, `sumo/status`, `sumo/ped-patharc`, `sumo/ped-lifecycle`, `sumo/ped-crowd`, `sumo/ped-activity`) | 11 types; §[Q93](../blueprints/Architect_Question_93_Sumo_Traffic_Node.md) |
+| `FDP/Examples/**` | demo programs | 8 types (`Fdp.Examples.DDS` 5, `Fdp.Examples.DER` 3); derived names, no explicit name |
+| `docs/blueprints/experiments/**` | experiments, not built into the product; outside the three scanned roots | 4 bare `[DdsTopic]` types in one file (found by grep, not by the script); names derived like the rest |
+| `FDP/ExtDeps/GizmoMap` | an in-tree library that HROT edits in place (no sync script, no upstream pin — unlike SumoSharp), so its topic types follow the same rule: bare `[DdsTopic]`, derived names (`GizmoMap_Network_GizmoInteractionBatch`, `…_DebugPrimitivesBatch`, `…_GizmoUiState`, `…_StringInternEntry`); **its topics ride the same domain**. A second `EntityAttributeSchema` type that used to live here (the same wire shape as `Hrot.NED.Messages.EntityAttributeSchema`, nothing wrote or read it) was deleted by AQ107 A | 4 types |
+| `FDP/ExtDeps/SumoSharp` | vendored SUMO traffic bridge; **SUMO vehicles are not NED entities** — they travel on `sumo/*` topics — ⛔ **the one place explicit names remain: vendored, read-only (R-4046), so AQ107 A leaves them** (`sumo/vehicles`, `sumo/vehicles-structured`, `sumo/lifecycle`, `sumo/geometry`, `sumo/tl`, `sumo/commands`, `sumo/status`, `sumo/ped-patharc`, `sumo/ped-lifecycle`, `sumo/ped-crowd`, `sumo/ped-activity`) | 11 types; §[Q93](../blueprints/Architect_Question_93_Sumo_Traffic_Node.md) |
 | `bin/`, `obj/` | build output | — |
 
 ## For a protocol gateway (DIS/HLA)
@@ -544,7 +544,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 
 0. **Read `GeoReference` first** (retained — a late joiner gets it at once) and refuse the wire when `ProtocolVersion` is not one you know. It fixes the local frame: with `lat, lon, alt` the origin on the WGS84 ellipsoid, `R` the rotation from the local ENU axes (X east, Y north, Z up) to ECEF at the origin — `R = [ −sin λ, −sin φ·cos λ, cos φ·cos λ ; cos λ, −sin φ·sin λ, cos φ·sin λ ; 0, cos φ, sin φ ]` (columns east, north, up; φ = latitude, λ = longitude) — convert **`ECEF = ECEF(lat, lon, alt) + R · local`** for every position, and rotate velocities, angular velocities and orientations (`q_ecef = q_R · q_local`) by the same `R` (the standard geodetic-to-ECEF formula for `ECEF(lat, lon, alt)`; this is the same transform as `WGS84Transform`; ✅ checked 2026-10-27 by the rail `WGS84TransformGatewayFormulaTests` (Fdp.Toolkits.Tests): an independent double-precision implementation of exactly this formula, with a textbook ECEF → geodetic, agrees with `WGS84Transform.ToGeodetic` to 0.01 mm at 0 km, 0.14 mm at 1 km, 1.3 mm at 10 km and 6.1 mm at 50 km from origins at 0°, 52.5° N and 70° S — ⚠ the residual is **float32 rounding inside HROT's own transform** (its `Matrix4x4` rotation and `Vector3` result are `float`: ≈1.2e-7 × distance), not an error of the formula; a gateway computing it in `double` has none of it). A new sample with a higher **`Generation`** means a new origin: re-base every entity from it. Time of day: `EntityScenarioClock` start + `WorldPos.SimTime`.
 1. Pick or request a **node id** (`NodeIdRequest` → `NodeIdGrant`, or a fixed id outside the ranges above) and **enable sender identity** with `(domain id, node id)` — otherwise HROT cannot tell who owns what.
-2. Get **entity ids** from the allocator (`IdAlloc_*`, a string client id); ids restart at 1000 after a world reset.
+2. Get **entity ids** from the allocator (`IdRequest` / `IdResponse` / `IdStatus`, a string client id); ids restart at 1000 after a world reset.
 3. To *introduce* an entity: publish `EntityMaster` (with a `TkbType` that exists in the receivers' TKB — otherwise the replica skips its mandatory-descriptor gate), `EntityInfo` and `WorldPos`, then whatever else it owns; **keep re-sending `WorldPos`** (HROT does every 10 s). To *ask HROT* to create one instead: `CreateEntityRequest` → `CreateUpdateDeleteEntityAck`.
 4. To *remove* an entity: dispose its `EntityMaster` (and its other instances). Never dispose a descriptor to hand it over — send `OwnershipUpdate`.
 5. Never write a descriptor you do not own; to change someone else's: `UpdateEntityDescriptorRequest` / `UpdateEntityAttributeRequest`.
@@ -634,22 +634,22 @@ Searches named where a claim says "not found". Each item is a claim I **could no
 | 10 | The *kind* column (descriptor / message) is assigned by a rule (keyed ∧ TransientLocal ⇒ descriptor) with four overrides (`EntityStateTopic`, `SensorTargets` forced to descriptor; `NodeIdRequest`, `NodeIdGrant` forced to message) | judgement, not from sources |
 | 11 | Descriptor role text in the inventory is paraphrased from comments at the type; ownership group per descriptor was taken from the Ownership Groups design (live `2026-10-14`), not re-measured | — |
 
-Queries behind the inventory (coverage): `grep -rn "\[DdsTopic" --include=*.cs Hrot FDP Stride` (125 production, equal to the script's count as a multiset of topic names);
+Queries behind the inventory (coverage): `grep -rn "\[DdsTopic" --include=*.cs Hrot FDP Stride` (since AQ107 A every hit is a bare `[DdsTopic]`; `python3 scripts/ned-wire-inventory.py --check` fails on a production type with an explicit name);
 `scripts/cbm.sh search_code {"pattern":"DdsTopic(","file_pattern":"*.cs","limit":1000}` (141 results, `has_more: true` — it also matches docs/tests/ExtDeps);
-`scripts/cbm.sh search_graph {"name_pattern":".*Descriptor.*","label":"Class","limit":200}` (90 total, 82 returned, paginated incompletely — used only as a sanity check) and `{"label":"Interface"}` (1: `IDescriptorTranslator`); a `DdsReader<T>` / `DdsWriter<T>` generic-argument sweep found the three translator-bound types (†).
+`scripts/cbm.sh search_graph {"name_pattern":".*Descriptor.*","label":"Class","limit":200}` (90 total, 82 returned, paginated incompletely — used only as a sanity check) and `{"label":"Interface"}` (1: `IDescriptorTranslator`); a `DdsReader<T>` / `DdsWriter<T>` generic-argument sweep found the three translator-bound types (now `[DdsTopic]`, AQ107 A).
 
 ## Keeping this current
 
-**Update this document when** a `[DdsTopic]` type is added, removed or renamed; a topic name, **key** or **QoS** changes; a descriptor ordinal is allocated or retired; ownership, id-allocation, time or lifecycle behaviour changes; or a new concept enters the wire (a new coordinate frame, a new session mechanism).
+**Update this document when** a `[DdsTopic]` type is added, removed, renamed or moved to another namespace (that changes its topic name); a **key** or **QoS** changes; a descriptor ordinal is allocated or retired; ownership, id-allocation, time or lifecycle behaviour changes; or a new concept enters the wire (a new coordinate frame, a new session mechanism).
 
 ```bash
-python3 scripts/ned-wire-inventory.py            # sorted table: full name, topic, keyed, file:line
+python3 scripts/ned-wire-inventory.py            # sorted table: full name, derived topic, keyed, file:line
 python3 scripts/ned-wire-inventory.py --verbose  # + QoS text, [DdsManaged], key members
-python3 scripts/ned-wire-inventory.py --check    # exit 1 if code and §Inventory disagree (missing / stale / duplicate rows)
+python3 scripts/ned-wire-inventory.py --check    # exit 1 if code and §Inventory disagree (missing / stale / duplicate rows), or any HROT-owned [DdsTopic] has an explicit name, or two derived names collide
 python3 scripts/ned-wire-inventory.py --skeleton # draft rows for the types the doc lacks
 MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/reference/NED_DDS_Protocol.md
 ```
 
-`--check` compares **full names only** (first backticked cell of each §Inventory row). It does not check topic, key, QoS or role text: when
+`--check` compares **full names only** (first backticked cell of each §Inventory row) and enforces the naming rule on the code. It does not check key, QoS or role text: when
 `--verbose` shows a changed key or QoS for a type, edit its row by hand. `--skeleton` prints a draft row (role = TODO) for every type the doc lacks. Add the doc and the script to the owning design's
 `related-designs` when a new wire-owning design appears.

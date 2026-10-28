@@ -18,14 +18,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityEffectStateEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityEffectState";
         private readonly DdsWriter<EntityEffectState>? _writer;
         private readonly Dictionary<long, EntityEffectState> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.EffectState };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityEffectState>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEffectState;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityEffectStateEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityEffectState>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityEffectState>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -76,12 +75,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// unknown unit is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityEffectStateIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityEffectState";
         private const long OrdinalValue = (long)EDescriptorType.dtEffectState;
         private readonly DdsReader<EntityEffectState>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityEffectState>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -90,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityEffectStateIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityEffectState>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityEffectState>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

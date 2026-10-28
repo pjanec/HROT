@@ -83,7 +83,7 @@ public sealed class NedEntityCreationRequestEgress : IEntityCreationRequestEgres
     public NedEntityCreationRequestEgress(
         DdsParticipant participant,
         long localNodeId = 0)
-        : this(new DdsWriterAdapter<CreateEntityRequest>(participant, "CreateEntityRequest"),
+        : this(new DdsWriterAdapter<CreateEntityRequest>(participant),
                localNodeId)
     {
     }

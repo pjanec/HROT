@@ -50,8 +50,8 @@ public class MissionControlIntegrationTests
         Assert.True(cgfReady, "CGF ghost entity was not created in time.");
 
         using var participant = new DdsParticipant((uint)harness.DomainId);
-        using var requestWriter = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
-        using var ackReader = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+        using var requestWriter = new DdsWriter<MissionControlRequest>(participant);
+        using var ackReader = new DdsReader<MissionControlAck>(participant);
 
         var taskA = Guid.NewGuid();
         var taskB = Guid.NewGuid();

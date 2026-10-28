@@ -20,13 +20,12 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeatherEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityWeather";
         private static readonly int[] s_targetIds = { GlobalComponentIds.WeatherConditions };
         private readonly DdsWriter<EntityWeather>? _writer;
         private readonly Dictionary<long, EntityWeather> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeather>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeather;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -34,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityWeatherEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityWeather>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityWeather>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -126,14 +125,13 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityWeatherIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityWeather";
         private const long OrdinalValue = (long)EDescriptorType.dtWeather;
         private readonly DdsReader<EntityWeather>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, EntityWeather> _pending = new();
         private readonly List<long> _done = new();
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeather>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -142,7 +140,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityWeatherIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityWeather>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityWeather>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

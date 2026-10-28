@@ -47,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             long localNodeId)
-            : base(participant, "WorldPos", ordinal: WorldPosOrdinal, entityMap)
+            : base(participant, ordinal: WorldPosOrdinal, entityMap)
         {
             _localNodeId = localNodeId;
         }

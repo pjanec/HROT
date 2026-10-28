@@ -14,12 +14,11 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// </summary>
 internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/status/AnimationChannel";
 
     private readonly DdsReader<DdsAnimationChannelStatus>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsAnimationChannelStatus).Namespace, new[] { nameof(DdsAnimationChannelStatus) });
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -28,7 +27,7 @@ internal sealed class AnimationChannelStatusIngressTranslator : INetworkTranslat
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsAnimationChannelStatus>(participant, TopicNameConst)
+            ? new DdsReader<DdsAnimationChannelStatus>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }

@@ -18,7 +18,7 @@ if (mode == "send")
     int totalMb = int.Parse(args[2]); int chunkKb = int.Parse(args[3]);
     var data = new byte[totalMb * 1024 * 1024]; new Random(42).NextBytes(data);
     Console.WriteLine($"SEND sha={Convert.ToHexString(SHA256.HashData(data))[..16]}");
-    using var w = new DdsWriter<FileBlob>(p, "FileBlob");
+    using var w = new DdsWriter<FileBlob>(p);
     Thread.Sleep(3000); // discovery
     int chunk = chunkKb * 1024; int n = (data.Length + chunk - 1) / chunk;
     var sw = Stopwatch.StartNew();
@@ -34,7 +34,7 @@ if (mode == "send")
 else
 {
     long expected = long.Parse(args[2]); int timeout = int.Parse(args[3]); int chunk = int.Parse(args[4]) * 1024;
-    using var r = new DdsReader<FileBlob>(p, "FileBlob");
+    using var r = new DdsReader<FileBlob>(p);
     var got = new byte[expected]; long recvBytes = 0; int samples = 0; int seqCount = -1;
     var seen = new System.Collections.Generic.HashSet<int>();
     Stopwatch? sw = null; var deadline = DateTime.UtcNow.AddSeconds(timeout);

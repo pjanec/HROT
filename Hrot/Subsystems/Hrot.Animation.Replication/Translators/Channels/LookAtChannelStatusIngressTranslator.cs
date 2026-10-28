@@ -15,12 +15,11 @@ namespace Hrot.Animation.Replication.Translators.Channels;
 /// </summary>
 internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator, IDiscardableIngress
 {
-    private const string TopicNameConst = "hrot/anim/status/LookAtChannel";
 
     private readonly DdsReader<DdsLookAtChannelStatus>? _reader;
     private readonly NetworkEntityMap _entityMap;
 
-    public string TopicName => TopicNameConst;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsLookAtChannelStatus>();
     public TranslatorDirection Direction => TranslatorDirection.Ingress;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -29,7 +28,7 @@ internal sealed class LookAtChannelStatusIngressTranslator : INetworkTranslator,
         DdsParticipant participant, NetworkEntityMap entityMap)
     {
         _reader = participant is not null
-            ? new DdsReader<DdsLookAtChannelStatus>(participant, TopicNameConst)
+            ? new DdsReader<DdsLookAtChannelStatus>(participant)
             : null;
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
     }

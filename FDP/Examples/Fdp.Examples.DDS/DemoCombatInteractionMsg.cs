@@ -6,7 +6,7 @@ namespace Fdp.Examples.DDS
     /// Cross-process fire/hit notification.
     /// Used by the DistributedTank and UrbanCombat (new) scenarios.
     /// </summary>
-    [DdsTopic("FDP.Demo_CombatInteraction")]
+    [DdsTopic]
     public partial struct DemoCombatInteractionMsg
     {
         /// <summary>Network ID of the firing entity.</summary>

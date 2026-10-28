@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Tests
             const int localNodeId = 7;
             const uint domainId = 212u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            using var reader = new DdsReader<OwnershipUpdateWire>(participant);
             var translator = new OwnershipUpdateTranslator(participant, localNodeId);
 
             var repo = new EntityRepository();
@@ -73,7 +73,7 @@ namespace Hrot.SimHost.Tests
             const int localNodeId = 9;
             const uint domainId = 213u;
             using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            using var writer = new DdsWriter<OwnershipUpdateWire>(participant);
             var translator = new OwnershipUpdateTranslator(participant, localNodeId);
 
             var repo = new EntityRepository();
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
             const int localNodeId = 10;
             const uint domainId = 214u;
             using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<OwnershipUpdateWire>(participant, "SST_OwnershipUpdate");
+            using var writer = new DdsWriter<OwnershipUpdateWire>(participant);
             var translator = new OwnershipUpdateTranslator(participant, localNodeId);
 
             var repo = new EntityRepository();

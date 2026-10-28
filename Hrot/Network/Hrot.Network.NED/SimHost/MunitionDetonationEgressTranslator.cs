@@ -36,13 +36,12 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class MunitionDetonationEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "MunitionDetonation";
 
         private readonly IDdsWriter<MunitionDetonation> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;   // ⭐ CE-1148 S2 — stamped as SourceNodeId so this node's own ingress drops it
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MunitionDetonation>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtMunitionDetonation;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -50,7 +49,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public MunitionDetonationEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
-            : this(new DdsWriterAdapter<MunitionDetonation>(participant, DdsTopicName), entityMap, localNodeId)
+            : this(new DdsWriterAdapter<MunitionDetonation>(participant), entityMap, localNodeId)
         {
         }
 

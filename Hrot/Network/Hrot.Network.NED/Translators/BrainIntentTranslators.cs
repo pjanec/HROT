@@ -26,7 +26,6 @@ namespace Hrot.Network.Translators
     /// </summary>
     public sealed class BrainIntentEgressTranslator : IDescriptorTranslator
     {
-        internal const string DdsTopicName = "EntityBrainIntent";
 
         private readonly IDdsWriter<EntityBrainIntent> _writer;
         private readonly BehaviorRegistry _registry;
@@ -34,7 +33,7 @@ namespace Hrot.Network.Translators
         private readonly Dictionary<long, string> _lastSent = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -42,7 +41,7 @@ namespace Hrot.Network.Translators
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
         public BrainIntentEgressTranslator(DdsParticipant participant, BehaviorRegistry registry)
-            : this(new DdsWriterAdapter<EntityBrainIntent>(participant, DdsTopicName), registry)
+            : this(new DdsWriterAdapter<EntityBrainIntent>(participant), registry)
         {
         }
 
@@ -134,7 +133,7 @@ namespace Hrot.Network.Translators
         private readonly Dictionary<long, string> _held = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
-        public string TopicName         => BrainIntentEgressTranslator.DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtBrainIntent;
         public long   ReceivedSampleCount { get; private set; }
         public long   SentSampleCount     { get; private set; }
@@ -143,7 +142,7 @@ namespace Hrot.Network.Translators
         /// <summary>Production constructor. A <c>null</c> participant makes <see cref="PollIngress"/> read nothing (tests).</summary>
         public BrainIntentIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader    = participant is not null ? new DdsReader<EntityBrainIntent>(participant, BrainIntentEgressTranslator.DdsTopicName) : null;
+            _reader    = participant is not null ? new DdsReader<EntityBrainIntent>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

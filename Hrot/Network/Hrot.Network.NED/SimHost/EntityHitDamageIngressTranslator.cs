@@ -24,13 +24,12 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class EntityHitDamageIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityHitDamage";
 
         private readonly DdsReader<EntityHitDamage>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitDamage>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -48,7 +47,7 @@ namespace Hrot.Network.NED.SimHost
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
             _reader    = participant is not null
-                ? new DdsReader<EntityHitDamage>(participant, DdsTopicName)
+                ? new DdsReader<EntityHitDamage>(participant)
                 : null;
         }
 

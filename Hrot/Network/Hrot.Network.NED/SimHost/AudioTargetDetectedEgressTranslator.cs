@@ -16,12 +16,11 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class AudioTargetDetectedEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "AudioTargetDetected";
 
         private readonly IDdsWriter<AudioTargetDetected> _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName         => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<AudioTargetDetected>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtAudioTargetDetected;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -29,7 +28,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public AudioTargetDetectedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-            : this(new DdsWriterAdapter<AudioTargetDetected>(participant, DdsTopicName), entityMap)
+            : this(new DdsWriterAdapter<AudioTargetDetected>(participant), entityMap)
         {
         }
 

@@ -15,7 +15,6 @@ namespace Hrot.Animation.Replication.Translators.Events;
 internal sealed class MontageSectionAdvancedEventTranslator
     : CycloneNativeEventTranslator<MontageSectionAdvancedEvent, DdsMontageSectionAdvancedEvent>
 {
-    private const string TopicNameConst = "hrot/anim/MontageSectionAdv";
 
     private struct Proxy
     {
@@ -29,7 +28,7 @@ internal sealed class MontageSectionAdvancedEventTranslator
 
     internal MontageSectionAdvancedEventTranslator(
         DdsParticipant participant, NetworkEntityMap entityMap, TranslatorDirection direction)
-        : base(participant, TopicNameConst, entityMap)
+        : base(participant, entityMap, CycloneDDS.Schema.DdsTopicName.Of(typeof(DdsMontageSectionAdvancedEvent).Namespace, new[] { nameof(DdsMontageSectionAdvancedEvent) }))
     {
         Direction = direction;
     }

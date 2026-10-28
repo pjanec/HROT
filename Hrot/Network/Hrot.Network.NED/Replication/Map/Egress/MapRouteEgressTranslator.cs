@@ -30,7 +30,6 @@ namespace Hrot.Map.Common.Replication.Egress;
 /// </summary>
 public class MapRouteEgressTranslator : IDescriptorTranslator
 {
-    private const string DdsTopicName = "MapRoute";
     private const long OrdinalValue = (long)EDescriptorType.dtMapRoute;
 
     private readonly IDdsWriter<MapRoute> _writer;
@@ -43,7 +42,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     private readonly Dictionary<Entity, int> _publishedVersions = new();
     private int _worldEpoch;
 
-    public string TopicName => DdsTopicName;
+    public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
     public long DescriptorOrdinal => OrdinalValue;
     public long ReceivedSampleCount { get; private set; }
     public long SentSampleCount { get; private set; }
@@ -57,7 +56,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     public MapRouteEgressTranslator(
         DdsParticipant participant,
         NetworkEntityMap entityMap)
-        : this(new DdsWriterAdapter<MapRoute>(participant, DdsTopicName), entityMap)
+        : this(new DdsWriterAdapter<MapRoute>(participant), entityMap)
     {
     }
 

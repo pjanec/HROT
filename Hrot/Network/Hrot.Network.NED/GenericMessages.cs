@@ -155,7 +155,7 @@ namespace Hrot.NED.Messages
 
     // CreateEntityRequest is for asking SOMEONE ELSE to create the entity, to simplify the sender
     // if the sender is NOT the intended owner of the new entity.
-    [DdsTopic("CreateEntityRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct CreateEntityRequest
@@ -204,7 +204,7 @@ namespace Hrot.NED.Messages
     }
 
     // Request to delete an entity; issued by non-owning nodes.
-    [DdsTopic("DeleteEntityRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct DeleteEntityRequest
@@ -215,7 +215,7 @@ namespace Hrot.NED.Messages
 
     // Request to update a descriptor owned by another node.
     // SST Standard: "If you don't own it, request it."
-    [DdsTopic("UpdateEntityDescriptorRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct UpdateEntityDescriptorRequest
@@ -240,7 +240,7 @@ namespace Hrot.NED.Messages
     }
 
     // Acknowledgment for update requests.
-    [DdsTopic("UpdateEntityDescriptorAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct UpdateEntityDescriptorAck
@@ -258,7 +258,7 @@ namespace Hrot.NED.Messages
     // Used ONLY for updating attributes indescriptors owned by other participants
     // For own descriptors: write directly to DDS topics
     // Acknowledged by CreateUpdateDeleteEntityAck 
-    [DdsTopic("UpdateEntityAttributeRequest")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct UpdateEntityAttributeRequest
@@ -288,7 +288,7 @@ namespace Hrot.NED.Messages
     }
 
     // Unified acknowledgment for entity creation, descriptor update, and deletion.
-    [DdsTopic("CreateUpdateDeleteEntityAck")]
+    [DdsTopic]
     [DdsIdlFile("hrot-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct CreateUpdateDeleteEntityAck
@@ -321,7 +321,7 @@ namespace Hrot.NED.Messages
     // One record per SimHost instance. Keyed by NodeId.
     // Carries the full JSON schema of entity attributes supported by this node's JsonAttributeCompiler.
     // TransientLocal: late-joining ExCon subscribers immediately receive the latest published schema.
-    [DdsTopic("EntityAttributeSchema")]
+    [DdsTopic]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal,
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     [DdsManaged]

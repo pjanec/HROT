@@ -26,8 +26,8 @@ internal sealed class DdsLiveWriter<T> : IAnimDdsWriter<T>
 {
     private readonly DdsWriter<T>? _inner;
 
-    internal DdsLiveWriter(DdsParticipant? participant, string topicName)
-        => _inner = participant is not null ? new DdsWriter<T>(participant, topicName) : null;
+    internal DdsLiveWriter(DdsParticipant? participant)
+        => _inner = participant is not null ? new DdsWriter<T>(participant) : null;
 
     public void Write(T sample) => _inner?.Write(sample);
 }

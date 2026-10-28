@@ -168,16 +168,19 @@ public sealed class AnimationReplicationModule
     private static IReadOnlyList<AnimTopicQosPolicy> BuildTopicQosPolicies()
     {
         // State-bearing topics (channels, descriptors, side-buffers) — DD-2 §6.
-        static AnimTopicQosPolicy State(string name) => new()
+        // ⭐ AQ107 A — the topic name is DERIVED from the DTO type (the library's rule). ⚠ 11 of the 15 DTOs are not [DdsTopic] yet (CE-3010, test-only):
+        //   for them the rule's string core names them as it will once they are.
+        static string Derived(System.Type t) => DdsTopicName.Of(t.Namespace, new[] { t.Name });
+        static AnimTopicQosPolicy State(System.Type t) => new()
         {
-            TopicName = name,
+            TopicName = Derived(t),
             Reliability = DdsReliability.Reliable,
             Durability = DdsDurability.TransientLocal,
         };
         // Event topics — Volatile so late joiners do not replay historical events.
-        static AnimTopicQosPolicy Evt(string name) => new()
+        static AnimTopicQosPolicy Evt(System.Type t) => new()
         {
-            TopicName = name,
+            TopicName = Derived(t),
             Reliability = DdsReliability.Reliable,
             Durability = DdsDurability.Volatile,
         };
@@ -185,24 +188,24 @@ public sealed class AnimationReplicationModule
         return new List<AnimTopicQosPolicy>
         {
             // Channel intent / status (4 topics)
-            State("hrot/anim/intent/AnimationChannel"),
-            State("hrot/anim/status/AnimationChannel"),
-            State("hrot/anim/intent/LookAtChannel"),
-            State("hrot/anim/status/LookAtChannel"),
+            State(typeof(DdsAnimationChannelIntent)),
+            State(typeof(DdsAnimationChannelStatus)),
+            State(typeof(DdsLookAtChannelIntent)),
+            State(typeof(DdsLookAtChannelStatus)),
             // Descriptor intent / status (2 topics)
-            State("hrot/anim/StanceIntent"),
-            State("hrot/anim/StanceStatus"),
+            State(typeof(DdsStanceIntent)),
+            State(typeof(DdsStanceStatus)),
             // Side-buffer (2 topics)
-            State("hrot/anim/MontageQueue"),
-            State("hrot/anim/MontageQueueState"),
+            State(typeof(DdsMontageQueue)),
+            State(typeof(DdsMontageQueueState)),
             // Event topics (7 topics)
-            Evt("hrot/anim/MontageStarted"),
-            Evt("hrot/anim/MontageEnded"),
-            Evt("hrot/anim/MontageSectionAdv"),
-            Evt("hrot/anim/StanceChanged"),
-            Evt("hrot/anim/HitWindowOpened"),
-            Evt("hrot/anim/HitWindowClosed"),
-            Evt("hrot/anim/AnimNotify"),
+            Evt(typeof(DdsMontageStartedEvent)),
+            Evt(typeof(DdsMontageEndedEvent)),
+            Evt(typeof(DdsMontageSectionAdvancedEvent)),
+            Evt(typeof(DdsStanceChangedEvent)),
+            Evt(typeof(DdsHitWindowOpenedEvent)),
+            Evt(typeof(DdsHitWindowClosedEvent)),
+            Evt(typeof(DdsAnimNotifyEvent)),
         }.AsReadOnly();
     }
 }

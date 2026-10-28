@@ -19,19 +19,18 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityManualDriveEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityManualDrive";
         private readonly DdsWriter<EntityManualDrive>? _writer;
         private readonly Dictionary<long, EntityManualDrive> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityManualDrive>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtManualDrive;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityManualDriveEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityManualDrive>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityManualDrive>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -68,21 +67,20 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityPossessedByEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityPossessedBy";
         private readonly DdsWriter<EntityPossessedBy>? _writer;
         private readonly Dictionary<long, EntityPossessedBy> _last = new();
         private readonly HashSet<long> _seen = new();
         private readonly List<long> _gone = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPossessedBy>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtPossessedBy;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityPossessedByEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityPossessedBy>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityPossessedBy>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 

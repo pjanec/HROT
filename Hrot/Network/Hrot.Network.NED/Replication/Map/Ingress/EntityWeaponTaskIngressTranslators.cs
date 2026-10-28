@@ -19,12 +19,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntityWeaponTaskIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityWeaponTask";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponTask;
         private readonly DdsReader<EntityWeaponTask>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTask>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityWeaponTaskIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityWeaponTask>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityWeaponTask>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
@@ -76,12 +75,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// <summary>⭐ WL-2b (CE-1049, W-3) — applies a published <see cref="WeaponTaskStatus"/> to this node's turret part (the Brain's).</summary>
     public sealed class EntityWeaponTaskStatusIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityWeaponTaskStatus";
         private const long OrdinalValue = (long)EDescriptorType.dtWeaponTaskStatus;
         private readonly DdsReader<EntityWeaponTaskStatus>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTaskStatus>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -90,7 +88,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityWeaponTaskStatusIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityWeaponTaskStatus>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityWeaponTaskStatus>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

@@ -20,21 +20,20 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityDescentEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityDescent";
         private readonly DdsWriter<EntityDescent>? _writer;
         private readonly Dictionary<long, EntityDescent> _last = new();
         private readonly HashSet<long> _seen = new();
         private readonly List<long> _gone = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDescent>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtDescent;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntityDescentEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntityDescent>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntityDescent>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -90,12 +89,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// Rope / Parachute here too, and the drawing reads the phase. An unknown entity is dropped; the recorded owner never takes its own sample.</summary>
     public sealed class EntityDescentIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntityDescent";
         private const long OrdinalValue = (long)EDescriptorType.dtDescent;
         private readonly DdsReader<EntityDescent>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDescent>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -104,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntityDescentIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntityDescent>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntityDescent>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

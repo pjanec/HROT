@@ -19,11 +19,10 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class DangerAreaResultEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "DangerAreaResult";
         private readonly DdsWriter<DangerAreaResultTopic>? _writer;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DangerAreaResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -33,7 +32,7 @@ namespace Hrot.Network.NED.SimHost
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _writer    = new DdsWriter<DangerAreaResultTopic>(participant, DdsTopicName);
+            _writer    = new DdsWriter<DangerAreaResultTopic>(participant);
         }
 
         /// <inheritdoc/>

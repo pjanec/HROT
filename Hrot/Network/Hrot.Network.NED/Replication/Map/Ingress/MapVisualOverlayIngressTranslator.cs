@@ -23,7 +23,6 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public class MapVisualOverlayIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "MapVisualOverlay";
         private const long OrdinalValue = (long)EDescriptorType.dtMapVisualOverlay;
 
         private readonly DdsReader<MapVisualOverlay>? _reader;
@@ -40,7 +39,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly Dictionary<Entity, MapVisualOverlay> _pendingOverlays = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapVisualOverlay>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }

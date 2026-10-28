@@ -28,8 +28,8 @@ public class MapPlacementIntegrationTests
         var iosLogic = harness.ExCon.Logic;
         var igApp = harness.Ig.App;
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
-        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
+        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant);
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
 
         int initialDerCount = CountDerEntities(iosLogic.Repo);
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
@@ -225,8 +225,8 @@ public class MapPlacementIntegrationTests
         var igApp    = harness.Ig.App;
 
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
-        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader     = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
+        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant);
+        using var ackReader     = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 

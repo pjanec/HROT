@@ -18,13 +18,12 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponPostureEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityWeaponPosture";
         private readonly DdsWriter<EntityWeaponPosture>? _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<long, EntityWeaponPosture> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponPosture>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponPosture;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -32,7 +31,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityWeaponPostureEgressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _writer = participant is not null ? new DdsWriter<EntityWeaponPosture>(participant, DdsTopicName) : null;
+            _writer = participant is not null ? new DdsWriter<EntityWeaponPosture>(participant) : null;
             _entityMap = entityMap;
         }
 

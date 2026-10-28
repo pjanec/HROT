@@ -33,7 +33,7 @@ namespace Hrot.Network.NED.IG
             IEventBus eventBus,
             GhostCreationSystem ghostCreationSystem,
             long localNodeId = 0)
-            : base(participant, "ContextActionsUpdate", entityMap, eventBus)
+            : base(participant, entityMap, eventBus)
         {
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             _localNodeId = localNodeId;

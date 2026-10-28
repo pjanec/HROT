@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly HashSet<long> _publishedNetIds = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
-        public string TopicName => "EntityMaster";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMaster>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMaster;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -39,7 +39,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             long localNodeId)
         {
-            _writer = new DdsWriter<EntityMaster>(participant, "EntityMaster");
+            _writer = new DdsWriter<EntityMaster>(participant);
             _entityMap = entityMap;
             _localNodeId = localNodeId;
         }

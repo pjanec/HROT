@@ -1,5 +1,7 @@
 # ModuleHost.Network.Cyclone - DDS-Based Network Replication
 
+> ⛔ **Topic names (AQ107 A, 2026-10-28):** this document predates DERIVED topic names (namespace + containing types + type name, joined with `_`). Where it prints a topic in the old explicit spelling (`SST_…`, `IdAlloc_…`, `BDC_…`, `hrot/anim/…`, or a bare `EntityMaster`) read `<namespace>_<Type>`, e.g. `Fdp_Network_Cyclone_Topics_EntityMasterTopic`, `Hrot_BDC_Messages_BdcWorldPos`. The current type → topic table is [`NED_DDS_Protocol.md`](../../../../docs/reference/NED_DDS_Protocol.md) §Inventory.
+
 ## Overview
 
 **ModuleHost.Network.Cyclone** is a **CycloneDDS-based networking plugin** for [ModuleHost.Core](ModuleHost.Core.md) that provides **distributed entity synchronization**, **network identity management**, and **pub/sub messaging** for multi-node simulations. It bridges **FDP's ECS architecture** with **OMG DDS** (Data Distribution Service), implementing the **Descriptor Pattern** for protocol-agnostic serialization.

@@ -18,8 +18,8 @@ namespace Fdp.Examples.Scenarios.Tests
         public void DemoTransformMsg_Serialization_RoundTrip()
         {
             using var participant = new DdsParticipant(TestDomainId);
-            using var writer = new DdsWriter<DemoTransformMsg>(participant, "Test_DemoTransformMsg");
-            using var reader = new DdsReader<DemoTransformMsg>(participant, "Test_DemoTransformMsg");
+            using var writer = new DdsWriter<DemoTransformMsg>(participant);
+            using var reader = new DdsReader<DemoTransformMsg>(participant);
 
             var sent = new DemoTransformMsg
             {
@@ -61,8 +61,8 @@ namespace Fdp.Examples.Scenarios.Tests
         public void DemoSpawnMsg_Serialization_RoundTrip()
         {
             using var participant = new DdsParticipant(TestDomainId);
-            using var writer = new DdsWriter<DemoSpawnMsg>(participant, "Test_DemoSpawnMsg");
-            using var reader = new DdsReader<DemoSpawnMsg>(participant, "Test_DemoSpawnMsg");
+            using var writer = new DdsWriter<DemoSpawnMsg>(participant);
+            using var reader = new DdsReader<DemoSpawnMsg>(participant);
 
             var sent = new DemoSpawnMsg
             {
@@ -96,8 +96,8 @@ namespace Fdp.Examples.Scenarios.Tests
         public void DemoCombatInteractionMsg_Serialization_RoundTrip()
         {
             using var participant = new DdsParticipant(TestDomainId);
-            using var writer = new DdsWriter<DemoCombatInteractionMsg>(participant, "Test_DemoCombatMsg");
-            using var reader = new DdsReader<DemoCombatInteractionMsg>(participant, "Test_DemoCombatMsg");
+            using var writer = new DdsWriter<DemoCombatInteractionMsg>(participant);
+            using var reader = new DdsReader<DemoCombatInteractionMsg>(participant);
 
             var sent = new DemoCombatInteractionMsg
             {

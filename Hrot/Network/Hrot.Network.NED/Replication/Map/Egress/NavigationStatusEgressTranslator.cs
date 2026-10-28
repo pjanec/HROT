@@ -28,7 +28,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName      => "NavigationStatus";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.NavigationStatus>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtNavigationStatus;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -56,7 +56,7 @@ namespace Hrot.Map.Common.Replication.Egress
             NetworkEntityMap entityMap,
             long localNodeId)
         {
-            _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds, "NavigationStatus");
+            _writer    = new DdsWriter<Hrot.NED.Descriptors.NavigationStatus>(dds);
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
             _localNodeId = localNodeId;
         }

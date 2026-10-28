@@ -21,7 +21,6 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityTurretPoseEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityTurretPose";
         private const long   OrdinalValue = (long)EDescriptorType.dtTurretPose;
 
         /// <summary>The smallest change that is sent: 0.2° (radians).</summary>
@@ -34,7 +33,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly Dictionary<(long NetId, int PartId), TurretPose> _lastPublished = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityTurretPose>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -42,7 +41,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityTurretPoseEgressTranslator(DdsParticipant? participant)
         {
-            _writer = participant is not null ? new DdsWriter<EntityTurretPose>(participant, DdsTopicName) : null;
+            _writer = participant is not null ? new DdsWriter<EntityTurretPose>(participant) : null;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }

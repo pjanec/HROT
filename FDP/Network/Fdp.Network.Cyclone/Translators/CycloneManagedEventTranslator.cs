@@ -21,10 +21,9 @@ namespace Fdp.Network.Cyclone.Translators
 
         protected CycloneManagedEventTranslator(
              DdsParticipant participant, 
-             string topicName, 
              NetworkEntityMap entityMap,
              IEventBus eventBus)
-             : base(topicName)
+             : base(CycloneDDS.Schema.DdsTopicName.Of<TDds>())
         {
              EntityMap = entityMap;
              EventBus = eventBus;

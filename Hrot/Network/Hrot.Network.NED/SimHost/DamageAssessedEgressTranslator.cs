@@ -26,13 +26,12 @@ namespace Hrot.Network.NED.SimHost
     /// </summary>
     public sealed class DamageAssessedEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityHitDamage";
 
         private readonly IDdsWriter<EntityHitDamage> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName       => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityHitDamage>();
         public long   DescriptorOrdinal => (long)EDescriptorType.dtEntityHitDamage;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -40,7 +39,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Production constructor â€” creates a live DDS writer.</summary>
         public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap, long localNodeId)
-            : this(new DdsWriterAdapter<EntityHitDamage>(participant, DdsTopicName), entityMap, localNodeId)
+            : this(new DdsWriterAdapter<EntityHitDamage>(participant), entityMap, localNodeId)
         {
         }
 

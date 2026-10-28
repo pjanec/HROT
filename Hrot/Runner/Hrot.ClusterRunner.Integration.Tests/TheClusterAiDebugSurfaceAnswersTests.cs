@@ -84,7 +84,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         //   pattern). ⚠ A direct AssignBehaviorEvent is cleared two frames later: CGF's MissionAdapterSystem reads the
         //   entity's empty MissionPlanQueue as an exhausted plan (measured: CLEAR@3).
         using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
-        using var writer = new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Messages.MissionControlRequest>(participant, "MissionControlRequest");
+        using var writer = new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Messages.MissionControlRequest>(participant);
         var taskId = Guid.NewGuid();
         writer.Write(new Hrot.NED.Messages.MissionControlRequest
         {

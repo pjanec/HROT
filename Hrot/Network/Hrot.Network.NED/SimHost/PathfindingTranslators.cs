@@ -30,7 +30,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly int _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
-        public string TopicName         => "PathRequestBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<PathRequestBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -42,7 +42,7 @@ namespace Hrot.Network.NED.SimHost
             int                  localNodeId = 0)
         {
             _localNodeId  = localNodeId;
-            _writer       = participant != null ? new DdsWriter<PathRequestBatch>(participant, TopicName) : null;
+            _writer       = participant != null ? new DdsWriter<PathRequestBatch>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)
@@ -131,7 +131,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly int _localNodeId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathResponseBatch;
-        public string TopicName         => "PathResponseBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<PathResponseBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -145,7 +145,7 @@ namespace Hrot.Network.NED.SimHost
         {
             _trajectoryPool = trajectoryPool ?? throw new ArgumentNullException(nameof(trajectoryPool));
             _localNodeId    = localNodeId;
-            _reader         = participant != null ? new DdsReader<PathResponseBatch>(participant, TopicName) : null;
+            _reader         = participant != null ? new DdsReader<PathResponseBatch>(participant) : null;
         }
 
         /// <inheritdoc />
@@ -235,7 +235,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsReader<PathRequestBatch>? _reader;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathRequestBatch;
-        public string TopicName         => "PathRequestBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<PathRequestBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
@@ -245,7 +245,7 @@ namespace Hrot.Network.NED.SimHost
             NetworkEntityMap     entityMap,
             IGeographicTransform geoTransform)
         {
-            _reader       = participant != null ? new DdsReader<PathRequestBatch>(participant, TopicName) : null;
+            _reader       = participant != null ? new DdsReader<PathRequestBatch>(participant) : null;
         }
 
         /// <inheritdoc />
@@ -316,7 +316,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly TrajectoryPoolManager _trajectoryPool;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtPathResponseBatch;
-        public string TopicName         => "PathResponseBatch";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<PathResponseBatch>();
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount     { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -328,7 +328,7 @@ namespace Hrot.Network.NED.SimHost
             TrajectoryPoolManager trajectoryPool)
         {
             _trajectoryPool = trajectoryPool ?? throw new ArgumentNullException(nameof(trajectoryPool));
-            _writer         = participant != null ? new DdsWriter<PathResponseBatch>(participant, TopicName) : null;
+            _writer         = participant != null ? new DdsWriter<PathResponseBatch>(participant) : null;
         }
 
         public void ScanAndPublish(ISimulationView view)

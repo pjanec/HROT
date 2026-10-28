@@ -215,7 +215,7 @@ public sealed class CgfSubsystemHeadlessTests
 
         // Write a MapVisualOverlay DDS sample for this entity.
         using var participant   = new DdsParticipant((uint)harness.DomainId);
-        using var overlayWriter = new DdsWriter<MapVisualOverlay>(participant, "MapVisualOverlay");
+        using var overlayWriter = new DdsWriter<MapVisualOverlay>(participant);
 
         var overlay = new MapVisualOverlay
         {
@@ -332,8 +332,8 @@ public sealed class CgfSubsystemHeadlessTests
         _out.WriteLine($"[HT6] SimHost entity {networkId} ready.");
 
         using var participant   = new DdsParticipant((uint)harness.DomainId);
-        using var reqWriter     = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
-        using var ackReader     = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+        using var reqWriter     = new DdsWriter<MissionControlRequest>(participant);
+        using var ackReader     = new DdsReader<MissionControlAck>(participant);
 
         var taskId = Guid.NewGuid();
         reqWriter.Write(new MissionControlRequest
@@ -455,8 +455,8 @@ public sealed class CgfSubsystemHeadlessTests
         // Publish EntityDamage and EntityInfo DDS samples to trigger the previously-crashing
         // translators (EntityDamageIngressTranslator -> Health, EntityInfoIngressTranslator -> EntityInfo).
         using var participant   = new DdsParticipant((uint)domainId);
-        using var damageWriter  = new DdsWriter<EntityDamage>(participant, "EntityDamage");
-        using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant, "EntityInfo");
+        using var damageWriter  = new DdsWriter<EntityDamage>(participant);
+        using var infoWriter    = new DdsWriter<Hrot.NED.Descriptors.EntityInfo>(participant);
 
         damageWriter.Write(new EntityDamage { EntityId = networkId, Current = 75.0f, Max = 100.0f });
         infoWriter.Write(new Hrot.NED.Descriptors.EntityInfo
@@ -534,8 +534,8 @@ public sealed class CgfSubsystemHeadlessTests
         //   -> BehaviorIngressSystem -> BTree tick -> NavigationIntent (DDS)
         //   -> SimHost NavigationExecution -> entity movement.
         using var participant = new DdsParticipant((uint)harness.DomainId);
-        using var reqWriter   = new DdsWriter<MissionControlRequest>(participant, "MissionControlRequest");
-        using var ackReader   = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+        using var reqWriter   = new DdsWriter<MissionControlRequest>(participant);
+        using var ackReader   = new DdsReader<MissionControlAck>(participant);
 
         var taskId = Guid.NewGuid();
         reqWriter.Write(new MissionControlRequest

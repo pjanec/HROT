@@ -28,7 +28,7 @@ namespace Hrot.BDC.Replication
         private readonly NetworkEntityMap _entityMap;
         private readonly long _localNodeId;
 
-        public string TopicName => "BDC_WorldPos";
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<BdcWorldPos>();
         // BDC WorldPos ordinal
         public long DescriptorOrdinal => (long)BdcDescriptorType.WorldPos;
         public long ReceivedSampleCount { get; private set; }
@@ -46,7 +46,7 @@ namespace Hrot.BDC.Replication
         {
             _entityMap    = entityMap;
             _localNodeId  = localNodeId;
-            _writer       = new DdsWriter<BdcWorldPos>(participant, "BDC_WorldPos");
+            _writer       = new DdsWriter<BdcWorldPos>(participant);
             _reader       = new DdsReader<BdcWorldPos>(participant);
         }
 

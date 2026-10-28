@@ -18,13 +18,12 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponTaskEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityWeaponTask";
         private readonly DdsWriter<EntityWeaponTask>? _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<(long, int), EntityWeaponTask> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTask>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponTask;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -32,7 +31,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityWeaponTaskEgressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _writer = participant is not null ? new DdsWriter<EntityWeaponTask>(participant, DdsTopicName) : null;
+            _writer = participant is not null ? new DdsWriter<EntityWeaponTask>(participant) : null;
             _entityMap = entityMap;
         }
 
@@ -72,12 +71,11 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityWeaponTaskStatusEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityWeaponTaskStatus";
         private readonly DdsWriter<EntityWeaponTaskStatus>? _writer;
         private readonly Dictionary<(long, int), WeaponTaskStatus> _last = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTaskStatus>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtWeaponTaskStatus;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -85,7 +83,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityWeaponTaskStatusEgressTranslator(DdsParticipant? participant)
         {
-            _writer = participant is not null ? new DdsWriter<EntityWeaponTaskStatus>(participant, DdsTopicName) : null;
+            _writer = participant is not null ? new DdsWriter<EntityWeaponTaskStatus>(participant) : null;
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }

@@ -27,7 +27,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 200u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -66,7 +66,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 205u; // 201 fails on some machines; use 205 instead
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 207u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -132,7 +132,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 206u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -169,7 +169,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 202u;
             using var participant = new DdsParticipant(domainId);
-            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader = new DdsReader<EntityMaster>(participant);
             var entityMap = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 
@@ -220,7 +220,7 @@ namespace Hrot.SimHost.Tests
         {
             const uint domainId = 210u;
             using var participant = new DdsParticipant(domainId);
-            using var reader     = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            using var reader     = new DdsReader<EntityMaster>(participant);
             var entityMap  = new NetworkEntityMap();
             var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
 

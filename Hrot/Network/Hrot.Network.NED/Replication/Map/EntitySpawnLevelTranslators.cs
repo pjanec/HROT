@@ -20,14 +20,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntitySpawnLevelEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntitySpawnLevel";
         private readonly DdsWriter<EntitySpawnLevel>? _writer;
         private readonly Dictionary<long, EntitySpawnLevel> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.SpawnLevelRequest };
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntitySpawnLevel>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtSpawnLevel;
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }
@@ -35,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         public EntitySpawnLevelEgressTranslator(DdsParticipant? participant)
-            => _writer = participant is not null ? new DdsWriter<EntitySpawnLevel>(participant, DdsTopicName) : null;
+            => _writer = participant is not null ? new DdsWriter<EntitySpawnLevel>(participant) : null;
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -80,12 +79,11 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// </summary>
     public sealed class EntitySpawnLevelIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
-        private const string DdsTopicName = "EntitySpawnLevel";
         private const long OrdinalValue = (long)EDescriptorType.dtSpawnLevel;
         private readonly DdsReader<EntitySpawnLevel>? _reader;
         private readonly NetworkEntityMap _entityMap;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntitySpawnLevel>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -94,7 +92,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public EntitySpawnLevelIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
         {
-            _reader = participant is not null ? new DdsReader<EntitySpawnLevel>(participant, DdsTopicName) : null;
+            _reader = participant is not null ? new DdsReader<EntitySpawnLevel>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 

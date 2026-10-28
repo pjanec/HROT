@@ -20,14 +20,13 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public sealed class EntityObstacleShapeEgressTranslator : IDescriptorTranslator
     {
-        private const string DdsTopicName = "EntityObstacleShape";
         private const long   OrdinalValue = (long)EDescriptorType.dtObstacleShape;
 
         private readonly DdsWriter<EntityObstacleShape> _writer;
         private readonly Dictionary<long, ObstacleShape> _lastPublished = new();
         private int _worldEpoch;
 
-        public string TopicName => DdsTopicName;
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityObstacleShape>();
         public long DescriptorOrdinal => OrdinalValue;
         public long ReceivedSampleCount { get; private set; }
         public long SentSampleCount { get; private set; }
@@ -35,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public EntityObstacleShapeEgressTranslator(DdsParticipant participant)
         {
-            _writer = new DdsWriter<EntityObstacleShape>(participant, DdsTopicName);
+            _writer = new DdsWriter<EntityObstacleShape>(participant);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
