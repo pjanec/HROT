@@ -20,25 +20,25 @@ public sealed class TheMenuBarIsOneTreeTests
     private static IReadOnlyList<ContextMenuItemDto> Menu(string top, params string[] leaves)
         => new[] { new ContextMenuItemDto { Label = top, Children = leaves.Select((l, i) => new ContextMenuItemDto { Id = i + 1, Label = l }).ToArray() } };
 
-    /// <summary>⭐ MB-2 — a contributed <c>View</c> and the tree's <c>View</c> are ONE bar menu, in CE-1026's order with the Perspective
+    /// <summary>⭐ MB-2 — a contributed <c>View</c> and the tree's <c>View</c> are ONE bar menu, in CE-1026/CE-4085 order (Settings and Perspective are View submenus, Help last)
     /// menu between the leading menus and Settings. ✅ Red-proof: merging by contributor instead of by name ⇒ two View entries.</summary>
     [Fact]
     public void CE1243_AContributedMenu_MergesIntoTheTreesMenuOfTheSameName_InBarOrder()
     {
         var reg = new GlobalMenuRegistry();
-        reg.RegisterItem("Settings/UI", () => { });
+        reg.RegisterItem("View/Settings/UI", () => { });
         reg.RegisterItem("View/Grid", () => { });
         reg.RegisterItem("File/Open", () => { });
         reg.RegisterContributor("help", () => Menu("Help", "About"), _ => { });
-        reg.RegisterContributor("persp", () => Menu("Perspective", "Scenario"), _ => { });
+        reg.RegisterContributor("persp", () => Menu("View", "Scenario"), _ => { });
         reg.RegisterContributor("gizmo", () => Menu("View", "Tactical Map Layers..."), _ => { });
 
         var bar = reg.BarMenus(reg.CollectContributions("Scenario"));
 
-        Assert.Equal(new[] { "File", "View", "Perspective", "Settings", "Help" }, bar.Select(m => m.Name));
+        Assert.Equal(new[] { "File", "View", "Help" }, bar.Select(m => m.Name));
         var view = bar.Single(m => m.Name == "View");
         Assert.NotNull(view.Node);
-        Assert.Single(view.Parts);
+        Assert.Equal(2, view.Parts.Count);   // ⭐ CE-4085: the perspective feed and the gizmo feed both land in the one View
     }
 
     /// <summary>⭐ MB-4 / UXI-05 — a contributor bound to a perspective offers its menus only while that perspective is current.</summary>
@@ -79,7 +79,7 @@ public sealed class TheMenuBarIsOneTreeTests
         wm.SwitchPerspective("Scenario");
         Assert.Equal(new[] { "wm/perspective", "wm/windows", "wm/help" }, wm.GlobalMenu.Contributors.Select(c => c.Id));
         var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Select(m => m.Name).ToArray();
-        Assert.Equal(new[] { "Perspective", "Settings", "Windows", "Help" }, bar);
+        Assert.Equal(new[] { "View", "Windows", "Help" }, bar);
 
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();

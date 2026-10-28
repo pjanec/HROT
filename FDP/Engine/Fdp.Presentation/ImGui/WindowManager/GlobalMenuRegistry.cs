@@ -131,31 +131,43 @@ public class GlobalMenuRegistry
     // ── Top-level order (CE-1026) ─────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ CE-1026 — the conventional order of the TOP-LEVEL menus, left to right. The bar used to follow first-registration order, and
-    /// <c>WindowManager</c>'s own constructor registers <c>Settings</c> before any host, so <c>Settings</c> came first and <c>File</c> later.
-    /// A name not listed ranks between <c>Debug</c> and <c>Settings</c>; ties keep registration order. <c>Windows</c> and <c>Help</c> are the
-    /// window manager's own menus, listed so a host extending them through this registry lands in the same place.
+    /// ⭐ CE-1026 — the conventional order of the TOP-LEVEL menus, left to right. The bar used to follow first-registration order;
+    /// ties keep registration order; a name not listed ranks just before <c>Windows</c>.
+    /// <para>⭐ CE-4085 — <c>Settings</c> and <c>Perspective</c> are no longer top-level: they are SUBMENUS of <c>View</c>
+    /// (<see cref="SettingsMenuPath"/>, <see cref="PerspectiveSubmenu"/>), and <c>Help</c> is last and drawn at the RIGHT edge
+    /// (<see cref="RightAlignedMenu"/>). ⛔ SUPERSEDED (CE-1243's order): … Debug · Perspective · Settings · Windows · Help.</para>
     /// </summary>
-    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Scenario", "Tools", "Debug", "Settings", "Windows", "Help" };
+    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Scenario", "Tools", "Debug", "Windows", "Help" };
 
-    /// <summary>The first menu that draws AFTER the <c>Perspective</c> menu: it and everything ranked after it trail the bar.</summary>
-    public const string FirstTrailingMenu = "Settings";
+    /// <summary>The first of the window manager's own trailing menus; every unlisted menu ranks just before it.</summary>
+    public const string FirstTrailingMenu = "Windows";
 
-    /// <summary>⭐ CE-1243 — the perspective switcher's menu: after every leading menu (unlisted ones too), before <see cref="FirstTrailingMenu"/>.</summary>
+    /// <summary>⭐ CE-4085 — the one top-level menu drawn flush with the bar's RIGHT edge; also the last in <see cref="TopLevelOrder"/>.</summary>
+    public const string RightAlignedMenu = "Help";
+
+    /// <summary>⭐ CE-4085 — the tree path every host registers its settings under (a submenu of <c>View</c>): <c>View/Settings/…</c>.</summary>
+    public const string SettingsMenuPath = "View/Settings";
+
+    /// <summary>⭐ CE-4085 — the label of the perspective switcher; a submenu of <c>View</c>, no longer a top-level menu.</summary>
     public const string PerspectiveMenu = "Perspective";
 
+    /// <summary>⭐ CE-4085 — the perspective switcher's path: <c>View/Perspective</c>.</summary>
+    public const string PerspectiveSubmenu = "View/" + PerspectiveMenu;
+
     /// <summary>The rank of a top-level menu named <paramref name="name"/> in <see cref="TopLevelOrder"/> (an unlisted name ranks just before
-    /// the <see cref="PerspectiveMenu"/>, which ranks just before <see cref="FirstTrailingMenu"/>).</summary>
+    /// <see cref="FirstTrailingMenu"/>).</summary>
     public static int TopLevelRank(string name)
     {
         for (int i = 0; i < TopLevelOrder.Count; i++)
             if (string.Equals(TopLevelOrder[i], name, StringComparison.Ordinal)) return i * 10;
-        if (string.Equals(name, PerspectiveMenu, StringComparison.Ordinal)) return TopLevelRank(FirstTrailingMenu) - 2;
         return TopLevelRank(FirstTrailingMenu) - 5;
     }
 
-    /// <summary>True when the top-level menu <paramref name="name"/> draws before the <c>Perspective</c> menu.</summary>
-    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(PerspectiveMenu);
+    /// <summary>True when the top-level menu <paramref name="name"/> draws before <see cref="FirstTrailingMenu"/>.</summary>
+    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(FirstTrailingMenu);
+
+    /// <summary>⭐ CE-4085 — true when the top-level menu <paramref name="name"/> is drawn flush right (only <see cref="RightAlignedMenu"/>).</summary>
+    public static bool IsRightAligned(string name) => string.Equals(name, RightAlignedMenu, StringComparison.Ordinal);
 
     /// <summary>The top-level menus in bar order (rank, then registration order).</summary>
     public IReadOnlyList<MenuItemNode> TopLevelMenus()
@@ -475,4 +487,7 @@ public sealed class BarMenu
     public string Name { get; }
     public MenuItemNode? Node { get; set; }
     public List<(MenuContributor Contributor, ContextMenuItemDto Item)> Parts { get; } = new();
+
+    /// <summary>⭐ CE-4085 — drawn flush with the bar's right edge (<see cref="GlobalMenuRegistry.IsRightAligned"/>); the model the draw path obeys.</summary>
+    public bool RightAligned => GlobalMenuRegistry.IsRightAligned(Name);
 }
