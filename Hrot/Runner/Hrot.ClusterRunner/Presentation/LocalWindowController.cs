@@ -94,7 +94,13 @@ internal sealed class LocalWindowController
         wm.GlobalMenu.RegisterItem("File/Exit", RequestExit, allowedInIdle: true);
         StartGate = gate;
         StartSurface = surface;
+        // ⭐ coordinator review of CE-4096 — the providers are built ONCE here and folded each frame (⛔ was: rebuilt every frame)
+        _restProviders = ClusterRestReader.Providers(_subsystems);
+        _restSources = _subsystems.OfType<IClusterRestSource>().ToArray();
     }
+
+    private IReadOnlyList<Hrot.Presentation.DebugApi.ISubsystemDebugProvider> _restProviders = Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>();
+    private IClusterRestSource[] _restSources = Array.Empty<IClusterRestSource>();
 
     private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -102,7 +108,7 @@ internal sealed class LocalWindowController
     internal void TickStartGate() => TickStartGate(Clock.Elapsed.TotalSeconds);
 
     internal void TickStartGate(double nowSeconds)
-        => StartGate?.Tick(nowSeconds, ClusterRestOverride?.Invoke() ?? ClusterRestReader.From(_subsystems));
+        => StartGate?.Tick(nowSeconds, ClusterRestOverride?.Invoke() ?? ClusterRestReader.From(_restProviders, _restSources.Select(s => s.ReadClusterRest())));
 
     /// <summary>
     /// ⭐ CE-1290 — once a frame: composes the title from the first title source that has a detail (the editor's or CGF's loaded

@@ -117,6 +117,33 @@ public class TheStartGateIsComposedOnceTests
         Assert.Equal("CGF", wm.CurrentPerspective);
     }
 
+    private sealed class CountingNode : MockSubsystem, IProvidesDebugSurface
+    {
+        public int Built;
+        public CountingNode() : base("CGF") { }
+        public ISubsystemDebugProvider? CreateDebugProvider()
+        {
+            Built++;
+            return new SubsystemDebugProvider("CGF", "CGF", followedClusterState: () => ClusterState.Idle);
+        }
+    }
+
+    [Fact]
+    public void TheGate_BuildsEachSubsystemsDebugProviderOnce_NotEveryFrame()
+    {
+        var node = new CountingNode();
+        var ctrl = Controller(new ISubsystem[] { node });
+        var wm = BareManager();
+        ctrl.ComposeStartSurface(wm);
+        wm.RegisterWindow(new PerspectiveWindow("CGF"));
+        wm.SwitchPerspective("CGF");
+
+        for (int i = 0; i < 10; i++) ctrl.TickStartGate(100.0 + i * 0.1);
+
+        Assert.Equal(1, node.Built);              // ⭐ a factory, called once (coordinator review)
+        Assert.True(wm.IsStartShowing);           // …and the once-built provider still feeds the gate
+    }
+
     [Fact]
     public void StartIsNeverTheStartupPerspective_EvenWhenItIsTheOnlyOneClaimed()
     {

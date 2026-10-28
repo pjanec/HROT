@@ -14,10 +14,13 @@ internal static class ClusterRestReader
     internal static ClusterRest From(IEnumerable<object> subsystems)
     {
         var list = subsystems.ToList();
-        var providers = list.OfType<IProvidesDebugSurface>().Select(p => p.CreateDebugProvider()).Where(p => p != null).Select(p => p!);
-        var sources = list.OfType<IClusterRestSource>().Select(s => s.ReadClusterRest());
-        return From(providers, sources);
+        return From(Providers(list), list.OfType<IClusterRestSource>().Select(s => s.ReadClusterRest()));
     }
+
+    /// <summary>⭐ Every subsystem's debug provider, built ONCE (<c>CreateDebugProvider</c> is a factory — <c>ClusterDebugApiComposition</c> calls
+    /// it once too); its delegates read the node lazily, so a provider built before the node boots still answers later.</summary>
+    internal static IReadOnlyList<ISubsystemDebugProvider> Providers(IEnumerable<object> subsystems)
+        => subsystems.OfType<IProvidesDebugSurface>().Select(p => p.CreateDebugProvider()).Where(p => p != null).Select(p => p!).ToList();
 
     /// <summary>
     /// The pure fold. ⭐ State: the first NON-Idle state any node reports (a node that has not yet heard an Idle→Loading broadcast must not hold
