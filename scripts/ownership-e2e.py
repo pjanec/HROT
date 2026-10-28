@@ -42,6 +42,10 @@ def persp(name):
         _base[0] = f"http://localhost:{PORTS[name]}"
         return {"ok": True}
     r = call("POST", "/perspective", {"name": name})
+    # ⛔ CE-4094 (AQ108 D16): a refused switch (HTTP 409 while the Start perspective shows — the cluster rests in Idle, nothing loaded)
+    #    leaves every later read on the WRONG node. Stop instead of reading it: load a scenario first (POST /scenario/load/live).
+    if not r.get("ok", True):
+        raise SystemExit(f"POST /perspective {name!r} refused: {r.get('error')} — load a scenario first if the Start perspective is showing.")
     return r
 
 

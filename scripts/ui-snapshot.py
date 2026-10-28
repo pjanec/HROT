@@ -29,6 +29,7 @@ import argparse
 import json
 import sys
 import time
+import urllib.error
 import urllib.request
 
 
@@ -132,7 +133,16 @@ def capture(port, settle, values=False):
     reg_all, cap_all, kinds_all = set(), set(), {}
 
     for name in names:
-        got = unwrap(call(port, "/perspective", "POST", {"name": name}))
+        try:
+            got = unwrap(call(port, "/perspective", "POST", {"name": name}))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 409:
+                # ⭐ CE-4094 (AQ108 D16): while the Start perspective shows (cluster Idle, nothing loaded) a switch answers 409.
+                #   ⛔ Never skip it — a capture of zero perspectives would "pass" as an empty, vacuous snapshot.
+                raise SystemExit(
+                    f"REFUSING TO CAPTURE: POST /perspective {name!r} answered 409 — the Start perspective is showing "
+                    f"(nothing loaded). Load a scenario first: pass --scenario <name>. {exc.read().decode(errors='replace')[:300]}") from exc
+            raise
         current = got.get("current")
         if current != name:
             print(f"  ! switch to {name!r} reported current={current!r} — recording as unreachable",
@@ -255,7 +265,8 @@ def main():
     ap.add_argument("--diff", nargs=2, metavar=("BEFORE", "AFTER"))
     ap.add_argument("--values", action="store_true",
                     help="also record every panel's full model, for an exact value comparison")
-    ap.add_argument("--scenario", help="load this scenario and step before capturing")
+    ap.add_argument("--scenario", help="load this scenario and step before capturing (REQUIRED against a cluster that rests in "
+                                       "Idle: the Start perspective refuses a perspective switch with 409 until something is loaded)")
     ap.add_argument("--steps", type=int, default=1000,
                     help="fixed-dt steps to advance before capturing (with --scenario)")
     args = ap.parse_args()

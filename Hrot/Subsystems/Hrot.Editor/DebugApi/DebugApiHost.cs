@@ -1954,7 +1954,9 @@ namespace Hrot.Editor.DebugApi
                 //   exist" — ⛔ collapsing them would make a composition-root defect look like a bad
                 //   request, which is the reading error that costs an afternoon.
                 if (error == null) return Ok(result);
-                return Fail(error.StartsWith("No perspective access", StringComparison.Ordinal) ? 503 : 400,
+                // ⭐ CE-4094 — 409 = "the window manager refused it" (the Start perspective shows): a state conflict, not a bad request.
+                return Fail(error.StartsWith("No perspective access", StringComparison.Ordinal) ? 503
+                          : error.StartsWith(DebugApiService.RefusedPrefix, StringComparison.Ordinal) ? 409 : 400,
                             error, hintCategory);
             })));
 

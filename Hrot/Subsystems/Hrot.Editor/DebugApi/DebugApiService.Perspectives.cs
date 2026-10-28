@@ -66,7 +66,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
-        /// <c>POST /perspective {"name": "..."}</c> — switch, then report what actually happened.
+        /// <c>POST /perspective {"name": "..."}</c> — switch, then report what actually happened. ⭐ CE-4094: answers 409 with the reason while the <c>Start</c> perspective shows.
         /// </summary>
         /// <remarks>
         /// ⭐⭐ <b>It re-reads <c>CurrentPerspective</c> after switching rather than assuming success</b>, and
@@ -85,6 +85,10 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(name))
                 return (null, "Body must be {\"name\": \"<perspective>\"}.", DebugApiHints.Panel);
 
+            // ⭐⭐ CE-4094 (AQ108 M7/D22) — while the Start perspective shows the switch is refused whatever the name: the gate owns leaving
+            //   Idle. ⭐ Asked BEFORE the claimed-set check, so a caller sees the 409 that explains the state, not a 400 about a name.
+            bool startShowing = _perspectives.CurrentPerspective == Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName;
+
             var claimed = _perspectives.GetPerspectives();
             // ⭐ Asked BEFORE switching so the 400 can name the set. ⛔ Not a second validation rule: the
             //   window manager still refuses independently, and this only decides the status code.
@@ -92,14 +96,16 @@ namespace Hrot.Editor.DebugApi
             foreach (var p in claimed)
                 if (string.Equals(p, name, StringComparison.Ordinal)) { known = true; break; }
 
-            if (!known)
+            if (!known && !startShowing)
                 return (null,
                         $"'{name}' is not a perspective any registered window claims. Claimed: "
                         + $"[{string.Join(", ", claimed)}]. A perspective exists because a window claims it, "
                         + "so this list is derived, not configured.",
                         DebugApiHints.Panel);
 
-            _perspectives.SwitchPerspective(name!);
+            // ⭐ The window manager is the one owner of the refusal and of its reason (⛔ not re-implemented here).
+            if (!_perspectives.TrySwitchPerspective(name!, out var refusal))
+                return (null, RefusedPrefix + refusal, DebugApiHints.Panel);
 
             return (new JsonObject
             {
@@ -109,6 +115,9 @@ namespace Hrot.Editor.DebugApi
                             + "reading GET /panels",
             }, null, null);
         }
+
+        /// <summary>⭐ CE-4094 — marks a refusal by the window manager (⇒ HTTP 409), as <see cref="NoAccess"/> marks a wiring defect (⇒ 503).</summary>
+        public const string RefusedPrefix = "Perspective switch refused: ";
 
         private const string NoAccess =
             "No perspective access is wired into this editor. The DebugApiService is constructed before the "

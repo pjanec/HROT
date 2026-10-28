@@ -33,6 +33,11 @@ real logic. This guide teaches the mental model, the canonical workflows, and ev
 **But check which host you are talking to — `get_capabilities` tells you.** The same API is also served by a
 multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + excon + cgf). There:
 
+- ⭐ **load first, then switch.** A cluster that rests in Idle (nothing loaded — at boot, after an unload) shows the **`Start`**
+  perspective on every host; while it shows, `switch_perspective` answers **HTTP 409** with the reason, and `get_status` reports
+  `perspective: "Start"` with `routedTo` = the perspective the world reads are still answered from. Load a scenario (or open a
+  recording) first — leaving Idle restores the host's remembered perspective by itself — and only then switch. Never script
+  *"switch perspective at boot"*;
 - commands act **in the context of the currently selected perspective** (`switch_perspective`), because that
   is how an operator would drive it — so a read answers for *that node*, not for "the world";
 - capabilities differ per perspective. A call the active perspective cannot serve answers **HTTP 501
@@ -285,7 +290,7 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
   Notes: ASYNCHRONOUS: the answer confirms the intent was PUBLISHED, not that the cluster reached the state — poll get_status or get_cluster_roster.; Pass the returned transactionId to cancel_cluster_operation to cancel it; a cancel returns the cluster to Idle (R-4004).; Any node with an orchestration bus can publish it; a host without one answers 503..
   Example: `request_cluster_transition({"target":"Idle"})` — return the cluster to Idle.
 - **`switch_perspective`** — Switch the active perspective, then report what actually happened. Req `name` (string). Returns { current, note }
-  Notes: ALWAYS read `current` back — an unknown name is a no-op, so trusting the 200 would leave you reading the WRONG perspective's panels.; A 400 names the claimed set; a 503 means perspective access is not wired on this host.; The new perspective publishes its panels on the NEXT frame — step a tick before get_panels, or you read the previous one.; In a cluster host (mode "all") this is how you choose which node subsequent commands act on..
+  Notes: ALWAYS read `current` back — an unknown name is a no-op, so trusting the 200 would leave you reading the WRONG perspective's panels.; A 400 names the claimed set; a 503 means perspective access is not wired on this host.; A 409 means the Start perspective is showing (the cluster rests in Idle, nothing loaded): a switch is refused whatever the name. LOAD FIRST (load_scenario_live / load_scenario_edit), then switch — leaving Idle restores the host's remembered perspective on its own. Read get_status.routedTo to see which perspective the reads are answered from meanwhile.; The new perspective publishes its panels on the NEXT frame — step a tick before get_panels, or you read the previous one.; In a cluster host (mode "all") this is how you choose which node subsequent commands act on..
   Example: `switch_perspective({"name":"SimHost"})` — act in the SimHost node's context.
 - **`list_perspectives`** — Every perspective a registered window claims, plus the active one. No params. Returns { current, perspectives[] }
   Notes: A perspective exists because a window CLAIMS it — this list is derived, not configured.; current is reported alongside the list because it is the only honest answer to "did my switch take?"..
@@ -293,8 +298,8 @@ Conventions: **Req** = required param. Coordinates are local ECS metres unless s
 - **`stop_simulation`** — Shut down the runner gracefully via POST /shutdown, then hard-kill if needed. No params. Returns The /shutdown envelope, or { note: "runner already gone" }
   Notes: MCP-side lifecycle tool — also calls the /shutdown HTTP endpoint.; Always call when done to avoid orphan runner processes..
   Example: `stop_simulation({})` — graceful runner shutdown.
-- **`get_status`** — Runner liveness + sim state summary. No params. Returns { scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording }
-  Notes: Use this to verify the runner is alive and check current run state before driving the sim..
+- **`get_status`** — Runner liveness + sim state summary. No params. Returns { scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo }
+  Notes: Use this to verify the runner is alive and check current run state before driving the sim.; `perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is "Start" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it)..
   Example: `get_status({})` — check runner liveness and sim state.
 
 ### Group B — Queries
