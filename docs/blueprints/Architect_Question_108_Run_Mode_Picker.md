@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — the user shaped every decision in chat (2026-10-28); §4 records each with its verdict. Two rows are still leans (§4 marked ⏸)
 updated: 2026-10-28
-build-state: DESIGN — not dispatched. Before READY-TO-BUILD: measure M1–M6 (§5)
+build-state: DESIGN — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); READY-TO-BUILD once D16 is settled
 current-answer: §1 the three rules · §1a the words (Live / DAR / AAR) · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
 known-rot: none
@@ -14,7 +14,10 @@ related-designs:
   - ../DESIGN_Deterministic_Network_Ids.md — §11 OWNS "ids and the world reset only on a load entered from Idle" — why a world-continuing go-live must not pass Idle
   - ../designs/main-toolbar-1/DESIGN.md — §7 the toolbar's time group, §10 the ONE asset browser (gains a Recording kind)
   - DESIGN_Time_Architecture.md — OWNS the editor's time controller; unchanged
-  - ../DESIGN_Film_Director.md — the director plays takes LIVE (`EditorDirector.LoadLive`); unchanged, but its runs are exercises like any other
+  - ../DESIGN_Film_Director.md — the director plays takes in the PREVIEW (`DirectorRunner.cs:584`); only the scenario verifier loads live (`ScenarioVerifyRun.cs:157`) — unaffected, except D14 must keep recording ON for verify runs
+  - ../DESIGN_Distributed_Scenario_Persistence.md — §4a OWNS what a scenario folder holds after a distributed save (one merged scenario.json + foreign/node_<id>.json); D7 copies all of it
+  - ../DESIGN_Film_Production.md — F-1 / row ① "any live run records itself" (R-4091) and R-3053 — D14 amends both (recording becomes a setting)
+  - ../DESIGN_Cluster_Load_Phase.md — §8:809 records the user 2026-10-05: a production run is "started from scenario file always, never from memory"; D3 supersedes it for the go-live from Preview (the user, 2026-10-28)
   - Blueprint_Issues_Tracker.md CE-4082 (this), CE-4083 (remove the status-bar time control — one transport), CE-4081 (Esc stops a take)
 -->
 
@@ -58,7 +61,7 @@ obtrusive"* · *"ok leans are fine"*
 | grep `ITimeTransportFacade` (production) | 17 files | one facade read by toolbar, status bar, panels and the debug API |
 | grep `"File/Live"`, `"File/Edit"` | `ScenarioMenuCommands.cs:91-97` | the load-in-a-mode menus this question folds away |
 | grep `EnterReview(` | 12 sites | a review with no position = the live point (`ClusterReplayControls.cs:19`) — removed (§4 D9) |
-| `HrotStateGraph.cs` edges | 19 | no Edit → Live edge (`:18-20`); Replay → Live exists (`:50`); Live ⇄ Review (`:55-58`) |
+| `HrotStateGraph.cs` edges | 21 | no Edit → Live edge (`:18-20`); Replay → Live exists (`:50`); Live ⇄ Review (`:55-58`) |
 | `AssetKind` | 6 kinds | no `Recording` kind |
 | `RecordingMetadata` | `ScenarioName`, `ScenarioHash` (`:72-79`, CE-4058) | the version is known; the scenario itself is not kept |
 
@@ -133,7 +136,7 @@ classDiagram
   class ReferenceLiveLoadHandler { <<existing>> PrepareState Live → PrepareRecordingAsync(exercise) }
   class HrotStateGraph { <<existing>> + OperatingEdit → LoadingLive (continue-world) NEW }
   class ClusterMaster { <<existing>> mints the exercise id · IsWorldBoundaryLoad (false: not from Idle) }
-  class ScenarioCopyIntoExercise { <<NEW, orchestrator>> copies the scenario folder into exercises/id/scenario/ }
+  class ScenarioCopyIntoExercise { <<existing CE-3119 AssetInventoryProcessManager.SnapshotScenario>> + subfolders, hash, RecordedAt NEW }
   class RecordingMetadata { <<existing>> ScenarioName · ScenarioHash · + RecordedAt NEW }
   class AssetBrowserPanel { <<existing>> + AssetKind.Recording NEW }
   class CheckpointToast { <<NEW>> Save/Ctrl+S in Live or Replay = take checkpoint + toast }
@@ -267,7 +270,7 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **D4** | unsaved edits ask *Save and go live / Cancel*; a never-saved scenario asks *Save as… and go live / Cancel* (D16) | ✅ user |
 | **D5** | ■ follows R2: back to where the run came from, the armed mode stays | ✅ user ("next play after LIVE end = next live start") · the branch case ✅ lean accepted |
 | **D6** | replay of a just-ended live run is an explicit step (the indicator, or the toast's button), at the recording's START | ✅ user |
-| **D7** | a recording keeps its scenario: the whole scenario folder copied into `exercises/<id>/scenario/` by the orchestrator once at go-live, plus `RecordedAt`; a branch inherits its parent's copy | ✅ user + lean accepted |
+| **D7** | a recording keeps its scenario: the EXISTING master-side copy (CE-3119, `AssetInventoryProcessManager.SnapshotScenario`) grows to the WHOLE folder (subfolders too) and stamps name + hash + `RecordedAt` at go-live from the saved file (M3: today the stamp is load-time only and goes stale after a Save); a branch inherits its parent's copy | ✅ user + lean accepted · mechanism from M2/M3 |
 | **D8** | Save in Live / Replay = a checkpoint with a toast; a new scenario comes from a checkpoint, never from Save As | ✅ user |
 | **D9** | a review always has an explicit start (the indicator's windows, the timeline); the "no position = the live point" default is removed (`ClusterReplayControls.cs:19`, `POST /review`) | ✅ user |
 | **D10** | confirmations exactly as §3; Live → Preview always asks (no "don't ask again"); timeline actions never ask | ✅ user |
@@ -279,23 +282,37 @@ dashed) goes with CE-4083 — one transport, one picker.
 | **D16** | ⭐ **the editor opens EMPTY, like any editor**: the run controls and the authoring tools are disabled until the user either creates a new scenario from a terrain-specific recipe or opens an existing scenario. ⛔ **A scenario without a terrain cannot be authored** (today it can — the 0,0 origin, practical for quick tries but never right for real use). Preview then runs at will; Live needs a saved scenario | ✅ user |
 | **D17** | the user-facing words: **DAR** (inside a live session) and **AAR** (a recording played back) replace "Review" and "Replay"; the code names stay (§1a) | ✅ user (the words) · ⏸ lean: code names unchanged |
 
-## 5. What must be measured before READY-TO-BUILD
+## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
-| # | question | why it decides something |
+| # | answer | what it changes here |
 |---|---|---|
-| **M1** | does a node in `OperatingEdit` hold anything a live run must not have — editor-only systems, the preview's checkpoint, creation-request ids, role gates that differ between Edit and Live? | D3's mechanism. If something real blocks it, the fallback is a reload that keeps camera and selection |
-| **M2** | does the distributed save write per-node parts into the scenario folder? | D7 copies the whole folder either way; this only tells how big the copy is |
-| **M3** | does every live recording carry `ScenarioHash` today (editor, director, HTTP loads)? | D7's "changed since" check |
-| **M4** | what does the editor open at start today, and how do the terrain-specific recipes create a scenario? | D16 |
-| **M5** | ⭐ **every place that expects a live run to have a recording** (user: *"turning off recording will need some gates at different places"*) — at least DAR, "AAR the last exercise", checkpoints and their restore (a restore reads the recording), the replay → live branch (copies the parent's frames), the film pipeline (R-4091: films are cut from recordings), the scenario verifier's live run (H1a, R-3053), the director's takes — each: what breaks with no recording, and the gate (greyed with a reason, never a failure deep inside) | D14 |
-| **M6** | what changes between Edit and Live INSIDE the ecosystem (user: *"not much different from our ecosystem point of view; the difference is in some parts outside"*) — confirms or breaks D3's no-reload go-live; what are the OUTSIDE parts (HID, replicated weapons/vehicles driven by people) and does anything in the code gate them on Live | D3, D14 |
+| **M1** go-live from Preview without a reload | ✅ **feasible.** Nothing in an Edit session needs tearing down: `ReferenceEditLoadHandler` (`:77`) holds nothing, the dry-run keyframe exists only inside a preview, and no node gates on Edit vs Live. The edge was the ORIGINAL design (`mgmt-1` §3.1 "Promote to Live", `.dev/_DONE/mgmt-1/GAP-ANALYSIS.md:542`); it was dropped because CGF-1 had written a 4-step trajectory table the BFS would contradict (`.dev/_DONE/cgf-1/reports/CGF-1-BATCH-04-REPORT.md:94`) — the "dangling resources" note came later and no failure was ever measured | D3's mechanism, five specifics: ① a **planner flag** (`ContinueWorld`), NOT a bare graph edge — a bare edge makes BFS route EVERY Edit→Live request the short way (`TransitionPlannerTests.cs:105`, `TheWorldBoundaryResetsTheIdAuthorityTests.cs:252` would flip, and a load without a scenario id would silently continue instead of reload); ② `EditLiveHandoff` registered BEFORE `LoadPhaseChain` (which claims every `PrepareLive` and would re-read the file; `EcsHostClusterHandlers.Compose` gives an op to the first claimant, as for the replay branch); ③ the handoff starts the recording itself, as `ReferenceReplayLoadHandler` does; ④ the master mints the exercise id for this path too (`ClusterMaster.cs:1517-1540` mints only for a branch or a load from Idle); ⑤ the intent carries the scenario id so the snapshot (D7) runs. ⚠ Ids in a continued world follow the edit history, not a fresh load's 1000-block — a go-live run is not id-identical to a fresh load of its own scenario copy |
+| **M2** the scenario folder | per-node slices are merged by the master into ONE `scenario.json`; incompatible ones stay as `foreign/node_<id>.json` (+ `foreign/index.json`); other writers add `checks.json`, `golden.json` (the verifier) and `takes/*.take.json` (the director) | D7 copies the WHOLE folder — today's copy takes top-level files only (`StorageGatewayModule.cs:854`) and misses `takes/` and `foreign/` |
+| **M3** recordings know their scenario version | ⚠ **only partly:** `ScenarioDescription.Stamp` runs once, at the load (`ScenarioLoadStep.cs:178`), on Brain nodes only; ⛔ nothing restamps on Save — an edit → save → go-live recording carries the hash of the file AS LOADED | D7 stamps name + hash + `RecordedAt` AT GO-LIVE, from the saved file, on the master's copy (one writer) |
+| **M4** editor start / terrain-less | the editor opens Idle with an empty world, no terrain, no scenario (`UX_Requirements.md` UXR-01/02, still true); terrain-less scenarios are LEGAL by design (R-211, `DESIGN_Geo_Origin.md` row B: origin 0,0,0); File › Edit › New Scenario still makes a blank one (only the New Asset dialog refuses, `ScenarioNewAssetService.cs:118`); ⚠ suspected race in "new from recipe": load and save-as published back to back (unverified) | D16 — see the open proposal (a built-in flat terrain) |
+| **M5** what expects a recording | every consumer fails DEEP, none at a gate — table below. No recording-off switch exists; an empty exercise id is the only de-facto one | D14's gates |
+| **M6** Edit vs Live inside the ecosystem | the difference lives in the master, the toolbar and the recorder, not in the nodes (clock always paused in Edit, `ClusterMaster.cs:1441`; recording only on OperatingLive, `LoadPhaseChain.cs:190`; snapshot, ledger, DAR, checkpoints Live-only). ⚠ Nothing gates people or HID on Live: possession and orders gate on HOST type (`MapInteractionPack.cs:343-354`) — a person can possess a unit during a Preview, and the dry run's rewind does not undo what happened outside | confirms D3 is cheap. ⚠ "Live" means two things in the code: a connected live STATION (R-4096, `OrdersOffered`) and the cluster STATE — keep them apart in D12/D14 wording |
+
+### 5a. D14's gates (from M5) — each greyed with a reason at the TOP, never a throw deep in a node
+
+| consumer | fails today with no recording | gate |
+|---|---|---|
+| DAR | `ReferenceReviewHandler.cs:100` throws in prepare — after `ReviewProcessManager.cs:62` already PAUSED the live run | master refuses at `ReviewProcessManager:62`; menu item greyed |
+| checkpoint / restore | `ReferenceCheckpointHandler.cs:99`, `:130` throw on every node; the File › Checkpoint item is always enabled | master refuses (`StartCheckpoint`, `ClusterMaster.cs:830`); menu greyed |
+| "AAR the last exercise", export / keep | the inventory ledger is created on EVERY OperatingLive entry (`AssetInventoryProcessManager.cs:63-70`) — a non-recorded run would be offered, or an empty archive written | ONE gate at ledger creation |
+| replay → live branch | the branch always records (`ReferenceReplayLoadHandler.cs:~300`) | the branch follows the setting like any live run |
+| the scenario verifier (H1a / H5) | fails cleanly ("the live run recorded nothing", `ScenarioVerifyRun.cs:340`) | verify runs force recording ON |
+| the director's takes | unaffected (they run in the preview) | none |
+| retention (D15) | `ExerciseRetention` (CE-3218) prunes by count at start | reuse it for the keep/discard prompt's discard |
+
+⚠ Two words already taken: `POST /exercises/keep` archives a run to the shared NAS — D15's "keep" must not reuse that name for "do not delete". And D8's "new scenario from a checkpoint" has no code yet (the checkpoint menu holds only Take Checkpoint); a checkpoint taken during AAR has no mechanism either (a replay has no live recorder).
 
 ## 6. The build list (for the UI lane, after §5)
 
 1. `RunModeChoice` + the indicator menu (radio items, the Replay items, dim/bright/blink) on `MainToolbarTimeControlSection`.
 2. `EditLiveHandoff` + the `OperatingEdit → LoadingLive` continue-world edge + the go-live snapshot (the dry-run snapshot code).
 3. ■ per R2 (Live: back to editing or to the branch point, Live armed; Replay: rewind) + the toast.
-4. `ScenarioCopyIntoExercise` + `RecordedAt`; Replay → Preview's two-button dialog.
+4. Grow CE-3119's scenario copy to the whole folder + stamp name/hash/`RecordedAt` at go-live (§5 M2/M3); AAR → Preview's two-button dialog.
 5. `AssetKind.Recording` in the shared open dialog; File › Open Replay; File › Live / File › Edit folded into File › Open Scenario.
 6. Save/Ctrl+S = checkpoint + toast in Live/Replay; "New scenario from checkpoint".
 7. `EnterReview` without a position refused; the timeline's right-click menu carries Review from here / Go live from here / Take checkpoint here.
