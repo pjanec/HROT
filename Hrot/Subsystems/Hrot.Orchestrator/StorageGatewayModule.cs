@@ -859,24 +859,41 @@ public sealed class StorageGatewayModule
     }
 
     /// <summary>
-    /// ⭐ CE-3119 — copies a scenario's files (the flat files of its directory, the same set
-    /// <see cref="PrefetchScenarioAsync"/> stages) from <paramref name="sourceDirectory"/> into
+    /// ⭐ CE-3119 — copies a scenario's WHOLE folder from <paramref name="sourceDirectory"/> into
     /// <paramref name="destinationDirectory"/>, creating it. Used to snapshot the scenario an exercise runs and to
     /// file that copy with the exercise's recordings (<c>docs/designs/mgmt-1/DESIGN.md</c> §13.3a).
+    /// <para>⭐ <c>CE-4091</c> (AQ108 D7, M2) — the subfolders too: <c>foreign/</c> (the slices of nodes whose format does not merge),
+    /// <c>takes/</c> (the director's) and any nested file. ⛔ Not the working folders a save and an autosave keep (<c>.slices</c>,
+    /// <c>.autosave</c> — a directory whose name starts with a dot): scratch, not part of the scenario. (The prefetch to the nodes still takes the
+    /// top-level files and <c>foreign/node_*.json</c> only — that is what a node loads, and is unchanged.)</para>
     /// </summary>
-    /// <returns>The number of files copied; <c>0</c> when the source does not exist or is empty.</returns>
-    public static int CopyScenarioFiles(string sourceDirectory, string destinationDirectory)
+    /// <param name="exceptFileName">A top-level file name to leave out (the recording's stamp, when the copy is opened as a new scenario).</param>
+    /// <returns>The number of files copied; <c>0</c> when the source does not exist or holds none.</returns>
+    public static int CopyScenarioFiles(string sourceDirectory, string destinationDirectory, string? exceptFileName = null)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) return 0;
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentNullException(nameof(destinationDirectory));
 
-        var files = Directory.GetFiles(sourceDirectory);
-        if (files.Length == 0) return 0;
+        return CopyFolder(sourceDirectory, destinationDirectory, exceptFileName);
+    }
 
-        Directory.CreateDirectory(destinationDirectory);
-        foreach (var file in files)
-            File.Copy(file, Path.Combine(destinationDirectory, Path.GetFileName(file)), overwrite: true);
-        return files.Length;
+    private static int CopyFolder(string source, string destination, string? exceptFileName)
+    {
+        int copied = 0;
+        foreach (var file in Directory.GetFiles(source))
+        {
+            if (exceptFileName != null && string.Equals(Path.GetFileName(file), exceptFileName, StringComparison.OrdinalIgnoreCase)) continue;
+            Directory.CreateDirectory(destination);
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+            copied++;
+        }
+        foreach (var dir in Directory.GetDirectories(source))
+        {
+            var name = Path.GetFileName(dir);
+            if (name.StartsWith('.')) continue;   // .slices / .autosave: working folders
+            copied += CopyFolder(dir, Path.Combine(destination, name), null);
+        }
+        return copied;
     }
 
     /// <summary>

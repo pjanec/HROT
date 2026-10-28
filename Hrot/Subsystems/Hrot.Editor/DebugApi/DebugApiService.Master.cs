@@ -83,6 +83,22 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["exerciseId"] = id.ToString() }, null, null, 200);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4091</c> (AQ108 D7, D22) — <c>POST /scenario/load/edit {recorded}</c>: the scenario NAME that opens exercise <paramref name="idText"/>'s
+        /// scenario copy as a new, unsaved scenario (<see cref="RecordedScenarioNames"/>). Only the name is made here — ⛔ nothing is written: the
+        /// master's prefetch puts the copy under that name before it stages it to the nodes. 404 for an id the exercise inventory (when this host
+        /// keeps one) does not list; a recording with no copy fails the load at the master, like any scenario that is not there.
+        /// </summary>
+        public (string? Name, string? Error, string? HintCategory, int Status) RecordedScenarioName(string? idText)
+        {
+            if (!Guid.TryParse(idText, out var id) || id == Guid.Empty)
+                return (null, $"recorded '{idText}' is not an exercise id (GET /exercises lists them).", DebugApiHints.Scenario, 400);
+            var items = _editorExercises?.Invoke() ?? _dispatcher?.ExercisesAnyNode;
+            if (items is not null && !items.Any(x => x.ExerciseId == id))
+                return (null, $"No recording {id} (GET /exercises lists them).", DebugApiHints.Scenario, 404);
+            return (RecordedScenarioNames.ForExercise(id), null, null, 200);
+        }
+
         // ── ⭐⭐ CE-4093 (AQ108 D20, D22) — the unsaved-changes CHECK ROUND ─────────────────────────────────────────────────────────────
 
         /// <summary>

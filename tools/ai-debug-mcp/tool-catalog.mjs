@@ -599,8 +599,14 @@ export const TOOLS_CATALOG = [
       {
         "name": "name",
         "type": "string",
-        "required": true,
-        "description": "Scenario name (relative path)"
+        "required": false,
+        "description": "Scenario name (relative path). Required unless recorded is sent; not with it."
+      },
+      {
+        "name": "recorded",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named Recipes/Recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."
       },
       {
         "name": "waitForReady",
@@ -634,7 +640,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "load test-move for authoring and wait for ready"
     },
-    "hint": "Req: name (string). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
+    "hint": "Req: name (string) OR recorded (an exercise id from list_exercises). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
     "manualVerify": false
   },
 

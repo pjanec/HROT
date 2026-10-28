@@ -57,14 +57,14 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
             ? (_refusal is not null ? new UnsavedCheckOutcome(null, _refusal) : new UnsavedCheckOutcome(_verdict, null))
             : null;
 
-    private (DebugApiHost Host, MainThreadJobQueue Queue, string Url) Start(bool observesChecks = true)
+    private (DebugApiHost Host, MainThreadJobQueue Queue, string Url) Start(bool observesChecks = true, ExerciseInventoryItem[]? exercises = null)
     {
         // the --mode all shape: two providers, so no single-provider fallback can hide a wrong route; the read model is the cgf-less one that keeps a cache
         var dispatcher = new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("IG", "IG"),
-                new SubsystemDebugProvider("CGF", "CGF", master: () => _master,
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: exercises is null ? null : () => exercises,
                     unsavedCheck: observesChecks ? Outcome : null, scenarioDirty: observesChecks ? () => _lastVerdictInReadModel : null),
             },
             currentPerspective: () => "CGF", acksPending: null);
@@ -155,6 +155,52 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"name":"other","discardUnsaved":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(ClusterState.OperatingEdit, _master.Transitions.Last().TargetState);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4091 (AQ108 D7, D22) — <c>POST /scenario/load/edit {recorded: &lt;exerciseId&gt;}</c> opens a recording's scenario copy as a NEW scenario: the
+    /// cluster is asked to load for editing the name <c>Recipes/Recorded/&lt;id&gt;</c> (the master's prefetch resolves it to the copy) — and the route writes
+    /// nothing and sends no save/storage request. 404 for an id the inventory does not list, 400 for a malformed id, for name + recorded together and
+    /// for recorded on a LIVE load. The same unsaved-changes gate as any other load applies. 🔴 Mutations: the route ignoring <c>recorded</c> ⇒ 400
+    /// "name is required"; sending the original scenario's name ⇒ the name cell red; no gate for the derived name ⇒ the 409 cell red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task LoadEdit_OfARecording_LoadsItsCopyUnderTheRecordedName_AndTouchesNothingElse()
+    {
+        var known = new ExerciseInventoryItem(Guid.NewGuid(), new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "town-raid");
+        var (host, queue, url) = Start(exercises: new[] { known });
+        using var h = host;
+
+        // the open scenario is unchanged ⇒ the load goes out, naming the recorded copy — and ONLY a transition (no save, no storage op, no delete)
+        var (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(RecordedScenarioNames.ForExercise(known.ExerciseId), body["data"]!["loading"]!.GetValue<string>());
+        var transition = _master.Transitions.Last();                                // (the unload to Idle goes first when a scenario is open)
+        Assert.Equal(ClusterState.OperatingEdit, transition.TargetState);
+        Assert.Equal("Recipes/Recorded/" + known.ExerciseId, transition.ScenarioId);
+        Assert.DoesNotContain(_master.Sent, s => s is ExecuteStorageOpIntent);
+        _master.Sent.Clear(); _master.Transitions.Clear();
+
+        // refusals — nothing reaches the master
+        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{Guid.NewGuid()}\"}}")));
+        Assert.Equal(HttpStatusCode.NotFound, status);
+        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"recorded":"not-a-guid"}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"name\":\"other\"}}")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(_master.Transitions);
+        Assert.Empty(_master.Sent);
+
+        // the unsaved-changes gate is the ordinary one: edits in the open scenario ⇒ 409 until discardUnsaved
+        _verdict = new UnsavedCheckResult(true, new[] { 3 });
+        (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        Assert.Empty(_master.Transitions);
+        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"discardUnsaved\":true}}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal("Recipes/Recorded/" + known.ExerciseId, _master.Transitions.Last().ScenarioId);
     }
 
     /// <summary>Nothing to lose outside editing (Idle, a live run, a replay): no round is asked, the load goes out. A host that cannot SEE the answer does not wait for one.</summary>

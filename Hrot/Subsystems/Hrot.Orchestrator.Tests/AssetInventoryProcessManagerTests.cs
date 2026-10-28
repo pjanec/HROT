@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Fdp.Core;
 using Fdp.Core.Serialization;
@@ -544,5 +546,277 @@ public sealed class AssetInventoryProcessManagerTests
             if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
             if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         }
+    }
+
+    // ── ⭐⭐ CE-4091 (AQ108 D7, D22; M2, M3) — the recording keeps its scenario: the WHOLE folder, stamped at go-live, inherited by a branch,
+    //    and opened for editing as a new scenario ───────────────────────────────────────────────────────────────────────────────────────
+
+    private static string Scratch(string what) => Path.Combine(Path.GetTempPath(), $"fdp_ce4091_{what}_" + Guid.NewGuid().ToString("N"));
+
+    private static string LedgerCopy(string staging, Guid exercise, int nodeId = 400)
+        => Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger", $"{exercise}.scenario");
+
+    /// <summary>A scenario folder as a distributed save leaves it (M2): the merged file, foreign slices, the director's takes, a nested file — and the working folders.</summary>
+    private static string WriteFullScenario(string nasRoot, string name, string scenarioJson)
+    {
+        var dir = Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName, name);
+        Directory.CreateDirectory(Path.Combine(dir, "foreign"));
+        Directory.CreateDirectory(Path.Combine(dir, "takes"));
+        Directory.CreateDirectory(Path.Combine(dir, "extras", "deep"));
+        Directory.CreateDirectory(Path.Combine(dir, ".slices"));
+        File.WriteAllText(Path.Combine(dir, "scenario.json"), scenarioJson);
+        File.WriteAllText(Path.Combine(dir, "checks.json"), "{\"checks\":1}");
+        File.WriteAllText(Path.Combine(dir, "foreign", "node_7.json"), "{\"foreign\":7}");
+        File.WriteAllText(Path.Combine(dir, "foreign", "index.json"), "{\"index\":true}");
+        File.WriteAllText(Path.Combine(dir, "takes", "main.take.json"), "{\"take\":\"main\"}");
+        File.WriteAllText(Path.Combine(dir, "extras", "deep", "note.txt"), "nested");
+        File.WriteAllText(Path.Combine(dir, ".slices", "node_1.json"), "scratch");
+        return dir;
+    }
+
+    /// <summary>Every file under <paramref name="dir"/> as relative path → content (the comparison a "copy equals" claim needs).</summary>
+    private static SortedDictionary<string, string> Contents(string dir)
+        => new(Directory.GetFiles(dir, "*", SearchOption.AllDirectories)
+            .ToDictionary(f => Path.GetRelativePath(dir, f).Replace('\\', '/'), File.ReadAllText), StringComparer.Ordinal);
+
+    private static void GoLive(AssetInventoryProcessManager manager, FdpEventBus bus, Guid exercise, string? scenario)
+    {
+        bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenario, ExerciseId = exercise });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise });
+        bus.SwapBuffers();
+        manager.Tick();
+    }
+
+    private static void Cleanup(params string[] dirs)
+    {
+        foreach (var d in dirs) if (Directory.Exists(d)) Directory.Delete(d, recursive: true);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 success 1 — the copy is stamped AT GO-LIVE from the SAVED file: scenario "loaded" as v1, edited and saved as v2, then live ⇒ the stamp
+    /// carries v2's hash (the one rule, <c>ScenarioDescription.HashOf</c>), the scenario's name and the time it was recorded — never v1's.
+    /// 🔴 Mutation: the stamp's hash left empty (or taken before the copy) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4091_TheCopyIsStamped_AtGoLive_FromTheSavedFile_NotTheLoadedOne()
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            const string scenario = "town-raid";
+            var dir = WriteFullScenario(nasRoot, scenario, "{\"v\":\"as-loaded\"}");
+            var loadedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(Path.Combine(dir, "scenario.json")));
+            File.WriteAllText(Path.Combine(dir, "scenario.json"), "{\"v\":\"edited-and-saved\"}");   // edit → save, before go-live
+            var savedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf("{\"v\":\"edited-and-saved\"}");
+
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
+            var before = DateTime.UtcNow;
+            var exercise = Guid.NewGuid();
+            GoLive(manager, bus, exercise, scenario);
+
+            var stamp = Fdp.Toolkit.Scenario.RecordedScenarioStamp.Read(LedgerCopy(staging, exercise));
+            Assert.NotNull(stamp);
+            Assert.Equal(savedHash, stamp!.ScenarioHash);
+            Assert.NotEqual(loadedHash, stamp.ScenarioHash);
+            Assert.Equal(scenario, stamp.ScenarioName);
+            Assert.InRange(stamp.RecordedAt, before.AddSeconds(-1), DateTime.UtcNow.AddSeconds(1));
+            Assert.Equal(DateTimeKind.Utc, stamp.RecordedAt.Kind);
+        }
+        finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 success 2 (M2) — the copy holds EVERY subfolder (<c>foreign/</c>, <c>takes/</c>, a nested file), in the ledger while the run is
+    /// unarchived and in the archive after the export; the save's working folder (<c>.slices</c>) is not copied.
+    /// 🔴 Mutation: <c>CopyScenarioFiles</c> back to the top-level files only ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4091_TheCopyHoldsEverySubfolder_InTheLedgerAndInTheArchive()
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            const string scenario = "town-raid";
+            var source = WriteFullScenario(nasRoot, scenario, "{\"v\":1}");
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
+            var exercise = Guid.NewGuid();
+            GoLive(manager, bus, exercise, scenario);
+
+            var expected = Contents(source);
+            foreach (var k in expected.Keys.Where(k => k.StartsWith(".slices/", StringComparison.Ordinal)).ToList()) expected.Remove(k);
+            var ledgerCopy = Contents(LedgerCopy(staging, exercise));
+            Assert.True(ledgerCopy.Remove("recorded.stamp"), "the stamp rides with the copy");
+            Assert.Equal(expected, ledgerCopy);
+            foreach (var must in new[] { "foreign/node_7.json", "foreign/index.json", "takes/main.take.json", "extras/deep/note.txt" })
+                Assert.True(ledgerCopy.ContainsKey(must), $"{must} is part of the scenario");
+
+            // the run ends and is exported: the archive's copy is the same, stamp included
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exercise });
+            bus.SwapBuffers(); manager.Tick();
+            var nasExercise = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, exercise.ToString());
+            Directory.CreateDirectory(nasExercise);
+            File.WriteAllText(Path.Combine(nasExercise, "rec_node_400.fdp"), "bytes");
+            var requestId = Guid.NewGuid();
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = exercise });
+            bus.SwapBuffers(); manager.Tick();
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success });
+            bus.SwapBuffers(); manager.Tick();
+
+            var archived = Contents(Path.Combine(nasExercise, AssetInventoryProcessManager.ArchivedScenarioDirectoryName));
+            Assert.True(archived.Remove("recorded.stamp"));
+            Assert.Equal(expected, archived);
+            Assert.False(Directory.Exists(LedgerCopy(staging, exercise)), "the ledger's copy goes with the export, as before");
+        }
+        finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 success 4 (D7) — a BRANCH's copy EQUALS its parent's (every file, subfolder and the stamp), not the scenario file as it is now —
+    /// whether the nodes' branch answer reaches the manager before or after the cluster state does. 🔴 Mutation: the late answer (or the early one)
+    /// no longer inheriting ⇒ the branch keeps the changed file ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CE4091_ABranchesCopy_EqualsItsParents_WhateverTheFileSaysNow(bool answerBeforeState)
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            var dir = WriteFullScenario(nasRoot, "town-raid", "{\"v\":\"parent-ran-this\"}");
+            var parent = Guid.NewGuid(); var branch = Guid.NewGuid();
+            RunLive(nasRoot, staging, parent, null, 0, false);
+
+            File.WriteAllText(Path.Combine(dir, "scenario.json"), "{\"v\":\"changed-since\"}");   // saved over after the parent ran
+            File.WriteAllText(Path.Combine(dir, "extras", "later.txt"), "added since");
+            RunLive(nasRoot, staging, branch, parent, 5, answerBeforeState);
+
+            var parentCopy = Contents(LedgerCopy(staging, parent));
+            Assert.Equal("{\"v\":\"parent-ran-this\"}", parentCopy["scenario.json"]);
+            Assert.Equal(parentCopy, Contents(LedgerCopy(staging, branch)));
+        }
+        finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>⭐ CE-4091 (D7) — the same when the parent is ARCHIVED (its copy is on the NAS, its ledger snapshot gone) and the branch names no scenario of its own.</summary>
+    [Fact]
+    public void CE4091_ABranchInheritsAnArchivedParentsCopy_EvenWithNoScenarioNamed()
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            var parent = Guid.NewGuid(); var branch = Guid.NewGuid();
+            var archived = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, parent.ToString(), AssetInventoryProcessManager.ArchivedScenarioDirectoryName);
+            Directory.CreateDirectory(Path.Combine(archived, "takes"));
+            File.WriteAllText(Path.Combine(archived, "scenario.json"), "{\"v\":\"archived\"}");
+            File.WriteAllText(Path.Combine(archived, "takes", "t.take.json"), "{}");
+            Fdp.Toolkit.Scenario.RecordedScenarioStamp.Write(archived, "hill-attack", DateTime.UtcNow.AddDays(-1));
+
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
+            bus.PublishManaged(new ClusterOpCompletedEvent
+            {
+                RequestId = Guid.NewGuid(), StatusCode = OrchestrationStatusCode.Success,
+                ResultPayload = new LiveBranchResult(new GlobalTime { TotalWallTicks = 42 }, true, parent, 9),
+            });
+            bus.SwapBuffers(); manager.Tick();
+            GoLive(manager, bus, branch, null);   // a branch names no scenario
+
+            Assert.Equal(Contents(archived), Contents(LedgerCopy(staging, branch)));
+            Assert.Equal("hill-attack", Fdp.Toolkit.Scenario.RecordedScenarioStamp.Read(LedgerCopy(staging, branch))!.ScenarioName);
+        }
+        finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4091 success 3 (D7, D22) — OPENING A RECORDED COPY AS A NEW SCENARIO: the copy appears under the reserved new name
+    /// <c>Recipes/Recorded/&lt;id&gt;</c> with every file and subfolder but WITHOUT its stamp (it is a new scenario, not a recording), and the original
+    /// scenario folder, the recording's ledger copy and the NAS exercise are byte- and mtime-identical afterwards. Any other name is not this op's;
+    /// an exercise with no copy fails loudly. 🔴 Mutations: staging into the original scenario's folder, or writing the stamp along ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4091_OpeningARecordedCopy_StagesItAsANewName_AndWritesNeitherTheOriginalNorTheRecording()
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            const string scenario = "town-raid";
+            var original = WriteFullScenario(nasRoot, scenario, "{\"v\":\"ran\"}");
+            var bus = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
+            var exercise = Guid.NewGuid();
+            GoLive(manager, bus, exercise, scenario);
+            var nasExercise = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, exercise.ToString());
+            Directory.CreateDirectory(nasExercise);
+            File.WriteAllText(Path.Combine(nasExercise, "rec_node_400.fdp"), "bytes");
+
+            string Snapshot(params string[] dirs) => string.Join("\n", dirs.SelectMany(d => Directory.GetFiles(d, "*", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal)
+                .Select(f => $"{f}|{File.GetLastWriteTimeUtc(f).Ticks}|{File.ReadAllText(f)}")));
+            var ledgerCopy = LedgerCopy(staging, exercise);
+            var before = Snapshot(original, ledgerCopy, nasExercise);
+
+            var name = RecordedScenarioNames.ForExercise(exercise);
+            Assert.True(manager.StageRecordedScenario(name));
+
+            var staged = Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName, "Recipes", "Recorded", exercise.ToString());
+            var expected = Contents(ledgerCopy);
+            Assert.True(expected.Remove("recorded.stamp"));
+            Assert.Equal(expected, Contents(staged));
+            Assert.Equal("{\"v\":\"ran\"}", File.ReadAllText(Path.Combine(staged, "scenario.json")));
+            Assert.True(File.Exists(Path.Combine(staged, "foreign", "node_7.json")));
+            Assert.False(File.Exists(Path.Combine(staged, "recorded.stamp")), "a new scenario is not a recording");
+
+            Assert.Equal(before, Snapshot(original, ledgerCopy, nasExercise));   // ⛔ neither the original scenario nor the recording was written
+
+            Assert.True(manager.StageRecordedScenario(name), "again: the staging is regenerated from the copy, never kept half-edited");
+            Assert.False(manager.StageRecordedScenario("town-raid"), "an ordinary scenario name is not this op's");
+            Assert.Throws<DirectoryNotFoundException>(() => manager.StageRecordedScenario(RecordedScenarioNames.ForExercise(Guid.NewGuid())));
+        }
+        finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 — the PREFETCH runs the stager before it stages a name to the nodes: a load of <c>Recipes/Recorded/&lt;id&gt;</c> that exists nowhere on
+    /// the NAS succeeds and lands the copy in the node's staging folder; with no copy it FAILS (PrefetchStagingCompletedEvent.IsSuccess false).
+    /// 🔴 Mutation: the prefetch not calling <c>SourceStager</c> ⇒ the first half fails.
+    /// </summary>
+    [Fact]
+    public void CE4091_ThePrefetchOfARecordedName_StagesTheCopyFirst_AndFailsWhenThereIsNone()
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            var bus = new FdpEventBus();
+            var inventory = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400);
+            WriteFullScenario(nasRoot, "town-raid", "{\"v\":\"ran\"}");
+            var exercise = Guid.NewGuid();
+            GoLive(inventory, bus, exercise, "town-raid");
+            var prefetch = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(), nasRoot, staging) { SourceStager = inventory.StageRecordedScenario };
+
+            PrefetchStagingCompletedEvent Prefetch(string scenarioName)
+            {
+                bus.PublishManaged(new ExecutePrefetchIntent { RequestId = Guid.NewGuid(), ScenarioId = scenarioName, ActiveNodeIds = new List<int> { 1 } });
+                bus.SwapBuffers();
+                prefetch.Tick();
+                var deadline = DateTime.UtcNow.AddSeconds(10);
+                while (DateTime.UtcNow < deadline)
+                {
+                    bus.SwapBuffers();
+                    foreach (var done in bus.ReadManaged<PrefetchStagingCompletedEvent>()) return done;
+                    System.Threading.Thread.Sleep(20);
+                }
+                throw new TimeoutException("the prefetch did not complete");
+            }
+
+            Assert.True(Prefetch(RecordedScenarioNames.ForExercise(exercise)).IsSuccess);
+            var node = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, 1), OrchestrationConstants.ScenariosDirectoryName,
+                "Recipes", "Recorded", exercise.ToString());
+            Assert.Equal("{\"v\":\"ran\"}", File.ReadAllText(Path.Combine(node, "scenario.json")));
+
+            Assert.False(Prefetch(RecordedScenarioNames.ForExercise(Guid.NewGuid())).IsSuccess, "a recording with no copy fails the load like a scenario that is not there");
+        }
+        finally { Cleanup(nasRoot, staging); }
     }
 }
