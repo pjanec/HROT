@@ -17,6 +17,7 @@ stale-below: §6.6's "NOT derivable at all" verdict on MandatoryComponents, and 
   TkbComponentConventions (deleted 2026-09-13). §6.6a's "filled at ITkbDatabase.Register" prescription —
   neither half was built that way; see §6.6b's DEVIATION and §6.6a's own AS-BUILT block.
 related-designs:
+  - ../hit-location/DESIGN_Body_Parts_And_Hit_Location.md — §14 OWNS the consequence of §6.6b's measured 2026-10-28 gap (the gate does not hold SimTransform on a real IG): the part test must treat a pose-less replica as unturned and never throw
   - docs/designs/weather/DESIGN_Weather_And_Time.md — builds the first POSITIONLESS entity (the World Environment: no SimTransform), as this file's 2026-09-13 analysis allows
   - ../../DESIGN_Body_Geometry_And_Ground_Contact.md — adds the engine-neutral `Body.Geometry` descriptor (reference point,
     size, box offset, ground-contact points) and the first built-in aircraft (CE-1041).
@@ -1228,6 +1229,17 @@ the record is just no longer hand-authored. 📄 `CE-265`.
 component type itself and in `MandatoryComponentResolver`. See §6.6b.
 
 #### 6.6b ✅✅✅ AS-BUILT — **the MANDATORY half shipped `2026-09-13`** *(`CE-265`, obligation ⑤)*
+
+⚠⚠ **MEASURED LIVE `2026-10-28` (`CE-4080`, found while root-causing a Player-node crash) — on a real IG the derived gate does NOT contain `SimTransform`.**
+📐 A temporary log in `MandatoryComponentResolver.Derive` on a late-joining `--mode ig` node: `perInstance=[0,1,164,346,348,451]`, `produced` contains
+`SimTransform`, `table0=True`, but `ingressHas0=False` (`CoveredComponentIds` holds 22 ids, none is 0) ⇒ `derived=[164]` (`EntityInfo` only). So every
+`TkbMaster` replica is promoted at tick 3 BEFORE its first `WorldPos` and holds `SpatialCoreTkbTranslator`'s stamp (origin, now identity rotation — it was
+the zero quaternion that crashed the FPS crosshair) until the sample lands (a stationary tank: its heartbeat, ~tick 42 on the measured run). The
+`GatedGhost` rail in `GhostProtocolTests` passes because it registers the `SimTransform` ↔ `dtWorldPos` pairing by hand. Likely cause (NOT isolated):
+`NedOwnershipGroupBinding.Apply`'s `RegisterMapping(dtWorldPos, SimTransform, SimVelocity, …)` replaces the descriptor's component list after
+`PopulateDescriptorOwnershipMap` registered `GeoSpatialEgressTranslator.TargetComponentIds`, and the reverse entry for `SimTransform` does not survive.
+⛔ Not fixed under `CE-4080`: restoring the requirement makes every `TkbMaster` entity wait for a pose, and this section's own warning applies (a ghost
+whose owner never publishes one never promotes). 📄 The consequence for the part test: `docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md` §14.
 
 ⭐⭐⭐ **What the picture shows that the prose cannot: WHERE each of the four inputs comes from, and that
 three of them are HOST-LOCAL while only one is shared.** That asymmetry is the entire reason this list could

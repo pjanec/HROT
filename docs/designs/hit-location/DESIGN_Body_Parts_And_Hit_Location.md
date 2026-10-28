@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (§13: lean — a man leaning round a corner, CE-3257); 2026-10-16 (§9b: a vehicle part's face is the armour ARC, CE-2217 — supersedes HL-5 / S2-7 for vehicles)
+updated: 2026-10-28 (§14: a degenerate pose is a miss, never a throw - CE-4080); 2026-10-19 (§13: lean — a man leaning round a corner, CE-3257); 2026-10-16 (§9b: a vehicle part's face is the armour ARC, CE-2217 — supersedes HL-5 / S2-7 for vehicles)
 build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); S2c (aircraft) BUILT 2026-10-16 (§12a, CE-3215); §13 lean BUILT 2026-10-19 (CE-3257); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built · §12 S2c (aircraft by part) · §12a S2c as built · §13 lean (BR-5). §1 is the measured ground.
+current-answer: §14 (the part test never throws on a degenerate pose; the zero rotation a late-joining node holds - CE-4080) · §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built · §12 S2c (aircraft by part) · §12a S2c as built · §13 lean (BR-5). §1 is the measured ground.
 stale-below: nothing.
 known-rot: HL-5 and S2-7 below say a VEHICLE part is scored on "the face entered" and that "no armour number moves" — SUPERSEDED for vehicles by §9b (CE-2217): a vehicle part's face is the armour model's arc in the part's frame. People keep HL-5.
 known-conflict: none.
 related-designs:
+  - docs/designs/tkb-1/DESIGN.md - §6.6b OWNS the ghost-promotion gate (MandatoryComponentResolver); §14 here depends on it: measured 2026-10-28 the gate does NOT wait for SimTransform on a real IG, so a promoted replica holds the SpatialCore stamp until its first WorldPos lands (CE-4080)
   - docs/DESIGN_Entity_Control.md — §8g: the FPS crosshair meets these same parts through BodyPartRay (CE-1126), the function the solver's narrow phase is routed through
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — §9: a descending man (rope, canopy) is still a person target (IsPerson keys on VehicleParams — keep it there, not on Locomotions.Of), collides in his stance pose; canopy and rope are not parts (D-10)
   - docs/DESIGN_Terrain_Combat_Tuning.md — OWNS the resolution chain and provenance (§2, §2a); HL-12 is the first real use of its reserved ReferenceByDis step, for body profiles
@@ -668,3 +669,47 @@ left the eye, 0.4 m to his left, clears it; prone does not lean) · `.CE3257_HeS
 0.4 m out is the Head, `t` on the original segment) · `.CE3257_RoundsAimedAtHisCentre_MissALeaningManMoreOften_AMeasuredRatio` (the frame's
 ratio, 4000 rounds, σ 0.3 m at 50 m: 📐 **0.28** of the upright hits — half the silhouette, its upper part sheared off the centre line;
 aiming at `AimPoint.Middle`'s exposed half does > 1.3× better) · `BodyPartReplicationTests.CE3257_*` (SimHost) and both descriptor-map rails. ⭐ **LN-9:** `LeanTests.AQ104G_TheLeansDepth_IsHisOwn_EyeBodyAndHitBoxesAgree` (0.25 m: eye 0.25, the head not at 0.4, hit at 0.25; 0.5 m likewise; the depth survives a side change) and the depth added to `BodyPartReplicationTests.CE3257_Lean_…` — red with `ShiftOf` returning the constant.
+
+## 14. A degenerate pose is a MISS, never a throw — `CE-4080` *(backend, `2026-10-28`; build-state: BUILT)*
+
+📌 **Live defect.** A Player node (`--mode ig`) died seconds after it possessed a tank: `ArithmeticException` from `MathF.Sign(NaN)` in `BodyPartHit.Slab`,
+reached from the FPS crosshair (`FpsCameraDriver.Aim` → `EntityPartPicker.TryPick` → `BodyPartRay.TryHit`). 📐 **Measured, not inferred:** a temporary
+log in the picker named the entity — `net=1007` (the OTHER Player's tank; `1006` on the other node), `life=Active`, `pos=(0,0,0)`, `rot=(0,0,0,0)`.
+
+```mermaid
+sequenceDiagram
+    participant GP as GhostPromotionSystem (Player, tick 3)
+    participant SC as SpatialCoreTkbTranslator
+    participant IN as GeoSpatialIngressTranslator
+    participant PK as EntityPartPicker (FPS crosshair)
+    participant BH as BodyPartHit.Segment
+    GP->>GP: gate = derived mandatory = [EntityInfo] - SimTransform NOT in it
+    GP->>SC: Inject - a ghost with no pose yet
+    SC-->>GP: SimTransform at origin, rotation (0 0 0 0) before CE-4080, identity after
+    Note over IN: a STATIONARY tank re-sends WorldPos only on its heartbeat - first sample at tick 42 on the Player
+    PK->>BH: every drawn entity incl. the zero-rotation tank
+    BH->>BH: Inverse of a zero quaternion is NaN, every slab compare is false, Sign(NaN) throws
+```
+
+*What the picture shows that the prose hid:* the throw is not in the slab test's maths but in WHO is allowed to reach it — a replica that is promoted
+before its first pose, and a crosshair that tests every drawn entity (`EntityPartPicker` queries `SimTransform` + `TkbIdentity` over `EntityLifecycle.All`; `RaycastSolverSystem`
+reaches `BodyPartRay` only for grid candidates that carry a `PhysicsCollider`, and CGF / SimHost run no crosshair at all).
+
+| fix | where | why |
+|---|---|---|
+| **a pose-less entity is stamped UNTURNED** | `SpatialCoreTkbTranslator.Inject`: `new SimTransform { Rotation = Quaternion.Identity }` | `default(SimTransform).Rotation` is no rotation; every other consumer (the drawing: `Matrix4x4.CreateFromQuaternion` tolerates it; `Quaternion.Inverse` does not) benefits. The SOURCE fix |
+| **the part test never throws** | `BodyPartHit.Usable` (zero / ±∞ / NaN rotation = identity, near-unit = normalised) used for the body (`BodyPartRay.Person` / `Vehicle` via `BodyPartHit.Placed`) and every box; `Segment` returns false for a non-finite position / endpoint / scale and SKIPS a box with a non-finite centre, extent or `FaceYaw` (a NaN turret angle poses its boxes at NaN); `Slab` returns false for a non-finite endpoint | **identity, not "skip the body"**: a body with no pose is unturned — it is what `Vector3.Transform` already did with a zero quaternion in the bounding-sphere test, so the sphere and the boxes agree. ONE helper, shared by the person and the vehicle path |
+
+**Rails** *(the feature's suites)*: `BodyPartDamageTests.CE4080_*` (4: a zero-rotation tank, a NaN turret angle, a zero-rotation man, the slab test's own
+inputs) · `GhostProtocolTests.CE4080_AGhostPromotedBeforeItsPoseArrives_IsStampedUnturned_NotAZeroQuaternion`. 📐 Live, with the fix: both Players possess
+`1006` / `1007`, stay up past 70 s (`/status` 200 every 5 s), `/view` reads `FPS` + `possessed`.
+
+⚠ **Found, NOT fixed here (own row):** the gate that should have kept the ghost back **does not include `SimTransform` on a real IG.** 📐 Measured with a
+temporary log in `MandatoryComponentResolver.Derive`: `perInstance=[0,1,164,346,348,451]`, `produced` contains `SimTransform`, `table0=True`, but
+`ingressHas0=False` (`DescriptorOwnershipMap.CoveredComponentIds` has 22 ids, none is 0) ⇒ `derived=[164]` (`EntityInfo` only). `GhostProtocolTests`'
+`GatedGhost` rail passes because it registers the `SimTransform` ↔ `dtWorldPos` pairing BY HAND; on a real host the pairing the rail assumes
+(`GeoSpatialEgressTranslator.TargetComponentIds`) is not in the reverse map — the likely cause is `NedOwnershipGroupBinding.Apply`'s later
+`RegisterMapping(dtWorldPos, …)` (it replaces the descriptor's list, and the reverse entry for `SimTransform` is not rebuilt), but that is **not isolated**.
+⇒ every replica is promoted at the origin until its WorldPos lands — the "origin flash" `tkb-1/DESIGN.md` §6.6a names as the failure the gate exists to
+prevent. Not changed here: restoring the requirement makes every `TkbMaster` entity WAIT for a pose, and §6.6b says over-declaring is FATAL (a ghost whose
+owner never publishes a pose never promotes) — a design call with a large blast radius.

@@ -998,6 +998,7 @@ caller that asks `PickFilter.Aim` is the FPS station — every other click still
 | `MapCamera3D.Pick`'s cache keys on the FILTER (was "is it a drag") | `Aim` and `All` asked for the same pixel in one frame would have shared an answer |
 | SIGHT is `ManualControlState.Pending = 2` (no new field) | the blackboard keeps its size |
 | the station's `FireMode` property mirrors the rule; a SIGHT press sets no `ShotPending` | the HUD shows LOCKED only for a held shot |
+| ⭐ **`2026-10-28`, `CE-4080` (backend) — the picker tests EVERY drawn entity, so `BodyPartRay` must take a degenerate pose** | live: a Player node died seconds after possessing a tank — the OTHER Player's tank, a replica promoted before its first `WorldPos`, held rotation `(0,0,0,0)` ⇒ `Quaternion.Inverse` = NaN ⇒ `MathF.Sign(NaN)` threw in the slab test. Fixed at the source (the stamp is identity) and in the test (zero / non-finite rotation = identity; non-finite input = a miss). 📄 `designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md` §14 |
 
 ## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — 🔨 BUILDING (`CE-1151`…`CE-1158`: backend §8h.7, behaviors §8h.8+, the station §8h.9 built)
 

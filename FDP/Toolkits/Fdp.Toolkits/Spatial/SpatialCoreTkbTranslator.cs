@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb.Domain;
@@ -39,7 +40,10 @@ namespace Fdp.Toolkit.Spatial
             if (template.GetDescriptor<TkbMasterDto>() == null) return;
 
             if (repo.IsComponentTypeRegistered<SimTransform>() && !repo.HasComponent<SimTransform>(entity))
-                repo.AddComponent(entity, new SimTransform());
+                // ⭐⭐ CE-4080 — a pose-less entity is UNTURNED (identity), not a zero quaternion: `default(SimTransform).Rotation` is (0,0,0,0),
+                //   which is no rotation at all — Quaternion.Inverse of it is NaN. 📐 Measured live: a late-joining Player promotes a stationary tank
+                //   BEFORE its first WorldPos arrives, so this stamp is what the node holds (and its FPS crosshair tests) until the sample lands.
+                repo.AddComponent(entity, new SimTransform { Rotation = Quaternion.Identity });
 
             if (repo.IsComponentTypeRegistered<SimVelocity>() && !repo.HasComponent<SimVelocity>(entity))
                 repo.AddComponent(entity, new SimVelocity());

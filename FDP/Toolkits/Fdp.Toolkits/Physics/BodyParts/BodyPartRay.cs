@@ -31,10 +31,11 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// A PERSON's parts: the pose's bounding sphere, then its boxes, scaled by <paramref name="colliderHeight"/>
         /// (<see cref="PersonBody.ScaleOf"/> — 0 = the reference figure).
         /// </summary>
-        public static BodyPartTest Person(EntityRepository world, Entity e, in SimTransform tf, float colliderHeight, Vector3 a, Vector3 b,
+        public static BodyPartTest Person(EntityRepository world, Entity e, in SimTransform placed, float colliderHeight, Vector3 a, Vector3 b,
                                           out BodyPartHitResult hit)
         {
             hit = default;
+            var tf = BodyPartHit.Placed(in placed);   // ⭐ CE-4080 — a body with no pose yet (a zero rotation) is unturned, never a throw
             var pose = PersonBody.PoseOf(world, e);
             float scale = PersonBody.ScaleOf(colliderHeight);
             var (bc, br) = PersonBody.Bound(pose);
@@ -58,10 +59,11 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <paramref name="turretPart"/>'s <c>TurretPose</c> (none = the kit's rest), the main hull box's engine third resolved
         /// (<see cref="VehicleBody.PartOf"/>). <paramref name="scratch"/> holds the posed boxes (<see cref="VehicleBody.MaxBoxes"/>).
         /// </summary>
-        public static BodyPartTest Vehicle(EntityRepository world, Entity e, VehicleShape vehicle, in SimTransform tf, Entity turretPart,
+        public static BodyPartTest Vehicle(EntityRepository world, Entity e, VehicleShape vehicle, in SimTransform placed, Entity turretPart,
                                            Vector3 a, Vector3 b, Span<BodyBox> scratch, out BodyPartHitResult hit)
         {
             hit = default;
+            var tf = BodyPartHit.Placed(in placed);   // ⭐ CE-4080 — as Person: a zero / non-finite rotation is unturned
             var size = VehicleBody.SizeOf(world, e, vehicle);
             float grow = MathF.Max(MathF.Max(size.X / vehicle.Size.X, size.Y / vehicle.Size.Y), 1f);
             var sphereCentre = tf.Position + Vector3.Transform(vehicle.BoundCentre, tf.Rotation);
