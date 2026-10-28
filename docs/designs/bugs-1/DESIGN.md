@@ -101,7 +101,7 @@ and is acceptable for the current scope.
 
 ### 1.3 Fix Batch Script Working Directory
 
-**Files:** `run_all_standalone.bat`, `run_SimHost.bat`, `run_IG.bat`, `run_IOS.bat`
+**Files:** the four standalone launcher `.bat` files (all-standalone, SimHost, IG, IOS) *(2026-10-28: these four were deleted; the root script set is now `run_Editor`/`run_All`/`run_Server`/`run_Player`/`run_ReplayBrowser`/`run_ddsmon`, each `cd`-ing into the build output as this section asks)*
 
 When the batch scripts run from the solution root, all relative asset paths (e.g.
 `Assets/sample_road.json`, `config.json`) fail silently. Two symptoms:
