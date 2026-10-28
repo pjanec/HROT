@@ -28,8 +28,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-TERRAIN = os.path.join(ROOT, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "demo-city")
-SHARED = os.path.join(ROOT, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Buildings")
+TERRAIN = os.path.join(ROOT, "assets", "terrain", "demo-city")
+SHARED = os.path.join(ROOT, "assets", "buildings")
 ANCHOR = (2200.0, 2200.0)
 SIZE = 800.0
 SHELTER = 70.0            # every sidewalk point within this of a way in (the query searches 80 m)

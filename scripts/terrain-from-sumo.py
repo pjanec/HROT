@@ -23,7 +23,7 @@ def main() -> None:
     ap.add_argument("--buildings", required=True)
     ap.add_argument("--name", required=True)
     ap.add_argument("--box", type=float, nargs=4, required=True, metavar=("MINX", "MINY", "MAXX", "MAXY"))
-    ap.add_argument("--out", default=None, help="default: Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Terrain/<name>")
+    ap.add_argument("--out", default=None, help="default: assets/terrain/<name>")
     ap.add_argument("--lat", type=float, default=52.52)
     ap.add_argument("--lon", type=float, default=13.405)
     ap.add_argument("--source", default="", help="provenance text recorded in the world file description")
@@ -32,7 +32,7 @@ def main() -> None:
     a = ap.parse_args()
 
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    out = a.out or os.path.join(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", a.name)
+    out = a.out or os.path.join(root, "assets", "terrain", a.name)
     os.makedirs(out, exist_ok=True)
     minx, miny, maxx, maxy = a.box
     ax, ay = minx, miny

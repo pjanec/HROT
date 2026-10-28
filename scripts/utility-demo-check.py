@@ -2561,7 +2561,7 @@ def _geo_origin(scenario):
     try:
         with open(os.path.join(REPO, "scenarios", scenario, "scenario.json")) as f:
             terrain = json.load(f)["header"].get("terrainName")
-        with open(os.path.join(REPO, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Terrain", terrain, "terrain.json")) as f:
+        with open(os.path.join(REPO, "assets/terrain", terrain, "terrain.json")) as f:
             o = json.load(f).get("origin")
         return (o["lat"], o["lon"], o.get("alt", 0.0)) if o else None
     except (OSError, KeyError, TypeError, ValueError):

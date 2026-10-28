@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED by the user 2026-10-28 (R-4097)
 updated: 2026-10-28
-build-state: READY-TO-BUILD — CE-4089; it lands BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
-current-answer: §1 the tree · §2 the one pattern (classes, sequence, modules) · §3 decisions · §4 the move list
-stale-below: nothing
-known-rot: none
+build-state: BUILT — CE-4089 (2026-10-28); it lands BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
+current-answer: §1 the tree · §5 AS BUILT (the classes, where each lives, what deviated) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
+stale-below: §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
+known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
 known-conflict: designs/main-toolbar-1/DESIGN.md §16 placed Assets/ and Recipes/ INSIDE the Hrot.AI.Behaviors project; this design keeps its rule (final assets and recipes in disjoint roots, AssetRoots the one authority) and moves both roots to the repository root
 related-designs:
   - designs/main-toolbar-1/DESIGN.md — §16 OWNS the assets-vs-recipes split and the AssetRoots authority this design relocates; §10 the ONE asset browser
@@ -138,3 +138,64 @@ way, a third pattern beside copy-at-start and edit-in-place.
 5. The asset browser's Open lists `assets/` + `scenarios/`; New lists `recipes/`.
 6. Rails: the existing suites of each touched class (`AssetRootsTests`, `CuratedScenariosTests`, `ShippedTerrainFilesAreDeployedTests` → rewritten
    for the seed, golden corpora paths) — a rail that a production layout (no source tree) reads only the NAS.
+
+## 5. ⭐ AS BUILT (CE-4089, 2026-10-28) — SUPERSEDES §2's class names
+
+```mermaid
+classDiagram
+  class ContentLayout { <<static, Fdp.Toolkits/Orchestration — NEW>> segment names · Scenarios/Assets/Recipes(root) · BehaviorAssets/Recipes(root,folder) · TerrainAssets/BuildingAssets/IconAssets/AudioAssets/TextureAssets(root) · AssetSyncRoot(root,kindId) · NasRoot · TryFindSourceTree(startDirs) }
+  class OrchestrationConstants { <<existing>> ScenariosDirectoryName · NasAssetsDirectoryName · GetSharedRoot · GetNasAssetRoot → ContentLayout.AssetSyncRoot }
+  class AssetRoots { <<existing, Hrot.Editor.AiShared — delegates>> ConfiguredRoot(--asset-root) else NasRoot · AssetsFor/RecipesFor/ResolveAssetsRoot · BehaviorAssetsRoot }
+  class CuratedScenarios { <<existing, generalised IN PLACE>> SeedIntoNas · SaveToGit · SeedTreeFrom/SaveTreeTo (pure) · CE-1365 write }
+  class TerrainCatalog { <<existing>> ForNode(staging, nasRoot) = staging + NAS assets/terrain — NO shipped arm }
+  class TerrainAssets { <<existing>> DefaultSharedBuildingsRoot = NAS assets/buildings }
+  class EntityIconLibrary { <<existing>> reads NAS assets/icons — nothing embedded }
+  class AudioLayer { <<existing>> AssetFolder = NAS assets/audio }
+  class StorageGatewayModule { <<existing>> terrain source = ContentLayout.TerrainAssets(nas) }
+  class AssetSyncService { <<existing>> publish/refresh/probe over OrchestrationConstants.GetNasAssetRoot }
+  OrchestrationConstants --> ContentLayout
+  AssetRoots --> ContentLayout
+  CuratedScenarios --> ContentLayout
+  TerrainCatalog --> ContentLayout
+  TerrainAssets --> ContentLayout
+  EntityIconLibrary --> ContentLayout
+  AudioLayer --> ContentLayout
+  StorageGatewayModule --> ContentLayout
+  AssetSyncService --> OrchestrationConstants
+```
+
+*What the picture shows that §2's prose hid:* `ContentLayout` lives in **Fdp.Toolkits** (not `Hrot.Editor.AiShared`) because `TerrainCatalog`/`TerrainAssets` are there and cannot
+reference Hrot; `AssetRoots` kept its public API and now only composes through it. The asset-sync's NAS tree (`GetNasAssetRoot`) is routed through the same class — see D-2.
+
+```mermaid
+graph TD
+  RUN["Runner Program.cs — after AssetRoots.Configure, before any Initialize (EVERY dev start, every mode)"] --> SEED["CuratedScenarios.SeedIntoNas(ContentLayout.NasRoot)"]
+  ED["EditorSubsystem.Initialize — first statement (tests and any non-runner host)"] --> SEED
+  SEED --> NAS["NAS root: scenarios/ assets/ recipes/"]
+  NAS --> CAT["asset catalogues · TerrainCatalog · icons · audio read the NAS (AssetRoots → ConfiguredRoot else NasRoot)"]
+  NAS --> GW["StorageGateway → node staging"]
+  SHIP["csproj copy rules + embedded icons"]:::dead
+  classDef dead stroke:#d33,stroke-width:2px,stroke-dasharray: 5 5
+```
+
+*What it shows:* the seed has TWO call sites (the runner for a cluster start, the editor's `Initialize` for hosts that do not go through the runner — every editor test); the second finds identical bytes and writes nothing.
+The editor's seed moved from "after the master is built" to the FIRST statement of `Initialize`, because the asset catalogue it composes a few hundred lines earlier now reads the NAS.
+
+### Decisions taken while building (each is a deviation from, or an addition to, §2–§4)
+
+| # | what | why (measured) |
+|---|---|---|
+| D-1 | the runner seeds at **every** dev start, no longer only when the debug port is on (HN-029's gate) | the design's sequence has the seed at every start; ⚠ it force-writes only curated scenario NAMES and files whose bytes differ, deletes nothing |
+| D-2 | `OrchestrationConstants.GetNasAssetRoot(nas, kind)` now answers `{nas}/assets/behaviors/<Folder>` for `blueprint`/`btree`/`hsm` (was `{nas}/assets/<kind>`) | ⛔ otherwise the NAS held TWO trees for one concept — the seeded `assets/behaviors/BTrees` and the asset-sync's `assets/btree`. Wire/staging protocol unchanged (the kind ids and `AssetSyncService` flows are the same; only the NAS folder name moved). Rails: `ContentLayoutTests.TheAssetSyncRootOfABehaviourKind_IsTheSeededTree`, `StorageGatewayTests` (6 paths) |
+| D-3 | entity icons are **no longer embedded** in `Hrot.Presentation`; `EntityIconLibrary` reads `{nas}/assets/icons` (`EmbeddedNames` → `NamesIn(folder)`) | nothing needs the embedding: every consumer builds the library with the default folder; the exe-folder / embedded copy is the third delivery pattern L4 removes. A bare node with an empty NAS shows no art (`_point` fallback also absent) |
+| D-4 | `AssetRoots.AssetsRoot`/`RecipesRoot` are now the TOP-LEVEL `assets/` and `recipes/`; `BehaviorAssetsRoot` (`assets/behaviors`) is new and is what `ParamsDtoStaleness` uses | the old `AssetsRoot` meant "behaviour assets"; `assets/` now also holds terrain, icons, audio |
+| D-5 | `AssetRoots.ResolveProjectDir` stays — only for the one non-content need left: the `.csproj` a full rebuild / hot reload builds (`EditorSubsystem`, `EditorApplication`). `ResolveBase`/`ResolveAssetsRoot`/`ReportBase`/`DescribeBase` still take the project segments (≈30 call sites) and IGNORE them | measured: 2 production users of `ResolveProjectDir`, both non-content |
+| D-6 | `ReportBase`'s warning is "the root the catalog reads has no `assets/` folder" (was "no config and no source tree") | there is always a root now (config, else the NAS); the fault left is "nothing seeded or published" |
+| D-7 | `BehaviorGroups` (netstandard2.0 analyzer) spells `assets/behaviors/<Kind>/` as literals | the generator assembly cannot reference `ContentLayout`; rail: `BTreeJsonGeneratorTests.CE3164_*` |
+| D-8 | `Hrot.AI.Behaviors.csproj` feeds the generators from `$(AssetsBehaviorsDir)` = `$(MSBuildThisFileDirectory)..\..\..\assets\behaviors\`; every `Content … CopyToOutputDirectory` rule is gone | rail: `FolderLayoutTests.TheBehaviorsProjectHoldsNoContentAndCopiesNone` |
+| D-9 | an editor edit of a behaviour asset now writes the NAS copy; the C# generator still compiles the repository's `assets/behaviors` | this is L4's own consequence ("*Save to Git* for behaviours too — today they are edited in place"): a behaviour edited in the editor reaches the compiled assembly only after *Save to Git* + a rebuild. The menu label still says "Save Curated Scenarios to Git" (CE-4082's menu work) but the command saves every kind |
+| D-10 | not done here: §4 step 5 (asset browser Open lists `assets/`+`scenarios/`, New lists `recipes/`) beyond what the new roots already give; `Recipes/<seed>` under the scenarios root (L6) stays until CE-4082 | out of this task's brief; the roots are separate by construction |
+| D-11 | `Hrot.Core.Tests/Assets/sample_road.json` left in place | measured: no `.cs` reads it; it is a test-project `Content` item only (the other `sample_road.json` copies are unrelated) |
+
+*Prior state (SUPERSEDED, kept so a reader does not re-derive it):* before CE-4089 content was read in place from the source project (`AssetRoots.ResolveBase`: config → source walk-up → exe folder), shipped through four csproj copy rules
+(`Recipes/*`, icons embedded, audio copied), and `TerrainCatalog` searched staging → NAS `terrain/` → the shipped `{app}/Recipes/Terrain`.
