@@ -18,21 +18,21 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct EntityMasterTopic
     {
         /// <summary>Network-wide unique entity identifier</summary>
-        [DdsKey, DdsId(0)] public long EntityId;
+        [DdsKey] public long EntityId;
         
         /// <summary>Owner application ID</summary>
-        [DdsId(1)] public NetworkAppId OwnerId;
+        public NetworkAppId OwnerId;
         
         /// <summary>DIS entity type as packed ulong</summary>
-        [DdsId(2)] public ulong DisTypeValue;
+        public ulong DisTypeValue;
         
         /// <summary>Entity flags and metadata</summary>
-        [DdsId(3)] public int Flags;
+        public int Flags;
         
         /// <summary>
         /// Internal TKB blueprint type ID. Used by the receiving node to look up the template
         /// and apply it to the ghost entity during promotion. Zero means unset (legacy).
         /// </summary>
-        [DdsId(4)] public long TkbTypeValue;
+        public long TkbTypeValue;
     }
 }

@@ -39,23 +39,17 @@ namespace Fdp.Network.Cyclone.Tests.Topics
             Assert.NotNull(attr);
         }
 
+        /// <summary>
+        /// CE-4079 ⑤ — an appendable type matches its fields by POSITION, so the order the fields are declared in IS the wire layout; no
+        /// <c>[DdsId]</c> is written (it only repeated 0, 1, 2… in this very order). New fields are appended, never inserted.
+        /// </summary>
         [Fact]
-        public void NetworkAppId_FieldsHaveCorrectDdsIds()
+        public void NetworkAppId_FieldsAreDeclaredInWireOrder_WithNoExplicitIds()
         {
-            var type = typeof(NetworkAppId);
-            var domainField = type.GetField("AppDomainId");
-            var instanceField = type.GetField("AppInstanceId");
+            var fields = typeof(NetworkAppId).GetFields(BindingFlags.Public | BindingFlags.Instance);
 
-            Assert.NotNull(domainField);
-            Assert.NotNull(instanceField);
-
-            var domainAttr = domainField.GetCustomAttribute<DdsIdAttribute>();
-            var instanceAttr = instanceField.GetCustomAttribute<DdsIdAttribute>();
-
-            Assert.NotNull(domainAttr);
-            Assert.NotNull(instanceAttr);
-            Assert.Equal(0, domainAttr.Id);
-            Assert.Equal(1, instanceAttr.Id);
+            Assert.Equal(new[] { "AppDomainId", "AppInstanceId" }, fields.Select(f => f.Name).ToArray());
+            Assert.All(fields, f => Assert.Null(f.GetCustomAttribute<DdsIdAttribute>()));
         }
 
         [Fact]
@@ -94,27 +88,14 @@ namespace Fdp.Network.Cyclone.Tests.Topics
             Assert.NotNull(keyAttr);
         }
 
+        /// <summary>CE-4079 ⑤ — the wire layout of the library's demo master is its declaration order (an appendable type; no explicit ids).</summary>
         [Fact]
-        public void EntityMasterTopic_FieldsHaveSequentialDdsIds()
+        public void EntityMasterTopic_FieldsAreDeclaredInWireOrder_WithNoExplicitIds()
         {
-            var type = typeof(EntityMasterTopic);
-            var fields = new[]
-            {
-                ("EntityId", 0),
-                ("OwnerId", 1),
-                ("DisTypeValue", 2),
-                ("Flags", 3)
-            };
+            var fields = typeof(EntityMasterTopic).GetFields(BindingFlags.Public | BindingFlags.Instance);
 
-            foreach (var (fieldName, expectedId) in fields)
-            {
-                var field = type.GetField(fieldName);
-                Assert.NotNull(field);
-                
-                var attr = field.GetCustomAttribute<DdsIdAttribute>();
-                Assert.NotNull(attr);
-                Assert.Equal(expectedId, attr.Id);
-            }
+            Assert.Equal(new[] { "EntityId", "OwnerId", "DisTypeValue", "Flags", "TkbTypeValue" }, fields.Select(f => f.Name).ToArray());
+            Assert.All(fields, f => Assert.Null(f.GetCustomAttribute<DdsIdAttribute>()));
         }
 
         [Fact]

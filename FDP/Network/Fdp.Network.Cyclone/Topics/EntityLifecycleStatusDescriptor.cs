@@ -32,15 +32,15 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct EntityLifecycleStatusDescriptor
     {
         /// <summary>Network entity id (same space as <c>EntityMaster.EntityId</c>).</summary>
-        [DdsKey, DdsId(0)] public long EntityId;
+        [DdsKey] public long EntityId;
 
         /// <summary>Reporting node's OWNERSHIP node id (§2b — matches <c>OwnershipUpdate.NewOwner</c>).</summary>
-        [DdsKey, DdsId(1)] public int NodeId;
+        [DdsKey] public int NodeId;
 
         /// <summary><c>Fdp.Core.EntityLifecycle</c> as an int (Constructing=0, Active=1, …).</summary>
-        [DdsId(2)] public int StateValue;
+        public int StateValue;
 
         /// <summary>Wall-clock / frame version of the status update.</summary>
-        [DdsId(3)] public long Timestamp;
+        public long Timestamp;
     }
 }

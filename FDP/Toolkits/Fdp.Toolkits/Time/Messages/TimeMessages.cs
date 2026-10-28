@@ -10,13 +10,10 @@ namespace Fdp.Toolkit.Time.Messages
     [DataPolicy(DataPolicy.NoReplay)]
     public partial struct FrameOrderDescriptor
     {
-        [DdsId(0)]
         public long FrameID;
         
-        [DdsId(1)]
         public float FixedDelta;
         
-        [DdsId(2)]
         public long SequenceID;
 
         /// <summary>
@@ -25,7 +22,6 @@ namespace Fdp.Toolkit.Time.Messages
         /// Populated by <see cref="Fdp.Toolkit.Time.Controllers.SteppedMasterController.Step"/>
         /// so all slaves stay in lock-step with the master's effective scale.
         /// </summary>
-        [DdsId(3)]
         public float TimeScale;
 
         /// <summary>
@@ -41,7 +37,6 @@ namespace Fdp.Toolkit.Time.Messages
         /// time.  The two seeds differ by up to the barrier look-ahead (~200 ms of sim-time),
         /// so after one step the slave's <c>TotalTime</c> is ~200 ms behind the master.</para>
         /// </summary>
-        [DdsId(4)]
         public double TargetSimTime;
     }
 
@@ -52,13 +47,10 @@ namespace Fdp.Toolkit.Time.Messages
     [DataPolicy(DataPolicy.NoReplay)]
     public partial struct FrameAckDescriptor
     {
-        [DdsId(0)]
         public long FrameID;
         
-        [DdsId(1)]
         public int NodeID;
         
-        [DdsId(2)]
         public int Checksum; // Optional state hash for sync verification
     }
 
@@ -137,23 +129,18 @@ namespace Fdp.Toolkit.Time.Messages
         /// Encoded <see cref="TimeMode"/> cast to <c>int</c>.
         /// 0 = <see cref="TimeMode.Continuous"/>, 1 = <see cref="TimeMode.Deterministic"/>.
         /// </summary>
-        [DdsId(0)]
         public int TargetModeInt;
 
         /// <summary><see cref="SwitchTimeModeEvent.BarrierWallTicks"/>.</summary>
-        [DdsId(1)]
         public long BarrierWallTicks;
 
         /// <summary><see cref="SwitchTimeModeEvent.FixedDelta"/>.</summary>
-        [DdsId(2)]
         public float FixedDelta;
 
         /// <summary><see cref="SwitchTimeModeEvent.SimTimeSnapshot"/>.</summary>
-        [DdsId(3)]
         public double SimTimeSnapshot;
 
         /// <summary><see cref="SwitchTimeModeEvent.TimeScale"/>.</summary>
-        [DdsId(4)]
         public float TimeScale;
 
         /// <summary>Converts a <see cref="SwitchTimeModeEvent"/> to its wire representation.</summary>
@@ -205,11 +192,10 @@ namespace Fdp.Toolkit.Time.Messages
     public partial struct TimeSyncRequest
     {
         /// <summary>Node ID of the slave initiating the handshake.</summary>
-        [DdsId(0), DdsKey]
+        [DdsKey]
         public int ClientNodeId;
 
         /// <summary>Raw UTC tick (<c>HighResUtcClock.GetTicks</c>) recorded just before publish.</summary>
-        [DdsId(1)]
         public long ClientSendTicks;
     }
 
@@ -223,19 +209,16 @@ namespace Fdp.Toolkit.Time.Messages
     public partial struct TimeSyncResponse
     {
         /// <summary>Echoed back from the request — identifies the slave this reply is addressed to.</summary>
-        [DdsId(0), DdsKey]
+        [DdsKey]
         public int ClientNodeId;
 
         /// <summary>Echoed back from the request.</summary>
-        [DdsId(1)]
         public long ClientSendTicks;
 
         /// <summary>Master OS tick recorded immediately upon receiving the request.</summary>
-        [DdsId(2)]
         public long MasterReceiveTicks;
 
         /// <summary>Master OS tick recorded immediately before writing the response to DDS.</summary>
-        [DdsId(3)]
         public long MasterTransmitTicks;
     }
 }

@@ -26,11 +26,11 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct IdRequest
     {
         [DdsManaged]
-        [DdsKey, DdsId(0)] public string ClientId;
-        [DdsId(1)] public long ReqNo;
-        [DdsId(2)] public EIdRequestType Type;
-        [DdsId(3)] public ulong Start;
-        [DdsId(4)] public ulong Count;
+        [DdsKey] public string ClientId;
+        public long ReqNo;
+        public EIdRequestType Type;
+        public ulong Start;
+        public ulong Count;
     }
 
     [DdsTopic]
@@ -42,11 +42,11 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct IdResponse
     {
         [DdsManaged]
-        [DdsKey, DdsId(0)] public string ClientId;
-        [DdsId(1)] public long ReqNo;
-        [DdsId(2)] public EIdResponseType Type;
-        [DdsId(3)] public ulong Start;
-        [DdsId(4)] public ulong Count;
+        [DdsKey] public string ClientId;
+        public long ReqNo;
+        public EIdResponseType Type;
+        public ulong Start;
+        public ulong Count;
     }
 
     [DdsTopic]
@@ -58,6 +58,6 @@ namespace Fdp.Network.Cyclone.Topics
     )]
     public partial struct IdStatus
     {
-        [DdsId(0)] public ulong HighestIdAllocated;
+        public ulong HighestIdAllocated;
     }
 }
