@@ -32,6 +32,9 @@ internal static class TreeLayout
                 // Rebuild visual rows from scratch each frame.
                 state.VisualRows.Clear();
 
+                // ⭐ CE-4098 (AQ108 D19) — the Recent section FIRST: what was picked last, before any folder.
+                DrawRecentSection(state, ctx);
+
                 if (explicitRoot is not null)
                 {
                     foreach (var child in explicitRoot.Children)
@@ -63,6 +66,27 @@ internal static class TreeLayout
 
         if (showPreview)
             DrawPreview(state, ctx);
+    }
+
+    // ── Recent section (CE-4098) ──────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ The rows of the Recent section — <see cref="PickerState.RecentFilteredIndices"/>, the model a rail asserts. An entry
+    /// also sits in its folder below; the section is a shortcut, so both rows are visual rows (keyboard navigation walks them).
+    /// </summary>
+    internal static IReadOnlyList<int> RecentSectionRows(PickerState state) => state.RecentFilteredIndices();
+
+    private static void DrawRecentSection(PickerState state, IPickerRenderContext ctx)
+    {
+        var rows = RecentSectionRows(state);
+        if (rows.Count == 0) return;
+
+        ImGui.TextColored(ctx.Theme.TextMuted, "↻ Recent");
+        ImGui.PushID("##recent");   // the same entry is drawn again in its folder: separate ID scope
+        foreach (int idx in rows)
+            DrawLeafItem(state, ctx, idx, state.Filtered[idx], 0);
+        ImGui.PopID();
+        ImGui.Separator();
     }
 
     // ── preview pane (CE-1017) ────────────────────────────────────────────────

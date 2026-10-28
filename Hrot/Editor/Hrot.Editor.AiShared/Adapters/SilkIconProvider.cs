@@ -121,6 +121,7 @@ public sealed class SilkIconProvider : IIconProvider
             ["asset/hsm"]             = "p5",  // state machine
             ["asset/blackboard"]      = "w31",  // blackboard
             ["asset/utility"]         = "ad32",   // utility
+            ["asset/recording"]       = "d8",     // play triangle → a recording (CE-4098)
 
             // ── Generic / browser (§5.1) ────────────────────────────────────
             ["browser/open"]          = "d4",   // folder → open browser

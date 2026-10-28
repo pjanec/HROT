@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
@@ -70,6 +71,14 @@ public interface IScenarioSession
     /// <c>DebugApiService.LoadScenarioEdit</c> uses <c>Guid.Empty</c>.
     /// </summary>
     void OpenForEdit(string scenarioName);
+
+    /// <summary>
+    /// ⭐⭐ <b>CE-4098 (AQ108 D16) — open a RECORDING, cluster-wide</b> (<c>File › Open Recording</c>): publishes the ONE replay intent
+    /// (<c>ReplaySessionIntents.EnterReplay(exerciseId)</c>, the same construction <c>POST /replay {exerciseId}</c> ends in) — the master plans the
+    /// unload and the replay from ANY state, so the session adds no Idle hop. ⛔ Not a second open path: the recording's own opener
+    /// (<c>IRecordingOpener</c>) is the Replay Browser's, for FILES; this is the cluster's, for EXERCISES the master recorded.
+    /// </summary>
+    void OpenRecording(Guid exerciseId);
 
     /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
     void SaveCurrent();

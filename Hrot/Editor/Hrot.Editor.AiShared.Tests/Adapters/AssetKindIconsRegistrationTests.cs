@@ -39,8 +39,8 @@ public sealed class AssetKindIconsRegistrationTests
             cells[kind] = provider.KeyToCellMap[key];
         }
 
-        // All 6 cells must be pairwise distinct.
-        Assert.Equal(6, cells.Count);
+        // Every kind's cell must be pairwise distinct (CE-4098: the 7th kind, Recording, has its own).
+        Assert.Equal(kinds.Length, cells.Count);
         var distinctCells = new HashSet<string>(cells.Values);
         Assert.True(
             distinctCells.Count == cells.Count,

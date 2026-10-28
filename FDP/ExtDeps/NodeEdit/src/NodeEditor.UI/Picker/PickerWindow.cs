@@ -49,6 +49,12 @@ public sealed class PickerWindow
     internal IIconProvider? Icons;
     internal IEditorTheme? Theme;
 
+    /// <summary>⭐ CE-4098 — the Recent lists this window reads and pushes (a host swaps in its persisted store; default in-memory).</summary>
+    internal RecentStore Recent { get => _state.Recent; set => _state.Recent = value ?? new RecentStore(); }
+
+    /// <summary>The session state — for the headless rails (PickerState is internal).</summary>
+    internal PickerState State => _state;
+
     // ── size helpers ──────────────────────────────────────────────────────────
 
     private Vector2 GetDefaultSize() => _layout switch
@@ -457,6 +463,32 @@ public sealed class PickerWindow
 
     // ── confirm / cancel ──────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐ CE-4098 — the Recent section of the OPEN picker as <see cref="PickerEntry"/>s, last picked first: what a layout draws before
+    /// any other row. Empty when the picker is closed.
+    /// </summary>
+    internal IReadOnlyList<PickerEntry> RecentSection()
+        => _isOpen
+            ? _state.RecentFilteredIndices().Select(i => _state.Filtered[i].Entry).ToList()
+            : Array.Empty<PickerEntry>();
+
+    /// <summary>
+    /// ⭐ CE-4098 — confirms the entry <paramref name="id"/> exactly as OK / double-click / Enter would (same <see cref="Confirm"/>: a disabled
+    /// entry never confirms; the pick is recorded in its kind's Recent list; the host's callback runs). False when the picker is closed or
+    /// the entry is not listed — a headless rail's stand-in for the click.
+    /// </summary>
+    internal bool ConfirmEntry(string id)
+    {
+        if (!_isOpen) return false;
+        int idx = _state.Filtered.FindIndex(r => r.Entry.Id == id);
+        if (idx < 0) return false;
+        _state.SelectedFilteredIndices.Clear();
+        _state.SelectedFilteredIndices.Add(idx);
+        _state.KeyboardFocusIndex = idx;
+        Confirm();
+        return !_isOpen;
+    }
+
     private void Confirm()
     {
         // Tree layout guard: if the focused row is a folder, expand it instead of
@@ -482,9 +514,8 @@ public sealed class PickerWindow
             return;
         }
 
-        // Update recent store.
-        foreach (var re in selected)
-            _state.Recent.Push(_state.ContextKey, re.Entry.Id);
+        // Update recent store (⭐ CE-4098: each entry's own kind list).
+        _state.RecordPick(selected);
 
         if (_onPickResult is not null)
         {

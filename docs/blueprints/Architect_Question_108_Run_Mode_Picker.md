@@ -346,6 +346,90 @@ request is coming · **per-host gates** — four copies (R "shared and unified")
 | 12 | "New scenario from a recipe" | the item marked is today's `File/Edit/New Scenario` (`ClearWorld`, a local blank) — the recipe form follows CE-4089 | content-folder listing follows CE-4089 |
 | 13 | one headless frame rail per host family | no headless frame harness drives a real runner frame here: the gate is driven through the real `LocalWindowController` with a fake shell (`TheStartGateIsComposedOnceTests`) and the draw through `ImGuiTestFixture` (`StartGateTests`). The per-host system rails (`ClusterConformanceRails`, `TheUiBaselineIsPinnedPerHostRails`) are compiled but boot a real editor process | — |
 
+### 2.7 CE-4098 — the picker's Recent section + recordings in the picker — ⭐ **AS-BUILT `2026-10-28` (ui)** (built before CE-4089, by the user's decision)
+
+⭐ **AS-BUILT:** build-state of §2.7 **BUILT**. §2.2's `RecentList` box is **not a new class** — it is the existing `RecentStore` (NodeEditor.UI), extended; the
+box `ClusterReplayControls.EnterReplay(id, at)` of §2.2 does not exist and was not added (the opener is the session's, see the table).
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` not available through the CLI): `search_graph .*Recent.*` → **one** picker store, `Picker.RecentStore` (in-memory, per
+context, move-to-front, cap 16), read by `PickerState.Refilter` and pushed by `PickerWindow.Confirm`; **no** asset-browser recent; the Tree layout (what the Open-Asset and
+scenario pickers use) drew **no** Recent section — only the flat layouts had the "↻ Recent" header. `search_graph .*Picker.*` (Class) → the pickers: `AssetPickerLauncher`
+(File › Open Asset, and the scenario Open/Load items through `ScenarioMenuCommands`' `openPicker` seam), `AssetPickerModal` + `AssetBrowserPanel` (docked browser),
+`TerrainPickerLauncher` (not a user-open picker — a scenario terrain choice; left alone), no recording list. Recording opener: `IRecordingOpener` is the **Replay Browser's, for
+FILES**; the cluster's, for EXERCISES, is `ReplaySessionIntents.EnterReplay(exerciseId)` (what `POST /replay {exerciseId}` and the orchestrator's *Load Replay* end in).
+Exercise list: `ClusterUiCache.AvailableExercises` (editor, orchestrator, ExCon) / `ClusterSlave.KnownExercises` (ECS nodes, via `SubsystemDebugProvider.ExercisesFrom`).
+
+```mermaid
+classDiagram
+  class RecentStore { <<existing, NodeEditor.UI; EXTENDED>> Push · RankOf · Load(path) · Save · one list per context key · cap 16 }
+  class PickerEntry { <<existing>> + RecentContext : the kind's list }
+  class PickerState { <<existing>> Refilter ranks recents · RecordPick · RecentFilteredIndices }
+  class PickerRegistry { <<existing>> + Recent store · RecentSection · ConfirmEntry }
+  class TreeLayout { <<existing>> draws the Recent section FIRST }
+  class UserRecentPicks { <<NEW, Hrot.Presentation>> recent-picks.json in the user folder · Shared }
+  class AssetRecents { <<NEW, AiShared>> ContextFor(kind) · ItemKey(asset) · RecordingKey(id) }
+  class AssetBrowserPanel { <<existing>> + Options.Recent · RecentFor(kind) · RecentFlat · push on activate }
+  class AssetPickerSource { <<existing>> entries carry RecentContext }
+  class RecordingPickerLauncher { <<NEW, AiShared>> exercises newest first · Open }
+  class ScenarioMenuCommands { <<existing>> + File/Open Recording allowedInIdle }
+  class IScenarioSession { <<existing>> + OpenRecording(exerciseId) }
+  class EditorScenarioSession { <<existing>> OpenRecording publishes ReplaySessionIntents.EnterReplay }
+  class EntityAuthoring { <<existing>> CreatePickers gives every registry the shared store }
+  PickerState --> RecentStore : reads ranks, pushes picks
+  PickerState --> PickerEntry : RecentContext
+  PickerRegistry --> PickerState
+  TreeLayout --> PickerState : RecentFilteredIndices
+  EntityAuthoring --> PickerRegistry : Recent = UserRecentPicks.Shared
+  UserRecentPicks --> RecentStore : Load(user folder)
+  AssetBrowserPanel --> RecentStore : same instance
+  AssetBrowserPanel --> AssetRecents
+  AssetPickerSource --> AssetRecents
+  RecordingPickerLauncher --> AssetRecents
+  RecordingPickerLauncher --> PickerRegistry : OpenPicker
+  ScenarioMenuCommands --> RecordingPickerLauncher : Open
+  RecordingPickerLauncher --> IScenarioSession : OpenRecording
+  EditorScenarioSession ..|> IScenarioSession
+```
+
+*What the picture shows that prose hid:* there is ONE list store and ONE place that names a list (`AssetRecents.ContextFor(kind)`); every picker reaches it through the
+registry the hosts already build (`EntityAuthoring.CreatePickers`, so the editor and CGF cannot differ) and the browser through the same instance. The opener of a recording is
+the SESSION's `OpenRecording`, which publishes the one replay intent — no second open path beside `POST /replay`.
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant M as File › Open Recording (also the Start button)
+  participant L as RecordingPickerLauncher
+  participant P as PickerRegistry / PickerState
+  participant S as IScenarioSession
+  participant C as master
+  U->>M: click
+  M->>L: Open()
+  L->>P: OpenPicker(entries = master's exercises newest first, Id = exercise id, RecentContext = recent.Recording)
+  P-->>U: Recent first (those still in the inventory), then the rest
+  U->>P: confirm a row
+  P->>P: RecordPick → RecentStore.Push(recent.Recording, id) → recent-picks.json
+  P->>L: result (Tag = the exercise)
+  L->>S: OpenRecording(exerciseId)
+  S->>C: TransitionStateIntent EnterReplay(exerciseId) — one request, from any state
+```
+
+**AS-BUILT deviations from the design above** *(§2.2's text is kept; each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `RecentList` — a NEW class, one list per kind (scenarios · recordings · assets) | no new list class: `RecentStore` (NodeEditor.UI) gained `Load(path)` / `Save` (every `Push` writes) and `RankOf`; `UserRecentPicks` (Hrot.Presentation) only names the user-folder file and owns the shared instance | `NodeEditor.UI` is referenced by `Hrot.Presentation` and `Hrot.Editor.AiShared`, so the dependency direction allows it — one store, not two lists (R "shared and unified") |
+| 2 | per kind | one list per `AssetKind`, named `recent.<Kind>` (`AssetRecents.ContextFor`); a `PickerEntry` names its kind through the new `RecentContext` (null ⇒ the picker's own context) | the Open-Asset picker (all kinds), File › Open Scenario (scenario only) and the docked browser must share the scenario list; `PickerRequest.ContextKey` is per picker, not per kind |
+| 3 | an item's identity | the identity the picker already uses: `IEditableAsset.AssetId` (for a scenario it is derived from the path RELATIVE to the scenarios root — `ScenarioCatalogContributor.DeriveAssetId`), a recording's EXERCISE id. Never an absolute path | the content-folder move (CE-4089) must not stale an entry; one that no longer resolves is not in the list the picker draws, so it is not shown |
+| 4 | "every open picker shows a Recent section first" | the flat layouts already ranked recents first (header "↻ Recent"); the **Tree layout drew none** — it now draws the section first (`TreeLayout.RecentSectionRows` = `PickerState.RecentFilteredIndices`); `AssetBrowserPanel` got `RecentFor` / `RecentFlat` + a drawn section in every tab | Open Asset and the scenario pickers are Tree pickers |
+| 5 | `AssetKind.Recording` | added at the END of the enum; **not a catalog kind** — `AssetKindFilterMapping.IsCatalogKind` is false, `FromKind` throws, no filter flag, no browser tab; icon `asset/recording` (atlas cell `d8`) | a recording is listed by the master's inventory, not by any `IAssetCatalog`; a flag would add an empty Recording tab to every "All" browser. The `FromKind_AllKinds_Audited` rail now audits the catalog kinds |
+| 6 | "through the ONE existing recording opener (`IRecordingOpener`, `POST /replay`, `EnterReplay`)" | `IScenarioSession.OpenRecording(exerciseId)` → `ReplaySessionIntents.EnterReplay(exerciseId)` published on the orchestration bus (drops a queued scenario load, leaves a dry run first, like the loads) | `IRecordingOpener` opens FILES and exists only on the Replay Browser host (`DebugApiService.OpenRecordingFiles`: *"A cluster replays the exercises its master recorded"*); the cluster's EXERCISE open is `EnterReplay(exerciseId)`, which `POST /replay {exerciseId}` also ends in — so there is one construction, not a second path. §2.2's `ClusterReplayControls.EnterReplay(id, at)` box does not exist in code and was not added |
+| 7 | list = the cluster read model's exercises | the editor: `_orchestratorCore.UiCache.AvailableExercises` (what `GET /exercises` serves); CGF: its slave's `KnownExercises` (`SubsystemDebugProvider.ExercisesFrom`); a host with no picker registry passes none ⇒ the item is greyed with its cause (ruling 49) | one launcher (`RecordingPickerLauncher`), two inventories |
+| 8 | `allowedInIdle: true` | `File/Open Recording` (a top-level File item: a recording is not a scenario, and it names no mode) is registered by `ScenarioMenuCommands.Register` on every host and marked allowed-in-Idle, so the Start surface offers it (§2.6 deviation 5 is closed) | — |
+| 9 | (not said) | not guarded by the CE-1025 "a run is running" confirm | AQ108 §3 owns every move's confirmation (a later task); the master plans the unload from any state |
+
+⚠ **Not done here (belongs to CE-4089 / later):** listing recipes, scenarios and recordings from the content folders on the Start surface; the Replay Browser's own file
+open (an `IRecordingOpener` caller) does not push to this list — it is a different host with no cluster inventory.
 
 ## 3. Every move, with what the user is told
 

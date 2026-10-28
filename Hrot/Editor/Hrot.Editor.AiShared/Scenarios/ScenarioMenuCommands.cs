@@ -76,6 +76,13 @@ public static class ScenarioMenuCommands
     /// <summary>Id for the load-for-LIVE command: <c>"scenario.loadLive"</c>.</summary>
     public const string LoadLiveId = "scenario.loadLive";
 
+    /// <summary>⭐ CE-4098 (AQ108 D16/D19) — Id for the Open Recording command: <c>"scenario.openRecording"</c>.</summary>
+    public const string OpenRecordingId = "scenario.openRecording";
+
+    /// <summary>⭐ CE-4098 — the menu path of Open Recording (a top-level <c>File</c> item: a recording is not a scenario, and the
+    /// verb names no mode — it always opens into AAR).</summary>
+    public const string OpenRecordingMenuPath = "File/Open Recording";
+
     /// <summary>Id for the Take Checkpoint command: <c>"scenario.takeCheckpoint"</c>.</summary>
     public const string TakeCheckpointId = "scenario.takeCheckpoint";
 
@@ -139,6 +146,9 @@ public static class ScenarioMenuCommands
     /// (<see cref="ScenarioLoadGuard.RunningRun"/>). Null seam: never warn.</param>
     /// <param name="confirmLoad">⭐ <c>CE-1025</c> — confirms a load over a running run (title, message, label, continuation) — the same
     /// prompt as <paramref name="confirmNewExercise"/> (ruling 53). Asked AFTER the pick, only while a run is running.</param>
+    /// <param name="openRecordingPicker">⭐ <c>CE-4098</c> (AQ108 D16/D19) — opens the recording picker (<see cref="RecordingPickerLauncher.Open"/>),
+    /// which lists the exercises the master recorded and opens the pick into AAR through <see cref="IScenarioSession.OpenRecording"/>.
+    /// Null ⇒ the item is registered but DISABLED with the reason in its label (ruling 49: serviceability decides enablement, never presence).</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -153,7 +163,8 @@ public static class ScenarioMenuCommands
         Func<bool>?                                               isCuratedSaveEnabled = null,
         Action?                                                   saveCuratedToGit     = null,
         Func<string?>?                                            runningRun           = null,
-        Action<string, string, string, Action>?                   confirmLoad          = null)
+        Action<string, string, string, Action>?                   confirmLoad          = null,
+        Action?                                                   openRecordingPicker  = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -236,6 +247,19 @@ public static class ScenarioMenuCommands
             isEnabled: () => true,
             handler: _ => showMigrationHistory?.Invoke(session.GetMigrationSidecars()));
 
+        // ══ File/Open Recording — a recording opens into AAR ════════════════════
+
+        // ⭐⭐ CE-4098 (AQ108 D16 "Open recording (AAR)", D19) — lists the master's exercises (the picker's Recent first) and opens the
+        //    pick through the session's ONE replay intent. ⭐ Offered on the Start surface: it leaves Idle through the ordinary state machine.
+        RegisterCommand(
+            registerCommand, menu, commands,
+            OpenRecordingId, "Open Recording", OpenRecordingMenuPath,
+            "Open a recording the master offers into AAR (cluster-wide)",
+            isEnabled: () => openRecordingPicker != null,
+            handler: _ => openRecordingPicker?.Invoke(),
+            dynamicDisplayName: Unavailable("Open Recording", openRecordingPicker != null, NoRecordingsReason),
+            allowedInIdle: true);
+
         // ══ File/Checkpoint — the live state, saved ═════════════════════════════
 
         // ⭐⭐ TAKE CHECKPOINT — the existing TakeCheckpointIntent, via the session (which owns the bus).
@@ -274,6 +298,7 @@ public static class ScenarioMenuCommands
 
     private const string NoPickerReason = "no scenario picker on this host";
     private const string NoSaveAsReason = "no Save-As dialog on this host";
+    private const string NoRecordingsReason = "no recording inventory on this host";
 
     /// <summary>
     /// ⭐ VC-3 label helper: when the capability is present the plain name is used *(a null dynamic label,

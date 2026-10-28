@@ -91,9 +91,14 @@ public sealed class EntityAuthoring
     /// <summary>⭐ The ONE way a host makes a picker registry that can show entity icons: <c>entity/&lt;name&gt;</c> keys
     /// from <see cref="EntityIconLibrary"/>, every other key from <paramref name="hostIcons"/> (the silk atlas, when the
     /// host has one), with <paramref name="theme"/> or the picker's default theme.</summary>
-    public static PickerRegistry CreatePickers(IIconProvider? hostIcons = null, IEditorTheme? theme = null)
+    public static PickerRegistry CreatePickers(IIconProvider? hostIcons = null, IEditorTheme? theme = null, RecentStore? recent = null)
     {
-        var pickers = new PickerRegistry();
+        var pickers = new PickerRegistry
+        {
+            // ⭐ CE-4098 (AQ108 D19) — every host's pickers show the user's Recent lists first and push every pick to them: ONE persisted
+            //   store (user folder), by construction. A rail passes its own store so it never touches the real user folder.
+            Recent = recent ?? Hrot.UI.Common.Picker.UserRecentPicks.Shared,
+        };
         var icons = new EntityIconLibrary(hostIcons);
         if (theme is not null) pickers.SetServices(icons, theme);
         else pickers.SetIcons(icons);

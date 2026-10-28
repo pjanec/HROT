@@ -41,6 +41,27 @@ public sealed class PickerRegistry : IPickerRegistry
         _window.Icons = icons;
     }
 
+    /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — the Recent lists every picker of this registry shows first and every confirmed pick pushes to.
+    /// A host sets its persisted store (<see cref="RecentStore.Load"/>); the default is in-memory.
+    /// </summary>
+    public RecentStore Recent
+    {
+        get => _window.Recent;
+        set => _window.Recent = value;
+    }
+
+    /// <summary>The one picker window — for the headless rails.</summary>
+    internal PickerWindow Window => _window;
+
+    /// <summary>⭐ CE-4098 — the Recent section of the picker open now, last picked first (what every layout shows before any other row);
+    /// empty when none is open.</summary>
+    public IReadOnlyList<PickerEntry> RecentSection() => _window.RecentSection();
+
+    /// <summary>⭐ CE-4098 — confirms the open picker's entry <paramref name="id"/> as a click on OK would (the pick reaches the host's
+    /// callback and the entry's Recent list). False when none is open or the entry is not listed.</summary>
+    public bool ConfirmEntry(string id) => _window.ConfirmEntry(id);
+
     // ── IPickerRegistry ───────────────────────────────────────────────────────
 
     /// <inheritdoc/>

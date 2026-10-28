@@ -109,6 +109,38 @@ internal sealed class PickerState
         return enabled;
     }
 
+    /// <summary>⭐ CE-4098 — the <see cref="RecentStore"/> list <paramref name="entry"/> lives in.</summary>
+    public string RecentContextOf(PickerEntry entry) => entry.RecentContext ?? ContextKey;
+
+    /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — a confirmed pick goes to the Recent list of each picked entry's kind. ONE method, called by the
+    /// window's confirm, so a rail asserts the push on the state without ImGui.
+    /// </summary>
+    public void RecordPick(IEnumerable<RankedEntry> picked)
+    {
+        foreach (var re in picked)
+            Recent.Push(RecentContextOf(re.Entry), re.Entry.Id);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — the <b>Recent section</b> of the CURRENT filtered list: indices into <see cref="Filtered"/> of the
+    /// entries that are in a Recent list, the last picked first. ⭐ Only entries the picker LISTS can appear, so a remembered pick that no
+    /// longer resolves (a deleted scenario, a recording gone from the inventory) is simply not shown — no ghost row. The Tree layout
+    /// draws exactly this list, first; the flat layouts get it from the sort in <see cref="Refilter"/>.
+    /// </summary>
+    public List<int> RecentFilteredIndices()
+    {
+        var recent = new List<int>();
+        for (int i = 0; i < Filtered.Count; i++)
+            if (Filtered[i].IsRecent) recent.Add(i);
+        recent.Sort((a, b) =>
+        {
+            int c = Filtered[a].RecentRank.CompareTo(Filtered[b].RecentRank);
+            return c != 0 ? c : a.CompareTo(b);
+        });
+        return recent;
+    }
+
     public void Refilter()
     {
         LastQuery = SearchText;
@@ -138,16 +170,19 @@ internal sealed class PickerState
             }
 
             bool isFav = Favorites.IsStarred(ContextKey, entry.Id);
-            bool isRec = Recent.IsRecent(ContextKey, entry.Id);
+            // ⭐ CE-4098 — the entry's own kind list when it names one, else this picker's context.
+            int recentRank = Recent.RankOf(RecentContextOf(entry), entry.Id);
+            bool isRec = recentRank >= 0;
 
-            Filtered.Add(new RankedEntry(entry, result.Score, adjustedPositions, isFav, isRec));
+            Filtered.Add(new RankedEntry(entry, result.Score, adjustedPositions, isFav, isRec, recentRank));
         }
 
-        // Sort: favorites first, then recents, then by score desc, then name asc.
+        // Sort: favorites first, then recents (the last picked first), then by score desc, then name asc.
         Filtered.Sort((a, b) =>
         {
             if (a.IsFavorite != b.IsFavorite) return a.IsFavorite ? -1 : 1;
             if (a.IsRecent   != b.IsRecent)   return a.IsRecent   ? -1 : 1;
+            if (a.IsRecent && a.RecentRank != b.RecentRank) return a.RecentRank.CompareTo(b.RecentRank);
             int scoreCmp = b.Score.CompareTo(a.Score);
             if (scoreCmp != 0) return scoreCmp;
             return string.Compare(a.Entry.Name, b.Entry.Name, StringComparison.OrdinalIgnoreCase);
@@ -193,4 +228,5 @@ internal sealed record RankedEntry(
     int Score,
     IReadOnlyList<int> MatchPositions,
     bool IsFavorite,
-    bool IsRecent);
+    bool IsRecent,
+    int RecentRank = -1);

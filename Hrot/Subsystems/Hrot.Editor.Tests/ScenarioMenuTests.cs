@@ -66,6 +66,8 @@ public sealed class ScenarioMenuTests
         public void SaveAs(string name)             => SaveAsCalls.Add(name);
         public void SaveTo(string filePath)         => SaveToCalls.Add(filePath);
         public void TakeCheckpoint()                => TakeCheckpointCallCount++;
+        public readonly List<Guid> OpenRecordingCalls = new();
+        public void OpenRecording(Guid exerciseId)  => OpenRecordingCalls.Add(exerciseId);
 
         public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => MigrationSidecars;
     }
@@ -210,7 +212,8 @@ public sealed class ScenarioMenuTests
     {
         var (_, commands, _) = CreateRegistrar();
 
-        Assert.Equal(9, commands.RegisterCallCount);
+        Assert.Equal(10, commands.RegisterCallCount);   // ⭐ CE-4098 — Open Recording is the tenth
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.OpenRecordingId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewExerciseId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));

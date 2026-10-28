@@ -3959,6 +3959,7 @@ namespace Hrot.Editor
                                       Kinds       = AssetKindFilter.All,
                                       ShowAllTab  = false,
                                       RowCommands = assetRowCommands,
+                                      Recent      = Hrot.UI.Common.Picker.UserRecentPicks.Shared,   // ⭐ CE-4098 — the SAME store the shell pickers use
                                   },
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
@@ -4537,6 +4538,16 @@ namespace Hrot.Editor
                     recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory)
                 : null;
 
+            // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
+            //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
+            var recordingPickerLauncher = _editorApp != null
+                ? new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+                    openPicker:     _shellPickers.OpenPicker,
+                    listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
+                                          ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
+                    openRecording:  _editorApp.ScenarioSession.OpenRecording)
+                : null;
+
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
@@ -4587,7 +4598,8 @@ namespace Hrot.Editor
                 runningRun:  () => Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(
                                        _previewController?.IsInPreviewMode == true,
                                        _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle),
-                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run));
+                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run),
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open);   // ⭐ CE-4098
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
