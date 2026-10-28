@@ -121,9 +121,11 @@ public sealed class MapEntityMenuHandlerTests : IDisposable
         new MapCanvasLink(canvas, () => _w).Update(0f);
         Assert.True(_map.Actions.TryGetHandler(GlobalActionIds.CenterOnEntity, out var center));
 
+        two.Update(0f);   // ⭐ CE-4084 — the frame loop has anchored the camera at the visible centre before an operator can click
         center(_w, unit);
         two.Update(1f);
         Assert.InRange(Vector2.Distance(two.Target, new Vector2(300, -120)), 0f, 0.01f);
+        Assert.InRange(Vector2.Distance(two.WorldToScreen(new Vector2(300, -120)), two.ViewCentre), 0f, 0.05f);
 
         var three = new MapCamera3D { ViewportOverride = new Vector2(1280, 720), GroundHeight = (_, _) => 4f };
         canvas.Camera = three;

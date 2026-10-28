@@ -297,7 +297,7 @@ namespace Hrot.SimHost
 
             // ── Map canvas & layers ───────────────────────────────────────────
             _map       = new MapCanvas();
-            _map.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
+            _map.Camera.Offset = _map.Camera.ViewCentre;   // ⭐ CE-4084 — the visible map's centre (MapCamera.Update keeps it there)
             _map.AddResource(trajectoryPool);
 
             // ⭐ CE-3124 — the road network is RoadNetworkGizmo now (a reflected gizmo, every host whose world holds the terrain's

@@ -684,7 +684,7 @@ public class IgApplication : IDisposable
 
         // Offset keeps the world origin centred in the window.
 
-        _camera.Offset = new Vector2(WindowWidth / 2f, WindowHeight / 2f);
+        _camera.Offset = _camera.ViewCentre;   // ⭐ CE-4084 — the visible map's centre (MapCamera.Update keeps it there)
 
 
 

@@ -3259,7 +3259,7 @@ upward `Roof` triangles as its roof, and a red floor read as the brick walls (�
 work as the floor as well"*). ⚠ A floor material of its own needs the terrain producer to tag floors. ⚠ The screenshot above predates it.
 ⭐ **`CE-1340`** — the free fly reaches its 5× in 3 s (was 5) and is ×2 near the ground, fading to ×1 by 30 m eye height (`MapCamera3D.FlySpeed`).
 
-### 6af. CE-4084 — the map's centre is the centre of the VISIBLE area, not of the window — DESIGN `2026-10-28` (ui)
+### 6af. CE-4084 — the map's centre is the centre of the VISIBLE area, not of the window — DESIGN `2026-10-28`, ⭐ AS-BUILT `2026-10-28` (ui)
 
 🔒 User (CE-4084): *"usually the panels are placed all around with the map in the center of the space surrounded by docked panels. the map
 zoom center and camera turn center stays in the center of [the screen]"*. ⭐ Frame: [`HANDOFF_Coordinator_To_Ui_Editor_Fixes.md`](blueprints/batches/HANDOFF_Coordinator_To_Ui_Editor_Fixes.md) task 3.
@@ -3328,6 +3328,21 @@ Build (Sonnet, then reviewed): `OpenMapArea.Centre` · `MapCamera.ViewCentreSour
 `MatchTwoD` · CGF / SimHost / IG drop their hard-coded `Offset` for the same source. Rails in `Fdp.Presentation.Tests` (the cameras) and
 `PossessionStationTests` (the aim): pick-equals-draw at an off-centre `c`; `LookAt` projects to `c`; the wheel's travel heads for the world
 point under `c`; `c = null` byte-identical to today; 2-D `AnchorAt` keeps a world point's screen position and `FocusOn` lands at `c`.
+
+⭐ **AS-BUILT `2026-10-28`** — built as designed (the class diagram above is TRUE), with these differences, each with its reason:
+
+| deviation | why |
+|---|---|
+| ⭐ `Viewport` / `ViewportOverride` / `FallbackViewport` / the once-a-frame cache moved from `MapCamera3D` to the base `MapCamera` (nothing new written beside them) | the 2-D camera needs the window size to anchor; one implementation (`MapCamera.cs`). `ResetFrameCache()` (protected) clears the window-size and centre caches; `MapCamera3D.Update` calls it, the base `Update` does too |
+| ⭐ the centre cache is also keyed on the viewport it was read for, and setting `ViewCentreSource` clears it | a film frame (`Film.Serve`) sets `ViewportOverride` to its own size mid-frame; a cache read for the screen would be wrong for it |
+| `Film.cs` changed after all (3 lines): `Serve` sets `camera.ViewCentreSource = vp => vp / 2f` for the capture and restores it | the §6af table said "unchanged", but its 3-D camera reads `ViewCentre`, and the dockspace rectangle is in SCREEN pixels — a film frame has no panels. The 2-D film path never runs `Update`, so it needed nothing |
+| `MapCamera3D.FrustumBounds(vp, centre, fovy, near)` is a PUBLIC static (the design said internal) | `Hrot.Presentation.Tests` has no `InternalsVisibleTo` to `Fdp.Presentation`; it is pure, so the rail checks the numbers `BeginMode` hands to `Rlgl.Frustum` without a GL context |
+| the three hosts' initial `Offset` is `camera.ViewCentre` (CGF, SimHost, IG), not deleted | `AnchorAt` keeps the PICTURE still, so it cannot centre a target a host sets before the first frame; one direct write at boot, the per-frame anchor does the rest. No hard-coded `1280 / 2` remains |
+| the crosshair DRAW site (`PossessionStation.DrawHud`, `cx`/`cy`) also reads `camera.ViewCentre` | the pick and the drawn crosshair must be one point; the compass, use prompt and wheel hang off the same `cx` and follow it. HUD text that centres on `size.X / 2` (the fall screen, the peek hint) stays at the window's middle — not map-centre things |
+
+⚠ **Not covered by a rail (needs a GL context):** the `Rlgl.MatrixMode / LoadIdentity / Frustum` calls in `MapCamera3D.BeginMode` themselves — the numbers they are given are pinned (`FrustumBounds`), the call is not. ⚠ **Race:** `OpenMapArea.Current` is a static that one existing test (`PossessionStationTests.CE1140_*`) sets briefly; any camera test using the DEFAULT source can see it in that window — the new rails set `ViewCentreSource` explicitly, bar the two that set and restore `Current` themselves.
+
+Rails: `Map3DTests.CE4084_*` (off-centre projection / pick = draw / frustum NDC; centred = the old formulas; the wheel keeps the point under c; 2-D ↔ 3-D keeps it) · `MapCameraTests.CE4084_*` (`AnchorAt` keeps every world point; `FocusOn` lands at c, with and without smoothing; no area ⇒ the window's middle) · `PossessionStationTests.CE4084_*` (the aim pick is at c; `OpenMapArea.Centre` and the camera's default source).
 
 ## 7. NOT VERIFIED — say so before it is built on
 
