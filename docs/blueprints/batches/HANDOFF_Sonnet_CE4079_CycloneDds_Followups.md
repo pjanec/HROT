@@ -1,16 +1,16 @@
 <!--STATUS
-state: LIVE — a Sonnet task brief (CE-4078), not started
+state: LIVE — a Sonnet task brief (CE-4079), not started
 updated: 2026-10-28
 current-answer: the whole document
 stale-below: nothing
 related-designs:
-  - ../Blueprint_Issues_Tracker.md CE-3000 — the library fixes these items consume (①②④); CE-4078 is this task's row
+  - ../Blueprint_Issues_Tracker.md CE-3000 — the library fixes these items consume (①②④); CE-4079 is this task's row
   - ../../DESIGN_Ownership_Groups_And_Grants.md ~§5.4 (lines ~360-372) — OWNS the handover: the giver unregisters after the grantee confirms, which needs autodispose OFF (②)
   - ../../DESIGN_Replay_Time_Axis_And_Review.md §12 W3 (rows 37, ~814, ~866) — OWNS "report prepared / seek-done only after the disposes are acknowledged" (④)
   - ../../designs/bugs-2/BUG2-DESIGN.md — OWNS sender identity on every participant (①)
   - ../../reference/NED_DDS_Protocol.md — the wire reference to keep current
 -->
-# TASK CE-4078 (Sonnet) — use the CycloneDDS.NET 1.2.20 fixes in HROT, and drop the redundant `[DdsId]`s
+# TASK CE-4079 (Sonnet) — use the CycloneDDS.NET 1.2.20 fixes in HROT, and drop the redundant `[DdsId]`s
 
 **Dispatched at** `f03270309` (coordinator, 2026-10-28). HROT has used **CycloneDDS.NET 1.2.20** since
 `df04652e6`. The library is published, and its source is github.com/pjanec/CycloneDds.NET at `main` `416c68b`. Read the APIs there:
@@ -63,7 +63,7 @@ related-designs:
      - the ownership-transfer and replay suites you touched
    - `scripts/ned-wire-inventory.py --check`, `rulings-check.py` and `tracker-counts.py --check` pass.
 6. **Wrap-up:**
-   - CE-4078 is ticked done with a short note.
+   - CE-4079 is ticked done with a short note.
    - CE-3000's "still open" list says ①②④ are done.
    - `NED_DDS_Protocol.md` reflects ② (descriptor QoS) and ④ if it describes them.
    - The working tree is clean.
