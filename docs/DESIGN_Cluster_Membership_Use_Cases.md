@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
+updated: 2026-10-28 (§2.1 first live run: UC-20…UC-23 ✅, UC-17 🔴 Player crash on possession) · 2026-10-28 (§2.1 NEW — the multiplayer use cases UC-17…UC-24, CE-4080) · 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
   multi-process cluster the same day)
 build-state: DESIGN — the use cases are the ACCEPTANCE for Q91; the decisions live there, not here.
 current-answer: §2 is the use-case table (what must hold, today's measured status, which decision covers it); §3 is how to
@@ -93,13 +93,13 @@ and updates it.
 
 | UC | situation | must hold | today | decided in |
 |---|---|---|---|---|
-| **UC-17** | two Players each possess a different unit and drive it | each unit moves under its own Player; the other Player and every server node see it move | *code*: the cross-node rail drives a unit from **SimHost** as the station (`EntityOrdersAcrossNodesTests` CE-3172). Never run with an IG node as the station, and never with two stations | `DESIGN_Entity_Control.md` §8b/§8c |
+| **UC-17** | two Players each possess a different unit and drive it | each unit moves under its own Player; the other Player and every server node see it move | 📐 `2026-10-28` 🔴 the possession itself works: from a Player's HTTP port it reaches the CGF brain (`OperatorControl` at origin `Possession`). ⛔ But the Player PROCESS crashes seconds later in its first-person aim (`BodyPartHit.Slab` `Math.Sign(NaN)` via `FpsCameraDriver.Aim`) — 3 of 4 tries. Fix in progress (CE-4080 F1). Driving not yet measured | `DESIGN_Entity_Control.md` §8b/§8c |
 | **UC-18** | the second Player asks for the unit the first one holds | today's ruling **C-3**: the second takes it over and the first leaves first person by itself. ⏸ For a game this may be wrong (it lets a player steal another's unit). The user decides | *code* (C-3) | `DESIGN_Entity_Control.md` C-3 |
-| **UC-19** | an order from Player A to a unit Player B holds | refused (`409 Possessed`) | *code* | C-3 |
-| **UC-20** | a possessing Player crashes, or exits | its unit is released on every node and its paused task resumes. The other Player is untouched | *code*: F1, `Possession.cs:218` (`NodeDeparted`). Not run live | Q91 §4-F |
-| **UC-21** | that Player starts again (late join) | caught up (C7). It sees the world as it is now, including the unit the other Player holds (`EntityPossessedBy` is durable), and it can possess again | *code* | Q91 §4-E, §4-M |
-| **UC-22** | a Player joins while another is driving | it sees the driven unit where it is now, and moving | *code* | Q91 §3 |
-| **UC-23** | the server pauses (or a Player pauses it) | every Player shows the same sim time; a control frame sent while paused moves nothing | *code* | UC-16 |
+| **UC-19** | an order from Player A to a unit Player B holds | refused (`409 Possessed`) | ⏳ not measured — needs a held unit, blocked by F1. 📐 An order to a KILLED unit is refused `409 Dead`; an order from a Player to a free unit is accepted and the unit moves | C-3 |
+| **UC-20** | a possessing Player crashes, or exits | its unit is released on every node and its paused task resumes. The other Player is untouched | 📐 `2026-10-28` ✅ (crash) — after the possessing Player crashed, the master ejected it at 5 s, CGF saw `node left (NotAliveNoWriters)` ~7 s after the crash, and the unit was no longer held (`origin Unmarked`). ⏳ clean exit not run | Q91 §4-F |
+| **UC-21** | that Player starts again (late join) | caught up (C7). It sees the world as it is now, including the unit the other Player holds (`EntityPossessedBy` is durable), and it can possess again | 📐 `2026-10-28` ✅ — each restart got a NEW id from the master (10003, 10004, 10005), was caught up in 1.8–3.9 s, and held the same nine networked units as the server | Q91 §4-E, §4-M |
+| **UC-22** | a Player joins while another is driving | it sees the driven unit where it is now, and moving | 📐 `2026-10-28` ✅ — a unit ordered from one Player moved; its position read on CGF, SimHost and both Players (one of them a late joiner) agreed within one sample | Q91 §3 |
+| **UC-23** | the server pauses (or a Player pauses it) | every Player shows the same sim time; a control frame sent while paused moves nothing | 📐 `2026-10-28` ✅ a pause from the server reached SimHost at the identical sim time (424.92 s), and an order sent from a Player while paused did not move the unit. ⚠ A Player cannot pause (`501 NOT_SUPPORTED_HERE time.drive`) — consistent with an observer. ⚠ F2: a Player reports NO sim time over HTTP (`/status`, `/sim/state` → `null`), so "shows the same sim time" cannot be checked there | UC-16 |
 | **UC-24** | a Player opens the 3-D map | it is not ejected | 🔴 `CE-4078`: the 3-D map's first build stalls the frame for ~40 s, so the node is ejected | Q91 §4-B3 |
 
 ⭐ **The recipe** (§3), with the server's traffic node and two Players. Each Player drives through its OWN port:
