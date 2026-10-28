@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.Core;
 using Fdp.Toolkit.Combat;
 
 namespace Fdp.Toolkit.Physics.BodyParts
@@ -13,6 +14,27 @@ namespace Fdp.Toolkit.Physics.BodyParts
     {
         /// <summary>A face normal more upward than this (cos 45°) is the TOP — the armour model's descent rule (D-A) for a part.</summary>
         public const float TopNormalZ = 0.7071f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4080</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §14) — the ONE rule for a rotation the part tests
+        /// turn a body or a box by: a unit quaternion is kept, a near-unit one is normalised, and a ZERO or NON-FINITE one is the IDENTITY.
+        /// ⛔ <c>Quaternion.Inverse</c> of a zero quaternion divides by its zero length and returns NaN; a NaN anywhere in the slab test makes
+        /// every comparison false and ended in <c>MathF.Sign(NaN)</c> — an <c>ArithmeticException</c> that took a Player node down from the FPS
+        /// crosshair. Identity (not "skip the body") because a body with no pose yet is UNTURNED — it is also what <c>Vector3.Transform</c>
+        /// already did with a zero quaternion in the bounding-sphere test, so the sphere and the boxes agree.
+        /// </summary>
+        public static Quaternion Usable(Quaternion q)
+        {
+            float l2 = q.LengthSquared();
+            if (!(l2 > 1e-12f) || float.IsInfinity(l2)) return Quaternion.Identity;   // zero, ±∞ and NaN (NaN fails every comparison)
+            return System.Math.Abs(l2 - 1f) <= 1e-4f ? q : q * (1f / MathF.Sqrt(l2));
+        }
+
+        /// <summary><paramref name="tf"/> with its rotation made <see cref="Usable"/>.</summary>
+        public static SimTransform Placed(in SimTransform tf) => tf with { Rotation = Usable(tf.Rotation) };
+
+        /// <summary>True when every component of <paramref name="v"/> is finite.</summary>
+        public static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
         /// <summary>Does the segment <paramref name="a"/>→<paramref name="b"/> pass within <paramref name="radius"/> of <paramref name="centre"/>?</summary>
         public static bool SegmentTouchesSphere(Vector3 a, Vector3 b, Vector3 centre, float radius)
@@ -35,7 +57,9 @@ namespace Fdp.Toolkit.Physics.BodyParts
                                    out BodyPartHitResult hit, bool arcFaces = false)
         {
             hit = default;
-            if (scale <= 0f) return false;
+            // ⭐ CE-4080 — a degenerate input is a MISS (or an unturned body), never a throw: the FPS crosshair runs this over EVERY drawn entity
+            if (!(scale > 0f) || !float.IsFinite(scale) || !IsFinite(position) || !IsFinite(a) || !IsFinite(b)) return false;
+            rotation = Usable(rotation);
             var toBody = Quaternion.Inverse(rotation);
             var la = Vector3.Transform(a - position, toBody) / scale;
             var lb = Vector3.Transform(b - position, toBody) / scale;
@@ -43,7 +67,9 @@ namespace Fdp.Toolkit.Physics.BodyParts
             bool any = false;
             foreach (ref readonly var box in boxes)
             {
-                var toBox = Quaternion.Inverse(box.Rotation);
+                if (!IsFinite(box.Centre) || !IsFinite(box.Half) || !float.IsFinite(box.FaceYaw)) continue;   // ⭐ CE-4080 — a NaN-posed box (a NaN turret angle) is skipped
+                var boxRotation = Usable(box.Rotation);
+                var toBox = Quaternion.Inverse(boxRotation);
                 var pa = Vector3.Transform(la - box.Centre, toBox);
                 var pb = Vector3.Transform(lb - box.Centre, toBox);
                 if (!Slab(pa, pb, box.Half, out float t, out int axis, out float sign)) continue;
@@ -51,7 +77,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 best = t;
                 any = true;
                 var normalLocal = axis switch { 0 => new Vector3(sign, 0, 0), 1 => new Vector3(0, sign, 0), _ => new Vector3(0, 0, sign) };
-                var normalBody = Vector3.Transform(normalLocal, box.Rotation);
+                var normalBody = Vector3.Transform(normalLocal, boxRotation);
                 if (box.FaceYaw != 0f) normalBody = Vector3.Transform(normalBody, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -box.FaceYaw));
                 var at = pa + (pb - pa) * t;
                 var unit = new Vector3(Div(at.X, box.Half.X), Div(at.Y, box.Half.Y), Div(at.Z, box.Half.Z)) * 0.5f;   // −0.5 … 0.5
@@ -97,6 +123,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
         private static bool Slab(Vector3 a, Vector3 b, Vector3 half, out float tEnter, out int axis, out float sign)
         {
             tEnter = 0f; axis = 0; sign = 1f;
+            if (!IsFinite(a) || !IsFinite(b)) return false;   // ⭐ CE-4080 — belt for the Sign(NaN) below: a huge-but-finite input can still overflow to NaN
             float tMin = 0f, tMax = 1f;
             var d = b - a;
             for (int i = 0; i < 3; i++)

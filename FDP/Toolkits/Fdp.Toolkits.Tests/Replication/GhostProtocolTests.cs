@@ -273,5 +273,43 @@ namespace Fdp.Toolkit.Replication.Tests
 
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
         }
+
+        /// <summary>
+        /// CE-4080 - a ghost promoted BEFORE its first WorldPos lands (the live late-joining Player: its descriptor pairings arrive on the
+        /// network module's first tick, after the first promotions, so nothing gates them) is stamped a pose by SpatialCoreTkbTranslator. That pose is
+        /// UNTURNED - identity - never default(SimTransform)'s zero quaternion, which is no rotation at all: Quaternion.Inverse of it is NaN and
+        /// the FPS crosshair's part test died on it (a Player node crashed seconds after possessing a tank).
+        /// Red-proof: stamping new SimTransform() again gives the rotation (0,0,0,0) and the assertion goes red.
+        /// </summary>
+        [Fact]
+        public void CE4080_AGhostPromotedBeforeItsPoseArrives_IsStampedUnturned_NotAZeroQuaternion()
+        {
+            var template = new TkbTemplate("VehicleShaped", 4244);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TkbMasterDto { CustomName = "VehicleShaped" });
+
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var elm = new Fdp.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(
+                mockTkb, elm, new ITkbEntityTranslator[] { new Fdp.Toolkit.Spatial.SpatialCoreTkbTranslator() });
+
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterEvent<ConstructionOrder>();
+            // no descriptor pairing registered: the live ordering (the map fills on the network module's first tick) means NO gate, promoted at once
+
+            var ghost = repo.CreateEntity();
+            repo.AddComponent(ghost, new TkbIdentity { TkbType = 4244 });
+            repo.AddComponent(ghost, new GhostStateTracker { FirstSeenFrame = 0 });
+            repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
+            Assert.True(repo.HasComponent<SimTransform>(ghost));
+            Assert.Equal(System.Numerics.Quaternion.Identity, repo.GetComponentRO<SimTransform>(ghost).Rotation);
+        }
     }
 }

@@ -472,6 +472,115 @@ namespace Fdp.Toolkit.Physics.Tests
             Apply(c, AircraftPart.Engine, 380f);   // level 97 ⇒ wrecked
             Assert.Equal(0f, _world.GetComponentRO<Health>(c).Current);
         }
+
+        // ── ⭐⭐ CE-4080 — the FPS crosshair runs the part test over EVERY drawn entity, so a degenerate pose must be a miss, never a throw ──────
+
+        private static readonly Vector3 AlongX0 = new(-60f, 0f, 0.8f), AlongX1 = new(60f, 0f, 0.8f);   // through a tank's hull, low
+
+        private (BodyPartTest Test, BodyPartHitResult Hit) ShootTank(Entity tank, Quaternion rotation, Entity? turretPart = null)
+        {
+            var shape = VehicleBody.Of(_world, tank)!;
+            var tf = new SimTransform { Position = Vector3.Zero, Rotation = rotation };
+            var scratch = new BodyBox[VehicleBody.MaxBoxes];
+            var test = BodyPartRay.Vehicle(_world, tank, shape, tf, turretPart ?? Entity.Null, AlongX0, AlongX1, scratch, out var hit);
+            return (test, hit);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4080</c> — live: a Player node died seconds after it possessed a tank, <c>ArithmeticException</c> from <c>MathF.Sign(NaN)</c> in
+        /// the slab test. The tank it aimed across was a REPLICA still holding the zero rotation <c>SpatialCoreTkbTranslator</c> stamped when the
+        /// ghost was promoted (its first <c>WorldPos</c> not yet landed): <c>Quaternion.Inverse(0,0,0,0)</c> is NaN. A body with no rotation is
+        /// UNTURNED, so the shot must give exactly what the same tank at identity gives.
+        /// 🔴 Red-proof: <c>BodyPartHit.Usable</c> returning its argument ⇒ the zero rotation reaches <c>Inverse</c> ⇒ NaN ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4080_AVehicleWithAZeroRotation_IsShotAsUnturned_NeverAThrow()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            var tank = Body(Tank, health: 1000f);
+
+            var unturned = ShootTank(tank, Quaternion.Identity);
+            Assert.Equal(BodyPartTest.Hit, unturned.Test);   // the premise: this line crosses the hull
+
+            var zero = ShootTank(tank, default);   // (0,0,0,0)
+            Assert.Equal(unturned.Test, zero.Test);
+            Assert.Equal(unturned.Hit.Part, zero.Hit.Part);
+            Assert.Equal(unturned.Hit.T, zero.Hit.T, 4);
+
+            var nan = ShootTank(tank, new Quaternion(float.NaN, 0f, 0f, 1f));
+            Assert.Equal(unturned.Test, nan.Test);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4080</c> — a NaN turret angle (a replicated <c>TurretPose</c> a slew divided by zero into) poses the turret and gun boxes at NaN.
+        /// Those boxes are skipped; the hull, which no turret angle moves, is still hit.
+        /// 🔴 Red-proof: removing the finite checks in <c>BodyPartHit.Segment</c> and <c>Slab</c> ⇒ the NaN box is entered as "starts inside" ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4080_ANaNTurretAngle_SkipsTheTurretBoxes_TheHullIsStillHit()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.TurretPose>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+            var tank = Body(Tank, health: 1000f);
+            var turret = _world.CreateEntity();
+            _world.AddComponent(turret, new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = float.NaN, Elevation = float.NaN });
+
+            // the premise: a NaN azimuth really does pose boxes at NaN (else this rail proves nothing)
+            var shape = VehicleBody.Of(_world, tank)!;
+            var posed = new BodyBox[VehicleBody.MaxBoxes];
+            int n = VehicleBody.Pose(shape, VehicleBody.SizeOf(_world, tank, shape), float.NaN, 0f, posed);
+            Assert.Contains(posed.Take(n), b => !BodyPartHit.IsFinite(b.Centre));
+
+            var reference = ShootTank(tank, Quaternion.Identity);   // no turret part: the kit's rest pose
+            Assert.Equal(BodyPartTest.Hit, reference.Test);
+            Assert.Contains(reference.Hit.Part, new[] { VehiclePart.Hull, VehiclePart.Engine });   // low along the hull: not the turret, not the gun
+
+            var shot = ShootTank(tank, Quaternion.Identity, turret);
+            Assert.Equal(BodyPartTest.Hit, shot.Test);
+            Assert.Equal(reference.Hit.Part, shot.Hit.Part);   // the NaN turret's boxes are skipped; the hull answers as before
+        }
+
+        /// <summary>⭐ <c>CE-4080</c> — a MAN with a zero rotation (his ghost's stamp) is shot as unturned too: <c>BodyPartRay.Person</c> is the same slab test.
+        /// 🔴 Red-proof: <c>Usable</c> returning its argument ⇒ red.</summary>
+        [Fact]
+        public void CE4080_APersonWithAZeroRotation_IsShotAsUnturned_NeverAThrow()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            var man = Body(Soldier);
+            var a = new Vector3(-10f, 0f, 1.0f);
+            var b = new Vector3(10f, 0f, 1.0f);
+            var unturned = BodyPartRay.Person(_world, man, new SimTransform { Rotation = Quaternion.Identity }, 0f, a, b, out var expected);
+            Assert.Equal(BodyPartTest.Hit, unturned);   // the premise: chest height through his middle
+
+            var zero = BodyPartRay.Person(_world, man, new SimTransform { Rotation = default }, 0f, a, b, out var hit);
+            Assert.Equal(BodyPartTest.Hit, zero);
+            Assert.Equal(expected.Part, hit.Part);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4080</c> — the slab test itself: a zero body or box rotation is identity, a non-finite endpoint or position is a miss, and a box
+        /// with a NaN extent is skipped (it used to be "entered at 0" — a false hit).
+        /// 🔴 Red-proof: dropping the finite checks ⇒ the NaN-extent box answers Hit; <c>Usable</c> returning its argument ⇒ the zero rotations throw.
+        /// </summary>
+        [Fact]
+        public void CE4080_TheSlabTest_TreatsZeroRotationAsIdentity_AndNonFiniteInputAsAMiss()
+        {
+            var unit = new BodyBox(1, Vector3.Zero, new Vector3(1f, 1f, 1f), Quaternion.Identity);
+            var a = new Vector3(-5f, 0f, 0f);
+            var b = new Vector3(5f, 0f, 0f);
+
+            Assert.True(BodyPartHit.Segment(new[] { unit }, Vector3.Zero, Quaternion.Identity, 1f, a, b, out var identity));
+            Assert.Equal(0.4f, identity.T, 4);
+
+            Assert.True(BodyPartHit.Segment(new[] { unit }, Vector3.Zero, default, 1f, a, b, out var zeroBody));
+            Assert.Equal(identity.T, zeroBody.T, 4);
+            Assert.True(BodyPartHit.Segment(new[] { unit with { Rotation = default } }, Vector3.Zero, Quaternion.Identity, 1f, a, b, out var zeroBox));
+            Assert.Equal(identity.T, zeroBox.T, 4);
+
+            Assert.False(BodyPartHit.Segment(new[] { unit with { Half = new Vector3(float.NaN, 1f, 1f) } }, Vector3.Zero, Quaternion.Identity, 1f, a, b, out _));
+            Assert.False(BodyPartHit.Segment(new[] { unit }, Vector3.Zero, Quaternion.Identity, 1f, new Vector3(float.NaN, 0f, 0f), b, out _));
+            Assert.False(BodyPartHit.Segment(new[] { unit }, new Vector3(0f, float.PositiveInfinity, 0f), Quaternion.Identity, 1f, a, b, out _));
+        }
 }
 }
 
