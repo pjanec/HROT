@@ -270,7 +270,7 @@ internal sealed class LocalWindowController
         //   changes the NEXT run: the reset already happened before ImGui was set up, and pretending
         //   otherwise would be a control that lies about when it acts.
         wm.GlobalMenu.RegisterCheckableItem(
-            "Settings/Layout/Reset to default on start",
+            "View/Settings/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
             () => _options.ResetLayoutOnRun,
             v =>
             {
@@ -279,16 +279,16 @@ internal sealed class LocalWindowController
                     $"[Layout] Reset-on-start is now {(v ? "ON" : "OFF")} — it applies from the next run.");
             });
 
-        wm.GlobalMenu.RegisterSeparator("Settings/Layout/sep_save_default");
+        wm.GlobalMenu.RegisterSeparator("View/Settings/Layout/sep_save_default");
 
         // ⭐ CE-1137 — the scene heard from the 3-D camera outside FPS (off by default, saved in the operator's audio.json). 🔒 User,
         //   2026-10-16: "a menu settings for enabling sounds in 3d map non-FPS mode heard from the camera position".
         wm.GlobalMenu.RegisterCheckableItem(
-            "Settings/Sound in the 3-D view (from the camera)",
+            "View/Settings/Sound in the 3-D view (from the camera)",
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
 
-        wm.GlobalMenu.RegisterItem("Settings/Layout/Save current as default", () =>
+        wm.GlobalMenu.RegisterItem("View/Settings/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the
             //    half-reset this batch exists to end.
@@ -308,7 +308,7 @@ internal sealed class LocalWindowController
 
         // ⛔ The command STAYS VISIBLE outside a checkout and says why it cannot run.
         var saveNode = wm.GlobalMenu.Root
-            .Children["Settings"].Children["Layout"].Children["Save current as default"];
+            .Children["View"].Children["Settings"].Children["Layout"].Children["Save current as default"];
         saveNode.GetEnabled    = () => LayoutPaths.TryFindSourceLayoutDirectory() != null;
         saveNode.DynamicLabel  = () => LayoutPaths.TryFindSourceLayoutDirectory() != null
             ? "Save current as default"

@@ -36,8 +36,9 @@ public sealed class TheSettingsMenuIsOneMenuTests
     {
         var wm = Wm();
 
-        Assert.True(wm.GlobalMenu.Root.Children.ContainsKey("Settings"));
-        Assert.Contains("UI Scale & Fonts…", wm.GlobalMenu.Root.Children["Settings"].Children.Keys);
+        // ⭐ CE-4085: Settings is a submenu of View now, not a top-level menu.
+        Assert.False(wm.GlobalMenu.Root.Children.ContainsKey("Settings"));
+        Assert.Contains("UI Scale & Fonts…", wm.GlobalMenu.Root.Children["View"].Children["Settings"].Children.Keys);
     }
 
     /// <summary>
@@ -52,12 +53,12 @@ public sealed class TheSettingsMenuIsOneMenuTests
     {
         var wm = Wm();
 
-        wm.GlobalMenu.RegisterItem("Settings/Layout/Save current as default", () => { });
+        wm.GlobalMenu.RegisterItem("View/Settings/Layout/Save current as default", () => { });
 
-        var settings = wm.GlobalMenu.Root.Children["Settings"];
+        var settings = wm.GlobalMenu.Root.Children["View"].Children["Settings"];
         Assert.Contains("UI Scale & Fonts…", settings.Children.Keys);
         Assert.Contains("Layout",            settings.Children.Keys);
-        Assert.Single(wm.GlobalMenu.Root.Children.Keys.Where(k => k == "Settings"));
+        Assert.Single(wm.GlobalMenu.Root.Children["View"].Children.Keys.Where(k => k == "Settings"));
     }
 
     /// <summary>

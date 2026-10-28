@@ -108,7 +108,8 @@ public class WindowManager
         //    GlobalMenu would have produced a SECOND top-level menu with the same name, side by side.
         // ⇒ ⭐ this item moves into GlobalMenu (route, don't duplicate) so `Settings` is ONE menu that
         //    hosts can extend — which is what the layout items now do.
-        GlobalMenu.RegisterItem("Settings/UI Scale & Fonts…", () => _openSettingsModal = true);
+        //    ⭐ CE-4085: Settings is a SUBMENU of View (View ▸ Settings ▸ …), not a top-level menu — ⛔ SUPERSEDED: the top-level Settings.
+        GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/UI Scale & Fonts…", () => _openSettingsModal = true);
 
         // ⭐⭐ CE-1243 MB-3 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — the shell's own per-frame menus are CONTRIBUTORS of the one
         //    menu tree, drawn by the same walk and the same rows as every registered item. ⛔ SUPERSEDED: RenderPerspectiveMenu (a
@@ -641,6 +642,9 @@ public class WindowManager
             if (_mainToolbar.Height > 0f)
                 _mainToolbar.RenderInline(CurrentPerspective);
 
+            // ⭐ CE-4085: Help (the right-aligned menu) is drawn LAST, flush with the bar's right edge, after the toolbar.
+            RenderMenuBar(contributions, rightAligned: true);
+
             Gui.EndMainMenuBar();
         }
 
@@ -723,12 +727,23 @@ public class WindowManager
     /// ⭐⭐ <c>CE-1243</c> MB-3 — the bar: every top-level menu (<see cref="GlobalMenuRegistry.BarMenus"/>) as ONE menu, its tree items
     /// first, then each contributor's items under the same label. Rows are <see cref="GizmoMap.Presentation.MenuRows"/>'.
     /// </summary>
-    private void RenderMenuBar(IReadOnlyList<MenuContribution> contributions)
+    private void RenderMenuBar(IReadOnlyList<MenuContribution> contributions, bool rightAligned = false)
     {
         var bar = GlobalMenu.BarMenus(contributions);
         bool reserveTop = MenuIcons != null && bar.Any(m => !string.IsNullOrEmpty(TopIcon(m)));
         foreach (var menu in bar)
         {
+            // ⭐ CE-4085: two passes over the ONE bar — the left-flowing menus, then (after the toolbar) the right-aligned one (Help).
+            if (menu.RightAligned != rightAligned) continue;
+            if (rightAligned)
+            {
+                // Flush with the bar's right edge, but never over what is already drawn (a narrow window keeps the flow position).
+                float width = Gui.CalcTextSize(menu.Name).X + Gui.GetStyle().FramePadding.X * 2f
+                              + (MenuIcons != null && !string.IsNullOrEmpty(TopIcon(menu)) ? Gui.GetFrameHeight() : 0f);
+                float x = System.Math.Max(Gui.GetCursorPosX(), Gui.GetWindowWidth() - Gui.GetStyle().WindowPadding.X - width);
+                Gui.SameLine();
+                Gui.SetCursorPosX(x);
+            }
             bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : n.ResolveBinding(CurrentPerspective) != null);
             if (!treeShows && menu.Parts.Count == 0) continue;   // ⛔ UXI-05: no dead headers
 
@@ -952,7 +967,9 @@ public class WindowManager
     private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto PerspectiveMenuDto()
     {
         _perspectiveMenuModel = BuildPerspectiveMenuModel();
-        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        // ⭐ CE-4085: a "Perspective" SUBMENU contributed under the top-level "View" (merged into the one View menu by BarMenus).
+        //    An empty switcher contributes nothing (no dead header) — see OnlyIfAny.
+        var submenu = new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = GlobalMenuRegistry.PerspectiveMenu,
             Children = _perspectiveMenuModel.Select((e, i) => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
@@ -960,6 +977,11 @@ public class WindowManager
                 Id = PerspectiveActionBase - i, Label = GetPerspectiveLabel(e.Perspective), IsChecked = e.IsChecked,
                 Icon = GetPerspectiveIconKey(e.Perspective),
             }).ToArray(),
+        };
+        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        {
+            Label = "View",
+            Children = submenu.Children is { Length: > 0 } ? new[] { submenu } : Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>(),
         };
     }
 

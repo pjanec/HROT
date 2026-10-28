@@ -3968,7 +3968,7 @@ namespace Hrot.Editor
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
-            windowManager.GlobalMenu.RegisterItem("Settings/Reset all debug settings for this scenario", () =>
+            windowManager.GlobalMenu.RegisterItem("View/Settings/Reset all debug settings for this scenario", () =>
             {
                 if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
             });
