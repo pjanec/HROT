@@ -352,6 +352,7 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐⭐⭐ L8 — resume or expire a PARKED transition BEFORE new intents are admitted, so a transition
         //    whose files landed this frame does not cause the next request to be rejected as "busy".
         ProcessParkedTransition();
+        ProcessHeldLoad();   // ⭐⭐ CE-4087 — a load waiting for its roles starts (or is refused) before new intents are admitted
         ReleaseHeldReplayExit();   // ⭐ CE-3329 F8 — an exit from a replay / review waits for the seeks in flight
 
         // Bus-based intent drain (CMC-S008).
@@ -421,6 +422,14 @@ public sealed partial class ClusterMaster : IDisposable
     {
         if (!_bootstrapLatch)
         {
+            // ⭐ CE-4087 — a scenario LOAD against a cluster that is not ready WAITS (and is refused with the reason after the wait);
+            //   every other request keeps today's rejection.
+            if (req.OperationType == ClusterOpType.TransitionState
+                && ClusterOpRequestAdapter.ToTransitionStateIntent(req) is var load && IsScenarioLoad(load))
+            {
+                ProcessTransitionStateIntent(load);
+                return;
+            }
             PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected);
             return;
         }
@@ -661,20 +670,8 @@ public sealed partial class ClusterMaster : IDisposable
         if (_bootstrapLatch) return;
         if (_config.Mandatory.Length == 0) return;
 
-        foreach (var name in _config.Mandatory)
-        {
-            bool found = false;
-            foreach (var kv in _roster.ActiveNodes)
-            {
-                if (string.Equals(kv.Value.SubsystemName, name, StringComparison.OrdinalIgnoreCase)
-                    && kv.Value.LocalClusterState == ClusterState.Idle)
-                {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) return;
-        }
+        // ⭐ CE-4087 — the name test lives in ONE place (ClusterMaster.Bootstrap.cs), shared with the load wait's "waiting for" text.
+        if (MissingMandatoryNames().Count > 0) return;
 
         // All mandatory nodes are in Standby — latch released.
         _bootstrapLatch = true;
@@ -761,7 +758,8 @@ public sealed partial class ClusterMaster : IDisposable
     {
         foreach (var intent in _eventBus.ReadManaged<TransitionStateIntent>())
         {
-            if (!_bootstrapLatch) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
+            // ⭐ CE-4087 — a scenario load WAITS on a closed latch (ProcessTransitionStateIntent holds it); anything else is rejected as before.
+            if (!_bootstrapLatch && !IsScenarioLoad(intent)) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
             try   { ProcessTransitionStateIntent(intent); }
             catch (InvalidOperationException ex)
             {
@@ -1291,6 +1289,12 @@ public sealed partial class ClusterMaster : IDisposable
     {
         var requestId = intent.TransactionId;
 
+        // ⭐ CE-4087 — a newer request replaces a load that waits on the mandatory set (as ScenarioLoadSequence does caller-side) …
+        SupersedeHeldLoad(requestId);
+        // … and a scenario load WAITS on the mandatory set — subsystem names (the bootstrap latch) and roles — instead of being rejected
+        //   or started into a cluster nobody can run. Held before any state is touched. 📄 ClusterMaster.Bootstrap.cs.
+        if (HoldLoadUntilMandatory(intent)) return;
+
         // ⭐ CE-3329 F8 — leaving a replay / review drains the seeks first
         var showing = (FdpClusterState)(int)_currentDsmState;
         if (ClusterStates.IsReplaying(showing) && !ClusterStates.IsReplaying(intent.TargetState) && SeeksInFlight())
@@ -1374,6 +1378,7 @@ public sealed partial class ClusterMaster : IDisposable
         }
 
         var trajectory = _planner.PlanTrajectory(_currentDsmState, intent);
+
         int totalSteps = trajectory.Count;
 
         // Extract the final TransitionStep target for history recording and optimistic advance.
@@ -2058,6 +2063,9 @@ public sealed partial class ClusterMaster : IDisposable
     {
         var targetId = intent.TargetRequestId;
 
+        // ⭐ CE-4087 — a load still WAITING for its roles has sent nothing and staged nothing: dropping it is the whole cancel.
+        if (targetId != Guid.Empty && TryCancelHeldLoad(targetId)) return;
+
         // ⭐⭐ L8 — the ONE transition state that can be cancelled cleanly: PARKED, so nothing has been sent.
         //   ⛔ Cancel was an ARCHIVE-only facility (`_activeCancellations` is written only by the Export and
         //   Import branches, CGF-1-BATCH-28 §C.4) and a transition was never a target — before parking there
@@ -2476,7 +2484,7 @@ public sealed partial class ClusterMaster : IDisposable
 
     /// <summary>
     /// ⭐⭐ P3 (Q91 §4-D D1, §4-D′) — the nodes the clock's step barrier waits for: advert landed ∧ holds a simulation
-    /// role ∧ is not the node this master runs in. ⚠ DELIBERATELY NOT <see cref="IsObserver"/>'s clause ③: in a cluster of
+    /// role ∧ is in sync (CE-4087, K6) ∧ is not the node this master runs in. ⚠ DELIBERATELY NOT <see cref="IsObserver"/>'s clause ③: in a cluster of
     /// observers only, ③ would make ExCon and the orchestrator "authoritative", and neither ever ACKs a frame ⇒ every step
     /// would hang. An EMPTY roster means nobody is waited for, which is safe. ⛔ Never the master's own node: it runs the
     /// MASTER clock (the editor, R-4005) and never ACKs a frame to itself. Replaces the name match
@@ -2486,7 +2494,13 @@ public sealed partial class ClusterMaster : IDisposable
     {
         var roster = new HashSet<int>();
         foreach (var p in _roster.ActiveNodes.Values)
-            if (p.NodeId != LocalNodeId && _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) != 0)
+            if (p.NodeId != LocalNodeId && _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) != 0
+                // ⭐⭐ CE-4087 (R-4014, Q91 §4-K K6) — "a node not in sync never participates", in the step barrier too. A SimHost that
+                //   registers while the cluster runs (or restarts mid-run) is NOT in the barrier while it is still being caught up —
+                //   it cannot answer a step for a world it has not got yet — and enters it, with the roster republished, the moment
+                //   its catch-up completes (`PublishStepRosterIfChanged` runs every tick). ⛔ Before, the barrier admitted it on its
+                //   advert, and a node still loading gated every step.
+                && _inSync.Contains(p.NodeId))
                 roster.Add(p.NodeId);
         return roster;
     }

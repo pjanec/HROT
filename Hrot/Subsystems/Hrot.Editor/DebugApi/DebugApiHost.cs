@@ -2057,7 +2057,11 @@ namespace Hrot.Editor.DebugApi
             }
             return Fail(504, $"Scenario '{name}' did not reach a settled {target} within "
                            + $"{ScenarioReadyTimeoutSeconds}s ({probe.Polls} polls, entityCount {probe.LastCount}, "
-                           + $"sawWorldChange={probe.SawWorldChange}, hadWorldAnchor={probe.HadWorldAnchor}).");
+                           + $"sawWorldChange={probe.SawWorldChange}, hadWorldAnchor={probe.HadWorldAnchor}). "
+                           // ⭐ CE-4087 — a load needs a Brain and a MuscleGround node; the master WAITS for them, then refuses. The
+                           //   reason ("waiting for: MuscleGround (SimHost)") is on the node that hosts the master.
+                           + "If the cluster has no node with a required role (Brain, MuscleGround) the master holds the load and refuses it "
+                           + "after its wait: read load.notice in GET /cluster/roster on the orchestrator.");
         }
 
         private DebugApiService Service()

@@ -130,9 +130,10 @@ export const TOOLS_CATALOG = [
       "path": "/cluster/roster"
     },
     "params": [],
-    "returns": "{ count, nodes[{ nodeId, subsystem, reportedState, roles, secondsSinceHeartbeat }], note }",
+    "returns": "{ count, nodes[{ nodeId, subsystem, reportedState, roles, secondsSinceHeartbeat }], load{ notice }, note }",
     "notes": [
       "reportedState is each node's OWN claim from its heartbeat, not the cluster's state — read get_status for that.",
+      "load.notice is the master's LOAD GATE: a scenario load needs a Brain and a MuscleGround node. While one waits it reads \"waiting for: MuscleGround (SimHost)\"; after the master refused it, the reason; null when no load is held.",
       "A node leaves the list after the heartbeat timeout (default 5 s) of silence.",
       "Only the node hosting the ClusterMaster can answer (the orchestrator process, or the editor's in-process core); elsewhere it answers 503 — check the 'cluster.roster' cell in get_capabilities."
     ],

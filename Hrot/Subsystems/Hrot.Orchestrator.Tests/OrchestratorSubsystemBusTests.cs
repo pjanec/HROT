@@ -82,6 +82,39 @@ public sealed class OrchestratorSubsystemBusTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — the silent-default rail, asserted on the CONSTRUCTED object: the orchestrator host hands its debug provider the
+    /// master's load-gate text, so <c>GET /cluster/roster</c> can say why a load waits. A headless orchestrator has no Brain and no
+    /// MuscleGround node, so a scenario load is held — and the provider reads it. ⛔ Also proves the host passes no <c>LocalRoles</c>:
+    /// the orchestrator plays none, so the gate is live in it.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4087_TheOrchestratorHostExposesTheLoadGatesNoticeThroughItsDebugProvider()
+    {
+        var subsystem = new OrchestratorSubsystem();
+        subsystem.Initialize(HeadlessConfig());
+        try
+        {
+            var provider = subsystem.CreateDebugProvider()!;
+            Assert.Null(provider.ClusterLoadNotice);   // nothing waits yet
+
+            subsystem.TimeBusForTest!.PublishManaged(new TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = FdpClusterState.OperatingLive,
+                ScenarioId    = "s1",
+            });
+            subsystem.Update(0.016f);
+            subsystem.Update(0.016f);
+
+            Assert.Equal("waiting for: Brain (CGF), MuscleGround (SimHost)", provider.ClusterLoadNotice);
+        }
+        finally
+        {
+            subsystem.Shutdown();
+        }
+    }
+
     // ── RT-016: ClusterUiCache default SourceDsmState/TargetDsmState ──────────
 
     /// <summary>

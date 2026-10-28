@@ -537,4 +537,295 @@ public sealed class ClusterMasterBootstrapTests
         bus.SwapBuffers();
         Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
     }
+
+    // == CE-4087 - the mandatory set's ROLES half, and a load that WAITS on the latch ============================
+    // User, 2026-10-28: "scenario should not be able to load at all without muscle role node loaded, as it can not be edited nor started."
+    // The roles are the second half of the mandatory set (ClusterMaster.Bootstrap.cs); G1..G9 pin the wait/refuse, L1/L2 its tie to the name latch.
+
+    private const int CgfNode = 400;
+    private const int SimHostNode = 1;
+
+    private static ClusterConfiguration GateConfig(double waitSeconds = 30.0) => new()
+    {
+        Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+        LoadWaitSeconds = waitSeconds,   // MandatoryRoles = the default: Brain | MuscleGround
+    };
+
+    /// <summary>A node's heartbeat joins the roster; its capability advert (the role token) lands in the same frame only when <paramref name="roleToken"/> is given.</summary>
+    private static void GateJoin(FdpEventBus bus, ClusterMaster master, int nodeId, string? roleToken)
+    {
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = nodeId, SubsystemName = "Node", WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+        });
+        if (roleToken != null)
+            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { roleToken } });
+        Step(bus, master);
+    }
+
+    /// <summary>The advert of a node already in the roster arrives LATER than its heartbeat (R-4005, the join window).</summary>
+    private static void AdvertLands(FdpEventBus bus, ClusterMaster master, int nodeId, string roleToken)
+    {
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { roleToken } });
+        Step(bus, master);
+    }
+
+    private static Guid RequestLoad(FdpEventBus bus, ClusterMaster master, string target = "OperatingLive", string scenario = "s1")
+    {
+        var id = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = id, OperationType = ClusterOpType.TransitionState,
+            PayloadJson = $"{{\"TargetState\":\"{target}\",\"ScenarioId\":\"{scenario}\"}}",
+        });
+        Step(bus, master);
+        return id;
+    }
+
+    private static List<ClusterOpCompletedEvent> StatusesOf(FdpEventBus bus, Guid requestId)
+        => bus.ReadManaged<ClusterOpCompletedEvent>().Where(e => e.RequestId == requestId).ToList();
+
+    // ───────────────────────────────────────────────────────────────────────────────────────────────
+
+    [Theory(Timeout = 10_000)]
+    [InlineData("OperatingLive")]
+    [InlineData("OperatingEdit")]
+    public void G1_A_load_with_no_MuscleGround_node_waits_and_says_which_role(string target)
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig());
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);   // the CGF is there; the SimHost is not
+
+        var id = RequestLoad(bus, master, target);
+
+        Assert.Equal(id, master.HeldLoadRequestId);                                        // held, not refused, not started
+        Assert.Null(master.ParkedRequestId);                                                // nothing was staged
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);                        // the cluster did not move
+        Assert.Equal("waiting for: MuscleGround (SimHost)", master.LoadNotice);             // what the operator and HTTP read
+        var status = Assert.Single(StatusesOf(bus, id));
+        Assert.Equal(OrchestrationStatusCode.Pending, status.StatusCode);
+        Assert.Equal("waiting for: MuscleGround (SimHost)", status.ResultPayload);          // and what the asking node's bus carries
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void G2_The_load_starts_the_moment_the_SimHosts_capability_advert_lands_and_not_on_its_heartbeat()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig());
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        var id = RequestLoad(bus, master);
+        Assert.Equal(id, master.HeldLoadRequestId);
+
+        // ⭐ trap ①: the SimHost's HEARTBEAT is in the roster but its advert has not landed ⇒ its mask reads None ⇒ it counts for nothing
+        GateJoin(bus, master, SimHostNode, roleToken: null);
+        Assert.Equal(id, master.HeldLoadRequestId);
+        Assert.Equal("waiting for: MuscleGround (SimHost)", master.LoadNotice);
+
+        AdvertLands(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+
+        Assert.Null(master.HeldLoadRequestId);
+        Assert.Null(master.LoadNotice);
+        Assert.Equal(id, master.ParkedRequestId);   // the load began (a scenario load parks for its files, L8)
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void G3_A_load_is_refused_after_the_wait_and_the_reason_names_every_missing_role()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig(waitSeconds: 0.2));
+        GateJoin(bus, master, 7, roleToken: null);   // someone is there, but plays no role
+
+        var id = RequestLoad(bus, master);       // held …
+        Assert.Equal(id, master.HeldLoadRequestId);
+        System.Threading.Thread.Sleep(300);      // … nobody turns up for longer than the wait …
+        Step(bus, master);                       // … and the next tick refuses it
+
+        Assert.Null(master.HeldLoadRequestId);
+        Assert.Null(master.ParkedRequestId);
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);
+        Assert.Empty(bus.ReadManaged<ExecuteNodeOpIntent>());
+        var status = Assert.Single(StatusesOf(bus, id));   // a FAILED load the operator sees — never a silent hang
+        Assert.Equal(OrchestrationStatusCode.Failure, status.StatusCode);
+        var reason = Assert.IsType<string>(status.ResultPayload);
+        Assert.Contains("waiting for: Brain (CGF), MuscleGround (SimHost)", reason);
+        Assert.Equal(reason, master.LoadNotice);           // the panel and GET /cluster/roster keep reading it
+    }
+
+    /// <summary>
+    /// ⭐⭐ trap ②: the editor plays every simulation role IN-PROCESS and declares them to the roster only after its own
+    /// heartbeat and advert loop back through the bus. Its own roles (<see cref="ClusterMaster.LocalRoles"/>) count at once, so
+    /// the editor never refuses — or waits for — itself. ⭐ Anti-vacuity: the identical master WITHOUT them holds the same load.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void G4_The_hosts_own_in_process_roles_count_so_the_editor_never_refuses_itself()
+    {
+        var bus = new FdpEventBus();
+        using var editor = new ClusterMaster(bus, GateConfig().ForOneNodeCluster())
+        {
+            LocalRoles = NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver,
+        };
+        var id = RequestLoad(bus, editor);
+        Assert.Null(editor.HeldLoadRequestId);
+        Assert.Equal(id, editor.ParkedRequestId);
+
+        var bus2 = new FdpEventBus();
+        using var bare = new ClusterMaster(bus2, GateConfig().ForOneNodeCluster());
+        var id2 = RequestLoad(bus2, bare);
+        Assert.Equal(id2, bare.HeldLoadRequestId);   // without LocalRoles it waits: the gate is real
+    }
+
+    /// <summary>⭐ The gate is about SCENARIO loads. A transition that names none (a replay, a review, a branch, a dry run) is none of its business.</summary>
+    [Fact(Timeout = 10_000)]
+    public void G5_A_transition_naming_no_scenario_is_not_gated()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig());
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);   // no MuscleGround anywhere
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\"}",
+        });
+        Step(bus, master);
+
+        Assert.Null(master.HeldLoadRequestId);
+        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);   // it went ahead
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void G6_A_newer_request_replaces_the_waiting_load_and_tells_its_asker()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig());
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        var first = RequestLoad(bus, master, scenario: "s1");
+        Assert.Equal(first, master.HeldLoadRequestId);
+
+        var second = RequestLoad(bus, master, scenario: "s2");
+
+        Assert.Equal(second, master.HeldLoadRequestId);   // the newer one waits now
+        Assert.Contains(StatusesOf(bus, first), e => e.StatusCode == OrchestrationStatusCode.Cancelled);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void G7_The_operators_cancel_drops_a_waiting_load()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig());
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        var id = RequestLoad(bus, master);
+        Assert.Equal(id, master.HeldLoadRequestId);
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = id });
+        Step(bus, master);
+
+        Assert.Null(master.HeldLoadRequestId);
+        Assert.Null(master.LoadNotice);
+        Assert.Contains(StatusesOf(bus, id), e => e.StatusCode == OrchestrationStatusCode.Cancelled);
+        // and the SimHost arriving later starts nothing
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+        Assert.Null(master.ParkedRequestId);
+    }
+
+    /// <summary>A refusal is news only until the next request: the notice the panel and HTTP show must not outlive it forever.</summary>
+    [Fact(Timeout = 10_000)]
+    public void G9_A_refusal_is_cleared_by_the_next_request_of_any_kind()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, GateConfig(waitSeconds: 0.1));
+        RequestLoad(bus, master);
+        System.Threading.Thread.Sleep(200);
+        Step(bus, master);
+        Assert.Contains("refused", master.LoadNotice);
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"Idle\"}",
+        });
+        Step(bus, master);
+
+        Assert.Null(master.LoadNotice);
+    }
+
+    /// <summary>The roles are configuration: a deployment that needs a Perception node says so, and one that needs none switches the gate off.</summary>
+    [Fact(Timeout = 10_000)]
+    public void G8_The_required_roles_are_configurable_and_None_switches_the_gate_off()
+    {
+        var bus = new FdpEventBus();
+        using var off = new ClusterMaster(bus, new ClusterConfiguration
+        {
+            Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+            MandatoryRoles = NodeRole.None,
+        });
+        var id = RequestLoad(bus, off);
+        Assert.Null(off.HeldLoadRequestId);
+        Assert.Equal(id, off.ParkedRequestId);
+
+        var bus2 = new FdpEventBus();
+        using var perception = new ClusterMaster(bus2, new ClusterConfiguration
+        {
+            Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+            MandatoryRoles = NodeRole.Perception,
+        });
+        GateJoin(bus2, perception, SimHostNode, NodeRoleTokens.MuscleGround);   // a muscle, but no perception
+        var id2 = RequestLoad(bus2, perception);
+        Assert.Equal(id2, perception.HeldLoadRequestId);
+        Assert.Equal("waiting for: Perception (SimHost)", perception.LoadNotice);
+    }
+
+    // -- L: the same wait on the latch's NAME half -----------------------------------------------------------
+
+    /// <summary>
+    /// CE-4087 - the roles are the second half of the mandatory set, the subsystem NAMES the first: a scenario load against a
+    /// cluster whose NAME latch is still closed WAITS too (it used to be a bare Rejected), starts the moment the latch clears, and
+    /// every other request is rejected as before.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void L1_A_load_against_a_closed_name_latch_waits_and_starts_when_the_latch_clears()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration
+        {
+            Mandatory = new[] { "SimHost" }, HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+            MandatoryRoles = NodeRole.None,
+        });
+
+        var id = RequestLoad(bus, master);
+        Assert.False(master.BootstrapComplete);
+        Assert.Equal(id, master.HeldLoadRequestId);
+        var status = Assert.Single(StatusesOf(bus, id));
+        Assert.Equal(OrchestrationStatusCode.Pending, status.StatusCode);   // NOT Rejected
+        Assert.Equal("waiting for: SimHost", status.ResultPayload);
+
+        // a request that is not a load keeps today's rejection, and does not disturb the waiting load
+        var other = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+            { RequestId = other, OperationType = ClusterOpType.TransitionState, PayloadJson = "{\"TargetState\":\"OperatingLive\"}" });
+        Step(bus, master);
+        Assert.Equal(OrchestrationStatusCode.Rejected, Assert.Single(StatusesOf(bus, other)).StatusCode);
+        Assert.Equal(id, master.HeldLoadRequestId);
+
+        Beat(bus, 1, "SimHost");
+        Step(bus, master);
+
+        Assert.True(master.BootstrapComplete);
+        Assert.Null(master.HeldLoadRequestId);
+        Assert.Equal(id, master.ParkedRequestId);   // the load began
+    }
+
+    /// <summary>One text for both halves: a configured name and the default roles are waited for together.</summary>
+    [Fact(Timeout = 10_000)]
+    public void L2_The_waiting_text_names_the_missing_subsystem_and_the_missing_roles_together()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration
+        {
+            Mandatory = new[] { "SimHost" }, HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+        });
+        RequestLoad(bus, master);
+        Assert.Equal("waiting for: SimHost, Brain (CGF), MuscleGround (SimHost)", master.LoadNotice);
+    }
 }

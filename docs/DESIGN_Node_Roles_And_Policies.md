@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (§3.0a NEW — who hears, who reads the terrain, sound calculated on Perception and output on every 3-D map host; the user's rulings) · 2026-10-19 (§3.5 — the EntityHitDamage pair joins the shared pack, CE-3246) · 2026-10-17 (§3.5 NEW — R-3015: one translator set on every node; CE-1148's slices S1–S3 + the event own-sample skip) · 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
+updated: 2026-10-28 (§3.4: the master's bootstrap latch reads the roles too, CE-4087) · 2026-10-25 (§3.0a NEW — who hears, who reads the terrain, sound calculated on Perception and output on every 3-D map host; the user's rulings) · 2026-10-19 (§3.5 — the EntityHitDamage pair joins the shared pack, CE-3246) · 2026-10-17 (§3.5 NEW — R-3015: one translator set on every node; CE-1148's slices S1–S3 + the event own-sample skip) · 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
 known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
   capability), ⭐ §3.3 is ONE CODE PATH ON EVERY NODE (R-4000 — behaviour differs by role, never by a missing
@@ -37,6 +37,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Cluster_Load_Phase.md — §9.2 (CE-4087) OWNS the bootstrap latch's roles half that reads the roles: a scenario load needs a Brain and a MuscleGround node present
   - docs/DESIGN_World_Survey_Sensor.md — OWNS the brain's only way to the geometry (R-2037); §3.0a here states the rule per role
   - docs/DESIGN_Visual_Effects.md — §10: the RoundImpact pair §3.5 S2 moved to every node.
   - docs/designs/brain-split/BS-1-DESIGN.md — §6.4a: the EntityHitDamage pair §3.5 moved to every node (CE-3246); it owns the hit's route and the one ownership rule.
@@ -351,6 +352,12 @@ editor's cluster best-effort** ⇒ **no load could ever fail its round** in the 
 ⚠ **`NodeRole.AllInOne` does NOT exist** in the enum (`None, Brain, MuscleGround, Map2D, Perception, NavigationSolver`);
 the name survives only in a `.dev` batch review as a deviation. ⭐ `EditorCapabilities.DefaultRole` is the honest mask —
 ⛔ do not add an `AllInOne` member to express it.
+
+⭐ **`2026-10-28` (`CE-4087`) — a second reader of the same fact.** The cluster master's BOOTSTRAP LATCH, roles half (a scenario load needs a `Brain` and a
+`MuscleGround` node, [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md) §9.2) counts a role only after its node's advert landed
+— and counts the in-process roles of the master's own host at once (`ClusterMaster.LocalRoles`, which the editor sets to
+`EditorCapabilities.DefaultRole`), so "a single-process host is an ordinary node" holds for the gate too: the editor neither refuses nor waits
+for itself.
 
 ---
 

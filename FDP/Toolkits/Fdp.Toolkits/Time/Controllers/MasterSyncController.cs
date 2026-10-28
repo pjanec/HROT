@@ -169,9 +169,16 @@ namespace Fdp.Toolkit.Time.Controllers
 
             // ⭐ Q86 §4-C — the snap first, so a same-frame resume (a load that runs) applies after it.
             foreach (var ev in _eventBus.ReadManaged<SnapTimeIntent>())
+            {
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] SNAP to SimTime {0:F3}s (pauses).", ev.Position.TotalTime);   // ⭐ CE-4087 — every time command leaves a line
                 SnapAndPause(ev.Position);
+            }
             foreach (var ev in _eventBus.ReadManaged<JumpTimeIntent>())
+            {
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info("[TimeSync] JUMP to SimTime {0:F3}s (keeps running).", ev.TotalTime);
                 JumpWhileRunning(ev.TotalTime);   // ⭐ CE-3329 R4 — never a pause, never an epoch move
+            }
             foreach (var _ in _eventBus.ReadManaged<PauseTimeIntent>())
                 SwitchToDeterministic(updatedSlaves ?? new HashSet<int>(_expectedSlaves));
             foreach (var _ in _eventBus.ReadManaged<ResumeTimeIntent>())
@@ -179,7 +186,10 @@ namespace Fdp.Toolkit.Time.Controllers
             foreach (var ev in _eventBus.ReadManaged<StepTimeIntent>())
                 Step(ev.DeltaSeconds);
             foreach (var ev in _eventBus.ReadManaged<SetTimeScaleIntent>())
+            {
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info("[TimeSync] SCALE x{0}.", ev.TimeScale);
                 SetTimeScale(ev.TimeScale);
+            }
 
             long currentTicks  = _getTick();
             long elapsedTicks  = currentTicks - _lastTickSample;
@@ -459,9 +469,34 @@ namespace Fdp.Toolkit.Time.Controllers
         /// </param>
         public void SwitchToContinuous(float resumeTimeScale = 0f)
         {
-            // Idempotent guard: no-op if already Continuous with no in-flight barrier.
+            // ⭐⭐⭐ CE-4087 — IDEMPOTENT IN STATE, NEVER SWALLOWED ON THE WIRE. A resume to a master that is already running used to
+            //   return here without a log line and without a sample, so a node that was left behind — it missed the first resume, or
+            //   sits on a stale pause — could never be brought back by pressing play: the operator's command reached the master and
+            //   vanished (measured live: CGF and SimHost stayed `isPaused:true totalTime:0` while the master ran, and later
+            //   /sim/pause and /sim/play "logged NOTHING on the master").
+            //   ⇒ the mode, the sim time and the rate are untouched, but the running state is ANNOUNCED AGAIN (the same Continuous
+            //   sample JumpWhileRunning publishes; followers re-anchor to the master's own sim time, a no-op for a node that is
+            //   already right) and the command is LOGGED. The anchor is the tick `_totalTime` was last computed at, so the sample is
+            //   exact; a requested scale applies as it does on any resume.
             if (_mode == MasterMode.Continuous && _pendingBarrierWallTicks < 0)
+            {
+                if (resumeTimeScale > 0f)
+                    _timeScale = resumeTimeScale;
+
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] RESUME (already running). SimTime: {0} — the running state is announced again so a node that missed it follows.",
+                    TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
+
+                _eventBus.Publish(new SwitchTimeModeEvent
+                {
+                    TargetMode       = TimeMode.Continuous,
+                    BarrierWallTicks = _lastTickSample,   // the physical tick `_totalTime` belongs to
+                    SimTimeSnapshot  = _totalTime,
+                    TimeScale        = _timeScale,
+                    FixedDelta       = 0f,
+                });
                 return;
+            }
 
             Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
                 "[TimeSync] RESUME. SimTime: {0}, Cleared {1} pending ACK(s), dropped {2} queued step(s).",

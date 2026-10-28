@@ -565,9 +565,12 @@ namespace Hrot.Editor.DebugApi
             Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? exercises = null,
             Func<float?>? replayDuration = null,
             // ⭐ CE-3329 R-3058 — the replay session's time axis (the core's ClusterUiCache)
-            Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null)
+            Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null,
+            // ⭐⭐ CE-4087 — the in-process master's load-gate text (GET /cluster/roster → load.notice). ⛔ The editor HOLDS the master.
+            Func<string?>? clusterLoadNotice = null)
         {
             _entityCreationGetter = entityCreation;
+            _editorClusterLoadNotice = clusterLoadNotice;
             _editorReplayAxis     = replayAxis;
             _editorClusterRoster  = clusterRoster;
             _editorExercises      = exercises;

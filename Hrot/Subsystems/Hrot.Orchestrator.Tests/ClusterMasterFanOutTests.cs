@@ -49,6 +49,8 @@ public sealed class ClusterMasterFanOutTests
             LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
+        // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         exercise.Tick();
         bus.SwapBuffers();

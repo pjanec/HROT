@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
-current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT of L1-L7) and
+current-answer: ⭐ §9.2 (CE-4087 — a scenario load needs a Brain and a MuscleGround node, BUILT) · §4 (the per-role contract), §5 (the plan + the MET acceptance), §6 (the AS-BUILT of L1-L7) and
   ⭐ §7 (L8 — the deterministic staging WAIT, BUILT; §7.7 is its AS-BUILT).
   ⭐ §8 (CE-2101 — the world boundary clears every host before the load, BUILT; §8.1 CE-3076 completed its WorldEpoch list).
   ⭐ §9 (CE-295 — a load over a loaded cluster asks for Idle first, through ONE caller-side sequence, BUILT).
@@ -27,6 +27,7 @@ related-designs:
   - docs/UX/UX_Feature_Modal_Surfaces.md — OWNS ruling 53 (the confirm sits at the origin; headless never pre-flights)
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — a checkpoint restore is a load: CheckpointLoadPart applies the keyframe in place of the scenario step (CE-3299).
   - docs/DESIGN_Film_Director.md — a CONSUMER of ScenarioLoadSequence (§9) for its playlist
+  - docs/blueprints/DESIGN_Time_Architecture.md — §18 (CE-4087) OWNS the clock half of the load gate's item: a resume is never swallowed, and the step set admits a node when it is in sync
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — a Player that joins LATE runs this same per-role load chain,
     replayed to the one node by the orchestrator (§4-E there); it adds nothing to the chain.
   - DESIGN_Geo_Origin.md — CE-3126: the terrain step's commit also switches every node's geo origin.
@@ -1131,6 +1132,128 @@ so. Rails beside `EditorScenarioSessionLoadTests` and `ScenarioMenuCommands`' te
   - from a CLUSTER dry run (`POST /cluster/transition OperatingPreview`, played 1 s), `POST /scenario/load/live bt-doors` ⇒
     `stoppedRun: "a dry run"`, `OperatingLive`, 26 entities (Locksmith, Visitor) — the master walked the rewind → Edit → Idle path.
   - ② (the menu prompt) is rail-only; a Windows look is owed.
+
+### 9.2 ⭐⭐⭐ `CE-4087` — **THE BOOTSTRAP LATCH GAINS ROLES: a scenario load waits on the mandatory set (Brain + MuscleGround), starts when it is present, else is REFUSED** *(AS-BUILT `2026-10-28`, backend; `build-state: BUILT`)*
+
+🔒 **User, `2026-10-28`:** *"i think scenario should not be able to load at all without muscle role node loaded, as it can not be edited nor
+started, would it make sense to load it without muscle role being available??"* — agreed with the user: a cluster LOAD (live AND edit)
+needs a `Brain` and a `MuscleGround` node; missing one it WAITS up to a configured time showing *"waiting for: <role> (<typical host>)"*,
+then REFUSES with that reason.
+
+⭐⭐ **Built ON the existing bootstrap latch, not beside it** (coordinator ruling, same day: *one implementation per concept*). `ClusterMaster`
+already had the latch — `ClusterConfiguration.Mandatory` (subsystem NAMES), `CheckBootstrapLatch()`, every request rejected while it is
+closed, a mandatory node's ejection re-engaging it ([`CGF-1-DESIGN.md`](designs/cgf-1/CGF-1-DESIGN.md) §3.5). The mandatory set now has two
+halves — names and **roles** (`ClusterConfiguration.MandatoryRoles`, default `Brain|MuscleGround`) — and a scenario load against an unready
+cluster WAITS instead of the bare `Rejected`. The names are tested by ONE helper (`MissingMandatoryNames`), which `CheckBootstrapLatch` itself
+now calls; the wait reads it for its text.
+
+📐 **The defect (measured `2026-10-28`, the `CE-4080` run).** A live load posted the moment the orchestrator and CGF were up, with SimHost
+still registering, planned and ran a world nobody could drive: the load's pause expected acks from `[400]` only. A load without a
+`MuscleGround` node can be neither edited nor started — and nothing said so.
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the latch exists and rejects while closed | ✅ `ClusterMaster._bootstrapLatch`, `CheckBootstrapLatch`, the three rejection sites (bus intent, injected request, episodes/storage) | ✅ `CGF-1-DESIGN.md` §3.5 *"Bootstrap Phase"* |
+| ONE place every load passes | ✅ `ProcessTransitionStateIntent` — reached by the bus intent, the DDS request (→ bus) and the editor's injected request | §9: `ScenarioLoadSequence` is the CALLER's sequencing and refuses nothing (user, `2026-10-05`) — ⭐ the wait refuses on the MANDATORY SET, not on state, and lives master-side |
+| a node's role mask reads `None` until its advert lands | ✅ `ClusterMaster.IngestHeartbeats`, `IngestCapabilities` | ✅ `Q91 §4-A′ ①`, `R-4005` |
+| the editor plays every simulation role in-process and declares it to its own roster | ✅ `EditorCapabilities.DefaultRole`, `EditorSubsystem` `.WithRole("Editor", …)` | ✅ `DESIGN_Node_Roles_And_Policies.md` §3.4 |
+| presence by role already has a query | ✅ `NodeRoster.NodesWithRole(role)` — reused | `Q91 §4-A` |
+
+```mermaid
+classDiagram
+  class ClusterConfiguration { <<existing, changed>> Mandatory = subsystem NAMES +MandatoryRoles = Brain|MuscleGround +LoadWaitSeconds = 30 ForOneNodeCluster() copies the new two }
+  class OrchestratorCoreOptions { <<existing, changed>> +LocalRoles : NodeRole }
+  class ClusterMaster { <<existing, changed>> _bootstrapLatch · CheckBootstrapLatch() +LocalRoles +LoadNotice +HeldLoadRequestId ProcessTransitionStateIntent() calls HoldLoadUntilMandatory }
+  class Bootstrap { <<partial ClusterMaster.Bootstrap.cs, NEW>> MissingMandatoryNames() · MissingMandatoryRoles() · WaitingFor() · HoldLoadUntilMandatory() · ProcessHeldLoad() · SupersedeHeldLoad() · TryCancelHeldLoad() }
+  class NodeRoster { <<existing, unchanged>> NodesWithRole(role) }
+  class ClusterScenarioPanel { <<existing, changed>> banner shows master.LoadNotice }
+  class DebugApiService { <<existing, changed>> GET /cluster/roster adds load.notice }
+  class ISubsystemDebugProvider { <<existing, changed>> +ClusterLoadNotice default null }
+  OrchestratorCoreOptions --> ClusterMaster : sets LocalRoles
+  ClusterConfiguration --> ClusterMaster
+  ClusterMaster *-- Bootstrap
+  ClusterMaster ..> Bootstrap : CheckBootstrapLatch uses MissingMandatoryNames
+  Bootstrap ..> NodeRoster : NodesWithRole
+  ClusterScenarioPanel ..> ClusterMaster : LoadNotice
+  DebugApiService ..> ISubsystemDebugProvider : ClusterLoadNotice
+  ISubsystemDebugProvider ..> ClusterMaster : hosts pass Master.LoadNotice
+```
+*What the picture shows that prose hid:* there is no new gate class — the wait is a partial of the one master, the latch's name test is
+the SAME method for the latch and the wait, the roster query is the existing one, and the two hosts differ only in the ONE value they pass
+(`LocalRoles`).
+
+```mermaid
+sequenceDiagram
+  participant H as HTTP / panel / editor
+  participant M as ClusterMaster
+  participant R as NodeRoster
+  participant N as SimHost
+  H->>M: TransitionStateIntent(OperatingLive, "s1")
+  alt not a scenario load
+    M-->>H: latch closed ⇒ Rejected (as before) · latch open ⇒ proceeds
+  else a scenario load
+    M->>M: WaitingFor() = MissingMandatoryNames (only while the latch is closed) + MissingMandatoryRoles
+    M->>R: NodesWithRole(Brain / MuscleGround), advert landed, ∪ LocalRoles
+    alt nothing missing
+      M->>M: plan, park for the files (L8), fan out
+    else something is missing
+      M-->>H: op status Pending "waiting for: MuscleGround (SimHost)"  (LoadNotice set, logged)
+      N->>M: heartbeat (mask None), then the capability advert
+      Note over M: every Tick: CheckBootstrapLatch, then ProcessHeldLoad re-evaluates
+      alt the set is complete before LoadWaitSeconds
+        M->>M: ProcessTransitionStateIntent(held load) — it starts
+      else the wait runs out
+        M-->>H: op status Failure "load of 's1' refused after 30s — waiting for: MuscleGround (SimHost)"
+      end
+    end
+  end
+```
+
+```mermaid
+graph TD
+  OSUB["OrchestratorSubsystem.Update (per frame)"] --> CORE["OrchestratorCore.Tick"] --> MASTER["ClusterMaster.Tick"]
+  ESUB["EditorSubsystem (per frame)"] --> CORE2["its own OrchestratorCore.Tick"] --> MASTER
+  MASTER --> LATCH["CheckBootstrapLatch — names"]
+  LATCH --> HELD["ProcessHeldLoad — BEFORE new intents (every tick)"]
+  MASTER --> INT["ProcessTransitionStateIntents / injected requests → ProcessTransitionStateIntent → HoldLoadUntilMandatory"]
+  HELD --> INT
+  OSUB -. "LocalRoles = None" .-> MASTER
+  ESUB -. "LocalRoles = EditorCapabilities.DefaultRole" .-> MASTER
+```
+*Who calls it each frame:* the host ticks its core, the core ticks the master, the master re-checks the latch and then `ProcessHeldLoad` before
+it admits new intents — so a node whose advert landed this frame starts the load this frame. Both hosts reach it; they differ only in `LocalRoles`.
+
+| ⭐ decisions, each with its reason | |
+|---|---|
+| **scope = a request naming a scenario that targets `LoadingLive` / `LoadingEdit` / `OperatingLive` / `OperatingEdit`** | ⛔ A replay, a review, a branch and a dry run name no scenario and are not waited on |
+| **only LOADS wait on a missing ROLE; with the name latch closed every other request is rejected as before** | 📐 a role as a latch condition for ALL requests would reject the clock commands, replays and storage ops of an orchestrator that has no nodes yet — and every `ClusterMaster` rail built on an empty roster. The coordinator's rule was *"only for loads"* |
+| **a lost ROLE does NOT re-engage the latch / drop the cluster to Idle** (the names do, `EjectNode`) | ⚠ **a call for the coordinator**: right for a configured subsystem name, but as a default a 5 s CGF blip would tear down every running scenario, and C7 catches a rejoining node up in place (Q91 §4-M). Lean: keep it off; adding it is a few lines in `EjectNode` |
+| **a role counts only after its node's advert landed** | the mask reads `None` until then (trap ①) |
+| **the master's own host counts through `LocalRoles`** | trap ②: the editor plays all four simulation roles in-process; its heartbeat and advert loop back through the bus a frame later. ⛔ A composing host that plays roles and does not pass them would refuse its own loads (the silent-default rule) |
+| **one waiting load at most; a newer request replaces it; the operator's cancel (`R-4004`) drops it; a refusal is cleared by the next request** | exactly `ScenarioLoadSequence.Request`'s rule, master-side; the replaced asker is told `Cancelled` |
+| **`MandatoryRoles` / `LoadWaitSeconds` are configuration** | default `Brain\|MuscleGround`, 30 s; `NodeRole.None` leaves only the names; JSON `orchestrator-config.json` like `Mandatory` |
+| **visibility: log · op status · `LoadNotice` (panel banner, `GET /cluster/roster` → `load.notice`)** | `Pending` + the text while waiting, `Failure` + the reason on refusal — a failed load the operator reads |
+| ⚠ **NOT built: the REQUESTING node's `POST /scenario/load/*` does not yet echo the reason** | the master's `Pending`/`Failure` status crosses DDS to every node's bus (`ClusterOpStatus.ResultJson`), but no debug-API consumer reads it: the requester's `waitForReady` still ends in its own 504 at the same 30 s (whose text now points at `load.notice`). The reason is readable on the MASTER host's HTTP and panel |
+
+⛔ **What it deliberately does NOT do:** `GlobalContextProcessManager` reads the same load intent from the bus before the master decides, so a
+REFUSED load has already committed the orchestrator's own context and paused the clock at 0 — which is the `Idle` norm (*"Stop pauses the
+clock"*); its pending resume is overwritten by the next load intent.
+
+Rails — all in the latch's own suite, `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests` (T-1: the feature's suite, no parallel class), each red-proved
+by a compiling mutation: `G1` waits and says which role (live + edit) · `G2` starts when the advert lands, not on the heartbeat · `G3` refused
+after the wait naming every missing role · `G4` the host's own roles count (anti-vacuity: the same master without them waits) · `G5` a
+transition naming no scenario is not waited on · `G6` a newer request replaces the waiting one · `G7` cancel drops it · `G8` the roles are
+configuration · `G9` a refusal is cleared by the next request · `L1` a load against a closed NAME latch waits (was `Rejected`) and starts when
+it clears, other requests still rejected · `L2` one text for names and roles. Forwarding rails: `OrchestratorSubsystemBusTests.CE4087_*`,
+`DebugApiCompositionTests` (`clusterLoadNotice:`), `TheClusterMembershipRoutesTests.The_roster_carries_the_load_gate_notice_*`,
+`TheEditorRunsTheOrchestratorCoreTests.CE4087_*` (the constructed editor's master carries its roles).
+
+📐 **Live, `2026-10-28`, on the AS-BUILT latch build** (one process per node, domain 66, `scripts/cluster-node.sh`):
+
+| run | observed |
+|---|---|
+| SimHost frozen at boot (`SIGSTOP`), load requested, SimHost thawed 5 s later | `GET :8920/cluster/roster` → `load.notice` = *"waiting for: MuscleGround (SimHost)"* from +0.4 s; the mandatory set was present 9.7 s after the request → *"… is present (9.7s) — it starts"*; the pause expected `[400, 1]` (it was `[400]` in the measured report); `POST /sim/play` ran the clock — CGF 7.97 s, SimHost 7.97 s eight seconds later; `SwitchTimeModeWireDto` `sentSamples: 0` on both |
+| orchestrator + CGF only, SimHost never started | waiting from +2 s; at +32 s *"load of 'hill-attack' refused after 30s — waiting for: MuscleGround (SimHost)"* in `load.notice` and the master log (ERROR); the cluster stays `Idle` |
 
 ## 10. ⭐⭐ `CE-3075` — **A SCENARIO NAMING NO TERRAIN UNLOADS THE RESIDENT ONE** *(AS-BUILT `2026-10-05`, backend)*
 

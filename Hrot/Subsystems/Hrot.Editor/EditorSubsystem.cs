@@ -546,6 +546,9 @@ namespace Hrot.Editor
 
         /// <summary>Q86 test hook: the orchestration bus the shared orchestrator core runs on.</summary>
         internal FdpEventBus? OrchestrationBusForTest => _orchestrationBus;
+
+        /// <summary>CE-4087 test hook: the editor's in-process cluster master (its load gate, its roles).</summary>
+        internal ClusterMaster? ClusterMasterForTest => _clusterMaster;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
@@ -2400,6 +2403,9 @@ namespace Hrot.Editor
                 TimeCommands      = _timeCommands!,
                 TimeReads         = _timeController!,
                 StagingNodeId     = EditorNodeId,
+                // ⭐⭐ CE-4087 — the editor plays every simulation role in-process (the SAME mask it declares to the roster), so its
+                //   own master's load gate is satisfied at once — the editor never refuses itself, nor waits for its own advert.
+                LocalRoles        = EditorCapabilities.DefaultRole,
                 // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority; a load resets it to 1000.
                 //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
                 IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
@@ -2590,6 +2596,7 @@ namespace Hrot.Editor
                         master:            new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),
                         // ⭐⭐ CE-4002 — the in-process master's roster. ⛔ The editor HOLDS it, so not passing it is the silent-default defect.
                         clusterRoster:     () => _orchestratorCore?.Master.DescribeRoster(),
+                        clusterLoadNotice: () => _orchestratorCore?.Master.LoadNotice,   // ⭐⭐ CE-4087 — the in-process master's load gate text
                         // ⭐ R-3055 — the core's cluster read model: what can be replayed, and the loaded replay's length.
                         exercises:         () => _orchestratorCore?.UiCache.AvailableExercises,
                         replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,

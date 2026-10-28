@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
+updated: 2026-10-28 (§18: CE-4087 — a resume to a running master is re-announced and logged, never swallowed; the step set admits a node when it is IN SYNC; the reported stuck clock was NOT reproduced, root cause unproven, backend) · 2026-10-21 (§17: stepped mode is deterministic — sim-time cadence and the step wait for background modules, CE-3292, R-3035, backend) · 2026-10-19 (P8 ① superseded: a module's snapshot carries the frame's clock, CE-3267, backend) · 2026-10-07 (§12a: SnapAndPause is the ONE time discontinuity, takes the whole GlobalTime, keeps the slave roster; ResetForLoadedScenario deleted) · 2026-08-22
 merged: T1-T7 + W1/W2 (the drain) are BUILT and MERGED into the coordinator branch. Open per PLAN:
   T4 path-C (debugger->intents) and T5's remaining pause-notion sites. X1/X2 deferred.
 verified: coordinator post-merge run 2026-08-22 (HEAD c7fb299d vs 34deca154^) - TimeControlIntegrationTests
@@ -24,6 +24,7 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - docs/DESIGN_Cluster_Load_Phase.md — §9.2 (CE-4087) OWNS the bootstrap latch's roles half: a scenario load waits for a Brain and a MuscleGround node and is refused otherwise; §18 here owns the clock half of the same item
   - ../DESIGN_Replay_Time_Axis_And_Review.md — the replay clock's SIM view (rate per segment, SnapTo over paused stretches) and the review's SnapTo back to the live clock
   - docs/DESIGN_Director_Timeline_Editor.md — TE-19: the shared Timeline panel seeks through ITimeTransportFacade (grown: CanSeek / Seek); in a cluster replay that is this design's ReplaySeek round
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — D5: a dry-run Stop never restores the clock (§12a), a checkpoint restore does (CE-3299).
@@ -1605,6 +1606,52 @@ one way of stepping; live (paced) vs scout (HTTP) can differ in event timing.
 world tick counting steps (`ScenarioLoadStep:214` and the replication timeouts need it to move while paused) · synchronous background
 modules always (live play loses its threading) · harvest on paused frames (a finished job would land BEFORE step N+1's early phases or AT
 its harvest depending on the pause length).
+
+## 18. ⭐⭐⭐ `CE-4087` — **A LATE SIMHOST AND A SWALLOWED PLAY: who is in the step set, and a time command is never silent** *(AS-BUILT `2026-10-28`, backend)*
+
+📐 **The measured report (the `CE-4080` run, `2026-10-28`).** Orchestrator + CGF + SimHost started back to back and a live load posted at once: the
+load's pause expected acks from `[400]` only (SimHost `1` had not registered), one resume was logged, then CGF and SimHost stayed
+`isPaused:true totalTime:0` for minutes while the master ran; later `/sim/pause` and `/sim/play` on CGF logged NOTHING on the master;
+`SwitchTimeModeWireDto` ran at ~2 samples/s per node (CGF sent 796, received 1431).
+
+⛔ **What is NOT established — stated so nobody over-trusts the fix.** Re-run fourteen times on the unfixed build (same start order; SimHost frozen
+at boot with `SIGSTOP` and thawed 0–5.5 s around the load; load at the instant CGF answers; with and without two Player processes; `startPaused`
+true and false; play at once or after 6 s; a frozen SimHost across six mode switches) the clock **never stuck**: every run ran the clock
+after play, the late SimHost joined the next pause's set (`[400, 1]`), and the wire counters stayed at `sentSamples: 0` / `receivedSamples: 3–9`
+per node. ⇒ the stuck state's trigger was not reproduced and its root cause is **not proven**. What the code and the report do establish:
+
+| fact | where | consequence |
+|---|---|---|
+| a resume to a master that was already running returned **silently** — no line, no sample | `MasterSyncController.SwitchToContinuous` (old guard) | ⭐ the reported symptom exactly: the master `Continuous`, nodes on a stale pause, and "play" answered by nothing. A node left behind could never be brought back by the operator |
+| the step barrier admitted a node on its **advert**, not on being **in sync** | `ClusterMaster.StepRoster` (read no `_inSync`) | R-4014 / K6 says a node not in sync never participates; a SimHost still being caught up would have gated every step |
+| `sentSamples` > 0 on a node that originates no mode switch is impossible while the echo guard holds | `SwitchTimeModeDescriptorTranslator.ScanAndPublish` (suppresses only the LAST ingested sample) | ⚠ the 796 means the guard was breached in that run; **how is open** — the case the guard misses is a `Take` returning several distinct samples, and the topic's history depth is 1, so that case is unproven (a frozen SimHost thawed after six mode switches echoed nothing) |
+| only `MasterSyncController` publishes `SwitchTimeModeEvent` | grep over `Hrot/` + `FDP/` | the ~2/s traffic is **not expected** (steady state is a handful of samples per run); it is a symptom of the unexplained state, not a protocol rate |
+
+**What was built (each with a rail, each red-proved):**
+
+```mermaid
+sequenceDiagram
+  participant Op as Operator (CGF /sim/play)
+  participant M as MasterSyncController
+  participant N as a node on a stale pause
+  Op->>M: ResumeTimeIntent
+  alt master was paused (Stepping / BarrierPending)
+    M->>N: SwitchTimeModeEvent(Continuous, anchor = now)   (as before)
+  else master already running   ⛔ was: return, silently
+    M->>M: log "[TimeSync] RESUME (already running)"
+    M->>N: SwitchTimeModeEvent(Continuous, anchor = the tick _totalTime belongs to, snapshot = _totalTime)
+    Note over N: re-anchors to the master — a no-op for a node already right, the cure for one that is not
+  end
+```
+*What the picture shows that prose hid:* the already-running branch used to have no arrow at all.
+
+| change | rail |
+|---|---|
+| ① `SwitchToContinuous` is idempotent in STATE and never swallowed on the wire: already running ⇒ the Continuous sample is announced again (snapshot = the master's own sim time, anchor = `_lastTickSample`) and the command is logged. Mode, sim time and rate are untouched. ⚠ TCU-MC001 §7 *"is a no-op when already Continuous"* is REWRITTEN to this | `MasterSyncControllerTests.MasterSyncController_SwitchToContinuous_WhenAlreadyContinuous_ReannouncesTheRunningStateAndChangesNothing` · `CE4087_A_ResumeTimeIntent_to_a_running_master_still_reaches_the_wire` |
+| ② every time command leaves a `[TimeSync]` line on the master (snap, jump, scale join pause / resume / step, which already had one) | — (logging) |
+| ③ `ClusterMaster.StepRoster()` requires **in sync**: a node registering while the cluster runs, or restarting mid-run, enters the step set — roster republished to the clock — when its catch-up completes, and a node whose catch-up fails never gates a step. Q91 §4-D′ amended | `ClusterMasterCatchUpTests.CE4087_A_node_joining_a_running_cluster_enters_the_step_set_when_it_is_in_sync_and_not_before` |
+| ④ the set APPLIES when it arrives (already built, P3) is now pinned for the join direction | `MasterSyncControllerTests.CE4087_A_node_that_registers_after_the_pause_is_in_the_step_set_at_the_next_step` |
+| ⑤ the load itself waits on the bootstrap latch, whose mandatory set now includes the roles `Brain` and `MuscleGround`, and is refused without them — the agreed fix for the way the report was reached | [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §9.2 |
 
 ## ⭐ WHERE THE TASKS WENT
 

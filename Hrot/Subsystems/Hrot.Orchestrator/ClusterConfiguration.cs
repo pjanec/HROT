@@ -10,7 +10,7 @@ namespace Hrot.Orchestrator;
 /// </summary>
 public sealed class ClusterConfiguration
 {
-    /// <summary>Subsystem names that must reach <c>Standby</c> before the bootstrap latch clears.</summary>
+    /// <summary>Subsystem NAMES that must reach <c>Standby</c> before the bootstrap latch clears. ⭐ The ROLES half of the mandatory set is <see cref="MandatoryRoles"/>.</summary>
     public string[] Mandatory { get; init; } = Array.Empty<string>();
 
     /// <summary>Known optional subsystem names (treated as transient observers if absent).</summary>
@@ -21,6 +21,24 @@ public sealed class ClusterConfiguration
 
     /// <summary>Capacity of the <see cref="ClusterMaster"/> 2PC history ring buffer.</summary>
     public int TransactionHistoryCapacity { get; init; } = 50;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4087</c> — the ROLES half of the mandatory set (the bootstrap latch): at least one node holding EACH flag set here
+    /// must be present before a scenario LOAD starts, alongside the <see cref="Mandatory"/> subsystem NAMES. 🔒 User, <c>2026-10-28</c>:
+    /// <i>"scenario should not be able to load at all without muscle role node loaded, as it can not be edited nor started."</i>
+    /// Default: a <c>Brain</c> (the scenario's creator) and a <c>MuscleGround</c> (the units' bodies). ⚠ A role counts only after its
+    /// node's capability advert has landed (the mask reads <c>None</c> until then, <c>R-4005</c>); the master's own host counts through
+    /// <c>ClusterMaster.LocalRoles</c> (the editor plays every simulation role in-process). <see cref="Fdp.Core.NodeRole.None"/> leaves
+    /// only the names.
+    /// </summary>
+    public Fdp.Core.NodeRole MandatoryRoles { get; init; } = Fdp.Core.NodeRole.Brain | Fdp.Core.NodeRole.MuscleGround;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — how long a scenario load WAITS on the mandatory set (names and roles) before the master REFUSES it (a failed
+    /// load the operator sees — never a silent hang). A booting cluster registers its nodes within seconds; 30 s is well past that and
+    /// short enough that nobody stares at a dead panel.
+    /// </summary>
+    public double LoadWaitSeconds { get; init; } = 30.0;
 
     /// <summary>
     /// Base path of the shared NAS directory used by process managers to pull
@@ -68,6 +86,8 @@ public sealed class ClusterConfiguration
         TransactionHistoryCapacity = TransactionHistoryCapacity,
         NasBasePath                = NasBasePath,
         TkbName                    = TkbName,   // ⭐ R-4018 — the one-node cluster syncs the same TKB
+        MandatoryRoles             = MandatoryRoles,    // ⭐ CE-4087 — the editor's own in-process roles satisfy it (ClusterMaster.LocalRoles)
+        LoadWaitSeconds            = LoadWaitSeconds,
     };
 
     private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
