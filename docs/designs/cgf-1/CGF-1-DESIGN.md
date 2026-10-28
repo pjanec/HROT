@@ -422,6 +422,13 @@ Only subsystem names are listed — `NodeId` values are discovered dynamically v
 
 Nodes whose `SubsystemName` is in neither list are treated as transient observers.
 
+> ⭐ **AMENDED `2026-10-28` (`CE-4087`, AS-BUILT):** the mandatory set has a second half, ROLES —
+> `ClusterConfiguration.MandatoryRoles` (default `Brain` + `MuscleGround`; a role counts only after its node's capability advert landed, and
+> the master's own host counts through `ClusterMaster.LocalRoles`) — and a **scenario load** against an unready cluster no longer gets the
+> bare `Rejected` below: it WAITS (`LoadWaitSeconds`, default 30 s) showing *"waiting for: MuscleGround (SimHost)"*, starts when the set
+> is present, else is refused with that reason. Every other request keeps the rejection described below. A lost ROLE does not re-engage the
+> latch (the name eviction path below is unchanged). 📄 [`DESIGN_Cluster_Load_Phase.md`](../../DESIGN_Cluster_Load_Phase.md) §9.2.
+
 #### Bootstrap Phase
 
 `ClusterMaster` starts in an internal `Bootstrapping` latch state (not a DSM state —

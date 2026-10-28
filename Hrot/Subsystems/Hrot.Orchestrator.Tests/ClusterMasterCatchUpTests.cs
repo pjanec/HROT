@@ -4,6 +4,7 @@ using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Time.Domain;
 using Hrot.NED.Descriptors.Orchestration;
 using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -37,6 +38,13 @@ public sealed class ClusterMasterCatchUpTests
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();
+    }
+
+    /// <summary>A joiner whose capability advert (Brain + MuscleGround — the all-in-one case) lands in the same frame as its first heartbeat.</summary>
+    private static void HeartbeatWithMuscle(FdpEventBus bus, ClusterMaster master, int nodeId)
+    {
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = new[] { NodeRoleTokens.Brain, NodeRoleTokens.MuscleGround } });
+        Heartbeat(bus, master, nodeId);
     }
 
     /// <summary>Drives the cluster to OperatingLive (no scenario ⇒ nothing parked), answering every prepare from every target.</summary>
@@ -83,7 +91,7 @@ public sealed class ClusterMasterCatchUpTests
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, Config());
-        Heartbeat(bus, master, 1);
+        HeartbeatWithMuscle(bus, master, 1);   // CE-4087 — a scenario load needs its roles present
         master.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
@@ -128,6 +136,35 @@ public sealed class ClusterMasterCatchUpTests
         AnswerAll(bus, master, ops);
         Assert.Contains(2, master.InSyncNodeIds);
         Assert.Empty(master.CatchingUpNodeIds);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4087</c> (R-4014 / Q91 §4-K K6 — "a node not in sync never participates", in the step barrier too) — a SimHost that
+    /// registers while the cluster RUNS (or restarts mid-run) is not in the step set while it is still being caught up, and is in
+    /// it — with the roster republished to the clock — the moment its catch-up completes. 📐 Before, the barrier admitted it on its
+    /// advert alone, so a node still loading gated every step; and nothing pinned that it entered the set at all.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4087_A_node_joining_a_running_cluster_enters_the_step_set_when_it_is_in_sync_and_not_before()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, Config());
+        HeartbeatWithMuscle(bus, master, 1);                         // joins at rest ⇒ in sync at once
+        GoLive(bus, master);
+        Assert.Equal(new[] { 1 }, master.StepRoster().OrderBy(x => x));
+
+        HeartbeatWithMuscle(bus, master, 2);                         // joins the RUNNING cluster: advert landed, catch-up in flight
+        Assert.Contains(2, master.CatchingUpNodeIds);
+        Assert.Equal(new[] { 1 }, master.StepRoster().OrderBy(x => x));   // ⭐ still being caught up ⇒ not in the barrier
+
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().Where(o => o.TargetNodeId == 2).ToList();
+        bus.ReadManaged<SlaveNodeSetUpdatedEvent>().ToList();        // drop what was published so far
+        AnswerAll(bus, master, ops);                                 // the catch-up completes ⇒ in sync
+
+        Assert.Contains(2, master.InSyncNodeIds);
+        Assert.Equal(new[] { 1, 2 }, master.StepRoster().OrderBy(x => x));   // ⭐ in sync ⇒ in the barrier
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();         // and the clock is told (the roster is republished on change)
+        Assert.Contains(bus.ReadManaged<SlaveNodeSetUpdatedEvent>(), e => e.SlaveNodeIds.SetEquals(new[] { 1, 2 }));
     }
 
     /// <summary>⭐ K7 — a failed catch-up is not retried within the same cluster commit; the node stays out of sync.</summary>

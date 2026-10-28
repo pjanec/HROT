@@ -316,6 +316,13 @@ public interface ISubsystemDebugProvider
     IReadOnlyList<ClusterRosterEntry>? ClusterRoster { get; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — what the master's LOAD GATE says: <i>"waiting for: MuscleGround (SimHost)"</i> while a scenario load
+    /// waits for a node holding a required role, the refusal reason after it was refused, <see langword="null"/> otherwise (and
+    /// on every host that runs no master). A default member so the many existing providers stay as they are.
+    /// </summary>
+    string? ClusterLoadNotice => null;
+
+    /// <summary>
     /// ⭐⭐ <b>What this subsystem CAN do, measured from wired dependencies — never a hand-authored table.</b>
     /// 📄 Q54 § Manifest scope: <i>"each provider DERIVES its own cells from ground truth"</i>; a
     /// hand-written *"works here / not there"* table is `CLAUDE.md` §M's green-and-false rot.
@@ -365,6 +372,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? _requestOwnershipTransfer;   // CE-276
     private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
     private readonly Func<IReadOnlyList<ClusterRosterEntry>?>? _clusterRoster;   // CE-4002
+    private readonly Func<string?>? _clusterLoadNotice;   // CE-4087
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -422,7 +430,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<ReplayPosition?>? replayPosition = null,
         Func<Fdp.Core.Diagnostics.IDiagnosticEventHistoryService?>? eventHistory = null,
         // ⭐ RB-6 — the host's timeline index (the Replay Browser's recording; CE-3330 — every ECS node's live one, EcsNodeDebugProvider).
-        Func<TimelineAccess?>? timeline = null)
+        Func<TimelineAccess?>? timeline = null,
+        // ⭐⭐ CE-4087 — the master's load-gate text (a Func, like the roster: the core is built in Initialize).
+        Func<string?>? clusterLoadNotice = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -449,6 +459,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _requestOwnershipTransfer = requestOwnershipTransfer;
         _descriptorMap = descriptorMap;
         _clusterRoster = clusterRoster;
+        _clusterLoadNotice = clusterLoadNotice;
     }
 
     /// <summary>
@@ -596,6 +607,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer => _requestOwnershipTransfer?.Invoke();
     public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => _descriptorMap?.Invoke();
     public IReadOnlyList<ClusterRosterEntry>? ClusterRoster => _clusterRoster?.Invoke();
+    public string? ClusterLoadNotice => _clusterLoadNotice?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored

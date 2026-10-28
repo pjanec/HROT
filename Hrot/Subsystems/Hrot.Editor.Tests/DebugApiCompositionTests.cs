@@ -43,6 +43,8 @@ public sealed class DebugApiCompositionTests
     // CE-4002: the editor runs the ONE OrchestratorCore in-process, so it holds the master's roster. Without the hand-off
     // GET /cluster/roster refuses in the editor.
     [InlineData("clusterRoster:", "GET /cluster/roster refuses in the editor, which hosts the master")]
+    // CE-4087: the same core holds the master's LOAD GATE; without the hand-off GET /cluster/roster cannot say why a load waits or was refused.
+    [InlineData("clusterLoadNotice:", "GET /cluster/roster shows no load.notice in the editor, which hosts the master")]
     // R-3055: the core's ClusterUiCache holds what can be replayed and the replay's length.
     [InlineData("exercises:", "GET /exercises and POST /replay with no exerciseId refuse in the editor, which hosts the master")]
     [InlineData("replayDuration:", "GET /replay/status cannot say how long the replay is in the editor")]

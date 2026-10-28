@@ -57,6 +57,40 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> (S3) — the editor plays every simulation role in-process, so its OWN master's load gate (a scenario load needs a
+    /// Brain and a MuscleGround node) is satisfied at once: the editor neither waits for nor refuses itself. Asserted on the CONSTRUCTED
+    /// editor (the silent-default rule): its master carries <see cref="EditorCapabilities.DefaultRole"/> as <c>LocalRoles</c>, and a
+    /// scenario load requested in its very first frames is not held.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4087_TheEditorsOwnMasterCountsItsInProcessRoles_SoItsLoadIsNeverHeld()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try
+        {
+            var master = editor.ClusterMasterForTest!;
+            Assert.Equal(EditorCapabilities.DefaultRole, master.LocalRoles);
+
+            editor.OrchestrationBusForTest!.PublishManaged(new TransitionStateIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetState   = ClusterState.OperatingLive,
+                ScenarioId    = "ce4087_" + Guid.NewGuid().ToString("N"),
+            });
+            editor.Update(0.016f);
+            editor.Update(0.016f);
+
+            Assert.Null(master.HeldLoadRequestId);   // not waiting …
+            Assert.Null(master.LoadNotice);          // … and nothing to read about a refusal
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> — the editor has NO timeline of its own: on a real headless editor its live index IS its node context's
     /// (<c>Timeline</c>, E-1); frames of the editor (<c>Update</c>, the clock running) step it, so a unit that gains a network id in its world
     /// lands in that index (E-2, red-proof: the editor's <c>_node?.StepTimeline()</c> behind a runtime-false guard); and the access its

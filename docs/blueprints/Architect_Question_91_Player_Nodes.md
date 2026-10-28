@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-28 (⭐ §4-B3 NEW — CE-4078: the 3-D map's mesh rebuilds stall the frame thread that also beats the heartbeat; fix = §4-B2's rule applied to them, the catch-up gets its own recording file and a failure path to Idle) · 2026-10-15 (§4-P C9 BUILT — as-built + live run; the coverage grace now applies at BOTH ends, measured) ·
+updated: 2026-10-28 (⭐ CE-4087 — §4-D′ AMENDED: the step roster requires InSync (K6 for the barrier); §4-A′: a scenario LOAD waits on the bootstrap latch's mandatory set, now names AND roles (Brain + MuscleGround) — it counts the same advert fact, DESIGN_Cluster_Load_Phase §9.2) ·
+  2026-10-28 (⭐ §4-B3 NEW — CE-4078: the 3-D map's mesh rebuilds stall the frame thread that also beats the heartbeat; fix = §4-B2's rule applied to them, the catch-up gets its own recording file and a failure path to Idle) · 2026-10-15 (§4-P C9 BUILT — as-built + live run; the coverage grace now applies at BOTH ends, measured) ·
   2026-10-15 (⭐ §4-P NEW — C9 build design: one replay anchor from the prepare round, entry runs a seek round, covered ⇔ inside the span, a node with no recording listens; measured live — spans differ, entry leaves the clock past the end, the entry seek never runs) ·
   2026-10-15 (K4 APPROVED as R-4017 — every §4-I..§4-L decision is now taken) ·
   2026-10-15 (K5′ APPROVED as R-4015 — a catch-up runs KB + terrain only, never the scenario; R-4016 a process is identified by computer name + process id, no random ids — L1 amended) ·
@@ -246,6 +247,11 @@ authoritative node's error was swallowed.
 anti-vacuous**: a classification in which *every* node comes out best-effort must fail the test, or clause ③ is
 untestable and the editor case returns unnoticed.
 
+⭐ **`2026-10-28` — the SAME advert fact gates a LOAD (`CE-4087`), as the ROLES half of the bootstrap latch's mandatory set.** A scenario load
+needs a node holding `Brain` and one holding `MuscleGround` (`ClusterConfiguration.MandatoryRoles`) and waits for them; a role counts only after its node's advert landed (clause ① again), and the
+master's own host counts through `ClusterMaster.LocalRoles` (the editor plays all four in-process, `R-4005` — clause ③'s reasoning
+again). 📄 [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §9.2.
+
 ✅ **BUILT `2026-10-15`** — `ClusterMaster.IsObserver(nodeId)`, the three clauses exactly as above; C1 lives in the ACK intake
 (an observer's error is logged and recorded, never sets `HasFailure`, never aborts an `AbortOnFirstFailure` round). Rails:
 `ClusterMasterZoneRoundTests.P2_*` (4) — ⭐ the ANTI-VACUITY rail was red-proofed by deleting clause ③ (it fails, the rest
@@ -454,6 +460,16 @@ last ACK.
 
 Both name-match sites now call it (`ClusterMaster.PublishClusterPause`; `ReplaySeekProcessManager` takes `master.StepRoster`
 and lost its private heartbeat-name replica). Rails: `ClusterMasterSeekTests.P3_*` (3), `MasterSyncControllerTests.P3_*` (1).
+
+⭐⭐ **AMENDED `2026-10-28` — `CE-4087` (backend): `StepRoster()` now ALSO requires the node to be IN SYNC.** `R-4014` / K6 says *"a node
+not in sync never participates — in 2PC rounds, the step barrier and the reliable-init wait-set alike"*; the barrier as built
+above kept only the observer half. 📐 Measured against the code: `StepRoster()` read the roster, the advert and the role — never
+`_inSync` — so a SimHost that registered while the cluster ran was in the barrier from its advert, **while it was still being
+caught up** (C7), and a step would have waited for a node that holds no world yet. ⇒ the node enters the barrier — with the
+roster republished to the clock by `PublishStepRosterIfChanged` — the moment its catch-up completes, and a node whose catch-up
+fails (K7) never gates a step. Rails: `ClusterMasterCatchUpTests.CE4087_A_node_joining_a_running_cluster_enters_the_step_set_when_it_is_in_sync_and_not_before`,
+`MasterSyncControllerTests.CE4087_A_node_that_registers_after_the_pause_is_in_the_step_set_at_the_next_step`.
+📄 [`DESIGN_Time_Architecture.md`](../blueprints/DESIGN_Time_Architecture.md) §18 owns the clock side of the same item.
 
 ### 4-E ⭐ Late join — the catch-up
 

@@ -220,6 +220,11 @@ public sealed class PerspectiveScopedDispatcher
         => Active()?.ClusterRoster
            ?? _providers.Select(p => p.ClusterRoster).FirstOrDefault(r => r is not null);
 
+    /// <summary>⭐⭐ <c>CE-4087</c> — the master's load-gate text (waiting for a role / the refusal) from whichever subsystem hosts the master.</summary>
+    public string? ClusterLoadNoticeAnyNode
+        => Active()?.ClusterLoadNotice
+           ?? _providers.Select(p => p.ClusterLoadNotice).FirstOrDefault(n => n is not null);
+
     /// <summary>
     /// ⭐⭐⭐ <c>R-3052</c>…<c>R-3055</c> — <b>the cluster master, from whichever node can reach it.</b> ⭐ Every node's bus reaches the ONE
     /// master (directly on the host that holds it, through <c>ClusterOpEgressTranslator</c> elsewhere), so which node asks does not

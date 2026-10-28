@@ -83,6 +83,8 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
+        // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         exercise.Tick();     // ingest heartbeat into roster
         bus.SwapBuffers();
@@ -147,6 +149,9 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
             Mandatory = System.Array.Empty<string>(),
             HeartbeatTimeoutSeconds = 60f,
             TransactionHistoryCapacity = 10,
+            // CE-4087 — this rail is about the gateway's missing-directory failure, with no node at all; the load gate
+            // (a scenario load waits for a Brain and a MuscleGround node) has its own suite, ClusterMasterBootstrapTests.
+            MandatoryRoles = Fdp.Core.NodeRole.None,
         };
         using var exercise = new ClusterMaster(bus, config);
 
@@ -219,6 +224,8 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
         });
+        // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
+        bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
         bus.SwapBuffers();
         master.Tick();
         bus.SwapBuffers();
@@ -540,6 +547,8 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
                 LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             });
+            // CE-4087 — a scenario load needs a Brain and a MuscleGround node: this one node plays both (the all-in-one case).
+            bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = 1, Capabilities = new[] { Fdp.Core.NodeRoleTokens.Brain, Fdp.Core.NodeRoleTokens.MuscleGround } });
             bus.SwapBuffers();
             master.Tick();
             bus.SwapBuffers();

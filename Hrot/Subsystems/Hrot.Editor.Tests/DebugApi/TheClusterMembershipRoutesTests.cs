@@ -53,6 +53,35 @@ public sealed class TheClusterMembershipRoutesTests
         Assert.Equal("Map2D", (string)first["roles"]!);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — a scenario load that waits for a Brain / MuscleGround node (or was refused) is READABLE over HTTP: the
+    /// roster answer carries the master's load-gate text as <c>load.notice</c>, from the node that hosts the master even though
+    /// another perspective is active. <c>null</c> when no load is held — an absent notice is not an empty string.
+    /// </summary>
+    [Fact]
+    public void The_roster_carries_the_load_gate_notice_from_the_node_that_hosts_the_master()
+    {
+        string? notice = "waiting for: MuscleGround (SimHost)";
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("Orchestrator", "Orchestrator",
+                    master:            () => _master,
+                    clusterRoster:     () => Array.Empty<ClusterRosterEntry>(),
+                    clusterLoadNotice: () => notice),
+            },
+            currentPerspective: () => "IG",
+            acksPending: null));
+
+        var (waiting, _, _) = svc.GetClusterRoster();
+        Assert.Equal("waiting for: MuscleGround (SimHost)", (string)waiting!["load"]!["notice"]!);
+
+        notice = null;   // the SimHost arrived, the load started
+        var (running, _, _) = svc.GetClusterRoster();
+        Assert.Null(running!["load"]!["notice"]);
+    }
+
     [Fact]
     public void A_host_with_no_master_says_so_rather_than_answering_an_empty_roster()
     {

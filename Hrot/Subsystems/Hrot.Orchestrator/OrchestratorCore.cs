@@ -32,6 +32,13 @@ public sealed class OrchestratorCoreOptions
     /// <summary>The node id whose staging folder the master's own files use (orchestrator: 300; editor: its node).</summary>
     public required int StagingNodeId { get; init; }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4087</c> — the roles the host plays IN-PROCESS: the editor composes all four simulation roles in the process that
+    /// holds this core (<c>EditorCapabilities.DefaultRole</c>, <c>R-4005</c>); the orchestrator plays none (<c>None</c>). They count
+    /// toward the master's load gate at once. ⛔ A host that plays roles MUST pass them, or it refuses its own loads.
+    /// </summary>
+    public Fdp.Core.NodeRole LocalRoles { get; init; } = Fdp.Core.NodeRole.None;
+
     /// <summary>The world's ONE id authority, reset at a scenario load (HN-037). Null ⇒ the host has none.</summary>
     public Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority? IdAuthority { get; init; }
 
@@ -85,6 +92,7 @@ public sealed class OrchestratorCore : IDisposable
 
         _master = new ClusterMaster(bus, config);
         _master.LocalNodeId = o.StagingNodeId;   // ⭐ P3 — the master never waits for the node it runs in
+        _master.LocalRoles  = o.LocalRoles;      // ⭐ CE-4087 — the roles its own host plays count toward the load gate
         // ⭐ CE-3299 B3 (D3) — a checkpoint is named for ONE wall time on the clock every slave follows (silent-default rule:
         //   every host builds its master here, with its time reads, so none can forget it).
         _master.WallTicks = () => o.TimeReads.GetCurrentState().TotalWallTicks;

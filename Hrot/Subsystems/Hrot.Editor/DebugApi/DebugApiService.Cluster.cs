@@ -18,6 +18,7 @@ namespace Hrot.Editor.DebugApi
     public sealed partial class DebugApiService
     {
         private readonly Func<IReadOnlyList<ClusterRosterEntry>?>? _editorClusterRoster;
+        private readonly Func<string?>? _editorClusterLoadNotice;   // CE-4087
 
         private const string NoClusterRoster =
             "No subsystem on this host runs the ClusterMaster, so none can report its roster. Ask the node that hosts "
@@ -44,12 +45,18 @@ namespace Hrot.Editor.DebugApi
                     ["roles"]                 = r.Roles,
                     ["secondsSinceHeartbeat"] = r.SecondsSinceHeartbeat,
                 });
+            // ⭐⭐ CE-4087 — what the master's LOAD GATE says: "waiting for: MuscleGround (SimHost)" while a load waits for a node
+            //   holding a required role, the refusal reason after it was refused, null when no load is held. A load that is
+            //   refused here is a FAILED load the operator can read — never a silent hang.
+            var loadNotice = _editorClusterLoadNotice?.Invoke() ?? _dispatcher?.ClusterLoadNoticeAnyNode;
             return (new JsonObject
             {
                 ["count"] = roster.Count,
                 ["nodes"] = nodes,
+                ["load"]  = new JsonObject { ["notice"] = loadNotice },
                 ["note"]  = "reportedState is each node's OWN claim from its heartbeat, not the cluster's state. "
-                          + "A node leaves this list after HeartbeatTimeoutSeconds of silence (default 5 s).",
+                          + "A node leaves this list after HeartbeatTimeoutSeconds of silence (default 5 s). "
+                          + "load.notice is the master's load gate: a scenario load waits for a Brain and a MuscleGround node.",
             }, null, null);
         }
 

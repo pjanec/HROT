@@ -604,7 +604,7 @@ public sealed class ClusterScenarioPanel
         var currentState = EffectiveState;
         var currentExerciseId = EffectiveExerciseId;
 
-        if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 74), ImGuiChildFlags.Borders))
+        if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 96), ImGuiChildFlags.Borders))
         {
             if (hasInFlight && activeTx != null)
             {
@@ -623,6 +623,15 @@ public sealed class ClusterScenarioPanel
 
             if (currentExerciseId != Guid.Empty)
                 ImGui.Text($"Exercise Id: {currentExerciseId}");
+
+            // ⭐⭐ CE-4087 — the load gate: a scenario load waits for a Brain and a MuscleGround node, then is refused. The operator
+            //   reads WHICH role is missing here — a failed load is never silent.
+            if (_master?.LoadNotice is { } loadNotice)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.55f, 0.2f, 1f));
+                ImGui.TextWrapped($"Load: {loadNotice}");
+                ImGui.PopStyleColor();
+            }
         }
         ImGui.EndChild();
     }

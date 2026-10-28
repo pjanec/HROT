@@ -46,6 +46,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             // ⚠ The master holds the WIRE enum; the provider speaks the toolkit's — kept numerically identical on purpose.
             clusterState:      () => _core is null ? null : (Fdp.Toolkit.Orchestration.ClusterState)(int)_core.Master.CurrentClusterState,
             clusterRoster:     () => _core?.Master.DescribeRoster(),
+            clusterLoadNotice: () => _core?.Master.LoadNotice,   // ⭐⭐ CE-4087 — the load gate's text (GET /cluster/roster → load.notice)
             exercises:         () => _core?.UiCache.AvailableExercises,
             replayDuration:    () => _core?.UiCache.ReplayDuration,
             replayAxis:        () => _core?.UiCache.ReplayAxis);   // ⭐ CE-3329 R-3058

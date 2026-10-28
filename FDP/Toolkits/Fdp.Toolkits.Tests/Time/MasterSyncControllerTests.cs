@@ -218,6 +218,39 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-4087 (S2) — the other half of P3: a node that registers AFTER the pause (a SimHost that restarts mid-run, or comes
+        /// up late) is in the step set at the NEXT step. 📐 The pause was issued with {1}; node 2 arrives while the master is
+        /// paused and the roster says so — the next step must wait for it and must not complete until it ACKs. ⛔ Before this rail
+        /// nothing pinned that the set APPLIES when it arrives rather than only at the next pause.
+        /// </summary>
+        [Fact]
+        public void CE4087_A_node_that_registers_after_the_pause_is_in_the_step_set_at_the_next_step()
+        {
+            long ticks  = 0;
+            var bus     = new FdpEventBus();
+            var ctrl    = CreateController(bus, config: new TimeConfig { LookaheadWallTicks = 0 }, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1 });   // paused with only node 1 known
+            ticks = 1;
+            ctrl.Update();
+
+            bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1, 2 } });   // node 2 registers later
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            ctrl.Step(0.016f);                                                              // the next step …
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });    // … node 1 acks
+            bus.SwapBuffers();
+            ctrl.Update();
+            Assert.True(ctrl.IsAwaitingStepAcks, "node 2 joined the step set after the pause and must gate the next step");
+
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 2 });
+            bus.SwapBuffers();
+            ctrl.Update();
+            Assert.False(ctrl.IsAwaitingStepAcks);
+        }
+
+        /// <summary>
         /// TCU-MC001 §6 — SwitchToContinuous() publishes a Continuous event whose
         /// SimTimeSnapshot matches the controller's sim time at the moment of the call,
         /// and BarrierWallTicks is non-zero (so slaves can anchor their baseline).
@@ -255,20 +288,27 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
-        /// TCU-MC001 §7 — SwitchToContinuous() is idempotent when already in
-        /// Continuous mode with no pending barrier.
+        /// TCU-MC001 §7 (REWRITTEN by CE-4087) — SwitchToContinuous() is idempotent in STATE and never swallowed on the wire.
+        /// <para>⛔ It used to return silently when the master was already running: a node left behind (it missed the first
+        /// resume, or sits on a stale pause) could not be brought back by pressing play, and the command left no trace on the
+        /// master. ⭐ Now the mode, the sim time and the rate are untouched, and the running state is announced AGAIN — a
+        /// Continuous sample carrying the master's own sim time and a real anchor — every time.</para>
         /// </summary>
         [Fact]
-        public void MasterSyncController_SwitchToContinuous_IdempotentWhenAlreadyContinuous()
+        public void MasterSyncController_SwitchToContinuous_WhenAlreadyContinuous_ReannouncesTheRunningStateAndChangesNothing()
         {
+            long ticks = 0;
             var bus  = new FdpEventBus();
-            var ctrl = CreateController(bus);
+            var ctrl = CreateController(bus, tickSource: () => ticks);
 
             // Drain the initial baseline event published by the constructor (Bug 3 fix).
             bus.SwapBuffers();
             bus.Read<SwitchTimeModeEvent>();
 
-            // Both calls should be no-ops (already Continuous, no pending barrier).
+            ticks = TicksFromSeconds(2.0);
+            ctrl.Update();                                   // the master runs: sim time 2 s
+            double simBefore = ctrl.GetCurrentState().TotalTime;
+
             ctrl.SwitchToContinuous();
             bus.SwapBuffers();
             var firstCallEvents = bus.Read<SwitchTimeModeEvent>().ToArray();
@@ -277,8 +317,38 @@ namespace Fdp.Toolkit.Time.Tests
             bus.SwapBuffers();
             var secondCallEvents = bus.Read<SwitchTimeModeEvent>().ToArray();
 
-            Assert.Empty(firstCallEvents);
-            Assert.Empty(secondCallEvents);
+            // the command is never swallowed: one fresh Continuous sample per call …
+            var first  = Assert.Single(firstCallEvents);
+            var second = Assert.Single(secondCallEvents);
+            Assert.Equal(TimeMode.Continuous, first.TargetMode);
+            Assert.Equal(simBefore, first.SimTimeSnapshot, 6);   // … at the master's own sim time (a node already right re-anchors to itself)
+            Assert.True(first.BarrierWallTicks > 0, "the sample must carry a real anchor so a follower can re-baseline");
+            Assert.Equal(TimeMode.Continuous, second.TargetMode);
+            // … and nothing else moved
+            Assert.Equal(TimeMode.Continuous, ctrl.GetMode());
+            Assert.Equal(simBefore, ctrl.GetCurrentState().TotalTime, 6);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4087 — the same through the bus the host drives: a <see cref="ResumeTimeIntent"/> arriving while the master runs
+        /// reaches the wire. (The measured defect: CGF and SimHost stuck paused, the master running, "play" answering nothing.)
+        /// </summary>
+        [Fact]
+        public void CE4087_A_ResumeTimeIntent_to_a_running_master_still_reaches_the_wire()
+        {
+            long ticks = 0;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            bus.SwapBuffers();
+            bus.Read<SwitchTimeModeEvent>();                 // the constructor's baseline
+
+            bus.PublishManaged(new ResumeTimeIntent());
+            bus.SwapBuffers();
+            ctrl.Update();
+            bus.SwapBuffers();
+
+            var ev = Assert.Single(bus.Read<SwitchTimeModeEvent>().ToArray());
+            Assert.Equal(TimeMode.Continuous, ev.TargetMode);
         }
 
         /// <summary>TCU-MC001 §8 — SeedState() restores TotalTime and FrameNumber.</summary>
