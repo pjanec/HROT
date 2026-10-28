@@ -163,6 +163,13 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             _resumeGlobalTimePush  = resumeGlobalTimePush;
         }
 
+        /// <summary>
+        /// ⭐ CE-4079 ④ — how long a node waits for its retraction disposes to be acknowledged before it answers (the sweep that writes them
+        /// and the acknowledgements share it). Under the 3 s a hold lapses after (<c>EgressHold</c>): a node that answers at the end of this
+        /// budget still holds its egress until the master's commit.
+        /// </summary>
+        public static readonly TimeSpan RetractionAckBudget = TimeSpan.FromSeconds(2);
+
         /// <inheritdoc />
         /// <remarks>
         /// Returns <c>true</c> for <c>PrepareReplay</c> and <c>FinalizeReplay</c>
@@ -209,10 +216,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s, span {3}).",
                     exerciseId, maxNetworkId, durationSeconds, $"{first}..{last}");
 
+                // ⭐⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — prepared only once this node's retraction disposes were
+                //   ACKNOWLEDGED (bounded); a timeout is carried in the result, never fatal.
+                string? ackTimeout = await _controller.AwaitRetractionAcksAsync(RetractionAckBudget).ConfigureAwait(false);
+
                 // ⭐ CE-3329 P1 (R3) — this node's wall ↔ sim map: the master intersects them into the cluster's sim axis
                 return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last, _controller.ActiveReplayTimeMap,
                     _controller.ActiveReplayCheckpoints,   // ⭐ CE-3329 §9f — the marks every host's timeline draws
-                    _controller.ActiveReplayGeoOrigin, _controller.ActiveReplayTerrainName);   // ⭐ AQ107 C — the origin the run used
+                    _controller.ActiveReplayGeoOrigin, _controller.ActiveReplayTerrainName,   // ⭐ AQ107 C — the origin the run used
+                    ackTimeout);
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
@@ -257,6 +269,11 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     _awaitingCommit = true;   // ⭐ released by the master's next broadcast (it follows this node's answer)
                 }
 
+                // ⭐⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — seek-done only once this node's retraction disposes (the
+                //   cleanup's sweep of what the swap removed) were ACKNOWLEDGED by the readers, so W2's barrier holds: nobody publishes the
+                //   same id while this node's retraction of it is still in flight. Bounded; a timeout rides in the result, never fatal.
+                string? ackTimeout = await _controller.AwaitRetractionAcksAsync(RetractionAckBudget).ConfigureAwait(false);
+
                 // ⭐⭐ R-4012 — outside this node's recording: it restored nothing and listens. It reports no landed time, so
                 //   the master takes the time from a node that did restore (ReplaySeekAggregator skips an empty result).
                 if (restoredTime.TotalWallTicks == 0)
@@ -264,7 +281,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     FdpLog<ReferenceReplayLoadHandler>.Info(
                         "[ReferenceReplayLoadHandler] NodeReplaySeek: target {0} is outside this node's recording — listening (R-4012).",
                         absoluteTargetTicks);
-                    return new ReplaySeekResult(default);
+                    return new ReplaySeekResult(default, ackTimeout);
                 }
 
                 // The restored frame contains the historical TotalTime from the live simulation.
@@ -281,7 +298,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     absoluteTargetTicks,
                     restoredTime.TotalWallTicks);
 
-                return new ReplaySeekResult(restoredTime);
+                return new ReplaySeekResult(restoredTime, ackTimeout);
             }
             else if (intent.Operation == NodeOpType.PrepareLive)
             {

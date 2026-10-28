@@ -181,6 +181,35 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <inheritdoc />
         public void ReleaseEgress() => Fdp.Toolkit.Replication.Services.EgressHold.Release(_repo);
 
+        /// <inheritdoc />
+        /// <remarks>
+        /// ⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3). The source is the node's <c>CycloneNetworkCleanupSystem</c>, which
+        /// publishes itself for the world (<c>RetractionAckSources</c>, no host wires it); a node without a network world has none and answers <see langword="null"/>.
+        /// Two bounded steps on ONE budget: ① the sweep that follows a world swap must have run — it writes the retraction disposes on the next
+        /// frame, so until <c>SweptClearGeneration</c> catches up to the world's <c>ClearGeneration</c> there is nothing yet to acknowledge;
+        /// ② every writer's data acknowledged, on a pool thread (the wait blocks; this is called from a handler, never the frame).
+        /// </remarks>
+        public async Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout)
+        {
+            var source = Fdp.Core.Orchestration.RetractionAckSources.Of(_repo);
+            if (source == null) return null;
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (source.SweptClearGeneration != _repo.ClearGeneration && clock.Elapsed < timeout)
+                await Task.Delay(5).ConfigureAwait(false);
+            bool swept = source.SweptClearGeneration == _repo.ClearGeneration;
+
+            var left = timeout - clock.Elapsed;
+            var report = await Task.Run(() => source.WaitForAcks(left > TimeSpan.Zero ? left : TimeSpan.Zero)).ConfigureAwait(false);
+            if (swept && report.Complete) return null;
+
+            string note = !swept
+                ? $"the retraction sweep had not run after {timeout.TotalMilliseconds:F0} ms (no frame reached the cleanup); {report.TimedOut} of {report.Writers} writer(s) unacknowledged"
+                : $"{report.TimedOut} of {report.Writers} writer(s) had unacknowledged data after {timeout.TotalMilliseconds:F0} ms";
+            FdpLog<EcsRecordReplayController>.Warn("[Node-{0}] Retraction acknowledgements: {1} (CE-4079 ④ — reported in the result, not fatal).", _nodeId, note);
+            return note;
+        }
+
         /// <param name="kernel">Kernel that manages module topology.</param>
         /// <param name="nodeId">Local node identifier embedded in recording file names.</param>
         /// <param name="repo">

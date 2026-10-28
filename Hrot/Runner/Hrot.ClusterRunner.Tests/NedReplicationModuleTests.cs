@@ -278,6 +278,9 @@ public sealed class NedReplicationModuleTests
                 if (!OverridesRelease(t) && !CannotReleaseBecause.ContainsKey(name)) missing.Add(name);
             }
 
+        // ⭐ CE-4079 ④ — the node waits on the writers its translators hold (found on them, never listed): the real pack yields many
+        Assert.True(module.CleanupSystem!.AckWriterCount >= 10, $"{role}: only {module.CleanupSystem.AckWriterCount} writer(s) to await acknowledgements on");
+
         Assert.True(grantable >= 1 || role == NodeRole.Map2D, $"{role}: no grantable egress translator found — the scan is not finding the pack");
         Assert.True(missing.Count == 0,
             $"{role}: egress translators of a grantable descriptor that cannot let go of an instance (override ReleaseInstance, or list them in "

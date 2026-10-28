@@ -104,6 +104,17 @@ namespace Fdp.Core.Orchestration
         void ReleaseEgress() { }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — waits, <b>bounded</b>, until this node's retraction
+        /// disposes are ACKNOWLEDGED by the matched readers: first for the sweep that follows a world swap to have run (the cleanup
+        /// writes the disposes on the next frame), then for the acknowledgements. The handlers call it before they report <i>prepared</i> /
+        /// <i>seek-done</i>, so no node publishes while another node's retraction of the same id may still be in flight.
+        /// </summary>
+        /// <param name="timeout">The whole wait — sweep and acknowledgements together.</param>
+        /// <returns><see langword="null"/> when everything was acknowledged (or there is nothing to wait for: no network world); otherwise
+        /// the text of the timeout, which the handler puts in its result. ⛔ A timeout is reported, never fatal.</returns>
+        Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout) => Task.FromResult<string?>(null);
+
+        /// <summary>
         /// Advances playback by one frame.  Called by the application loop
         /// on every tick when <c>RunningReplay</c> is the active Cluster state.
         /// </summary>

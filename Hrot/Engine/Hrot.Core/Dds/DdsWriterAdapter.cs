@@ -57,6 +57,16 @@ public sealed class DdsWriterAdapter<T> : IDdsWriter<T>, IDisposable
         _writer.UnregisterInstance(key);
     }
 
+    /// <summary>
+    /// ⭐ CE-4079 ④ — blocks until every matched reliable reader has acknowledged all this writer sent (disposes included), or
+    /// <paramref name="timeout"/> elapses. <c>CycloneNetworkCleanupSystem</c> finds it by this name on the translators that hold the adapter.
+    /// </summary>
+    public bool WaitForAcks(TimeSpan timeout)
+    {
+        if (_disposed) return true;
+        return _writer.WaitForAcks(timeout);
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

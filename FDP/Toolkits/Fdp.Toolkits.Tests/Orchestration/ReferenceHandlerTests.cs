@@ -249,6 +249,90 @@ public sealed class ReferenceHandlerTests
         Assert.Equal(new[] { "hold", "release" }, controller.HoldLog);
     }
 
+    // ── CE-4079 ④ — W3: a node answers only after its retraction disposes were acknowledged (bounded) ────────
+
+    private static ExecuteNodeOpIntent SeekIntent()
+        => new() { TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.NodeReplaySeek, DomainPayload = new ReplaySeekPayload(5_000L) };
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string what)
+    {
+        var until = DateTime.UtcNow.AddSeconds(5);
+        while (!condition()) { Assert.True(DateTime.UtcNow < until, $"never reached: {what}"); await Task.Delay(5); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — <b>seek-done arrives only after the acknowledgements were awaited</b>:
+    /// the seek itself is finished, the answer is NOT there until the wait returns; then it carries the landed time and no timeout.
+    /// 🔴 Red-proof: drop the await in <c>ReferenceReplayLoadHandler</c> ⇒ the first assertion fails (the answer arrives at once).
+    /// </summary>
+    [Fact(Timeout = 20_000)]
+    public async Task W3_A_seek_is_done_only_after_the_retraction_acks_were_awaited()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L, AckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        var answer = handler.PrepareAsync(SeekIntent(), CancellationToken.None);
+        await WaitUntilAsync(() => controller.AckAwaits == 1, "the handler asking for the acknowledgements");
+        Assert.NotEqual(0, controller.LastSeekTarget);        // the swap is done…
+        Assert.False(answer.IsCompleted);                      // …and the node has not answered yet: its disposes are not acknowledged
+        Assert.Equal(ReferenceReplayLoadHandler.RetractionAckBudget, controller.LastAckBudget);   // bounded
+
+        controller.AckGate.SetResult(null);                    // everything acknowledged
+        var result = Assert.IsType<ReplaySeekResult>(await answer);
+        Assert.Null(result.RetractionAckTimeout);
+        Assert.NotEqual(0, result.RestoredTime.TotalWallTicks);
+    }
+
+    /// <summary>⭐ <c>CE-4079</c> ④ — a reader that never acknowledges: the wait ends (bounded) with a text, the seek still completes, and the text rides in the result.</summary>
+    [Fact(Timeout = 20_000)]
+    public async Task W3_An_ack_timeout_is_reported_in_the_seek_result_and_the_seek_still_completes()
+    {
+        const string why = "1 of 7 writer(s) had unacknowledged data after 2000 ms";
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L, AckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        controller.AckGate.SetResult(why);
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        var result = Assert.IsType<ReplaySeekResult>(await handler.PrepareAsync(SeekIntent(), CancellationToken.None));
+
+        Assert.Equal(why, result.RetractionAckTimeout);                       // reported…
+        Assert.NotEqual(0, result.RestoredTime.TotalWallTicks);               // …not fatal: the landed time is there
+        handler.OnClusterStateUpdate(ClusterState.OperatingReplay, masterGone: false);
+        Assert.Equal(new[] { "hold", "release" }, controller.HoldLog);        // and the egress hold is still released by the commit
+    }
+
+    /// <summary>⭐ <c>CE-4079</c> ④ — a node that listens (its recording does not cover the moment) waits too, and says so.</summary>
+    [Fact(Timeout = 20_000)]
+    public async Task W3_A_listening_node_awaits_the_acks_too()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L, Covers = false, AckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+        var answer = handler.PrepareAsync(SeekIntent(), CancellationToken.None);
+        await WaitUntilAsync(() => controller.AckAwaits == 1, "the handler asking for the acknowledgements");
+        Assert.False(answer.IsCompleted);
+        controller.AckGate.SetResult("timed out");
+        var result = Assert.IsType<ReplaySeekResult>(await answer);
+        Assert.Equal(0, result.RestoredTime.TotalWallTicks);
+        Assert.Equal("timed out", result.RetractionAckTimeout);
+    }
+
+    /// <summary>⭐ <c>CE-4079</c> ④ — <i>prepared</i> is held back the same way, and a timeout rides in the prepare result.</summary>
+    [Fact(Timeout = 20_000)]
+    public async Task W3_Prepared_is_reported_only_after_the_retraction_acks_were_awaited()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L, AckGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+        var answer = handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareReplay, DomainPayload = Guid.NewGuid(),
+        }, CancellationToken.None);
+        await WaitUntilAsync(() => controller.AckAwaits == 1, "the handler asking for the acknowledgements");
+        Assert.False(answer.IsCompleted);
+
+        controller.AckGate.SetResult("3 of 9 writer(s) had unacknowledged data after 2000 ms");
+        var prepared = Assert.IsType<ReplayPrepareResult>(await answer);
+        Assert.Equal("3 of 9 writer(s) had unacknowledged data after 2000 ms", prepared.RetractionAckTimeout);
+    }
+
     // ── CE-3329 P3 — During Action Review on a node ─────────────────────────────
 
     private sealed class SpyEpisodeRecorder : Fdp.Toolkit.Replay.IReviewSuspendable
@@ -511,6 +595,16 @@ public sealed class ReferenceHandlerTests
             LastSeekTarget = targetWallClockTicks;
             IsRestoringReplay = Covers;
             return Task.FromResult(Covers ? new GlobalTime { TotalWallTicks = targetWallClockTicks } : default);
+        }
+        // ⭐ CE-4079 ④ — the acknowledgement wait: held open by AckGate (null = nothing to wait for)
+        public TaskCompletionSource<string?>? AckGate { get; set; }
+        public int AckAwaits { get; private set; }
+        public TimeSpan LastAckBudget { get; private set; }
+        public Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout)
+        {
+            AckAwaits++;
+            LastAckBudget = timeout;
+            return AckGate?.Task ?? Task.FromResult<string?>(null);
         }
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;

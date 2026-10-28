@@ -271,6 +271,85 @@ namespace Hrot.SimHost.Tests
             await loopTask;
         }
 
+        // ── CE-4079 ④ — AwaitRetractionAcksAsync: the sweep, then the acknowledgements, on one bounded budget ───
+
+        private sealed class FakeAckSource : Fdp.Core.Orchestration.IRetractionAckSource
+        {
+            public uint SweptClearGeneration { get; set; }
+            public bool Acked { get; set; } = true;
+            public int Waits { get; private set; }
+            public Fdp.Core.Orchestration.RetractionAckReport WaitForAcks(TimeSpan timeout)
+            {
+                Waits++;
+                return new Fdp.Core.Orchestration.RetractionAckReport(Writers: 7, TimedOut: Acked ? 0 : 2, WaitedMilliseconds: 1);
+            }
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WithNoNetworkWorld_HasNothingToWaitFor()
+        {
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            Assert.Null(await controller.AwaitRetractionAcksAsync(TimeSpan.FromSeconds(1)));
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WhenSweptAndAcknowledged_ReturnsNull_AfterWaitingOnTheWriters()
+        {
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration };
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            Assert.Null(await controller.AwaitRetractionAcksAsync(TimeSpan.FromSeconds(1)));
+            Assert.Equal(1, source.Waits);      // the acknowledgements WERE awaited
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WaitsForTheSweepAFrameLater_ThenForTheAcks()
+        {
+            // A world swap just moved ClearGeneration; the cleanup's sweep runs on the next frame (here: 100 ms later, on another thread).
+            _world.SoftClear();
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration - 1 };
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+            _ = Task.Run(async () => { await Task.Delay(100); source.SweptClearGeneration = _world.ClearGeneration; });
+
+            var note = await controller.AwaitRetractionAcksAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Null(note);                      // the sweep came in time
+            Assert.Equal(1, source.Waits);          // and the acks were awaited only after it
+            Assert.Equal(_world.ClearGeneration, source.SweptClearGeneration);
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WhenNoFrameSweeps_TimesOutWithAText_AndReturns()
+        {
+            _world.SoftClear();
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration - 1 };   // the cleanup never runs
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var note = await controller.AwaitRetractionAcksAsync(TimeSpan.FromMilliseconds(200));
+
+            Assert.NotNull(note);
+            Assert.Contains("sweep", note);
+            Assert.InRange(clock.ElapsedMilliseconds, 150, 3000);   // bounded: it gave up, it did not hang
+        }
+
+        [Fact(Timeout = 10_000)]
+        public async Task AwaitRetractionAcksAsync_WhenAReaderNeverAcknowledges_TimesOutWithAText()
+        {
+            var source = new FakeAckSource { SweptClearGeneration = _world.ClearGeneration, Acked = false };
+            Fdp.Core.Orchestration.RetractionAckSources.Publish(_world, source);
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            var note = await controller.AwaitRetractionAcksAsync(TimeSpan.FromMilliseconds(200));
+
+            Assert.NotNull(note);
+            Assert.Contains("2 of 7 writer(s)", note);
+            Assert.Contains("unacknowledged", note);
+        }
+
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>
             Task.Run(() =>
             {

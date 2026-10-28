@@ -129,9 +129,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
             FdpLog<ReferenceReviewHandler>.Info("[Review] entered: the live point is '{0}' in exercise {1}; the recording is suspended.",
                 LastReviewLabel, exercise);
+
+            // ⭐⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — prepared only once this node's retraction disposes were
+            //   ACKNOWLEDGED (bounded); a timeout is carried in the result, never fatal.
+            string? ackTimeout = await _controller.AwaitRetractionAcksAsync(ReferenceReplayLoadHandler.RetractionAckBudget).ConfigureAwait(false);
             return new ReplayPrepareResult(_controller.ActiveMaxNetworkId, _controller.ActiveReplayDurationSeconds,
                 _controller.ActiveRecordingStartWallTicks, _controller.ActiveRecordingEndWallTicks, _controller.ActiveReplayTimeMap,
-                recording.Checkpoints);   // ⭐ CE-3329 §9f — the live recording's marks, in memory (review-<n> included)
+                recording.Checkpoints,   // ⭐ CE-3329 §9f — the live recording's marks, in memory (review-<n> included)
+                RetractionAckTimeout: ackTimeout);
         }
 
         public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)

@@ -45,7 +45,10 @@ namespace Fdp.Toolkit.Orchestration
     /// Result payload returned by a completed <see cref="NodeOpType.NodeReplaySeek"/> operation.
     /// Carries the <see cref="GlobalTime"/> the recording landed on after the seek.
     /// </summary>
-    public readonly record struct ReplaySeekResult(GlobalTime RestoredTime);
+    /// <param name="RetractionAckTimeout">⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — <see langword="null"/> when this node's
+    /// retraction disposes were acknowledged before it answered; otherwise the text of the bounded wait that timed out. ⛔ Reported, never fatal:
+    /// the seek is done either way.</param>
+    public readonly record struct ReplaySeekResult(GlobalTime RestoredTime, string? RetractionAckTimeout = null);
 
     /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.PrepareLive"/> Live-from-Replay

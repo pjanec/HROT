@@ -50,13 +50,17 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
         // ⭐ AQ107 C — the origin the run used: the ANCHOR node's (the earliest first frame, like the time map) that carries one
         (long First, Fdp.Core.FlightRecorder.Metadata.GeoOriginRecord Origin, string? Terrain)? geo = null;
 
-        foreach (var nodeDict in nodeResponses.Values)
+        foreach (var (nodeId, nodeDict) in nodeResponses)
         {
             if (!nodeDict.TryGetValue(_target, out var json)) continue;
             if (string.IsNullOrWhiteSpace(json)) continue;
             try
             {
                 var result = JsonSerializer.Deserialize<ReplayPrepareResult>(json, _deserializeOptions);
+                // ⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — a node whose retraction disposes were not acknowledged in time
+                //   still answered; the master says so and goes on (a timeout is reported, never fatal).
+                if (result.RetractionAckTimeout is { } ackNote)
+                    Fdp.Core.Logging.FdpLog<ReplayConsensusAggregator>.Warn("[Orchestrator] node {0}'s {1} answered with unacknowledged retraction disposes: {2}", nodeId, _target, ackNote);
                 if (result.DurationSeconds > maxDuration) maxDuration  = result.DurationSeconds;
                 if (result.MaxNetworkId    > maxNetworkId) maxNetworkId = result.MaxNetworkId;
                 if (result.FirstFrameWallTicks > 0 && (firstFrame == 0 || result.FirstFrameWallTicks < firstFrame))

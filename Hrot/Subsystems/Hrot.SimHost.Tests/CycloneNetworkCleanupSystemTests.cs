@@ -387,6 +387,101 @@ namespace Hrot.SimHost.Tests
             Assert.Single(egress.Released);
         }
 
+        // ── CE-4079 ④ — the cleanup is where a node's retraction disposes are written, so it is where their acknowledgements are awaited ──
+
+        /// <summary>A translator that holds a REAL writer in a private field, as every production translator does.</summary>
+        private sealed class WriterHoldingTranslator : Fdp.Interfaces.IDescriptorTranslator
+        {
+            private readonly CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.EntityLean> _writer;
+            public WriterHoldingTranslator(CycloneDDS.Runtime.DdsParticipant p) => _writer = new(p);
+            public void Retract(long id) => _writer.DisposeInstance(new Hrot.NED.Descriptors.EntityLean { EntityId = id });
+            public void Send(long id) => _writer.Write(new Hrot.NED.Descriptors.EntityLean { EntityId = id, Side = 1 });
+            public long DescriptorOrdinal => 0;
+            public string TopicName => "writer-holder";
+            public long ReceivedSampleCount => 0;
+            public long SentSampleCount => 0;
+            public TranslatorDirection Direction => TranslatorDirection.Egress;
+            public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+            public void ScanAndPublish(ISimulationView view) { }
+            public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+            public void Dispose(long networkEntityId) { }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — over REAL DDS: the writer a translator holds is found without anyone
+        /// listing it, and once a matched reliable reader has what the writer sent — a dispose included — <c>WaitForAcks</c> reports everything
+        /// acknowledged. 📐 It is the library's <c>dds_wait_for_acks</c> that answers; this proves the system reaches the right writers.
+        /// </summary>
+        [Fact(Timeout = 30_000)]
+        [Trait("Category", "Integration")]
+        public void CE4079_TheWritersATranslatorHolds_AreFound_AndTheirDisposesAreAcknowledged()
+        {
+            const uint domain = 232u;
+            using var node = new CycloneDDS.Runtime.DdsParticipant(domain);
+            using var reader = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.EntityLean>(node);
+            var translator = new WriterHoldingTranslator(node);
+            var system = new CycloneNetworkCleanupSystem(new Fdp.Interfaces.IDescriptorTranslator[] { translator });
+            Assert.Equal(1, system.AckWriterCount);        // found on the translator, not registered by hand
+
+            // The reader matches (a sample sent before discovery is lost), then the node retracts what it sent.
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            bool got = false;
+            while (!got && DateTime.UtcNow < deadline)
+            {
+                translator.Send(900);
+                System.Threading.Thread.Sleep(50);
+                using var loan = reader.Take();
+                foreach (var _ in loan) got = true;
+            }
+            Assert.True(got, "the reader never matched");
+            translator.Retract(900);
+
+            var report = system.WaitForAcks(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(1, report.Writers);
+            Assert.True(report.Complete, $"the dispose was not acknowledged: {report}");
+        }
+
+        /// <summary>⭐ <c>CE-4079</c> ④ — a writer whose reader never acknowledges: the wait ends within its budget, the shortfall is COUNTED (not thrown), and the writers after it are still asked.</summary>
+        [Fact]
+        public void CE4079_AWriterThatIsNeverAcknowledged_TimesOutWithinTheBudget_AndTheOthersAreStillAsked()
+        {
+            var system = new CycloneNetworkCleanupSystem(Array.Empty<Fdp.Interfaces.IDescriptorTranslator>());
+            int askedAfter = 0;
+            system.RegisterAckWaiter("never", t => { System.Threading.Thread.Sleep(t); return false; });   // a reader that never acknowledges
+            system.RegisterAckWaiter("after", t => { askedAfter++; return true; });
+
+            var report = system.WaitForAcks(TimeSpan.FromMilliseconds(200));
+
+            Assert.Equal(2, report.Writers);
+            Assert.Equal(1, report.TimedOut);
+            Assert.False(report.Complete);
+            Assert.Equal(1, askedAfter);
+            Assert.InRange(report.WaitedMilliseconds, 150, 3000);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4079</c> ④ — the sweep marker the controller waits on: <c>SweptClearGeneration</c> follows the world's <c>ClearGeneration</c> only once
+        /// the cleanup's sweep of the swap has RUN, and the system publishes itself for the world on its first frame (no host wiring).
+        /// </summary>
+        [Fact]
+        public void CE4079_TheSweepMarker_FollowsAWorldSwap_OnlyAfterTheSweepRan()
+        {
+            var repo = CreateWorld();
+            var system = new CycloneNetworkCleanupSystem(new[] { new MockTranslator() });
+            Assert.Null(Fdp.Core.Orchestration.RetractionAckSources.Of(repo));
+
+            system.Execute(repo, 0f);
+            Assert.Same(system, Fdp.Core.Orchestration.RetractionAckSources.Of(repo));      // published by itself
+            Assert.Equal(repo.ClearGeneration, system.SweptClearGeneration);
+
+            repo.SoftClear();                                                                // a world swap (a seek's keyframe)
+            Assert.NotEqual(repo.ClearGeneration, system.SweptClearGeneration);              // its sweep has not run yet
+
+            system.Execute(repo, 0f);                                                        // the next frame
+            Assert.Equal(repo.ClearGeneration, system.SweptClearGeneration);
+        }
+
         /// <summary>⭐ §12b — an entity retracted by its DestructionOrder lingers while it tears down (awaiting acks); a tearing-down
         /// entity counts as absent, so it is disposed ONCE, never again when it finally leaves. A seek that brings the id back alive
         /// tracks it again.</summary>

@@ -17,7 +17,7 @@ namespace Fdp.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
     [TickMode(TickPolicy.EveryFrame)]
-    public class CycloneNetworkCleanupSystem : IEcsModuleSystem
+    public class CycloneNetworkCleanupSystem : IEcsModuleSystem, Fdp.Core.Orchestration.IRetractionAckSource
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
         private readonly Dictionary<long, Entity> _trackedEntities = new();
@@ -45,10 +45,82 @@ namespace Fdp.Network.Cyclone.Systems
         /// <summary>⭐ CE-4079 ② — descriptor instances this node's writers let go of because the grantee confirmed (F7). Diagnostics, rails.</summary>
         public int ReleasedHandedOver { get; private set; }
         
+        // ⭐⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — the writers whose acknowledgements a node waits for before it reports
+        //   prepared / seek-done. Found ONCE, here, on the translators themselves: every translator holds its own writers, and a translator
+        //   added later is covered without anyone remembering to list it (the silent-default trap).
+        private readonly List<(string Name, Func<TimeSpan, bool> Wait)> _ackWaiters = new();
+        private volatile uint _sweptClearGeneration;
+
+        /// <inheritdoc />
+        public uint SweptClearGeneration => _sweptClearGeneration;
+
+        /// <summary>⭐ CE-4079 ④ — how many writers <see cref="WaitForAcks"/> waits on. Diagnostics, rails.</summary>
+        public int AckWriterCount => _ackWaiters.Count;
+
+        /// <summary>⭐ CE-4079 ④ — adds a writer the translators do not hold (and, in a rail, a fake one).</summary>
+        public void RegisterAckWaiter(string name, Func<TimeSpan, bool> wait)
+            => _ackWaiters.Add((name ?? throw new ArgumentNullException(nameof(name)), wait ?? throw new ArgumentNullException(nameof(wait))));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ④ — blocks until every writer this node holds has had all it wrote — the retraction disposes included —
+        /// acknowledged by its matched reliable readers, or <paramref name="timeout"/> (shared by all writers) has elapsed. A best-effort
+        /// writer has nothing to acknowledge and answers at once. ⚠ Blocking; the caller is a handler off the frame thread.
+        /// </summary>
+        public Fdp.Core.Orchestration.RetractionAckReport WaitForAcks(TimeSpan timeout)
+        {
+            var clock = Stopwatch.StartNew();
+            int timedOut = 0;
+            foreach (var (name, wait) in _ackWaiters)
+            {
+                var left = timeout - clock.Elapsed;
+                try
+                {
+                    if (!wait(left > TimeSpan.Zero ? left : TimeSpan.Zero)) timedOut++;
+                }
+                catch (Exception ex)
+                {
+                    // A writer that cannot be waited on (disposed under us) has nothing in flight we could still wait for.
+                    FdpLog<CycloneNetworkCleanupSystem>.Debug("WaitForAcks on {0} failed: {1}", name, ex.Message);
+                }
+            }
+            return new Fdp.Core.Orchestration.RetractionAckReport(_ackWaiters.Count, timedOut, clock.Elapsed.TotalMilliseconds);
+        }
+
+        /// <summary>
+        /// The writers a translator holds that can be waited on: every field (any visibility, base classes included) whose value is a
+        /// CycloneDDS <c>DdsWriter&lt;T&gt;</c> or an HROT writer adapter, i.e. offers a public <c>bool WaitForAcks(TimeSpan)</c>.
+        /// A field is read once, at construction — a translator that swaps its writer later is not followed.
+        /// </summary>
+        internal static IEnumerable<(string Name, Func<TimeSpan, bool> Wait)> DiscoverAckWaiters(object translator)
+        {
+            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            for (var type = translator.GetType(); type != null && type != typeof(object); type = type.BaseType)
+            {
+                foreach (var field in type.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                                                   | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly))
+                {
+                    if (field.IsStatic || field.FieldType.IsValueType) continue;
+                    object? value;
+                    try { value = field.GetValue(translator); } catch { continue; }
+                    if (value == null || !seen.Add(value)) continue;
+                    var valueType = value.GetType();
+                    var ns = valueType.Namespace ?? string.Empty;
+                    if (!ns.StartsWith("CycloneDDS.Runtime", StringComparison.Ordinal) && !ns.StartsWith("Hrot.Map.Common.Dds", StringComparison.Ordinal)) continue;
+                    var method = valueType.GetMethod("WaitForAcks", new[] { typeof(TimeSpan) });
+                    if (method == null || method.ReturnType != typeof(bool)) continue;
+                    var wait = (Func<TimeSpan, bool>)Delegate.CreateDelegate(typeof(Func<TimeSpan, bool>), value, method);
+                    yield return ($"{translator.GetType().Name}.{field.Name}", wait);
+                }
+            }
+        }
+
         public CycloneNetworkCleanupSystem(IEnumerable<Fdp.Interfaces.IDescriptorTranslator> translators)
         {
             _translators = translators?.ToArray()
                 ?? throw new ArgumentNullException(nameof(translators));
+
+            foreach (var translator in _translators)
+                _ackWaiters.AddRange(DiscoverAckWaiters(translator));
 
             foreach (var translator in _translators)
             {
@@ -62,6 +134,7 @@ namespace Fdp.Network.Cyclone.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            PublishAsAckSource(view);
             ReleaseHandedOver(view);
 
             // ⭐⭐ CE-4000 F2 / R-4019 — the world was wiped (entering Idle, or a load's world boundary) without a
@@ -97,6 +170,7 @@ namespace Fdp.Network.Cyclone.Systems
             {
                 if (repo != null) _clearGeneration = repo.ClearGeneration;
                 Sweep(view, repo);
+                if (repo != null) _sweptClearGeneration = repo.ClearGeneration;   // ⭐ CE-4079 ④ — only AFTER the disposes were written
             }
             else
             {
@@ -192,6 +266,19 @@ namespace Fdp.Network.Cyclone.Systems
             }
             if (_gone.Count > 0)
                 FdpLog<CycloneNetworkCleanupSystem>.Debug("Sweep: {0} id(s) left this node's world.", _gone.Count);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4079</c> ④ — makes this system the <see cref="Fdp.Core.Orchestration.IRetractionAckSource"/> of the world it runs in, which the
+        /// replay / review handlers ask, so no host has to wire it (the <c>ContributeDescriptorMap</c> precedent: the one type that already has
+        /// both the translators and the world). In a table keyed by the world object — a world singleton would be cleared by the very swap it
+        /// is asked about (<c>RetractionAckSources</c>).
+        /// </summary>
+        private void PublishAsAckSource(ISimulationView view)
+        {
+            if (view is not EntityRepository repo) return;
+            if (!ReferenceEquals(Fdp.Core.Orchestration.RetractionAckSources.Of(repo), this))
+                Fdp.Core.Orchestration.RetractionAckSources.Publish(repo, this);
         }
 
         /// <summary>
