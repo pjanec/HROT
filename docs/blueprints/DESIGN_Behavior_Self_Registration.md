@@ -3,7 +3,7 @@ state: LIVE
 build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
   READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
   wins over §9 wherever they disagree.
-updated: 2026-10-27 (§10d-i — CE-1433 defaults on the code-built rows; CE-1432 the other channel-release copies via ChannelRelease) · 2026-10-27 (§10d-i — CE-1430 a code-built tree's editor Variables rows = its published manifest `SharedNodeBinder.PublishedVariablesOf`, read-only) · 2026-10-27 (§10d-i — CE-1411 one channel release `ChannelRelease`; CE-1412 the variables manifest `SharedNodeBinder.VariablesOf`, opt-in `PublishesVariables`) · 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
+updated: 2026-10-28 (§10d-i — CE-1431 one hosting rule keyed on the declaration, every curated BTree publishes its manifest, R-3065) · 2026-10-27 (§10d-i — CE-1433 defaults on the code-built rows; CE-1432 the other channel-release copies via ChannelRelease) · 2026-10-27 (§10d-i — CE-1430 a code-built tree's editor Variables rows = its published manifest `SharedNodeBinder.PublishedVariablesOf`, read-only) · 2026-10-27 (§10d-i — CE-1411 one channel release `ChannelRelease`; CE-1412 the variables manifest `SharedNodeBinder.VariablesOf`, opt-in `PublishesVariables`) · 2026-10-27 (§10d — the shipped trees are C#; the curated registration carries SOP orders, channels, the bake, labels — R-1042, CE-1410) · 2026-10-11 (§10c — every behaviour carries a picker GROUP, R-268)
 current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
   §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
@@ -526,7 +526,7 @@ existing producer (no second registrar):
 | `JsonParamsDtoType` | `GET /behaviors`, the forms | `[Behavior(name, Params = …)]` (CE-2134), the one producer |
 | `DisplayLabel` / comment per node (editor only, never in the blob) | the editor's graph | ⭐ `BTreeBuilder.Label(…)` / `.Comment(…)` annotate the node added last (its `NodeDebugMetadata`); the projector already shows an authored label |
 | per-node working memory in occurrence SLOTS (`@po@slotHash`) | stateful nodes | in the BLOCK (`StatefulAction(bb => bb.P, bb => bb.State, …)`, `@po@offset`) — the CombatPosture port's form (R-266); one memory per node per run, held across a pause either way (CE-2081 holds the root params slot) |
-| `ManagedBlackboardVariables` | the editor's live Variables values (`LiveBlackboardValueProvider`), the inspector (`RootParamsProjection`) | ⭐ **`CE-1412`:** `SharedNodeBinder.VariablesOf(blob, ParamsType)` — the block's public top-level fields at their managed offsets, ⛔ less every field a stateful node of the blob binds as its WORKING STATE (recorded at bind time, `RecordState`; a JSON asset's `Role=State` half was never in its manifest). Emitted by the curated generator for a tree with `[BTreeDefinition(…, PublishesVariables = true)]` — the 15 (see "as built" below) |
+| `ManagedBlackboardVariables` | the editor's live Variables values (`LiveBlackboardValueProvider`), the inspector (`RootParamsProjection`) | ⭐ **`CE-1412`:** `SharedNodeBinder.VariablesOf(blob, ParamsType)` — the block's public top-level fields at their managed offsets, ⛔ less every field a stateful node of the blob binds as its WORKING STATE (recorded at bind time, `RecordState`; a JSON asset's `Role=State` half was never in its manifest). Emitted by the curated generator for EVERY curated BTree (`CE-1431`: `VariablesOf(blob, ParamsType)`, an empty manifest when it names no block; ⛔ SUPERSEDED: the opt-in `PublishesVariables`, the 15). A curated HSM has none |
 | a `[WritesChannel]` node's release on Failure (`ChannelClearEmit`, plain + param-less thunks; ⚠ NOT the stateful ones) | the dispatcher's OnExit of the abandoned action | ⭐ **`CE-1411`:** ONE runtime implementation, `ChannelRelease.OnFailure` (`Fdp.Toolkits`); `ChannelClearEmit` now emits a CALL to it and `SharedNodeBinder`'s plain / condition / param-less thunks (typed and byte) call it — the same shapes, so the stateful forms release on neither path |
 
 ```mermaid
@@ -564,7 +564,7 @@ sequenceDiagram
   participant I as BehaviorIngressSystem
   G->>C: __blob = GetX(isResourceOwning, actionRegistry)
   C->>B: Build() binds each leaf (shared node / SOP order), records key → method, copies byte thunks
-  G->>R: Register(X, { …, CarriesSopOrders = B.CarriesSopOrders(blob), WritesChannels = B.WritesChannelsOf(blob), ManagedBlackboardVariables = B.VariablesOf(blob, Blackboard) [PublishesVariables], BakeDefaults = BakeNew<Blackboard>() })
+  G->>R: Register(X, { …, CarriesSopOrders = B.CarriesSopOrders(blob), WritesChannels = B.WritesChannelsOf(blob), ManagedBlackboardVariables = B.VariablesOf(blob, Blackboard) [every curated BTree, CE-1431], BakeDefaults = BakeNew<Blackboard>() })
   G->>R: RegisterResolver(X, Resolve) — composed BAKE → resolver
   I->>R: assign X with json ⇒ Clear → bake (the ctor's defaults) → resolver (refuse fields / overlay flat / the contract's resolver)
 ```
@@ -589,7 +589,7 @@ VALUE / state type) and pins it to `Snapshots/ShippedTrees/*.tree.txt`, recorded
 
 ⚠ **Adding a shipped SOP now:** a static class in `Brains/` with a `Blackboard` struct (its constructor = the tuning), a
 `[BehaviorResolver]` (`RequireNoStoredFields` for an SOP), and `[Behavior(name, Params = typeof(NoParams))]` +
-`[BTreeDefinition(name, AssetId = …, Curated = true, PublishesVariables = true, Group = "Library/Sop", ParamsType = typeof(Blackboard))]` on a
+`[BTreeDefinition(name, AssetId = …, Curated = true, Group = "Library/Sop", ParamsType = typeof(Blackboard))]` on a
 `Build()` returning the builder — rows as `.Sequence(row => row.Condition(…).React(name, urgency), Id(…)).Label(…)`.
 
 ### 10d-i. ✅ AS BUILT — the two follow-ups *(CE-1411, CE-1412, ui, `2026-10-27`)*
@@ -608,7 +608,36 @@ trees are `Params`), so renaming public C# fields to a retired asset's spelling 
 (`variable` lines in the snapshots + `TheCSharpTree_PublishesTheVariablesItsJsonAssetDid`), `LiveBlackboardValueProviderTests.CE1412_…`,
 `RootParamsProjectionTests.CE1412_…`.
 
-- ⚠ **Why an OPT-IN (`PublishesVariables`), not every curated tree** — measured: a manifest changes three readers that the other ~77
+- ✅ **`CE-1431` (backend, `2026-10-28`) — the opt-in is GONE: every curated BTree publishes.** `PublishesVariables` is deleted (attribute, generator,
+  all uses); `PublishedVariablesOf` = `VariablesOf` when the tree names a `ParamsType`, else an empty manifest. Measured first: ALL curated
+  behaviours already declared `[Behavior(Params)]` (0 undeclared of 104), so no declaration had to be added. Rails:
+  `BehaviourHostingSnapshotTests.CE1431_…` (`Hrot.SimHost.Tests`).
+- ✅ **`CE-1431` — ONE hosting rule, keyed on the DECLARATION, never on "has a manifest"** *(`R-3065`; user: "These two should not behave
+  differently, it is still the same btree having the same parameters and variables, just coming from different authoring surface.")*:
+
+  | rule | as built |
+  |---|---|
+  | `BehaviorRegistry.TryGetHostedInputType` | a typed resolver's source · a JSON-shaped resolver ⇒ none · else the DECLARED contract (`JsonParamsDtoType`; `NoParams` ⇒ none; nothing declared ⇒ none). ⛔ The "no manifest ⇒ its layout" branch is gone — a curated tree with no resolver declares its block (BEH003), so the answer is the same |
+  | `RootParamsAccess.InputBytes` | `NoParams` ⇒ 0 · the reserved `Params` variable at 0 ⇒ its DTO · an empty manifest ⇒ 0 · the block's `In` half ⇒ its size · ⭐ a block that declares NO half ⇒ the WHOLE block (its parse — identity or a typed resolver's `ref TBlock` — writes all of it) · no block and no variables ⇒ 0 (PlatformHold) · else the DTO / the manifest extent |
+  | `TryGetHostedInputType`, no block | nothing stored ⇒ none (PlatformHold: an HSM naming only `HoldOrder`) |
+  | the CE-437 overlay check | runs for every behaviour with a layout, not only one with a manifest |
+
+  📐 **Measured — the reason the block rule is right:** with B's manifests alone, `InputBytes` moved for **66** curated trees, every one
+  with a typed resolver (`ClearArea` 1712 → 24, `InfantrySquadHold` 1208 → 1 …): the generated `[In][State]` reading applied to a block
+  that has no `In` half. After the re-key **145 of the 148 registered behaviours host exactly as before** (`CE1431_EveryBehaviourHostsAsBefore`,
+  golden recorded before any change); the three that move are argued in the golden's history below. ⚠ What did change, argued: a hand-built definition that declares no contract no longer hosts its
+  layout (no production behaviour is undeclared — 0 of 148); a curated resolver whose type is NARROWER than its block now keeps the
+  block instead of shrinking it (the CE-437 fix, now for every tree; no production resolver declares a `ParamsType`). HSMs: declared, no
+  manifest (no BTree blob to read working state from) — the rules no longer care.
+  ⚠ **The three that move — `PlatoonHillAttack` 52 → 248, `HullDownAttackRun` 48 → 304, `DangerCrossing` 88 → 128 (Input bytes; hosted
+  input unchanged):** three of the 15 former JSON trees, `[Params][State]` blocks with a typed resolver. Their old width was their AUTHORED
+  DTO's size (`HullDownAttackParams`, 48) — a region their block does not have (its `Params` field is a 128-byte `HullDownRunConfig`) —
+  produced by the manifest proxy this removes. They now read like the other 66 typed-resolver trees: the whole block, which their
+  `ref Blackboard` resolver writes. ⭐ No runtime reads it for them: `InputBytes` sizes a host's copy only for a child with NO resolver
+  (`HostedSubtree.Supply`), and the overlay check only for a resolver that declares a type (none in production). ⛔ Rejected: a
+  "`Params` field at offset 0 is the Input half" rule — measured, it moved 13 other trees (`BatonCharge` 56 → 20 …), whose `Params`
+  field is config the resolver fills, not the parameters.
+- ⛔ **HISTORY — why it was an OPT-IN (`PublishesVariables`), not every curated tree** — measured: a manifest changes three readers that the other ~77
   curated trees were never tuned to: `BehaviorRegistry.TryGetHostedInputType` (`:812` — a manifest reads as "generated", so a curated tree
   with no declared contract would stop offering a hosted input), `RootParamsAccess.InputBytes` (the hosted Input width — the whole block
   today, the declared contract with a manifest) and the CE-437 resolver-overlay check (`:745`). For the 15 those are exactly the JSON-era
@@ -619,7 +648,7 @@ trees are `Params`), so renaming public C# fields to a retired asset's spelling 
 - ✅ **The editor's rows — `CE-1430` (ui, `2026-10-27`).** ⛔ SUPERSEDED: *"`BehaviorTreeAssetProjector` projects a code-built tree with
   an empty `BlackboardVariables`, so no editor row asks for the values"*. ⭐ Now the catalog (`BTreeAssetContributor.LoadFrom`) reads the
   tree's manifest with **`SharedNodeBinder.PublishedVariablesOf(blob, [BTreeDefinition])`** — `VariablesOf(blob, ParamsType)` when
-  `PublishesVariables`, else none: the rule the curated generator applies to fill `ManagedBlackboardVariables` (the generator spells the
+  `ParamsType`, else none (⛔ SUPERSEDED by CE-1431: an empty manifest, no opt-in): the rule the curated generator applies to fill `ManagedBlackboardVariables` (the generator spells the
   same condition at build time; it cannot hold an attribute instance) — and the projector turns each entry into one
   `BlackboardVariableEntry` (name, type, manifest order). ⇒ the Variables window, the Details rows (`BlackboardSectionRowSource`) and the
   Watch ask `LiveBlackboardValueProvider` for exactly the names it answers. ⛔ No second list: the rail compares the projected rows of
@@ -636,7 +665,7 @@ trees are `Params`), so renaming public C# fields to a retired asset's spelling 
     `{"WithinMetres":30}` — what its JSON asset authored. Still no comment (the code documents itself). Rail:
     `CodeBuiltTreeVariablesProjectionTests.CE1433_…`.
   - Rails: `CodeBuiltTreeVariablesProjectionTests.CE1430_…` ×3 (`Hrot.BTree.Editor.Tests`: BasicSquadSop's rows = its manifest; every
-    code-built tree = its manifest, the three variable-less SOPs and every tree without `PublishesVariables` none; edits refused),
+    code-built tree = its manifest, the three variable-less SOPs and every tree without a block none (CE-1431: every curated tree publishes, empty or not); edits refused),
     `LiveBlackboardValueProviderTests.CE1430_TheProjectedCodeBuiltSop_ShowsItsLiveValuesInItsRows` (`Hrot.Editor.Tests`: the projected
     asset's rows render the running unit's values through the formatter).
 

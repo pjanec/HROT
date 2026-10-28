@@ -15,7 +15,7 @@ namespace Hrot.AI.Behaviors.Brains
     public static class CivilianSop
     {
         [Behavior(BehaviorNames.CivilianSop, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.CivilianSop, AssetId = "a2322000-0000-0000-0000-000000000002", Curated = true, PublishesVariables = true, Group = "Library/Sop")]
+        [BTreeDefinition(BehaviorNames.CivilianSop, AssetId = "a2322000-0000-0000-0000-000000000002", Curated = true, Group = "Library/Sop")]
         public static BTreeBuilder<byte, BTreeContext> Build()
             => new BTreeBuilder<byte, BTreeContext>()
             .Selector(rows => rows
@@ -41,7 +41,7 @@ namespace Hrot.AI.Behaviors.Brains
     public static class InertSop
     {
         [Behavior(BehaviorNames.InertSop, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.InertSop, AssetId = "a2322000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Sop")]
+        [BTreeDefinition(BehaviorNames.InertSop, AssetId = "a2322000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Sop")]
         public static BTreeBuilder<byte, BTreeContext> Build()
             => new BTreeBuilder<byte, BTreeContext>()
             .Wait(3600f, Id("c2322001-0000-0000-0000-000000000002"))
@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
     public static class PilotSop
     {
         [Behavior(BehaviorNames.PilotSop, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.PilotSop, AssetId = "a1118000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Sop")]
+        [BTreeDefinition(BehaviorNames.PilotSop, AssetId = "a1118000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Sop")]
         public static BTreeBuilder<byte, BTreeContext> Build()
             => new BTreeBuilder<byte, BTreeContext>()
             .Selector(rows => rows

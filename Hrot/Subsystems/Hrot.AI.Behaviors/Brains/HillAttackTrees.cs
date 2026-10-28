@@ -27,7 +27,7 @@ namespace Hrot.AI.Behaviors.Brains
             public VehicleFightFromCoverState State;
         }
 
-        [BTreeDefinition(BehaviorNames.HullDownAttackRun, AssetId = "2b000000-0000-0000-0000-0000000000dd", Curated = true, PublishesVariables = true, Group = "Demos/HillAttack",
+        [BTreeDefinition(BehaviorNames.HullDownAttackRun, AssetId = "2b000000-0000-0000-0000-0000000000dd", Curated = true, Group = "Demos/HillAttack",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()

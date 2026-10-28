@@ -1480,7 +1480,9 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
             Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
         };
-        if (!generated) def.BlackboardLayoutType = typeof(Runtime.S8TaskParams);
+        // ⭐ CE-1431 (R-3065): a curated child declares its contract — with no resolver that IS its block (BEH003), as every
+        //   registered curated tree does; hosting reads the declaration, never "has no manifest".
+        if (!generated) { def.BlackboardLayoutType = typeof(Runtime.S8TaskParams); def.JsonParamsDtoType = typeof(Runtime.S8TaskParams); }
         _fixture.BehaviorRegistry.Register(name, !generated ? def : new BehaviorDefinition
         {
             Name = name, BrainTier = BehaviorConstants.BrainTierBTree, BTreeInterpreter = def.BTreeInterpreter,
@@ -1719,8 +1721,8 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ S8 (P5) — <c>BehaviorRegistry.TryGetHostedInputType</c>, the one answer the drawer asks: a child with a block
-    /// layout and no manifest binds its layout; a blueprint behaviour binds its generated <c>Params</c>; one with no
+    /// ⭐⭐ S8 (P5) — <c>BehaviorRegistry.TryGetHostedInputType</c>, the one answer the drawer asks: a curated child binds its
+    /// declared contract (its block, CE-1431); a blueprint behaviour binds its generated <c>Params</c>; one with no
     /// parameters binds nothing.
     /// </summary>
     [Fact]

@@ -37,7 +37,7 @@ namespace Hrot.AI.Behaviors.Brains
             => BehaviorParams.OverlayFlatAt<EqsTacticsParams>(json, memory, capacity);
 
         [Behavior(BehaviorNames.TakeCover, Params = typeof(EqsTacticsParams))]
-        [BTreeDefinition(BehaviorNames.TakeCover, AssetId = "a2092000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Tactics",
+        [BTreeDefinition(BehaviorNames.TakeCover, AssetId = "a2092000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -68,7 +68,7 @@ namespace Hrot.AI.Behaviors.Brains
             => BehaviorParams.OverlayFlatAt<EqsTacticsParams>(json, memory, capacity);
 
         [Behavior(BehaviorNames.FallBack, Params = typeof(EqsTacticsParams))]
-        [BTreeDefinition(BehaviorNames.FallBack, AssetId = "a2093000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Tactics",
+        [BTreeDefinition(BehaviorNames.FallBack, AssetId = "a2093000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -107,7 +107,7 @@ namespace Hrot.AI.Behaviors.Brains
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.Flank, typeof(NoParams).FullName!);
 
         [Behavior(BehaviorNames.Flank, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.Flank, AssetId = "a2108000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Tactics",
+        [BTreeDefinition(BehaviorNames.Flank, AssetId = "a2108000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -152,7 +152,7 @@ namespace Hrot.AI.Behaviors.Brains
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.FiringPosition, typeof(NoParams).FullName!);
 
         [Behavior(BehaviorNames.FiringPosition, Params = typeof(NoParams))]
-        [BTreeDefinition(BehaviorNames.FiringPosition, AssetId = "a2108000-0000-0000-0000-000000000002", Curated = true, PublishesVariables = true, Group = "Library/Tactics",
+        [BTreeDefinition(BehaviorNames.FiringPosition, AssetId = "a2108000-0000-0000-0000-000000000002", Curated = true, Group = "Library/Tactics",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -185,7 +185,7 @@ namespace Hrot.AI.Behaviors.Brains
             => BehaviorParams.OverlayFlatAt<ThreatCountParams>(json, memory, capacity);
 
         [Behavior(BehaviorNames.Sentry, Params = typeof(ThreatCountParams))]
-        [BTreeDefinition(BehaviorNames.Sentry, AssetId = "a3079000-0000-0000-0000-000000000001", Curated = true, PublishesVariables = true, Group = "Library/Tactics",
+        [BTreeDefinition(BehaviorNames.Sentry, AssetId = "a3079000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Tactics",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()

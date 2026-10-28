@@ -742,9 +742,10 @@ namespace Fdp.Toolkit.Behavior
             // ⛔ When it does not fit AND the layout carries bytes beyond the Inputs (a State half),
             //   the two would overlap — refuse loudly rather than let a parse overwrite the State.
             //   Without a State half the old rule stands: the wider curated type becomes the layout.
+            // ⭐ CE-1431 (R-3065): for every behaviour, not only one with a manifest — InputBytes reads the block's own
+            //   declaration (its In half, or the whole block), so a block with no State half simply has nothing to overlap.
             if (def.BlackboardLayoutType != null
-                && def.BlackboardLayoutType != overlay.BlackboardLayoutType
-                && def.ManagedBlackboardVariables != null)
+                && def.BlackboardLayoutType != overlay.BlackboardLayoutType)
             {
                 int inputRegion = RootParamsAccess.InputBytes(def);
                 int resolverWrites = Fdp.Core.TypeLayout.SizeOf(overlay.BlackboardLayoutType);
@@ -798,9 +799,9 @@ namespace Fdp.Toolkit.Behavior
         /// ⭐⭐ S8 / <c>CE-2022</c> (<c>DESIGN_Unified_Behaviour_Run</c> "S8 design" P5) — the ONE answer to <i>"what does a host
         /// bind to start child <paramref name="name"/> with parameters?"</i> (<c>DESIGN_Parameter_Model</c> §P.2: the host
         /// variable IS the child's authored input). In order: a curated typed resolver's source (<c>TAuthored</c>) · a
-        /// GENERATED child (it has a manifest — BTree, HSM, blueprint): its <c>JsonParamsDtoType</c>, the Inputs mirror or its
-        /// bound resolver's Params, which IS what its start pipeline consumes · a curated child with no resolver: its
-        /// <c>BlackboardLayoutType</c>. ⛔ <c>false</c> for a child that cannot take a host's bytes (a JSON-shaped resolver)
+        /// declared contract (<c>JsonParamsDtoType</c> — a JSON asset's Inputs mirror or bound resolver's Params, a C# tree's
+        /// <c>[Behavior(Params = …)]</c>, for one with no resolver its block), which IS what its start pipeline consumes,
+        /// whatever surface authored it (CE-1431). ⛔ <c>false</c> for a child that cannot take a host's bytes (a JSON-shaped resolver)
         /// or has nothing to seed. ⭐ S8b-1 (CE-2024): one rule for every tier — the editor's pickers all ask this.
         /// </summary>
         public bool TryGetHostedInputType(string name, out Type inputType)
@@ -809,19 +810,14 @@ namespace Fdp.Toolkit.Behavior
             if (name == null || !TryGetId(name, out int id) || !TryGetDefinition(id, out var def)) return false;
             if (_sourceTypesByName.TryGetValue(name, out var source)) { inputType = source; return true; }
             if (HasCuratedResolver(name)) return false;
-            if (def.ManagedBlackboardVariables != null)          // generated: the authored contract is the hosted input
-            {
-                if (def.JsonParamsDtoType == null) return false;   // no Input half and no resolver: nothing to seed
-                if (RootParamsAccess.IsNoParams(def.JsonParamsDtoType)) return false;   // CE-2135: takes nothing
-                inputType = def.JsonParamsDtoType;
-                return true;
-            }
-            if (def.BlackboardLayoutType != null)                // curated, no resolver: its block IS its input
-            {
-                inputType = def.BlackboardLayoutType;
-                return true;
-            }
-            return false;
+            // ⭐⭐ CE-1431 (R-3065) — the DECLARED contract is the hosted input, whatever surface authored the tree (a JSON asset's
+            //   Inputs mirror, a C# tree's [Behavior(Params = …)] — for a curated tree with no resolver that is its block, BEH003).
+            //   ⛔ HISTORY: keyed on "has a manifest" — a manifest read as "generated", and a tree with none hosted its layout.
+            if (def.JsonParamsDtoType == null) return false;                          // nothing declared: nothing to seed
+            if (RootParamsAccess.InputBytes(def) == 0 && def.BlackboardLayoutType == null) return false;   // nothing stored (no block)
+            if (RootParamsAccess.IsNoParams(def.JsonParamsDtoType)) return false;   // CE-2135: takes nothing
+            inputType = def.JsonParamsDtoType;
+            return true;
         }
 
         /// <summary>⭐ <c>CE-443</c> — the curated from-bytes resolver for <paramref name="name"/>, if one is registered.</summary>

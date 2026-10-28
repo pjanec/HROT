@@ -136,10 +136,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 var groupArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "Group");
                 string? group = groupArg.Key != null ? groupArg.Value.Value as string : null;
 
-                // CE-1412: the opt-in to publishing the variables manifest (a JSON asset's registrar always did).
-                var varsArg = attr.NamedArguments.FirstOrDefault(kv => kv.Key == "PublishesVariables");
-                bool publishesVariables = varsArg.Key != null && varsArg.Value.Value is bool pv && pv;
-
                 return new CuratedTopology
                 {
                     Name       = name!,
@@ -149,7 +145,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         ? ptq.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                     DeclaredParams = DeclaredParams(symbol, name!),
                     Group      = string.IsNullOrEmpty(group) ? null : group,
-                    PublishesVariables = publishesVariables,
                 };
             }
             return null;
@@ -330,14 +325,21 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sb.AppendLine("                CarriesSopOrders = global::Fdp.Toolkit.Behavior.SharedNodeBinder.CarriesSopOrders(__blob" + safe + "),");
                     sb.AppendLine("                WritesChannels = global::Fdp.Toolkit.Behavior.SharedNodeBinder.WritesChannelsOf(__blob" + safe + "),");
                 }
+                // ⭐⭐ CE-1431 — EVERY curated BTree publishes its variables manifest, as a JSON asset's registrar always did: the block's
+                //   fields (CE-1412, derived in ONE place from the block and the compiled blob) when it names a ParamsType, else an EMPTY
+                //   manifest (it declares no variables). ⛔ Not an opt-in any more (R-3065: the same tree whatever surface authored it); the
+                //   hosting rules read the declared contract and the block, never the manifest's presence. An HSM has no BTree blob to read working state from ⇒ no manifest.
+                if (!t.IsHsm)
+                {
+                    if (t.ParamsType != null)
+                        sb.AppendLine("                ManagedBlackboardVariables = global::Fdp.Toolkit.Behavior.SharedNodeBinder.VariablesOf(__blob" + safe
+                                      + ", typeof(global::" + t.ParamsType + ")),");
+                    else
+                        sb.AppendLine("                ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
+                }
                 if (t.ParamsType != null)
                 {
                     sb.AppendLine("                BlackboardLayoutType = typeof(global::" + t.ParamsType + "),");
-                    // ⭐ CE-1412 — the variables manifest a JSON asset's registrar publishes, derived in ONE place from the block and the
-                    //   compiled blob (its stateful nodes' working-state fields are not variables). Opt-in: see PublishesVariables.
-                    if (!t.IsHsm && t.PublishesVariables)
-                        sb.AppendLine("                ManagedBlackboardVariables = global::Fdp.Toolkit.Behavior.SharedNodeBinder.VariablesOf(__blob" + safe
-                                      + ", typeof(global::" + t.ParamsType + ")),");
                     // ⭐ CE-1410 (R-3002) — stage 1: the params struct's own default (its constructor), composed in front of a resolver.
                     sb.AppendLine("                BakeDefaults = global::Fdp.Toolkit.Behavior.BehaviorParams.BakeNew<global::" + t.ParamsType + ">(),");
                     // ⭐⭐ CE-416 ② / Q75 decision D, state ② — a curated behaviour whose JSON contract IS its layout
@@ -429,8 +431,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string? ParamsTypeFq { get; set; }
         /// <summary>CE-2134: the <c>[Behavior(Params = …)]</c> on this method (global::), or null.</summary>
         public string? DeclaredParams { get; set; }
-        /// <summary>CE-1412: the attribute's <c>PublishesVariables</c> — emit the variables manifest.</summary>
-        public bool PublishesVariables { get; set; }
     }
 
     internal class CuratedResolver

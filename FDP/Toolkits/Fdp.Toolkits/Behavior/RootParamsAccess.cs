@@ -307,7 +307,7 @@ public static unsafe class RootParamsAccess
     /// rule). ⚠ It is NOT a carry-over width any more — <c>CE-426</c> deleted the carry-over
     /// (<c>R-153</c>). ⭐ A declared manifest — even an EMPTY one — is the authority: a
     /// generated behaviour with no <c>Role=Input</c> variable declares an empty manifest and so has 0
-    /// Input bytes. ⚠ With no manifest at all (a curated behaviour) the whole layout type is the
+    /// Input bytes. ⭐ A block that declares no <c>In</c> half (a curated tree's, CE-1431) is written whole by its parse, so the whole layout type is the
     /// parameters, exactly as before.
     ///
     /// <para>⭐ <c>CE-2023</c> ② — a generated behaviour WITH an Inputs struct (<c>JsonParamsDtoType</c>, embedded at
@@ -331,14 +331,18 @@ public static unsafe class RootParamsAccess
         if (def.ManagedBlackboardVariables is { Count: > 0 } m && m[0].ByteOffset == 0
             && def.JsonParamsDtoType is { IsValueType: true } dto && m[0].Type == dto)
             return Fdp.Core.TypeLayout.SizeOf(dto);
-        if (def.ManagedBlackboardVariables != null)
-            return def.ManagedBlackboardVariables.Count == 0 ? 0
-                : def.BlackboardLayoutType?.GetField("In")?.FieldType is { } inField ? Fdp.Core.TypeLayout.SizeOf(inField)
-                : def.JsonParamsDtoType is { IsValueType: true } inputs ? Fdp.Core.TypeLayout.SizeOf(inputs)
-                : ManifestExtent(def.ManagedBlackboardVariables);
-        return def.BlackboardLayoutType != null
-            ? Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType)
-            : 0;
+        if (def.ManagedBlackboardVariables is { Count: 0 }) return 0;
+        // ⭐⭐ CE-1431 (R-3065) — keyed on what the BLOCK declares, never on "has a manifest": a block with an In half
+        //   ([In][State], CE-425) has that half as its Input region; a block that declares no In half is written whole by its
+        //   parse (a curated tree's identity parse or typed resolver, `ref TBlock`) and so IS its Input region. ⛔ HISTORY: a
+        //   manifest read as "generated", so the same C# tree's width flipped from its block to its contract's when it began
+        //   publishing variables (CE-1412) — 66 of the registered trees, measured by BehaviourHostingSnapshotTests.
+        //   ⛔ No block and no variables ⇒ nothing stored ⇒ 0 (a curated HSM that names only a contract, PlatformHold).
+        if (def.BlackboardLayoutType?.GetField("In")?.FieldType is { } inField) return Fdp.Core.TypeLayout.SizeOf(inField);
+        if (def.BlackboardLayoutType != null) return Fdp.Core.TypeLayout.SizeOf(def.BlackboardLayoutType);
+        if (def.ManagedBlackboardVariables == null) return 0;
+        return def.JsonParamsDtoType is { IsValueType: true } inputs ? Fdp.Core.TypeLayout.SizeOf(inputs)
+            : ManifestExtent(def.ManagedBlackboardVariables);
     }
 
     /// <summary>⭐ <c>CE-2135</c> — the shared empty params DTO (<c>Hrot.Map.Definitions.Behavior.NoParams</c>, in an assembly this
