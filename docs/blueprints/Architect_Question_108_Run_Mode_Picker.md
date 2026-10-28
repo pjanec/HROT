@@ -444,7 +444,7 @@ EVERY host: the broadcast's `ExerciseId` → `ExerciseInventoryItem.ScenarioId` 
 |---|---|---|
 | ■ today sends Live to Idle (⇒ now the Start screen) | ✅ `ClusterTimeTransportAdapter.Stop` | ⛔ R2 / D5: back to the scenario's start, Live armed |
 | every host can name the live run's scenario without a wire change | ✅ `ExerciseInventoryItem(…, ScenarioId)` + broadcast `ExerciseId` | ✅ D7 (the recording keeps its scenario) |
-| a branched run's parent and branch point are NOT on any host | ✅ no parent field (`ExerciseInventoryItem`, grep `ParentExercise` → 0) | D5 branch case — ⚠ falls back to the scenario's start until backend publishes the parent (filed in the NOTE) |
+| a branched run's parent and branch point are NOT on any host | ✅ the inventory has no parent field (`ExerciseInventoryItem`); ⚠ corrected: the RECORDING has them (`RecordingMetadata.ParentExerciseId` / `BranchWallTicks`, `RecordingModule.cs:89`) — only the inventory lacks them (coordinator HANDOFF to backend) | D5 branch case — ⚠ falls back to the scenario's start until backend publishes the parent (filed in the NOTE) |
 | POST /sim/stop and ■ are one Stop | ✅ both reach `ITimeTransportFacade.Stop` | ✅ D22 |
 
 ```mermaid
