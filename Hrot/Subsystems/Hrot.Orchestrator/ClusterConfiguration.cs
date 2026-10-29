@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Core.Serialization;
 
 namespace Hrot.Orchestrator;
@@ -64,6 +66,11 @@ public sealed class ClusterConfiguration
     /// </summary>
     public string TkbName { get; init; } = DefaultTkbName;
 
+    /// <summary>⭐ CE-3341 / R-1043 — the master's INITIAL armed run mode: a BOOTSTRAP parameter (the one place every master is built through), default <see cref="ClusterArmedMode.Live"/>.
+    /// The editor's one-node cluster (<see cref="ForOneNodeCluster"/>) passes <see cref="ClusterArmedMode.Preview"/> — the only bootstrap difference. ⛔ Set by code, never read from the config file.</summary>
+    [JsonIgnore]
+    public ClusterArmedMode InitialArmedMode { get; init; } = ClusterArmedMode.Live;
+
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
     /// <remarks>
     /// ⭐ <c>CE-4103</c> — a FRESH instance per read, not one cached for the process: <see cref="NasBasePath"/> is read from the environment
@@ -95,6 +102,7 @@ public sealed class ClusterConfiguration
         TkbName                    = TkbName,   // ⭐ R-4018 — the one-node cluster syncs the same TKB
         MandatoryRoles             = MandatoryRoles,    // ⭐ CE-4087 — the editor's own in-process roles satisfy it (ClusterMaster.LocalRoles)
         LoadWaitSeconds            = LoadWaitSeconds,
+        InitialArmedMode           = ClusterArmedMode.Preview,   // ⭐ R-1043 — the editor is the Preview-armed host; ForOneNodeCluster is its only factory
     };
 
     private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;

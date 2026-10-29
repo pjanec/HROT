@@ -55,6 +55,11 @@ public sealed class ClusterViewTests
         HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true });   // a sender that does not set it
         Assert.Equal(ClusterArmedMode.Live, view.ArmedMode);
 
+        // R-1043 - LastLoadMode is the same kind of fold
+        Assert.Equal(ClusterArmedMode.Live, view.LastLoadMode);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, LastLoadMode = ClusterArmedMode.Preview, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
+        Assert.Equal(ClusterArmedMode.Preview, view.LastLoadMode);
+
         HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
         Assert.True(view.MasterGone);
         Assert.True(view.HasFollowedState);                       // a master WAS heard

@@ -43,6 +43,10 @@ public sealed partial class ClusterMaster
     /// </summary>
     public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
 
+    /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (<see cref="ClusterArmedMode.Live"/> for <c>LoadingLive</c>, <see cref="ClusterArmedMode.Preview"/> for <c>LoadingEdit</c>),
+    /// set when the load round STARTS; before any load it equals the initial armed mode. A fact the master holds and broadcasts beside <see cref="ArmedMode"/> — it never interprets it for a load.</summary>
+    public ClusterArmedMode LastLoadMode { get; private set; } = ClusterArmedMode.Live;
+
     private bool _runNotRecorded;
 
 

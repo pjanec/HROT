@@ -171,6 +171,7 @@ public sealed class ClusterFactsIngress : IDisposable
         RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14
         RecordLiveRunsOff = topic.RecordLiveRunsOff != 0,
         ArmedMode = ArmedModeOf(topic.ArmedMode),   // ⭐ CE-3341 R-3068
+        LastLoadMode = ArmedModeOf(topic.LastLoadMode),   // ⭐ R-1043
         WaitingFor = topic.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
         ErrorReason = topic.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
         ClusterPlayReady = topic.ClusterPlayReady,         // ⭐ CE-3345 R-3070

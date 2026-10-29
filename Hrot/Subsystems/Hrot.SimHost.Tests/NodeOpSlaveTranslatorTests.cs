@@ -266,6 +266,15 @@ public sealed class NodeOpSlaveTranslatorTests
 
     /// <summary>⭐ CE-3341 — an older sender's broadcast (the field never set) and a value this build does not know both read as the default, Live.</summary>
     [Fact]
+    public void R1043_TheLastLoadMode_RidesTheBroadcastBothWays_AndAnOlderSenderReadsLive()
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, LastLoadMode = ClusterArmedMode.Preview });
+        Assert.Equal(1, topic.LastLoadMode);
+        Assert.Equal(ClusterArmedMode.Preview, ClusterFactsIngress.StateOf(topic).LastLoadMode);
+        Assert.Equal(ClusterArmedMode.Live, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).LastLoadMode);
+    }
+
+    [Fact]
     public void CE3341_AnOlderSendersBroadcastAndAnUnknownValue_ReadAsLive()
     {
         Assert.Equal(ClusterArmedMode.Live, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).ArmedMode);

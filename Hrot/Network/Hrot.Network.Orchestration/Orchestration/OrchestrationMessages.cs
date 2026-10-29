@@ -168,6 +168,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         public int RecordLiveRunsOff;
         /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode: 0 = Live (also an older sender), 1 = Preview, 2 = AAR (<c>ClusterArmedMode</c>; ⛔ permanent, R-42). Held by the master, the same on every node. Additive on the wire.</summary>
         public int ArmedMode;
+        /// <summary>⭐ R-1043 — the mode the LAST scenario load went into: 0 = Live (also an older sender), 1 = Preview (<c>ClusterArmedMode</c>; ⛔ permanent, R-42). Additive on the wire.</summary>
+        public int LastLoadMode;
         /// <summary>⭐⭐ CE-3344 (R-3069) — what the cluster is still WAITING FOR before it is ready (<i>"SimHost, Brain (CGF)"</i>: the mandatory names and roles no node has reported);
         /// empty = nothing is missing. Held by the master, the same on every node. Additive on the wire: an older sender omits it, which reads as "nothing missing".</summary>
         [DdsManaged] public string WaitingFor;
