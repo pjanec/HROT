@@ -361,4 +361,25 @@ public sealed class AssetPickerLauncherTests
         // only what the picker lists AND was picked: not the deleted one, not the never-picked one
         Assert.Equal(new[] { kept.AssetId.ToString() }, registry.RecentSection().Select(e => e.Id));
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1442</c> (U1, §11.7 ⑤) — a picker that lists SCENARIOS (the cluster's list) leads with the disabled "waiting for the cluster's list…" row until the
+    /// list has arrived, so an empty picker never reads as "no scenarios"; files on disk (a BTree-only picker) are unaffected, and once the list arrives the row is gone.
+    /// 🔴 Mutation: the <c>_hasInventory()</c> check dropped from <c>Entries</c> ⇒ no waiting row ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1442_AScenarioPicker_SaysItIsWaitingForTheClustersList_UntilItArrives()
+    {
+        bool arrived = false;
+        var catalog = new FakeCatalog(new StubAsset { Name = "Patrol", Kind = AssetKind.BTree });
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, catalog, new AssetPickActionRouter(_ => { }, _ => { }), hasInventory: () => arrived);
+
+        var waiting = launcher.Entries(AssetKindFilter.Scenario);
+        Assert.Equal(AssetPickerLauncher.WaitingEntryId, waiting[0].Id);
+        Assert.False(waiting[0].IsEnabled);
+        Assert.DoesNotContain(launcher.Entries(AssetKindFilter.BTree), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+
+        arrived = true;
+        Assert.DoesNotContain(launcher.Entries(AssetKindFilter.Scenario), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+    }
 }

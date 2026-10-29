@@ -57,7 +57,7 @@ public sealed class RecordingPickerLauncher
     /// <summary>The entries the picker shows — every recording the master offers, the newest first.</summary>
     public IReadOnlyList<PickerEntry> BuildEntries()
         => _hasInventory is not null && !_hasInventory()
-            ? new[] { new PickerEntry(Id: WaitingEntryId, Name: Hrot.UI.Common.RunMode.RunGate.WaitingForInventoryText, Description: null, Category: null, Keywords: null, IconTextureId: null, Tag: null, IsEnabled: false) }
+            ? new[] { InventoryWaiting.Entry(WaitingEntryId) }
             : _listExercises()
             .OrderByDescending(x => x.StartTimeUtc)
             .Select(x => new PickerEntry(

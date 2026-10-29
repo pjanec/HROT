@@ -4313,9 +4313,10 @@ namespace Hrot.Editor
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
                 ? new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
-                    openPicker: _shellPickers.OpenPicker,
-                    catalog:    catalog,
-                    router:     _assetPickRouter)
+                    openPicker:   _shellPickers.OpenPicker,
+                    catalog:      catalog,
+                    router:       _assetPickRouter,
+                    hasInventory: () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true)   // ⭐ CE-1442
                 : null;
 
             // ⭐⭐ CE-049 (Axis-C E2) — both helpers now live in the shared

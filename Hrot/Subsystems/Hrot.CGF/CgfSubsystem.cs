@@ -2535,9 +2535,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             loadScenario: name  => _scenarioSession?.LoadScenario(name));
 
         _assetPickerLauncher = new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
-            openPicker: _shellPickers.OpenPicker,
-            catalog:    catalog,
-            router:     router);
+            openPicker:   _shellPickers.OpenPicker,
+            catalog:      catalog,
+            router:       router,
+            hasInventory: () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true);   // ⭐ CE-1442
 
         // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
         //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs
