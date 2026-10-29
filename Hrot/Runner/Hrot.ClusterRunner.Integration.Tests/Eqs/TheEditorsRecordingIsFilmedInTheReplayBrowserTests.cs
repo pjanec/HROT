@@ -18,6 +18,7 @@ using Hrot.UI.Common.Adapters;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.RunMode;
 using Xunit;
+using static Hrot.ClusterRunner.Integration.Tests.Eqs.EditorPump;
 
 namespace Hrot.ClusterRunner.Integration.Tests.Eqs;
 
@@ -76,28 +77,6 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
     }
 
     // ── the editor's half ────────────────────────────────────────────────────────────────────────────────────────
-
-    private static void Pump(EditorSubsystem editor, Func<bool> until, double timeoutSeconds, string what)
-    {
-        var end = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        var trace = new StringBuilder(); var next = DateTime.UtcNow;
-        while (!until())
-        {
-            if (DateTime.UtcNow > next) { trace.Append("\n  ").Append(Diag(editor)); next = DateTime.UtcNow.AddSeconds(6); }
-            if (DateTime.UtcNow > end) throw new TimeoutException($"timed out ({timeoutSeconds:0} s) waiting for: {what}; {Diag(editor)}{trace}");
-            editor.Update(0.016f);
-            Thread.Sleep(10);
-        }
-    }
-
-    private static string Diag(EditorSubsystem e)
-        => $"viewState={e.NodeForTest?.ClusterSlave.View.State} followed={e.NodeForTest?.ClusterSlave.View.HasFollowedState} mode={e.TimeTransportForTest?.Mode} master={e.ClusterMasterForTest?.CurrentClusterState} pending={e.RunChoiceForTest?.Pending?.Text} checking={e.RunChoiceForTest?.IsCheckingUnsaved} held={e.ClusterMasterForTest?.HeldLoadRequestId} notice={e.ClusterMasterForTest?.LoadNotice} roster={e.ClusterMasterForTest?.NodeRoster.ActiveNodes.Count} slave={e.NodeForTest?.ClusterSlave.LocalStateIdForTest}";
-
-    private static void PumpFor(EditorSubsystem editor, double seconds)
-    {
-        var end = DateTime.UtcNow.AddSeconds(seconds);
-        while (DateTime.UtcNow < end) { editor.Update(0.016f); Thread.Sleep(10); }
-    }
 
     /// <summary>The recording files of every exercise under the staging root: <c>{root}/nodes/node-N/exercises/&lt;id&gt;/node_N.fdp</c> (where the editor's own node records).</summary>
     private string[] RecordingsOnDisk()

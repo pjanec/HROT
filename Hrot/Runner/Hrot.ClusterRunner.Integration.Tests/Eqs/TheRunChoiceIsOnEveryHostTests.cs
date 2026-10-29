@@ -16,6 +16,7 @@ using Hrot.Network.NED.Factory;
 using Hrot.UI.Common.Panels;
 using Hrot.UI.Common.RunMode;
 using Xunit;
+using static Hrot.ClusterRunner.Integration.Tests.Eqs.EditorPump;
 
 namespace Hrot.ClusterRunner.Integration.Tests.Eqs;
 
@@ -45,6 +46,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             var choice = editor.RunChoiceForTest;
             Assert.NotNull(choice);
             Assert.Equal(RunArmed.Live, choice!.Armed);   // before ANY broadcast has reached the view: the master's own default (⭐ CE-1443 — the editor's Preview is the master's bootstrap, asserted below)
+            Pump(editor, () => choice.Gate.Open, 60, "the run gate open (the cluster is ready: CE-1442)");   // a fresh host is closed until its view has heard the cluster
             Assert.Null(choice.PlayDisabledReason);                // a session is wired: ▶ is not disabled for want of one
             choice.Choose(RunArmed.Live);
             Assert.Null(choice.PlayDisabledReason);                // …and Live-armed ▶ neither (it needs the session's LoadForLive)
@@ -102,6 +104,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             var choice = cgf.RunChoiceForTest;
             Assert.NotNull(choice);
             Assert.Equal(RunArmed.Live, choice!.Armed);            // CGF / the all-in-one / the server: the master's default (R-1043: no host default)
+            HearTheCluster(cgf.NodeForTest!);                      // CE-1442: a fresh host is closed until its view has heard the cluster
             Assert.Null(choice.PlayDisabledReason);                // the session is passed: Live-armed ▶ is enabled
             AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, cgf, "Scenario");   // ⭐ CE-4083 + CE-1437
         }
@@ -185,15 +188,23 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         }
     }
 
+    /// <summary>A node's frame hearing a cluster state (CE-1442's gate opens on it) — for a host with no in-process master to pump.</summary>
+    private static void HearTheCluster(HrotNodeContext node, ClusterState state = ClusterState.OperatingEdit)
+    {
+        node.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state });
+        if (node.ClusterSlave.View.NodeId is { } id)   // CE-1442 / CE-3344: the gate also wants this node in the master's in-sync set
+            node.EventBus.PublishManaged(new InSyncSetChangedEvent { NodeIds = new[] { id } });
+        node.EventBus.SwapBuffers();
+        node.ClusterSlave.View.Update();
+    }
+
     private static void AssertEveryEntryAsks(string host, RunModeChoice? choice, HrotNodeContext? node, Hrot.Editor.AiShared.Scenarios.IScenarioSession? session,
                                              params (string Name, System.Action Call)[] extra)
     {
         Assert.NotNull(choice);
         Assert.NotNull(node);
         Assert.NotNull(session);
-        node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
-        node.EventBus.SwapBuffers();
-        node.ClusterSlave.View.Update();
+        HearTheCluster(node!, ClusterState.OperatingLive);
 
         var entries = new (string Name, System.Action Call)[]
         {
@@ -221,9 +232,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         Assert.Null(choice!.Pending);
 
         // the master's broadcast, as this node's ONE cluster view folds it (the adapter's Mode reads that view)
-        node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
-        node.EventBus.SwapBuffers();
-        node.ClusterSlave.View.Update();
+        HearTheCluster(node!, ClusterState.OperatingLive);
 
         choice.OpenScenario("any-scenario");
 
