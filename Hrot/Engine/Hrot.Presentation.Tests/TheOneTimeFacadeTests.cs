@@ -114,15 +114,22 @@ public sealed class TheOneTimeFacadeTests
     public void Mode_FollowsTheClusterState(ClusterState state, TransportMode mode)
         => Assert.Equal(mode, In(state).Facade.Mode);
 
+    /// <summary>⭐ CE-4100 ③ (AQ108 D9) — a DAR always has an explicit start: the facade has no "live end" entry (the old <c>EnterReview()</c> default is gone), so every entry names its moment —
+    /// even 0 s on the Sim axis is a sim target, not "the live point". 🔴 Red-proof: <c>EnterReview</c> dropping the position (the old null branch) ⇒ both assertions see no target.</summary>
     [Fact]
-    public void EnterReview_AtTheLivePoint_NamesNoMoment()
+    public void EnterReview_AlwaysNamesTheMomentItWasAskedFor()
     {
-        var (facade, bus) = In(ClusterState.OperatingLive);
-        facade.EnterReview();
-        var intent = Published<TransitionStateIntent>(bus);
+        var (sim, simBus) = In(ClusterState.OperatingLive, ReplayAxis.Sim);
+        sim.EnterReview(0);
+        var intent = Published<TransitionStateIntent>(simBus);
         Assert.Equal(ClusterState.OperatingReview, intent.TargetState);
-        Assert.Equal(0, intent.TargetWallTicks);
-        Assert.Null(intent.TargetSimSeconds);
+        Assert.Equal(0d, intent.TargetSimSeconds);                     // a moment (the run's start), not "the live end"
+
+        var (wall, wallBus) = In(ClusterState.OperatingLive, ReplayAxis.Wall);
+        wall.EnterReview(4);
+        var w = Published<TransitionStateIntent>(wallBus);
+        Assert.Null(w.TargetSimSeconds);
+        Assert.Equal(4 * TimeSpan.TicksPerSecond, w.TargetWallTicks);
     }
 
     [Fact]

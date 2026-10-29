@@ -39,7 +39,7 @@ public class TheSimControlsActuallyControlTimeTests
         public Hrot.UI.Common.Facades.TransportMode Mode { get; set; }
         public Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; }
         public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => Axis = axis;
-        public void EnterReview(double? at = null) { }
+        public void EnterReview(double at) { }
         public void ExitReview() { }
         public Fdp.Toolkit.Orchestration.ReplaySession? Session { get; set; }
         public void EnterReviewAtSim(double simSeconds) { }

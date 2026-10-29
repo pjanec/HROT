@@ -423,6 +423,119 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4104</c> switches 3 + 4 (AQ108 §3 "Live → DAR", D9, R-3060; handoff rows 3 and 4) — through the real headless editor, a ≥ 7 s live run, ONE entry per editor
+    /// (⚠ a SECOND DAR in the same run reports a bogus live point — see <see cref="LiveToDarAndBack"/>'s note — so each entry gets its own run):
+    /// <b>Live → DAR</b> by the timeline's DAR-at-a-time (<see cref="Hrot.UI.Common.Adapters.ClusterTimelineCursor.EnterReview"/>, built over the editor's own node timeline as the editor builds it)
+    /// and, in the sibling Fact, by the indicator's window item (the menu model's own action); each lands in the review at the ASKED moment (never the live end), the exercise unchanged, the live point frozen,
+    /// <i>Go live from here</i> not offered. <b>DAR → Live</b> by the menu's ⏏ (here) / ■ (sibling): live is back at the live point, paused (the design: "live, paused"), ▶ runs it on. Then ■ the run: ONE recording, no branch, no gap.
+    /// 🔴 Red-proofs: <c>EnterReviewAtSim</c> sending the live end ⇒ the position rows; ■ in a review stopping instead of exiting the review ⇒ the back-in-Live row.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public Task CE4104_LiveToDar_ByTheTimeline_AndBackToLiveByEject_OneContinuousRecording() => LiveToDarAndBack(viaTimeline: true);
+
+    /// <summary>Switch 3's other entry (the indicator's <i>DAR — the last 30 s</i>) and switch 4's ■ in a review. See <see cref="CE4104_LiveToDar_ByTheTimeline_AndBackToLiveByEject_OneContinuousRecording"/>.</summary>
+    [Fact(Timeout = 600_000)]
+    public Task CE4104_LiveToDar_ByTheIndicatorsWindow_AndBackToLiveByStop_OneContinuousRecording() => LiveToDarAndBack(viaTimeline: false);
+
+    /// <remarks>
+    /// ⛔ <b>Production finding (reported, not fixed here — backend's master):</b> a SECOND DAR in the same live run (entered after a first DAR's return) reports <c>LivePointSimSeconds</c> = the DAR's own position (0.3 s) instead of the live end (8.1 s),
+    /// and ■/⏏ then leaves live at that 0.3 s (<c>ReplaySessionProcessManager.cs:66-69</c> reads <c>_review.LivePoint</c>). Measured: the first DAR's live point is right in both orders.
+    /// </remarks>
+    private async Task LiveToDarAndBack(bool viaTimeline)
+{
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
+        try
+        {
+            var run = RecordALiveRun(editor, recordOn: true, liveSeconds: 7, stop: false);
+            var choice = run.Choice; var transport = run.Transport; var exercise = run.Exercise;
+            var section = new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(transport, choice: choice);
+            var cursor = new Hrot.UI.Common.Adapters.ClusterTimelineCursor(() => transport, () => editor.NodeForTest?.ShownTimeline);
+            Assert.True(transport.TotalTime >= 6, $"the run is only {transport.TotalTime:0.0} s long");
+
+            // the shared checks of a DAR just entered: review mode, same exercise, live frozen, no "Go live from here"
+            double EnteredDar(double asked, string what)
+            {
+                Pump(editor, () => transport.Mode == TransportMode.Review && transport.LivePoint is not null, 60, $"the DAR ({what}) with its live point");
+                Assert.Equal(exercise, transport.ActiveExercise);
+                var live = transport.LivePoint!.Value;
+                Pump(editor, () => Math.Abs(transport.TotalTime - asked) < 0.6, 20, $"the DAR at the asked {asked:0.0} s (the entry pause lands a frame or two after the mode flips; the display leads ≈ 0.3 s)");
+                Assert.InRange(transport.TotalTime, asked - 0.6, asked + 0.6);           // at the asked moment — ⛔ not the live end
+                Assert.True(transport.TotalTime < live - 2.5, $"the DAR sits at the live end ({transport.TotalTime:0.0} vs live {live:0.0})");
+                PumpFor(editor, 1.5);
+                Assert.Equal(live, transport.LivePoint!.Value, 2);                       // live is paused: its point does not advance
+                Assert.NotNull(choice.GoLiveFromHereDisabledReason);                     // handoff row 5: never offered in a DAR
+                Assert.DoesNotContain(cursor.ModeMenuItems(transport.Session!.ZeroWallTicks, "0:03"), i => i.Label.StartsWith("Go live"));
+                return live;
+            }
+            void BackInLive(double live, string how)
+            {
+                Pump(editor, () => transport.Mode == TransportMode.Live, 60, $"back in OperatingLive by {how}");
+                Assert.Equal(exercise, transport.ActiveExercise);                        // the same run: no branch, no new exercise
+                Pump(editor, () => Math.Abs(transport.TotalTime - live) < 1.0, 20, $"the sim time back at the live point {live:0.0} s (the clock snaps a few frames after the mode flips)");
+                Assert.InRange(transport.TotalTime, live - 1.0, live + 1.0);             // resumed at the live point, not the DAR's position
+                PumpFor(editor, 1.5);
+                Assert.InRange(transport.TotalTime, live - 1.0, live + 1.0);             // DESIGN_Replay_Time_Axis_And_Review §5 / row 19: "live, paused" — the return does not run the clock
+                Assert.True(transport.IsPaused, $"live is running after {how}: the design says it returns paused");
+                transport.TogglePlayPause();                                             // the user's ▶
+                Pump(editor, () => transport.TotalTime > live + 1, 20, $"live running on from the live point after ▶ (from {how})");
+            }
+
+            if (viaTimeline)
+            {
+            // ── the timeline's DAR at ~3 s, then ⏏ (the cursor reads the editor's own live index) ──
+            Assert.True(cursor.CanReview);
+            var index = editor.NodeForTest!.ShownTimeline!.Index;
+            int frame = 0; while (frame < index.FrameSim.Count - 1 && index.FrameSim[frame] < 3.0) frame++;
+            var asked = index.FrameSim[frame];
+            var liveB = transport.TotalTime;
+            cursor.EnterReview(index.FrameTicks[frame]);
+            var pausedAtB = EnteredDar(asked, "the timeline at 3 s");
+            Assert.InRange(pausedAtB, liveB - 0.5, liveB + 1.5);
+            var eject = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("⏏"));
+            eject.Invoke!();
+            BackInLive(pausedAtB, "⏏");
+            }
+            else
+            {
+            // ── the indicator's window item, then ■ ──
+            var liveA = transport.TotalTime;
+            var window = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("DAR — the last 30 s"));
+            Assert.True(window.Enabled);
+            window.Invoke!();
+            var pausedAtA = EnteredDar(Math.Max(0, liveA - 30), "the last 30 s");
+            Assert.InRange(pausedAtA, liveA - 0.5, liveA + 1.5);                         // the live point = where live was when the DAR began
+            choice.Stop();                                                               // R-3060: ■ in a review = back to live
+            BackInLive(pausedAtA, "■");
+            }
+
+            // ── ■ the run: ONE recording, covering the live time, no gap, no branch ──
+            var totalLive = transport.TotalTime;
+            choice.Stop();
+            Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "back in OperatingEdit after ■");
+            PumpFor(editor, 2);
+            var fdp = Assert.Single(RecordingsOnDisk());
+            Assert.Equal(exercise.ToString(), Path.GetFileName(Path.GetDirectoryName(fdp)));
+            choice.OpenRecording(exercise);
+            Pump(editor, () => transport.Mode == TransportMode.Replay && transport.Session is { Active: true } && transport.ActiveExercise == exercise, 60, "the run's recording open as an AAR");
+            var s = transport.Session!;
+            var lastSim = s.TimeMap is { HasSimTime: true } map ? map.SimAt(s.ZeroWallTicks + (long)Math.Round(s.LengthSeconds * TimeSpan.TicksPerSecond)) : s.LengthSeconds;
+            Console.WriteLine($"CE4104-3/4 exercise={exercise} totalLive={totalLive:0.00} recordingLastSim={lastSim:0.00} lengthSeconds={s.LengthSeconds:0.00}");
+            Assert.InRange(lastSim, totalLive - 0.5, totalLive + 0.5);                   // the DAR time is not added as a gap
+
+            using var rb = new BrowserRig(_root, _http, 240 + Interlocked.Increment(ref _domain));
+            var (status, body) = await rb.Call(HttpMethod.Get, "/exercises");
+            Assert.Equal(HttpStatusCode.OK, status);
+            var listed = body["data"]!["exercises"]!.AsArray().Select(e => e!).Single(e => Guid.Parse(e["exerciseId"]!.ToString()) == exercise);
+            Assert.True(listed["parentExerciseId"] is null || string.IsNullOrEmpty(listed["parentExerciseId"]!.ToString()), "the run has a parent: " + listed["parentExerciseId"]);
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4103</c> — a SECOND <see cref="EditorSubsystem"/> in one process (this class's tests each build their own staging root, so the second one's root is NOT
     /// the first's) opens its scenario and reaches <c>OperatingEdit</c>. 📐 It used to prepare its load against the FIRST root's NAS (<c>ClusterConfiguration.Default</c>
     /// cached the environment once per process): <c>NAS source directory … does not exist</c>, the load abandoned, the view at Idle. Run with the other Fact in one process.

@@ -145,10 +145,9 @@ public sealed class ClusterReplayControls
 
     public void SetAxis(ReplayAxis axis) => _master.SetReplayAxis(ReplaySessionIntents.SetAxis(axis));
 
-    public void EnterReview(double? at)
+    public void EnterReview(double at)
     {
-        if (at is not { } t) { _master.Transition(ReplaySessionIntents.EnterReview()); return; }
-        var (wall, sim) = ReplaySessionIntents.OnAxis(Axis, t);
+        var (wall, sim) = ReplaySessionIntents.OnAxis(Axis, at);
         _master.Transition(ReplaySessionIntents.EnterReview(sim is null ? wall : null, sim));
     }
 
