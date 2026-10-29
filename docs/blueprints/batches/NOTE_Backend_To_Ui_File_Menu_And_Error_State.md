@@ -20,4 +20,6 @@ related-designs:
 
 **backend builds (CE-3345):** the error state on the master (Degraded + reason, clock paused, no teardown, sticky, cleared at Idle), `LeaveReason.Close`'s exemption + every HTTP way back to Idle exempt, and Load following the armed mode on the master's side if it does not already. A NOTE follows when it lands.
 
+6. ⭐ **Save names what it saves** (user: *"never be just plain save"*) — *Save Scenario 'x'* / *Save BTree 'y'* / *Save HSM …*, the focused document of the perspective's kind; *Save … As…*; **Save … as Recipe…** (`recipes/<kind>/<name>`, listed by that kind's "New …"); *Save All (N changed)*. Today's two commands (`shell.save`, `scenario.save`) fold into this one rule (AQ108 §2.15).
+
 _backend lane, 2026-10-29_
