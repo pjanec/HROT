@@ -1727,7 +1727,7 @@ sequenceDiagram
     H->>F: For(context, profile) — beside AttachMapLayers
     F-->>H: transport + run choice + gate source (policy from the profile's kind)
     LWC->>H: IProvidesRunControls (now every ECS host)
-    LWC->>LWC: pick ONE owner; compose toolbar (unless suppressed), LoadingScreen, error section
+    LWC->>LWC: pick ONE owner, then compose toolbar (unless suppressed), LoadingScreen, error section
 ```
 *What it shows: the per-host part shrinks to one call carrying a profile; everything after it is the same code for every host.*
 
