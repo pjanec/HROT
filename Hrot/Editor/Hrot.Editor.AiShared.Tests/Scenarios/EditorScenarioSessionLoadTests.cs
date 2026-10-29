@@ -17,10 +17,14 @@ namespace Hrot.Editor.AiShared.Tests.Scenarios;
 /// </summary>
 public sealed class EditorScenarioSessionLoadTests
 {
+    // CE-1436 - the node's ONE cluster view over the bus; the tests advance it (as ClusterSlave.Tick does) before the session / facade frame
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FdpEventBus, Fdp.Toolkit.Orchestration.ClusterView> Views = new();
+    private static Fdp.Toolkit.Orchestration.ClusterView ViewOf(FdpEventBus bus) => Views.GetValue(bus, b => new Fdp.Toolkit.Orchestration.ClusterView(b));
+
     private static EditorScenarioSession NewSession(FdpEventBus bus)
     {
         var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
-        return new EditorScenarioSession(fileService, bus, new EntityRepository(),
+        return new EditorScenarioSession(fileService, bus, () => ViewOf(bus), new EntityRepository(),
                                          () => Path.Combine(Path.GetTempPath(), "hrot-scnroot-should-not-be-written"));
     }
 
@@ -34,7 +38,7 @@ public sealed class EditorScenarioSessionLoadTests
     {
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state });
         bus.SwapBuffers();
-        session.Update();
+        ViewOf(bus).Update(); session.Update();
     }
 
     [Fact]
@@ -143,7 +147,7 @@ public sealed class EditorScenarioSessionLoadTests
         var bus = new FdpEventBus();
         int left = 0;
         var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
-        var session = new EditorScenarioSession(fileService, bus, new EntityRepository(),
+        var session = new EditorScenarioSession(fileService, bus, () => ViewOf(bus), new EntityRepository(),
             () => Path.Combine(Path.GetTempPath(), "hrot-scnroot-should-not-be-written"), leaveRun: () => left++);
 
         session.LoadForLive("b");
@@ -184,13 +188,13 @@ public sealed class EditorScenarioSessionLoadTests
     {
         var bus = new FdpEventBus();
         var session = NewSession(bus);
-        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus);
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
         facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
         var run = Guid.NewGuid();
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = run });
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(run, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
         bus.SwapBuffers();
-        session.Update();
+        ViewOf(bus).Update(); session.Update();
         facade.Update();
         bus.SwapBuffers();
 
@@ -216,21 +220,21 @@ public sealed class EditorScenarioSessionLoadTests
     {
         var bus = new FdpEventBus();
         var session = NewSession(bus);
-        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus);
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
         facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
         Assert.NotNull(session.SaveIntercept);                                  // installed by the choice's constructor, not by a host remembering to
         session.LoadForLive("hill-attack");                                     // names the scenario (and the load itself is not what is under test)
         bus.SwapBuffers();
 
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = Guid.NewGuid() });
-        bus.SwapBuffers(); session.Update(); facade.Update(); bus.SwapBuffers();
+        bus.SwapBuffers(); ViewOf(bus).Update(); session.Update(); facade.Update(); bus.SwapBuffers();
         session.SaveCurrent();
         bus.SwapBuffers();
         Assert.Single(bus.ReadManaged<TakeCheckpointIntent>());
         Assert.Empty(bus.ReadManaged<ExecuteStorageOpIntent>());                // the scenario was never written
 
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
-        bus.SwapBuffers(); session.Update(); facade.Update(); bus.SwapBuffers();
+        bus.SwapBuffers(); ViewOf(bus).Update(); session.Update(); facade.Update(); bus.SwapBuffers();
         session.SaveCurrent();
         bus.SwapBuffers();
         Assert.Empty(bus.ReadManaged<TakeCheckpointIntent>());
@@ -259,5 +263,37 @@ public sealed class EditorScenarioSessionLoadTests
         session.OpenRecording(id);
         var start = Assert.Single(Drain(bus));
         Assert.Null(start.TargetSimSeconds);                                    // its start
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1436 (R-3066; AQ108 §2.8a) — the session's cluster state IS the node's <c>ClusterView</c> state (it folds none of its own): the view (fed by its owner, here on another bus) says
+    /// OperatingLive while the session's own bus carries a broadcast saying Edit ⇒ <c>CurrentClusterState</c> is Live, and the load sequence reads the same state (a load from Live
+    /// unloads to Idle first). With no view at all it reads Idle.
+    /// 🔴 Red-proof: re-adding the <c>ClusterStateUpdateEvent</c> drain (and its own state field) to <c>EditorScenarioSession.Update</c> ⇒ the state follows the bus (Edit) and the first row fails.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheSessionsClusterState_IsTheViewsState_NotItsOwnBusFold()
+    {
+        var nodeBus = new FdpEventBus();
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(nodeBus);
+        nodeBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        nodeBus.SwapBuffers(); view.Update();
+
+        var ownBus = new FdpEventBus();
+        var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
+        var session = new EditorScenarioSession(fileService, ownBus, () => view, new EntityRepository(),
+                                                () => Path.Combine(Path.GetTempPath(), "hrot-scnroot-should-not-be-written"));
+        ownBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+        ownBus.SwapBuffers();
+        session.Update();
+
+        Assert.Equal(ClusterState.OperatingLive, session.CurrentClusterState);
+        session.LoadForLive("b");
+        var first = Assert.Single(Drain(ownBus));
+        Assert.Equal(ClusterState.Idle, first.TargetState);                    // from Live: the unload first
+
+        var none = new EditorScenarioSession(fileService, new FdpEventBus(), () => null, new EntityRepository(),
+                                             () => Path.Combine(Path.GetTempPath(), "hrot-scnroot-should-not-be-written"));
+        Assert.Equal(ClusterState.Idle, none.CurrentClusterState);
     }
 }

@@ -2385,7 +2385,7 @@ namespace Hrot.Editor
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(
-                fileService, _world.Bus, _orchestrationBus!, _world,
+                fileService, _world.Bus, _orchestrationBus!, () => _node?.ClusterSlave.View, _world,
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath,
                 // ⭐ CE-1025 (R-1031) — every load (menu, HTTP edit, the film director) leaves the editor's dry run first, WITHOUT a
@@ -2470,6 +2470,7 @@ namespace Hrot.Editor
                 () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, _timeCommands!);
             // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
             _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(_orchestrationBus!,
+                () => _node?.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view (its in-process core's cache shares it)
                 localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.

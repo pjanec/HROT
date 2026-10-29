@@ -29,16 +29,13 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     private readonly FdpEventBus    _bus;
     private readonly Func<double>?  _localSimTimeGetter;
 
-    private ClusterState _currentState  = ClusterState.Idle;
-    private ReplayAxis _axis = ReplayAxis.Sim;            // ⭐ CE-3329 R-3058 — rides every cluster-state publication
-    private ReplaySession? _session;                      // ⭐ CE-3329 — the session layer (ReplaySessionTopic)
+    // ⭐⭐⭐ CE-1436 (R-3066, docs/DESIGN_Cluster_View.md §5; AQ108 §2.8a) — the cluster facts (state, axis, exercise, recording flags, the exercise lists,
+    //   the replay session) are READ off the node's ONE <see cref="ClusterView"/>; ⛔ this adapter folds none of them itself. The view is advanced by its
+    //   owner (the node's <c>ClusterSlave.Tick</c>), not here.
+    private readonly Func<ClusterView?> _view;
+    private ClusterView? View => _view();
+    private ClusterState _currentState => View?.State ?? ClusterState.Idle;
     private readonly ClusterReplayControls _replay;       // ⭐ CE-3329 row 21 — the review / replay members, written once
-
-    // ⭐ CE-4097 (AQ108 §2.8) — what the run choice reads off the broadcasts this adapter already drains (one source, no second cache)
-    private Guid _exerciseId;                              // ClusterStateUpdateEvent.ExerciseId
-    private bool _runNotRecorded;                          // ⭐ CE-4090 D14 — the last live run was not recorded (sticky)
-    private bool _recordLiveRunsOff;                       // ⭐ CE-4090 — the "Record live runs" setting is OFF
-    private readonly Dictionary<Guid, ExerciseInventoryItem> _exerciseItems = new();   // AssetInventoryUpdateEvent items by ExerciseId (scenario, ⭐ CE-4097 D5: parent + branch point)
     private RunModeChoice? _run;                           // ⭐ CE-4097 — null on a host that attached none: today's behaviour, unchanged
 
     /// <summary>
@@ -59,47 +56,35 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// Creates the adapter.
     /// </summary>
     /// <param name="bus">Orchestration event bus shared by the node.</param>
+    /// <param name="view">
+    ///   ⭐ CE-1436 — the node's ONE cluster read model (<c>ClusterSlave.View</c>; on the editor the node's slave, which its in-process core shares). A delegate because
+    ///   some hosts build the node after the toolbar; <see langword="null"/> from it (no node yet) reads as the empty view. ⛔ Required: a host that HAS a node
+    ///   must pass its view — there is no private fold to fall back on.
+    /// </param>
     /// <param name="localSimTimeGetter">
     ///   Optional delegate that returns the node's locally-measured sim time (seconds).
     ///   When provided, <see cref="TotalTime"/> uses this value for a smoother display;
     ///   otherwise the last snapshot from <see cref="SwitchTimeModeEvent"/> is used.
     /// </param>
-    public ClusterTimeTransportAdapter(FdpEventBus bus, Func<double>? localSimTimeGetter = null)
+    public ClusterTimeTransportAdapter(FdpEventBus bus, Func<ClusterView?> view, Func<double>? localSimTimeGetter = null)
     {
         _bus                = bus ?? throw new ArgumentNullException(nameof(bus));
+        _view               = view ?? throw new ArgumentNullException(nameof(view));
         _localSimTimeGetter = localSimTimeGetter;
-        _replay = new ClusterReplayControls(() => _currentState, () => _session, () => _axis,
+        _replay = new ClusterReplayControls(() => _currentState, () => View?.ReplaySession, () => View?.ReplayAxis ?? ReplayAxis.Sim,
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus));
     }
 
     /// <summary>
-    /// Drains <see cref="ClusterStateUpdateEvent"/> and <see cref="SwitchTimeModeEvent"/>
-    /// from the bus read buffer to keep internal state current.
+    /// Drains <see cref="SwitchTimeModeEvent"/> from the bus read buffer (the one fact the node's <see cref="ClusterView"/> does not carry) and tells the
+    /// run choice the cluster state the view holds.
     /// Must be called once per frame BEFORE <c>EventBus.SwapBuffers()</c>.
     /// </summary>
     public void Update()
     {
-        foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
-        {
-            _currentState = ev.CurrentState;
-            if (!ev.MasterGone) _axis = ev.ReplayAxis;
-            _exerciseId = ev.ExerciseId;
-            _runNotRecorded = ev.RunNotRecorded;
-            _recordLiveRunsOff = ev.RecordLiveRunsOff;
-            _run?.OnClusterState(ev.CurrentState);   // ⭐ CE-4097 D12 — the one hook that learns a scenario was opened for editing
-        }
-
-        // ⭐ CE-4097 — the live run's scenario, from the inventory (the run in progress is listed since CE-4054): no wire change
-        foreach (var inv in _bus.ReadManaged<AssetInventoryUpdateEvent>())
-        {
-            _exerciseItems.Clear();
-            foreach (var list in new[] { inv.LocalExercises, inv.ArchivedExercises, inv.UnarchivedLocalExercises })
-                if (list != null)
-                    foreach (var item in list) _exerciseItems[item.ExerciseId] = item;
-        }
-
-        foreach (var ev in _bus.ReadManaged<ReplaySessionUpdateEvent>())
-            if (ev.Session != null) _session = ev.Session;
+        // ⭐ CE-4097 D12 — the one hook that learns a scenario was opened for editing; it compares with the state it last saw, so a per-frame call equals a per-event one
+        //   except for a state that left and returned inside ONE frame (not measured; the master moves between states through barrier rounds).
+        _run?.OnClusterState(_currentState);
 
         foreach (var ev in _bus.Read<SwitchTimeModeEvent>())
         {
@@ -239,8 +224,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// <inheritdoc/>
     public (double From, double To)? Loop => _replay.Loop;
 
-    /// <summary>The session layer as this host last heard it (<see langword="null"/> before the first sample).</summary>
-    public ReplaySession? Session => _session;
+    /// <summary>The session layer as the node's <see cref="ClusterView"/> last heard it (inactive before the first sample; <see langword="null"/> with no node).</summary>
+    public ReplaySession? Session => View?.ReplaySession;
 
     // ── ⭐ CE-4097 (AQ108 §2.8) — the run choice and the raw transport it stands on ──────────────────────────────────
 
@@ -260,35 +245,45 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         unsaved ??= new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName,
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
         _run = new RunModeChoice(this, hostDefault, control, unsaved);
-        _run.OnClusterState(_currentState);   // the state heard before the choice existed
+        _run.OnClusterState(_currentState);   // the state the view held before the choice existed
         return _run;
     }
 
     /// <summary>⭐ CE-4090 — runs are recorded: in a live run / DAR / AAR the run is not flagged <c>RunNotRecorded</c>; before one, the "Record live runs" setting is on.</summary>
     public bool RecordsLiveRuns =>
         _currentState is ClusterState.OperatingLive or ClusterState.OperatingReplay or ClusterState.OperatingReview
-            ? !_runNotRecorded
-            : !_recordLiveRunsOff;
+            ? !(View?.RunNotRecorded ?? false)
+            : !(View?.RecordLiveRunsOff ?? false);
 
     /// <summary>The exercise the cluster state names (<see cref="Guid.Empty"/> before any).</summary>
-    public Guid ActiveExercise => _exerciseId;
+    public Guid ActiveExercise => View?.ExerciseId ?? Guid.Empty;
 
     /// <summary>⭐ The scenario of <see cref="ActiveExercise"/>, from the inventory's <c>ExerciseInventoryItem.ScenarioId</c>; <see langword="null"/> when the inventory has not listed it yet.</summary>
-    public string? ActiveExerciseScenario =>
-        _exerciseId != Guid.Empty && _exerciseItems.TryGetValue(_exerciseId, out var item) ? item.ScenarioId : null;
+    public string? ActiveExerciseScenario => ActiveExerciseItem()?.ScenarioId;
 
     /// <inheritdoc/>
     public (Guid Parent, long BranchWallTicks)? ActiveExerciseBranch =>
-        _exerciseId != Guid.Empty && _exerciseItems.TryGetValue(_exerciseId, out var run) && run.ParentExerciseId != Guid.Empty ? (run.ParentExerciseId, run.BranchWallTicks) : null;
+        ActiveExerciseItem() is { } run && run.ParentExerciseId != Guid.Empty ? (run.ParentExerciseId, run.BranchWallTicks) : null;
+
+    /// <summary>The inventory item of <see cref="ActiveExercise"/>, over the view's local + archived + unarchived-local lists (the last list that names it wins — the scopes this adapter always folded).</summary>
+    private ExerciseInventoryItem? ActiveExerciseItem()
+    {
+        var v = View;
+        if (v == null || v.ExerciseId == Guid.Empty) return null;
+        foreach (var list in new[] { v.UnarchivedLocalExercises, v.ArchivedExercises, v.AvailableExercises })
+            foreach (var item in list)
+                if (item.ExerciseId == v.ExerciseId) return item;
+        return null;
+    }
 
     /// <inheritdoc/>
     public void SeekWall(long wallTicks)
     {
-        if (_session is { Active: true } s) Seek(ClusterTimelineCursor.ToFacadeAxis(this, s, wallTicks));
+        if (Session is { Active: true } s) Seek(ClusterTimelineCursor.ToFacadeAxis(this, s, wallTicks));
     }
 
     /// <inheritdoc/>
-    public long? ReplayZeroWallTicks => _session is { Active: true } s ? s.ZeroWallTicks : null;
+    public long? ReplayZeroWallTicks => Session is { Active: true } s ? s.ZeroWallTicks : null;
 
     void IRunTransport.StopRaw() => StopRaw();
 

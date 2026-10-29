@@ -54,18 +54,19 @@ public sealed class TheRunModeRoutesTests : IDisposable
                                                                                        UnsavedCheckReads? reads = null)
     {
         var bus = new FdpEventBus();
-        var facade = new ClusterTimeTransportAdapter(bus, () => 0);
+        var view = new ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
         var control = new Control();
         if (withChoice) facade.AttachRunChoice(armed, control, reads is null ? new Unchanged() : null, reads);
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
-        Hear(facade, bus, state);
+        Hear(facade, bus, state, view);
         return (facade, bus, control);
     }
 
-    private static void Hear(ClusterTimeTransportAdapter f, FdpEventBus bus, ClusterState state)
+    private static void Hear(ClusterTimeTransportAdapter f, FdpEventBus bus, ClusterState state, ClusterView view)
     {
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
-        bus.SwapBuffers(); f.Update(); bus.SwapBuffers();
+        bus.SwapBuffers(); view.Update(); f.Update(); bus.SwapBuffers();
     }
 
     private static List<T> Sent<T>(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<T>().ToList(); }

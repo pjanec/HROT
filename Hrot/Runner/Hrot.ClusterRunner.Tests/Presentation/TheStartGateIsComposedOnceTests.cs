@@ -193,7 +193,7 @@ public class TheStartGateIsComposedOnceTests
         {
             HostKind = kind;
             if (!offers) return;
-            var adapter = new ClusterTimeTransportAdapter(new Fdp.Core.FdpEventBus(), () => 0.0);
+            var adapter = new ClusterTimeTransportAdapter(new Fdp.Core.FdpEventBus(), () => null, () => 0.0);
             RunChoice = adapter.AttachRunChoice(RunArmedDefaults.For(kind), operatorHost ? new FakeControl() : null);
             Transport = adapter;
         }

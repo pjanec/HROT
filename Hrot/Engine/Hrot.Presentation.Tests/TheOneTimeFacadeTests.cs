@@ -26,11 +26,13 @@ public sealed class TheOneTimeFacadeTests
                                                                            ReplaySession? session = null, double clock = 0, bool running = false)
     {
         var bus = new FdpEventBus();
-        var facade = new ClusterTimeTransportAdapter(bus, () => clock);
+        var view = new ClusterView(bus);   // ⭐ CE-1436 — the node's ONE cluster view, advanced by its owner (here the test, as ClusterSlave.Tick does)
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ReplayAxis = axis });
         if (session != null) bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
         bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });   // paused unless `running`
         bus.SwapBuffers();
+        view.Update();
         facade.Update();
         bus.SwapBuffers();   // drop the setup; what the facade publishes next is all the read buffer holds
         return (facade, bus);
@@ -162,7 +164,7 @@ public sealed class TheOneTimeFacadeTests
     {
         var session = new ReplaySession { Active = true, IsReview = true };
         Assert.Same(session, In(ClusterState.OperatingReview, ReplayAxis.Sim, session).Facade.Session);
-        Assert.Null(In(ClusterState.OperatingLive).Facade.Session);
+        Assert.False(In(ClusterState.OperatingLive).Facade.Session is { Active: true });   // CE-1436: the view's empty session, not a null
     }
 
     [Fact]
@@ -858,5 +860,68 @@ public sealed class TheOneTimeFacadeTests
         var edit = With(ClusterState.OperatingEdit);
         edit.Choice.AarFromHere(1);
         Assert.Empty(edit.C.Calls);
+    }
+
+    // ── CE-1436 (R-3066, docs/DESIGN_Cluster_View.md §5; AQ108 §2.8a) — the adapter READS the node's ONE ClusterView; it folds no cluster fact itself ──────────────
+
+    /// <summary>
+    /// ⭐ CE-1436 — the adapter's mode, recording flags, axis, active exercise (its scenario and D5 parent / branch point, found in ANY of the view's three exercise lists) and session are
+    /// the VIEW's: the master's broadcasts are published on the node bus, folded by the view's real <c>Update</c>, and the adapter reports them.
+    /// 🔴 Red-proof: <c>ActiveExerciseItem</c> scanning only <c>AvailableExercises</c> (the archived run is then not found) ⇒ the scenario / branch rows go null.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheAdapterReportsWhatTheNodesViewFolded()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
+        var parent = Guid.Parse("00000000-0000-0000-0000-0000000000b9");
+        var session = new ReplaySession { Active = true, ZeroWallTicks = 5_000_000_000 };
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunId, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true });
+        bus.PublishManaged(new AssetInventoryUpdateEvent
+        {
+            LocalExercises = new[] { new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.Zero, "other") },
+            ArchivedExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack", parent, 5_070_000_000) },   // the run is listed in the ARCHIVED scope
+        });
+        bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
+        bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
+
+        Assert.Equal(TransportMode.Live, facade.Mode);
+        Assert.Equal(ReplayAxis.Wall, facade.Axis);
+        Assert.False(facade.RecordsLiveRuns);                                  // RunNotRecorded, in a live run
+        Assert.Equal(RunId, facade.ActiveExercise);
+        Assert.Equal("hill-attack", facade.ActiveExerciseScenario);
+        Assert.Equal((parent, 5_070_000_000L), facade.ActiveExerciseBranch);
+        Assert.Same(session, facade.Session);
+        Assert.Equal(5_000_000_000L, facade.ReplayZeroWallTicks);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1436 — the adapter no longer drains the cluster-fact events itself: its own bus carries a broadcast saying Edit while the view (the node's, fed elsewhere) says OperatingLive ⇒ the adapter is
+    /// Live; and with no view at all (no node yet) it reads the empty view (Idle).
+    /// 🔴 Red-proof: re-adding <c>foreach (var ev in _bus.ReadManaged&lt;ClusterStateUpdateEvent&gt;()) …</c> to <c>Update</c> with its own state field ⇒ the adapter follows its own bus (Edit) and the Mode row fails.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheAdapterDoesNotDrainTheClusterEventsItself()
+    {
+        var nodeBus = new FdpEventBus();
+        var view = new ClusterView(nodeBus);
+        nodeBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunId, RecordLiveRunsOff = true });
+        nodeBus.SwapBuffers(); view.Update();
+
+        var ownBus = new FdpEventBus();                                        // what the adapter's own bus carries is NOT the view's input
+        var facade = new ClusterTimeTransportAdapter(ownBus, () => view, () => 0);
+        ownBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, ExerciseId = Guid.NewGuid() });
+        ownBus.SwapBuffers(); facade.Update(); ownBus.SwapBuffers();
+
+        Assert.Equal(TransportMode.Live, facade.Mode);                         // the view's state, not the bus's
+        Assert.True(facade.IsStopEnabled);                                     // operating, and not Edit
+        Assert.Equal(RunId, facade.ActiveExercise);
+
+        var none = new ClusterTimeTransportAdapter(new FdpEventBus(), () => null, () => 0);
+        Assert.True(none.IsPlayPauseEnabled);                                  // Idle: the empty view
+        Assert.False(none.IsStopEnabled);
+        Assert.Equal(Guid.Empty, none.ActiveExercise);
+        Assert.Null(none.Session);
     }
 }

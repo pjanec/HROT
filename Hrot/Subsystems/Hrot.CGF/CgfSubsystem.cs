@@ -1068,6 +1068,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _scenarioSession = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
             cgfScenarioFileService,
             _context.EventBus,
+            () => _context?.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view
             _context.World,
             // ⭐⭐⭐ CE-057 — THE SHARED SCENARIOS ROOT, which is what the editor saves into.
             // 🔴🔴 The comment that stood here said *"CGF's scenarios live under its own node staging
@@ -1840,11 +1841,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (bus != null)
         {
             _clusterTimeAdapter = new ClusterTimeTransportAdapter(
-                bus, () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
+                bus, () => _context?.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view
+                () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
-            //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); an ECS node keeps no
-            //   cluster read model that sees the round's answer today, so it observes nothing ⇒ ▶ asks no round and counts the scenario as unchanged (the NOTE's rule) — and
-            //   starts asking the day the provider does observe, with no change here.
+            //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
+            //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
             _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf), _scenarioSession,
                 unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
             // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.

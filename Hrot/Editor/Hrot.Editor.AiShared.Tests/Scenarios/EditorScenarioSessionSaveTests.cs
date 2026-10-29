@@ -22,7 +22,7 @@ public sealed class EditorScenarioSessionSaveTests
     private static EditorScenarioSession NewSession(FdpEventBus bus)
     {
         var fileService = new ScenarioFileService(new ScenarioSerializerBuilder("Hrot.Scenario").Build());
-        return new EditorScenarioSession(fileService, bus, new EntityRepository(), () => FakeRoot);
+        return new EditorScenarioSession(fileService, bus, () => new Fdp.Toolkit.Orchestration.ClusterView(bus), new EntityRepository(), () => FakeRoot);
     }
 
     [Fact]

@@ -46,7 +46,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     private readonly Func<string>            _scenariosRoot;
 
     private string?      _loadedScenarioName;
-    private ClusterState _currentClusterState = ClusterState.Idle;
+    private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?> _clusterView;   // ⭐ CE-1436 — the node's ONE cluster read model; this session folds no state of its own
 
     // ⭐ CE-295 — every load goes through the ONE shared sequence (Idle first, then the load); this session's own
     //   wait-for-Idle was where the sequence came from, and LoadForLive used to skip it.
@@ -66,12 +66,14 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     public EditorScenarioSession(
         ScenarioFileService    fileService,
         FdpEventBus            orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,
         EntityRepository       world,
         Func<string>           scenariosRoot,
         MigrationAlertManager? alertManager = null,
         Action?                leaveRun     = null)
     {
         _leaveRun         = leaveRun;
+        _clusterView      = clusterView      ?? throw new ArgumentNullException(nameof(clusterView));
         _fileService      = fileService      ?? throw new ArgumentNullException(nameof(fileService));
         _orchestrationBus = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
         _world            = world            ?? throw new ArgumentNullException(nameof(world));
@@ -79,7 +81,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
         _alertManager     = alertManager     ?? new MigrationAlertManager();
         _loads = new ScenarioLoadSequence(
             send:         intent => _orchestrationBus.PublishManaged(intent),
-            currentState: () => _currentClusterState,
+            currentState: () => CurrentClusterState,
             beforeLoad:   load =>
             {
                 // An authoring load starts the editor's world on a blank slate (WorldResetEvent + SoftClear); a live
@@ -98,7 +100,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     public MigrationAlertManager AlertManager => _alertManager;
 
     /// <inheritdoc/>
-    public ClusterState CurrentClusterState => _currentClusterState;
+    public ClusterState CurrentClusterState => _clusterView()?.State ?? ClusterState.Idle;
 
     /// <inheritdoc/>
     public string? LoadedScenarioName => _loadedScenarioName;
@@ -109,9 +111,6 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <inheritdoc/>
     public void Update()
     {
-        foreach (var ev in _orchestrationBus.ReadManaged<ClusterStateUpdateEvent>())
-            _currentClusterState = ev.CurrentState;
-
         // ⭐ CE-295 — a load waiting for the unload goes out once the cluster reports Idle.
         _loads.Pump();
     }

@@ -115,7 +115,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     [Fact]
     public void SimHost_BuildsItsChoiceFromTheTable_AndTheCompositionPutsItsTransportOnTheToolbar()
     {
-        var adapter = Hrot.SimHost.SimHostSubsystem.CreateTimeTransport(new FdpEventBus(), () => 0.0);
+        var adapter = Hrot.SimHost.SimHostSubsystem.CreateTimeTransport(new FdpEventBus(), () => null, () => 0.0);
         var choice = adapter.RunChoice;
         Assert.NotNull(choice);
         Assert.Equal(RunArmedDefaults.For(RunHostKind.SimHost), choice!.HostDefault);

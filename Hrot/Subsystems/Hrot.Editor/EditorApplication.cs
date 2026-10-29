@@ -80,6 +80,7 @@ public sealed class EditorApplication : IEditorLogic
         ScenarioFileService fileService,
         FdpEventBus simBus,
         FdpEventBus orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,   // ⭐ CE-1436 — the node's ONE cluster read model
         EntityRepository world,
         HotReloadMessageLogSource? hotReloadSource = null,
         string[]? aiProjectPathSegments            = null,
@@ -95,6 +96,7 @@ public sealed class EditorApplication : IEditorLogic
         _session = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
             fileService      ?? throw new ArgumentNullException(nameof(fileService)),
             orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus)),
+            clusterView      ?? throw new ArgumentNullException(nameof(clusterView)),
             world            ?? throw new ArgumentNullException(nameof(world)),
             () => EditorBootstrap.ScenariosRoot,
             leaveRun: leaveRun);   // ⭐ CE-1025 — the editor's dry run, left without a rewind at each load

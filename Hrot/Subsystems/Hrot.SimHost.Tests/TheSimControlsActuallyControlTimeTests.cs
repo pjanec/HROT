@@ -99,9 +99,11 @@ public class TheSimControlsActuallyControlTimeTests
     public void ThePanelsPlayAndStep_AreTheUserEntry_DisabledWithTheChoicesReason_NeverARawDryRun()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        var adapter = SimHostSubsystem.CreateTimeTransport(bus, () => 0.0);
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
+        var adapter = SimHostSubsystem.CreateTimeTransport(bus, () => view, () => 0.0);
         bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit });
         bus.SwapBuffers();
+        view.Update();
         adapter.Update();
         bus.SwapBuffers();
         var panel = new SimHostSimulationControlsPanel { TimeFacade = adapter };

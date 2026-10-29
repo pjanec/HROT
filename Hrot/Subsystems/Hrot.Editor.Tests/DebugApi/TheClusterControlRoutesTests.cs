@@ -193,10 +193,11 @@ public sealed class TheClusterControlRoutesTests
 
         Assert.Null(svc.GetReplayStatus()["loop"]);                                   // no session loop on this host
         var bus = new FdpEventBus();
-        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => 0);
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => view, () => 0);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingReplay, ReplayAxis = ReplayAxis.Wall });
         bus.PublishManaged(new ReplaySessionUpdateEvent { Session = new ReplaySession { Active = true, LoopFromSeconds = 2, LoopToSeconds = 5 } });
-        bus.SwapBuffers(); facade.Update();
+        bus.SwapBuffers(); view.Update(); facade.Update();
         var withLoop = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", master: () => _master, drive: () => facade) },
             currentPerspective: () => "CGF", acksPending: null), clusterState: () => _state);

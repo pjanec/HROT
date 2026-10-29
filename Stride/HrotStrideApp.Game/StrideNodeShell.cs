@@ -738,7 +738,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //   StepTimeIntent/SetTimeScaleIntent … onto HrotNodeContext.EventBus"). ⛔ Nothing local: every
         //   button publishes a cluster INTENT, and the node obeys the master like any other slave.
         _clusterTime = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(
-            ctx.EventBus, () => ctx.Kernel.CurrentTime.TotalTime);
+            ctx.EventBus, () => ctx.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view
+            () => ctx.Kernel.CurrentTime.TotalTime);
         if (_visualization.UI != null)
             _visualization.UI.TimeFacade = _clusterTime;
 
