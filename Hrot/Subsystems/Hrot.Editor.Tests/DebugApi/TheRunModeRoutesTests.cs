@@ -245,4 +245,23 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Single(master.Sent.OfType<CheckUnsavedIntent>());             // one round for the move, the same intent type the menu published
     }
+
+    /// <summary>
+    /// ⭐ CE-3341 (AQ108 D22) — the HTTP / agent LOAD routes send NO armed mode: <c>POST /scenario/load/live</c> reaches the master with its unsaved-changes round and the load,
+    /// but never a <c>SetRunSettingsIntent</c> (the operator UI's load path sends that, not the shared load sequence). 🔴 Red-proof: a load route publishing the intent ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task PostScenarioLoadLive_SendsNoArmedMode()
+    {
+        var master = new RecordingMasterControl();
+        var http = Adapter(ClusterState.OperatingEdit, RunArmed.Live);
+        var (host, queue, url) = Start(http.F, ClusterState.OperatingEdit, master,
+            unsavedCheck: id => master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) ? new UnsavedCheckOutcome(UnsavedCheckResult.Unchanged, null) : null);
+        using var h = host;
+        var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.NotEmpty(master.Sent);                                         // the route did reach the master (the check round) ...
+        Assert.Empty(master.Sent.OfType<SetRunSettingsIntent>());             // ... and sent no armed mode with it
+        Assert.Empty(Sent<SetRunSettingsIntent>(http.Bus));
+    }
 }

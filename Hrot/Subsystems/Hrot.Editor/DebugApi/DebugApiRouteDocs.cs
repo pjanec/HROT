@@ -2093,8 +2093,8 @@ namespace Hrot.Editor.DebugApi
         [("GET", "/run-settings")] = new RouteDoc(
             Tool:    "get_run_settings",
             Group:   "I — Replay",
-            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does). The same answer on every host.",
-            Returns: "{ recordLiveRuns }",
+            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does) and ⭐ CE-3341 armed (preview | live | aar — the CLUSTER's armed mode, what ▶ runs next; ONE fact on every host, the default is live). The same answer on every host.",
+            Returns: "{ recordLiveRuns, armed }",
             Hint:    "No params. get_status → recording says whether the run on screen is recorded. Example: get_run_settings({})",
             Notes: new[] { "A set_run_settings is visible here once the master has broadcast it (a frame or two)." },
             ExampleArgsJson: "{}",
@@ -2103,10 +2103,14 @@ namespace Hrot.Editor.DebugApi
         [("POST", "/run-settings")] = new RouteDoc(
             Tool:    "set_run_settings",
             Group:   "I — Replay",
-            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording.",
-            Returns: "{ published, requestId, recordLiveRuns, note }",
-            Hint:    "Req: recordLiveRuns (bool). Applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
-            Params: new RouteParam[] { new("recordLiveRuns", "boolean", true, "Whether a live run starts a recording (the cluster's default is true)") },
+            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording. ⭐ CE-3341 (AQ108 D12a): also the cluster's ARMED mode (armed: preview | live | aar) — the same op the operator UI sends; every host's run-mode indicator follows it.",
+            Returns: "{ published, requestId, recordLiveRuns?, armed?, note }",
+            Hint:    "At least one of: recordLiveRuns (bool), armed (preview|live|aar); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+            Params: new RouteParam[]
+            {
+                new("recordLiveRuns", "boolean", false, "Whether a live run starts a recording (the cluster's default is true); absent = unchanged"),
+                new("armed", "string", false, "The cluster's armed run mode: preview | live | aar (default live); absent = unchanged. ⛔ No load route sends one (D22)"),
+            },
             Notes: new[]
             {
                 "The scenario verifier always records, whatever this says.",

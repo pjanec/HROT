@@ -34,6 +34,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
     private ClusterState _state = ClusterState.OperatingLive;
     private bool? _notRecorded = true;
     private bool? _settingOff = false;   // the broadcast's RecordLiveRunsOff
+    private ClusterArmedMode? _armed;     // CE-3341 — the broadcast's armed mode (null = this node keeps none: the route answers the default, live)
 
     private static int FreePort()
     {
@@ -59,7 +60,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("IG", "IG"),
-                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, armedMode: () => _armed),
             },
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
@@ -181,5 +182,32 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
         _settingOff = null;
         (status, _) = await Send(queue, _client.GetAsync(url + "/run-settings"));
         Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+        _settingOff = false;
+
+        // ── CE-3341 (D12a) — the cluster's ARMED mode: same route, same op ────────────────────────────────────────────────────────
+        (status, body) = await Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.Equal("live", body["data"]!["armed"]!.GetValue<string>());                                            // the default
+        _armed = ClusterArmedMode.Preview;                                                                           // the master has broadcast Preview
+        (status, body) = await Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.Equal("preview", body["data"]!["armed"]!.GetValue<string>());
+        Assert.True(body["data"]!["recordLiveRuns"]!.GetValue<bool>());                                              // beside the recording setting
+
+        _master.Sent.Clear();
+        (status, body) = await Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"armed":"aar"}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        var armedOp = Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent));
+        Assert.Equal(ClusterArmedMode.AAR, armedOp.Armed);
+        Assert.Null(armedOp.RecordLiveRuns);                                                                         // armed only: the recording setting is "no change"
+        Assert.Equal("aar", body["data"]!["armed"]!.GetValue<string>());
+        _master.Sent.Clear();
+        (status, _) = await Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"armed":"sideways"}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        (status, _) = await Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"armed":7}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(_master.Sent);
+        (status, body) = await Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"recordLiveRuns":true,"armed":"live"}""")));   // both in one op
+        Assert.Equal(HttpStatusCode.OK, status);
+        var both = Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent));
+        Assert.Equal((true, ClusterArmedMode.Live), (both.RecordLiveRuns, both.Armed));
     }
 }

@@ -103,17 +103,26 @@ public sealed class TranslatorDtoTests
         Assert.Equal(clear, SetReplayLoopPayloadDto.Decode(clear.RequestId, "not json"));
     }
 
-    /// <summary>⭐ CE-4090 (AQ108 D14) — the run settings cross the wire whole, both ways; an unreadable payload keeps recording ON.</summary>
+    /// <summary>⭐ CE-4090 (AQ108 D14) + CE-3341 — the run settings cross the wire whole, every combination (a field not sent stays null = "no change");
+    /// an unreadable payload changes nothing.</summary>
     [Fact]
-    public void The_run_settings_cross_the_wire_whole_and_an_unreadable_one_keeps_recording_on()
+    public void The_run_settings_cross_the_wire_whole_and_an_unreadable_one_changes_nothing()
     {
-        foreach (var record in new[] { true, false })
+        foreach (bool? record in new bool?[] { null, true, false })
+        foreach (Fdp.Toolkit.Orchestration.ClusterArmedMode? armed in new Fdp.Toolkit.Orchestration.ClusterArmedMode?[]
+                     { null, Fdp.Toolkit.Orchestration.ClusterArmedMode.Live, Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview, Fdp.Toolkit.Orchestration.ClusterArmedMode.AAR })
         {
-            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record };
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed };
             Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
         }
-        Assert.True(SetRunSettingsPayloadDto.Decode(Guid.Empty, "not json").RecordLiveRuns);
-        Assert.True(SetRunSettingsPayloadDto.Decode(Guid.Empty, null).RecordLiveRuns);
+        foreach (var bad in new[] { "not json", null, "{}" })
+        {
+            var got = SetRunSettingsPayloadDto.Decode(Guid.Empty, bad);
+            Assert.Null(got.RecordLiveRuns);
+            Assert.Null(got.Armed);
+        }
+        // an OLD sender's payload (only RecordLiveRuns): the armed mode is absent => no change
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false}").Armed);
     }
 
     // ── Test 4: Unknown enum string should throw ──────────────────────────────

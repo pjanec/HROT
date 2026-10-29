@@ -50,6 +50,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-4090</c> — the cluster's <i>Record live runs</i> setting is OFF (false = ON, also before a broadcast).</summary>
         public bool RecordLiveRunsOff { get; private set; }
 
+        /// <summary>⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode, as the master's last broadcast said: ONE fact, the same on every node
+        /// (<see cref="ClusterArmedMode.Live"/> before a broadcast arrives and for a sender that does not set it).</summary>
+        public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
+
         // ── the asset inventory ───────────────────────────────────────────────
 
         /// <summary>An inventory has arrived (<see cref="AvailableExercises"/> is then the master's last word, not the empty default).</summary>
@@ -117,6 +121,7 @@ namespace Fdp.Toolkit.Orchestration
                     ReplayAxis = ev.ReplayAxis;                // ⭐ CE-3329 R-3058
                     RunNotRecorded = ev.RunNotRecorded;        // ⭐ CE-4090 D14
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
+                    ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                 }
                 if (State != ClusterState.OperatingEdit) LastUnsavedCheck = null;   // ⭐ CE-4093 — the answer described an open scenario
             }

@@ -82,7 +82,10 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid RequestId;
         /// <summary>Whether a live run starts a recording. ⭐ The scenario verifier forces recording on regardless (<see cref="TransitionStateIntent.ForceRecording"/>).</summary>
-        public bool RecordLiveRuns;
+        /// <summary>⭐ CE-3341: <see langword="null"/> = leave the setting as it is (a sender that only changes the armed mode).</summary>
+        public bool? RecordLiveRuns;
+        /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's armed run mode; <see langword="null"/> = no change (an older sender changes nothing).</summary>
+        public ClusterArmedMode? Armed;
     }
 
     /// <summary>

@@ -655,6 +655,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said (false = ON, also before one arrives).</summary>
         public bool RecordLiveRunsOff => View.RecordLiveRunsOff;
 
+        /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (no second copy).</summary>
+        public ClusterArmedMode ArmedMode => View.ArmedMode;
+
         private void FollowClusterSession()
         {
             if (_eventBus == null) return;

@@ -2612,6 +2612,7 @@ namespace Hrot.Editor
                         replayAxis:        () => _orchestratorCore?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
                         runNotRecorded:    () => _orchestratorCore?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
                         recordLiveRunsOff: () => _orchestratorCore?.UiCache.RecordLiveRunsOff,
+                        armedMode:         () => _orchestratorCore?.UiCache.ArmedMode,   // ⭐ CE-3341 R-3068
                         // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer and last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS it.
                         unsavedCheck:      id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id),
                         scenarioDirty:     () => _orchestratorCore?.UiCache.LastUnsavedCheck?.Changed,

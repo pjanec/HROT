@@ -2218,6 +2218,7 @@ public sealed partial class ClusterMaster : IDisposable
             ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
+            ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2227,6 +2228,7 @@ public sealed partial class ClusterMaster : IDisposable
             ReplayAxis   = _replayAxis,
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
+            ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
         });
     }
 
