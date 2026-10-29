@@ -39,9 +39,11 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <summary>The file name every scenario directory stores its world under.</summary>
     public const string ScenarioFileName = "scenario.json";
 
-    private readonly ScenarioFileService     _fileService;
+    // ⭐ CE-1439 — BOTH null together on a host with no world of its own (the Orchestrator, the cluster master's window): the only three members that touch them
+    //   (ClearWorld, SaveTo, GetMigrationSidecars) then have nothing local to act on. ⛔ Never one without the other.
+    private readonly ScenarioFileService?    _fileService;
     private readonly FdpEventBus             _orchestrationBus;
-    private readonly EntityRepository        _world;
+    private readonly EntityRepository?       _world;
     private readonly MigrationAlertManager   _alertManager;
     private readonly Func<string>            _scenariosRoot;
 
@@ -71,12 +73,48 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
         Func<string>           scenariosRoot,
         MigrationAlertManager? alertManager = null,
         Action?                leaveRun     = null)
+        : this(
+            fileService ?? throw new ArgumentNullException(nameof(fileService)),
+            orchestrationBus, clusterView,
+            world       ?? throw new ArgumentNullException(nameof(world)),
+            scenariosRoot, alertManager, leaveRun, worldless: false)
     {
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1439</c> (AQ108 §2.12) — <b>the SAME session on a host with NO world of its own</b>: the Orchestrator, whose window operates the cluster (open a scenario, open a
+    /// recording, checkpoint, save through the master) while the entities live on the nodes. ⭐ Not a second implementation: every cluster verb is the shared body; what a world-less host
+    /// legitimately has nothing to act on is exactly the three LOCAL members — <see cref="ClearWorld"/> (resets the loaded name and the migration alert, wipes nothing),
+    /// <see cref="SaveTo"/> (the raw-path writer; throws — it has no production caller) and <see cref="GetMigrationSidecars"/> (empty). 📐 Measured: those are the only
+    /// <c>_world</c> / <c>_fileService</c> readers in this class.
+    /// </summary>
+    public EditorScenarioSession(
+        FdpEventBus            orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,
+        Func<string>           scenariosRoot,
+        MigrationAlertManager? alertManager = null,
+        Action?                leaveRun     = null)
+        : this(null, orchestrationBus, clusterView, null, scenariosRoot, alertManager, leaveRun, worldless: true)
+    {
+    }
+
+    private EditorScenarioSession(
+        ScenarioFileService?   fileService,
+        FdpEventBus            orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,
+        EntityRepository?      world,
+        Func<string>           scenariosRoot,
+        MigrationAlertManager? alertManager,
+        Action?                leaveRun,
+        bool                   worldless)
+    {
+        if (worldless != (fileService is null) || worldless != (world is null))
+            throw new ArgumentException("A session has its file service AND its world, or neither (CE-1439).");
         _leaveRun         = leaveRun;
         _clusterView      = clusterView      ?? throw new ArgumentNullException(nameof(clusterView));
-        _fileService      = fileService      ?? throw new ArgumentNullException(nameof(fileService));
+        _fileService      = fileService;
         _orchestrationBus = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
-        _world            = world            ?? throw new ArgumentNullException(nameof(world));
+        _world            = world;
         _scenariosRoot    = scenariosRoot    ?? throw new ArgumentNullException(nameof(scenariosRoot));
         _alertManager     = alertManager     ?? new MigrationAlertManager();
         _loads = new ScenarioLoadSequence(
@@ -118,7 +156,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <inheritdoc/>
     public void ClearWorld()
     {
-        _fileService.NewScenario(_world);
+        _fileService?.NewScenario(_world!);   // a world-less host (CE-1439) has no local world to wipe
         _loadedScenarioName = null;
         _alertManager.OnScenarioCleared();
     }
@@ -257,7 +295,11 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <remarks>⚠ CE-275 — the ONLY remaining raw-path writer, and it has no production caller (the facade
     /// method that reaches it is unreferenced). Scheduled for removal; all real saves go through
     /// <see cref="SaveAs"/>/<see cref="SaveCurrent"/> and the cluster handler.</remarks>
-    public void SaveTo(string filePath) => _fileService.SaveScenario(_world, filePath);
+    public void SaveTo(string filePath)
+    {
+        if (_fileService is null || _world is null) throw new NotSupportedException("This host has no world of its own to write (the cluster saves through the master — SaveAs / SaveCurrent).");
+        _fileService.SaveScenario(_world, filePath);
+    }
 
     /// <inheritdoc/>
     public void TakeCheckpoint()
@@ -265,12 +307,12 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
 
     /// <inheritdoc/>
     public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars()
-        => _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
+        => _fileService is null ? Array.Empty<SidecarFileInfo>() : _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
 
     private void WriteScenarioDirectory(string scenarioName)
     {
         var dir = Path.Combine(_scenariosRoot(), scenarioName);
         Directory.CreateDirectory(dir);
-        _fileService.SaveScenario(_world, Path.Combine(dir, ScenarioFileName));
+        SaveTo(Path.Combine(dir, ScenarioFileName));
     }
 }

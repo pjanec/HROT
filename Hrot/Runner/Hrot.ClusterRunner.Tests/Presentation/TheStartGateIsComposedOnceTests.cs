@@ -162,6 +162,7 @@ public class TheStartGateIsComposedOnceTests
     [InlineData(RunHostKind.Editor, RunArmed.Preview)]
     [InlineData(RunHostKind.Cgf, RunArmed.Live)]
     [InlineData(RunHostKind.SimHost, RunArmed.Live)]
+    [InlineData(RunHostKind.Orchestrator, RunArmed.Live)]   // ⭐ CE-1439
     [InlineData(RunHostKind.Other, RunArmed.Live)]
     public void TheArmedDefault_IsPreviewInTheEditor_LiveElsewhere(RunHostKind kind, RunArmed expected)
         => Assert.Equal(expected, RunArmedDefaults.For(kind));
@@ -189,6 +190,9 @@ public class TheStartGateIsComposedOnceTests
         public RunHostKind HostKind { get; }
         public ITimeTransportFacade? Transport { get; }
         public RunModeChoice? RunChoice { get; }
+        /// <summary>⭐ CE-1439 — how many times the composer asked this host to register its scenario menu (it asks the PICKED owner only).</summary>
+        public int ScenarioActionsComposed;
+        public void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => ScenarioActionsComposed++;
         public RunHost(string name, RunHostKind kind, bool operatorHost, bool offers = true) : base(name)
         {
             HostKind = kind;
@@ -274,6 +278,108 @@ public class TheStartGateIsComposedOnceTests
         Assert.Equal(0, TimeControlEntries(wm));
         ctrl.ComposeRunControls(wm);
         Assert.Equal(1, TimeControlEntries(wm));
+    }
+
+    // ── CE-1439 (AQ108 §2.12): the scenario menu — so the Start surface's Open / New / Recording — belongs to the host that owns ▶ ────────────
+
+    /// <summary>
+    /// ⭐ The composer asks ONLY the picked owner to register the scenario menu, and the pick among operators is a RANK (editor, CGF, then the world-less Orchestrator) — never the subsystem order:
+    /// in the all-in-one (Orchestrator + CGF) CGF keeps its real items, an Orchestrator-only process gets its own.
+    /// 🔴 Mutation: <c>PickRunControls</c> returning <c>operators[0]</c> ⇒ (Orchestrator, CGF) picks the Orchestrator; <c>ComposeRunControls</c> asking every host ⇒ the counts fail.
+    /// </summary>
+    [Fact]
+    public void TheScenarioMenu_IsComposedOnlyOnThePickedOwner_EditorThenCgfThenOrchestrator_WhateverTheOrder()
+    {
+        RunHost Make(RunHostKind k) => new(k.ToString(), k, operatorHost: k != RunHostKind.SimHost);
+
+        void Check(RunHostKind expectedOwner, params RunHostKind[] kinds)
+        {
+            var hosts = kinds.Select(Make).ToArray();
+            var (ctrl, _) = Composed(hosts.Cast<ISubsystem>().ToArray());
+            var owner = Assert.IsType<RunHost>(ctrl.RunControlsOwner);
+            Assert.Equal(expectedOwner, owner.HostKind);
+            Assert.Equal(1, owner.ScenarioActionsComposed);
+            Assert.All(hosts.Where(h => !ReferenceEquals(h, owner)), h => Assert.Equal(0, h.ScenarioActionsComposed));
+        }
+
+        Check(RunHostKind.Cgf, RunHostKind.Orchestrator, RunHostKind.Cgf);
+        Check(RunHostKind.Cgf, RunHostKind.Cgf, RunHostKind.Orchestrator);
+        Check(RunHostKind.Editor, RunHostKind.Orchestrator, RunHostKind.Cgf, RunHostKind.Editor);
+        Check(RunHostKind.Orchestrator, RunHostKind.Orchestrator);
+        Check(RunHostKind.Orchestrator, RunHostKind.SimHost, RunHostKind.Orchestrator);   // an operator beats a host with no session (CE-1437)
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>#9 — an Orchestrator-only window at Idle offers Open Scenario, New Scenario and Open Recording, each through the MENU'S OWN binding.</b> The REAL <c>OrchestratorSubsystem</c>, composed by the real
+    /// <c>LocalWindowController</c>: the Start surface's buttons are the allowed-in-Idle menu items (the surface owns no action). <i>New Scenario</i> reaches the session's <c>ClearWorld</c>; <i>Open Scenario</i> opens the
+    /// scenario picker over the MASTER'S inventory and a pick opens for edit through the run choice (the request goes out on the bus); <i>Open Recording</i> opens the recording picker over the same inventory and a pick
+    /// publishes the one replay intent. Before CE-1439 the Orchestrator registered none of them and Start showed Help + Exit only.
+    /// 🔴 Mutations: <c>ComposeRunControls</c> not calling <c>ComposeScenarioActions</c> ⇒ the three buttons are missing; <c>OrchestratorSubsystem.ComposeScenarioActions</c> passing <c>openRecordingPicker: null</c> ⇒ Open Recording
+    /// is disabled; <c>_scenarioCatalog.Refresh()</c> dropped from <c>Update</c> ⇒ the picker's list stays empty and the <c>Single</c> over "harbour" fails.
+    /// </summary>
+    [Fact]
+    public void AnOrchestratorOnlyProcess_StartOffersOpenNewAndRecording_EachThroughTheMenusOwnBinding()
+    {
+        var orch = new Hrot.Orchestrator.OrchestratorSubsystem();
+        orch.Initialize(new SubsystemConfig { Headless = true, DomainId = 224 });
+        try
+        {
+            var ctrl = Controller(new ISubsystem[] { orch });
+            var wm = BareManager();
+            orch.RegisterWindows(wm);
+            ctrl.ComposeStartSurface(wm);
+            ctrl.ComposeRunControls(wm);
+            Assert.Same(orch, ctrl.RunControlsOwner);
+
+            var opened = new List<NodeEditor.UI.Picker.PickerRequest>();
+            var callbacks = new List<Action<NodeEditor.UI.Picker.PickerResult>>();
+            orch.PickerOpenerOverride = (request, onChosen) => { opened.Add(request); callbacks.Add(onChosen); };
+
+            // the master's inventory reaches the host's cache (and so the pickers' lists) the way it does in a run: on the host's bus, folded by its frame
+            var exercise = new ExerciseInventoryItem(Guid.Parse("00000000-0000-0000-0000-0000000000c1"), DateTime.UtcNow, TimeSpan.FromMinutes(3), "harbour");
+            orch.TimeBusForTest!.PublishManaged(new AssetInventoryUpdateEvent { LocalScenarios = new[] { "harbour" }, LocalExercises = new[] { exercise } });
+            orch.Update(0.016f);
+
+            ctrl.ClusterRestOverride = () => new ClusterRest(ClusterState.Idle, false, true);
+            ctrl.TickStartGate(100.0);
+            ctrl.TickStartGate(100.0 + StartGate.SettleSeconds);
+            var model = ctrl.StartSurface!.Model();
+            Assert.Equal(StartVariant.Actions, model.Variant);
+            var byLabel = model.Buttons.ToDictionary(b => b.Label);
+            foreach (var label in new[] { "Open Scenario", "New Scenario", "Open Recording" })
+            {
+                Assert.True(byLabel.ContainsKey(label), $"the Start surface of an Orchestrator-only host must offer '{label}'; it offers: {string.Join(", ", model.Buttons.Select(b => b.Label))}");
+                Assert.True(byLabel[label].Enabled, label);
+            }
+
+            // New Scenario → the session's ClearWorld (the menu's binding)
+            var session = orch.ScenarioSessionForTest!;
+            session.OpenForEdit("earlier");
+            session.Update();
+            Assert.Equal("earlier", session.LoadedScenarioName);
+            byLabel["New Scenario"].Invoke();
+            Assert.Null(session.LoadedScenarioName);
+
+            // Open Scenario → the scenario picker over the master's inventory; a pick opens for edit through the run choice (the request goes out)
+            byLabel["Open Scenario"].Invoke();
+            var scenarioPick = Assert.Single(opened);
+            var harbour = scenarioPick.ItemsProvider().Single(e => e.Tag is Hrot.Editor.AiShared.IEditableAsset a && a.Name == "harbour");
+            callbacks[0](new NodeEditor.UI.Picker.PickerResult(new[] { harbour }));
+            Assert.Equal("harbour", session.LoadedScenarioName);
+
+            // Open Recording → the recording picker over the same inventory; a pick publishes the ONE replay intent
+            byLabel["Open Recording"].Invoke();
+            Assert.Equal(2, opened.Count);
+            var recording = opened[1].ItemsProvider().Single(e => e.Tag is ExerciseInventoryItem);
+            callbacks[1](new NodeEditor.UI.Picker.PickerResult(new[] { recording }));
+            var bus = orch.TimeBusForTest!;
+            bus.SwapBuffers();
+            Assert.Contains(bus.ReadManaged<TransitionStateIntent>(), t => t.TargetState == ClusterState.OperatingReplay && t.ExerciseId == exercise.ExerciseId);
+        }
+        finally
+        {
+            orch.Shutdown();
+        }
     }
 
     // ── the one rest read, from any node ────────────────────────────────────────

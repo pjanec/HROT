@@ -45,6 +45,17 @@ public sealed class ConfirmPromptController
         return true;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1439</c> — the ONE wording of the <i>New Exercise</i> confirmation (ruling 53: the confirm belongs where the operator sits), shared by every host that has a window (the editor, the
+    /// Orchestrator) so the destructive cluster-wide reset reads the same everywhere. A headless-first host (CGF) logs and proceeds instead.
+    /// </summary>
+    public bool RequestNewExercise(Action run) => Request(
+        "New Exercise",
+        "This finishes the running exercise and clears the world on every node.\n"
+      + "Unsaved scenario changes will be lost.",
+        "Finish & Start Fresh",
+        run);
+
     /// <summary>Presses the confirming button (the first). ⭐ The slot is cleared BEFORE the continuation runs, so an action that itself requests a confirmation is not dropped by its own prompt.</summary>
     public void ResolveConfirm() => Pending?.Resolve(Pending.Buttons[0]);
 

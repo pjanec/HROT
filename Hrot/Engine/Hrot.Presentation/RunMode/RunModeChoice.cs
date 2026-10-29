@@ -633,4 +633,12 @@ public static class UserTransport
         if (EditChoice(f, choice) is { } c) c.Play(startPaused: true);
         else f.Step();
     }
+
+    /// <summary>⭐ <c>CE-1439</c> — <see cref="UserStep"/> with a step SIZE (the Orchestrator panel's <i>Step (s)</i> box): from Edit the armed mode's start, else the facade's <c>StepBy</c>.</summary>
+    public static void UserStepBy(this ITimeTransportFacade f, float seconds, RunModeChoice? choice = null)
+    {
+        if (!f.IsUserStepEnabled(choice)) return;
+        if (EditChoice(f, choice) is { } c) c.Play(startPaused: true);
+        else f.StepBy(seconds);
+    }
 }

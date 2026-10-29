@@ -191,6 +191,74 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "SimHost");
     }
 
+    /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>
+    private static readonly string[] ScenarioMenuPaths =
+    {
+        "File/Checkpoint/Take Checkpoint", "File/Edit/Migration History", "File/Edit/Save Curated Scenarios to Git", "File/Edit/Save Scenario",
+        "File/Edit/Save Scenario As", "File/Live/New Exercise", "File/New Scenario", "File/Open Recording", "File/Open Scenario",
+    };
+
+    /// <summary>Each scenario item's (path, registered, allowed-in-Idle) as this window manager's global menu holds it.</summary>
+    private static string[] ScenarioMenuShape(WindowManager windows) => ScenarioMenuPaths.Select(path =>
+    {
+        var node = windows.GlobalMenu.Root;
+        foreach (var segment in path.Split('/'))
+        {
+            if (!node.Children.TryGetValue(segment, out var next)) return $"{path}: MISSING";
+            node = next;
+        }
+        return $"{path}: bound={node.Bindings.Count > 0} idle={node.AllowedInIdle}";
+    }).ToArray();
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1439</c> (AQ108 §2.12; R-3066 audit #9) — <b>the scenario menu is the SAME on the three operator hosts</b>, on the CONSTRUCTED hosts: the windowed editor and CGF register it in their <c>RegisterWindows</c>,
+    /// the Orchestrator through the composer's <c>ComposeScenarioActions</c> — every item present, bound, and the same allowed-in-Idle flags (the ones its Start surface draws). Before this item the Orchestrator's shape was
+    /// nine MISSING lines.
+    /// 🔴 Mutation: the Orchestrator's <c>ComposeScenarioActions</c> registering nothing (or the registrar dropping <c>allowedInIdle</c> for one item on one host) ⇒ the shapes differ.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1439_TheScenarioMenu_IsTheSame_OnTheEditor_Cgf_AndTheOrchestrator()
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        var orchestrator = new Hrot.Orchestrator.OrchestratorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = false });
+            var editorWindows = MakeWindowManager();
+            editor.RegisterWindows(editorWindows);
+
+            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            var cgfWindows = MakeWindowManager();
+            cgf.RegisterWindows(cgfWindows);
+
+            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+            var orchestratorWindows = MakeWindowManager();
+            orchestrator.ComposeScenarioActions(orchestratorWindows);
+
+            var editorShape = ScenarioMenuShape(editorWindows);
+            Assert.DoesNotContain(editorShape, line => line.Contains("MISSING"));
+            Assert.Equal(editorShape, ScenarioMenuShape(cgfWindows));
+            Assert.Equal(editorShape, ScenarioMenuShape(orchestratorWindows));
+            Assert.Contains("File/Open Scenario: bound=True idle=True", editorShape);
+            Assert.Contains("File/Open Recording: bound=True idle=True", editorShape);
+            Assert.Contains("File/New Scenario: bound=True idle=True", editorShape);
+        }
+        finally
+        {
+            orchestrator.Shutdown();
+            cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
     /// <summary>A stand-in for SimHost's offer over the REAL adapter its factory builds (the real subsystem needs a graphics window).</summary>
     private sealed class Offer : Fdp.Toolkit.Runner.ISubsystem, IProvidesRunControls
     {

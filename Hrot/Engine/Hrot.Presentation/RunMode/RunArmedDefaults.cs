@@ -12,6 +12,8 @@ public enum RunHostKind
     Cgf,
     /// <summary>The SimHost node.</summary>
     SimHost,
+    /// <summary>⭐ <c>CE-1439</c> — the Orchestrator (the cluster master's own window): an OPERATOR host with no world of its own.</summary>
+    Orchestrator,
     /// <summary>Any other host (the all-in-one's other subsystems, the server, a test host).</summary>
     Other,
 }

@@ -207,6 +207,37 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         Assert.Single(cgf.S.OpenForEditCalls);   // CGF opens INTO EDITING too; its armed mode (Live) decides ▶
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1439</c> (AQ108 §2.12) — <b>the THIRD operator host.</b> The REAL <c>OrchestratorSubsystem</c> registers the scenario menu through the same registrar: the SAME command ids and the SAME
+    /// menu paths as the editor shape, and the SAME allowed-in-Idle items (so its Start surface offers what the editor's and CGF's do) — by construction, not by a copy of the list.
+    /// 🔴 Mutation: the Orchestrator's <c>ComposeScenarioActions</c> registering nothing ⇒ the id set is empty; dropping <c>allowedInIdle</c> in the registrar ⇒ the Idle set differs (as for the other shapes).
+    /// </summary>
+    [Fact]
+    public void CE1439_TheOrchestratorHost_RegistersTheSameItems_AsTheEditorShape_SameIdsPathsAndIdleFlags()
+    {
+        var editor = EditorShape();
+        var host = new Hrot.Orchestrator.OrchestratorSubsystem();
+        host.Initialize(new Fdp.Toolkit.Runner.SubsystemConfig { Headless = true, DomainId = 224 });
+        try
+        {
+            var wm = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 16f, 16f));
+            host.ComposeScenarioActions(wm);
+
+            var ids = wm.ShellCommands.All.Where(d => d.Category == "Scenario").Select(d => d.Id).OrderBy(i => i, StringComparer.Ordinal).ToArray();
+            Assert.Equal(editor.C.Ids.OrderBy(i => i, StringComparer.Ordinal).ToArray(), ids);
+
+            var orchestratorFilePaths = MenuPaths(wm.GlobalMenu).Where(p => p.StartsWith("File/", StringComparison.Ordinal)).ToArray();
+            Assert.Equal(MenuPaths(editor.M), orchestratorFilePaths);
+
+            var idle = wm.GlobalMenu.AllowedInIdleItems().Select(a => a.Path).Where(p => p.StartsWith("File/", StringComparison.Ordinal)).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            Assert.Equal(editor.M.AllowedInIdleItems().Select(a => a.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray(), idle);
+        }
+        finally
+        {
+            host.Shutdown();
+        }
+    }
+
     private static string[] MenuPaths(GlobalMenuRegistry menu)
     {
         var paths = new List<string>();

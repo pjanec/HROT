@@ -30,7 +30,8 @@ namespace Hrot.Orchestrator;
 /// Bypasses <c>WaitingRoomCoordinator</c> — boots instantly; UI renders immediately with a banner while
 /// mandatory nodes are not yet ready (CGF1-S0105).
 /// </summary>
-public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.Presentation.DebugApi.IProvidesDebugSurface
+public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+    Hrot.UI.Common.RunMode.IProvidesRunControls
 {
     /// <summary>
     /// ⭐⭐ <c>CE-4002</c> — the orchestrator's debug surface: the MASTER's roster (only the node hosting the
@@ -54,6 +55,35 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             recordLiveRunsOff: () => _core?.UiCache.RecordLiveRunsOff,
             unsavedCheck:      id => _core?.UiCache.UnsavedCheckOutcomeFor(id),   // ⭐ CE-4093 D20
             scenarioDirty:     () => _core?.UiCache.LastUnsavedCheck?.Changed);
+
+    // ── ⭐⭐⭐ CE-1439 (AQ108 §2.12) — the Orchestrator is an OPERATOR host: it composes the SAME run surfaces as the editor and CGF ───────────────────────────
+    //   the transport + run choice (CE-1437's IProvidesRunControls offer), the scenario session (EditorScenarioSession with NO world — this host holds none, the entities live on the nodes)
+    //   and, when the composer picks it as the owner of ▶, the scenario menu (⇒ the Start surface offers Open / New / Recording) with the shared pickers.
+    private Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? _timeTransport;
+    private Hrot.Editor.AiShared.Scenarios.EditorScenarioSession? _scenarioSession;
+    private Hrot.Presentation.DebugApi.ISubsystemDebugProvider? _unsavedReadsProvider;
+    private NodeEditor.UI.Picker.PickerRegistry? _pickers;
+    private Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor? _scenarioCatalog;   // projects the master's scenario inventory into the picker's catalog
+    private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new("orchestrator_new_exercise_confirm");
+
+    /// <summary>⭐ CE-1439 — the run choice of this host (a rail's and the composer's read).</summary>
+    internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
+
+    /// <summary>⭐ CE-1439 — a rail replaces the picker seam (the real one is the shell <c>PickerRegistry.OpenPicker</c>, which needs an ImGui frame to show anything) to read WHAT the Start surface's buttons open.</summary>
+    internal Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>? PickerOpenerOverride { get; set; }
+
+    private void OpenPicker(NodeEditor.UI.Picker.PickerRequest request, Action<NodeEditor.UI.Picker.PickerResult> onChosen)
+        => (PickerOpenerOverride ?? _pickers!.OpenPicker)(request, onChosen);
+
+    /// <summary>⭐ CE-1439 — the cluster-control panel this host's core built (a rail asserts it was handed THIS host's run surfaces).</summary>
+    internal Hrot.Orchestrator.Panels.ClusterScenarioPanel? ScenarioPanelForTest => _core?.ScenarioPanel;
+
+    /// <summary>⭐ CE-1439 — the scenario session of this host (a rail's read).</summary>
+    internal Hrot.Editor.AiShared.Scenarios.EditorScenarioSession? ScenarioSessionForTest => _scenarioSession;
+
+    Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Orchestrator;
+    Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
+    Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
 
     // ⭐ Q86 (R-215) — the master and every process manager live in the ONE core the editor builds too.
     private OrchestratorCore? _core;
@@ -202,6 +232,19 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         // Drain the read buffer locally so the cache captures the bootstrapped state
         // before the first frame's Phase 2 SwapBuffers wipes it out.
         _core.UiCache.Update();
+
+        // ⭐⭐⭐ CE-1439 — the run surfaces, over THIS host's bus and the core's ONE cluster view (CE-1436: the cache composes it; ⛔ no second fold here).
+        //   ⭐ The session is the editor's / CGF's class with no world (this host has none); the choice arms the table's default (Live) and reads the unsaved round off this host's own debug
+        //   provider, exactly as CGF does. ⛔ A host that holds the dependency passes it: the panel gets these, so it builds none of its own.
+        var core = _core;
+        _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(
+            _bus, () => core.UiCache.View, () => _masterSync?.GetCurrentState().TotalTime ?? 0.0);
+        _scenarioSession = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
+            _bus, () => core.UiCache.View, () => OrchestrationConstants.GetSharedScenariosRoot());
+        var choice = _timeTransport.AttachRunChoice(
+            Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator), _scenarioSession,
+            unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
+        core.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, choice, _scenarioSession);
     }
 
     public void Update(float deltaTime)
@@ -228,6 +271,9 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
 
         // Phase 4: Local observation — the UI cache after the master tick, then the seek debounce.
         _core?.TickUi(deltaTime);
+        _timeTransport?.Update();     // ⭐ CE-1439 — after the cache drained the frame's events: the choice hears the cluster state, a check-round answer is delivered
+        _scenarioSession?.Update();   // ⭐ CE-1439 — a load waiting for the unload goes out once the cluster is Idle
+        _scenarioCatalog?.Refresh();  // ⭐ CE-1439 — the picker's catalog follows the master's inventory (it starts empty and fills when the first inventory arrives)
 
         // Phase 5: Time-sync NTP ingress (NTP responses from slaves).
         _timeTranslators?.PollNtpIngress();
@@ -235,7 +281,57 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
 
     public void DrawWorld() { }
 
-    public void DrawUI() { /* panels registered as ManagedWindows via IWindowRegistrar */ }
+    public void DrawUI()
+    {
+        /* panels registered as ManagedWindows via IWindowRegistrar */
+        // ⭐ CE-1439 — the shared pickers (Open Scenario / Open Recording) and the New Exercise confirmation are drawn once a frame, as CGF and the editor do
+        _pickers?.DrawFrame();
+        Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_newExerciseConfirm.Pending);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1439</c> (AQ108 §2.12; R-3066 audit #9) — <b>the scenario menu of an operator host with no world</b>, registered by the composer when this host owns ▶
+    /// (<c>LocalWindowController.ComposeRunControls</c>): the SAME <c>ScenarioMenuCommands.Register</c> the editor and CGF call, over this host's session, so the menu — and the Start surface,
+    /// which draws the items marked allowed-in-Idle — is the same on every operator host by construction.
+    /// <para>⚠ <b>What a host with no world cannot do</b>, stated and greyed with its reason (ruling 49), never faked: <i>Save Scenario As</i> has no dialog here (nothing local to author, so
+    /// nothing local to name); <i>New Scenario</i> is the shared local wipe (<c>ClearWorld</c>) — on this host it only forgets the loaded name, until CE-4089 makes New a recipe the cluster opens.</para>
+    /// </summary>
+    public void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager)
+    {
+        if (_core is null || _scenarioSession is null || _timeTransport is null) return;
+
+        // the ONE picker factory (entity icons + the silk atlas), as every host
+        _pickers = Hrot.UI.Common.AddEntity.EntityAuthoring.CreatePickers(new Hrot.Editor.AiShared.Adapters.SilkIconProvider(windowManager.Atlas));
+
+        // Open Scenario lists what the master's inventory offers — the same list the panel's combo and GET /scenarios show — through the shared scenario contributor and picker launcher
+        var core = _core;
+        var catalog = new Hrot.Editor.AiShared.Catalog.AssetCatalog();
+        _scenarioCatalog = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
+            () => core.UiCache.AvailableScenarios,
+            () => OrchestrationConstants.GetSharedScenariosRoot());
+        catalog.AddContributor(_scenarioCatalog);
+        var scenarioPicker = new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
+            openPicker: OpenPicker,
+            catalog:    catalog,
+            router:     new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(_ => { }, name => _scenarioSession.OpenForEdit(name)));   // Open() below always passes its own onPicked
+
+        var choice = _timeTransport.RunChoice;
+        Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
+            registerCommand:    windowManager.ShellCommands.Register,
+            menu:               windowManager.GlobalMenu,
+            commands:           windowManager.ShellCommands,
+            session:            _scenarioSession,
+            openPicker:         (kinds, callback) => scenarioPicker.Open(kinds, callback),
+            openSaveAsDialog:   null,
+            // ruling 53 — the confirm belongs where the operator sits, and this window has one: it PROMPTS (the ONE wording, shared with the editor)
+            confirmNewExercise: run => _newExerciseConfirm.RequestNewExercise(run),
+            // the guarded open: Stop & Load over a run, Save / Discard / Cancel over unsaved edits (CE-1438 / D20) — the run choice's, as on every host
+            openScenario:       choice is null ? null : choice.OpenScenario,
+            openRecordingPicker: new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+                openPicker:    OpenPicker,
+                listExercises: () => core.UiCache.AvailableExercises,
+                openRecording: id => { if (choice is not null) choice.OpenRecording(id); else _scenarioSession.OpenRecording(id); }).Open);
+    }
 
     /// <inheritdoc/>
     public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
@@ -269,6 +365,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         _clusterSlave?.Dispose();
         _clusterSlave = null;
         _fileDialogService = null;
+        _timeTransport = null;
+        _scenarioSession = null;
+        _unsavedReadsProvider = null;
+        _pickers = null;
+        _scenarioCatalog = null;
         _masterSync?.Dispose();
         _masterSync = null;
         _timeCommands = null;

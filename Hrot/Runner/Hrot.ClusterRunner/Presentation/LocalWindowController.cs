@@ -83,20 +83,31 @@ internal sealed class LocalWindowController
         RunControlsOwner = owner;
         if (owner?.Transport is { } transport)
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice);
+        owner?.ComposeScenarioActions(wm);   // ⭐ CE-1439 — the scenario menu (and so the Start surface's Open / New / Recording) of the host that owns ▶, by the same rule
     }
 
     /// <summary>
-    /// ⭐ The pick RULE (AQ108 §2.10 ①), never registration order: of the hosts that offer a transport, one whose choice HAS a scenario session (an operator: editor, CGF) wins;
-    /// among several operators the editor's; with no operator the first offered; none offered ⇒ <see langword="null"/> (no time control).
+    /// ⭐ The pick RULE (AQ108 §2.10 ①, §2.12), never registration order: of the hosts that offer a transport, one whose choice HAS a scenario session (an operator: editor, CGF,
+    /// Orchestrator) wins; among several operators the one that holds a WORLD of its own first — <see cref="OperatorRank"/> (editor, CGF, then the world-less Orchestrator);
+    /// with no operator the first offered; none offered ⇒ <see langword="null"/> (no time control).
     /// </summary>
     internal static IProvidesRunControls? PickRunControls(IEnumerable<IProvidesRunControls> hosts)
     {
         var offered = hosts.Where(h => h.Transport is not null).ToList();
         var operators = offered.Where(h => h.RunChoice is { HasScenarioControl: true }).ToList();
         if (operators.Count > 0)
-            return operators.FirstOrDefault(h => h.HostKind == RunHostKind.Editor) ?? operators[0];
+            return operators.OrderBy(h => OperatorRank(h.HostKind)).First();   // OrderBy is stable: equal ranks keep the subsystem order
         return offered.FirstOrDefault();
     }
+
+    /// <summary>⭐ CE-1439 — among operator hosts the one with a local world to author in wins; the Orchestrator (the master's window, no world) is the fallback owner.</summary>
+    private static int OperatorRank(RunHostKind kind) => kind switch
+    {
+        RunHostKind.Editor       => 0,
+        RunHostKind.Cgf          => 1,
+        RunHostKind.Orchestrator => 2,
+        _                        => 3,
+    };
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — <b>the start surface, composed ONCE for every cluster-runner host</b>: registers the one window that

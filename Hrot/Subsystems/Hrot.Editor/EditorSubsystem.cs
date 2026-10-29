@@ -2474,6 +2474,10 @@ namespace Hrot.Editor
                 unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                     () => _orchestratorCore != null,
                     id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
+            // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
+            //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
+            if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
+                _orchestratorCore.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, panelChoice, panelSession);
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -4500,12 +4504,7 @@ namespace Hrot.Editor
                 openSaveAsDialog:     cb => openScenarioSaveAs(),
                 // ⭐⭐⭐ Ruling 53 — the confirm belongs where the OPERATOR sits, and this host is the
                 //    interactive one, so it PROMPTS. The controller holds the decision; DrawUI draws it.
-                confirmNewExercise:   run => _newExerciseConfirm.Request(
-                    "New Exercise",
-                    "This finishes the running exercise and clears the world on every node.\n"
-                  + "Unsaved scenario changes will be lost.",
-                    "Finish & Start Fresh",
-                    run),
+                confirmNewExercise:   run => _newExerciseConfirm.RequestNewExercise(run),   // ⭐ CE-1439 — the one wording, shared with the Orchestrator
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.

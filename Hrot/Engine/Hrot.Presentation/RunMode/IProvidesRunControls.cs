@@ -17,4 +17,12 @@ public interface IProvidesRunControls
 
     /// <summary>The host's run choice; <see langword="null"/> until built. An <i>operator</i> host is one whose choice <see cref="RunModeChoice.HasScenarioControl"/>.</summary>
     RunModeChoice? RunChoice { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1439</c> (AQ108 §2.12) — called by the composer on the PICKED owner only (after <c>ComposeRunControls</c> registered its toolbar): a host that does NOT register
+    /// the scenario menu items (<c>File › Open Scenario / New Scenario / Open Recording</c>, which the Start surface draws) in its own <c>RegisterWindows</c> registers them here.
+    /// ⛔ Default: nothing — the editor and CGF register theirs themselves (a follow-up folds those two here). ⭐ The point: the process's ONE scenario menu belongs to the host that owns
+    /// ▶, picked by the same rule, never to whichever host registered last.
+    /// </summary>
+    void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) { }
 }

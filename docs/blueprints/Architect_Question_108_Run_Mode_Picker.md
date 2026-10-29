@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
-updated: 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
+updated: 2026-10-29 (CE-1439: §2.12 as-built — the Orchestrator composes the scenario menu and the panel asks the one run surfaces) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
 current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
@@ -775,6 +775,100 @@ a plain model + one static draw already covers · **retiring the two controllers
 | 2 | `OpenRecording` and `OpenScenario` guarded | both; ⚠ `OpenRecording` over a run is a NEW warning on every host (the editor never had one) | a recording opened over a live run stops it exactly as a scenario load does (`TheOneTimeFacadeTests.CE4097_OnlyAMoveThatLeavesEditing…` used to assert it went straight on — updated) |
 | 3 | `ConfirmPromptController` / `AppExitPromptController` "thin producers (or retired)" | both kept, public `Resolve*` kept; `ConfirmPromptController` keeps only `Pending` / `IsPrompting` / `Request`; the exit prompt's document list is now text inside the model (it was a bulleted ImGui list) | the existing rails call `ResolveConfirm` / `ResolveSaveAndExit` directly; the bullet list is the only visual change of the exit modal |
 | 4 | — | `CgfSubsystem.NodeForTest` (internal) added | the constructed-host rail needs the node's bus + cluster view to "hear" `OperatingLive` |
+
+### 2.12 CE-1439 — the scenario actions on every operator host (R-3066 audit #8, #9) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` is not available through the CLI, and the graph index was still building when this was written — every row below is a whole-tree grep, re-run when the graph is up):
+`grep -rn "ScenarioMenuCommands.Register(" Hrot --include=*.cs` → production callers **two** (`EditorSubsystem.cs:4490`, `CgfSubsystem.cs:2908`) before this item, the rest tests ·
+`grep -rn "new EditorScenarioSession(" Hrot` → editor, CGF, tests · `grep -rn "ClusterScenarioPanel" Hrot` → the panel, `OrchestratorCore`, `OrchestratorWindow`, `ClusterControlWindow`, `EditorSubsystem`, `ExConSubsystem` (retiring, R-3067) ·
+`grep -rn "IProvidesRunControls" Hrot` → editor, CGF, SimHost (CE-1437) + this item's Orchestrator.
+
+| the lean rests on | code | design basis |
+|---|---|---|
+| the Start surface draws ONLY menu items marked allowed-in-Idle | ✅ `StartSurfaceWindow.Model()` ← `GlobalMenuRegistry.AllowedInIdleItems()` | ✅ §2.6; D16 "Open scenario · Open recording · New … on every host that can operate the cluster" |
+| *Open Scenario / New Scenario / Open Recording* are registered by ONE registrar, and only the editor and CGF called it | ✅ `ScenarioMenuCommands.cs:199-257`; callers above | ✅ AQ60 R2 / ruling 58 "one registration list" |
+| an Orchestrator-only window at Idle shows only Help + Exit | ✅ the Orchestrator registers no `File/…` item (`OrchestratorSubsystem.RegisterWindows` registered two windows) | ✅ CE-1437 rule "make hosts agree by construction" |
+| the session NEEDS a world | ⛔ **false**: the only `_world` / `_fileService` readers in `EditorScenarioSession` are `ClearWorld`, `SaveTo` (no production caller, CE-275) and `GetMigrationSidecars`; every cluster verb (`OpenForEdit`, `LoadForLive`, `OpenRecording`, `SaveCurrent/As`, `TakeCheckpoint`, `NewExercise`) publishes on the bus and reads the `ClusterView` | ✅ `DESIGN_Cgf_Scenario_Session_Slice.md` §3: *"the world is a constructor parameter"* |
+| the Orchestrator has a bus, a `ClusterView` and the master's inventory | ✅ `OrchestratorSubsystem._bus`; `OrchestratorCore.UiCache.View` (CE-1436, the cache composes it); `UiCache.AvailableScenarios / AvailableExercises` | ✅ `DESIGN_Cluster_View.md` |
+| the panel is a second control surface | ✅ it published its own `PauseTimeIntent` / `StepTimeIntent` / `TakeCheckpointIntent`, ran its own `ScenarioLoadSequence` (CE-295's copy) and built its own replay `TransitionPayloadDto` | ✅ AQ108 D22 "the user's controls are one entry" · §2.10 |
+| two operators in one process (Orchestrator + CGF, the all-in-one) would both register the menu | ✅ `ShellCommands.Register` / `GlobalMenu.RegisterItem` replace by id/path — the LAST registration wins (the CE-1437 disease) | ✅ §2.10 "never registration order" |
+
+```mermaid
+classDiagram
+  class EditorScenarioSession { <<existing, AiShared>> ⭐ NEW ctor: no world (bus, view, scenariosRoot) · ClearWorld / SaveTo / GetMigrationSidecars act only on a local world }
+  class ScenarioMenuCommands { <<existing>> Register(...) — Open Scenario / New Scenario / Open Recording allowed-in-Idle }
+  class IProvidesRunControls { <<existing, CE-1437>> HostKind · Transport · RunChoice · ⭐ ComposeScenarioActions(wm) default no-op }
+  class RunHostKind { <<enum>> Editor · Cgf · SimHost · ⭐ Orchestrator · Other }
+  class OrchestratorSubsystem { <<existing>> ⭐ implements IProvidesRunControls · builds adapter + world-less session + choice in Initialize · ComposeScenarioActions registers the menu + pickers · DrawUI draws pickers + New Exercise confirm }
+  class LocalWindowController { <<existing>> PickRunControls: OperatorRank Editor, Cgf, Orchestrator · ComposeRunControls calls owner.ComposeScenarioActions }
+  class ClusterPanelRunControls { <<NEW, Orchestrator>> PauseOrResume · Step · SetTimeScale · LoadIntoEdit · LoadIntoLive · OpenAar · TakeCheckpoint · OverBus(bus, view) }
+  class ClusterScenarioPanel { <<existing, now the MONITOR>> RunControls · ⛔ no ScenarioLoadSequence · ⛔ no pause / step / checkpoint / replay-transition requests }
+  class UserTransport { <<existing>> ⭐ UserStepBy(seconds, choice) }
+  class RunModeChoice { <<existing>> OpenScenario · OpenRecording · TakeCheckpoint · CheckpointDisabledReason }
+  class ClusterTimeTransportAdapter { <<existing>> AttachRunChoice }
+  class StartSurfaceWindow { <<existing, CE-4096>> draws the allowed-in-Idle items }
+  class EditorSubsystem { <<existing>> passes ITS transport, choice, session to the panel }
+  class ExConSubsystem { <<existing, RETIRING R-3067, UNTOUCHED>> its panel builds the same shared classes over its own bus }
+  OrchestratorSubsystem ..|> IProvidesRunControls
+  OrchestratorSubsystem --> EditorScenarioSession : world-less
+  OrchestratorSubsystem --> ClusterTimeTransportAdapter
+  OrchestratorSubsystem --> ClusterPanelRunControls : passes to the panel
+  OrchestratorSubsystem ..> ScenarioMenuCommands : ComposeScenarioActions
+  LocalWindowController --> IProvidesRunControls : picks ONE owner by rule
+  ClusterScenarioPanel --> ClusterPanelRunControls
+  ClusterPanelRunControls ..> UserTransport
+  ClusterPanelRunControls ..> RunModeChoice
+  ClusterPanelRunControls ..> EditorScenarioSession
+  ClusterTimeTransportAdapter --> RunModeChoice
+  RunModeChoice --> EditorScenarioSession : IRunScenarioControl
+  StartSurfaceWindow ..> ScenarioMenuCommands : the SAME bindings
+  EditorSubsystem --> ClusterPanelRunControls : passes
+  ExConSubsystem ..> ClusterScenarioPanel : unchanged
+```
+
+*What the picture shows that prose hid:* the panel and the Start surface do not gain features of their own — both now stand on the objects every operator host already composes (the transport's user entry, the run
+choice, the session, the one menu registrar), and the process's scenario menu belongs to the host that owns ▶, picked by the same rule — ⛔ not to whichever host registered last.
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant L as LocalWindowController
+  participant O as OrchestratorSubsystem (only subsystem)
+  participant S as StartSurfaceWindow
+  participant M as ScenarioMenuCommands bindings
+  participant C as RunModeChoice
+  participant X as EditorScenarioSession (no world)
+  participant B as bus → master
+  L->>O: RegisterWindows (monitor windows)
+  L->>L: ComposeStartSurface · ComposeRunControls → owner = Orchestrator
+  L->>O: ComposeScenarioActions(wm)
+  O->>M: Register(session, pickers, openScenario = choice.OpenScenario, recording picker)
+  Note over S: cluster Idle for 0.5 s → Start shows: Open Scenario · New Scenario · Open Recording · Help · Exit
+  U->>S: Open Scenario
+  S->>M: the menu's own binding → scenario picker over the master's inventory
+  M->>C: OpenScenario(name) — Stop and Load over a run, Save / Discard / Cancel over unsaved edits
+  C->>X: OpenForEdit(name)
+  X->>B: TransitionStateIntent Idle, then OperatingEdit (ScenarioLoadSequence)
+  B-->>S: cluster leaves Idle → the gate hands the window back
+```
+
+⭐ **Decisions** *(the lean adopted; the three measured differences are the AS-BUILT table)*: ① **the Orchestrator composes the SAME session** (`EditorScenarioSession`, a world-less constructor), the same adapter + `RunModeChoice` (offered through `IProvidesRunControls`, armed Live by the table) and the same registrar; ⛔ no Orchestrator-private menu list.
+② **the scenario menu is registered by the host that OWNS ▶** (`IProvidesRunControls.ComposeScenarioActions`, called by the composer on the picked owner) — so Orchestrator + CGF (the all-in-one) keeps CGF's items exactly as before, and an Orchestrator-only process gets its own.
+③ **the owner rule gains a rank among operators**: editor, then CGF, then the Orchestrator (the one that holds a world to author in wins; the world-less master's window is the fallback owner).
+④ **the panel stays as the MONITOR** (node health, transactions, inventory, the state-machine buttons, terrain / assets / archive) — a duplicate *surface* is kept where it is a monitor, a duplicate *code path* is not: its Pause / Resume / Step / speed → the transport's USER entry; *Load into Edit* → the run choice's guarded open; *Load into Live* → the session's explicit live load; *Open AAR* → the run choice's recording open; *Take Checkpoint* → the choice's checkpoint (and its reason).
+⑤ **the editor passes its own surfaces to the panel; ExCon (retiring) is untouched** and its panel builds the same shared classes over its own bus.
+*Rejected:* **registering the scenario items in every host's `RegisterWindows`** — the last registration wins, so the world-less Orchestrator would overwrite CGF's real `New Scenario` in `--mode all` · **a Start-surface-only set of Orchestrator buttons** — a second action list the menu does not know (the surface owns no action, §2.6) · **a no-op world object** — a fake that hides what the host cannot do; an explicit world-less constructor says it · **retiring the panel** — it is the only window showing nodes, transactions and the inventory · **deleting *Load into Live*** — it is the only explicit-mode load left besides HTTP (D22: an explicit control does what it names) · **adding the items to ExCon** — R-3067.
+
+**AS-BUILT deviations from the design above**
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | — | `Hrot.Orchestrator` now references `Hrot.Editor.AiShared` | the session, registrar and pickers live there; measured acyclic (AiShared references neither the Orchestrator nor anything that does) and `Stride/HrotStrideApp.Game` already references `Hrot.Editor` ⇒ AiShared |
+| 2 | *Save Scenario As* offered | **greyed with its reason** on the Orchestrator (`openSaveAsDialog: null`, ruling 49); `RunModeChoice.SaveAsPrompt` is null | the Save-As browser is CGF's / the editor's own composition over their local world; nothing is authored on this host. *Save Scenario* of a loaded scenario still publishes the cluster-wide save (`SaveCurrent`). Follow-up: fold `OpenScenarioSaveAsDialog` (CGF) + `openScenarioSaveAs` (editor) into one shared launcher |
+| 3 | *New Scenario* | the shared binding (`session.ClearWorld`): on a world-less host it forgets the loaded name and the migration alert, wipes nothing | the same limitation the editor and CGF carry until CE-4089 makes *New* a recipe the cluster opens (§2.6 deviation 12) — stated, not hidden |
+| 4 | *Load into Live* keeps its *Start paused* checkbox | the live load is the session's (`TimeMode = Deterministic`, paused at 0, Q86 §4-G); the checkbox still applies to the state-machine buttons below it | ONE live load; "running after a load is a property of the load" and the session's does not ask for it |
+| 5 | — | `RunHostKind.Orchestrator` added (armed Live, from the table) and `UserTransport.UserStepBy(seconds)`; `ConfirmPromptController.RequestNewExercise` (the one wording of *New Exercise*, now also the editor's) | the pick rule needs to know the owner's kind; the panel's *Step (s)* box has a size; the destructive reset reads the same on both windowed hosts |
+| 6 | the panel's `SendRequest` bus switch | its `PauseTime` / `ResumeTime` / `StepTime` / `SetTimeScale` / `TakeCheckpoint` arms are deleted | nothing builds those requests any more (the duplicate mapping of intents the transport publishes) |
 
 ## 3. Every move, with what the user is told
 
