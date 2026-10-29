@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — the dispatch record (coordinator, 2026-10-28)
 updated: 2026-10-28
-current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked · §4 decisions taken after dispatch
+current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked · §4 decisions taken after dispatch · §5 the order after the mode switches
 stale-below: nothing
 related-designs:
   - ../DESIGN_Content_Layout.md — R-4097: the content move (CE-4089)
@@ -90,3 +90,27 @@ its own rails until they pass, the lane reviews the tests and the diff (not a re
 | date | decision |
 |---|---|
 | `2026-10-28` | **R-4099** — CE-4096's gate treats the cluster as RESTING when Idle has held ≥ 0.5 s (ui's design, AQ108 §2.6 on `ui`); the ordinary load stays TWO requests (Idle, then the load — CE-295), no "resting" flag on the master's broadcast, no wire change. A slow client may flash `Start` for a moment between the two requests — accepted as cosmetic. 🔒 User: *"lean accepted, no chnage in messages (keep load in 2 parts as is now)"* |
+| `2026-10-29` | **R-3066** (backend, user-approved) — `ClusterView` V1–V5 approved (CE-1436: one cluster-facts ingress and one read model on every node — the fix for a CGF host going live without the unsaved prompt), and **development PAUSED** until the run-modes duplicates are unified (backend's CE-3340; ui audits its own — `batches/NOTE_Coordinator_To_Ui_Unification_Pause.md`). 🔒 User: *"We need to pause any development until we enforce the unification and sharing."* Paused: CE-3339 (the two hashes), CE-4095, CE-4089 round 2, CE-4092, CE-4083; CE-4099 deferred by the user. One Sonnet agent at a time (CLAUDE.md). |
+| `2026-10-29` | **The armed-mode MVP (user)** — 🔒 *"focus on making the armed mode switching work with whatever is requires, but in 'minimal viable' way - meaning avoiding not absolutely necessary parts like change detection, autosave. excone retirement can wait. first let's finish the remaining parts of the unification. bt-window-duel scenario failures are out of scope"* · goal: record an exercise in the editor's live run and film it with the director in the Replay Browser. ⇒ in: CE-1441, CE-3341 (ui half), CE-4102 (the end-to-end proof). ⛔ out for now: CE-4099 autosave, more change-detection work, CE-4100 ① ③ (keep/discard prompt, DAR start default), CE-3339 (the two hashes), CE-4095, CE-4092, ExCon retirement (R-3067), CE-3342. |
+| `2026-10-29` | **After the MVP (user)** — 🔒 *"fixing the issues found and then continuing in the rest of the armed mode switching stuff, prioritizing the mode switches like live->AAR, AAR->live, live->DAR, DAR->live from where DAR is … DAR -> live from live pause point etc. Only once this is working we can focus on change indication, auto-save and such."* ⇒ ① CE-4103 (backend: the MVP rail's three workarounds) · ② CE-4104 (ui: each mode switch proven end to end) incl. CE-4105 (DAR → Live from the DAR moment, a branch — new, lean "same as AAR → Live") · ⛔ still waiting: change indication, autosave, CE-4100 ① (keep/discard), the hashes, CE-4095, CE-4092, ExCon. |
+| `2026-10-29` | **CE-4105 deferred and redefined (user)** — 🔒 *"DAR->Live from current DAR point should not be same as AAR->Live … it makes more sense to truncate the original live recording and start rewriting it as part of same exercise … record that as tracked task that we can implement later if required, for now let's keep the original intent only (DAR->Live from where Live paused)"* — CE-4104 keeps switches ①–④; ⛔ SUPERSEDED: the "same as AAR → Live" lean. |
+
+## 5. The order after the mode switches *(user, `2026-10-29`: "yes, do both")*
+
+⭐ **Now:** backend CE-4103 (the MVP rail's three workarounds) → CE-3343 (the last unification step) · ui CE-4104 (Live → AAR, AAR → Live,
+Live → DAR, DAR → Live where live paused). 🔒 *"Only once this is working we can focus on change indication, auto-save and such."*
+
+Then, in this order — each parked until the one before it is done or the user reorders:
+
+| # | id | what | lane | state |
+|---|---|---|---|---|
+| 1 | CE-3339 | the two scenario hashes — AAR → Preview's *Open the recorded version* / *Open the current scenario* buttons | backend, then ui wires `RecordedVersionDiffers` | partly built in a backend worktree, parked |
+| 2 | CE-4095 | a new scenario from a checkpoint | backend | partly built, parked |
+| 3 | CE-4092 | start a cluster with a scenario (`--startup-scenario`), retire `--wait-for` | backend | not started |
+| 4 | — | change indication beyond the built on-demand check (CE-4093) | — | not designed beyond D20 |
+| 5 | CE-4099 | autosave (AQ108 §4c, A0 gate first) | backend | designed, deferred by the user |
+| 6 | CE-4100 ① | the *Keep / Discard* prompt and its setting (D15) | ui | not started |
+| 7 | R-3067 | retire ExCon, the generic wire inspector | backend | approved, waits |
+| 8 | CE-4105 | DAR → Live from the DAR moment — truncate and re-record the same exercise | ui + backend | ⏸ only if required (user) |
+
+Out of this effort: CE-3342 (`bt-window-duel`, user).
