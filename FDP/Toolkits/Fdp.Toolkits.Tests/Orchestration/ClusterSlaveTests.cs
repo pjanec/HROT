@@ -290,6 +290,39 @@ public sealed class ClusterSlaveTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the start gate's input, as a PUBLIC read of what the slave already follows: the cluster state the
+    /// master last announced (NOT the node's own committed state), whether any has been heard, and whether the master is gone — set by the
+    /// MasterGone broadcast, cleared by the next real one.
+    /// </summary>
+    [Fact]
+    public void CE4096_TheSlaveExposesTheFollowedClusterState_AndMasterGone()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        void Hear(ClusterStateUpdateEvent ev) { bus.PublishManaged(ev); bus.SwapBuffers(); slave.Tick(); }
+
+        Assert.False(slave.HasFollowedState);                    // ⭐ "no broadcast yet" is distinguishable from a heard Idle
+        Assert.False(slave.MasterGone);
+
+        var session = Guid.NewGuid();
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = session });
+        Assert.True(slave.HasFollowedState);
+        Assert.Equal(ClusterState.Idle, slave.FollowedClusterState);
+
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, SessionId = session });
+        Assert.Equal(ClusterState.LoadingLive, slave.FollowedClusterState);   // ⭐ the cluster's, while this node's own commit is still Idle
+        Assert.Equal(ClusterState.Idle, slave.LocalClusterState);
+        Assert.False(slave.MasterGone);
+
+        Hear(new ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(slave.MasterGone);
+
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+        Assert.False(slave.MasterGone);                          // ⭐ cleared by the next real broadcast
+        Assert.Equal(ClusterState.OperatingEdit, slave.FollowedClusterState);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>R-4007</c> (Q91 §4-M) — the join freeze: a node is frozen only when it is BEHIND the cluster it follows (it is
     /// <c>Idle</c>, the cluster is not). ⛔ A node with no master, and a cluster at rest in <c>Idle</c>, are never frozen — 📐
     /// dozens of integration suites spawn and replicate exactly there.

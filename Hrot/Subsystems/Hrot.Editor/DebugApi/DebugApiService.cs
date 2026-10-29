@@ -730,6 +730,8 @@ namespace Hrot.Editor.DebugApi
                 // ⭐⭐ CE-4093 (AQ108 D22) — the LAST check round's verdict (true = the open scenario has unsaved changes); null when none ran or the cluster
                 //   left editing since. ⛔ Reading it never runs a round — POST /scenario/check-unsaved does.
                 ["scenarioDirty"] = ScenarioDirtyOrNull,
+                // ⭐⭐ CE-4097 part two (AQ108 D22) — what ▶ would run from editing on this host: preview | live | aar (null: this host has no run choice). Read-only; POST /run-mode sets it.
+                ["armedMode"]    = TryRead(() => (JsonNode?)ArmedModeText()),
             };
         }
 

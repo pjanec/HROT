@@ -23,6 +23,12 @@ namespace NodeEditor.UI.Picker;
 /// host wants VISIBLE (so the list tells the truth about what exists) but not choosable right now; its
 /// <paramref name="Description"/> should say why.
 /// </param>
+/// <param name="RecentContext">
+/// ⭐ CE-4098 (AQ108 D19) — the <see cref="RecentStore"/> list this entry is remembered in. <see langword="null"/>
+/// ⇒ the picker's own <see cref="PickerRequest.ContextKey"/>. ⭐ A source whose entries belong to a KIND (a scenario,
+/// a recording, a blueprint) names that kind here, so ONE list per kind is shared by every picker that offers it
+/// (the Open-Asset picker, the asset browser) and kinds never mix.
+/// </param>
 public sealed record PickerEntry(
     string Id,
     string Name,
@@ -32,4 +38,5 @@ public sealed record PickerEntry(
     IntPtr? IconTextureId,
     object? Tag,
     string? IconKey = null,
-    bool IsEnabled = true);
+    bool IsEnabled = true,
+    string? RecentContext = null);

@@ -82,6 +82,13 @@ public class MenuItemNode
     public bool IsSeparator { get; set; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — this leaf is ALLOWED while the cluster is Idle (the <c>Start</c> perspective): the bar then draws
+    /// only such leaves, and the start surface draws them as buttons through the SAME binding. Set by
+    /// <see cref="GlobalMenuRegistry.RegisterItem"/>'s <c>allowedInIdle</c>; default <see langword="false"/>.
+    /// </summary>
+    public bool AllowedInIdle { get; set; }
+
+    /// <summary>
     /// Optional keyboard shortcut text displayed next to the item (e.g. "Ctrl+S").
     /// When <c>null</c> or empty, no shortcut is shown. Backward-compatible addition (MTB-P2-T2).
     /// </summary>
@@ -131,31 +138,43 @@ public class GlobalMenuRegistry
     // ── Top-level order (CE-1026) ─────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ CE-1026 — the conventional order of the TOP-LEVEL menus, left to right. The bar used to follow first-registration order, and
-    /// <c>WindowManager</c>'s own constructor registers <c>Settings</c> before any host, so <c>Settings</c> came first and <c>File</c> later.
-    /// A name not listed ranks between <c>Debug</c> and <c>Settings</c>; ties keep registration order. <c>Windows</c> and <c>Help</c> are the
-    /// window manager's own menus, listed so a host extending them through this registry lands in the same place.
+    /// ⭐ CE-1026 — the conventional order of the TOP-LEVEL menus, left to right. The bar used to follow first-registration order;
+    /// ties keep registration order; a name not listed ranks just before <c>Windows</c>.
+    /// <para>⭐ CE-4085 — <c>Settings</c> and <c>Perspective</c> are no longer top-level: they are SUBMENUS of <c>View</c>
+    /// (<see cref="SettingsMenuPath"/>, <see cref="PerspectiveSubmenu"/>), and <c>Help</c> is last and drawn at the RIGHT edge
+    /// (<see cref="RightAlignedMenu"/>). ⛔ SUPERSEDED (CE-1243's order): … Debug · Perspective · Settings · Windows · Help.</para>
     /// </summary>
-    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Scenario", "Tools", "Debug", "Settings", "Windows", "Help" };
+    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Scenario", "Tools", "Debug", "Windows", "Help" };
 
-    /// <summary>The first menu that draws AFTER the <c>Perspective</c> menu: it and everything ranked after it trail the bar.</summary>
-    public const string FirstTrailingMenu = "Settings";
+    /// <summary>The first of the window manager's own trailing menus; every unlisted menu ranks just before it.</summary>
+    public const string FirstTrailingMenu = "Windows";
 
-    /// <summary>⭐ CE-1243 — the perspective switcher's menu: after every leading menu (unlisted ones too), before <see cref="FirstTrailingMenu"/>.</summary>
+    /// <summary>⭐ CE-4085 — the one top-level menu drawn flush with the bar's RIGHT edge; also the last in <see cref="TopLevelOrder"/>.</summary>
+    public const string RightAlignedMenu = "Help";
+
+    /// <summary>⭐ CE-4085 — the tree path every host registers its settings under (a submenu of <c>View</c>): <c>View/Settings/…</c>.</summary>
+    public const string SettingsMenuPath = "View/Settings";
+
+    /// <summary>⭐ CE-4085 — the label of the perspective switcher; a submenu of <c>View</c>, no longer a top-level menu.</summary>
     public const string PerspectiveMenu = "Perspective";
 
+    /// <summary>⭐ CE-4085 — the perspective switcher's path: <c>View/Perspective</c>.</summary>
+    public const string PerspectiveSubmenu = "View/" + PerspectiveMenu;
+
     /// <summary>The rank of a top-level menu named <paramref name="name"/> in <see cref="TopLevelOrder"/> (an unlisted name ranks just before
-    /// the <see cref="PerspectiveMenu"/>, which ranks just before <see cref="FirstTrailingMenu"/>).</summary>
+    /// <see cref="FirstTrailingMenu"/>).</summary>
     public static int TopLevelRank(string name)
     {
         for (int i = 0; i < TopLevelOrder.Count; i++)
             if (string.Equals(TopLevelOrder[i], name, StringComparison.Ordinal)) return i * 10;
-        if (string.Equals(name, PerspectiveMenu, StringComparison.Ordinal)) return TopLevelRank(FirstTrailingMenu) - 2;
         return TopLevelRank(FirstTrailingMenu) - 5;
     }
 
-    /// <summary>True when the top-level menu <paramref name="name"/> draws before the <c>Perspective</c> menu.</summary>
-    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(PerspectiveMenu);
+    /// <summary>True when the top-level menu <paramref name="name"/> draws before <see cref="FirstTrailingMenu"/>.</summary>
+    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(FirstTrailingMenu);
+
+    /// <summary>⭐ CE-4085 — true when the top-level menu <paramref name="name"/> is drawn flush right (only <see cref="RightAlignedMenu"/>).</summary>
+    public static bool IsRightAligned(string name) => string.Equals(name, RightAlignedMenu, StringComparison.Ordinal);
 
     /// <summary>The top-level menus in bar order (rank, then registration order).</summary>
     public IReadOnlyList<MenuItemNode> TopLevelMenus()
@@ -174,8 +193,104 @@ public class GlobalMenuRegistry
     /// ⛔⛔ <b>The default is what keeps every existing call byte-identical</b>: one global binding, drawn
     /// exactly as before.
     /// </param>
-    public void RegisterItem(string path, Action onClick, string? perspective = null)
-        => Bind(path, new MenuBinding(perspective, onClick, null, null));
+    /// <param name="allowedInIdle">
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — the item is offered while the cluster is Idle (the <c>Start</c> perspective): the bar draws ONLY such
+    /// items there, and the start surface draws them as buttons (<see cref="AllowedInIdleItems"/>). Default <see langword="false"/> keeps
+    /// every existing call byte-identical.
+    /// </param>
+    public void RegisterItem(string path, Action onClick, string? perspective = null, bool allowedInIdle = false)
+    {
+        Bind(path, new MenuBinding(perspective, onClick, null, null));
+        TraversePath(path).AllowedInIdle = allowedInIdle;
+    }
+
+    // ── Idle-only (CE-4096) ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> — when this answers <see langword="true"/> (the window manager wires it to <c>IsStartShowing</c>) the bar's model
+    /// holds ONLY allowed-in-Idle items: <see cref="Offers"/>, <see cref="CollectContributions"/> and the published snapshot all obey it,
+    /// so the drawn bar, the model and <c>/panels</c> cannot disagree.
+    /// </summary>
+    public Func<bool>? IdleOnlyWhen { get; set; }
+
+    /// <summary>⭐ The bar is in its Idle-only form right now.</summary>
+    public bool IdleOnly => IdleOnlyWhen?.Invoke() ?? false;
+
+    /// <summary>⭐⭐ The ONE visibility test of a tree leaf: it resolves a binding for <paramref name="perspective"/>, and — while
+    /// <see cref="IdleOnly"/> — is allowed in Idle. ⛔ Every draw / model path asks this, never <c>ResolveBinding</c> alone.</summary>
+    public bool Offers(MenuItemNode node, string? perspective)
+        => node.ResolveBinding(perspective) != null && (!IdleOnly || node.AllowedInIdle);
+
+    /// <summary>One thing the start surface can offer: a menu leaf allowed in Idle, invoked through the very binding the menu uses.</summary>
+    public sealed record IdleAction(string Path, Func<string> Label, Func<bool> Enabled, Action Invoke);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> — every item marked allowed-in-Idle, in bar order: tree leaves (their global binding) and contributed items
+    /// (<see cref="ContextMenuItemDto.AllowedInIdle"/>, invoked through the contributor's <c>OnAction</c>). ⭐ The start surface draws THESE
+    /// and owns no action of its own.
+    /// </summary>
+    public IReadOnlyList<IdleAction> AllowedInIdleItems(string perspective = StartPerspective)
+    {
+        var list = new List<IdleAction>();
+        foreach (var bar in BarMenus(CollectContributionsUnfiltered(perspective)))
+        {
+            if (bar.Node is { } top) WalkIdle(top, bar.Name, list);
+            foreach (var (contributor, dto) in bar.Parts) WalkIdleDto(dto, bar.Name, contributor, list);
+        }
+        return list;
+
+        void WalkIdle(MenuItemNode node, string path, List<IdleAction> into)
+        {
+            if (node.IsSeparator) return;
+            if (node.Children.Count > 0)
+            {
+                foreach (var c in node.Children.Values) WalkIdle(c, path + "/" + c.Name, into);
+                return;
+            }
+            if (!node.AllowedInIdle || node.ResolveBinding(perspective)?.OnClick is not { } click) return;
+            into.Add(new IdleAction(path, node.ResolveLabel, () => node.GetEnabled?.Invoke() ?? true, click));
+        }
+
+        static void WalkIdleDto(ContextMenuItemDto dto, string path, MenuContributor contributor, List<IdleAction> into)
+        {
+            if (dto.IsSeparator == true) return;
+            if (dto.Children is { Length: > 0 } children)
+            {
+                foreach (var c in children) WalkIdleDto(c, path + "/" + c.Label, contributor, into);
+                return;
+            }
+            if (dto.AllowedInIdle != true) return;
+            var id = dto.Id;
+            var enabled = dto.Enabled ?? true;
+            into.Add(new IdleAction(path + (path.EndsWith("/" + dto.Label) ? "" : "/" + dto.Label), () => dto.Label ?? "", () => enabled, () => contributor.OnAction(id)));
+        }
+    }
+
+    /// <summary>The perspective name the Idle form is evaluated against (the window manager's <c>StartPerspectiveName</c>).</summary>
+    public const string StartPerspective = "Start";
+
+    /// <summary>Keeps only allowed-in-Idle leaves (and the submenus holding one); separators go.</summary>
+    internal static IReadOnlyList<ContextMenuItemDto> PruneToIdle(IReadOnlyList<ContextMenuItemDto> items)
+    {
+        var kept = new List<ContextMenuItemDto>();
+        foreach (var dto in items)
+        {
+            if (dto.IsSeparator == true) continue;
+            if (dto.Children is { Length: > 0 } children)
+            {
+                var sub = PruneToIdle(children);
+                if (sub.Count == 0) continue;
+                kept.Add(new ContextMenuItemDto
+                {
+                    Id = dto.Id, Label = dto.Label, Icon = dto.Icon, Enabled = dto.Enabled, Style = dto.Style, Shortcut = dto.Shortcut,
+                    Tooltip = dto.Tooltip, Priority = dto.Priority, IsChecked = dto.IsChecked, AllowedInIdle = dto.AllowedInIdle,
+                    Children = sub.ToArray(),
+                });
+            }
+            else if (dto.AllowedInIdle == true) kept.Add(dto);
+        }
+        return kept;
+    }
 
     /// <summary>
     /// Registers a checkable menu item at the given path.
@@ -237,6 +352,20 @@ public class GlobalMenuRegistry
     /// CONSUME what it returns (a gizmo layer's main-menu feed does), so the bar and the snapshot share this one answer.
     /// </summary>
     public IReadOnlyList<MenuContribution> CollectContributions(string currentPerspective)
+    {
+        var all = CollectContributionsUnfiltered(currentPerspective);
+        if (!IdleOnly) return all;
+        // ⭐ CE-4096 — the Idle-only bar: each contribution pruned to its allowed-in-Idle items (a contributor with none drops out).
+        var list = new List<MenuContribution>();
+        foreach (var c in all)
+        {
+            var kept = PruneToIdle(c.Items);
+            if (kept.Count > 0) list.Add(new MenuContribution(c.Contributor, kept));
+        }
+        return list;
+    }
+
+    private IReadOnlyList<MenuContribution> CollectContributionsUnfiltered(string currentPerspective)
     {
         var list = new List<MenuContribution>();
         foreach (var c in _contributors)
@@ -326,7 +455,7 @@ public class GlobalMenuRegistry
             into.Add(new GlobalMenuItemView(path, separator ? "separator" : "item", new[] { scope }, Visible: true));
         }
 
-        static void Walk(MenuItemNode node, string prefix, List<GlobalMenuItemView> into, string perspective)
+        void Walk(MenuItemNode node, string prefix, List<GlobalMenuItemView> into, string perspective)
         {
             foreach (var child in node.Children.Values)
             {
@@ -347,7 +476,7 @@ public class GlobalMenuRegistry
                     Kind:        child.IsSeparator ? "separator" : "item",
                     Scopes:      scopes,
                     // ⭐ THE SAME expression RenderGlobalMenu filters on — ⛔ not a re-derivation.
-                    Visible:     child.ResolveBinding(perspective) != null));
+                    Visible:     Offers(child, perspective)));
             }
         }
     }
@@ -475,4 +604,7 @@ public sealed class BarMenu
     public string Name { get; }
     public MenuItemNode? Node { get; set; }
     public List<(MenuContributor Contributor, ContextMenuItemDto Item)> Parts { get; } = new();
+
+    /// <summary>⭐ CE-4085 — drawn flush with the bar's right edge (<see cref="GlobalMenuRegistry.IsRightAligned"/>); the model the draw path obeys.</summary>
+    public bool RightAligned => GlobalMenuRegistry.IsRightAligned(Name);
 }

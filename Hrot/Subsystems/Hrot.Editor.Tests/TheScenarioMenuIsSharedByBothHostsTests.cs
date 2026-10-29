@@ -5,6 +5,7 @@ using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Scenarios;
 using NodeEditor.Core.Action;
+using NodeEditor.UI.Picker;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
@@ -54,6 +55,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         public void SaveAs(string n) { }
         public void SaveTo(string p) { }
         public void TakeCheckpoint() => TakeCheckpointCallCount++;
+        public readonly List<Guid> OpenRecordingCalls = new();
+        public void OpenRecording(Guid exerciseId) => OpenRecordingCalls.Add(exerciseId);
         public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => Array.Empty<SidecarFileInfo>();
     }
 
@@ -181,6 +184,29 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         return (s, c, m);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — the SAME registrar marks the SAME scenario items allowed in Idle on both hosts (so the Start surface offers
+    /// them on either), and the surface's button runs the menu's OWN binding: <c>Open Scenario</c> reaches <c>session.OpenForEdit</c>, <c>Load
+    /// Scenario</c> reaches <c>LoadForLive</c>. ⛔ Save / Save As / Take Checkpoint / New Exercise are not offered in Idle.
+    /// 🔴 Red-proof: drop <c>allowedInIdle: true</c> from <c>Open Scenario</c> ⇒ the set assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4096_BothHostShapes_MarkTheSameScenarioItemsAllowedInIdle_AndTheSurfaceRunsTheMenusBinding()
+    {
+        var editor = EditorShape();
+        var cgf = CgfShape();
+        // ⭐ CE-4098 — "Open Recording (AAR)" joins them (D16): offered whether or not a host has an inventory (a host without one shows it greyed with its cause)
+        var expected = new[] { "File/New Scenario", "File/Open Recording", "File/Open Scenario" };   // ⭐ CE-4097 part two: the Live/Edit load items fold into ONE Open
+
+        foreach (var m in new[] { editor.M, cgf.M })
+            Assert.Equal(expected, m.AllowedInIdleItems().Select(a => a.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray());
+
+        editor.M.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Invoke();
+        Assert.Single(editor.S.OpenForEditCalls);
+        cgf.M.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Invoke();
+        Assert.Single(cgf.S.OpenForEditCalls);   // CGF opens INTO EDITING too; its armed mode (Live) decides ▶
+    }
+
     private static string[] MenuPaths(GlobalMenuRegistry menu)
     {
         var paths = new List<string>();
@@ -241,14 +267,91 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         {
             "File/Checkpoint/Take Checkpoint",
             "File/Edit/Migration History",
-            "File/Edit/New Scenario",
-            "File/Edit/Open Scenario",
             "File/Edit/Save Curated Scenarios to Git",
             "File/Edit/Save Scenario",
             "File/Edit/Save Scenario As",
-            "File/Live/Load Scenario",
             "File/Live/New Exercise",
+            "File/New Scenario",     // ⭐ CE-4097 part two — Open / New are top-level; ⛔ no File/Live/Load Scenario: the armed mode decides ▶
+            "File/Open Recording",   // ⭐ CE-4098
+            "File/Open Scenario",
         }, MenuPaths(menu));
+    }
+
+    // ══ ⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording ═══════════════════
+
+    private static readonly Guid RecordingA = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
+    private static readonly Guid RecordingB = Guid.Parse("00000000-0000-0000-0000-0000000000b2");
+
+    /// <summary>A host shape with a recording inventory: the REAL launcher over a fake picker, its opener the session's <c>OpenRecording</c>.</summary>
+    private static (Session S, Commands C, GlobalMenuRegistry M, Func<Action<PickerResult>?> Pending, Func<PickerRequest?> Request)
+        RecordingShape(Func<IReadOnlyList<ExerciseInventoryItem>> inventory)
+    {
+        var s = new Session();
+        var c = new Commands();
+        var m = new GlobalMenuRegistry();
+        Action<PickerResult>? pending = null;
+        PickerRequest? request = null;
+        var launcher = new RecordingPickerLauncher((r, cb) => { request = r; pending = cb; }, inventory, s.OpenRecording);
+
+        ScenarioMenuCommands.Register(
+            registerCommand:     (d, h) => c.Register(d, h),
+            menu:                m,
+            commands:            c,
+            session:             s,
+            openPicker:          (kinds, cb) => cb(new Asset("Picked")),
+            openSaveAsDialog:    cb => cb("Named"),
+            openRecordingPicker: launcher.Open);
+
+        return (s, c, m, () => pending, () => request);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4098 success 4 — File › Open Recording lists the master's exercises (the picker's entries are the inventory) and a pick goes through
+    /// the session's ONE opener (<c>IScenarioSession.OpenRecording</c> → <c>ReplaySessionIntents.EnterReplay</c>) exactly once with the picked exercise
+    /// id; it is allowed in Idle, so the Start screen's model offers it and its button runs the SAME binding.
+    /// 🔴 Red-proof: drop <c>allowedInIdle: true</c> from the Open Recording registration ⇒ the Start-model assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4098_OpenRecording_ListsTheMastersExercises_OpensThePickThroughTheOneOpener_AndShowsOnTheStartScreen()
+    {
+        var inv = new[]
+        {
+            new ExerciseInventoryItem(RecordingA, new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(3), "alpha"),
+            new ExerciseInventoryItem(RecordingB, new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(4), "beta"),
+        };
+        var (session, commands, menu, pending, request) = RecordingShape(() => inv);
+
+        // on the Start screen's model, and the button is the menu's own binding
+        var idle = menu.AllowedInIdleItems().Single(a => a.Path == ScenarioMenuCommands.OpenRecordingMenuPath);
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Recording");
+        Assert.True(commands.Get(ScenarioMenuCommands.OpenRecordingId)!.IsEnabled());
+        Assert.Null(commands.Get(ScenarioMenuCommands.OpenRecordingId)!.DynamicDisplayName);
+
+        idle.Invoke();   // the Start button
+        Assert.NotNull(request());
+        var listed = request()!.ItemsProvider().ToList();
+        Assert.Equal(new[] { RecordingB, RecordingA }.Select(AssetRecents.RecordingKey), listed.Select(e => e.Id));   // the master's exercises, newest first
+
+        pending()!(new PickerResult(new[] { listed[1] }));   // the user picks alpha
+        Assert.Equal(new[] { RecordingA }, session.OpenRecordingCalls);
+
+        pending()!(new PickerResult(Array.Empty<PickerEntry>()));   // a cancel opens nothing more
+        Assert.Single(session.OpenRecordingCalls);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 — a host with NO recording inventory still carries the item (ruling 49), greyed with its cause, and it is still on the Idle list:
+    /// the two host families agree on presence; only serviceability differs.
+    /// </summary>
+    [Fact]
+    public void CE4098_AHostWithNoRecordingInventory_KeepsTheItemGreyedWithItsCause()
+    {
+        var (_, commands, menu, _) = CgfShape();   // CgfShape passes no openRecordingPicker
+
+        var d = commands.Get(ScenarioMenuCommands.OpenRecordingId)!;
+        Assert.False(d.IsEnabled());
+        Assert.Contains("no recording inventory", d.DynamicDisplayName!());
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Recording");
     }
 
     // ══ ② ONLY SERVICEABILITY DIFFERS ═══════════════════════════════════════
@@ -270,7 +373,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         var editor = EditorShape();
         var cgf    = CgfShape();
 
-        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.LoadLiveId,
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId,
                                    ScenarioMenuCommands.SaveAsId })
         {
             Assert.True(editor.C.Get(id)!.IsEnabled(), $"{id} must be live on the interactive host.");
@@ -294,10 +397,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         var (session, commands, _, _) = CgfShape();
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
-        Assert.True(commands.Invoke(ScenarioMenuCommands.LoadLiveId).Success);
 
         Assert.Equal("PickedOnCgf", Assert.Single(session.OpenForEditCalls));
-        Assert.Equal("PickedOnCgf", Assert.Single(session.LoadForLiveCalls));
     }
 
     /// <summary>
@@ -315,7 +416,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         // ⭐ Presence is identical — the capability difference never removes an item.
         Assert.Equal(MenuPaths(editor.M), MenuPaths(noModal.M));
 
-        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.LoadLiveId,
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId,
                                    ScenarioMenuCommands.SaveAsId })
         {
             Assert.False(noModal.C.Get(id)!.IsEnabled(), $"{id} has no seam to service it.");
@@ -367,7 +468,6 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         // ⭐ Invoke() itself refuses a disabled command, so this asserts BOTH gates: the refusal AND that
         //   nothing reached the session.
         Assert.False(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
-        Assert.False(commands.Invoke(ScenarioMenuCommands.LoadLiveId).Success);
         Assert.Empty(session.OpenForEditCalls);
         Assert.Empty(session.LoadForLiveCalls);
     }

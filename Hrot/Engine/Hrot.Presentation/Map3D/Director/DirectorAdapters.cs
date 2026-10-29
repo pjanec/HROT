@@ -62,6 +62,11 @@ namespace Hrot.UI.Common.Map3D.Director
                 if (Shown is { } sub && !string.IsNullOrWhiteSpace(sub.Text)) DrawSubtitle(ImGui.GetForegroundDrawList(), ImGui.GetIO().DisplaySize, ImGui.GetFont(), sub);
                 return;
             }
+            // ⭐⭐ CE-4081 — the cinema OWNS the keyboard: its one control is Esc, read from ImGui below. The cinema has hidden every panel, so ImGui would otherwise
+            //   want no keyboard, and the map's canvas then DRAINS Raylib's one key queue for its layers BEFORE ImGui begins (CE-3175: one reader a frame) — the Esc
+            //   never reached ImGui and the film could not be stopped. 📐 Measured on the real rlImGui 3.2.0 (Xvfb): a drained queue ⇒ ImGui sees 0 of 10 taps, with
+            //   this request 10 of 10. A request for the NEXT frame (ImGui's own seam — what a text field does while it is typed in), so it is asked every frame.
+            ImGui.SetNextFrameWantCaptureKeyboard(true);
             var io = ImGui.GetIO();
             var dl = ImGui.GetForegroundDrawList();
             var size = io.DisplaySize;

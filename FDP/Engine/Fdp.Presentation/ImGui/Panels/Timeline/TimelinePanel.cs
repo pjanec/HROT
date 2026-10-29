@@ -631,10 +631,12 @@ public sealed class TimelinePanel
         var t = index.FrameTicks;
         if (cursor is { Mode: TimelineMode.Live, CanReview: true })   // ⭐ CE-3330 E2 (R-3059) — a live host seeks by ENTERING A REVIEW
         {
-            items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} Review from {time}", () => cursor.EnterReview(at)));
+            // ⭐ AQ108 D17 — the user's word is DAR (During Action Review); the code keeps EnterReview
+            items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} DAR from {time}", () => cursor.EnterReview(at)));
             if (ev is { } re && re.Frame < t.Count)
-                items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} Review from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
+                items.Add(new TimelineMenuItem($"{Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft} DAR from this event ({nameOf?.Invoke(re.Lane) ?? re.Lane})", () => cursor.EnterReview(t[re.Frame])));
         }
+        if (cursor != null) items.AddRange(cursor.ModeMenuItems(at, time));   // ⭐ CE-4097 part two (D21) — AAR from here · Go live from here · Take checkpoint here
         if (cursor is { CanSeek: true })
         {
             items.Add(new TimelineMenuItem($"Seek here ({time})", () => cursor.Seek(at)));

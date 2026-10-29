@@ -107,11 +107,10 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>The 2-D camera at the 3-D camera's centre and metres per pixel.</summary>
         private void MatchTwoD()
         {
-            var vp = Camera3D.Viewport;
             float zoom = Math.Clamp(1f / Camera3D.MetresPerPixel, _camera2D.MinZoom, _camera2D.MaxZoom);
             var centre = new Vector2(Camera3D.LookAt.X, Camera3D.LookAt.Y);
             var offset = _camera2D.Offset;
-            var d = (vp / 2f - offset) / zoom;
+            var d = (Camera3D.ViewCentre - offset) / zoom;   // ⭐ CE-4084 — the visible map's centre, as the 3-D camera projects it
             var target = centre - (MapCamera.NorthUp ? new Vector2(d.X, -d.Y) : d);   // ⭐ CE-1040 — screen-down is world-south
             _camera2D.ApplyCameraView(new MapCameraView
             {

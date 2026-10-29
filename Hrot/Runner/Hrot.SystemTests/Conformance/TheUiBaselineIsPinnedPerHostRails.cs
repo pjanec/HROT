@@ -113,6 +113,8 @@ public sealed class TheUiBaselineIsPinnedPerHostRails
     /// </summary>
     private static async Task<JsonArray> CaptureRegisteredAsync(EditorProcess host, ITestOutputHelper output)
     {
+        await ClusterConformanceRails.LeaveStartAsync(host, output);   // ⭐ CE-4096 — load first: a switch is refused while Start shows
+
         var perspectives = ((await host.Client.ListPerspectivesAsync()).EnsureOk()
                             .Field("perspectives") as JsonArray)!
                            .Select(n => n!.GetValue<string>())

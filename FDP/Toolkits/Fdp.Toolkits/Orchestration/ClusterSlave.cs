@@ -604,6 +604,20 @@ namespace Fdp.Toolkit.Orchestration
         private ClusterState _clusterState = ClusterState.Idle;
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the cluster state the master LAST ANNOUNCED to this node (a public read of what it already
+        /// follows). ⚠ Not <see cref="LocalClusterState"/>: that is this node's own COMMITTED state, which stays <c>Idle</c> while the
+        /// cluster is already loading — the start gate needs the CLUSTER's. Meaningful only when <see cref="HasFollowedState"/>.
+        /// </summary>
+        public ClusterState FollowedClusterState => _clusterState;
+
+        /// <summary>⭐ <c>CE-4096</c> — a real (non-MasterGone) broadcast has reached this node, so <see cref="FollowedClusterState"/> is a
+        /// fact and not the <c>Idle</c> default of "no master seen yet".</summary>
+        public bool HasFollowedState { get; private set; }
+
+        /// <summary>⭐ <c>CE-4096</c> — the master's last word was <c>MasterGone</c>: set by that broadcast, cleared by the next real one.</summary>
+        public bool MasterGone { get; private set; }
+
+        /// <summary>
         /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — <b>is this node BEHIND its cluster?</b> It follows a master's session, it is in
         /// <c>Idle</c>, and the cluster it follows is not: it has no world to put replicated state into, so its world ingress
         /// stays closed (<c>CycloneNetworkIngressSystem.IsJoinFrozen</c>) until it commits a load. ⭐ A cluster at rest in
@@ -654,8 +668,11 @@ namespace Fdp.Toolkit.Orchestration
                         DropToIdle($"the master of session {_followingSessionId} is gone");
                     _followingSessionId = Guid.Empty;
                     _clusterState = ClusterState.Idle;
+                    MasterGone = true;          // ⭐ CE-4096
                     continue;
                 }
+                MasterGone = false;             // ⭐ CE-4096 — the next real broadcast
+                HasFollowedState = true;
                 _clusterState = ev.CurrentState;
                 ReplayAxis    = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
                 RunNotRecorded = ev.RunNotRecorded;   // ⭐ CE-4090 D14

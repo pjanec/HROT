@@ -288,8 +288,9 @@ export const TOOLS_CATALOG = [
       "path": "/status"
     },
     "params": [],
-    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty }",
+    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode }",
     "notes": [
+      "⭐ CE-4097 (AQ108 D22) — `armedMode` is what the toolbar's ▶ would run from editing on this host: preview | live | aar (set_run_mode changes it); null when the host has no run choice. play / step never follow it.",
       "Use this to verify the runner is alive and check current run state before driving the sim.",
       "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
       "`scenarioDirty` is the LAST check round's verdict (check_unsaved): true = the scenario open for editing has unsaved changes, false = saved; null when no round ran, or the cluster left editing since. Reading it NEVER runs a round — call check_unsaved for a fresh answer.",
@@ -1258,6 +1259,43 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "set_run_mode",
+    "group": "D — Sim / preview / time",
+    "summary": "⭐ CE-4097 (AQ108 D22) — arm what the toolbar's ▶ will run from editing: preview | live | aar (the run-mode indicator's menu, for agents that drive the UI). It changes ONLY the armed mode; play, step and stop never follow it.",
+    "http": {
+      "method": "POST",
+      "path": "/run-mode"
+    },
+    "params": [
+      {
+        "name": "armed",
+        "type": "string",
+        "required": true,
+        "description": "preview | live | aar"
+      },
+      {
+        "name": "confirm",
+        "type": "boolean",
+        "required": false,
+        "description": "Accept the confirmation the indicator would ask (e.g. \"Ends the live session; you return to editing the scenario at its start\"); without it such a move answers 409 with that text and does nothing"
+      }
+    ],
+    "returns": "{ armedMode, mode }; 409 (with the confirmation's text) when the indicator would ask first and confirm was not sent; 409 when the move cannot be made.",
+    "notes": [
+      "From editing (or Idle) arming loses nothing and never asks. While a run goes, arming another mode ends the run and is confirmed — pass confirm:true to accept it.",
+      "get_status → armedMode reads the result. CGF / the all-in-one / the server default to live, the editor to preview."
+    ],
+    "example": {
+      "args": {
+        "armed": "live"
+      },
+      "gist": "arm live for the next play"
+    },
+    "hint": "Req: armed (preview | live | aar). Optional: confirm (bool) — accept the confirmation the indicator would show. Example: set_run_mode({armed:\"live\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "pause",
     "group": "D — Sim / preview / time",
     "summary": "Pause the simulation. Time freezes; commands queue until step/play.",
@@ -1291,7 +1329,8 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "ok:true envelope.",
     "notes": [
-      "Time advances after play (until pause or a breakpoint fires)."
+      "Time advances after play (until pause or a breakpoint fires).",
+      "⭐ CE-4097 (AQ108 D22) — EXPLICIT: from editing play is the DRY RUN (preview) on every host, whatever run mode the host has ARMED (get_status → armedMode). It never loads a live run. The toolbar's ▶ follows the armed mode; this route does not — to go live use load_scenario_live, to change what the toolbar's ▶ does use set_run_mode."
     ],
     "example": {
       "args": {},
@@ -1360,6 +1399,29 @@ export const TOOLS_CATALOG = [
       "gist": "advance 5 simulation ticks"
     },
     "hint": "No required params. Optional: count (number, def 1), dt (seconds per step, def 1/60). Example: step({count:5})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "stop",
+    "group": "D — Sim / preview / time",
+    "summary": "⭐ CE-4097 (AQ108 D22) — ■: the SAME stop as the toolbar's ■. A dry run goes back to editing; a live run ends and the scenario reopens for editing at its start (the armed mode stays Live); a DAR goes back to live; an AAR goes back to the recording's start.",
+    "http": {
+      "method": "POST",
+      "path": "/sim/stop"
+    },
+    "params": [],
+    "returns": "{ published, stoppedFrom, armedMode, state }; 409 where there is nothing to stop (editing, Idle).",
+    "notes": [
+      "It is ONE call with the toolbar's ■ — a request and a click do exactly the same thing.",
+      "Leaving editing is unloading the scenario, which is a load route's job: stop from editing answers 409.",
+      "The answer says what was published; the cluster state changes a frame or two later (get_status → clusterState)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "stop the run like the toolbar's stop button"
+    },
+    "hint": "No params. Example: stop({})",
     "manualVerify": false
   },
 

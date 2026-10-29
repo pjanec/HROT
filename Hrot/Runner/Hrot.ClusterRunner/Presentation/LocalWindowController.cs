@@ -4,6 +4,7 @@ using Fdp.Core.Logging;
 using Fdp.Presentation.Windows;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Runner;
+using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Systems;
 using Hrot.Common;
 
@@ -36,18 +37,78 @@ internal sealed class LocalWindowController
 
     internal Fdp.Presentation.WindowManager.WindowManager? WindowManager { get; private set; }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D12) — what ▶ arms on this host: the editor Preview, CGF / the all-in-one / the server Live. ONE bootstrap
+    /// parameter of the shared runner, set from the runner's mode; ⛔ no behaviour hangs on it yet — <c>CE-4097</c> reads it.
+    /// </summary>
+    internal HostArmedMode ArmedMode { get; }
+
+    /// <summary>⭐ <c>CE-4096</c> — the ONE start gate of this host (null while no window is open, and on an exempt host).</summary>
+    internal StartGate? StartGate { get; private set; }
+
+    /// <summary>⭐ <c>CE-4096</c> — the ONE start surface (the only window claiming <c>Start</c>).</summary>
+    internal StartSurfaceWindow? StartSurface { get; private set; }
+
+    /// <summary>⭐ <c>CE-4096</c> — the cluster-rest read the gate is fed each frame; a seam so a rail can drive the gate through a real
+    /// controller. Default: <see cref="ClusterRestReader"/> over this host's subsystems.</summary>
+    internal Func<ClusterRest>? ClusterRestOverride { get; set; }
+
+    private bool _exitRequested;
+
+    /// <summary>⭐ <c>CE-4096</c> — the Exit menu item / start-surface button asked to close: the frame loop treats it exactly like the
+    /// window's [X] (every <c>IAppExitGuard</c> is asked first). Reads and clears the request.</summary>
+    internal bool TakeExitRequest() { var r = _exitRequested; _exitRequested = false; return r; }
+
+    internal void RequestExit() => _exitRequested = true;
+
     internal LocalWindowController(
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
         RunnerOptions options,
-        PerspectiveCoordinatorSystem? coordinator)
+        PerspectiveCoordinatorSystem? coordinator,
+        HostArmedMode armedMode = HostArmedMode.Live)
     {
         _shell       = shell;
         _subsystems  = subsystems;
         _options     = options;
         _coordinator = coordinator;
+        ArmedMode    = armedMode;
         _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — <b>the start surface, composed ONCE for every cluster-runner host</b>: registers the one window that
+    /// claims <c>Start</c>, builds the one gate and the Exit item. ⛔ Exempt: a process whose only subsystem is the Replay Browser
+    /// (offline, no cluster) — it never rests in a cluster Idle. Extracted from <see cref="OpenLocalWindow"/> so a rail can compose against
+    /// a bare <c>WindowManager</c>.
+    /// </summary>
+    internal void ComposeStartSurface(Fdp.Presentation.WindowManager.WindowManager wm)
+    {
+        var real = _subsystems.Where(s => s is not PerspectiveUpdateSubsystem).ToList();
+        if (real.Count > 0 && real.All(s => s is Hrot.ReplayBrowser.ReplayBrowserSubsystem)) return;
+
+        var gate = new StartGate(wm);
+        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant);
+        wm.RegisterWindow(surface);
+        // ⭐ Exit: the same path as the window's [X] (the frame loop asks every exit guard). Allowed in Idle — the Start surface offers it.
+        wm.GlobalMenu.RegisterItem("File/Exit", RequestExit, allowedInIdle: true);
+        StartGate = gate;
+        StartSurface = surface;
+        // ⭐ coordinator review of CE-4096 — the providers are built ONCE here and folded each frame (⛔ was: rebuilt every frame)
+        _restProviders = ClusterRestReader.Providers(_subsystems);
+        _restSources = _subsystems.OfType<IClusterRestSource>().ToArray();
+    }
+
+    private IReadOnlyList<Hrot.Presentation.DebugApi.ISubsystemDebugProvider> _restProviders = Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>();
+    private IClusterRestSource[] _restSources = Array.Empty<IClusterRestSource>();
+
+    private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+
+    /// <summary>⭐ <c>CE-4096</c> — once a frame, BEFORE <c>WindowManager.Render()</c>: feeds the gate the cluster's rest. No-op with no gate.</summary>
+    internal void TickStartGate() => TickStartGate(Clock.Elapsed.TotalSeconds);
+
+    internal void TickStartGate(double nowSeconds)
+        => StartGate?.Tick(nowSeconds, ClusterRestOverride?.Invoke() ?? ClusterRestReader.From(_restProviders, _restSources.Select(s => s.ReadClusterRest())));
 
     /// <summary>
     /// ⭐ CE-1290 — once a frame: composes the title from the first title source that has a detail (the editor's or CGF's loaded
@@ -128,6 +189,8 @@ internal sealed class LocalWindowController
                 Console.WriteLine($"[Runner] Perspective changed: {oldPersp} -> {newPersp}");
             };
         }
+
+        ComposeStartSurface(wm);   // ⭐ CE-4096
 
         RegisterLayoutMenu(wm);
 
@@ -215,12 +278,14 @@ internal sealed class LocalWindowController
         string? persisted)
     {
         var documentDriven = Hrot.Editor.AiShared.AssetKindExtensions.DocumentDrivenPerspectiveNames;
-        var durable = claimed.Where(p => !documentDriven.Contains(p)).ToList();
+        // ⭐ CE-4096 — Start is entered by the gate only, never a startup choice (it is in the claimed set so A0 allows the gate in).
+        var durable = claimed.Where(p => !documentDriven.Contains(p) && p != Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName).ToList();
 
         // ⭐ 1 — honour the stored value, but only if it is CLAIMED and DURABLE.
         if (!string.IsNullOrEmpty(persisted)
             && claimed.Contains(persisted!)
-            && !documentDriven.Contains(persisted!))
+            && !documentDriven.Contains(persisted!)
+            && persisted != Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName)
             return persisted!;
 
         // ⭐ 2 — otherwise the first durable perspective a requested subsystem owns…
@@ -270,7 +335,7 @@ internal sealed class LocalWindowController
         //   changes the NEXT run: the reset already happened before ImGui was set up, and pretending
         //   otherwise would be a control that lies about when it acts.
         wm.GlobalMenu.RegisterCheckableItem(
-            "Settings/Layout/Reset to default on start",
+            "View/Settings/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
             () => _options.ResetLayoutOnRun,
             v =>
             {
@@ -279,16 +344,16 @@ internal sealed class LocalWindowController
                     $"[Layout] Reset-on-start is now {(v ? "ON" : "OFF")} — it applies from the next run.");
             });
 
-        wm.GlobalMenu.RegisterSeparator("Settings/Layout/sep_save_default");
+        wm.GlobalMenu.RegisterSeparator("View/Settings/Layout/sep_save_default");
 
         // ⭐ CE-1137 — the scene heard from the 3-D camera outside FPS (off by default, saved in the operator's audio.json). 🔒 User,
         //   2026-10-16: "a menu settings for enabling sounds in 3d map non-FPS mode heard from the camera position".
         wm.GlobalMenu.RegisterCheckableItem(
-            "Settings/Sound in the 3-D view (from the camera)",
+            "View/Settings/Sound in the 3-D view (from the camera)",
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
 
-        wm.GlobalMenu.RegisterItem("Settings/Layout/Save current as default", () =>
+        wm.GlobalMenu.RegisterItem("View/Settings/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the
             //    half-reset this batch exists to end.
@@ -308,7 +373,7 @@ internal sealed class LocalWindowController
 
         // ⛔ The command STAYS VISIBLE outside a checkout and says why it cannot run.
         var saveNode = wm.GlobalMenu.Root
-            .Children["Settings"].Children["Layout"].Children["Save current as default"];
+            .Children["View"].Children["Settings"].Children["Layout"].Children["Save current as default"];
         saveNode.GetEnabled    = () => LayoutPaths.TryFindSourceLayoutDirectory() != null;
         saveNode.DynamicLabel  = () => LayoutPaths.TryFindSourceLayoutDirectory() != null
             ? "Save current as default"

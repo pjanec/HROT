@@ -277,6 +277,18 @@ public interface ISubsystemDebugProvider
     ClusterState? ClusterState { get; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — <b>the CLUSTER's state as this host last heard it</b>: what the start gate reads.
+    /// <see langword="null"/> = no master seen yet. ⚠ Not <see cref="ClusterState"/> on an ECS node: that is the node's own COMMITTED
+    /// state and stays <c>Idle</c> while the cluster is already loading. Default = <see cref="ClusterState"/> — the Orchestrator, the
+    /// Editor, ExCon and the Replay Browser already answer the cluster-wide fact there; an ECS node answers through its
+    /// <c>ClusterSlave</c> (<see cref="EcsNodeDebugProvider"/>).
+    /// </summary>
+    ClusterState? FollowedClusterState => ClusterState;
+
+    /// <summary>⭐ <c>CE-4096</c> — the master this host followed has announced it is gone (the start gate shows "Server lost").</summary>
+    bool MasterGone => false;
+
+    /// <summary>
     /// ⭐ The scenario names this node knows about, or <see langword="null"/> when it tracks none — so
     /// <c>GET /scenarios</c> can answer in a cluster host, not only in the editor.
     /// <para>⚠ Same caveat as <see cref="ClusterState"/>: it is cluster-wide inventory, cached per node.</para>
@@ -396,6 +408,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
     private readonly Func<IReadOnlyList<ClusterRosterEntry>?>? _clusterRoster;   // CE-4002
     private readonly Func<string?>? _clusterLoadNotice;   // CE-4087
+    private readonly Func<ClusterState?>? _followedClusterState;   // CE-4096
+    private readonly Func<bool>? _masterGone;                      // CE-4096
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -456,6 +470,10 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<TimelineAccess?>? timeline = null,
         // ⭐⭐ CE-4087 — the master's load-gate text (a Func, like the roster: the core is built in Initialize).
         Func<string?>? clusterLoadNotice = null,
+        // ⭐⭐ CE-4096 — the cluster state this host LAST HEARD (null = no master seen yet) and whether that master is gone: the start
+        //    gate's one input (AQ108 §2.6). Omitted ⇒ FollowedClusterState falls back to `clusterState`, MasterGone is false.
+        Func<ClusterState?>? followedClusterState = null,
+        Func<bool>? masterGone = null,
         // ⭐ CE-4090 (AQ108 D14) — "this run was not recorded", from the same cluster read model as the cluster state
         Func<bool?>? runNotRecorded = null,
         Func<bool?>? recordLiveRunsOff = null,
@@ -463,6 +481,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
         Func<bool?>? scenarioDirty = null)
     {
+        _followedClusterState = followedClusterState;
+        _masterGone = masterGone;
         _runNotRecorded = runNotRecorded;
         _recordLiveRunsOff = recordLiveRunsOff;
         _unsavedCheck = unsavedCheck;
@@ -639,6 +659,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => _eventHistory?.Invoke();
     public TimelineAccess? Timeline => _timeline?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
+    public ClusterState? FollowedClusterState => _followedClusterState is { } f ? f() : _clusterState?.Invoke();   // ⭐ CE-4096
+    public bool MasterGone => _masterGone?.Invoke() ?? false;                                                       // ⭐ CE-4096
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
     public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();

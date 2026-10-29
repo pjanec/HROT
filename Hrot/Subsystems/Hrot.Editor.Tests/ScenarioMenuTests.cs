@@ -66,6 +66,8 @@ public sealed class ScenarioMenuTests
         public void SaveAs(string name)             => SaveAsCalls.Add(name);
         public void SaveTo(string filePath)         => SaveToCalls.Add(filePath);
         public void TakeCheckpoint()                => TakeCheckpointCallCount++;
+        public readonly List<Guid> OpenRecordingCalls = new();
+        public void OpenRecording(Guid exerciseId)  => OpenRecordingCalls.Add(exerciseId);
 
         public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => MigrationSidecars;
     }
@@ -167,15 +169,14 @@ public sealed class ScenarioMenuTests
         // ⛔ The old flat "Scenario" group is GONE — that is the point, not a regression.
         Assert.False(fileNode.Children.ContainsKey("Scenario"));
 
+        // ⭐ CE-4097 part two — "Live" keeps only New Exercise (the cluster reset); Open / New are top-level beside Open Recording (the armed mode decides ▶)
         var live = fileNode.Children["Live"];
-        Assert.Equal(2, live.Children.Count);
-        Assert.True(live.Children.ContainsKey("New Exercise"));
-        Assert.True(live.Children.ContainsKey("Load Scenario"));
+        Assert.Equal(new[] { "New Exercise" }, live.Children.Keys.ToArray());
+        Assert.True(fileNode.Children.ContainsKey("Open Scenario"));
+        Assert.True(fileNode.Children.ContainsKey("New Scenario"));
 
         var edit = fileNode.Children["Edit"];
-        Assert.Equal(6, edit.Children.Count);
-        Assert.True(edit.Children.ContainsKey("Open Scenario"));
-        Assert.True(edit.Children.ContainsKey("New Scenario"));
+        Assert.Equal(4, edit.Children.Count);
         Assert.True(edit.Children.ContainsKey("Save Scenario"));
         Assert.True(edit.Children.ContainsKey("Save Scenario As"));
         Assert.True(edit.Children.ContainsKey("Migration History"));
@@ -210,11 +211,11 @@ public sealed class ScenarioMenuTests
     {
         var (_, commands, _) = CreateRegistrar();
 
-        Assert.Equal(9, commands.RegisterCallCount);
+        Assert.Equal(9, commands.RegisterCallCount);   // ⭐ CE-4097 part two — Load Scenario (live) is folded into Open Scenario: nine
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.OpenRecordingId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewExerciseId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
-        Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadLiveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
@@ -234,16 +235,40 @@ public sealed class ScenarioMenuTests
     /// happily. 📌 The same shape as <c>AX-018</c>, where two paths silently agreed to be wrong.</para>
     /// </summary>
     [Fact]
-    public void TheTwoLoadItemsRouteToTheTwoDifferentModes()
+    public void TheOneOpenItem_OpensForEditing_AndNoLoadLiveItemExistsAnyMore()
     {
-        var (session, commands, _) = CreateRegistrar(
+        // ⭐ CE-4097 part two (AQ108 §3, D12, D22) — the File menu's Live/Edit load items FOLD into the ONE Open Scenario: it opens INTO EDITING (the armed mode decides ▶),
+        //   there is no second "load live" command, and the menu path has no File/Live/Load Scenario.
+        // 🔴 Red-proof: re-registering a load-live command, or Open calling LoadForLive.
+        var (session, commands, menu) = CreateRegistrar(
             openPicker: (kinds, cb) => cb(new FakeScenarioAsset("PickedScenario")));
 
-        Assert.True(commands.Invoke(ScenarioMenuCommands.LoadLiveId).Success);
         Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
 
-        Assert.Equal("PickedScenario", Assert.Single(session.LoadForLiveCalls));
         Assert.Equal("PickedScenario", Assert.Single(session.OpenForEditCalls));
+        Assert.Empty(session.LoadForLiveCalls);                             // Open never goes live: ▶ with Live armed does
+        Assert.Null(commands.Get("scenario.loadLive"));
+        Assert.Equal(ScenarioMenuCommands.OpenScenarioMenuPath, "File/Open Scenario");
+        Assert.DoesNotContain(menu.AllowedInIdleItems(), a => a.Path.StartsWith("File/Live/Load"));
+    }
+
+    /// <summary>⭐ CE-4097 part two — a host passes its run choice's GUARDED open (unsaved edits → Save / Discard / Cancel): the pick reaches IT, not the session's raw open.</summary>
+    [Fact]
+    public void TheOpenItem_GoesThroughTheHostsGuardedOpen_WhenOneIsPassed()
+    {
+        var session = new FakeScenarioSession();
+        var cmds = new RecordingCommandSet();
+        var guarded = new List<string>();
+        ScenarioMenuCommands.Register(
+            registerCommand: (d, h) => cmds.Register(d, h),
+            menu: new GlobalMenuRegistry(), commands: cmds, session: session,
+            openPicker: (kinds, cb) => cb(new FakeScenarioAsset("PickedScenario")), openSaveAsDialog: null,
+            openScenario: guarded.Add);
+
+        Assert.True(cmds.Invoke(ScenarioMenuCommands.LoadId).Success);
+
+        Assert.Equal(new[] { "PickedScenario" }, guarded);
+        Assert.Empty(session.OpenForEditCalls);
     }
 
     [Fact]
@@ -431,7 +456,7 @@ public sealed class ScenarioMenuTests
             menu: menu, commands: cmds, session: session,
             openPicker: null, openSaveAsDialog: null);
 
-        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.LoadLiveId,
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId,
                                    ScenarioMenuCommands.SaveAsId })
         {
             var descriptor = cmds.Get(id);
@@ -460,7 +485,6 @@ public sealed class ScenarioMenuTests
             openSaveAsDialog: cb => { });
 
         Assert.Null(commands.Get(ScenarioMenuCommands.LoadId)!.DynamicDisplayName);
-        Assert.Null(commands.Get(ScenarioMenuCommands.LoadLiveId)!.DynamicDisplayName);
         Assert.Null(commands.Get(ScenarioMenuCommands.SaveAsId)!.DynamicDisplayName);
     }
 
@@ -472,7 +496,6 @@ public sealed class ScenarioMenuTests
         Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
-        Assert.True(commands.Get(ScenarioMenuCommands.LoadLiveId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.SaveId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.SaveAsId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.MigrationHistoryId)!.IsEnabled());
@@ -532,8 +555,7 @@ public sealed class ScenarioMenuTests
         var (session, _, menu) = CreateRegistrar();
 
         Assert.True(menu.Root.Children.TryGetValue("File", out var fileNode));
-        Assert.True(fileNode.Children.TryGetValue("Edit", out var editNode));
-        Assert.True(editNode.Children.TryGetValue("New Scenario", out var leaf));
+        Assert.True(fileNode.Children.TryGetValue("New Scenario", out var leaf));   // ⭐ CE-4097 part two: New Scenario is top-level (File/New Scenario)
         Assert.NotNull(leaf.OnClick);
 
         leaf.OnClick();

@@ -64,6 +64,14 @@ public interface ITimelineCursor
 
     /// <summary>⭐ <c>CE-3330</c> E5 — clears the session's loop (no-op when <see cref="CanLoop"/> is false).</summary>
     void ClearLoop() { }
+
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two (AQ108 D21) — the host's RUN-MODE items for the clicked moment (<paramref name="wallTicks"/>, this cursor's ticks; <paramref name="time"/> is its label):
+    /// in Live <i>AAR from here</i>, in an AAR <i>Go live from here</i>, in any run <i>Take checkpoint here</i> — each changes mode at the moment, <b>without asking</b> (the user picked it). A
+    /// host binds them to its own run choice; ⛔ the panel never switches on a mode. Default: none (the Replay Browser).
+    /// </summary>
+    System.Collections.Generic.IEnumerable<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem> ModeMenuItems(long wallTicks, string time)
+        => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuItem>();
 }
 
 /// <summary>

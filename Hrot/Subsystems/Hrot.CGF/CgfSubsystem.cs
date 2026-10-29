@@ -201,6 +201,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <summary>The Blueprint node drawers this host built (rail access — asserted on the constructed host).</summary>
     internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
+    /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Live), for the wiring rail.</summary>
+    internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
 
     /// <summary>
     /// ⭐⭐ <c>BP-510</c> — this node's view of the current load's staging⇄runtime id table.
@@ -490,6 +492,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
+
+    private Hrot.Presentation.DebugApi.ISubsystemDebugProvider? _unsavedReadsProvider;   // ⭐ CE-4097 part two — the provider the run choice's unsaved check reads (built once)
 
     /// <summary>
     /// ⭐ <c>CE-476</c> — this node's AI debug surface (BTree / HSM / Blueprint sessions + the registries), composed in
@@ -1520,7 +1524,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _entityQuery = _context.World.Query().With<NetworkIdentity>().Build();
 
             _canvas = new MapCanvas();
-            _canvas.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
+            _canvas.Camera.Offset = _canvas.Camera.ViewCentre;   // ⭐ CE-4084 — the visible map's centre (MapCamera.Update keeps it there)
 
             // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
             //   📐 Before this, a map click moved the ring and nothing else on this host.
@@ -1831,6 +1835,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         {
             _clusterTimeAdapter = new ClusterTimeTransportAdapter(
                 bus, () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
+            // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
+            //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); an ECS node keeps no
+            //   cluster read model that sees the round's answer today, so it observes nothing ⇒ ▶ asks no round and counts the scenario as unchanged (the NOTE's rule) — and
+            //   starts asking the day the provider does observe, with no change here.
+            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, _scenarioSession,
+                unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
             var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
             windowManager.StatusBar.RegisterSection(
                 id:             "cgf_time_controls",
@@ -1859,7 +1869,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   an expression-bodied property, so it can never be null. The editor removed its own copy
             //   for the same reason.
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                windowManager.MainToolbar, _clusterTimeAdapter);
+                windowManager.MainToolbar, _clusterTimeAdapter, _clusterTimeAdapter.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed
+            // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (the editor registers the same section)
+            Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, _clusterTimeAdapter, "Scenario");
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
@@ -2886,6 +2898,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐⭐ This is the line that closes the gap design §2 measured: *"CGF registers only the
         //    engine-default Settings … the wall is ScenarioMenuCommands binding to the editor-only
         //    IEditorLogic."* It now binds to IScenarioSession, so there is no wall left.
+        // ⭐ CE-4097 — "Save as… and go live": the Save-As dialog below, then the name back to the run choice (the dialog's callback is what saves)
+        if (_clusterTimeAdapter?.RunChoice is { } runChoice && _saveAsBrowser != null && _scenarioSession != null)
+            runChoice.SaveAsPrompt = onNamed => OpenScenarioSaveAsDialog(catalog, name => { _scenarioSession.SaveAs(name); onNamed(name); });
         if (_scenarioSession != null)
             Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
                 registerCommand: windowManager.ShellCommands.Register,
@@ -2919,7 +2934,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     run();
                 },
                 showMigrationHistory: sidecars => FdpLog<CgfSubsystem>.Info(
-                    "[CGF] {0} migration sidecar(s) for the loaded scenario.", sidecars.Count));
+                    "[CGF] {0} migration sidecar(s) for the loaded scenario.", sidecars.Count),
+                // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording, the same launcher as the editor's: the master's exercise inventory
+                //    as THIS node's slave last heard it (the one read EcsNodeDebugProvider serves), a pick opening into AAR through the
+                //    session's ONE replay intent. Null picker registry ⇒ greyed with its cause (ruling 49).
+                openRecordingPicker: _shellPickers is null ? null : new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+                    openPicker:    _shellPickers.OpenPicker,
+                    listExercises: () => Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _context?.ClusterSlave)()
+                                         ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
+                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
+                    openRecording: id => { if (_clusterTimeAdapter?.RunChoice is { } choice) choice.OpenRecording(id); else _scenarioSession.OpenRecording(id); }).Open,
+                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
+                openScenario: name => { if (_clusterTimeAdapter?.RunChoice is { } choice) choice.OpenScenario(name); else _scenarioSession.OpenForEdit(name); });
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two

@@ -65,6 +65,25 @@ public sealed class ClusterConformanceRails
 
     // ══ the shared machinery ══════════════════════════════════════════════════
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — <b>LOAD BEFORE SWITCHING.</b> A host that boots and rests in Idle shows the <c>Start</c> perspective (the start
+    /// gate, once the cluster has rested 0.5 s), and while it shows every perspective switch is refused (409). ⇒ a rail that walks the perspectives
+    /// leaves Start first, the way a user does: it loads a scenario (the ordinary load path), then waits for the gate to hand the window back.
+    /// ⭐ ONE helper for both baseline rails (<see cref="CaptureByKindAsync"/> and the UI-baseline's registered-window capture) — a copy would be two
+    /// implementations of one mechanism. ⛔ A no-op on a host that is not in Start (a headless host has no window manager at all, so no Start).
+    /// </summary>
+    internal static async Task LeaveStartAsync(EditorProcess host, ITestOutputHelper output)
+    {
+        string? Perspective(ApiResult r) => r.Ok ? r.String("perspective") : null;
+        if (Perspective(await host.Client.GetStatusAsync()) != "Start") return;
+
+        output.WriteLine($"[{host.Mode}] the Start perspective shows (cluster Idle) — loading '{ConformanceScenario}' to leave it");
+        await LoadLiveAsync(host, output);
+        for (int i = 0; i < 50 && Perspective(await host.Client.GetStatusAsync()) == "Start"; i++)
+            await Task.Delay(100);   // the gate leaves on the frame after the cluster leaves Idle
+        Assert.NotEqual("Start", Perspective(await host.Client.GetStatusAsync()));
+    }
+
     /// <summary>⭐ Every captured panel in one host, keyed by KIND, with its id and canonical model.</summary>
     /// <remarks>
     /// ⭐ <c>internal</c>, not <c>private</c>, since <c>CE-016</c>: a second conformance file needs the
@@ -76,6 +95,8 @@ public sealed class ClusterConformanceRails
         EditorProcess host, ITestOutputHelper output)
     {
         var byKind = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
+
+        await LeaveStartAsync(host, output);   // ⭐ CE-4096 — load first: a switch is refused while Start shows
 
         var perspectives = ((await host.Client.ListPerspectivesAsync()).EnsureOk()
                             .Field("perspectives") as JsonArray)!

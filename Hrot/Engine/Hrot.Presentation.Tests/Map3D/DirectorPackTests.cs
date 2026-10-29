@@ -769,4 +769,168 @@ public sealed class DirectorPackTests : IDisposable
         }
         Assert.True(frames.Count(f => f.Item == 1) > frames.Count(f => f.Item == 0), "B's take (1.5 s) is longer than A's (1 s)");
     }
+
+    // ── CE-4081 — Esc stops a take played on the editor's cinema ───────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A live pack on a REAL window manager (the cinema hides its panels and draws its overlay through it), headless of any renderer.</summary>
+    private (DirectorPack Pack, LiveHost Host) LivePackOn(Fdp.Presentation.WindowManager.WindowManager wm)
+    {
+        var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
+        store.Save(new Take
+        {
+            Scenario = "s-a", Name = "main",
+            Keys = new[] { new CameraKey { At = new AtExpr(1d), Camera = new CameraSpec { LookAt = Key1At } } },
+            EndAt = new AtExpr(50d),
+        });
+        var host = new LiveHost(store);
+        var pack = DirectorPack.Attach(new DirectorPackHost(host, () => wm, () => null, Headless: true, Pilot: () => null,
+                                                            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel()));
+        return (pack, host);
+    }
+
+    /// <summary>
+    /// The editor's input chain, as one frame runs it (<c>Program.cs</c>): the director ticks, the map's canvas routes the keys (it DRAINS Raylib's one key queue
+    /// unless ImGui wants the keyboard — <c>RaylibInputProvider.IsKeyboardCaptured</c> = <c>io.WantCaptureKeyboard</c>), then ImGui begins and receives the keys
+    /// still in that queue (rlImGui — ⚠ emulated here: measured on the real rlImGui 3.2.0 under Xvfb, a queue drained before <c>rlImGui.Begin</c> gives ImGui
+    /// 0 of 10 Esc taps, an undrained one 10 of 10), and the window manager draws — the cinema's overlay among its frame overlays.
+    /// </summary>
+    private sealed class EditorFrame : IDisposable
+    {
+        private sealed class QueueInput : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+        {
+            public readonly Queue<int> Keys = new();
+            public System.Numerics.Vector2 MousePosition => default;
+            public System.Numerics.Vector2 MouseDelta => default;
+            public float MouseWheelMove => 0f;
+            public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+            public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+            public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+            public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+            public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+            public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+            public int GetKeyPressed() => Keys.Count > 0 ? Keys.Dequeue() : 0;
+            public bool IsMouseCaptured => false;
+            public bool IsKeyboardCaptured => ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;   // the real provider's definition
+        }
+
+        private sealed class QuietCamera : Fdp.Toolkit.Vis2D.Components.MapCamera
+        {
+            public override void BeginMode() { }
+            public override void EndMode() { }
+            public override void Update(float dt) { }
+            public override bool HandleInput(Fdp.Toolkit.Vis2D.Abstractions.IInputProvider input) => false;
+        }
+
+        private readonly QueueInput _input = new();
+        private readonly Fdp.Toolkit.Vis2D.MapCanvas _canvas;
+        private readonly ImGuiTestFixture _imgui = new();
+        private readonly Fdp.Presentation.Icons.IconAtlas _atlas = new(new IntPtr(1), 256f, 256f, 16f);
+        private bool _escapeDown;
+
+        public Fdp.Presentation.WindowManager.WindowManager Wm { get; }
+        public int KeysTheMapDrained;
+
+        public EditorFrame()
+        {
+            Wm = new Fdp.Presentation.WindowManager.WindowManager(_atlas);
+            _canvas = new Fdp.Toolkit.Vis2D.MapCanvas(_input) { Camera = new QuietCamera() };
+        }
+
+        /// <summary>One frame: <paramref name="tick"/> (the director), a raylib key press when <paramref name="escape"/>, the map's update, ImGui, the window manager.</summary>
+        public void Run(Action tick, bool escape = false)
+        {
+            tick();
+            if (escape) _input.Keys.Enqueue((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.Escape);
+            int before = _input.Keys.Count;
+            _canvas.Update(1f / 60f);
+            KeysTheMapDrained += before - _input.Keys.Count;
+            var io = ImGuiNET.ImGui.GetIO();
+            bool fed = false;
+            while (_input.Keys.Count > 0) { if (_input.Keys.Dequeue() == (int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.Escape) fed = true; }
+            if (fed) { io.AddKeyEvent(ImGuiNET.ImGuiKey.Escape, true); _escapeDown = true; }
+            else if (_escapeDown) { io.AddKeyEvent(ImGuiNET.ImGuiKey.Escape, false); _escapeDown = false; }
+            _imgui.NewFrame();
+            Wm.Render();
+            _imgui.Render();
+        }
+
+        /// <summary>Whether ImGui holds the keyboard now (what the map's router reads next frame).</summary>
+        public bool ImGuiWantsTheKeyboard => ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
+
+        public void Dispose() { _atlas.Dispose(); _imgui.Dispose(); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4081</c> (docs/DESIGN_Film_Director.md §8.3 "CinemaMode … Esc stops") — Esc stops a TAKE played in the editor, through the ONE stop (<c>EscapePressed</c> →
+    /// <c>runner.Stop()</c>, the Stop button's own), and the editor is back as it was (preview left, cinema off, the film camera released, the map's keys again its own).
+    /// 📐 Root cause, measured: the cinema hides every panel, so ImGui no longer wants the keyboard — and the map's canvas then DRAINS Raylib's one key queue for its layers
+    /// BEFORE ImGui begins, so the cinema's <c>ImGui.IsKeyPressed(Escape)</c> never fired. 🔴 Mutation: <c>WindowCinema.Draw</c> not asking ImGui for the keyboard
+    /// (<c>SetNextFrameWantCaptureKeyboard</c> removed) ⇒ the map drains the Esc and the run plays on ⇒ red. 🔴 Mutation 2: <c>cinema.EscapePressed</c> not set in
+    /// <c>DirectorPack.Attach</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4081_Esc_StopsATake_PlayedOnTheCinema_ThroughTheMapsKeyRouter_AndTheEditorIsBackAsItWas()
+    {
+        FilmStudio.Reset();
+        using var frame = new EditorFrame();
+        var (pack, host) = LivePackOn(frame.Wm);
+        void Tick() => pack.Tick();
+
+        for (int i = 0; i < 5; i++) frame.Run(Tick);
+        Assert.False(frame.ImGuiWantsTheKeyboard);                                         // no film: the map keeps its keys
+
+        Assert.Empty(pack.Runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        for (int i = 0; i < 40; i++) frame.Run(Tick);
+        Assert.Equal(DirectorPhase.Playing, pack.Runner.Phase);
+        Assert.True(frame.Wm.Cinema && pack.Cinema.Active && host.InPreview);              // the film: panels hidden, in the preview
+        Assert.NotNull(FilmStudio.Shot);
+        int stepsBefore = host.Steps;
+
+        frame.Run(Tick, escape: true);                                                     // the person presses Esc
+        for (int i = 0; i < 3; i++) frame.Run(Tick);
+
+        Assert.True(frame.KeysTheMapDrained == 0, $"the map drained {frame.KeysTheMapDrained} key(s) the cinema needed");
+        Assert.False(pack.Runner.Busy, $"still {pack.Runner.Phase}");
+        Assert.Equal(DirectorPhase.Stopped, pack.Runner.Phase);
+        Assert.Equal("stopped", pack.Runner.Reports[0].Status);
+        Assert.False(host.InPreview);                                                      // back out of the preview, as the Stop button leaves it
+        Assert.False(pack.Cinema.Active);
+        Assert.False(frame.Wm.Cinema);                                                     // the panels are back
+        Assert.Null(FilmStudio.Shot);                                                      // the film camera released
+        Assert.InRange(host.Steps - stepsBefore, 0, 2);                                    // no longer stepping
+        for (int i = 0; i < 5; i++) frame.Run(Tick);
+        Assert.False(frame.ImGuiWantsTheKeyboard);                                         // the map's key router is its own again
+        Assert.InRange(host.Steps - stepsBefore, 0, 2);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4081</c> — the same for a REEL: Esc stops the whole reel (not just the item on screen — the next item never starts), and the editor is back as it was.
+    /// 🔴 Mutation: as above (<c>SetNextFrameWantCaptureKeyboard</c> removed ⇒ the map drains the Esc ⇒ the reel plays on).
+    /// </summary>
+    [Fact]
+    public void CE4081_Esc_StopsAReel_PlayedOnTheCinema_NotJustItsFirstItem()
+    {
+        FilmStudio.Reset();
+        using var frame = new EditorFrame();
+        var (pack, host) = LivePackOn(frame.Wm);
+        void Tick() => pack.Tick();
+        var reel = new Reel { Name = "two", Items = new[] { new ReelItem { Scenario = "s-a", Take = "main" }, new ReelItem { Scenario = "s-a", Take = "main" } } };
+
+        Assert.Empty(pack.Runner.Play(new PlayRequest(reel)));
+        for (int i = 0; i < 40; i++) frame.Run(Tick);
+        Assert.Equal((DirectorPhase.Playing, 0), (pack.Runner.Phase, pack.Runner.CurrentItem));
+        Assert.True(frame.Wm.Cinema && host.InPreview);
+
+        frame.Run(Tick, escape: true);
+        for (int i = 0; i < 3; i++) frame.Run(Tick);
+
+        Assert.True(frame.KeysTheMapDrained == 0, $"the map drained {frame.KeysTheMapDrained} key(s) the cinema needed");
+        Assert.Equal(DirectorPhase.Stopped, pack.Runner.Phase);
+        Assert.Equal(new[] { "stopped", "pending" }, pack.Runner.Reports.Select(r => r.Status));   // item 2 never began
+        Assert.False(host.InPreview);
+        Assert.False(frame.Wm.Cinema);
+        Assert.Null(FilmStudio.Shot);
+        for (int i = 0; i < 30; i++) frame.Run(Tick);
+        Assert.Equal((DirectorPhase.Stopped, -1), (pack.Runner.Phase, pack.Runner.CurrentItem));   // and it stays stopped
+    }
 }

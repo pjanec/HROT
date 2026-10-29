@@ -55,4 +55,28 @@ public sealed class DebugApiStartPerspectiveTests
         Assert.Contains("Start", error);
         Assert.Equal("Start", wm.CurrentPerspective);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4054</c> (second half) — <c>GET /status</c> through the REAL handler, over the editor's real preview controller: <c>inPreview</c> is
+    /// true exactly while the cluster is in the dry run's state, and false in a live run, a replay, a review and the edit state.
+    /// 🔴 Red-proof: the controller's <c>IsInPreviewMode</c> widened to also hold in <c>OperatingLive</c> ⇒ the Live row fails.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview, true)]
+    [InlineData(Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,    false)]
+    [InlineData(Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay,  false)]
+    [InlineData(Fdp.Toolkit.Orchestration.ClusterState.OperatingReview,  false)]
+    [InlineData(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,    false)]
+    public void CE4054_GetStatus_InPreview_IsTrueOnlyInTheDryRun(Fdp.Toolkit.Orchestration.ClusterState state, bool expected)
+    {
+        using var h = new EditorHarness();
+        var controller = new Hrot.Editor.EditorSubsystem.EditorPreviewController(
+            new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(null), () => h.Bus, () => state,
+            new Fdp.Toolkit.Time.IntentTimeCommands(h.Bus));
+        var svc = h.BuildDebugApiService(preview: controller, clusterState: () => state);
+
+        var status = svc.GetStatus().AsObject();
+        Assert.Equal(state.ToString(), status["clusterState"]!.GetValue<string>());
+        Assert.Equal(expected, status["inPreview"]!.GetValue<bool>());
+    }
 }
