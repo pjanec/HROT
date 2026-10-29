@@ -264,7 +264,7 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(mode, ClusterFactsIngress.StateOf(topic).ArmedMode);
     }
 
-    /// <summary>⭐ CE-3341 — an older sender's broadcast (the field never set) and a value this build does not know both read as the default, Live.</summary>
+    /// <summary>⭐ R-1043 — the mode of the last scenario load rides the cluster-state broadcast both ways; an older sender's (field never set) reads Live.</summary>
     [Fact]
     public void R1043_TheLastLoadMode_RidesTheBroadcastBothWays_AndAnOlderSenderReadsLive()
     {
@@ -274,6 +274,7 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(ClusterArmedMode.Live, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).LastLoadMode);
     }
 
+    /// <summary>⭐ CE-3341 — an older sender's broadcast (the field never set) and a value this build does not know both read as the default, Live.</summary>
     [Fact]
     public void CE3341_AnOlderSendersBroadcastAndAnUnknownValue_ReadAsLive()
     {
