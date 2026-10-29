@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -1498,3 +1498,19 @@ sequenceDiagram
 
 ⚠ **Behaviour changes that are deliberate:** (1) a cluster whose Brain / MuscleGround have not reported now rejects every non-load request (the latch is closed) — suites that are not about readiness build their master from `TestClusterConfig.NothingMandatory()` / `MandatoryRoles = None`; (2) the HTTP cluster routes answer 409 until the node's view can operate; (3) `ClusterUiCache.IsBootstrapped` is false while the master is gone.
 ⛔ **Not built here** (their slices): the node-reported phase / participants' levels (R2), the loading screen and greyed editor controls (U1), the admission policy (R4). Related: [`Architect_Question_110_Readiness_Protocol.md`](blueprints/Architect_Question_110_Readiness_Protocol.md) §4 R1.
+
+### 11.5 ⭐⭐ THE CLUSTER ERROR STATE — **a required node or role lost while a scenario is loaded or running** *(R-3073, user `2026-10-29`; ⛔ SUPERSEDES the "abort + Idle to survivors" teardown of `EjectNode` for that case)*
+
+🔒 **User, `2026-10-29`:** *"Putting the cluster into error state seems sufficient to me (master broadcasts error state of the cluster with the reason, pauses clock, nodes show some red error indicator in status bar), until the master clears the error state the node operations are disallowed similarly to when node is not ready to play"* · *"If cluster is broken, user can likely just exit or leave the current armed mode … into some idle mode where nothing can be done but waiting for the cluster to recover."*
+
+| | |
+|---|---|
+| **when** | a mandatory name OR role is lost while the cluster is loading or operating. ⭐ In Idle there is no world to lose — it is only *not ready* (R-3069) and recovers by itself |
+| **what the master does** | publishes `Degraded` + an **error reason** (*"Brain (CGF) lost at 00:12:31"*) beside `WaitingFor`; **pauses the clock**; ⛔ no abort, no Idle — the world stays for inspection; the live recording is closed and KEPT up to the failure (⚠ the recorder's behaviour under the pause to be measured before building) |
+| **sticky** | a returning node does NOT clear it — the lost node's state is gone (crash recovery out of scope, user) |
+| **the only exits** | **Close** (`LeaveReason.Close` through the ONE door, AQ108 §2.11a/§2.15) and Exit, both exempt from the gate, plus HTTP `POST /replay/stop` and `/cluster/cancel`. ⛔ Save refused (the world may be inconsistent): Close asks only *"discard and close?"* |
+| **cleared** | when the cluster reaches Idle; it is then *not ready, waiting for: Brain* until the node returns |
+| **nodes** | a red status-bar indicator with the reason (ui); every operation refused like *not ready* |
+| ⚠ **CE-3344 gap** | it gated `POST /replay/stop` — HTTP had no way back to Idle while not operable. CE-3345 exempts every way back to Idle and rails it |
+
+⛔ Rejected: tear down at once (hides what happened, destroys the evidence) · pause and resume when the node returns (its state is lost) · an operator "reset cluster" item (the same as Close).

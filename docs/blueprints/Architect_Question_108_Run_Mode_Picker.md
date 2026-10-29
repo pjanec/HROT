@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
-updated: 2026-10-29 (CE-4101 follow-up: §2.11a — the exit goes through the door (ONE composed exit guard), the scenario menu registered ONCE by the owner (deviation 6 closed), back-to-Start recorded (13)) · 2026-10-29 (CE-4101: §2.11a as-built — the ONE guarded door in and out of the open scenario; §2.11's guard moved from the choice into it) · 2026-10-29 (CE-1439: §2.12 as-built — the Orchestrator composes the scenario menu and the panel asks the one run surfaces) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b) · 2026-10-29 (CE-3340 ① as-built in D7's block, D18's recipe name moved to `recipes/scenarios/<seed>`) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
+updated: 2026-10-29 (§2.15 NEW — the File menu, R-3073: load follows the armed mode (corrects §2.8 row 9), Close replaces New Exercise, no submenus, Terrain… removed) · 2026-10-29 (CE-4101 follow-up: §2.11a — the exit goes through the door (ONE composed exit guard), the scenario menu registered ONCE by the owner (deviation 6 closed), back-to-Start recorded (13)) · 2026-10-29 (CE-4101: §2.11a as-built — the ONE guarded door in and out of the open scenario; §2.11's guard moved from the choice into it) · 2026-10-29 (CE-1439: §2.12 as-built — the Orchestrator composes the scenario menu and the panel asks the one run surfaces) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b) · 2026-10-29 (CE-3340 ① as-built in D7's block, D18's recipe name moved to `recipes/scenarios/<seed>`) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
 current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
@@ -1120,6 +1120,33 @@ choice already owns it.
 | ③ `ScenarioDoor.OperatorOpening` raised "only when the move was answered by the bound asker" | raised when the CALLER passed no asker (`asker is null`) — inside the go-lambda, just before the raw verb; `RecordingOpening` (the `LastExercise` bookkeeping) still runs for every caller and no longer arms | `Admit` resolves `asker ?? _asker`; "no asker passed" is exactly the operator's call, and an explicit asker (HTTP's `RefusingAsker`) is exactly D22's |
 | ② every `Armed = X` becomes `Arm(X)` | also the dry run's `Stop & arm`, AAR → Live/Preview, `AarFromHere` and `GoLiveFromHere` — every write — each sends the op | one writer; those moves change the armed mode the same way the indicator does |
 | ⑤ hosts with no time control send nothing | unchanged: `RunModeChoice` exists only where `AttachRunChoice` ran | — |
+
+### 2.15 ⭐⭐⭐ THE FILE MENU, ONE FOR EVERY HOST — and LOAD FOLLOWS THE ARMED MODE *(R-3073, user `2026-10-29`; backend design, ui builds the menu)*
+
+🔒 **User, `2026-10-29`** (verbatim): *"Nothing like "New exercise" makes clear sense to the user."* · *"with Live armed, Load goes straight to live - this is what it should do, this is how Non-editor cluster setup Interpret the play button. But even those non-editor setups can still do the editing if they switch their armed mode to edit/preview. Editor node always load into the edit/preview mode. I think this has been the ruling all the time"* · *"New asset items should be available only in the editing mode."* · *"Load checkpoint is a valid item and should go into live mode, which is paused at the checkpointed state. Menu item like file/dit and file/live else, they should be gone."* · *"During live run, the 'save checkpoint' should be available."* · on the terrain item: *"the recipes should contain the terrain … And the terrain is not replaceable afterwords."* · *"approved, record it."*
+
+```
+File
+  Load Scenario…            Live armed: live, paused at the start · Preview armed: editing
+  New Scenario…             from a recipe (the recipe fixes the terrain), always editing (arms Preview)
+  Load Checkpoint…          live, paused at the checkpoint (the built restore, D18 branch rule)
+  Open Exercise Recording…  review (AAR)
+  ─────────
+  Save Checkpoint           only during a live run
+  ─────────
+  Save · Save As… · Save All · New Asset… ▸ · Open Asset…     only while editing (hidden otherwise)
+  ─────────
+  Close                     back to Idle (Start); through the ONE door (§2.11a); exempt from the readiness gate
+  Exit
+```
+
+| rule | |
+|---|---|
+| ⭐⭐ **Load follows the cluster's armed mode** (R-3068: the host default is sent with the load — editor Preview, CGF Live) | ⛔ **SUPERSEDES row 9 of the CE-4097 as-built** (*"Open always opens INTO editing"*) — a drift from the fifth pass, now corrected |
+| ⭐ **no submenus** | ⛔ `File/Live/…`, `File/Edit/…`, `File/Checkpoint/…` and **New Exercise** are gone — **Close** replaces New Exercise (`LeaveReason.Close`; the unused `BackToStart` folds into it) |
+| ⭐ **context sections are HIDDEN when they do not apply** | the editing group only while editing; Save Checkpoint only in a live run; on Start only the first four + Close + Exit, greyed while the cluster is not ready (R-3069) |
+| ⭐ **the cluster error state** (`DESIGN_Cluster_Load_Phase.md` §11.5) | only Close and Exit work; Close is the way out — the master clears the error on reaching Idle |
+| ⛔ **`File/Terrain…` is REMOVED** with `TerrainPickerLauncher` (its only two users: `EditorSubsystem.cs:5118`, `CgfSubsystem.cs:2869`) | the recipe owns the terrain and a scenario's terrain is not replaceable — `DESIGN_Terrain_World.md` §7.3's picker is SUPERSEDED |
 
 ## 3. Every move, with what the user is told
 
