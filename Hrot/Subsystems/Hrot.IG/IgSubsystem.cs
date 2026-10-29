@@ -50,6 +50,9 @@ namespace Hrot.IG
         /// declared and assertable. ⛔ Fabricating an adapter here would invent a control path the operator's
         /// UI does not have.</para>
         ///
+        /// <para>📐 <b>CE-1445 (R-1044) update:</b> IG now holds a <c>ClusterTimeTransportAdapter</c> too — built by <c>NodeRunControls.For</c> with the Player profile for the GATE / waiting screen only
+        /// (<c>IProvidesRunControls</c>, below). ⛔ It is still NOT offered as a drive: this debug surface keeps <c>drive: null</c>, and the profile suppresses the toolbar time control.</para>
+        ///
         /// <para>⭐ IG is still a full ACK participant in the roster — 📌 <c>PARTICIPATE ≠ OBSERVE</c>: it
         /// executes the master's ticks, it just does not ISSUE them.</para>
         /// </summary>
