@@ -113,7 +113,7 @@ public sealed class ScenarioNewAssetTests
 
         svc.CreateNew(svc.AvailableRecipes().First(), "NewName", "Sub");
 
-        Assert.Equal("Recipes/SeedScenario", Assert.Single(session.Opens));
+        Assert.Equal(ScenarioNewAssetService.SeedNameToScenarioName("SeedScenario"), Assert.Single(session.Opens));
         Assert.Empty(session.SaveScenarioAsCalls);                                  // the door is asking: nothing saved yet
         session.TheUserConfirms();
         Assert.Equal("Sub/NewName", Assert.Single(session.SaveScenarioAsCalls));    // the open went out, then the save
