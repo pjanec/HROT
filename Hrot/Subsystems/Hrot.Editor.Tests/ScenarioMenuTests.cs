@@ -177,7 +177,7 @@ public sealed class ScenarioMenuTests
         var mine = new[]
         {
             FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SaveCheckpoint,
-            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.Close,
+            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.SaveScenarioAsRecipe, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.Close,
         };
         var registered = LeafPaths(menu).Where(x => !x.Contains("/sep-")).ToArray();
         Assert.Equal(mine.OrderBy(x => x, StringComparer.Ordinal), registered.OrderBy(x => x, StringComparer.Ordinal));
@@ -223,7 +223,7 @@ public sealed class ScenarioMenuTests
     {
         var (_, commands, _) = CreateRegistrar();
 
-        Assert.Equal(10, commands.RegisterCallCount);   // ⭐ CE-1443 — New Exercise is gone; Load Checkpoint and Close are new
+        Assert.Equal(11, commands.RegisterCallCount);   // ⭐ CE-1443 — New Exercise is gone; Load Checkpoint, Close and (B2) Save Scenario as Recipe are new
         Assert.NotNull(commands.Get(ScenarioMenuCommands.OpenRecordingId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadCheckpointId));
@@ -232,6 +232,7 @@ public sealed class ScenarioMenuTests
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsRecipeId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.TakeCheckpointId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.UpdateCuratedId));
@@ -414,6 +415,24 @@ public sealed class ScenarioMenuTests
         Assert.False(orchestratorMenu.Offers(orchestratorMenu.Root.Children["File"].Children["Save"], null));
     }
 
+    /// <summary>
+    /// ⭐ CE-1443 B2 — <i>Save Scenario 'x' as Recipe…</i> is the scenario's Save As under the recipe name <c>recipes/scenarios/&lt;name&gt;</c> (which New Scenario re-reads), named in its label.
+    /// 🔴 Mutation: the handler calling <c>session.SaveAs(name)</c> (no recipe name) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1443_B2_SaveScenarioAsRecipe_SavesUnderTheRecipeName()
+    {
+        var session = new FakeScenarioSession { State = ClusterState.OperatingEdit, LoadedScenarioNameValue = "hill-attack" };
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => cb("hill-template"), openRecordingPicker: () => { });
+
+        var item = commands.Get(ScenarioMenuCommands.SaveAsRecipeId)!;
+        Assert.Equal("Save Scenario 'hill-attack' as Recipe…", item.DynamicDisplayName!());
+        commands.Invoke(ScenarioMenuCommands.SaveAsRecipeId);
+        Assert.Equal("recipes/scenarios/hill-template", Assert.Single(session.SaveAsCalls));
+    }
+
     [Fact]
     public void CE1443_S2_TheEditingGroup_And_SaveCheckpoint_AreDrawnOnlyInTheirState_AndStartShowsTheFirstFourPlusCloseAndExit()
     {
@@ -427,6 +446,7 @@ public sealed class ScenarioMenuTests
         ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => true);
         // … and AFTER it (the editor's Save As / Save All, the window controller's Exit)
         menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
+        menu.RegisterItem(FileMenuLayout.SaveAsRecipe, () => { });
         menu.RegisterItem(FileMenuLayout.SaveAll, () => { });
         menu.RegisterItem(FileMenuLayout.Exit, () => { }, allowedInIdle: true);
 

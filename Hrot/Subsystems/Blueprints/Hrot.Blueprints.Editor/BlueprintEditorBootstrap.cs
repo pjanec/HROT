@@ -326,34 +326,10 @@ public static class BlueprintEditorBootstrap
         //    deployment (the DLL sits beside the host); with config it is the configured tree.
         //    ⛔ The assembly probe above STAYS: it answers a different question — "is AI.Behaviors even
         //    loaded" — and returning an empty list when it is not is deliberate.
-        var recipesPath = AssetRoots.RecipesFor(AssetKind.Blueprint);
-        if (!Directory.Exists(recipesPath))
-            return recipes;
-
-        // Enumerate all .bp.json files in the recipes directory.
-        // Case-insensitive match: files may have drifted extension casing when authored
-        // on Windows; PlatformDefault would silently miss them on Linux.
-        var recipeFiles = Directory.GetFiles(recipesPath, "*.bp.json",
-            new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive });
-
-        foreach (var filePath in recipeFiles)
-        {
-            try
-            {
-                var json = File.ReadAllText(filePath);
-                var asset = BlueprintJsonServices.Deserialize(json);
-
-                // Only include assets with Recipe metadata
-                if (asset?.EditorMetadata.Recipe != null)
-                {
-                    recipes.Add(asset);
-                }
-            }
-            catch
-            {
-                // Skip files that fail to deserialize
-            }
-        }
+        // ⭐ CE-1443 B2 — the ONE shared recipe lister (RecipeFiles: the kind's recipes folder, case-insensitive extension), the same one
+        //   "Save Blueprint as Recipe…" writes for; ⭐ only assets that carry Recipe metadata are offered (unchanged).
+        recipes.AddRange(Hrot.Editor.AiShared.Recipes.RecipeFiles.Read<BlueprintAsset>(AssetKind.Blueprint,
+            f => BlueprintJsonServices.Deserialize(File.ReadAllText(f)) is { EditorMetadata.Recipe: not null } asset ? asset : null));
 
         return recipes;
     }

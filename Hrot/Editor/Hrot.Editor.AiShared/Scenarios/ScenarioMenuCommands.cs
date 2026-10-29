@@ -59,6 +59,9 @@ public static class ScenarioMenuCommands
     /// <summary>Id for the Save As Scenario command: <c>"scenario.saveAs"</c>.</summary>
     public const string SaveAsId = "scenario.saveAs";
 
+    /// <summary>⭐ CE-1443 B2 — <i>Save Scenario 'x' as Recipe…</i>: the scenario saved under <c>recipes/scenarios/&lt;name&gt;</c> (the same Save As), which <i>New Scenario</i> lists.</summary>
+    public const string SaveAsRecipeId = "scenario.saveAsRecipe";
+
     /// <summary>
     /// Id for the Load Scenario command: <c>"scenario.load"</c>. ⭐ The id is UNCHANGED so hotkeys, MCP identity and every existing rail keep working; ⭐ <c>CE-1443</c> (R-1043) its meaning is now
     /// <i>load into the cluster's armed mode</i> (it used to say <i>open for edit</i>).
@@ -243,6 +246,17 @@ public static class ScenarioMenuCommands
             dynamicDisplayName: openSaveAsDialog != null
                 ? () => string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario As…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " As…"
                 : Unavailable("Save Scenario As", false, NoSaveAsReason));
+
+        // ⭐ CE-1443 B2 (AQ108 §2.15) — the scenario as a RECIPE: the same Save As, under the recipe name (ContentLayout.ScenarioRecipeName — recipes/scenarios/<name>, which New Scenario re-reads on every open); terrain and entities kept.
+        RegisterCommand(
+            registerCommand, menu, commands, closedReason,
+            SaveAsRecipeId, "Save Scenario as Recipe…", FileMenuLayout.SaveScenarioAsRecipe,
+            "Save the scenario as a recipe New Scenario offers",
+            isEnabled: () => openSaveAsDialog != null,
+            handler: _ => openSaveAsDialog?.Invoke(name => session.SaveAs(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(name))),
+            dynamicDisplayName: openSaveAsDialog != null
+                ? () => string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario as Recipe…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " as Recipe…"
+                : Unavailable("Save Scenario as Recipe…", false, NoSaveAsReason));
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
