@@ -4221,7 +4221,13 @@ namespace Hrot.Editor
                 requestScenarioSaveAs: openScenarioSaveAs,
                 scenarioName:         () => _editorLogic?.LoadedScenarioName,   // ⭐ CE-1443 part B — the shared label rule (SaveLabels) names it
                 resolveActiveDocument: () =>
-                    ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager));
+                    ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager),
+                saveBlueprintRecipe: (asset, path) =>
+                {
+                    if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(_aiDocumentManager, asset.AssetId)
+                        is not Hrot.Blueprints.Core.Assets.BlueprintAsset bp) return;
+                    Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.SaveAsRecipe(bp, path, asset.Name);   // ⭐ CE-1443 B2 — the copy carries the recipe card
+                });
             // ───────────────────────────────────────────────────────────────────────────────────
 
             // SAVE-ON-CLOSE FIX: saving is DECOUPLED from closing. The former

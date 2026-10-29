@@ -2772,7 +2772,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⛔ requestScenarioSaveAs stays UNSUPPLIED: Save-As needs a name, and this host composes no
             //   modal browser to ask for one. ⇒ `scenario.saveAs` is not registered here, and `File/Save`
             //   with nothing loaded is a no-op rather than a lie. Ruling 49 — the absence is real.
-            requestScenarioSaveAs: null);
+            requestScenarioSaveAs: null,
+            saveBlueprintRecipe: (asset, path) =>
+            {
+                if (Hrot.Editor.AiShared.Documents.AiAssetSavers.ResolveAssetRef(_aiDocumentManager, asset.AssetId)
+                    is not Hrot.Blueprints.Core.Assets.BlueprintAsset bp) return;
+                Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.SaveAsRecipe(bp, path, asset.Name);   // ⭐ CE-1443 B2 — the same writer as the editor's
+            });
 
         var toolbarIcons = new Hrot.Editor.AiShared.Adapters.SilkIconProvider(windowManager.Atlas);
 

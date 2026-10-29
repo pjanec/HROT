@@ -102,6 +102,8 @@ public static class CgfEditorShellToolbar
         new(NewBehaviorId,     0, MenuPath: "File/New Behavior…",  MenuOrder: 2, MenuOnly: true),
         new(NewActionId,       0, MenuPath: "File/New Action…",    MenuOrder: 3, MenuOnly: true),
         new(NewConditionId,    0, MenuPath: "File/New Condition…", MenuOrder: 4, MenuOnly: true),
+        // ⭐ CE-1443 B2 — Save … as Recipe (a document), on both hosts through this one table; menu-only (no toolbar button).
+        new(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsRecipeId, 0, MenuPath: Hrot.Editor.AiShared.Scenarios.FileMenuLayout.SaveAsRecipe, MenuOrder: 6, MenuOnly: true),
         // ⛔⛔ NO SaveAll SLOT, and that is a DELIBERATE DEVIATION from the design's §3 subset sentence
         //    ("Save · SaveAll · Open Asset · New Asset · QuickReload"). 📐 Measured: the editor's toolbar
         //    has NO Save-All button — only `shell.save` at -9. ⇒ adding one here would emit it on the

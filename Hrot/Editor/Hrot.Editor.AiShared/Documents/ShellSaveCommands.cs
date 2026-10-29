@@ -43,6 +43,9 @@ public static class ShellSaveCommands
     /// <summary>Id for the Save All command: <c>"shell.saveAll"</c> (Ctrl+Shift+S).</summary>
     public const string SaveAllId = "shell.saveAll";
 
+    /// <summary>⭐ CE-1443 B2 — <c>"shell.saveAsRecipe"</c>: <i>Save BTree 'x' as Recipe…</i> — the focused document written into its kind's recipes folder (<see cref="Recipes.RecipeFiles"/>), which that kind's <i>New …</i> lists.</summary>
+    public const string SaveAsRecipeId = "shell.saveAsRecipe";
+
     // ⛔ CE-1443 part B — the "scenario.save" / "scenario.saveAs" commands are registered ONCE, by ScenarioMenuCommands (on every operator host). This class
     //   registered the same two ids a second time (last registration won) — deleted.
 
@@ -123,7 +126,8 @@ public static class ShellSaveCommands
         Action?                                                   saveScenarioAction = null,
         Action?                                                   requestScenarioSaveAs = null,
         Func<string?>?                                            scenarioName = null,
-        Func<AiDocument?>?                                        resolveActiveDocument = null)
+        Func<AiDocument?>?                                        resolveActiveDocument = null,
+        SaveAllAiDocumentsCommand.SaveDelegate?                   saveBlueprintRecipe = null)
     {
         if (register       is null) throw new ArgumentNullException(nameof(register));
         if (docManager     is null) throw new ArgumentNullException(nameof(docManager));
@@ -230,6 +234,34 @@ public static class ShellSaveCommands
                 if (doc is { IsReadOnly: true }) { report?.Invoke($"[INFO] {AiDocument.ReadOnlyReason(doc.Asset)}."); return; }   // ⭐ CE-1252
                 if (doc != null)
                     requestSaveAs(doc);
+            });
+
+        // ── shell.saveAsRecipe (CE-1443 B2) ─────────────────────────────────────
+        //    ⭐ The kind's own writer into RecipeFiles.PathFor (never over an existing recipe); ⛔ the document is NOT marked clean — its own file was not saved.
+        //    A Blueprint recipe needs the recipe card on the written copy, so it has its own writer (saveBlueprintRecipe); BTree / HSM reuse their save delegates.
+        SaveAllAiDocumentsCommand.SaveDelegate? RecipeWriter(AssetKind kind) => kind switch
+        {
+            AssetKind.BTree     => saveBTree,
+            AssetKind.Hsm       => saveHsm,
+            AssetKind.Blueprint => saveBlueprintRecipe,
+            _                   => null,
+        };
+        register(
+            new EditorCommandDescriptor(
+                Id:          SaveAsRecipeId,
+                DisplayName: "Save as Recipe…",
+                Category:    "File",
+                Description: "Save the focused document as a recipe its kind's New … offers",
+                IconKey:     null,
+                DefaultKey:  null,
+                IsEnabled:   () => isScenarioContext?.Invoke() != true && Target() is { IsReadOnly: false } d && RecipeWriter(d.Kind) != null,
+                DynamicDisplayName: () => Target() is { } d && isScenarioContext?.Invoke() != true ? SaveLabels.For("Save", d) + " as Recipe…" : "Save as Recipe… (no document open)"),
+            _ =>
+            {
+                if (isScenarioContext?.Invoke() == true || Target() is not { } doc || doc.IsReadOnly || RecipeWriter(doc.Kind) is not { } write) return;
+                var path = Recipes.RecipeFiles.PathFor(doc.Kind, doc.Asset.Name);
+                write(doc.Asset, path);
+                report?.Invoke($"[OK] Saved {SaveLabels.KindName(doc.Kind)} recipe '{System.IO.Path.GetFileName(path)}'.");
             });
 
         // ── shell.saveAll ───────────────────────────────────────────────────────

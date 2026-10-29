@@ -293,7 +293,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         var mine = new[]
         {
             FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SeparatorAfterLoads, FileMenuLayout.SaveCheckpoint,
-            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.SeparatorBeforeClose, FileMenuLayout.Close,
+            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.SaveScenarioAsRecipe, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.SeparatorBeforeClose, FileMenuLayout.Close,
         };
         Assert.Equal(mine.OrderBy(p => p, StringComparer.Ordinal).ToArray(), MenuPaths(menu));
 

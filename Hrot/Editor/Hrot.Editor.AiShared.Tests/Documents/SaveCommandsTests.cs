@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Documents;
@@ -633,6 +634,54 @@ public sealed class SaveCommandsTests
             requestScenarioSaveAs:   () => { });
 
         Assert.DoesNotContain(descriptors, d => d.Id is "scenario.save" or "scenario.saveAs");
+    }
+
+    /// <summary>
+    /// ⭐ CE-1443 B2 (AQ108 §2.15) — <i>Save BTree 'x' as Recipe…</i> writes the focused document into its kind's recipes folder (<see cref="Hrot.Editor.AiShared.Recipes.RecipeFiles"/>,
+    /// the one lister New BTree reads), never over an existing recipe, and does NOT mark the document clean (its own file was not saved). Not offered for a kind with no recipe writer.
+    /// 🔴 Mutation: <c>RecipeFiles.PathFor</c> without the "(n)" loop ⇒ the second save overwrites ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1443_B2_SaveAsRecipe_WritesIntoTheKindsRecipes_NeverOverAnExistingOne_AndNamesIt()
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "recipes_" + Guid.NewGuid().ToString("N"));
+        var saved = AssetRoots.ConfiguredRoot;
+        System.IO.Directory.CreateDirectory(root);
+        AssetRoots.Configure(root);
+        try
+        {
+            var mgr = MakeManager();
+            var bt = mgr.Open(new FakeAsset(AssetKind.BTree, "Patrol", "/fake/patrol.btree.json"));
+            bt.MarkDirty();
+            var (descriptors, actions) = MakeRecordingRegister();
+            ShellSaveCommands.Register(
+                register: RecordingRegister(descriptors, actions), docManager: mgr,
+                saveBlueprint: null, saveHsm: null, saveScenario: null, requestSaveAs: _ => { }, report: null,
+                saveBTree: (a, path) => { System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!); System.IO.File.WriteAllText(path, a.Name); },
+                resolveActiveDocument: () => bt);
+
+            var desc = FindDescriptor(descriptors, ShellSaveCommands.SaveAsRecipeId);
+            Assert.Equal("Save BTree 'Patrol' as Recipe…", desc.DynamicDisplayName!());
+            Assert.True(desc.IsEnabled());
+
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+
+            var files = Hrot.Editor.AiShared.Recipes.RecipeFiles.Files(AssetKind.BTree);
+            Assert.Equal(new[] { "Patrol (2).btree.json", "Patrol.btree.json" }, files.Select(System.IO.Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal));
+            Assert.True(bt.IsDirty, "a recipe copy is not a save of the document");
+
+            var hsm = mgr.Open(new FakeAsset(AssetKind.Hsm, "Guard", "/fake/guard.hsm.json"));
+            var (d2, a2) = MakeRecordingRegister();
+            ShellSaveCommands.Register(register: RecordingRegister(d2, a2), docManager: mgr, saveBlueprint: null, saveBTree: null, saveHsm: null, saveScenario: null,
+                                       requestSaveAs: _ => { }, report: null, resolveActiveDocument: () => hsm);
+            Assert.False(FindDescriptor(d2, ShellSaveCommands.SaveAsRecipeId).IsEnabled());   // no HSM writer on this host ⇒ not offered
+        }
+        finally
+        {
+            AssetRoots.Configure(saved);
+            if (System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root, recursive: true);
+        }
     }
 
     // ── BUG-A2: named/unnamed routing in scenario context ─────────────────────

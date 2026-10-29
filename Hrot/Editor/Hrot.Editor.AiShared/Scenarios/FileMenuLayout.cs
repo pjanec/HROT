@@ -37,6 +37,8 @@ public static class FileMenuLayout
     public const string OpenAsset = "File/Open Asset…", NewAsset = "File/New Asset…", NewBehavior = "File/New Behavior…", NewAction = "File/New Action…", NewCondition = "File/New Condition…";
     /// <summary>The shell's saves (<c>shell.save</c> / <c>shell.saveAs</c> / <c>shell.saveAll</c>). ⭐ CE-1443 part B — <c>Save</c> / <c>Save As…</c> are drawn only while a DOCUMENT is the save target (the scenario has its own two items), and their labels name it.</summary>
     public const string Save = "File/Save", SaveAs = "File/Save As…", SaveAll = "File/Save All";
+    /// <summary>⭐ CE-1443 B2 — the recipe saves: the shell's (<c>shell.saveAsRecipe</c>, a document) and the scenario's (<c>scenario.saveAsRecipe</c>).</summary>
+    public const string SaveAsRecipe = "File/Save as Recipe…", SaveScenarioAsRecipe = "File/Save Scenario as Recipe…";
     /// <summary>The scenario's own items (<c>scenario.save</c> / <c>scenario.saveAs</c> / migration history / the curated git copy).</summary>
     public const string SaveScenario = "File/Save Scenario", SaveScenarioAs = "File/Save Scenario As", MigrationHistory = "File/Migration History", SaveCuratedToGit = "File/Save Curated Scenarios to Git";
 
@@ -54,7 +56,7 @@ public static class FileMenuLayout
     /// <summary>The editing group's items, in order.</summary>
     public static readonly IReadOnlyList<string> EditingGroup = new[]
     {
-        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveAll, MigrationHistory, SaveCuratedToGit,
+        OpenAsset, NewAsset, NewBehavior, NewAction, NewCondition, Save, SaveScenario, SaveAs, SaveScenarioAs, SaveAsRecipe, SaveScenarioAsRecipe, SaveAll, MigrationHistory, SaveCuratedToGit,
     };
 
     /// <summary>⭐ EVERY File path of this menu in DRAW order, separators included — the table a rail reads (what the menu is MEANT to be, not what a host happened to register).</summary>
@@ -88,7 +90,7 @@ public static class FileMenuLayout
             Func<bool>? visible = path switch
             {
                 SaveCheckpoint       => LiveRun,
-                Save or SaveAs       => () => Editing() && documentToSave?.Invoke() == true,
+                Save or SaveAs or SaveAsRecipe => () => Editing() && documentToSave?.Invoke() == true,
                 SeparatorBeforeClose => () => Editing() || LiveRun(),
                 _ when System.Linq.Enumerable.Contains(EditingGroup, path) => Editing,
                 _                    => null,
