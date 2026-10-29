@@ -270,13 +270,13 @@ public sealed class TheClusterControlRoutesTests
         var json = System.Text.Json.JsonSerializer.Serialize(new[] { branched, Older }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
         var topic = new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = json };
 
-        var decoded = Hrot.Common.Orchestration.OrchestrationObserverTranslator.InventoryOf(topic).LocalExercises!;
+        var decoded = Hrot.Common.Orchestration.ClusterFactsIngress.InventoryOf(topic).LocalExercises!;
         Assert.Equal((parent, branched.BranchWallTicks), (decoded[0].ParentExerciseId, decoded[0].BranchWallTicks));
         Assert.Equal((Guid.Empty, 0L), (decoded[1].ParentExerciseId, decoded[1].BranchWallTicks));
 
         // an old peer's inventory: no such fields on the wire
         var old = $"[{{\"ExerciseId\":\"{Older.ExerciseId}\",\"StartTimeUtc\":\"2026-10-01T08:00:00Z\",\"Duration\":\"00:05:00\",\"ScenarioId\":\"a\"}}]";
-        var oldDecoded = Hrot.Common.Orchestration.OrchestrationObserverTranslator.InventoryOf(
+        var oldDecoded = Hrot.Common.Orchestration.ClusterFactsIngress.InventoryOf(
             new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = old }).LocalExercises!;
         Assert.Equal((Older.ExerciseId, Guid.Empty, 0L), (oldDecoded[0].ExerciseId, oldDecoded[0].ParentExerciseId, oldDecoded[0].BranchWallTicks));
 

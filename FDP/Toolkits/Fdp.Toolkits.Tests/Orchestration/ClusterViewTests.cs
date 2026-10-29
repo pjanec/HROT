@@ -1,0 +1,197 @@
+using System;
+using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
+using Xunit;
+
+namespace Fdp.Toolkit.Orchestration.Tests;
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-1436</c> (<c>R-3066</c>) — <see cref="ClusterView"/>, the ONE cluster read model of a node: the facts the master last said, folded from the
+/// fact events. 📄 docs/DESIGN_Cluster_View.md §3 V3. The node's <see cref="ClusterSlave"/> owns one and its follow-fields read it.
+/// </summary>
+public sealed class ClusterViewTests
+{
+    private static (FdpEventBus Bus, ClusterView View) Rig()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        return (bus, new ClusterView(bus));
+    }
+
+
+    private static void HearStruct<T>(FdpEventBus bus, ClusterView view, T ev) where T : struct
+    {
+        bus.PublishManaged(ev);
+        bus.SwapBuffers();
+        view.Update();
+    }
+
+    /// <summary>
+    /// The state broadcast is folded once: state, exercise, axis and the two recording flags; "no master heard" (<c>HasFollowedState</c> false) is told
+    /// from a heard <c>Idle</c>, <c>MasterGone</c> is set by its broadcast and cleared by the next real one, and the flags survive a MasterGone.
+    /// 🔴 Mutation: <c>State</c> not folded on a real broadcast ⇒ the first fold assertion fails.
+    /// </summary>
+    [Fact]
+    public void TheStateBroadcast_IsFoldedOnce_WithMasterGoneAndTheFollowedFlag()
+    {
+        var (bus, view) = Rig();
+        Assert.False(view.HasFollowedState);
+        Assert.Equal(ClusterState.Idle, view.State);
+        Assert.Equal(ReplayAxis.Sim, view.ReplayAxis);
+
+        var exercise = Guid.NewGuid();
+        HearStruct(bus, view, new ClusterStateUpdateEvent
+        {
+            CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true,
+        });
+        Assert.True(view.HasFollowedState);
+        Assert.Equal((ClusterState.OperatingLive, exercise, ReplayAxis.Wall, true, true),
+            (view.State, view.ExerciseId, view.ReplayAxis, view.RunNotRecorded, view.RecordLiveRunsOff));
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(view.MasterGone);
+        Assert.True(view.HasFollowedState);                       // a master WAS heard
+        Assert.Equal(ClusterState.Idle, view.State);
+        Assert.True(view.RunNotRecorded);                         // the flags are the last real broadcast's, not reset by the master leaving
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+        Assert.False(view.MasterGone);
+        Assert.False(view.RunNotRecorded);                        // the next real broadcast replaces them
+    }
+
+    /// <summary>
+    /// A MasterGone with no real broadcast before it is not a "followed" state (the start gate would read the <c>Idle</c> default as the cluster's).
+    /// 🔴 Mutation: <c>HasFollowedState = true</c> added to the MasterGone branch ⇒ fails.
+    /// </summary>
+    [Fact]
+    public void AMasterGoneBeforeAnyBroadcast_IsNotAFollowedState()
+    {
+        var (bus, view) = Rig();
+        HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(view.MasterGone);
+        Assert.False(view.HasFollowedState);
+    }
+
+    /// <summary>
+    /// The inventory: an empty view says "none arrived" (<c>HasInventory</c> false) rather than an empty list the master sent; one arrival replaces all
+    /// four arrays. 🔴 Mutation: <c>HasInventory</c> never set ⇒ fails.
+    /// </summary>
+    [Fact]
+    public void TheInventory_IsTheMastersLastWord_AndAbsentUntilOneArrives()
+    {
+        var (bus, view) = Rig();
+        Assert.False(view.HasInventory);
+
+        var ex = new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.FromSeconds(5), "scn");
+        HearStruct(bus, view, new AssetInventoryUpdateEvent { LocalScenarios = new[] { "a", "b" }, LocalExercises = new[] { ex } });
+
+        Assert.True(view.HasInventory);
+        Assert.Equal(new[] { "a", "b" }, view.AvailableScenarios);
+        Assert.Equal(ex, Assert.Single(view.AvailableExercises));
+        Assert.Empty(view.ArchivedExercises);                     // null on the event ⇒ empty, never null
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4093</c> — the check round: an outcome is found by request id; a refusal carries the master's reason; the answer becomes
+    /// <c>LastUnsavedCheck</c> only while the cluster is editing and is dropped when it leaves; an InProgress status is not an outcome.
+    /// 🔴 Mutation: <c>LastUnsavedCheck</c> not cleared on leaving editing ⇒ the last assertion fails.
+    /// </summary>
+    [Fact]
+    public void TheCheckRound_IsFoundByRequestId_AndItsAnswerLivesOnlyWhileEditing()
+    {
+        var (bus, view) = Rig();
+        var round = Guid.NewGuid();
+        var refused = Guid.NewGuid();
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+
+        HearStruct(bus, view, new ClusterOpCompletedEvent { RequestId = round, StatusCode = OrchestrationStatusCode.InProgress });
+        Assert.Null(view.UnsavedCheckOutcomeFor(round));
+
+        HearStruct(bus, view, new ClusterOpCompletedEvent
+        {
+            RequestId = round, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 4 }),
+        });
+        Assert.True(view.UnsavedCheckOutcomeFor(round)!.Result!.Changed);
+        Assert.True(view.LastUnsavedCheck!.Changed);
+
+        HearStruct(bus, view, new ClusterOpCompletedEvent
+        {
+            RequestId = refused, StatusCode = OrchestrationStatusCode.Failure, ResultPayload = UnsavedCheckOutcome.NotEditingReason,
+        });
+        var o = view.UnsavedCheckOutcomeFor(refused)!;
+        Assert.Null(o.Result);
+        Assert.Equal(UnsavedCheckOutcome.NotEditingReason, o.Refusal);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });
+        Assert.Null(view.LastUnsavedCheck);                       // the answer described a scenario that is no longer open
+        Assert.NotNull(view.UnsavedCheckOutcomeFor(round));       // …while the round's own outcome is still found by id
+    }
+
+    /// <summary>An answer that arrives while NOT editing is never the last verdict (it would describe nothing open).</summary>
+    [Fact]
+    public void ACheckAnswer_OutsideEditing_IsNotTheLastVerdict()
+    {
+        var (bus, view) = Rig();
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        var id = Guid.NewGuid();
+        HearStruct(bus, view, new ClusterOpCompletedEvent { RequestId = id, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, Array.Empty<int>()) });
+        Assert.Null(view.LastUnsavedCheck);
+        Assert.NotNull(view.UnsavedCheckOutcomeFor(id));
+    }
+
+    /// <summary>
+    /// The outcome ring keeps the last <see cref="ClusterView.OutcomeCapacity"/> ops by request id, oldest forgotten first. 🔴 Mutation: capacity not
+    /// enforced (no eviction) ⇒ the first op is still found ⇒ fails.
+    /// </summary>
+    [Fact]
+    public void TheOutcomeRing_KeepsTheLast32_ByRequestId()
+    {
+        var (bus, view) = Rig();
+        var ids = new Guid[ClusterView.OutcomeCapacity + 1];
+        for (int i = 0; i < ids.Length; i++)
+        {
+            ids[i] = Guid.NewGuid();
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = ids[i], StatusCode = OrchestrationStatusCode.Success, ResultPayload = UnsavedCheckResult.Unchanged });
+        }
+        bus.SwapBuffers();
+        view.Update();
+
+        Assert.Equal(32, ClusterView.OutcomeCapacity);
+        Assert.Null(view.UnsavedCheckOutcomeFor(ids[0]));         // evicted
+        Assert.NotNull(view.UnsavedCheckOutcomeFor(ids[1]));
+        Assert.NotNull(view.UnsavedCheckOutcomeFor(ids[^1]));
+    }
+
+    /// <summary>
+    /// Folding the same frame twice changes nothing — the node's slave and a composing cache (the editor's) both drain the one view each frame.
+    /// 🔴 Mutation: the last verdict re-created on every fold (<c>check with { }</c>) ⇒ <c>Assert.Same</c> fails.
+    /// </summary>
+    [Fact]
+    public void UpdatingTwiceInOneFrame_ChangesNothing()
+    {
+        var (bus, view) = Rig();
+        var id = Guid.NewGuid();
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = id, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, Array.Empty<int>()) });
+        bus.SwapBuffers();
+        view.Update();
+        var once = (view.State, view.LastUnsavedCheck, view.UnsavedCheckOutcomeFor(id));
+
+        view.Update();
+
+        Assert.Equal(once.State, view.State);
+        Assert.Same(once.LastUnsavedCheck, view.LastUnsavedCheck);
+        Assert.Equal(once.Item3, view.UnsavedCheckOutcomeFor(id));
+    }
+
+    /// <summary>A view over no bus (the test / offline shape) folds nothing and never throws.</summary>
+    [Fact]
+    public void AViewOverNoBus_IsInert()
+    {
+        var view = new ClusterView(null);
+        view.Update();
+        Assert.Equal(ClusterState.Idle, view.State);
+        Assert.False(view.HasFollowedState);
+        Assert.Null(view.UnsavedCheckOutcomeFor(Guid.NewGuid()));
+    }
+}

@@ -2421,6 +2421,7 @@ namespace Hrot.Editor
                 //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
                 IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
                 FileDialogService = _fileDialogService,
+                View              = _node?.ClusterSlave.View,   // ⭐ CE-1436 — the editor's node and its core's cache share ONE cluster read model (same bus)
             });
             _clusterMaster = _orchestratorCore.Master;
             // Curated test scenarios: copy the git-committed set into the working NAS folder on start,

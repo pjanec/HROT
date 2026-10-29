@@ -323,6 +323,40 @@ public sealed class ClusterSlaveTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V3) — the slave's follow-fields are the node's ONE <see cref="ClusterView"/>, not a second copy: after one
+    /// broadcast and one inventory every follow-field equals the view's, the check round's outcome is readable from the same view, and "no inventory
+    /// yet" stays <c>null</c> (not an empty list). 🔴 Mutation: <c>FollowedClusterState</c> returning a constant (a private copy that never folds) ⇒ the
+    /// state assertion fails; <c>KnownExercises</c> returning <c>View.AvailableExercises</c> unconditionally ⇒ the first null assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheSlaveFollowFields_AreTheOneClusterView()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        void Hear<T>(T ev) { bus.PublishManaged(ev); bus.SwapBuffers(); slave.Tick(); }
+
+        Assert.Null(slave.KnownExercises);                       // no inventory yet ⇒ null, as before
+        Assert.False(slave.View.HasInventory);
+
+        Hear(new ClusterStateUpdateEvent
+        {
+            CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid(), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true,
+        });
+        var ex = new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.FromSeconds(1), "s");
+        Hear(new AssetInventoryUpdateEvent { LocalExercises = new[] { ex } });
+        var check = Guid.NewGuid();
+        Hear(new ClusterOpCompletedEvent { RequestId = check, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 2 }) });
+
+        Assert.Equal(ClusterState.OperatingEdit, slave.View.State);
+        Assert.Equal(slave.View.State, slave.FollowedClusterState);
+        Assert.Equal((slave.View.HasFollowedState, slave.View.MasterGone, slave.View.ReplayAxis, slave.View.RunNotRecorded, slave.View.RecordLiveRunsOff),
+                     (slave.HasFollowedState, slave.MasterGone, slave.ReplayAxis, slave.RunNotRecorded, slave.RecordLiveRunsOff));
+        Assert.True(slave.RunNotRecorded && slave.RecordLiveRunsOff && slave.ReplayAxis == ReplayAxis.Wall);
+        Assert.Same(slave.View.AvailableExercises, slave.KnownExercises);
+        Assert.True(slave.View.UnsavedCheckOutcomeFor(check)!.Result!.Changed);   // the round's answer reaches the node's view (op status on every node)
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>R-4007</c> (Q91 §4-M) — the join freeze: a node is frozen only when it is BEHIND the cluster it follows (it is
     /// <c>Idle</c>, the cluster is not). ⛔ A node with no master, and a cluster at rest in <c>Idle</c>, are never frozen — 📐
     /// dozens of integration suites spawn and replicate exactly there.

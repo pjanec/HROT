@@ -58,6 +58,47 @@ namespace Hrot.SimHost.Tests
             return (slave, built);
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V4/V5) — the composition hands every ECS host the node's ONE <see cref="ClusterView"/> (the slave's), and the
+        /// check round's answer reaches it with no host wiring: through the
+        /// REAL <c>Compose</c> every host passes, an unsaved round the master answered is readable by request id and as the last verdict — and leaving editing drops the verdict.
+        /// 🔴 Mutation: <c>Compose</c> returning a fresh <c>new ClusterView(null)</c> instead of <c>slave.View</c> ⇒ <c>Assert.Same</c> fails.
+        /// </summary>
+        [Fact]
+        public void CE1436_Compose_GivesTheHostItsOneClusterView_AndTheCheckRoundsAnswerReachesIt()
+        {
+            // the composition is host-independent; the host FAMILIES (CGF / SimHost / IG) are pinned through the shared provider factory
+            // (HrotNodeBuilderTests, a role per family) and the live-cluster rail (DistributedScenarioSaveTests)
+            const NodeRole role = NodeRole.MuscleGround;
+            Directory.CreateDirectory(_staging);
+            var accumulator = new EventAccumulator();
+            var kernel = new ModuleHostKernel(_world, accumulator);
+            var bus    = new FdpEventBus();
+            var slave  = new ClusterSlave(7, "D16", bus, role);
+            var (providers, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
+            var built = EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
+            {
+                Slave = slave, Kernel = kernel, World = _world, NodeId = 7, Role = role, HostLabel = "D16",
+                StagingRoot = _staging, LoadProviders = providers, EventAccumulator = accumulator,
+            });
+
+            Assert.Same(slave.View, built.View);                                                   // one view per node, owned by the slave
+
+            var round = Guid.NewGuid();
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = round, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 7 }) });
+            bus.SwapBuffers();
+            slave.Tick();                                                                          // the node's own tick drains it — no host wiring
+
+            Assert.True(built.View.UnsavedCheckOutcomeFor(round)!.Result!.Changed);
+            Assert.True(built.View.LastUnsavedCheck!.Changed);
+
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });
+            bus.SwapBuffers();
+            slave.Tick();
+            Assert.Null(built.View.LastUnsavedCheck);
+        }
+
         [Fact]
         public void Compose_RegistersTheSharedSet_InTheOneOrder()
         {

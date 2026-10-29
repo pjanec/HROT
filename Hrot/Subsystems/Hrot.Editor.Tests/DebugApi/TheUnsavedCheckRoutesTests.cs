@@ -233,17 +233,17 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         var sent = new UnsavedCheckResult(true, new[] { 4, 9 });
         string wire = System.Text.Json.JsonSerializer.Serialize(sent, sent.GetType(), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
 
-        var got = Assert.IsType<UnsavedCheckResult>(Hrot.Common.Orchestration.OrchestrationObserverTranslator.DecodeResult(wire));
+        var got = Assert.IsType<UnsavedCheckResult>(Hrot.Common.Orchestration.ClusterFactsIngress.DecodeResult(wire));
         Assert.True(got.Changed);
         Assert.Equal(new[] { 4, 9 }, got.ChangedNodes);
 
         string empty = System.Text.Json.JsonSerializer.Serialize(UnsavedCheckResult.Unchanged, Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
-        Assert.False(Assert.IsType<UnsavedCheckResult>(Hrot.Common.Orchestration.OrchestrationObserverTranslator.DecodeResult(empty)).Changed);
+        Assert.False(Assert.IsType<UnsavedCheckResult>(Hrot.Common.Orchestration.ClusterFactsIngress.DecodeResult(empty)).Changed);
 
         // what it decoded before stays: a replay result is still a replay result; a refusal's plain text is still not JSON (the caller keeps the text)
         var replay = System.Text.Json.JsonSerializer.Serialize(new Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult(0, 12f), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
-        Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(Hrot.Common.Orchestration.OrchestrationObserverTranslator.DecodeResult(replay));
-        Assert.ThrowsAny<System.Text.Json.JsonException>(() => Hrot.Common.Orchestration.OrchestrationObserverTranslator.DecodeResult(UnsavedCheckOutcome.NotEditingReason));
+        Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(Hrot.Common.Orchestration.ClusterFactsIngress.DecodeResult(replay));
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => Hrot.Common.Orchestration.ClusterFactsIngress.DecodeResult(UnsavedCheckOutcome.NotEditingReason));
     }
 
     /// <summary><c>GET /status.scenarioDirty</c> is the LAST verdict — null when none, never a round of its own.</summary>
