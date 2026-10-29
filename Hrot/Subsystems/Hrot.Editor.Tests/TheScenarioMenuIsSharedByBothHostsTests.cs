@@ -196,15 +196,15 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         var editor = EditorShape();
         var cgf = CgfShape();
         // ⭐ CE-4098 — "Open Recording (AAR)" joins them (D16): offered whether or not a host has an inventory (a host without one shows it greyed with its cause)
-        var expected = new[] { "File/Edit/New Scenario", "File/Edit/Open Scenario", "File/Live/Load Scenario", "File/Open Recording" };
+        var expected = new[] { "File/New Scenario", "File/Open Recording", "File/Open Scenario" };   // ⭐ CE-4097 part two: the Live/Edit load items fold into ONE Open
 
         foreach (var m in new[] { editor.M, cgf.M })
             Assert.Equal(expected, m.AllowedInIdleItems().Select(a => a.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray());
 
-        editor.M.AllowedInIdleItems().Single(a => a.Path == "File/Edit/Open Scenario").Invoke();
+        editor.M.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Invoke();
         Assert.Single(editor.S.OpenForEditCalls);
-        cgf.M.AllowedInIdleItems().Single(a => a.Path == "File/Live/Load Scenario").Invoke();
-        Assert.Single(cgf.S.LoadForLiveCalls);
+        cgf.M.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Invoke();
+        Assert.Single(cgf.S.OpenForEditCalls);   // CGF opens INTO EDITING too; its armed mode (Live) decides ▶
     }
 
     private static string[] MenuPaths(GlobalMenuRegistry menu)
@@ -267,14 +267,13 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         {
             "File/Checkpoint/Take Checkpoint",
             "File/Edit/Migration History",
-            "File/Edit/New Scenario",
-            "File/Edit/Open Scenario",
             "File/Edit/Save Curated Scenarios to Git",
             "File/Edit/Save Scenario",
             "File/Edit/Save Scenario As",
-            "File/Live/Load Scenario",
             "File/Live/New Exercise",
+            "File/New Scenario",     // ⭐ CE-4097 part two — Open / New are top-level; ⛔ no File/Live/Load Scenario: the armed mode decides ▶
             "File/Open Recording",   // ⭐ CE-4098
+            "File/Open Scenario",
         }, MenuPaths(menu));
     }
 
@@ -374,7 +373,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         var editor = EditorShape();
         var cgf    = CgfShape();
 
-        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.LoadLiveId,
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId,
                                    ScenarioMenuCommands.SaveAsId })
         {
             Assert.True(editor.C.Get(id)!.IsEnabled(), $"{id} must be live on the interactive host.");
@@ -398,10 +397,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         var (session, commands, _, _) = CgfShape();
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
-        Assert.True(commands.Invoke(ScenarioMenuCommands.LoadLiveId).Success);
 
         Assert.Equal("PickedOnCgf", Assert.Single(session.OpenForEditCalls));
-        Assert.Equal("PickedOnCgf", Assert.Single(session.LoadForLiveCalls));
     }
 
     /// <summary>
@@ -419,7 +416,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         // ⭐ Presence is identical — the capability difference never removes an item.
         Assert.Equal(MenuPaths(editor.M), MenuPaths(noModal.M));
 
-        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.LoadLiveId,
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId,
                                    ScenarioMenuCommands.SaveAsId })
         {
             Assert.False(noModal.C.Get(id)!.IsEnabled(), $"{id} has no seam to service it.");
@@ -471,7 +468,6 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         // ⭐ Invoke() itself refuses a disabled command, so this asserts BOTH gates: the refusal AND that
         //   nothing reached the session.
         Assert.False(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
-        Assert.False(commands.Invoke(ScenarioMenuCommands.LoadLiveId).Success);
         Assert.Empty(session.OpenForEditCalls);
         Assert.Empty(session.LoadForLiveCalls);
     }

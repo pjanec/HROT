@@ -85,6 +85,7 @@ public static class CapabilityManifest
         if (path.StartsWith("/exercises", StringComparison.Ordinal))  return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/run-settings", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;   // ⭐ CE-4090 — a setting of the master
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
+        if (path.StartsWith("/run-mode", StringComparison.Ordinal))    return DebugCapabilities.TimeDrive;   // ⭐ CE-4097 part two (D22) — the armed mode lives on the time facade's run choice
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.
         //    📌 While `/scenario/load` was hardwired to IEditorLogic, a cluster refusal read "authoring is
         //    absent here" — true of the editor's DRIVER, but easily misread as "a cluster cannot load

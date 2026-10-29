@@ -505,6 +505,9 @@ namespace Hrot.Editor.DebugApi
             // Group D — sim / preview / time
             _routes.Add(new("GET",  "/sim/state",     _   => RunMain(s => s.GetSimState())));
             _routes.Add(new("POST", "/sim/play",      _   => RunMain(s => s.Play())));
+            // ⭐⭐ CE-4097 part two (AQ108 D22) — ■ = the toolbar's ■ (ONE ITimeTransportFacade.Stop), and the armed run mode, both explicit: /sim/play and /sim/step never follow it.
+            _routes.Add(new("POST", "/sim/stop",      _   => RunMainResult(s => { var (r, e, h, st) = s.Stop(); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("POST", "/run-mode",      ctx => RunMainResult(s => { var (r, e, h, st) = s.SetRunMode(ctx.Body); return e is null ? Ok(r) : Fail(st, e, h); })));
             // ⭐⭐⭐ CE-104 — THE PAUSE ACK MEANS *APPLIED*, NOT *ACCEPTED*.
             //
             // 📐 Measured `2026-08-28` on --mode all: pause answered ok:true and the very next /status still

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Presentation.Fonts;
 using Fdp.Toolkit.Orchestration;
@@ -20,8 +21,9 @@ namespace Hrot.UI.Common.RunMode;
 /// </list>
 ///
 /// ⛔ It re-implements NO scenario action: it calls <see cref="IRunScenarioControl"/> (the session's own) and the raw transport
-/// (<see cref="IRunTransport"/>, the one facade's today's behaviours). The facade's <c>Stop</c> / <c>TogglePlayPause</c> / <c>StepBy</c> delegate
-/// here, so ■ in the toolbar and <c>POST /sim/stop</c> stay ONE call (D22).
+/// (<see cref="IRunTransport"/>, the one facade's today's behaviours). The facade's <c>Stop</c> delegates here, so ■ in the toolbar and
+/// <c>POST /sim/stop</c> stay ONE call (D22). ⭐ Part two (D22): the facade's Play / Step stay RAW — a USER control's ▶ calls <see cref="Play"/> through
+/// <see cref="UserTransport"/>, an HTTP <c>POST /sim/play</c> never follows the armed mode.
 /// </summary>
 public sealed class RunModeChoice
 {
@@ -41,17 +43,33 @@ public sealed class RunModeChoice
     /// <param name="transport">The one facade's raw transport.</param>
     /// <param name="hostDefault">⭐ The HOST's armed mode (AQ108 D12): Preview in the editor, Live on CGF / the all-in-one / the server.</param>
     /// <param name="control">The host's scenario session; <see langword="null"/> on a host with none (SimHost, IG) — Live-armed ▶ is then disabled with a reason.</param>
-    /// <param name="unsaved">The unsaved-changes seam; default <see cref="ScenarioNameUnsavedChangesQuery"/> over <paramref name="control"/> (⚠ the CE-4093 TODO lives there).</param>
+    /// <param name="unsaved">The unsaved-changes seam; default <see cref="ClusterUnsavedChangesQuery"/> with no master and no reads: observes nothing, so a named scenario counts as unchanged (the adapter passes the real one).</param>
     /// <param name="now">Clock of the toast (tests inject one).</param>
     public RunModeChoice(IRunTransport transport, RunArmed hostDefault, IRunScenarioControl? control,
                          IUnsavedChangesQuery? unsaved = null, Func<DateTime>? now = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _control   = control;
-        _unsaved   = unsaved ?? new ScenarioNameUnsavedChangesQuery(() => control?.LoadedScenarioName);
+        // ⭐ part two: the production query is the master's check round (ClusterUnsavedChangesQuery, built by the adapter). A choice built WITHOUT one
+        //   (a bare rail) observes nothing: a named scenario counts as unchanged, no name = NeverSaved — the same rule a host with no read model gets.
+        _unsaved   = unsaved ?? new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName, master: null, reads: null);
         _now       = now ?? (() => DateTime.UtcNow);
         HostDefault = hostDefault;
         Armed       = hostDefault;
+        // ⭐ AQ108 D8 — Save in Live / DAR / AAR is a checkpoint: routed by construction for every save path of the host's ONE session
+        if (control is ISaveInterception saves) saves.SaveIntercept = TryCheckpointInsteadOfSave;
+    }
+
+    private int _branchInFrames;   // ⭐ D21 "Go live from here": the branch intent goes out this many frames AFTER the seek's (see GoLiveFromHere)
+
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two — once per frame (the adapter's <c>Update</c>): delivers a check-round answer that has arrived (<see cref="IUnsavedChangesQuery.Poll"/>,
+    /// no blocking) and sends a deferred branch. ⛔ Nothing here waits.
+    /// </summary>
+    public void Update()
+    {
+        _unsaved.Poll();
+        if (_branchInFrames > 0 && --_branchInFrames == 0 && _transport.Mode == TransportMode.Replay) _transport.BranchLive();
     }
 
     /// <summary>What ▶ runs from Edit (R1: only <see cref="Choose"/> changes it; D12: reset to <see cref="HostDefault"/> when a scenario is opened).</summary>
@@ -88,7 +106,8 @@ public sealed class RunModeChoice
         get
         {
             if (Armed == RunArmed.Live && _control is null) return "No scenario session on this host — Live cannot be started from here";
-            if (Armed == RunArmed.AAR && LastExercise is null && PickRecording is null) return "No exercise to review yet — open a recording first";
+            if (Armed == RunArmed.AAR && LastExercise is not null && !_lastExerciseRecorded) return RunRecordingGates.NotRecordedReason;   // D14: the last run left nothing to review
+            if (Armed == RunArmed.AAR && LastExercise is null && PickRecording is null) return "No exercise for an AAR yet — open a recording first";
             return null;
         }
     }
@@ -111,10 +130,138 @@ public sealed class RunModeChoice
                 PlayLive();
                 break;
             case RunArmed.AAR:
-                if (LastExercise is { } exercise) _control!.OpenRecording(exercise);   // PlayDisabledReason guarantees a control or a picker
+                if (LastExercise is { } exercise) OpenRecording(exercise);   // PlayDisabledReason guarantees a control or a picker
                 else PickRecording?.Invoke();
                 break;
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two (AQ108 §3 "Preview → AAR, or File › Open Recording", D20) — opens a recording into AAR (at its start, or at
+    /// <paramref name="atSimSeconds"/>). ⭐ A move that LEAVES EDITING asks the cluster's check round first: unsaved edits → <i>Save / Discard / Cancel</i>,
+    /// a never-saved scenario → <i>Discard / Cancel</i>. ⛔ Asked ONLY from editing (the master refuses a round elsewhere, and a run holds nothing of the scenario).
+    /// Every host's File › Open Recording and ▶ in AAR armed end here.
+    /// </summary>
+    public void OpenRecording(Guid exerciseId, double? atSimSeconds = null)
+    {
+        if (_control is null || exerciseId == Guid.Empty) return;
+        LeavingEditing("Opening a recording", () =>
+        {
+            LastExercise = exerciseId;
+            Armed = RunArmed.AAR;
+            if (atSimSeconds is { } at) _control.OpenRecording(exerciseId, at);
+            else _control.OpenRecording(exerciseId);
+        });
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two (AQ108 §3 "open another scenario", D20) — opens <paramref name="scenarioName"/> for EDITING; asks <i>Save / Discard / Cancel</i> first when the scenario
+    /// being edited has unsaved changes (the cluster's check round). The armed mode becomes the host's default through the cluster-state hook (D12). The File › Open Scenario item of every host ends here.
+    /// </summary>
+    public void OpenScenario(string scenarioName)
+    {
+        if (_control is null || string.IsNullOrWhiteSpace(scenarioName)) return;
+        LeavingEditing("Opening another scenario", () => _control.OpenForEdit(scenarioName));
+    }
+
+    /// <summary>
+    /// ⭐ THE ONE guard for a move that LEAVES EDITING (AQ108 D20): <paramref name="proceed"/> runs at once when nothing is being edited (a run holds no scenario of its own, and the master
+    /// refuses a check round outside editing), else after the check round — unchanged: at once; changed: <i>Save / Discard / Cancel</i>; never saved: <i>Discard / Cancel</i>.
+    /// ⭐ ONE <c>CheckUnsaved</c> per move, whichever menu item or button started it.
+    /// </summary>
+    private void LeavingEditing(string what, Action proceed)
+    {
+        if (Pending is not null || _asking) return;
+        if (_transport.Mode != TransportMode.Edit) { proceed(); return; }
+
+        _asking = true;
+        _unsaved.Ask(answer =>
+        {
+            _asking = false;
+            switch (answer)
+            {
+                case UnsavedAnswer.Unchanged:
+                    proceed();
+                    break;
+                case UnsavedAnswer.Changed:
+                    Ask($"This scenario has unsaved changes. {what} leaves editing.",
+                        new RunModeConfirmation.Button("Save", () => { _control!.SaveCurrent(); proceed(); }),
+                        new RunModeConfirmation.Button("Discard", proceed));
+                    break;
+                case UnsavedAnswer.NeverSaved:
+                    Ask($"This scenario has never been saved. {what} discards it.", new RunModeConfirmation.Button("Discard", proceed));
+                    break;
+            }
+        });
+    }
+
+    // ── ⭐ AQ108 D21 — the timeline's menu: a mode change at the clicked moment, without asking ─────────────────────────
+
+    /// <summary>Why "AAR from here" cannot be offered now (null = it can): only a live run, and only a RECORDED one, has a recording to open.</summary>
+    public string? AarFromHereDisabledReason
+        => _control is null ? "This host has no scenario session"
+         : _transport.Mode != TransportMode.Live ? "Only a live run can end into an AAR"
+         : !_transport.RecordsLiveRuns ? "this run was not recorded"
+         : _transport.ActiveExercise == Guid.Empty ? "the run's exercise is not known yet"
+         : null;
+
+    /// <summary>
+    /// ⭐ D21 <i>AAR from here</i> (Live): ends the live run and opens its recording at <paramref name="simSeconds"/> of the run's own clock. No confirmation — the
+    /// user picked the moment. Does nothing when <see cref="AarFromHereDisabledReason"/> says why not.
+    /// </summary>
+    public void AarFromHere(double simSeconds)
+    {
+        if (AarFromHereDisabledReason is not null) return;
+        var exercise = _transport.ActiveExercise;
+        LastExercise = exercise;
+        Armed = RunArmed.AAR;
+        _control!.OpenRecording(exercise, Math.Max(0, simSeconds));
+    }
+
+    /// <summary>Why "Go live from here" cannot be offered now (null = it can): only an AAR can branch.</summary>
+    public string? GoLiveFromHereDisabledReason
+        => _transport.Mode != TransportMode.Replay ? "Only an AAR can go live from a moment" : null;
+
+    /// <summary>
+    /// ⭐ D21 <i>Go live from here</i> (AAR): <paramref name="seekToMoment"/> moves the replay to the clicked moment, then the built branch
+    /// (<see cref="IRunTransport.BranchLive"/>, D18) goes out TWO frames later — the master reads the seek first and, leaving a replay, drains the seeks in
+    /// flight before it branches (<c>ClusterMaster</c> CE-3329 F8), so the new run starts where the user clicked and not where the replay stood. No confirmation.
+    /// </summary>
+    public void GoLiveFromHere(Action seekToMoment)
+    {
+        if (GoLiveFromHereDisabledReason is not null) return;
+        seekToMoment();
+        Armed = RunArmed.Live;
+        _branchInFrames = 2;
+    }
+
+    // ── ⭐ AQ108 D8 — Save in a run is a checkpoint ───────────────────────────────────────────────────────────────────
+
+    /// <summary>Why a checkpoint cannot be taken now (null = it can): a live run (or its DAR) that is recorded has a recorder to take it with; an AAR has none.</summary>
+    public string? CheckpointDisabledReason
+        => _control is null ? "This host has no scenario session"
+         : _transport.Mode == TransportMode.Replay ? "a recording cannot take a checkpoint — go live from a moment first"
+         : _transport.Mode is TransportMode.Live or TransportMode.Review && !_transport.RecordsLiveRuns ? "this run was not recorded"
+         : _transport.Mode is TransportMode.Live or TransportMode.Review ? null
+         : "a checkpoint is taken of a live run";
+
+    /// <summary>
+    /// ⭐ A checkpoint of the live run (the timeline's <i>Take checkpoint here</i>, and every Save in a run), with the toast <i>Checkpoint taken</i>. In an AAR / an unrecorded
+    /// run nothing is published (the nodes have no recorder to take it with — the master / <c>ReferenceCheckpointHandler</c> would refuse it) and the toast says why.
+    /// </summary>
+    public void TakeCheckpoint()
+    {
+        if (CheckpointDisabledReason is { } why) { _toast = new($"No checkpoint: {why}", null, _now() + ToastLifetime); return; }
+        _control!.TakeCheckpoint();
+        _toast = new("Checkpoint taken", null, _now() + ToastLifetime);
+    }
+
+    /// <summary>The session's save intercept: in a Live / DAR / AAR run a Save is a checkpoint (the scenario is NEVER written); elsewhere the save goes through.</summary>
+    private bool TryCheckpointInsteadOfSave()
+    {
+        if (_transport.Mode is not (TransportMode.Live or TransportMode.Review or TransportMode.Replay)) return false;
+        TakeCheckpoint();
+        return true;
     }
 
     private void PlayLive()
@@ -180,21 +327,26 @@ public sealed class RunModeChoice
         var exercise = _transport.ActiveExercise;
         var recorded = _transport.RecordsLiveRuns;
         var length = _transport.TotalTime;
-        if (exercise != Guid.Empty) LastExercise = exercise;
+        if (exercise != Guid.Empty) { LastExercise = exercise; _lastExerciseRecorded = recorded; }
         _keepArmedOnEdit = true;                       // R2: the armed mode stays (D12's reset is for a FRESH open)
         _control!.OpenForEdit(scenario!);
+        // §1a: the user's words are DAR / AAR — "Replay" is gone from the vocabulary (D17). A run that was not recorded offers NO AAR button (D14).
         _toast = recorded && exercise != Guid.Empty
-            ? new($"Exercise recorded ({MainToolbarTimeControlSection.FormatSpan(length)}) — Replay it", exercise, _now() + ToastLifetime)
+            ? new($"Exercise recorded ({MainToolbarTimeControlSection.FormatSpan(length)}) — open the AAR", exercise, _now() + ToastLifetime)
             : new("Live run ended", null, _now() + ToastLifetime);
     }
 
-    /// <summary>The toast's "Replay it" (and the indicator's "AAR the last exercise"): arms AAR and opens <see cref="LastExercise"/> at its START.</summary>
+    private bool _lastExerciseRecorded = true;   // whether LastExercise's run was recorded (D14): an unrecorded one is never offered for AAR
+
+    /// <summary>Why DAR (a review inside the live run) cannot be offered now (null = it can): the run was not recorded (D14, <c>CE-4090</c>'s <c>RunNotRecorded</c>).</summary>
+    public string? DarDisabledReason => _transport.Mode == TransportMode.Live && !_transport.RecordsLiveRuns ? RunRecordingGates.NotRecordedReason : null;
+
+    /// <summary>The toast's AAR button (and the indicator's "AAR the last exercise"): arms AAR and opens <see cref="LastExercise"/> at its START (D6), asking first when that leaves unsaved edits.</summary>
     public void ReplayLastExercise()
     {
-        if (_control is null || LastExercise is not { } exercise) return;
-        Armed = RunArmed.AAR;
+        if (_control is null || LastExercise is not { } exercise || !_lastExerciseRecorded) return;
         _toast = null;
-        _control.OpenRecording(exercise);
+        OpenRecording(exercise);
     }
 
     private string? ScenarioOfRun() => _transport.ActiveExerciseScenario ?? _control?.LoadedScenarioName;
@@ -269,6 +421,7 @@ public sealed class RunModeChoice
                     return new("Ends the live session; its recording opens for AAR", "End live, open AAR", true, null, () =>
                     {
                         LastExercise = exercise;
+                        _lastExerciseRecorded = true;
                         Armed = RunArmed.AAR;
                         _control.OpenRecording(exercise);
                     });
@@ -313,8 +466,8 @@ public sealed class RunModeChoice
         static MovePlan Disabled(string reason) => new(null, "", false, reason, () => { });
     }
 
-    private void Ask(string text, RunModeConfirmation.Button confirm)
-        => Pending = new RunModeConfirmation(text, new[] { confirm, new RunModeConfirmation.Button("Cancel", null) },
+    private void Ask(string text, params RunModeConfirmation.Button[] buttons)
+        => Pending = new RunModeConfirmation(text, buttons.Append(new RunModeConfirmation.Button("Cancel", null)).ToArray(),
                                              done => { if (ReferenceEquals(Pending, done)) Pending = null; });
 
     // ── D12 + the cluster's state ───────────────────────────────────────────────────────
@@ -384,4 +537,37 @@ public sealed class RunModeChoice
         RunArmed.Live    => new(IconsFontAwesome6.Circle, _transport.RecordsLiveRuns ? RecordingRed : ColorOf(TransportMode.Live), "Live", level),
         _                => new(IconsFontAwesome6.Play, ColorOf(TransportMode.Replay), "AAR", level),
     };
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-4097</c> part two (AQ108 D22) — <b>what a USER control's ▶ / Step do</b>: from Edit they are the host's <see cref="RunModeChoice.Play"/> (the armed mode),
+/// everywhere else the facade's own transport. ⭐ ONE place, shared by the main toolbar, the status-bar copy and the timeline's Space — so no control can follow the armed
+/// mode differently. ⛔ The facade's own <c>TogglePlayPause</c> / <c>Step</c> stay RAW (from Edit: the dry run) because <c>POST /sim/play</c> and <c>/sim/step</c> call them and
+/// a route does what it names; <c>Stop</c> needs no helper — it delegates to the choice inside the facade (■ = <c>POST /sim/stop</c>).
+/// </summary>
+public static class UserTransport
+{
+    private static RunModeChoice? EditChoice(ITimeTransportFacade f, RunModeChoice? choice) => f.Mode == TransportMode.Edit ? choice ?? f.RunChoice : null;
+
+    /// <summary>▶ is enabled: the facade says so, and — from Edit — the armed mode can run here (Live armed on a host with no scenario session cannot).</summary>
+    public static bool IsUserPlayEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsPlayPauseEnabled && EditChoice(f, choice)?.PlayDisabledReason is null;
+
+    /// <summary>Step is enabled (same rule as <see cref="IsUserPlayEnabled"/>).</summary>
+    public static bool IsUserStepEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsStepEnabled && EditChoice(f, choice)?.PlayDisabledReason is null;
+
+    /// <summary>A user's ▶ / ⏸: from Edit the armed mode's start, else the facade's toggle. Does nothing when <see cref="IsUserPlayEnabled"/> is false.</summary>
+    public static void UserPlayPause(this ITimeTransportFacade f, RunModeChoice? choice = null)
+    {
+        if (!f.IsUserPlayEnabled(choice)) return;
+        if (EditChoice(f, choice) is { } c) c.Play(startPaused: false);
+        else f.TogglePlayPause();
+    }
+
+    /// <summary>A user's Step: from Edit the armed mode's start, paused at its first frame; else the facade's step.</summary>
+    public static void UserStep(this ITimeTransportFacade f, RunModeChoice? choice = null)
+    {
+        if (!f.IsUserStepEnabled(choice)) return;
+        if (EditChoice(f, choice) is { } c) c.Play(startPaused: true);
+        else f.Step();
+    }
 }

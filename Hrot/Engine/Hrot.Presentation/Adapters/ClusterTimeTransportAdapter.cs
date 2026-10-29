@@ -106,6 +106,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
             _clusterTime.Apply(ev);
             _seenAnyModeEvent = true;
         }
+
+        _run?.Update();   // ⭐ CE-4097 part two — a check-round answer that arrived, a deferred branch (no blocking)
     }
 
     // ── ITimeTransportFacade ──────────────────────────────────────────────
@@ -118,10 +120,9 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         _currentState == ClusterState.OperatingReview;   // ⭐ CE-3329
 
     /// <inheritdoc/>
-    /// <remarks>⭐ CE-4097 — from Edit, ▶ follows the run choice: Live armed on a host with no scenario session is disabled (<see cref="RunModeChoice.PlayDisabledReason"/>).</remarks>
-    public bool IsPlayPauseEnabled =>
-        (_currentState == ClusterState.Idle || IsOperating)
-        && !(_run != null && _currentState == ClusterState.OperatingEdit && _run.PlayDisabledReason != null);
+    /// <remarks>⭐ CE-4097 part two (D22) — RAW: the transport's own answer. "Live armed on a host with no scenario session" disables the USER's ▶
+    /// (<see cref="UserTransport.IsUserPlayEnabled"/>), not this — an HTTP <c>/sim/play</c> from Edit is the dry run on every host.</remarks>
+    public bool IsPlayPauseEnabled => _currentState == ClusterState.Idle || IsOperating;
 
     /// <inheritdoc/>
     public bool IsStepEnabled => IsPlayPauseEnabled;
@@ -148,11 +149,11 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     public void TogglePlayPause()
     {
         // ⭐ CE-3329 row 21 — Play from EDIT is the dry run, running (the master resumes it when it lands); the same request on every host
-        // ⭐ CE-4097 — …when Preview is armed: Play from Edit is what the run choice's ARMED mode says (Live: the unsaved check, then LoadForLive; AAR: the recording)
+        // ⭐ CE-4097 part two (AQ108 D22) — and it stays so whatever mode is ARMED: this is what POST /sim/play calls, and a route does what it names. The USER's ▶
+        //   asks the run choice instead (UserTransport.UserPlayPause: Live → the unsaved check, then LoadForLive; AAR → the recording).
         if (_currentState == ClusterState.OperatingEdit)
         {
-            if (_run != null) _run.Play(startPaused: false);
-            else _bus.PublishManaged(DryRunIntents.Enter(startPaused: false));
+            _bus.PublishManaged(DryRunIntents.Enter(startPaused: false));
             return;
         }
         if (IsPaused)
@@ -169,8 +170,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     {
         if (_currentState == ClusterState.OperatingEdit)
         {
-            if (_run != null) _run.Play(startPaused: true);   // ⭐ CE-4097 — the armed mode's start (Preview: the dry run, paused at its first frame)
-            else _bus.PublishManaged(DryRunIntents.Enter(startPaused: true));   // step from edit = the dry run, paused at its first frame
+            _bus.PublishManaged(DryRunIntents.Enter(startPaused: true));   // step from edit = the dry run, paused at its first frame (⭐ D22: raw — never the armed mode, see TogglePlayPause)
         }
         else if (!IsPaused)
         {
@@ -252,9 +252,13 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// </summary>
     /// <param name="hostDefault">AQ108 D12: Preview in the editor, Live on CGF / the all-in-one / the server.</param>
     /// <param name="control">The host's scenario session (<see langword="null"/> on SimHost / IG: Live-armed ▶ is then disabled with its reason).</param>
-    /// <param name="unsaved">The unsaved-changes seam (default: the session-name check, ⚠ the CE-4093 TODO).</param>
-    public RunModeChoice AttachRunChoice(RunArmed hostDefault, IRunScenarioControl? control, IUnsavedChangesQuery? unsaved = null)
+    /// <param name="unsaved">The unsaved-changes seam; a rail passes a fake. Default: <see cref="ClusterUnsavedChangesQuery"/> — the master's ONE check round (CE-4093), asked on
+    /// this adapter's bus (<c>CheckUnsavedIntent</c> through <c>IClusterMasterControl</c>) and read through <paramref name="unsavedReads"/>.</param>
+    /// <param name="unsavedReads">⭐ How this host reads the round's answer (its node's provider / the editor's in-process core); <see langword="null"/> ⇒ it observes nothing and a named scenario counts as unchanged.</param>
+    public RunModeChoice AttachRunChoice(RunArmed hostDefault, IRunScenarioControl? control, IUnsavedChangesQuery? unsaved = null, UnsavedCheckReads? unsavedReads = null)
     {
+        unsaved ??= new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName,
+            new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
         _run = new RunModeChoice(this, hostDefault, control, unsaved);
         _run.OnClusterState(_currentState);   // the state heard before the choice existed
         return _run;

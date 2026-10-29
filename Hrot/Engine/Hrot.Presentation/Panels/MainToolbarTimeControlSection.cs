@@ -59,21 +59,19 @@ public sealed class MainToolbarTimeControlSection
     /// Handles a Play/Pause click. Only invokes <see cref="ITimeTransportFacade.TogglePlayPause"/>
     /// when <see cref="ITimeTransportFacade.IsPlayPauseEnabled"/> is <c>true</c>.
     /// </summary>
-    public void OnPlayPause()
-    {
-        if (_facade.IsPlayPauseEnabled)
-            _facade.TogglePlayPause();
-    }
+    public void OnPlayPause() => _facade.UserPlayPause(_choice);   // ⭐ CE-4097 part two (D22): from Edit the choice's ▶, else the facade's toggle
+
+    /// <summary>⭐ ▶ / ⏸ can be pressed (the facade says so; from Edit the armed mode can also run on this host).</summary>
+    public bool IsPlayEnabled => _facade.IsUserPlayEnabled(_choice);
+
+    /// <summary>⭐ Step can be pressed (same rule as <see cref="IsPlayEnabled"/>).</summary>
+    public bool IsStepEnabled => _facade.IsUserStepEnabled(_choice);
 
     /// <summary>
     /// Handles a Step click. Only invokes <see cref="ITimeTransportFacade.Step"/>
     /// when <see cref="ITimeTransportFacade.IsStepEnabled"/> is <c>true</c>.
     /// </summary>
-    public void OnStep()
-    {
-        if (_facade.IsStepEnabled)
-            _facade.Step();
-    }
+    public void OnStep() => _facade.UserStep(_choice);
 
     /// <summary>
     /// Handles a Stop click. Only invokes <see cref="ITimeTransportFacade.Stop"/>
@@ -107,8 +105,8 @@ public sealed class MainToolbarTimeControlSection
         TransportMode.Edit    => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Pen, new Vector4(0.60f, 0.60f, 0.60f, 1f), "Edit"),
         TransportMode.Preview => new(Fdp.Presentation.Fonts.IconsFontAwesome6.CircleHalfStroke, new Vector4(0.66f, 0.45f, 0.92f, 1f), "Preview"),
         TransportMode.Live    => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Circle, new Vector4(0.25f, 0.80f, 0.30f, 1f), "Live"),
-        TransportMode.Review  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, new Vector4(1.00f, 0.70f, 0.20f, 1f), "Review"),
-        TransportMode.Replay  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Play, new Vector4(0.30f, 0.60f, 1.00f, 1f), "Replay"),
+        TransportMode.Review  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft, new Vector4(1.00f, 0.70f, 0.20f, 1f), "DAR"),
+        TransportMode.Replay  => new(Fdp.Presentation.Fonts.IconsFontAwesome6.Play, new Vector4(0.30f, 0.60f, 1.00f, 1f), "AAR"),
         _ => null,
     };
 
@@ -180,13 +178,16 @@ public sealed class MainToolbarTimeControlSection
             case TransportMode.Live:
             {
                 var items = new List<ModeMenuItem>();
+                // ⭐ D14 — a run that was not recorded has nothing to look back at: DAR is greyed with the reason (the master refuses it too)
+                var darWhy = _choice?.DarDisabledReason;
+                string Dar(string label) => darWhy is null ? label : $"{label} — {darWhy}";
                 foreach (var d in ReviewWindows)
                 {
                     var window = d;
-                    items.Add(new($"Review the last {WindowLabel(window)}",
-                        () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window))));
+                    items.Add(new(Dar($"DAR — the last {WindowLabel(window)}"),
+                        () => _facade.EnterReviewAtSim(Math.Max(0, _facade.TotalTime - window)), Enabled: darWhy is null));
                 }
-                items.Add(new("Review from the start", () => _facade.EnterReviewAtSim(0)));
+                items.Add(new(Dar("DAR from the start"), () => _facade.EnterReviewAtSim(0), Enabled: darWhy is null));
                 return new($"Live · {TransportIcons.FormatTime(_facade.TotalTime)}", items);
             }
             case TransportMode.Review:
@@ -209,7 +210,7 @@ public sealed class MainToolbarTimeControlSection
                 items.Add(new("Restart from a checkpoint", null, Enabled: children.Count > 0, Children: children));
                 items.Add(new("⏏ Back to live", _facade.ExitReview));
                 var behind = SecondsBehindLive();
-                return new(behind is { } b ? $"Review · {FormatSpan(b)} behind live" : "Review", items);
+                return new(behind is { } b ? $"DAR · {FormatSpan(b)} behind live" : "DAR", items);
             }
             default:
                 return null;
@@ -230,7 +231,7 @@ public sealed class MainToolbarTimeControlSection
         return _facade.Mode switch
         {
             TransportMode.Review  => SecondsBehindLive() is { } b ? $"Back to live — {FormatSpan(b)} ahead" : "Back to live",
-            TransportMode.Replay  => _choice is null ? "Leave the replay" : "Back to the recording's start",
+            TransportMode.Replay  => _choice is null ? "Leave the AAR" : "Back to the recording's start",
             TransportMode.Preview => "Back to edit",
             TransportMode.Live    => _choice is null ? "Stop the exercise" : "Stop the exercise and return to the scenario's start",
             _                     => "Stop",
@@ -302,7 +303,7 @@ public sealed class MainToolbarTimeControlSection
 
         // ── [Play/Pause] ───────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_pp", iconSize,
-                PlayPauseFace(isPaused), enabled: _facade.IsPlayPauseEnabled))
+                PlayPauseFace(isPaused), enabled: IsPlayEnabled))
         {
             OnPlayPause();
         }
@@ -313,7 +314,7 @@ public sealed class MainToolbarTimeControlSection
 
         // ── [Step] ─────────────────────────────────────────────────────
         if (TransportIcons.DrawTransportButton("##mt_step", iconSize,
-                TransportIcons.BtnShape.Step, enabled: _facade.IsStepEnabled))
+                TransportIcons.BtnShape.Step, enabled: IsStepEnabled))
         {
             OnStep();
         }

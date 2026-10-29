@@ -493,6 +493,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
 
+    private Hrot.Presentation.DebugApi.ISubsystemDebugProvider? _unsavedReadsProvider;   // ⭐ CE-4097 part two — the provider the run choice's unsaved check reads (built once)
+
     /// <summary>
     /// ⭐ <c>CE-476</c> — this node's AI debug surface (BTree / HSM / Blueprint sessions + the registries), composed in
     /// <see cref="Initialize"/> so a headless node has it too. The cluster's debug API resolves it against the active
@@ -1834,7 +1836,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _clusterTimeAdapter = new ClusterTimeTransportAdapter(
                 bus, () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
-            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, _scenarioSession);
+            //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); an ECS node keeps no
+            //   cluster read model that sees the round's answer today, so it observes nothing ⇒ ▶ asks no round and counts the scenario as unchanged (the NOTE's rule) — and
+            //   starts asking the day the provider does observe, with no change here.
+            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, _scenarioSession,
+                unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
             var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
             windowManager.StatusBar.RegisterSection(
                 id:             "cgf_time_controls",
@@ -1864,6 +1870,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   for the same reason.
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
                 windowManager.MainToolbar, _clusterTimeAdapter, _clusterTimeAdapter.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed
+            // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (the editor registers the same section)
+            Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, _clusterTimeAdapter, "Scenario");
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
@@ -2934,7 +2942,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     openPicker:    _shellPickers.OpenPicker,
                     listExercises: () => Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _context?.ClusterSlave)()
                                          ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
-                    openRecording: _scenarioSession.OpenRecording).Open);
+                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
+                    openRecording: id => { if (_clusterTimeAdapter?.RunChoice is { } choice) choice.OpenRecording(id); else _scenarioSession.OpenRecording(id); }).Open,
+                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
+                openScenario: name => { if (_clusterTimeAdapter?.RunChoice is { } choice) choice.OpenScenario(name); else _scenarioSession.OpenForEdit(name); });
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two

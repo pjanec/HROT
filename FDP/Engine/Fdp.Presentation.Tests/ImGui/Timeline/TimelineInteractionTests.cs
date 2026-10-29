@@ -330,6 +330,51 @@ public sealed class TimelineInteractionTests
         public int Clears { get; private set; }
         public void SetLoop(long fromWall, long toWall) { SetLoops.Add((fromWall, toWall)); Loop = (fromWall, toWall); }
         public void ClearLoop() { Clears++; Loop = null; }
+        // ⭐ CE-4097 part two (D21) — the host's run-mode items at the clicked moment
+        public List<(long Wall, string Time)> ModeAsked { get; } = new();
+        public List<long> ModeRuns { get; } = new();
+        public IEnumerable<TimelineMenuItem> ModeMenuItems(long wallTicks, string time)
+        {
+            ModeAsked.Add((wallTicks, time));
+            yield return new TimelineMenuItem($"AAR from {time}", () => ModeRuns.Add(wallTicks));
+            yield return new TimelineMenuItem("Take checkpoint here — greyed", () => ModeRuns.Add(-1), Enabled: false);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4097 part two (AQ108 D21) — the right-click menu carries the HOST's run-mode items for the clicked moment: the panel asks the cursor with the SNAPPED click and its time label, lists what comes
+    /// back (greyed stays greyed), and running one calls back with that moment; a cursor with none (the default) adds nothing.
+    /// 🔴 Red-proof: <c>MenuItems</c> dropping its <c>cursor.ModeMenuItems(at, time)</c> line ⇒ the labels are missing.
+    /// </summary>
+    [Fact]
+    public void CE4097_D21_TheMenuCarriesTheCursorsRunModeItems_ForTheClickedMoment()
+    {
+        var index = Index(601, E(100, Shot), E(300, Shot));
+        var view = new TimelineView();
+        view.OnExtent(0, 600 * Tick);
+        var cursor = new SessionCursor { Mode = TimelineMode.Live };
+
+        var items = TimelinePanel.MenuItems(index, cursor, Shot, 300 * Tick, 300, null, "0:05.0", view);
+
+        Assert.Equal((300 * Tick, "0:05.0"), Assert.Single(cursor.ModeAsked));
+        Assert.Contains(items, i => i.Label == "AAR from 0:05.0" && i.Enabled);
+        Assert.Contains(items, i => i.Label.StartsWith("Take checkpoint here") && !i.Enabled);
+        items.First(i => i.Label == "AAR from 0:05.0").Run();
+        Assert.Equal(new[] { 300 * Tick }, cursor.ModeRuns);
+
+        // a cursor that adds none (the interface default) leaves the menu exactly as it was
+        var plain = Labels(new PlainCursor());
+        Assert.DoesNotContain(plain, l => l.StartsWith("AAR"));
+        List<string> Labels(ITimelineCursor c) => TimelinePanel.MenuItems(index, c, Shot, 300 * Tick, 300, null, "0:05.0", view).Select(i => i.Label).ToList();
+    }
+
+    private sealed class PlainCursor : ITimelineCursor
+    {
+        public long ExtentFrom => 0;
+        public long ExtentTo => 600 * Tick;
+        public long Now => 0;
+        public bool CanSeek => false;
+        public void Seek(long ticks) { }
     }
 
     /// <summary>
@@ -349,20 +394,20 @@ public sealed class TimelineInteractionTests
         var live = new SessionCursor { Mode = TimelineMode.Live, CanReview = true };
         var liveItems = TimelinePanel.MenuItems(index, live, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
         var liveLabels = liveItems.Select(i => i.Label).ToList();
-        Assert.Contains(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from 0:05.0", liveLabels);
-        Assert.Contains(liveLabels, l => l.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from this event"));
+        Assert.Contains(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " DAR from 0:05.0", liveLabels);
+        Assert.Contains(liveLabels, l => l.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " DAR from this event"));
         Assert.DoesNotContain(liveLabels, l => l.StartsWith("Seek") || l.StartsWith("Play") || l.Contains("live point"));
         Assert.Empty(live.Reviews);                                           // building the menu entered nothing
-        liveItems.First(i => i.Label == Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from 0:05.0").Run();
-        liveItems.First(i => i.Label.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " Review from this event")).Run();
+        liveItems.First(i => i.Label == Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " DAR from 0:05.0").Run();
+        liveItems.First(i => i.Label.StartsWith(Fdp.Presentation.Fonts.IconsFontAwesome6.ClockRotateLeft + " DAR from this event")).Run();
         Assert.Equal(new[] { 300 * Tick, 300 * Tick }, live.Reviews);          // the snapped click, then the event's frame
 
-        Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Live, CanReview = false }), l => l.Contains("Review"));   // nothing to review
+        Assert.DoesNotContain(Labels(new SessionCursor { Mode = TimelineMode.Live, CanReview = false }), l => l.Contains("DAR"));   // nothing to review
 
         var review = new SessionCursor { Mode = TimelineMode.Review, CanSeek = true, LivePoint = 550 * Tick };
         var reviewItems = TimelinePanel.MenuItems(index, review, Shot, 300 * Tick, 300, E(300, Shot), "0:05.0", view);
         Assert.Contains("Seek here (0:05.0)", reviewItems.Select(i => i.Label));
-        Assert.DoesNotContain(reviewItems.Select(i => i.Label), l => l.Contains("Review"));
+        Assert.DoesNotContain(reviewItems.Select(i => i.Label), l => l.Contains("DAR"));
         reviewItems.First(i => i.Label == "⏏ Seek to the live point").Run();
         Assert.Equal(new[] { 550 * Tick }, review.Seeks);
 

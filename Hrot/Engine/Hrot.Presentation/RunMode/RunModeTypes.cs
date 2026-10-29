@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.UI.Common.RunMode;
@@ -52,6 +53,13 @@ public interface IRunScenarioControl
     /// </summary>
     void OpenRecording(Guid exerciseId);
 
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two (AQ108 D21) — <see cref="OpenRecording(Guid)"/> at a MOMENT of the recording's own sim clock (the timeline's
+    /// <i>AAR from here</i>); <see langword="null"/> = its start. ⭐ A default member so a fake session need not state it: the one construction of the
+    /// replay intent is <c>ReplaySessionIntents.EnterReplay(exerciseId, simSeconds:)</c>, which the real session overrides this with.
+    /// </summary>
+    void OpenRecording(Guid exerciseId, double? atSimSeconds) => OpenRecording(exerciseId);
+
     /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
     void SaveCurrent();
 
@@ -75,37 +83,103 @@ public enum UnsavedAnswer
 
 /// <summary>
 /// ⭐⭐ <c>CE-4097</c> (AQ108 D20) — <b>ONE seam: "ask the cluster whether there are unsaved edits".</b> The answer comes through
-/// <c>reply</c> (a cluster check round answers later than the call). ⛔ ui builds no round of its own: backend's CE-4093 master
-/// round (<c>NodeOpType.CheckUnsaved</c>) is wired HERE when it lands; until then <see cref="ScenarioNameUnsavedChangesQuery"/> answers.
+/// <c>reply</c> (a cluster check round answers later than the call, so <see cref="Poll"/> is driven from the choice's per-frame update).
+/// ⛔ ui builds no round of its own: the master's CE-4093 round is what <see cref="ClusterUnsavedChangesQuery"/> asks.
 /// </summary>
 public interface IUnsavedChangesQuery
 {
     /// <summary>Asks; <paramref name="reply"/> is called exactly once (possibly later, possibly synchronously).</summary>
     void Ask(Action<UnsavedAnswer> reply);
+
+    /// <summary>Called once per frame by <see cref="RunModeChoice.Update"/>: delivers an answer that has arrived since (no blocking, ever). Default: nothing to poll.</summary>
+    void Poll() { }
 }
 
 /// <summary>
-/// ⭐ The PRODUCTION DEFAULT of <see cref="IUnsavedChangesQuery"/> until backend's master check round exists: <see cref="UnsavedAnswer.NeverSaved"/>
-/// when no scenario name is loaded, else <see cref="UnsavedAnswer.Unchanged"/>.
+/// ⭐⭐ <c>CE-4097</c> part two (AQ108 D20, §4b) — how a host READS a check round's answer: this node's cluster read model
+/// (<c>ISubsystemDebugProvider.UnsavedCheck(requestId)</c> / <c>ObservesUnsavedChecks</c>; the editor's in-process master core reads its
+/// <c>ClusterUiCache</c>). ⛔ <see cref="Observes"/> false ⇒ the host has no read model: nothing is asked and the scenario counts as unchanged
+/// (the HTTP gate's own rule, <c>ALoad_WhereThereIsNothingToLose_OrNoWayToSeeTheAnswer_AsksNoRound</c>).
+/// </summary>
+public sealed record UnsavedCheckReads(Func<bool> Observes, Func<Guid, UnsavedCheckOutcome?> Outcome)
+{
+    /// <summary>The reads over a node's debug provider (a <see langword="null"/> provider observes nothing).</summary>
+    public static UnsavedCheckReads From(Func<Hrot.Presentation.DebugApi.ISubsystemDebugProvider?> provider)
+        => new(() => provider()?.ObservesUnsavedChecks == true, id => provider()?.UnsavedCheck(id));
+}
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-4097</c> part two (AQ108 D20) — <b>the production <see cref="IUnsavedChangesQuery"/>: the master's ONE check round</b> (CE-4093),
+/// asked ONLY through the members the coordinator's NOTE lists — <c>IClusterMasterControl.CheckUnsaved(new CheckUnsavedIntent{…})</c>, answered by
+/// <c>ISubsystemDebugProvider.UnsavedCheck(requestId)</c> → <see cref="UnsavedCheckOutcome"/> (null until it arrives; polled, never waited on).
+/// ⛔ Never decided on <c>ScenarioDirty</c> (the last verdict, display only). One <see cref="Ask"/> publishes ONE intent.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>TODO — CE-4093 (backend's master check round, AQ108 D20 / §4a).</b> The node side exists (<c>NodeOpType.CheckUnsaved = 35</c>, each node
-/// answers changed / unchanged / no-baseline); the MASTER's round that folds the answers is not built. When it lands, replace this class with an
-/// implementation that publishes the round and calls <c>reply</c> with <see cref="UnsavedAnswer.Changed"/> when any node (or a missing / "changed"
-/// answer — only an explicit "unchanged" means saved, <c>WorldChangeCheckHandler.MeansChanged</c>) says so. ⛔ Do not build a round here.
-/// Until then "Unchanged" is a LIE for an edited, saved scenario: ▶ in Live armed goes live from the file on disk without the Save-first prompt.
+/// <para>NeverSaved stays decided HERE by an empty <see cref="IRunScenarioControl.LoadedScenarioName"/> (the master's round answers "changed" for a
+/// world, not "there is no file"). A host that observes nothing answers Unchanged for a named scenario — the same rule the HTTP gate uses.</para>
+/// <para>A refusal (the master refuses outside editing) reads as Unchanged: nothing of the SCENARIO can be lost outside editing. ⚠ No answer within
+/// <see cref="Deadline"/> reads as Changed — fail closed to the Save-first prompt (the HTTP gate fails closed with a 504).</para>
 /// </remarks>
-public sealed class ScenarioNameUnsavedChangesQuery : IUnsavedChangesQuery
+public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
 {
-    private readonly Func<string?> _loadedScenarioName;
+    /// <summary>How long a round may take before the answer is taken as "changed" (the HTTP gate's own 15 s).</summary>
+    public static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
 
-    /// <param name="loadedScenarioName">The loaded scenario's name (the session's <see cref="IRunScenarioControl.LoadedScenarioName"/>).</param>
-    public ScenarioNameUnsavedChangesQuery(Func<string?> loadedScenarioName)
-        => _loadedScenarioName = loadedScenarioName ?? throw new ArgumentNullException(nameof(loadedScenarioName));
+    private readonly Func<string?> _loadedScenarioName;
+    private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _master;
+    private readonly UnsavedCheckReads? _reads;
+    private readonly Func<DateTime> _now;
+
+    private (Guid Id, Action<UnsavedAnswer> Reply, DateTime Due)? _pending;
+
+    /// <param name="loadedScenarioName">The session's loaded scenario name (empty ⇒ NeverSaved).</param>
+    /// <param name="master">Where the round is asked (<c>OrchestrationBusMasterControl</c> on the host's bus); <see langword="null"/> ⇒ nothing is asked.</param>
+    /// <param name="reads">How the answer is read; <see langword="null"/> ⇒ this host observes nothing (a named scenario counts as unchanged).</param>
+    /// <param name="now">Clock of the deadline (tests inject one).</param>
+    public ClusterUnsavedChangesQuery(Func<string?> loadedScenarioName, Hrot.Presentation.DebugApi.IClusterMasterControl? master,
+                                      UnsavedCheckReads? reads, Func<DateTime>? now = null)
+    {
+        _loadedScenarioName = loadedScenarioName ?? throw new ArgumentNullException(nameof(loadedScenarioName));
+        _master = master;
+        _reads  = reads;
+        _now    = now ?? (() => DateTime.UtcNow);
+    }
 
     /// <inheritdoc/>
     public void Ask(Action<UnsavedAnswer> reply)
-        => reply(string.IsNullOrWhiteSpace(_loadedScenarioName()) ? UnsavedAnswer.NeverSaved : UnsavedAnswer.Unchanged);
+    {
+        if (string.IsNullOrWhiteSpace(_loadedScenarioName())) { reply(UnsavedAnswer.NeverSaved); return; }
+        if (_master is null || _reads is null || !_reads.Observes()) { reply(UnsavedAnswer.Unchanged); return; }   // no way to see the answer: ask nothing
+        var id = Guid.NewGuid();
+        _pending = (id, reply, _now() + Deadline);
+        _master.CheckUnsaved(new CheckUnsavedIntent { RequestId = id });
+    }
+
+    /// <inheritdoc/>
+    public void Poll()
+    {
+        if (_pending is not { } p) return;
+        UnsavedAnswer? answer = null;
+        if (_reads!.Outcome(p.Id) is { } outcome)
+            answer = outcome.Result is { Changed: true } ? UnsavedAnswer.Changed : UnsavedAnswer.Unchanged;   // a refusal (Result null): outside editing, nothing to lose
+        else if (_now() >= p.Due)
+            answer = UnsavedAnswer.Changed;
+        if (answer is null) return;
+        _pending = null;
+        p.Reply(answer.Value);
+    }
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-4097</c> part two (AQ108 D8, D22) — a scenario session whose <c>SaveCurrent</c> a run choice may intercept: in a Live / DAR / AAR
+/// run a Save is a CHECKPOINT, never a scenario write. ⭐ Set by <see cref="RunModeChoice"/>'s constructor, so EVERY save path of a host
+/// (File › Save, Ctrl+S, the toolbar) is routed by construction — ⛔ not three seams each remembering to ask. HTTP's <c>POST /scenario/save</c>
+/// stays explicit (409 in Live and AAR, D22) and never reaches this.
+/// </summary>
+public interface ISaveInterception
+{
+    /// <summary>Returns <see langword="true"/> when it handled the save (the scenario is then NOT written).</summary>
+    Func<bool>? SaveIntercept { get; set; }
 }
 
 /// <summary>

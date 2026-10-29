@@ -362,6 +362,8 @@ Grown — the same three buttons, the same readout and rate, ⭐ plus the **mode
  REPLAY    … │ (▶)  ⏸   ⏭   ■    03:12.7   1×  [W] │ …     blue ▶   — click opens the REPLAY menu
 ```
 
+> ⭐ **`2026-10-28` (CE-4097 part two, [AQ108](blueprints/Architect_Question_108_Run_Mode_Picker.md) §1a / D17, §2.8a):** the words the user sees are **DAR** (this "Review") and **AAR** (this "Replay") — the drawings below keep the old words; the built menu reads *DAR — the last 30 s*, *DAR from the start*, header *DAR · 5:27 behind live*. The menu is also where the run-mode choice lives (Preview / Live / AAR moves with their confirmations) and the timeline's right-click menu gained *AAR from here* · *Go live from here* · *Take checkpoint here*. The rule below ("a click opens a menu, never acts") is unchanged.
+
 ⭐ **The mode indicator never acts on a click — it opens a menu, and only where the menu has something worth offering:**
 
 ```

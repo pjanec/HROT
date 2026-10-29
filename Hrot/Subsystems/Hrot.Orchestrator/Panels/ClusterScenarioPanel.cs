@@ -901,7 +901,7 @@ public sealed class ClusterScenarioPanel
 
     private void RenderReplaySection(bool disableAll)
     {
-        if (!ImGui.CollapsingHeader("Replay")) return;
+        if (!ImGui.CollapsingHeader("AAR (After Action Review)##OrcReplay")) return;   // ⭐ AQ108 D17 — the user's word is AAR (the code keeps Replay)
 
         if (ImGui.BeginChild("##OrcReplay", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
@@ -929,7 +929,7 @@ public sealed class ClusterScenarioPanel
                 ImGui.EndCombo();
             }
             ImGui.SameLine();
-            if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedExerciseIdx >= 0)
+            if (ImGui.Button("Open AAR##OrcReplayBtn") && _selectedExerciseIdx >= 0)
             {
                 Guid exerciseId = available[_selectedExerciseIdx].ExerciseId;
 

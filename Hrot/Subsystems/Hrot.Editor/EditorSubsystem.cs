@@ -2466,7 +2466,11 @@ namespace Hrot.Editor
                 localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
-            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Preview, _editorApp?.ScenarioSession);
+            //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
+            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Preview, _editorApp?.ScenarioSession,
+                unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
+                    () => _orchestratorCore != null,
+                    id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -4559,7 +4563,8 @@ namespace Hrot.Editor
                     openPicker:     _shellPickers.OpenPicker,
                     listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
                                           ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
-                    openRecording:  _editorApp.ScenarioSession.OpenRecording)
+                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
+                    openRecording:  id => { if (_timeTransport?.RunChoice is { } choice) choice.OpenRecording(id); else _editorApp.ScenarioSession.OpenRecording(id); })
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
@@ -4613,7 +4618,9 @@ namespace Hrot.Editor
                                        _previewController?.IsInPreviewMode == true,
                                        _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle),
                 confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run),
-                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open);   // ⭐ CE-4098
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098
+                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
+                openScenario: name => { if (_timeTransport?.RunChoice is { } choice) choice.OpenScenario(name); else _editorApp.ScenarioSession.OpenForEdit(name); });
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
@@ -5424,6 +5431,8 @@ namespace Hrot.Editor
                 var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
                     windowManager.MainToolbar, timeTransportFacade, _timeTransport!.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed (silent-default rule)
+                // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (CGF registers the same section)
+                Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, timeTransportFacade, "Scenario");
             }
 
             // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.

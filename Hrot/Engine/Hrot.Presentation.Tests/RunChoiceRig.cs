@@ -17,13 +17,15 @@ namespace Hrot.Presentation.Tests;
 /// </summary>
 internal static class RunChoiceRig
 {
-    internal sealed class FakeControl : IRunScenarioControl
+    internal sealed class FakeControl : IRunScenarioControl, ISaveInterception
     {
+        public Func<bool>? SaveIntercept { get; set; }
         public string? LoadedScenarioName { get; set; } = "hill-attack";
         public readonly List<string> Calls = new();
         public void LoadForLive(string scenarioName) => Calls.Add($"LoadForLive:{scenarioName}");
         public void OpenForEdit(string scenarioName) => Calls.Add($"OpenForEdit:{scenarioName}");
         public void OpenRecording(Guid exerciseId) => Calls.Add($"OpenRecording:{exerciseId}");
+        public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Calls.Add($"OpenRecording:{exerciseId}@{atSimSeconds?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}");
         public void SaveCurrent() => Calls.Add("SaveCurrent");
         public void TakeCheckpoint() => Calls.Add("TakeCheckpoint");
     }
@@ -57,6 +59,42 @@ internal static class RunChoiceRig
         return rig;
     }
 
+    /// <summary>⭐ CE-4097 part two — what a host's cluster read model answers about the check rounds: observes or not, and the outcome per request id (filled by the test).</summary>
+    internal sealed class FakeReads
+    {
+        public bool Observes = true;
+        public readonly Dictionary<Guid, UnsavedCheckOutcome> Outcomes = new();
+        public UnsavedCheckReads Reads => new(() => Observes, id => Outcomes.TryGetValue(id, out var o) ? o : null);
+        /// <summary>The master "answers" the round the facade published last (<paramref name="changed"/> or, with null, a refusal).</summary>
+        public void Answer(IEnumerable<CheckUnsavedIntent> asked, bool? changed)
+        {
+            foreach (var i in asked)
+                Outcomes[i.RequestId] = changed is { } c
+                    ? new UnsavedCheckOutcome(new UnsavedCheckResult(c, c ? new[] { 1 } : System.Array.Empty<int>()), null)
+                    : new UnsavedCheckOutcome(null, UnsavedCheckOutcome.NotEditingReason);
+        }
+    }
+
+    internal sealed record CheckRig(ClusterTimeTransportAdapter F, FdpEventBus Bus, FakeControl C, RunModeChoice Choice, FakeReads R);
+
+    /// <summary>⭐ CE-4097 part two — a REAL adapter on a real bus whose run choice asks the production <see cref="ClusterUnsavedChangesQuery"/> (the master's check round),
+    /// reading its answer through <see cref="FakeReads"/>; the cluster is heard in <paramref name="state"/>.</summary>
+    internal static CheckRig WithCheckRound(ClusterState state, RunArmed hostDefault = RunArmed.Live, string? loadedName = "hill-attack", bool observes = true)
+    {
+        var bus = new FdpEventBus();
+        var facade = new ClusterTimeTransportAdapter(bus, () => 0);
+        var control = new FakeControl { LoadedScenarioName = loadedName };
+        var reads = new FakeReads { Observes = observes };
+        var choice = facade.AttachRunChoice(hostDefault, control, unsavedReads: reads.Reads);
+        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
+        bus.SwapBuffers(); facade.Update(); bus.SwapBuffers();
+        return new CheckRig(facade, bus, control, choice, reads);
+    }
+
+    /// <summary>One frame of the facade (<c>Update</c> between swaps), as the host runs it — delivers a check answer that has arrived.</summary>
+    internal static void Frame(CheckRig rig) { rig.Bus.SwapBuffers(); rig.F.Update(); rig.Bus.SwapBuffers(); }
+
     /// <summary>The cluster state changes (as the master's broadcast says), then the facade's frame runs.</summary>
     internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false)
     {
@@ -70,5 +108,7 @@ internal static class RunChoiceRig
     internal static List<ResumeTimeIntent> Resumes(Rig rig) => rig.Bus.ReadManaged<ResumeTimeIntent>().ToList();
 
     /// <summary>Everything of type <typeparamref name="T"/> the facade published since the last look.</summary>
-    internal static List<T> Sent<T>(Rig rig) { rig.Bus.SwapBuffers(); return rig.Bus.ReadManaged<T>().ToList(); }
+    internal static List<T> Sent<T>(Rig rig) => Sent<T>(rig.Bus);
+    internal static List<T> Sent<T>(CheckRig rig) => Sent<T>(rig.Bus);
+    internal static List<T> Sent<T>(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<T>().ToList(); }
 }

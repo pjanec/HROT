@@ -8,6 +8,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
 using Hrot.UI.Common.Adapters;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 using Xunit;
 
 namespace Hrot.Presentation.Tests;
@@ -279,5 +280,116 @@ public sealed class ClusterTimelineCursorTests
         c.ClearLoop();
         Assert.Equal(1, f.ClearLoopCallCount);
         Assert.Null(c.Loop);
+    }
+
+    // ══ ⭐ CE-4097 part two (AQ108 D21) — the right-click menu's run-mode items, through the host's ONE run choice ═══════════════════
+
+    private static ClusterTimelineCursor RealCursor(RunChoiceRig.Rig rig, TimelineIndex? index = null)
+        => new(() => rig.F, () => index == null ? null : new Source { Index = index });
+
+    private static void HearSession(RunChoiceRig.Rig rig, ClusterState state, bool review)
+    {
+        rig.Bus.PublishManaged(new ReplaySessionUpdateEvent { Session = Session(Map(), review) });
+        RunChoiceRig.Hear(rig, state);
+    }
+
+    /// <summary>
+    /// ⭐ Live: <i>AAR from here</i> opens the run's recording at THAT frame's sim time (frame 5 ⇒ sim 3, through the same sim column the DAR item reads) — no confirmation, AAR armed; and
+    /// <i>Take checkpoint here</i> is a checkpoint of the LIVE state, so it is enabled only at the live edge (a past click shows it greyed with the reason). The DAR item stays the panel's own.
+    /// 🔴 Red-proof: the AAR item running <c>OpenRecording(exercise)</c> without the moment ⇒ the call has no <c>@3</c>.
+    /// </summary>
+    [Fact]
+    public void CE4097_D21_Live_OffersAarFromHere_AndACheckpointAtTheLiveEdgeOnly()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live);
+        var c = RealCursor(rig, LiveIndex());
+        var items = c.ModeMenuItems(Zero + 5 * S, "0:05").ToList();
+
+        var aar = Assert.Single(items, i => i.Label == "AAR from 0:05");
+        Assert.True(aar.Enabled);
+        aar.Run();
+        Assert.Equal(new[] { $"OpenRecording:{RunChoiceRig.RunId}@3" }, rig.C.Calls);
+        Assert.Equal(RunArmed.AAR, rig.Choice.Armed);
+        Assert.Null(rig.Choice.Pending);                                    // the user picked the moment: nothing asked
+
+        var past = Assert.Single(items, i => i.Label.StartsWith("Take checkpoint here"));
+        Assert.False(past.Enabled);
+        Assert.Contains("click the live edge", past.Label);
+        var edge = c.ModeMenuItems(Zero + 9 * S, "0:09").Single(i => i.Label.StartsWith("Take checkpoint here"));
+        Assert.True(edge.Enabled);
+        rig.C.Calls.Clear();
+        edge.Run();
+        Assert.Equal(new[] { "TakeCheckpoint" }, rig.C.Calls);
+        Assert.Equal("Checkpoint taken", rig.Choice.Toast!.Text);
+    }
+
+    /// <summary>
+    /// ⭐ AAR: <i>Go live from here</i> seeks the replay to the clicked moment (the cursor's seek, the facade's axis), then — two frames later — the built branch goes out and Live is armed; a
+    /// checkpoint is greyed (an AAR has no recorder). 🔴 Red-proof: the item calling <c>BranchLive</c> without the seek ⇒ no <c>SeekReplayIntent</c>.
+    /// </summary>
+    [Fact]
+    public void CE4097_D21_Replay_OffersGoLiveFromHere_SeekThenBranch()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Live);
+        HearSession(rig, ClusterState.OperatingReplay, review: false);
+        var c = RealCursor(rig, LiveIndex());
+        var items = c.ModeMenuItems(Zero + 8 * S, "0:08").ToList();
+
+        Assert.DoesNotContain(items, i => i.Label.StartsWith("AAR from"));  // already in one
+        var cp = Assert.Single(items, i => i.Label.StartsWith("Take checkpoint here"));
+        Assert.False(cp.Enabled);
+        Assert.Contains("recording cannot take a checkpoint", cp.Label);
+
+        var live = Assert.Single(items, i => i.Label == "Go live from 0:08");
+        live.Run();
+        var seek = RunChoiceRig.Sent<SeekReplayIntent>(rig).Single();       // the moment: the Sim axis, sim 5 at wall 8
+        Assert.Equal(5.0, seek.TargetSimSeconds);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);
+        Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(rig));        // the branch waits for the seek
+        RunChoiceRig.Hear(rig, ClusterState.OperatingReplay);
+        RunChoiceRig.Hear(rig, ClusterState.OperatingReplay);
+        Assert.Equal(ClusterState.OperatingLive, rig.Bus.ReadManaged<TransitionStateIntent>().Single().TargetState);
+    }
+
+    /// <summary>⭐ A DAR offers neither move (its own menu stays); its checkpoint is greyed "go back to live"; outside a run — editing, a dry run — and for a facade with no run choice there is no run-mode item at all.</summary>
+    [Fact]
+    public void CE4097_D21_ADar_AnEdit_AndAFacadeWithNoChoice_OfferNoMoves()
+    {
+        var review = RunChoiceRig.With(ClusterState.OperatingReview, RunArmed.Live);
+        HearSession(review, ClusterState.OperatingReview, review: true);
+        var items = RealCursor(review, LiveIndex()).ModeMenuItems(Zero + 5 * S, "0:05").ToList();
+        Assert.Equal(new[] { "Take checkpoint here — go back to live to take one" }, items.Select(i => i.Label));
+        Assert.False(items[0].Enabled);
+
+        foreach (var state in new[] { ClusterState.OperatingEdit, ClusterState.OperatingPreview, ClusterState.Idle })
+            Assert.Empty(RealCursor(RunChoiceRig.With(state), LiveIndex()).ModeMenuItems(Zero + 5 * S, "0:05"));
+        Assert.Empty(Cursor(new FakeTimeTransportFacade { Mode = TransportMode.Live }, LiveIndex()).ModeMenuItems(Zero + 5 * S, "0:05"));
+    }
+
+    /// <summary>⭐ The axis wrapper converts the click back to the host's wall ticks before the items see it: on the Sim axis a click at the axis position of frame 8 is "AAR from" sim 5.</summary>
+    [Fact]
+    public void CE4097_D21_TheAxisCursor_ForwardsTheMomentInWallTicks()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live);
+        var inner = RealCursor(rig, LiveIndex());
+        var axis = TimelineAxis.Sim(Map());
+        var wrapped = new AxisCursor(inner, axis);
+        var aar = wrapped.ModeMenuItems(axis.ToAxis(Zero + 8 * S), "0:05").Single(i => i.Label.StartsWith("AAR from"));
+        aar.Run();
+        Assert.Equal(new[] { $"OpenRecording:{RunChoiceRig.RunId}@5" }, rig.C.Calls);
+    }
+
+    /// <summary>⭐ D22 — Space on the timeline (the cursor's play) is a USER control: from Edit with Live armed it is the live load, not the dry run.</summary>
+    [Fact]
+    public void CE4097_D22_TheTimelinesSpace_FollowsTheArmedModeFromEdit()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        var c = RealCursor(rig);
+        Assert.True(c.CanPlay);
+        c.TogglePlay();
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.C.Calls);
+
+        var blind = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false);
+        Assert.False(RealCursor(blind).CanPlay);                            // Live armed on a host with no session: nothing to play
     }
 }

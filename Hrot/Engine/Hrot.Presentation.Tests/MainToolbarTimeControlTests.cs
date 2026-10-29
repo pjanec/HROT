@@ -196,7 +196,7 @@ public class MainToolbarTimeControlTests
     public void LiveMenu_OffersTheReviewWindowsAndTheStart()
     {
         var menu = new MainToolbarTimeControlSection(In(TransportMode.Live, total: 754)).ModeMenu()!;
-        Assert.Equal(new[] { "Review the last 30 s", "Review the last 2 min", "Review the last 10 min", "Review from the start" },
+        Assert.Equal(new[] { "DAR — the last 30 s", "DAR — the last 2 min", "DAR — the last 10 min", "DAR from the start" },
                      menu.Items.Select(i => i.Label).ToArray());
         Assert.StartsWith("Live", menu.Header);
     }
@@ -228,7 +228,7 @@ public class MainToolbarTimeControlTests
     {
         var fake = In(TransportMode.Review, total: 273, livePoint: 600, session: SessionWithCheckpoint());
         var menu = new MainToolbarTimeControlSection(fake).ModeMenu()!;
-        Assert.Equal("Review · 5:27 behind live", menu.Header);
+        Assert.Equal("DAR · 5:27 behind live", menu.Header);
         Assert.Equal(new[] { "Restart from 30 s before live", "Restart from 2 min before live", "Restart from a checkpoint", "⏏ Back to live" },
                      menu.Items.Select(i => i.Label).ToArray());
 
@@ -273,7 +273,7 @@ public class MainToolbarTimeControlTests
     public void StopTooltip_PerMode()
     {
         Assert.Equal("Stop the exercise", new MainToolbarTimeControlSection(In(TransportMode.Live)).StopTooltip());
-        Assert.Equal("Leave the replay", new MainToolbarTimeControlSection(In(TransportMode.Replay)).StopTooltip());
+        Assert.Equal("Leave the AAR", new MainToolbarTimeControlSection(In(TransportMode.Replay)).StopTooltip());
         Assert.Equal("Back to edit", new MainToolbarTimeControlSection(In(TransportMode.Preview)).StopTooltip());
         Assert.Equal("Back to live — 5:27 ahead",
             new MainToolbarTimeControlSection(In(TransportMode.Review, total: 273, livePoint: 600)).StopTooltip());
@@ -359,6 +359,7 @@ public class MainToolbarTimeControlTests
     // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 
     private static MainToolbarTimeControlSection Bar(RunChoiceRig.Rig rig) => new(rig.F, choice: rig.Choice);
+    private static MainToolbarTimeControlSection Bar(RunChoiceRig.CheckRig rig) => new(rig.F, choice: rig.Choice);
 
     private static RunArmed Armed(RunChoiceRig.Rig rig) => rig.Choice.Armed;
 
@@ -572,7 +573,7 @@ public class MainToolbarTimeControlTests
 
         var live = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90);
         var liveMenu = Bar(live).ModeMenu()!;
-        Assert.Contains(liveMenu.Items, i => i.Label.StartsWith("Review the last 30 s"));   // the DAR windows stay
+        Assert.Contains(liveMenu.Items, i => i.Label.StartsWith("DAR — the last 30 s"));   // the DAR windows stay
         liveMenu.Items.Single(i => i.Label == "AAR").Invoke!();
         Assert.Equal("Ends the live session; its recording opens for AAR", live.Choice.Pending!.Text);
 
@@ -588,10 +589,80 @@ public class MainToolbarTimeControlTests
     public void CE4097_PlayOnAHostWithNoSession_IsDisabledAtTheToolbar()
     {
         var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false);
-        Assert.False(rig.F.IsPlayPauseEnabled);
+        Assert.True(rig.F.IsPlayPauseEnabled);                              // ⭐ D22: the facade's answer is RAW (an HTTP play still works here) …
+        Assert.False(Bar(rig).IsPlayEnabled);                               // … the USER's ▶ is the one that is disabled
+        Assert.False(Bar(rig).IsStepEnabled);
         Bar(rig).OnPlayPause();
         Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(rig));
         Assert.Empty(rig.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D22 — the TOOLBAR's ▶ and Step (and the status bar's, and the timeline's Space) follow the armed mode through <see cref="UserTransport"/>: with Live armed ▶ is the live load, with
+    /// Preview armed the dry run; the facade's own play (an HTTP route) never does. 🔴 Red-proof: <c>OnPlayPause</c> calling <c>_facade.TogglePlayPause()</c> ⇒ Live armed publishes a dry run.
+    /// </summary>
+    [Fact]
+    public void CE4097_D22_TheToolbarsPlay_WithLiveArmed_IsTheLiveLoad_WithPreviewArmed_TheDryRun()
+    {
+        var live = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        Bar(live).OnPlayPause();
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, live.C.Calls);
+        Assert.Empty(RunChoiceRig.Sent<TransitionStateIntent>(live));
+
+        var step = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        Bar(step).OnStep();
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, step.C.Calls);
+
+        var preview = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        Bar(preview).OnPlayPause();
+        Assert.Equal(ClusterState.OperatingPreview, RunChoiceRig.Sent<TransitionStateIntent>(preview).Single().TargetState);
+        Assert.Empty(preview.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D20 / the NOTE — the menu-driven go-live (▶ with Live armed) and an HTTP load of the same scenario each cause exactly ONE <c>CheckUnsaved</c> round; the menu's ▶ publishes
+    /// the intent through the facade's bus and waits for the answer without blocking. (The HTTP half — <c>POST /scenario/load/live</c> — is
+    /// <c>TheRunModeRoutesTests</c> in Hrot.Editor.Tests/DebugApi.) 🔴 Red-proof: <c>PlayLive</c> asking twice (once before, once after Save) ⇒ two intents.
+    /// </summary>
+    [Fact]
+    public void CE4097_TheMenuDrivenGoLive_PublishesExactlyOneCheckUnsaved()
+    {
+        var rig = RunChoiceRig.WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        Bar(rig).OnPlayPause();
+        var asked = RunChoiceRig.Sent<CheckUnsavedIntent>(rig);
+        Assert.Single(asked);
+        rig.R.Answer(asked, changed: true);
+        RunChoiceRig.Frame(rig);
+        rig.Choice.Pending!.Resolve(rig.Choice.Pending.Buttons[0]);         // Save and go live
+        Assert.Equal(new[] { "SaveCurrent", "LoadForLive:hill-attack" }, rig.C.Calls);
+        Assert.Empty(RunChoiceRig.Sent<CheckUnsavedIntent>(rig));           // …and no second round for the same move
+    }
+
+    /// <summary>⭐ D14 — in a live run that was not recorded the DAR items are greyed with the reason (the master refuses them too); in a recorded one they are enabled.</summary>
+    [Fact]
+    public void CE4097_TheLiveMenu_GreysDar_WhenTheRunWasNotRecorded()
+    {
+        var unrecorded = Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true, clock: 90)).ModeMenu()!;
+        var dar = unrecorded.Items.Where(i => i.Label.StartsWith("DAR")).ToList();
+        Assert.Equal(4, dar.Count);
+        Assert.All(dar, i => { Assert.False(i.Enabled); Assert.EndsWith("this run was not recorded", i.Label); });
+
+        var recorded = Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90)).ModeMenu()!;
+        Assert.All(recorded.Items.Where(i => i.Label.StartsWith("DAR")), i => Assert.True(i.Enabled));
+    }
+
+    /// <summary>⭐ D11 — the status-bar note shows while a Preview or a Live run goes, and only then.</summary>
+    [Theory]
+    [InlineData(TransportMode.Preview, true)]
+    [InlineData(TransportMode.Live, true)]
+    [InlineData(TransportMode.Edit, false)]
+    [InlineData(TransportMode.Idle, false)]
+    [InlineData(TransportMode.Review, false)]
+    [InlineData(TransportMode.Replay, false)]
+    public void CE4097_TheStatusBarNote_ShowsWhileAPreviewOrLiveRunGoes(TransportMode mode, bool shown)
+    {
+        var note = new RunNoteStatusBarSection(new FakeTimeTransportFacade { Mode = mode }).NoteNow();
+        Assert.Equal(shown ? "Running — edits are not saved unless you save" : null, note);
     }
 
     /// <summary>The draw with a pending confirmation and a toast does not throw (the modal and the note render headless).</summary>
@@ -601,7 +672,7 @@ public class MainToolbarTimeControlTests
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();
         var rig = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Changed);
-        rig.F.TogglePlayPause();                                            // → pending "Save and go live / Cancel"
+        rig.F.UserPlayPause();                                              // → pending "Save and go live / Cancel"
         Assert.NotNull(rig.Choice.Pending);
         var done = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 12);
         done.F.Stop();                                                      // → the toast

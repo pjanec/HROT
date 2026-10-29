@@ -205,4 +205,59 @@ public sealed class EditorScenarioSessionLoadTests
         Assert.Equal("hill-attack", edit.ScenarioId);
         Assert.Equal(Hrot.UI.Common.RunMode.RunArmed.Live, facade.RunChoice!.Armed);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4097</c> part two (AQ108 D8, D22) — Save in a run, through the REAL session: in a Live run <c>SaveCurrent</c> (what File › Save, Ctrl+S and the toolbar all end in) publishes a
+    /// <c>TakeCheckpointIntent</c> and NO <c>ExecuteStorageOpIntent</c> — the scenario is never written; in editing the same call is the ordinary scenario save. The choice installs the intercept on
+    /// the session by construction. 🔴 Red-proof: <c>EditorScenarioSession.SaveCurrent</c> without its <c>SaveIntercept</c> line ⇒ the Live row publishes a scenario save.
+    /// </summary>
+    [Fact]
+    public void CE4097_SaveInALiveRun_ThroughTheRealSession_IsACheckpoint_NeverAScenarioWrite()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus);
+        facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
+        Assert.NotNull(session.SaveIntercept);                                  // installed by the choice's constructor, not by a host remembering to
+        session.LoadForLive("hill-attack");                                     // names the scenario (and the load itself is not what is under test)
+        bus.SwapBuffers();
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = Guid.NewGuid() });
+        bus.SwapBuffers(); session.Update(); facade.Update(); bus.SwapBuffers();
+        session.SaveCurrent();
+        bus.SwapBuffers();
+        Assert.Single(bus.ReadManaged<TakeCheckpointIntent>());
+        Assert.Empty(bus.ReadManaged<ExecuteStorageOpIntent>());                // the scenario was never written
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+        bus.SwapBuffers(); session.Update(); facade.Update(); bus.SwapBuffers();
+        session.SaveCurrent();
+        bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<TakeCheckpointIntent>());
+        var save = Assert.Single(bus.ReadManaged<ExecuteStorageOpIntent>());    // editing: the ordinary save
+        Assert.Equal(StorageOpType.SaveScenario, save.Operation);
+        Assert.Equal("hill-attack", save.ScenarioName);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two (D21) — the session opens a recording AT a moment: <c>OpenRecording(id, atSimSeconds)</c> publishes the ONE replay intent with the sim target (the sim target wins on
+    /// either axis), and the one-argument form still opens at the start. 🔴 Red-proof: the two-argument overload dropping <c>simSeconds:</c> ⇒ the target is null.
+    /// </summary>
+    [Fact]
+    public void CE4097_OpenRecording_AtAMoment_PublishesTheReplayIntentWithTheSimTarget()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+        var id = Guid.NewGuid();
+
+        session.OpenRecording(id, 42.5);
+        var at = Assert.Single(Drain(bus));
+        Assert.Equal(ClusterState.OperatingReplay, at.TargetState);
+        Assert.Equal(id, at.ExerciseId);
+        Assert.Equal(42.5, at.TargetSimSeconds);
+
+        session.OpenRecording(id);
+        var start = Assert.Single(Drain(bus));
+        Assert.Null(start.TargetSimSeconds);                                    // its start
+    }
 }

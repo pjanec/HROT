@@ -263,33 +263,33 @@ public sealed class TheOneTimeFacadeTests
     public void CE4097_PlayFromEdit_FollowsTheArmedMode()
     {
         var preview = With(ClusterState.OperatingEdit, RunArmed.Preview);
-        preview.F.TogglePlayPause();
+        preview.F.UserPlayPause();
         var dry = Sent<TransitionStateIntent>(preview).Single();
         Assert.Equal(ClusterState.OperatingPreview, dry.TargetState);
         Assert.Empty(preview.C.Calls);
 
         var live = With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
-        live.F.TogglePlayPause();
+        live.F.UserPlayPause();
         Assert.Equal(new[] { "LoadForLive:hill-attack" }, live.C.Calls);   // exactly one
         Assert.Null(live.Choice.Pending);
         Assert.Empty(Sent<TransitionStateIntent>(live));                   // the session publishes the load, the facade no dry run
 
         var changed = With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Changed);
-        changed.F.TogglePlayPause();
+        changed.F.UserPlayPause();
         Assert.Empty(changed.C.Calls);                                      // nothing until the user answers
         var ask = changed.Choice.Pending!;
         Assert.Equal(new[] { "Save and go live", "Cancel" }, ask.Buttons.Select(b => b.Label));
         ask.Resolve(ask.Buttons[1]);                                        // Cancel
         Assert.Empty(changed.C.Calls);
         Assert.Null(changed.Choice.Pending);
-        changed.F.TogglePlayPause();
+        changed.F.UserPlayPause();
         changed.Choice.Pending!.Resolve(changed.Choice.Pending.Buttons[0]); // Save
         Assert.Equal(new[] { "SaveCurrent", "LoadForLive:hill-attack" }, changed.C.Calls);   // in THAT order
 
         var never = With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.NeverSaved);
         string? asked = null;
         never.Choice.SaveAsPrompt = onNamed => { asked = "prompted"; onNamed("fresh-one"); };
-        never.F.TogglePlayPause();
+        never.F.UserPlayPause();
         var naming = never.Choice.Pending!;
         Assert.Equal(new[] { "Save as… and go live", "Cancel" }, naming.Buttons.Select(b => b.Label));
         Assert.Empty(never.C.Calls);
@@ -303,7 +303,7 @@ public sealed class TheOneTimeFacadeTests
         aar.C.Calls.Clear();
         Hear(aar, ClusterState.OperatingEdit);
         aar.Choice.Choose(RunArmed.AAR);
-        aar.F.TogglePlayPause();
+        aar.F.UserPlayPause();
         Assert.Equal(new[] { $"OpenRecording:{RunId}" }, aar.C.Calls);
     }
 
@@ -312,9 +312,9 @@ public sealed class TheOneTimeFacadeTests
     public void CE4097_PlayWhileAConfirmationIsOpen_IsIgnored()
     {
         var rig = With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Changed);
-        rig.F.TogglePlayPause();
+        rig.F.UserPlayPause();
         var first = rig.Choice.Pending;
-        rig.F.TogglePlayPause();
+        rig.F.UserPlayPause();
         Assert.Same(first, rig.Choice.Pending);
         Assert.Equal(1, rig.Q.Asked);
     }
@@ -345,7 +345,7 @@ public sealed class TheOneTimeFacadeTests
         Assert.Empty(Sent<TransitionStateIntent>(live));                    // ⛔ never Idle
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
         Assert.Equal(RunId, live.Choice.LastExercise);
-        Assert.Equal("Exercise recorded (12:34) — Replay it", live.Choice.Toast!.Text);
+        Assert.Equal("Exercise recorded (12:34) — open the AAR", live.Choice.Toast!.Text);
 
         var replay = With(ClusterState.OperatingReplay, RunArmed.AAR);
         replay.F.Stop();
@@ -388,8 +388,8 @@ public sealed class TheOneTimeFacadeTests
     public void CE4097_R1_NoPlayStepOrStopChangesTheArmedMode(ClusterState state)
     {
         var rig = With(state, RunArmed.Live);
-        rig.F.TogglePlayPause();
-        rig.F.Step();
+        rig.F.UserPlayPause();
+        rig.F.UserStep();
         if (state != ClusterState.OperatingEdit) rig.F.Stop();
         Assert.Equal(RunArmed.Live, rig.Choice.Armed);
 
@@ -446,16 +446,16 @@ public sealed class TheOneTimeFacadeTests
     public void CE4097_AHostWithNoSession_HasLiveArmedPlayDisabledWithAReason()
     {
         var rig = With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false);
-        Assert.False(rig.F.IsPlayPauseEnabled);
-        Assert.False(rig.F.IsStepEnabled);
+        Assert.False(rig.F.IsUserPlayEnabled());
+        Assert.False(rig.F.IsUserStepEnabled());
         Assert.False(string.IsNullOrWhiteSpace(rig.Choice.PlayDisabledReason));
-        rig.F.TogglePlayPause();
+        rig.F.UserPlayPause();
         Assert.Empty(Sent<TransitionStateIntent>(rig));
 
         rig.Choice.Choose(RunArmed.Preview);
-        Assert.True(rig.F.IsPlayPauseEnabled);
+        Assert.True(rig.F.IsUserPlayEnabled());
         Assert.Null(rig.Choice.PlayDisabledReason);
-        rig.F.TogglePlayPause();
+        rig.F.UserPlayPause();
         Assert.Equal(ClusterState.OperatingPreview, Sent<TransitionStateIntent>(rig).Single().TargetState);
     }
 
@@ -497,7 +497,7 @@ public sealed class TheOneTimeFacadeTests
     public void CE4097_PlayInLiveArmed_ResumesTheClockOnceTheLiveLoadIsUp()
     {
         var rig = With(ClusterState.OperatingEdit, RunArmed.Live);
-        rig.F.TogglePlayPause();
+        rig.F.UserPlayPause();
         Hear(rig, ClusterState.Idle);
         Assert.Empty(Resumes(rig));
         Hear(rig, ClusterState.OperatingLive);
@@ -511,13 +511,286 @@ public sealed class TheOneTimeFacadeTests
         Assert.Empty(Resumes(other));
     }
 
-    /// <summary>⭐ The production default of the unsaved seam (until backend's CE-4093 master round): no loaded name ⇒ NeverSaved, else Unchanged.</summary>
-    [Fact]
-    public void CE4097_TheDefaultUnsavedQuery_AnswersByTheLoadedName()
+    // ══ ⭐ CE-4097 part two ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐ AQ108 D22 — the facade's RAW Play and Step from Edit are the dry run on every host WHATEVER mode is armed: this is what <c>POST /sim/play</c> and <c>/sim/step</c> call,
+    /// and a route does what it names. With Live armed an HTTP play must never load a live run (the core had made the facade follow the armed mode).
+    /// 🔴 Red-proof: <c>TogglePlayPause</c> / <c>StepBy</c> calling <c>_run.Play(…)</c> again ⇒ Live armed publishes no dry-run intent and calls <c>LoadForLive</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(RunArmed.Live)]
+    [InlineData(RunArmed.AAR)]
+    [InlineData(RunArmed.Preview)]
+    public void CE4097_D22_TheFacadesRawPlayAndStepFromEdit_AreTheDryRun_WhateverIsArmed(RunArmed armed)
     {
-        UnsavedAnswer? Ask(string? name) { UnsavedAnswer? got = null; new ScenarioNameUnsavedChangesQuery(() => name).Ask(a => got = a); return got; }
-        Assert.Equal(UnsavedAnswer.NeverSaved, Ask(null));
-        Assert.Equal(UnsavedAnswer.NeverSaved, Ask("  "));
-        Assert.Equal(UnsavedAnswer.Unchanged, Ask("hill-attack"));
+        var rig = With(ClusterState.OperatingEdit, armed, UnsavedAnswer.Unchanged);
+        rig.Choice.Choose(armed);                                           // (a no-op for the host default; arms the others)
+
+        rig.F.TogglePlayPause();                                            // POST /sim/play
+        var play = Sent<TransitionStateIntent>(rig).Single();
+        Assert.Equal(ClusterState.OperatingPreview, play.TargetState);
+        Assert.Equal("Continuous", play.TimeMode);
+
+        rig.F.Step();                                                       // POST /sim/step
+        var step = Sent<TransitionStateIntent>(rig).Single();
+        Assert.Equal(ClusterState.OperatingPreview, step.TargetState);
+        Assert.Equal("Deterministic", step.TimeMode);
+
+        Assert.Empty(rig.C.Calls);                                          // never a live load, never a recording
+        Assert.Equal(0, rig.Q.Asked);                                       // and no unsaved check: a dry run leaves nothing
+        Assert.True(rig.F.IsPlayPauseEnabled);                              // the raw answer: a host with no scenario session is enabled too …
+        Assert.True(With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false).F.IsPlayPauseEnabled);
+        Assert.False(With(ClusterState.OperatingEdit, RunArmed.Live, withControl: false).F.IsUserPlayEnabled());   // … only the USER's ▶ is disabled there
+    }
+
+    /// <summary>
+    /// ⭐ D22 — ■ keeps delegating (<c>POST /sim/stop</c> = the same Stop as ■), and a USER's ▶ with Live armed IS the live load (the toolbar's, the status bar's and Space share
+    /// <see cref="UserTransport"/>). 🔴 Red-proof: <c>UserPlayPause</c> calling <c>f.TogglePlayPause()</c> ⇒ Live armed publishes a dry run instead of loading.
+    /// </summary>
+    [Fact]
+    public void CE4097_D22_AUsersPlayWithLiveArmed_IsTheLiveLoad_AndTheFacadesStopStillFollowsR2()
+    {
+        var live = With(ClusterState.OperatingEdit, RunArmed.Live, UnsavedAnswer.Unchanged);
+        live.F.UserPlayPause();
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, live.C.Calls);
+        Assert.Empty(Sent<TransitionStateIntent>(live));
+
+        var running = With(ClusterState.OperatingLive, RunArmed.Live);
+        running.F.Stop();                                                   // what POST /sim/stop calls
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, running.C.Calls); // R2 — back to the scenario, never plain Idle
+        Assert.Empty(Sent<TransitionStateIntent>(running));
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D20 / CE-4093 — ▶ in Live armed asks the MASTER'S round: ONE <c>CheckUnsavedIntent</c> on the host's bus, no decision until the answer arrives (polled from the
+    /// choice's per-frame update — nothing blocks), then unchanged ⇒ the load; changed ⇒ <i>Save and go live / Cancel</i>. 🔴 Red-proof: <c>ClusterUnsavedChangesQuery.Ask</c> replying
+    /// <c>Unchanged</c> at once (the old name-only answer) ⇒ the load happens before any answer and a changed world loads unprompted.
+    /// </summary>
+    [Fact]
+    public void CE4097_TheUnsavedCheck_IsTheMastersOneRound_PolledNeverWaitedOn()
+    {
+        var rig = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        rig.F.UserPlayPause();
+        var asked = Sent<CheckUnsavedIntent>(rig);
+        Assert.Single(asked);                                               // ONE round for the move
+        Assert.Empty(rig.C.Calls);                                          // undecided until the answer
+        Assert.Null(rig.Choice.Pending);
+        Frame(rig); Frame(rig);                                             // frames pass with no answer: still waiting, still nothing
+        Assert.Empty(rig.C.Calls);
+        rig.F.UserPlayPause();                                              // ▶ again while the round is out does not ask a second round
+        Assert.Empty(Sent<CheckUnsavedIntent>(rig));
+
+        rig.R.Answer(asked, changed: false);
+        Frame(rig);
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, rig.C.Calls);
+
+        var edited = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        edited.F.UserPlayPause();
+        edited.R.Answer(Sent<CheckUnsavedIntent>(edited), changed: true);
+        Frame(edited);
+        Assert.Empty(edited.C.Calls);
+        Assert.Equal(new[] { "Save and go live", "Cancel" }, edited.Choice.Pending!.Buttons.Select(b => b.Label));
+    }
+
+    /// <summary>
+    /// ⭐ NOTE rules, each a row: a host that observes nothing (<c>ObservesUnsavedChecks</c> false) asks NO round and counts the scenario as unchanged; NeverSaved stays decided by an empty loaded
+    /// name — also without asking; a master's refusal (not editing) reads as unchanged; ⚠ no answer within the deadline fails CLOSED to the Save-first prompt.
+    /// 🔴 Red-proof: dropping the <c>Observes()</c> guard publishes a round nobody can answer (the ▶ then waits 15 s); dropping the deadline arm never answers.
+    /// </summary>
+    [Fact]
+    public void CE4097_TheUnsavedCheck_NotObserved_NeverSaved_Refused_AndTheDeadline()
+    {
+        var blind = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live, observes: false);
+        blind.F.UserPlayPause();
+        Assert.Empty(Sent<CheckUnsavedIntent>(blind));                      // asks nothing …
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, blind.C.Calls);   // … and goes on as unchanged
+
+        var fresh = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live, loadedName: null);
+        string? named = null;
+        fresh.Choice.SaveAsPrompt = onNamed => { named = "prompted"; };
+        fresh.F.UserPlayPause();
+        Assert.Empty(Sent<CheckUnsavedIntent>(fresh));                      // the world has no file: nothing to compare
+        Assert.Equal(new[] { "Save as… and go live", "Cancel" }, fresh.Choice.Pending!.Buttons.Select(b => b.Label));
+
+        var refused = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        refused.F.UserPlayPause();
+        refused.R.Answer(Sent<CheckUnsavedIntent>(refused), changed: null);
+        Frame(refused);
+        Assert.Equal(new[] { "LoadForLive:hill-attack" }, refused.C.Calls);
+
+        var clock = DateTime.UtcNow;
+        var bus = new FdpEventBus();
+        var master = new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => bus);
+        var query = new ClusterUnsavedChangesQuery(() => "hill-attack", master, new FakeReads().Reads, () => clock);
+        UnsavedAnswer? got = null;
+        query.Ask(a => got = a);
+        query.Poll();
+        Assert.Null(got);
+        clock += ClusterUnsavedChangesQuery.Deadline + TimeSpan.FromSeconds(1);
+        query.Poll();
+        Assert.Equal(UnsavedAnswer.Changed, got);                           // fail closed: Save first
+    }
+
+    /// <summary>
+    /// ⭐ ONLY a move that LEAVES EDITING asks (the master refuses a round elsewhere): opening a recording from a Live run, a DAR or an AAR publishes no round; from Edit it asks ONE and, with
+    /// unsaved edits, offers <i>Save / Discard / Cancel</i> (Save = SaveCurrent THEN the open; Discard = the open; Cancel = nothing). Opening another scenario asks the same way.
+    /// 🔴 Red-proof: <c>LeavingEditing</c> without its <c>Mode != Edit</c> guard ⇒ the Live row publishes a round; the Save arm dropping <c>SaveCurrent</c>.
+    /// </summary>
+    [Fact]
+    public void CE4097_OnlyAMoveThatLeavesEditing_AsksTheRound_AndTheChangedAnswerOffersSaveDiscardCancel()
+    {
+        foreach (var state in new[] { ClusterState.OperatingLive, ClusterState.OperatingReplay, ClusterState.OperatingPreview })
+        {
+            var running = WithCheckRound(state);
+            running.Choice.OpenRecording(RunId);
+            Assert.Empty(Sent<CheckUnsavedIntent>(running));                // not editing: nothing of the scenario to lose
+            Assert.Equal(new[] { $"OpenRecording:{RunId}" }, running.C.Calls);
+        }
+
+        var edit = WithCheckRound(ClusterState.OperatingEdit);
+        edit.Choice.OpenRecording(RunId);
+        edit.R.Answer(Sent<CheckUnsavedIntent>(edit), changed: true);
+        Frame(edit);
+        Assert.Empty(edit.C.Calls);
+        var ask = edit.Choice.Pending!;
+        Assert.Equal(new[] { "Save", "Discard", "Cancel" }, ask.Buttons.Select(b => b.Label));
+        ask.Resolve(ask.Buttons[0]);
+        Assert.Equal(new[] { "SaveCurrent", $"OpenRecording:{RunId}" }, edit.C.Calls);   // in THAT order
+        Assert.Equal(RunArmed.AAR, edit.Choice.Armed);
+
+        var discard = WithCheckRound(ClusterState.OperatingEdit);
+        discard.Choice.OpenScenario("other");
+        discard.R.Answer(Sent<CheckUnsavedIntent>(discard), changed: true);
+        Frame(discard);
+        discard.Choice.Pending!.Resolve(discard.Choice.Pending.Buttons[1]);
+        Assert.Equal(new[] { "OpenForEdit:other" }, discard.C.Calls);       // Discard opens without saving
+
+        var cancel = WithCheckRound(ClusterState.OperatingEdit);
+        cancel.Choice.OpenScenario("other");
+        cancel.R.Answer(Sent<CheckUnsavedIntent>(cancel), changed: true);
+        Frame(cancel);
+        cancel.Choice.Pending!.Resolve(cancel.Choice.Pending.Buttons[^1]);
+        Assert.Empty(cancel.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐ D14 — a run that was NOT recorded offers no AAR: ■ says <i>Live run ended</i> (no button), the indicator's "AAR the last exercise" (▶ in AAR armed) is greyed
+    /// <i>this run was not recorded</i>, <c>ReplayLastExercise</c> opens nothing, and DAR is greyed with the same reason in the Live menu. A RECORDED run's toast button opens
+    /// the run at its start through the guarded open (D6). 🔴 Red-proof: <c>_lastExerciseRecorded</c> never cleared ⇒ the unrecorded row offers the run.
+    /// </summary>
+    [Fact]
+    public void CE4097_AnUnrecordedRun_OffersNoAarAndNoDar_ARecordedOneOffersItsToastButton()
+    {
+        var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
+        Assert.Equal("this run was not recorded", unrecorded.Choice.DarDisabledReason);
+        unrecorded.F.Stop();
+        Assert.Null(unrecorded.Choice.Toast!.ReplayExercise);               // "Live run ended" — no AAR button
+        Hear(unrecorded, ClusterState.OperatingEdit);
+        unrecorded.Choice.Choose(RunArmed.AAR);
+        Assert.Equal("this run was not recorded", unrecorded.Choice.PlayDisabledReason);
+        unrecorded.C.Calls.Clear();
+        unrecorded.Choice.ReplayLastExercise();
+        unrecorded.F.UserPlayPause();
+        Assert.Empty(unrecorded.C.Calls);
+
+        var recorded = With(ClusterState.OperatingLive, RunArmed.Live);
+        Assert.Null(recorded.Choice.DarDisabledReason);
+        recorded.F.Stop();
+        var toast = recorded.Choice.Toast!;
+        Assert.Equal(RunId, toast.ReplayExercise);
+        Assert.StartsWith("Exercise recorded (0:00)", toast.Text);
+        Assert.DoesNotContain("Replay", toast.Text);                        // the user's word is AAR (D17)
+        Hear(recorded, ClusterState.OperatingEdit);
+        recorded.C.Calls.Clear();
+        recorded.Choice.ReplayLastExercise();                               // the toast's button
+        Assert.Equal(new[] { $"OpenRecording:{RunId}" }, recorded.C.Calls);
+        Assert.Equal(RunArmed.AAR, recorded.Choice.Armed);
+    }
+
+    /// <summary>
+    /// ⭐ AQ108 D8 — Save in a run is a CHECKPOINT with the toast <i>Checkpoint taken</i>: in Live and in a DAR it publishes <c>TakeCheckpoint</c> and never <c>SaveCurrent</c>; in an AAR (no recorder to
+    /// take it with) and in an unrecorded run nothing is published and the toast says why. In Edit the save goes through. 🔴 Red-proof: <c>TryCheckpointInsteadOfSave</c> returning false.
+    /// </summary>
+    [Fact]
+    public void CE4097_SaveInARun_IsACheckpoint_NeverAScenarioWrite()
+    {
+        foreach (var state in new[] { ClusterState.OperatingLive, ClusterState.OperatingReview })
+        {
+            var run = With(state, RunArmed.Live);
+            Assert.True(SaveRoute(run.Choice, run.C));
+            Assert.Equal(new[] { "TakeCheckpoint" }, run.C.Calls);
+            Assert.Equal("Checkpoint taken", run.Choice.Toast!.Text);
+        }
+
+        var aar = With(ClusterState.OperatingReplay, RunArmed.Live);
+        Assert.True(SaveRoute(aar.Choice, aar.C));
+        Assert.Empty(aar.C.Calls);                                          // nothing published, nothing written
+        Assert.Contains("recording cannot take a checkpoint", aar.Choice.Toast!.Text);
+
+        var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
+        Assert.True(SaveRoute(unrecorded.Choice, unrecorded.C));
+        Assert.Empty(unrecorded.C.Calls);
+        Assert.Contains("this run was not recorded", unrecorded.Choice.Toast!.Text);
+
+        var edit = With(ClusterState.OperatingEdit, RunArmed.Live);
+        Assert.False(SaveRoute(edit.Choice, edit.C));                       // editing: the ordinary save
+    }
+
+    /// <summary>The route a session's <c>SaveCurrent</c> takes: the intercept the choice installed on <paramref name="control"/> (true = handled).</summary>
+    private static bool SaveRoute(RunModeChoice choice, FakeControl control)
+        => control.SaveIntercept?.Invoke() == true;
+
+    /// <summary>⭐ D20 — the choice's constructor installs the save intercept on a session that accepts one (<see cref="ISaveInterception"/>), and only then.</summary>
+    [Fact]
+    public void CE4097_TheChoiceInstallsTheSaveInterceptOnAnInterceptableSession()
+    {
+        var rig = With(ClusterState.OperatingLive, RunArmed.Live);
+        Assert.NotNull(rig.C.SaveIntercept);
+        Assert.True(rig.C.SaveIntercept!());
+    }
+
+    /// <summary>
+    /// ⭐ D21 — "Go live from here": the seek goes out FIRST and the branch intent TWO frames later (the master reads the seek and, leaving a replay, drains the seeks in flight before it
+    /// branches — <c>ClusterMaster</c> F8), so the new run starts at the clicked moment; Live becomes armed; ⛔ outside an AAR it does nothing. 🔴 Red-proof: the branch published at once
+    /// (<c>_branchInFrames = 0</c> path) ⇒ the first assertion sees it before the frames pass.
+    /// </summary>
+    [Fact]
+    public void CE4097_GoLiveFromHere_SeeksFirst_ThenBranchesTwoFramesLater()
+    {
+        var rig = With(ClusterState.OperatingReplay, RunArmed.Live);
+        var order = new List<string>();
+        rig.Choice.GoLiveFromHere(() => order.Add("seek"));
+        Assert.Equal(new[] { "seek" }, order);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);
+        Assert.Empty(Sent<TransitionStateIntent>(rig));                     // not yet: the seek is still in flight
+        Hear(rig, ClusterState.OperatingReplay);
+        Assert.Empty(Sent<TransitionStateIntent>(rig));
+        Hear(rig, ClusterState.OperatingReplay);
+        var branch = rig.Bus.ReadManaged<TransitionStateIntent>().Single();   // published DURING the last Hear frame (its closing swap exposed it)
+        Assert.Equal(ClusterState.OperatingLive, branch.TargetState);       // the built branch (ReplaySessionIntents.BranchLive)
+
+        var edit = With(ClusterState.OperatingEdit, RunArmed.Preview);
+        edit.Choice.GoLiveFromHere(() => order.Add("never"));
+        Assert.DoesNotContain("never", order);
+        Assert.Equal("Only an AAR can go live from a moment", edit.Choice.GoLiveFromHereDisabledReason);
+    }
+
+    /// <summary>⭐ D21 — "AAR from here" (Live): ends the live run into its recording AT the moment (sim seconds), arms AAR, no confirmation; refused (with the reason) outside a recorded live run.</summary>
+    [Fact]
+    public void CE4097_AarFromHere_OpensTheRunsRecordingAtTheMoment()
+    {
+        var rig = With(ClusterState.OperatingLive, RunArmed.Live);
+        Assert.Null(rig.Choice.AarFromHereDisabledReason);
+        rig.Choice.AarFromHere(42.5);
+        Assert.Equal(new[] { $"OpenRecording:{RunId}@42.5" }, rig.C.Calls);
+        Assert.Equal(RunArmed.AAR, rig.Choice.Armed);
+        Assert.Null(rig.Choice.Pending);
+
+        Assert.Equal("this run was not recorded", With(ClusterState.OperatingLive, runNotRecorded: true).Choice.AarFromHereDisabledReason);
+        Assert.NotNull(With(ClusterState.OperatingReplay).Choice.AarFromHereDisabledReason);
+        var edit = With(ClusterState.OperatingEdit);
+        edit.Choice.AarFromHere(1);
+        Assert.Empty(edit.C.Calls);
     }
 }

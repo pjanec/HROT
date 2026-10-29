@@ -34,6 +34,57 @@ namespace Hrot.Editor.DebugApi
                 ? (null, $"{RunRecordingGates.NotRecordedReason}: {what} needs the run's recording (start the run with 'Record live runs' on — POST /run-settings {{\"recordLiveRuns\": true}}).", DebugApiHints.Scenario)
                 : null;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4097</c> part two (AQ108 D22) — <c>POST /sim/stop</c>: the SAME <see cref="Hrot.UI.Common.Facades.ITimeTransportFacade.Stop"/> the toolbar's ■ calls (so the
+        /// run choice's R2 — Live back to the scenario's start, the armed mode kept — applies to a request exactly as to a click). 409 where there is nothing to stop (editing, Idle):
+        /// leaving editing is unloading the scenario, a load route's job.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) Stop()
+        {
+            var time = _time;
+            var from = time.Mode;
+            if (!time.IsStopEnabled)
+                return (null, $"Nothing to stop while the cluster is in {from}: ■ leaves a run (a dry run, a live run, a DAR, an AAR); leaving editing is unloading the scenario — POST /scenario/load/edit or /scenario/load/live.", DebugApiHints.Scenario, 409);
+            time.Stop();
+            return (new JsonObject { ["published"] = true, ["stoppedFrom"] = from.ToString(), ["armedMode"] = ArmedModeText(), ["state"] = GetSimState() }, null, null, 200);
+        }
+
+        /// <summary>⭐ CE-4097 part two — the host's armed run mode as a word (<c>preview</c> | <c>live</c> | <c>aar</c>); <see langword="null"/> when this host has no run choice.</summary>
+        private string? ArmedModeText() => _time.RunChoice?.Armed.ToString().ToLowerInvariant();
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4097</c> part two (AQ108 D22) — <c>POST /run-mode {armed: preview|live|aar, confirm?}</c>: a thin route over the indicator's <see cref="Hrot.UI.Common.RunMode.RunModeChoice.Choose"/>
+        /// (for agents that drive the UI). Where the indicator would ASK first (a run would end) the route answers 409 with the confirmation's text, and does the move only when
+        /// <c>confirm: true</c> accepts it — ⛔ an agent never confirms by accident. ⭐ The armed mode is the ONLY thing it sets; ▶ ⏸ ■ and the HTTP time routes never follow it.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) SetRunMode(JsonNode? body)
+        {
+            var choice = _time.RunChoice;
+            if (choice is null)
+                return (null, "No run-mode choice on this host's time facade (the Replay Browser and a host with no time facade have none).", DebugApiHints.Panel, 503);
+            var text = body?["armed"]?.GetValue<string>();
+            if (!Enum.TryParse<Hrot.UI.Common.RunMode.RunArmed>(text, ignoreCase: true, out var target))
+                return (null, "armed (preview | live | aar) is required: {\"armed\": \"live\"}.", DebugApiHints.Scenario, 400);
+            bool confirm = body?["confirm"] is JsonValue c && c.TryGetValue(out bool yes) && yes;
+
+            var move = choice.Moves().FirstOrDefault(m => m.Target == target);
+            if (move is null) return (null, "A DAR has its own exit (POST /review/exit); the armed mode cannot be changed inside it.", DebugApiHints.Scenario, 409);
+            if (!move.Enabled) return (null, $"{target} cannot be armed now: {move.DisabledReason}.", DebugApiHints.Scenario, 409);
+
+            choice.Choose(target);
+            if (choice.Pending is { } pending)
+            {
+                if (!confirm)
+                {
+                    var ask = pending.Text;
+                    pending.Resolve(pending.Buttons[^1]);   // Cancel — the question is not left standing for the next click
+                    return (null, $"{ask} — send confirm:true to accept.", DebugApiHints.Scenario, 409);
+                }
+                pending.Resolve(pending.Buttons[0]);
+            }
+            return (new JsonObject { ["armedMode"] = ArmedModeText(), ["mode"] = _time.Mode.ToString() }, null, null, 200);
+        }
+
         /// <summary>⭐ CE-4090 — <c>GET /run-settings</c>: <c>{recordLiveRuns}</c>, read off the master's broadcast (the same fact on every host); a host
         /// that tracks no cluster read model answers 503-class "No subsystem…".</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) GetRunSettings()

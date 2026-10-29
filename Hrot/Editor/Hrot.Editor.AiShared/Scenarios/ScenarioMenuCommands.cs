@@ -73,8 +73,11 @@ public static class ScenarioMenuCommands
     /// </summary>
     public const string LoadId = "scenario.load";
 
-    /// <summary>Id for the load-for-LIVE command: <c>"scenario.loadLive"</c>.</summary>
-    public const string LoadLiveId = "scenario.loadLive";
+    /// <summary>⭐ CE-4097 part two — the menu path of Open Scenario (top level, like Open Recording; ⛔ no <c>File/Live/Load Scenario</c> beside it — the armed mode decides ▶).</summary>
+    public const string OpenScenarioMenuPath = "File/Open Scenario";
+
+    /// <summary>⭐ CE-4097 part two — the menu path of New Scenario (top level, beside Open Scenario).</summary>
+    public const string NewScenarioMenuPath = "File/New Scenario";
 
     /// <summary>⭐ CE-4098 (AQ108 D16/D19) — Id for the Open Recording command: <c>"scenario.openRecording"</c>.</summary>
     public const string OpenRecordingId = "scenario.openRecording";
@@ -149,6 +152,8 @@ public static class ScenarioMenuCommands
     /// <param name="openRecordingPicker">⭐ <c>CE-4098</c> (AQ108 D16/D19) — opens the recording picker (<see cref="RecordingPickerLauncher.Open"/>),
     /// which lists the exercises the master recorded and opens the pick into AAR through <see cref="IScenarioSession.OpenRecording"/>.
     /// Null ⇒ the item is registered but DISABLED with the reason in its label (ruling 49: serviceability decides enablement, never presence).</param>
+    /// <param name="openScenario">⭐ <c>CE-4097</c> part two (AQ108 §3 "open another scenario") — the host's GUARDED open of a picked scenario for editing: the run choice's
+    /// <c>OpenScenario</c>, which asks the cluster's check round and, with unsaved edits, <i>Save / Discard / Cancel</i> first. Null ⇒ the session's own open (a rail, a host with no choice).</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -164,7 +169,8 @@ public static class ScenarioMenuCommands
         Action?                                                   saveCuratedToGit     = null,
         Func<string?>?                                            runningRun           = null,
         Action<string, string, string, Action>?                   confirmLoad          = null,
-        Action?                                                   openRecordingPicker  = null)
+        Action?                                                   openRecordingPicker  = null,
+        Action<string>?                                           openScenario         = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -187,31 +193,27 @@ public static class ScenarioMenuCommands
                 else                            session.NewExercise();
             });
 
-        // ⭐⭐ LOAD FOR LIVE — /scenario/load/live. A fresh exercise run.
+        // ⛔⛔ CE-4097 part two (AQ108 §3 "open another scenario", D12, D22) — NO "File/Live/Load Scenario": the load-in-a-mode menus FOLD into the ONE Open Scenario below.
+        //   ⭐ A scenario always opens into EDITING; what ▶ then does is the host's ARMED mode (Preview in the editor, Live on CGF / the all-in-one / the server, D12), and going
+        //   live from editing is ▶ with Live armed — so a second "load live" item would duplicate Open. HTTP stays explicit: POST /scenario/load/live is unchanged (D22).
+        //   (The id "scenario.loadLive" is retired with the item — a command nobody can reach would be a control that does nothing.)
+
+        // ══ Open / New — top level, like Open Recording: none of them names a mode ═════════════════
+
+        // ⭐ OPEN — /scenario/load/edit, into editing; the armed mode decides ▶. The id is unchanged; the path left the "Edit" submenu (it is no longer one of two ways to open).
+        //   ⭐ A host passes `openScenario` (its run choice's guarded open: unsaved edits → Save / Discard / Cancel first, AQ108 §3); null ⇒ the session's open, unguarded.
         RegisterCommand(
             registerCommand, menu, commands,
-            LoadLiveId, "Load Scenario", $"{LiveMenuPrefix}/Load Scenario",
-            "Load a scenario and run it live (cluster-wide)",
+            LoadId, "Open Scenario", OpenScenarioMenuPath,
+            "Open a scenario for editing (cluster-wide); what ▶ then runs is the host's armed mode",
             isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, name => Guarded(name, session.LoadForLive, runningRun, confirmLoad)),
-            dynamicDisplayName: Unavailable("Load Scenario", openPicker != null, NoPickerReason),
-            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16) — offered on the Start surface: it leaves Idle through the ordinary load
-
-        // ══ File/Edit — authoring on a scenario opened for edit ═════════════════
-
-        // ⭐ OPEN FOR EDIT — /scenario/load/edit. The id is unchanged; the LABEL stopped lying.
-        RegisterCommand(
-            registerCommand, menu, commands,
-            LoadId, "Open Scenario", $"{EditMenuPrefix}/Open Scenario",
-            "Open a scenario for editing (cluster-wide)",
-            isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, name => Guarded(name, session.OpenForEdit, runningRun, confirmLoad)),
+            handler: _ => PickScenario(openPicker, name => Guarded(name, openScenario ?? session.OpenForEdit, runningRun, confirmLoad)),
             dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason),
             allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 
         RegisterCommand(
             registerCommand, menu, commands,
-            NewId, "New Scenario", $"{EditMenuPrefix}/New Scenario",
+            NewId, "New Scenario", NewScenarioMenuPath,
             "Create an empty scenario to author",
             isEnabled: () => true,
             handler: _ => session.ClearWorld(),
