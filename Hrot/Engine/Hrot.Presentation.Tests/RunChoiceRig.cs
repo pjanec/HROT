@@ -109,9 +109,10 @@ internal static class RunChoiceRig
 
     /// <summary>The cluster state changes (as the master's broadcast says), then the facade's frame runs.</summary>
     /// <remarks>⭐ CE-3341 — <paramref name="armed"/> is the cluster's armed mode the broadcast carries; <see langword="null"/> repeats what the view last held (a state change alone never moves it).</remarks>
-    internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false, ClusterArmedMode? armed = null)
+    internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false, ClusterArmedMode? armed = null, ClusterArmedMode? lastLoad = null)
     {
-        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff, ArmedMode = armed ?? rig.View.ArmedMode });
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff, ArmedMode = armed ?? rig.View.ArmedMode,
+                                                             LastLoadMode = lastLoad ?? rig.View.LastLoadMode });
         rig.Bus.SwapBuffers();
         rig.View.Update();
         rig.F.Update();

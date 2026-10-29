@@ -444,13 +444,12 @@ public sealed class TheOneTimeFacadeTests
 
     /// <summary>
     /// ⭐⭐ <c>CE-1443</c> S3 (R-1043) — a scenario LOAD goes into the cluster's CURRENT armed mode, resolved ONCE (<c>RunModeChoice.LoadTarget</c> → <c>ScenarioDoor.Load</c>): Live armed ⇒ the live load, Preview armed ⇒ the edit open,
-    /// AAR armed ⇒ the edit open (the mode of the LAST load is not on the cluster view yet — backend). It SENDS no armed mode (S4), for the operator's door call and for an HTTP caller's own asker alike.
+    /// AAR armed ⇒ the last load's mode (its own rail, <c>R1043_WithAarArmed_ALoadGoesIntoTheLastLoadsMode</c>). It SENDS no armed mode (S4), for the operator's door call and for an HTTP caller's own asker alike.
     /// 🔴 Red-proofs: <c>LoadTarget</c> always <c>Scenario</c> ⇒ the Live row; always <c>Live</c> ⇒ the Preview / AAR rows; <c>Door.Load</c> ignoring <c>LoadTarget</c> ⇒ the same; the door's <c>LoadTarget</c> not bound by the choice ⇒ the Live row.
     /// </summary>
     [Theory]
     [InlineData(RunArmed.Live, "LoadForLive:other")]
     [InlineData(RunArmed.Preview, "OpenForEdit:other")]
-    [InlineData(RunArmed.AAR, "OpenForEdit:other")]
     public void CE1443_S3_ALoadGoesIntoTheClustersArmedMode(RunArmed armed, string raw)
     {
         var rig = With(ClusterState.OperatingEdit, armed, withDoor: true);
@@ -461,6 +460,20 @@ public sealed class TheOneTimeFacadeTests
         var http = With(ClusterState.OperatingEdit, armed, withDoor: true);
         http.Choice.Door!.Load("other", new RefusingAsker());
         Assert.Equal(new[] { raw }, http.C.Calls);                           // the same resolution for every caller of the one load
+    }
+
+    /// <summary>
+    /// ⭐⭐ R-1043 (user-approved) — with AAR armed a Load goes into the mode the cluster's LAST load went into (<c>ClusterView.LastLoadMode</c>, the master's), so every host resolves it alike.
+    /// 🔴 Mutation: <c>LoadTarget</c>'s AAR arm back to "always editing" ⇒ the Live row ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(ClusterArmedMode.Live, DoorOpen.Live)]
+    [InlineData(ClusterArmedMode.Preview, DoorOpen.Scenario)]
+    public void R1043_WithAarArmed_ALoadGoesIntoTheLastLoadsMode(ClusterArmedMode lastLoad, DoorOpen expected)
+    {
+        var rig = With(ClusterState.OperatingEdit, RunArmed.AAR, withDoor: true);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.AAR, lastLoad: lastLoad);
+        Assert.Equal(expected, rig.Choice.LoadTarget);
     }
 
     /// <summary>

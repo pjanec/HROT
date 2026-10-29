@@ -302,7 +302,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     void IRunTransport.Resume() => _bus.PublishManaged(new ResumeTimeIntent());
 
-    RunArmed? IRunTransport.ClusterArmed => View is { } v ? Enum.Parse<RunArmed>(v.ArmedMode.ToString()) : null;   // ⭐ CE-3341 — by name: the toolkit cannot reference RunArmed
+    RunArmed? IRunTransport.ClusterArmed => View is { } v ? Enum.Parse<RunArmed>(v.ArmedMode.ToString()) : null;
+    RunArmed? IRunTransport.ClusterLastLoad => View is { } v ? Enum.Parse<RunArmed>(v.LastLoadMode.ToString()) : null;   // ⭐ R-1043 — by name, like ClusterArmed   // ⭐ CE-3341 — by name: the toolkit cannot reference RunArmed
 
     void IRunTransport.SendArmed(RunArmed armed) => _bus.PublishManaged(new SetRunSettingsIntent
     {

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Collections.Generic;
 using Xunit;
 
@@ -160,7 +161,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheSaveHandlerSetIsStillComplete()
         {
-            var repoRoot = FindRepoRoot();
+            var repoRoot = TestRepo.Root;
             var found    = new SortedSet<string>();
 
             foreach (var file in System.IO.Directory.EnumerateFiles(repoRoot, "*.cs", System.IO.SearchOption.AllDirectories))
@@ -188,15 +189,6 @@ namespace Hrot.SimHost.Tests
             @"\bclass\s+\w+[^{;]*:[^{;]*\b(IClusterStateHandler|IClusterOpHandler)\b",
             System.Text.RegularExpressions.RegexOptions.Compiled);
 
-        private static string FindRepoRoot()
-        {
-            var dir = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "docs")))
-                dir = dir.Parent;
-            Assert.NotNull(dir);
-            return dir!.FullName;
-        }
-    
         // ── CE-197: the declared role must CARRY what the host composes ──────────
 
         private const string SimHostRoot    = "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs";

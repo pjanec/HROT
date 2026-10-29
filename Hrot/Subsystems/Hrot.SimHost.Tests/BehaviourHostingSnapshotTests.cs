@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using Fbt;
+using Fdp.Testing;
 using Fdp.Toolkit.Behavior;
 using Hrot.CGF.Configuration;
 using Xunit;
@@ -29,7 +30,7 @@ namespace Hrot.SimHost.Tests
         });
 
         private static string GoldenPath()
-            => Path.Combine(ShippedTreeDump.RepoRoot(), "Hrot", "Subsystems", "Hrot.SimHost.Tests", "Snapshots", "BehaviourHosting", "hosting.txt");
+            => Path.Combine(TestRepo.Root, "Hrot", "Subsystems", "Hrot.SimHost.Tests", "Snapshots", "BehaviourHosting", "hosting.txt");
 
         private static IEnumerable<(string Name, BehaviorDefinition Def)> All()
         {

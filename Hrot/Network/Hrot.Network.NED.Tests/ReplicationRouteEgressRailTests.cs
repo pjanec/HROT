@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -40,10 +41,7 @@ public sealed class ReplicationRouteEgressRailTests
     [Fact]
     public void EveryNedPublisher_SelectsThroughTheDefaultRoute()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !Directory.Exists(Path.Combine(dir, "Hrot", "Network", "Hrot.Network.NED")))
-            dir = Path.GetDirectoryName(dir)!;
-        var ned = Path.Combine(dir!, "Hrot", "Network", "Hrot.Network.NED");
+        var ned = Path.Combine(TestRepo.Root, "Hrot", "Network", "Hrot.Network.NED");
 
         var offenders = Directory.EnumerateFiles(ned, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))

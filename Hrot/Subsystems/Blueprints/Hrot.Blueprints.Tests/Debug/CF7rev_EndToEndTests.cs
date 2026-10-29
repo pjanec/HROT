@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Text.Json;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -67,20 +68,6 @@ public sealed class CF7rev_EndToEndTests : IDisposable
         }
 
         return (asset, result);
-    }
-
-    private static string ResolveRepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln")))
-                return dir;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException(
-            "Could not find repo root (looked for HROT.sln upward from " +
-            AppContext.BaseDirectory + ")");
     }
 
     // ---- Test 6: SetBreakpoint triggers auto-instrument then pauses ------------
@@ -258,7 +245,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     [Fact]
     public void PlainJsonDeserialization_FailsOrProducesDifferentAsset_ThanBlueprintJsonServices()
     {
-        var repoRoot = ResolveRepoRoot();
+        var repoRoot = TestRepo.Root;
         var assetPath = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "Tests", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
 
@@ -311,7 +298,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     [Fact]
     public void CallbackAssetLoading_Uses_BlueprintJsonServices_ProducesCompilableAsset()
     {
-        var repoRoot = ResolveRepoRoot();
+        var repoRoot = TestRepo.Root;
         var assetPath = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "Tests", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
 

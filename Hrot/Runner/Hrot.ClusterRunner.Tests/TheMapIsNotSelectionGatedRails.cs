@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -56,18 +57,6 @@ public sealed class TheMapIsNotSelectionGatedRails
         "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
     };
 
-    // Walks up from the test binary directory until HROT.sln is found — the idiom already used
-    // by ExConSubsystemClusterTests and CrossHostPanelKindRails.
-    private static DirectoryInfo RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
-            dir = dir.Parent;
-
-        Assert.True(dir != null, "Could not locate workspace root (HROT.sln not found).");
-        return dir!;
-    }
-
     /// <summary>
     /// 🔴🔴 <b>The <c>CE-123</c> regression guard.</b> No host may construct
     /// <see cref="StatelessGizmoSystem"/> with a third argument.
@@ -81,7 +70,7 @@ public sealed class TheMapIsNotSelectionGatedRails
     [Fact]
     public void NoHost_ConstructsTheGizmoSystemsItself()
     {
-        var root = RepoRoot();
+        var root = new DirectoryInfo(TestRepo.Root);
         var offenders = new List<string>();
 
         foreach (string relative in HostFiles)

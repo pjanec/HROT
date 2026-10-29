@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -22,7 +23,7 @@ public sealed class EveryReplayWriterIsGatedTests
     [Fact]
     public void EveryListedWriter_ReadsTheReplayFlag()
     {
-        var root = SystemStateProbe.RepoRoot();
+        var root = TestRepo.Root;
         var doc = File.ReadAllText(Path.Combine(root, "docs", "DESIGN_Replay_Time_Axis_And_Review.md"));
         int start = doc.IndexOf("<!--REPLAY-WRITERS-->", System.StringComparison.Ordinal);
         int end = doc.IndexOf("<!--/REPLAY-WRITERS-->", System.StringComparison.Ordinal);

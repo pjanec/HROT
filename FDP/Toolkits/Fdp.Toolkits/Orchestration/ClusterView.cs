@@ -61,6 +61,9 @@ namespace Fdp.Toolkit.Orchestration
         /// (<see cref="ClusterArmedMode.Live"/> before a broadcast arrives and for a sender that does not set it).</summary>
         public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
 
+        /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live / Preview), as the master's last broadcast said; Live before a broadcast and for a sender that does not set it.</summary>
+        public ClusterArmedMode LastLoadMode { get; private set; } = ClusterArmedMode.Live;
+
         // ── cluster ready (CE-3344, R-3069) ─────────────────────────────────────
 
         /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — what the cluster is still WAITING FOR before it is ready, as the master's last broadcast said
@@ -234,6 +237,7 @@ namespace Fdp.Toolkit.Orchestration
                     RunNotRecorded = ev.RunNotRecorded;        // ⭐ CE-4090 D14
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
+                    LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043
                     WaitingFor = ev.WaitingFor ?? string.Empty; // ⭐ CE-3344 R-3069
                     ErrorReason = ev.ErrorReason ?? string.Empty; // ⭐ CE-3345 R-3073
                     ClusterPlayReady = ev.ClusterPlayReady;        // ⭐ CE-3345 R-3070

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis3D;
@@ -267,7 +268,7 @@ public sealed class Map3DGizmoTests
         Assert.NotEmpty(sink.Lines);
 
         // the pack sets both seams on every host (the source rail EveryMapHostAttachesTheSharedLayers pins every host calls it)
-        string pack = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        string pack = File.ReadAllText(Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         Assert.Contains("gizmoLayer.Renderer3D.GroundHeight = viewSwitch.Camera3D.GroundHeight;", pack);
         Assert.Contains("gizmoLayer.LabelLift = bodies.TopAbove;", pack);
     }
@@ -414,13 +415,6 @@ public sealed class Map3DGizmoTests
         var names = prims.Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
         Assert.Equal(new[] { "T-72 #1043", "#9" }, names);
         Assert.All(prims, p => Assert.Equal(DebugTraceLayers.Labels, p.DebugLayer));
-    }
-
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
-        return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
 
     private static void AssertNear(Vector3 expected, Vector3 actual, float tol = 1e-3f)

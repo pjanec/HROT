@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -76,7 +77,7 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     public void NoProductionFileCombinesItsOwnBaseWithAnAssetSegment()
     {
         var offenders = new List<string>();
-        var repoRoot  = RepoRoot();
+        var repoRoot  = TestRepo.Root;
 
         foreach (var file in ProductionSources(repoRoot))
         {
@@ -104,7 +105,7 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     public void NoProductionFileSpellsAnOldContentPath()
     {
         var offenders = new List<string>();
-        var repoRoot  = RepoRoot();
+        var repoRoot  = TestRepo.Root;
 
         foreach (var file in ProductionSources(repoRoot))
             if (OldContentPath.IsMatch(StrippedOfCommentLines(File.ReadAllText(file))))
@@ -134,7 +135,7 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     public void NoProductionFileSpellsANewContentRootOutsideContentLayout()
     {
         var offenders = new List<string>();
-        var repoRoot  = RepoRoot();
+        var repoRoot  = TestRepo.Root;
         var extDeps   = Path.Combine("FDP", "ExtDeps") + Path.DirectorySeparatorChar;
 
         foreach (var file in ProductionSources(repoRoot))
@@ -207,7 +208,7 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     [Fact]
     public void TheScanActuallyReachesTheSourceTreeAndTheRegexStillMatches()
     {
-        var repoRoot = RepoRoot();
+        var repoRoot = TestRepo.Root;
 
         var files = ProductionSources(repoRoot).ToList();
         Assert.True(files.Count > 500, $"only {files.Count} production sources found — the scan is not reaching the tree");
@@ -232,25 +233,9 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
 
     private static string TheFile(string fileName)
     {
-        var hit = ProductionSources(RepoRoot()).FirstOrDefault(f => Path.GetFileName(f) == fileName);
+        var hit = ProductionSources(TestRepo.Root).FirstOrDefault(f => Path.GetFileName(f) == fileName);
         Assert.True(hit != null, $"{fileName} not found in the source tree — this rail cannot run.");
         return hit!;
     }
 
-    /// <summary>
-    /// ⭐ Found through <see cref="AssetRoots.ResolveProjectDir"/> — ⛔ fails loudly rather than skipping: a
-    /// rail that opts out when it cannot find the tree reports green forever.
-    /// </summary>
-    private static string RepoRoot()
-    {
-        var projectDir = AssetRoots.ResolveProjectDir(
-            "Hrot", "Editor", "Hrot.Editor.AiShared", "Hrot.Editor.AiShared.csproj");
-
-        Assert.True(projectDir != null,
-            "Could not locate the source tree from either the working directory or the output " +
-            "directory. This rail scans sources and cannot run without them.");
-
-        // …/Hrot/Editor/Hrot.Editor.AiShared → up three.
-        return Path.GetFullPath(Path.Combine(projectDir!, "..", "..", ".."));
-    }
 }

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,8 +52,8 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         // ⭐ ONE staging root for both hosts, as FDP_STAGING_ROOT gives two processes; restored in Dispose (the suite shares a process)
         Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", _root);
         // ⭐ what the host start does for a dev checkout (assets, terrain, recipes into the shared root) — an unseeded root leaves the load's terrain / asset phase with nothing to stage
-        ContentSeed.SeedIntoNas(OrchestrationConstants.GetSharedRoot(_root), RepoRoot());
-        CopyDir(Path.Combine(RepoRoot(), "scenarios", Scenario), Path.Combine(OrchestrationConstants.GetSharedScenariosRoot(_root), Scenario));
+        ContentSeed.SeedIntoNas(OrchestrationConstants.GetSharedRoot(_root), TestRepo.Root);
+        CopyDir(Path.Combine(TestRepo.Root, "scenarios", Scenario), Path.Combine(OrchestrationConstants.GetSharedScenariosRoot(_root), Scenario));
     }
 
     public void Dispose()
@@ -60,13 +61,6 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         _http.Dispose();
         Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", _oldRoot);
         try { Directory.Delete(_root, recursive: true); } catch { /* a recorder may still hold a file: the temp folder is the OS's */ }
-    }
-
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
-        return dir?.FullName ?? throw new InvalidOperationException("repo root (HROT.sln) not found above " + AppContext.BaseDirectory);
     }
 
     private static void CopyDir(string from, string to)

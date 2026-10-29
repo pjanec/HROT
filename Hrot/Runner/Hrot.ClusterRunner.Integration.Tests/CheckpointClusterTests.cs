@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -46,10 +47,6 @@ public sealed class CheckpointClusterTests : IDisposable
             ? Directory.EnumerateFiles(root, $"*.{_label}.fdp", SearchOption.AllDirectories)
             : Enumerable.Empty<string>();
     }
-
-    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-    private static string RepoRoot()
-        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
 
     [Fact]
     public async Task CE3299_B3_ACheckpointOnALiveCluster_IsAKeyframeOnEveryRecordingNode_AtOneWallTime_AndCollects()
@@ -251,7 +248,7 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task CE4090_ALiveRunWithRecordingOff_WritesNoExercise_NoLedger_AndEveryGateRefusesAtTheMaster()
     {
-        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(RepoRoot()), "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(TestRepo.Root), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
@@ -338,7 +335,7 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task CE4090_AVerifyRun_RecordsEvenWithTheSettingOff()
     {
-        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(RepoRoot()), "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(TestRepo.Root), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 

@@ -334,12 +334,12 @@ public sealed partial class ClusterMaster : IDisposable
     /// Bus-based constructor.  <c>ClusterMaster</c> ingests heartbeats and publishes
     /// fan-out operations exclusively via the <paramref name="eventBus"/>.
     /// </summary>
-    /// <param name="initialArmedMode">⭐ <c>CE-1443</c> (R-1043) — the cluster's INITIAL armed run mode (what ▶ / Load go into until someone arms another): <see cref="ClusterArmedMode.Live"/> for every cluster, Preview for the editor's in-process one-node cluster. Set before the first publication (the standby below carries it).</param>
-    public ClusterMaster(FdpEventBus eventBus, ClusterConfiguration? config = null, ClusterArmedMode initialArmedMode = ClusterArmedMode.Live)
+    public ClusterMaster(FdpEventBus eventBus, ClusterConfiguration? config = null)
     {
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         _config   = config ?? ClusterConfiguration.Default;
-        ArmedMode = initialArmedMode;
+        ArmedMode    = _config.InitialArmedMode;   // ⭐ R-1043 — the bootstrap parameter; set before PublishStandby below
+        LastLoadMode = _config.InitialArmedMode;
         _history  = new DistributedTransaction[Math.Max(1, _config.TransactionHistoryCapacity)];
 
         // ⭐⭐ CE-3344 (R-3069) — the latch is over names AND roles: with nothing mandatory at all it is open from the start; otherwise it is CLOSED and the
@@ -1627,6 +1627,9 @@ public sealed partial class ClusterMaster : IDisposable
         //   leaves every node that answers it in sync (Idle is the universal re-sync point, R-4019).
         bool throughIdle = trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.Idle);
         var activeNodeIds = throughIdle ? new List<int>(_roster.ActiveNodes.Keys) : Participants();
+        // ⭐ R-1043 — the mode this load round goes into (a FACT, never interpreted by the master): a LoadingEdit step => Preview, a LoadingLive step => Live; set as the round STARTS, rides the next publication
+        if (trajectory.OfType<TransitionStep>().Any(t => t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit))
+            LastLoadMode = trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.LoadingEdit) ? ClusterArmedMode.Preview : ClusterArmedMode.Live;
         if (intent.ScenarioId != null && trajectory.OfType<TransitionStep>().Any(t =>
                 t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit))
         {
@@ -2283,6 +2286,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
+            LastLoadMode = LastLoadMode,   // ⭐ R-1043
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
             ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070
@@ -2297,6 +2301,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
+            LastLoadMode = LastLoadMode,   // ⭐ R-1043
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
             ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070

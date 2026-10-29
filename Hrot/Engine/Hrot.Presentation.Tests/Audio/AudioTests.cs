@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -579,11 +580,11 @@ public sealed class AudioTests
     [Fact]
     public void CE1120_EveryMapHostGetsTheLayer_BesideThePossessionStation()
     {
-        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         Assert.Contains("var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);", pack);
         Assert.Contains("canvas.AddLayer(audio);", pack);
         Assert.Contains("possession, audio", pack);   // (CE-1227 appended the 2-D terrain after it)
-        string spawner = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs"));
+        string spawner = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs"));
         Assert.Contains("Hrot.UI.Common.Audio.SoundEvents.Of(world)", spawner);
     }
 
@@ -666,10 +667,4 @@ public sealed class AudioTests
         ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer()).Playback(world);
     }
 
-    private static string RepoRoot()
-    {
-        var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "HROT.sln"))) d = d.Parent;
-        return d!.FullName;
-    }
 }

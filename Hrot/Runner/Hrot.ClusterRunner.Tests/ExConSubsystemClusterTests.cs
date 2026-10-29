@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.IO;
 using Xunit;
 
@@ -5,17 +6,6 @@ namespace Hrot.ClusterRunner.Tests;
 
 public class ExConSubsystemClusterTests
 {
-    // Walks up from the test binary directory until HROT.sln is found.
-    private static string FindWorkspaceRoot()
-    {
-        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
-            dir = dir.Parent;
-        if (dir == null)
-            throw new InvalidOperationException(
-                "Could not locate workspace root (HROT.sln not found).");
-        return dir.FullName;
-    }
 
     [Fact]
     public void ExConSubsystem_HasNoDirectClusterMasterReference()
@@ -25,7 +15,7 @@ public class ExConSubsystemClusterTests
         // for shared panel types, but must not hold a ClusterMaster field/reference.
         var source = File.ReadAllText(
             Path.Combine(
-                FindWorkspaceRoot(),
+                TestRepo.Root,
                 "Hrot", "Subsystems", "Hrot.ExCon", "ExConSubsystem.cs"));
 
         Assert.DoesNotContain("ClusterMaster", source);

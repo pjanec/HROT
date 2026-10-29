@@ -394,6 +394,8 @@ public interface IRunTransport
     void BranchLive();
     /// <summary>⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode as this node last heard it (<c>ClusterView.ArmedMode</c>, mapped by name); <see langword="null"/> when the adapter has no view (no node yet).</summary>
     RunArmed? ClusterArmed { get; }
+    /// <summary>⭐ R-1043 — the mode the cluster's LAST scenario load went into (<c>ClusterView.LastLoadMode</c>, held and broadcast by the master; before any load its initial armed mode); <see langword="null"/> with no view. What a Load goes into while AAR / DAR is armed.</summary>
+    RunArmed? ClusterLastLoad { get; }
     /// <summary>⭐ CE-3341 — publish the armed mode as the cluster-wide setting (<c>SetRunSettingsIntent { Armed }</c> on the bus). The ONE caller is <see cref="RunModeChoice"/>'s <c>Arm</c>.</summary>
     void SendArmed(RunArmed armed);
 

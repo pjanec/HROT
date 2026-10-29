@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Numerics;
@@ -36,10 +37,6 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
     public WeaponChoiceScenarioTests(ITestOutputHelper output) => _out = output;
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
-    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-    private static string RepoRoot()
-        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-
     private static Entity ByName(EntityRepository world, string name)
     {
         for (int i = 0; i <= world.MaxEntityIndex; i++)
@@ -55,7 +52,7 @@ public sealed class WeaponChoiceScenarioTests : IDisposable
     public async Task CE3089_U5_TheBradley_FiresTheTowAtTheTank_AndThe25mmAtTheInsurgent()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-weapon-choice", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-weapon-choice", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());

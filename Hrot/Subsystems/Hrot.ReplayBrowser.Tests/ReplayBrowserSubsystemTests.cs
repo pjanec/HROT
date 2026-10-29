@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Linq;
 using System;
 using System.IO;
@@ -60,8 +61,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
         Assert.Equal(before.Lanes(ctx).Select(l => l.Id), _subsystem.TimelineLanes.Lanes(ctx).Select(l => l.Id));
 
-        string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        string root = TestRepo.Root;
         // the Replay Browser composes the shipped catalogue from the factory, never by hand (the editor's side is proven on a real headless editor:
         //   TheEditorRunsTheOrchestratorCoreTests.CE3330_Node_TheEditorsLiveTimelineIsItsNodeContexts_…)
         string text = File.ReadAllText(Path.Combine(root, "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"));
@@ -1800,8 +1800,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     [Fact]
     public void CE1303_P2a_TheReplayBrowser_AttachesTheDirectorThroughThePack_Only()
     {
-        string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        string root = TestRepo.Root;
         string text = string.Concat(Directory.EnumerateFiles(Path.Combine(root, "Hrot/Subsystems/Hrot.ReplayBrowser"), "*.cs").Select(File.ReadAllText));
         Assert.Contains("DirectorPack.Attach(", text);
         foreach (var built in new[] { "new DirectorRunner(", "new DirectorTakeSession(", "new DirectorWindow(", "new WindowCinema(", "new MapLayerOverride(" })
@@ -2840,8 +2839,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Log($"recording {recording}; takes root {_subsystem.DirectorTakesRoot}; resident terrain {_subsystem.ResidentTerrainName ?? "none"}");
 
             // TE-1 — the scenario's seeded take, beside the recording, keyed by the scenario the recording names
-            string root = AppContext.BaseDirectory;
-            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string root = TestRepo.Root;
             string seeded = Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json");
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
             Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
@@ -2967,8 +2965,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
             for (int i = 0; i < 30; i++) Frame();
             var pack = _subsystem.Director!;
-            string root = AppContext.BaseDirectory;
-            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string root = TestRepo.Root;
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
             Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
             File.Copy(Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json"), beside, overwrite: true);

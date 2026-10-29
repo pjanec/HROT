@@ -37,6 +37,7 @@
   <!-- The ONE [FlakyFact] (timing-flaky tests are opt-in via HROT_RUN_FLAKY=1), shared by source link. -->
   <ItemGroup>
     <Compile Include="..\..\..\FDP\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
   </ItemGroup>
 
 </Project>

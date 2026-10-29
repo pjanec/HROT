@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -16,16 +17,9 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     private static readonly string[] ProductionTrees = { "Hrot", "Stride" };
     private const string PackFile = "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs";
 
-    private static string RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir);
-        return dir ?? throw new InvalidOperationException("repo root not found");
-    }
-
     private static IEnumerable<(string Rel, string Text)> ProductionFiles()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         foreach (var tree in ProductionTrees)
         {
             var dir = Path.Combine(root, tree);
@@ -103,9 +97,9 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Fact]
     public void S5_TheCameraNeedsNoPerHostWiring()
     {
-        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        var pack = File.ReadAllText(Path.Combine(TestRepo.Root, PackFile));
         Assert.Contains("new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider)", pack);
-        var creation = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
+        var creation = File.ReadAllText(Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
         Assert.Contains("ctx.World.RegisterManagedEvent<EntityCreationRequest>();", creation);
         Assert.Contains("new BusEntityCreationRequestSource(ctx.World.Bus)", creation);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && System.Text.RegularExpressions.Regex.IsMatch(f.Text, @"MapCamera(Layer|Tkb|Pose)\b")).Select(f => f.Rel).ToList();
@@ -117,7 +111,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Fact]
     public void WL1_TheTurretPoseNeedsNoPerHostWiring()
     {
-        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        var pack = File.ReadAllText(Path.Combine(TestRepo.Root, PackFile));
         Assert.Contains("new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf, Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TurretPoseSource")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires the turret pose itself: " + string.Join(", ", hostMentions));
@@ -128,7 +122,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Fact]
     public void CE4031_SumoFarAgents_ReachTheBodies_AtTheSharedAttach()
     {
-        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        var pack = File.ReadAllText(Path.Combine(TestRepo.Root, PackFile));
         Assert.Contains("Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TrafficAmbientBodies")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires SUMO's far bodies itself: " + string.Join(", ", hostMentions));

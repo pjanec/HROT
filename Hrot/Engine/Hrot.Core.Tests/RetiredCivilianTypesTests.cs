@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,13 +52,13 @@ namespace Hrot.Map.Common.Tests
             foreach (var file in files)
                 foreach (var type in TkbTypesIn(file))
                     if (!db.TryGetByType(type, out _))
-                        unresolved.Add($"{Path.GetRelativePath(RepoRoot(), file)}: {type}");
+                        unresolved.Add($"{Path.GetRelativePath(TestRepo.Root, file)}: {type}");
             Assert.True(unresolved.Count == 0, "unregistered TkbTypes placed by shipped scenarios:\n" + string.Join("\n", unresolved));
         }
 
         private static IEnumerable<string> ShippedScenarios()
         {
-            var root = RepoRoot();
+            var root = TestRepo.Root;
             foreach (var dir in new[] { Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(root), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(root) })
                 if (Directory.Exists(dir))
                     foreach (var f in Directory.EnumerateFiles(dir, "scenario.json", SearchOption.AllDirectories))
@@ -73,8 +74,5 @@ namespace Hrot.Map.Common.Tests
                     yield return type;
         }
 
-        // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-        private static string RepoRoot()
-            => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new InvalidOperationException("repo root not found");
     }
 }

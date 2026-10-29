@@ -38,10 +38,14 @@ public sealed partial class ClusterMaster
 
     /// <summary>
     /// ⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode: what ▶ runs next, ONE fact held HERE and broadcast with every cluster-state
-    /// publication (every node reads it through its <c>ClusterView</c>). ⭐ <c>CE-1443</c> (R-1043): its INITIAL value is a BOOTSTRAP parameter (the constructor's <c>initialArmedMode</c>, default <see cref="ClusterArmedMode.Live"/>;
-    /// the editor's in-process single-node master is built with Preview — the ONE difference between the editor and every other cluster; ⛔ no file config). ⛔ <b>Never reset by a load</b>: only a <c>SetRunSettings{Armed}</c> changes it.
+    /// publication (every node reads it through its <c>ClusterView</c>). ⭐ <c>CE-1443</c> (R-1043): its INITIAL value is a BOOTSTRAP parameter (<c>ClusterConfiguration.InitialArmedMode</c>, default <see cref="ClusterArmedMode.Live"/>;
+    /// the editor's one-node config (<c>ForOneNodeCluster</c>) sets Preview — the ONE difference between the editor and every other cluster; ⛔ no file config). ⛔ <b>Never reset by a load</b>: only a <c>SetRunSettings{Armed}</c> changes it.
     /// </summary>
     public ClusterArmedMode ArmedMode { get; private set; }
+
+    /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (<see cref="ClusterArmedMode.Live"/> for <c>LoadingLive</c>, <see cref="ClusterArmedMode.Preview"/> for <c>LoadingEdit</c>),
+    /// set when the load round STARTS; before any load it equals the initial armed mode. A fact the master holds and broadcasts beside <see cref="ArmedMode"/> — it never interprets it for a load.</summary>
+    public ClusterArmedMode LastLoadMode { get; private set; } = ClusterArmedMode.Live;
 
     private bool _runNotRecorded;
 

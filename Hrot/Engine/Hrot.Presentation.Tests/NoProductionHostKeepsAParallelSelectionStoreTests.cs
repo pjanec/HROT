@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -33,20 +34,6 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     /// </summary>
     private static readonly string[] ProductionTrees = { "Hrot", "Stride" };
 
-    private static string RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            if (Directory.Exists(Path.Combine(dir, "docs")) &&
-                Directory.Exists(Path.Combine(dir, "FDP")) &&
-                Directory.Exists(Path.Combine(dir, "Hrot")))
-                return dir;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new InvalidOperationException("repo root not found from " + AppContext.BaseDirectory);
-    }
-
     private static bool IsProductionFile(string path)
     {
         var p = path.Replace('\\', '/');
@@ -60,7 +47,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     [Fact]
     public void NoProductionHostConstructsTheInMemorySelectionStore()
     {
-        var root      = RepoRoot();
+        var root      = TestRepo.Root;
         var offenders = new List<string>();
 
         foreach (var tree in ProductionTrees)
@@ -119,7 +106,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     [Fact]
     public void OnlyTheHostForwardWritesTheAiEditorsEntityCell()
     {
-        var root    = RepoRoot();
+        var root    = TestRepo.Root;
         var writers = new List<string>();
 
         foreach (var tree in ProductionTrees)
@@ -290,7 +277,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
         //   view's own type name would collide -- so the literal below cannot match it by accident.
         var allowed = new HashSet<string>(StringComparer.Ordinal) { "EcsSelectionState.cs" };
 
-        var root      = RepoRoot();
+        var root      = TestRepo.Root;
         var offenders = new List<string>();
 
         foreach (var tree in ProductionTrees)
@@ -345,7 +332,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     [Fact]
     public void OnlyTheSharedPackConstructsTheSelection()
     {
-        var root      = RepoRoot();
+        var root      = TestRepo.Root;
         var offenders = new List<string>();
         var packHits  = 0;
 
@@ -417,7 +404,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     [Fact]
     public void OnlyTheSharedPackRegistersTheMarquee()
     {
-        var root      = RepoRoot();
+        var root      = TestRepo.Root;
         var offenders = new List<string>();
         var packHits  = 0;
 
@@ -480,7 +467,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     [Fact]
     public void EveryProductionGizmoLayerIsGivenACamera()
     {
-        var root      = RepoRoot();
+        var root      = TestRepo.Root;
         var offenders = new List<string>();
         var sites     = 0;
 
@@ -590,7 +577,7 @@ public sealed class NoProductionHostKeepsAParallelSelectionStoreTests
     [Fact]
     public void TheScanActuallyReachesTheHostFilesItIsSupposedToGuard()
     {
-        var root  = RepoRoot();
+        var root  = TestRepo.Root;
         var seen  = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var tree in ProductionTrees)

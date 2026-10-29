@@ -356,27 +356,43 @@ public sealed class ClusterMasterRunRecordingTests
         edit.Master.Dispose();
     }
 
-    /// <summary>
-    /// ⭐⭐ <c>CE-1443</c> S5 (R-1043) — the master's INITIAL armed mode is a BOOTSTRAP parameter: Live by default (every cluster), Preview when the host passes it (the editor's single-node orchestrator) — held by the master, carried by its
-    /// FIRST broadcast (the standby a master with nothing mandatory publishes at construction), and still moved only by <c>SetRunSettings{Armed}</c> afterwards. ⛔ No file config: the parameter is the only source.
-    /// 🔴 Red-proofs: the constructor ignoring the parameter ⇒ the Preview row; the parameter applied after the standby publication ⇒ the broadcast row; a hard-coded Preview default ⇒ the default row.
-    /// </summary>
+    // ── R-1043 — the initial armed mode is a bootstrap parameter; LastLoadMode is the mode the last load went into ──────────────
+
+    /// <summary>⭐ R-1043 a — default config ⇒ initial armed mode Live; the editor's one-node config ⇒ Preview (its only bootstrap difference); never read from the config file.</summary>
     [Fact(Timeout = 10_000)]
-    public void CE1443_S5_TheInitialArmedMode_IsABootstrapParameter_Live_ByDefault_AndRidesTheFirstBroadcast()
+    public void The_initial_armed_mode_is_a_bootstrap_parameter_Live_by_default_Preview_for_the_editors_one_node_config()
     {
-        var plainBus = new FdpEventBus();
-        using var plain = new ClusterMaster(plainBus, TestClusterConfig.NothingMandatory());
-        plainBus.SwapBuffers();
-        Assert.Equal(ClusterArmedMode.Live, plain.ArmedMode);
-        Assert.Equal(ClusterArmedMode.Live, LastBroadcast(plainBus)!.Value.ArmedMode);
-
         var bus = new FdpEventBus();
-        using var editor = new ClusterMaster(bus, TestClusterConfig.NothingMandatory(), initialArmedMode: ClusterArmedMode.Preview);
-        bus.SwapBuffers();
+        using var plain = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
+        Assert.Equal(ClusterArmedMode.Live, plain.ArmedMode);
+        using var editor = new ClusterMaster(new FdpEventBus(), ClusterConfiguration.Default.ForOneNodeCluster());
         Assert.Equal(ClusterArmedMode.Preview, editor.ArmedMode);
-        Assert.Equal(ClusterArmedMode.Preview, LastBroadcast(bus)!.Value.ArmedMode);   // the very first publication already says it
+        Assert.Equal(ClusterArmedMode.Preview, editor.LastLoadMode);   // before any load it equals the initial mode
 
-        Op(editor, bus, "{\"Armed\":\"Live\"}");                                        // …and only the run-settings op moves it from there
-        Assert.Equal(ClusterArmedMode.Live, editor.ArmedMode);
+        var fromFile = System.Text.Json.JsonSerializer.Deserialize<ClusterConfiguration>("{\"InitialArmedMode\":\"Preview\"}", Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+        Assert.Equal(ClusterArmedMode.Live, fromFile.InitialArmedMode);   // ⛔ no file config
+    }
+
+    /// <summary>⭐ R-1043 b — LastLoadMode: the initial mode before any load; a live load ⇒ Live; an edit load ⇒ Preview; it rides the broadcast; arming does not move it.</summary>
+    [Fact(Timeout = 10_000)]
+    public void LastLoadMode_is_the_initial_mode_before_a_load_then_the_mode_each_load_went_into_and_rides_the_broadcast()
+    {
+        var bus = new FdpEventBus();
+        var master = new ClusterMaster(bus, new ClusterConfiguration { MandatoryRoles = Fdp.Core.NodeRole.None, InitialArmedMode = ClusterArmedMode.AAR });
+        Assert.Equal(ClusterArmedMode.AAR, master.LastLoadMode);   // = the initial mode
+        bus.PublishManaged(new NodeHeartbeatEvent { NodeId = NodeId, LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks, SubsystemName = "SimHost" });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var edit = Load(master, bus, "{\"TargetState\":\"OperatingEdit\"}");
+        Assert.Equal(ClusterArmedMode.Preview, master.LastLoadMode);
+        Assert.Equal(ClusterArmedMode.Preview, edit.LastState!.Value.LastLoadMode);
+
+        Op(master, bus, "{\"Armed\":\"Live\"}");
+        Assert.Equal(ClusterArmedMode.Preview, master.LastLoadMode);   // arming is not a load
+
+        var live = Load(master, bus, "{\"TargetState\":\"OperatingLive\"}");
+        Assert.Equal(ClusterArmedMode.Live, master.LastLoadMode);
+        Assert.Equal(ClusterArmedMode.Live, live.LastState!.Value.LastLoadMode);
+        master.Dispose();
     }
 }

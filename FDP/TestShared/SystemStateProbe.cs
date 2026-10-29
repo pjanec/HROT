@@ -100,14 +100,6 @@ namespace Fdp.TestShared
             return rows;
         }
 
-        /// <summary>The repository root (the directory holding <c>HROT.sln</c>), walking up from the test binaries.</summary>
-        public static string RepoRoot()
-        {
-            for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
-                if (File.Exists(Path.Combine(d.FullName, "HROT.sln"))) return d.FullName;
-            throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory);
-        }
-
         private static string? FamilyOf(Type type)
         {
             if (typeof(IEcsModuleSystem).IsAssignableFrom(type)) return "system";

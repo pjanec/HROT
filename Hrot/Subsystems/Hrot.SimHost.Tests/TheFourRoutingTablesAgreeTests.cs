@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -351,7 +352,7 @@ public class TheFourRoutingTablesAgreeTests
 
         foreach (var root in new[] { "Hrot", "FDP" })
         {
-            var dir = Path.Combine(RepoRoot(), root);
+            var dir = Path.Combine(TestRepo.Root, root);
             foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
             {
                 if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
@@ -442,22 +443,4 @@ public class TheFourRoutingTablesAgreeTests
         public void EmitString(ushort id, string? v, short s1 = 0, short s2 = 0) => Add(id, AttributeValue.FromString(v ?? string.Empty));
     }
 
-    /// <summary>⭐ Walks up to the repo root. ⛔ Fails loudly rather than skipping.</summary>
-    private static string RepoRoot()
-    {
-        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
-        {
-            var probe = start;
-            while (!string.IsNullOrEmpty(probe))
-            {
-                if (Directory.Exists(Path.Combine(probe, "Hrot")) &&
-                    Directory.Exists(Path.Combine(probe, "FDP")))
-                    return probe;
-                probe = Path.GetDirectoryName(probe);
-            }
-        }
-
-        Assert.Fail("Could not locate the repo root; this rail scans source and cannot run without it.");
-        return string.Empty;
-    }
 }

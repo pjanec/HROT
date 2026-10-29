@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -45,7 +46,7 @@ namespace Fdp.Tests.Determinism
         [Fact]
         public void NoSystem_ReadsTheWallClock_OrIsAnExemptionWithAReason()
         {
-            var root = RepoRoot();
+            var root = TestRepo.Root;
             Assert.NotNull(root);
 
             var offenders = new List<string>();
@@ -92,15 +93,5 @@ namespace Fdp.Tests.Determinism
             }
         }
 
-        private static string? RepoRoot()
-        {
-            var dir = AppContext.BaseDirectory;
-            for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-            {
-                if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-                dir = Directory.GetParent(dir)?.FullName;
-            }
-            return null;
-        }
     }
 }

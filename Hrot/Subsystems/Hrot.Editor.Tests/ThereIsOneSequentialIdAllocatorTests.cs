@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -92,7 +93,7 @@ public sealed class ThereIsOneSequentialIdAllocatorTests
     [Fact]
     public void OnlyOneProductionFileDeclaresASequentialIdAllocator()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var found = new List<string>();
@@ -122,14 +123,4 @@ public sealed class ThereIsOneSequentialIdAllocatorTests
     /// <summary>⭐ The one file that is SUPPOSED to declare it.</summary>
     private const string SharedAllocatorPath = "Hrot/Engine/Hrot.Core/Network/SequentialIdAllocator.cs";
 
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

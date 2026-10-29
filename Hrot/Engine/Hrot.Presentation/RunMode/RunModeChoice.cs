@@ -147,9 +147,14 @@ public sealed class RunModeChoice
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-1443</c> (U2a, R-1043) — <b>the ONE resolution of "what does a scenario LOAD go into"</b>: the CLUSTER's current armed mode, on every host. Live ⇒ a load into Live (paused at the start); Preview ⇒ a load into editing;
-    /// AAR ⇒ the mode the LAST scenario load went into (<c>ClusterView.LastLoadMode</c> — ⚠ NOT BUILT by the master yet, so editing until it is). Called through <see cref="ScenarioDoor.Load"/> by the File menu, Start's Recent rows and every picker.
+    /// AAR (or DAR) ⇒ the mode the LAST scenario load went into (<see cref="IRunTransport.ClusterLastLoad"/> = <c>ClusterView.LastLoadMode</c>, the master's — R-1043, user-approved), so every host resolves it alike. Called through <see cref="ScenarioDoor.Load"/> by the File menu, Start's Recent rows and every picker.
     /// </summary>
-    public DoorOpen LoadTarget => Armed == RunArmed.Live ? DoorOpen.Live : DoorOpen.Scenario;
+    public DoorOpen LoadTarget => Armed switch
+    {
+        RunArmed.Live    => DoorOpen.Live,
+        RunArmed.Preview => DoorOpen.Scenario,
+        _                => _transport.ClusterLastLoad == RunArmed.Live ? DoorOpen.Live : DoorOpen.Scenario,
+    };
 
     /// <summary>⭐ CE-3341 — the ONE writer of the armed mode: sets the local (optimistic) value and sends it to the cluster as <c>SetRunSettingsIntent { Armed }</c>. ⭐ CE-1443: written ONLY by the indicator's moves (<see cref="Choose"/>) and the moves that name their mode (AAR from here, go live from here, ■ ...); never by a load.</summary>
     private void Arm(RunArmed target)

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -228,7 +229,7 @@ public class TheHeadingConversionIsSharedTests
         foreach (var root in new[] { "Hrot", "FDP" })
         {
             foreach (var file in Directory.EnumerateFiles(
-                         Path.Combine(RepoRoot(), root), "*.cs", SearchOption.AllDirectories))
+                         Path.Combine(TestRepo.Root, root), "*.cs", SearchOption.AllDirectories))
             {
                 if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") ||
                     file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
@@ -300,20 +301,4 @@ public class TheHeadingConversionIsSharedTests
         return (repo, e);
     }
 
-    private static string RepoRoot()
-    {
-        foreach (var start in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
-        {
-            var probe = start;
-            while (!string.IsNullOrEmpty(probe))
-            {
-                if (Directory.Exists(Path.Combine(probe, "Hrot")) &&
-                    Directory.Exists(Path.Combine(probe, "FDP")))
-                    return probe;
-                probe = Path.GetDirectoryName(probe);
-            }
-        }
-        Assert.Fail("Could not locate the repo root; this rail scans source.");
-        return string.Empty;
-    }
 }

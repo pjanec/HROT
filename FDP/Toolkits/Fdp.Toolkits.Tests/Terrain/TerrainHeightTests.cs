@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Linq;
 using System.Numerics;
@@ -424,12 +425,6 @@ namespace Fdp.Toolkit.Terrain.Tests
 
         // ── H4 — basic-desert's ridge and wadi on a real grid (CE-3086, TH-G; §5d) ──
 
-        private static string RepoRoot()
-        {
-            // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-            return Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!;
-        }
-
         internal static TerrainWorld BasicDesert()
         {
             var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "basic-desert");
@@ -477,7 +472,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             int checkedEntities = 0;
             foreach (var name in new[] { "ua-air-strike", "ua-fire-distribution", "ua-weapon-choice" })
             {
-                var file = System.IO.Path.Combine(RepoRoot(), "scenarios", name, "scenario.json");
+                var file = System.IO.Path.Combine(TestRepo.Root, "scenarios", name, "scenario.json");
                 using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
                 if (!doc.RootElement.TryGetProperty("header", out var h) || !h.TryGetProperty("terrainName", out var t) || t.GetString() != "basic-desert") continue;
                 foreach (var e in doc.RootElement.GetProperty("entities").EnumerateObject())

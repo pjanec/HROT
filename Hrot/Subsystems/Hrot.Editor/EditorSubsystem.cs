@@ -2403,8 +2403,6 @@ namespace Hrot.Editor
                 // ⭐⭐ CE-4087 — the editor plays every simulation role in-process (the SAME mask it declares to the roster), so its
                 //   own master's load gate is satisfied at once — the editor never refuses itself, nor waits for its own advert.
                 LocalRoles        = EditorCapabilities.DefaultRole,
-                // ⭐⭐ CE-1443 (R-1043) — the ONE bootstrap difference between the editor and every other cluster: its single-node cluster starts in Preview (edit); Load then always goes into the cluster's armed mode.
-                InitialArmedMode  = Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview,
                 // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority; a load resets it to 1000.
                 //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
                 IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),

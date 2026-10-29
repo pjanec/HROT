@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -607,17 +608,10 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(3, rings);
         Assert.Equal(3 * 2 + 1, lines);   // a cross per mark, one line to the selected gun's point
 
-        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         int registered = pack.IndexOf("new Hrot.Presentation.Orders.FireMissionOverlayGizmo(", StringComparison.Ordinal);
         Assert.True(registered > 0 && registered < pack.IndexOf("menuOrders.RegisterOn(actions)", StringComparison.Ordinal),
             "registered on every map host, before the orders (a replay draws the marks too)");
-    }
-
-    private static string RepoRoot()
-    {
-        var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "HROT.sln"))) d = d.Parent;
-        return d!.FullName;
     }
 
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes

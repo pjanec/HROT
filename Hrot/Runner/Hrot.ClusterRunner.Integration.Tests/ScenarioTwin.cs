@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,10 +19,6 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 internal static class ScenarioTwin
 {
-    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-    public static string RepoRoot()
-        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()
-           ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
 
     public static Entity ByName(EntityRepository world, string name)
     {
@@ -41,7 +38,7 @@ internal static class ScenarioTwin
         var id = scenario.Replace('-', '_') + "_" + Guid.NewGuid().ToString("N");
         staged.Add(id);
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(id));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", scenario, "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", scenario, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(id), "scenario.json"), overwrite: true);
 
         var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
