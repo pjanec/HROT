@@ -48,6 +48,10 @@ public static class EcsNodeDebugProvider
             replayAxis:    () => node()?.ClusterSlave.ReplayAxis,   // ⭐ CE-3329 R-3058 — the master's broadcast, on every node
             runNotRecorded: () => node()?.ClusterSlave.RunNotRecorded,   // ⭐ CE-4090 D14 — the same broadcast
             recordLiveRunsOff: () => node()?.ClusterSlave.RecordLiveRunsOff,
+            // ⭐⭐⭐ CE-1436 (R-3066, design V5) — the check round's answer from the node's ONE cluster read model (ClusterSlave.View), the same on CGF, SimHost, IG and
+            //    traffic: ObservesUnsavedChecks is true by construction here, so ▶ asks the round on every host. ⛔ Not the node's own world check — the MASTER's answer.
+            unsavedCheck:  id => node()?.ClusterSlave.View.UnsavedCheckOutcomeFor(id),
+            scenarioDirty: () => node()?.ClusterSlave.View.LastUnsavedCheck?.Changed,
             replayRecording: () => node()?.ReplayRecordingPath,   // ⭐ CE-3330 E6 — the one lookup (HrotNodeContext), also what the shown timeline opens
             // ⭐ RB-2 — the replay's zero and now, from the same handler (frame-based seeks resolve against them)
             replayPosition: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault() is { } h

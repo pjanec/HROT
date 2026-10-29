@@ -154,4 +154,54 @@ public sealed class DistributedScenarioSaveTests : IDisposable
             foreach (var d in copyDirs) { try { Directory.Delete(d, recursive: true); } catch { } }
         }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066) — the cluster's facts reach EVERY ECS node, not just the master's cache and ExCon: with the cluster open for editing, a
+    /// CHECK ROUND the master runs is answered on the SimHost, IG and CGF nodes' own debug providers (<c>ObservesUnsavedChecks</c> true,
+    /// <c>UnsavedCheck(requestId)</c> the master's answer) — through the real DDS wire (<c>ClusterOpStatus</c> → each node's <c>ClusterFactsIngress</c> →
+    /// its <c>ClusterView</c>). ⛔ Before: no ECS node had the reader, so ▶ on a CGF host skipped the <i>Save and go live</i> prompt.
+    /// 🔴 Mutation: the slave translator's op-status reader not forwarded to its ingress (<c>NedSlaveOrchestrationTranslator</c> without <c>opStatusReader:</c>) ⇒
+    /// the pump times out with no node answered.
+    /// </summary>
+    [Fact]
+    public async Task CE1436_ACheckRound_IsAnsweredOnEveryEcsNode_ThroughTheirOwnClusterViews()
+    {
+        string repoRoot = AppContext.BaseDirectory;
+        while (!Directory.Exists(Path.Combine(repoRoot, "Hrot", "Subsystems")) && Directory.GetParent(repoRoot) is { } up) repoRoot = up.FullName;
+        var recipe = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets opened for editing: " + recipe);
+        Directory.CreateDirectory(ScenarioDir);
+        File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
+
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = new JsonObject { ["TargetState"] = ClusterState.OperatingEdit.ToString(), ["ScenarioId"] = _name }.ToJsonString(),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingEdit, timeoutFrames: 4000), "the cluster must open the scenario for editing");
+
+        var nodes = new (string Name, Hrot.Presentation.DebugApi.ISubsystemDebugProvider? Provider)[]
+        {
+            ("SimHost", harness.SimHost.CreateDebugProvider()),
+            ("IG",      harness.Ig.CreateDebugProvider()),
+            ("CGF",     harness.Cgf!.CreateDebugProvider()),
+        };
+        foreach (var n in nodes) Assert.True(n.Provider!.ObservesUnsavedChecks, $"{n.Name} must observe the check round by construction");
+
+        var round = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest { RequestId = round, OperationType = ClusterOpType.CheckUnsavedChanges });
+
+        Assert.True(harness.PumpUntil(() => nodes.All(n => n.Provider!.UnsavedCheck(round) != null), timeoutFrames: 1500),
+            "the round's answer must reach every ECS node: " + string.Join(", ", nodes.Select(n => $"{n.Name}={(n.Provider!.UnsavedCheck(round) != null)}")));
+        foreach (var n in nodes)
+        {
+            var outcome = n.Provider!.UnsavedCheck(round)!;
+            Assert.NotNull(outcome.Result);                       // the master's answer, not a refusal
+            Assert.Null(outcome.Refusal);
+        }
+    }
 }

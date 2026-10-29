@@ -13,9 +13,10 @@ using Fdp.Core.Serialization;
 namespace Hrot.Common.Orchestration;
 
 /// <summary>
-/// Anti-Corruption Layer: reads seven DDS orchestration topics and publishes corresponding
-/// CQRS events on an <see cref="FdpEventBus"/> for consumption by
-/// <c>ClusterUiCache</c>.
+/// Anti-Corruption Layer: reads the cluster's MONITORING topics (heartbeats, capabilities, time mode, the node-op command/status mirror) and
+/// publishes corresponding CQRS events on an <see cref="FdpEventBus"/> for consumption by <c>ClusterUiCache</c>. ⭐ CE-1436 — the cluster's FACT
+/// topics (state, inventory, replay session, op status) come through the shared <see cref="ClusterFactsIngress"/>, the one every node's slave
+/// translator owns too (design V1/V2: monitoring stays here because on an acting node those events drive its own egress).
 ///
 /// <para>Constructor: <see cref="OrchestrationObserverTranslator(DdsParticipant, FdpEventBus)"/></para>
 /// <para>Call <see cref="Tick"/> once per frame before calling <c>FdpEventBus.SwapBuffers()</c>
@@ -27,12 +28,9 @@ namespace Hrot.Common.Orchestration;
 /// </summary>
 public sealed class OrchestrationObserverTranslator : IDisposable
 {
-    private readonly DdsReader<ClusterStateTopic>      _stateReader;
-    private readonly DdsReader<AssetInventoryTopic>   _inventoryReader;
-    private readonly DdsReader<ReplaySessionTopic>    _sessionReader;   // ⭐ CE-3329 rows 32, 45
+    private readonly ClusterFactsIngress              _facts;   // ⭐ CE-1436 — the ONE ingress of the cluster's facts (state, inventory, session, op status), shared with every node's slave translator
     private readonly DdsReader<NodeHeartbeat>         _heartbeatReader;
     private readonly DdsReader<SwitchTimeModeWireDto> _timeModeReader;
-    private readonly DdsReader<ClusterOpStatus>       _sysOpStatusReader;
     private readonly DdsReader<NodeOpCommand>         _nodeOpCmdReader;
     private readonly DdsReader<NodeOpStatus>          _nodeOpStatusReader;
     private readonly DdsReader<NodeCapabilitiesTopic> _capabilitiesReader;   // CE-285 (C-cap)
@@ -45,12 +43,9 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     public OrchestrationObserverTranslator(DdsParticipant participant, FdpEventBus bus)
     {
         _bus                = bus ?? throw new ArgumentNullException(nameof(bus));
-        _stateReader        = new DdsReader<ClusterStateTopic>(participant);
-        _inventoryReader    = new DdsReader<AssetInventoryTopic>(participant);
-        _sessionReader      = new DdsReader<ReplaySessionTopic>(participant);
+        _facts              = ClusterFactsIngress.For(participant, bus);
         _heartbeatReader    = new DdsReader<NodeHeartbeat>(participant);
         _timeModeReader     = new DdsReader<SwitchTimeModeWireDto>(participant);
-        _sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
         _nodeOpCmdReader    = new DdsReader<NodeOpCommand>(participant);
         _nodeOpStatusReader = new DdsReader<NodeOpStatus>(participant);
         _capabilitiesReader = new DdsReader<NodeCapabilitiesTopic>(participant);
@@ -62,23 +57,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     /// </summary>
     public void Tick()
     {
-        // ClusterStateTopic → ClusterStateUpdateEvent
-        using (var l = _stateReader.Take())
-            foreach (var s in l)
-                if (s.IsValid)
-                    _bus.PublishManaged(StateOf(s.Data));
-
-        // AssetInventoryTopic → AssetInventoryUpdateEvent
-        using (var l = _inventoryReader.Take())
-            foreach (var s in l)
-                if (s.IsValid)
-                    _bus.PublishManaged(InventoryOf(s.Data));
-
-        // ⭐ CE-3329 — ReplaySessionTopic → ReplaySessionUpdateEvent (an observer — ExCon — draws the session layer only, §9e)
-        using (var l = _sessionReader.Take())
-            foreach (var s in l)
-                if (s.IsValid && Hrot.Network.Orchestration.ReplaySessionWire.FromTopic(s.Data) is { } session)
-                    _bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
+        _facts.Tick();   // ⭐ CE-1436 — ClusterStateTopic · AssetInventoryTopic · ReplaySessionTopic · ClusterOpStatus, one decoder each
 
         // NodeHeartbeat → NodeHeartbeatEvent
         using (var l = _heartbeatReader.Take())
@@ -109,32 +88,6 @@ public sealed class OrchestrationObserverTranslator : IDisposable
             foreach (var s in l)
                 if (s.IsValid)
                     _bus.Publish(s.Data.ToEvent());
-
-        // ClusterOpStatus → ClusterOpCompletedEvent
-        using (var l = _sysOpStatusReader.Take())
-            foreach (var s in l)
-                if (s.IsValid)
-                {
-                    object? payload = null;
-                    if (!string.IsNullOrWhiteSpace(s.Data.ResultJson))
-                    {
-                        try
-                        {
-                            payload = DecodeResult(s.Data.ResultJson);
-                        }
-                        catch
-                        {
-                            payload = s.Data.ResultJson;
-                        }
-                    }
-
-                    _bus.PublishManaged(new ClusterOpCompletedEvent
-                    {
-                        RequestId  = s.Data.RequestId,
-                        StatusCode = (OrchestrationStatusCode)s.Data.StatusCode,
-                        ResultPayload = payload // <-- Assign the deserialized payload here
-                    });
-                }
 
         // NodeOpCommand → ExecuteNodeOpIntent (promiscuous — all target nodes)
         using (var l = _nodeOpCmdReader.Take())
@@ -170,64 +123,13 @@ public sealed class OrchestrationObserverTranslator : IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        _stateReader.Dispose();
-        _inventoryReader.Dispose();
-        _sessionReader.Dispose();
+        _facts.Dispose();
         _heartbeatReader.Dispose();
         _timeModeReader.Dispose();
-        _sysOpStatusReader.Dispose();
         _nodeOpCmdReader.Dispose();
         _nodeOpStatusReader.Dispose();
         _capabilitiesReader.Dispose();
     }
 
-    /// <summary>
-    /// The master's op result as the typed payload its readers expect: ⭐ CE-4093 an <see cref="Fdp.Toolkit.Orchestration.UnsavedCheckResult"/> (recognised by its
-    /// one distinctive property — ⛔ the replay result below deserialises "successfully" from ANY JSON object and would swallow it), else the replay
-    /// result <c>ClusterUiCache</c> reads. Throws <see cref="JsonException"/> for text that is not JSON (a refusal's reason): the caller keeps the text.
-    /// </summary>
-    internal static object? DecodeResult(string resultJson)
-    {
-        using (var doc = JsonDocument.Parse(resultJson))
-            if (Fdp.Toolkit.Orchestration.UnsavedCheckResult.LooksLike(doc.RootElement))
-                return JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.UnsavedCheckResult>(resultJson, FdpJsonOptionsRegistry.DefaultRelaxed);
-        // Rehydrate the specific DTO expected by ClusterUiCache
-        return JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(resultJson, FdpJsonOptionsRegistry.DefaultRelaxed);
-    }
-
-    /// <summary>⭐ R-3055 — the ONE decoding of the master's inventory sample (this observer and every node's
-    /// <see cref="NodeOpSlaveTranslator"/> use it).</summary>
-    /// <summary>⭐ CE-3329 — the ONE decoding of the master's cluster-state broadcast (this translator and every node's
-    /// <c>NodeOpSlaveTranslator</c>): a field added on the wire reaches every reader.</summary>
-    internal static ClusterStateUpdateEvent StateOf(in ClusterStateTopic topic) => new()
-    {
-        CurrentState = (FdpClusterState)(int)topic.CurrentState,
-        ExerciseId   = topic.ExerciseId,
-        SessionId    = topic.SessionId,   // ⭐ C2
-        ReplayAxis   = (Fdp.Toolkit.Orchestration.ReplayAxis)topic.ReplayAxis,   // ⭐ CE-3329 R-3058
-        RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14
-        RecordLiveRunsOff = topic.RecordLiveRunsOff != 0,
-    };
-
-    internal static AssetInventoryUpdateEvent InventoryOf(in AssetInventoryTopic data) => new()
-    {
-        LocalScenarios           = DeserializeStringArray(data.LocalScenariosJson),
-        LocalExercises           = DeserializeExerciseArray(data.LocalExercisesJson),
-        ArchivedExercises        = DeserializeExerciseArray(data.ArchivedExercisesJson),
-        UnarchivedLocalExercises = DeserializeExerciseArray(data.UnarchivedLocalExercisesJson),
-    };
-
-    private static string[] DeserializeStringArray(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-        try { return JsonSerializer.Deserialize<string[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<string>(); }
-        catch { return Array.Empty<string>(); }
-    }
-
-    private static ExerciseInventoryItem[] DeserializeExerciseArray(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<ExerciseInventoryItem>();
-        try { return JsonSerializer.Deserialize<ExerciseInventoryItem[]>(json, FdpJsonOptionsRegistry.DefaultRelaxed) ?? Array.Empty<ExerciseInventoryItem>(); }
-        catch { return Array.Empty<ExerciseInventoryItem>(); }
-    }
+    private static string[] DeserializeStringArray(string? json) => ClusterFactsIngress.DeserializeStringArray(json);
 }

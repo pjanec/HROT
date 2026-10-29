@@ -1,13 +1,14 @@
 <!--STATUS
 state: LIVE — backend design for ui's frame CE-1436 (one cluster ingress, one cluster read model, on every node)
 updated: 2026-10-29
-build-state: READY-TO-BUILD — V1–V5 APPROVED by the user 2026-10-29 (R-3066)
-current-answer: §2 the picture · §3 decisions V1–V5 · §4 build slices
-stale-below: nothing
+build-state: BUILT 2026-10-29 (backend) — V1–V5 APPROVED by the user 2026-10-29 (R-3066); §5 is the as-built (three deviations, all named there)
+current-answer: §5 AS BUILT (what exists and where) · §2 the picture · §3 decisions V1–V5 · §4 build slices (built, in order)
+stale-below: §4 is the plan, now done — quote §5 for what exists; §3 V4's "built in Compose" is SUPERSEDED by §5 deviation D1 (the slave constructs it)
 known-rot: none
 known-conflict: none
 related-designs:
   - blueprints/batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md — the FRAME (ui, CE-1436): goal, leans, fences, acceptance
+  - blueprints/batches/NOTE_Backend_To_Ui_ClusterView_Built.md — the hand-back: what ui can now read on every host
   - blueprints/Architect_Question_108_Run_Mode_Picker.md — §4b the check round whose answer must reach every host; §2.6 CE-4096's ClusterSlave follow-fields; §2.8a the gap
   - projects/Hrot/Network/Hrot.Network.Orchestration.md — §5 the observer path (ExCon's passive reader) this design folds into one ingress
   - blueprints/Architect_Question_109_Retire_ExCon.md — ExCon's retirement (proposed 2026-10-29) would remove V2's difference and the observer translator
@@ -110,3 +111,37 @@ heartbeats. To report on build: memory and per-frame drain on a 1000-entity scen
 2. `Compose` builds the view; `ClusterSlave` follow-fields delegate; `EcsNodeDebugProvider` reads it.
 3. Acceptance (ui's frame): on CGF, SimHost and IG hosts `ObservesUnsavedChecks` is true and an unsaved round's answer arrives — a rail per host
    family through the real composition; ExCon monitoring unchanged; `ClusterUiCache` and slave rails green.
+
+## 5. As built (`2026-10-29`, backend)
+
+```mermaid
+classDiagram
+  class ClusterFactsIngress { <<Hrot.Network.Orchestration, NEW>> Tick() · StateOf · InventoryOf · DecodeResult · OpCompletedOf · MasterGone on a dead state writer }
+  class NodeOpSlaveTranslator { <<existing>> own ClusterFactsIngress (readers passed by NedSlaveOrchestrationTranslator, incl. opStatusReader) · own-node commands · egress }
+  class OrchestrationObserverTranslator { <<existing>> For(participant) ClusterFactsIngress · monitoring topics only }
+  class ClusterView { <<Fdp.Toolkits/Orchestration, NEW>> facts + 32-op outcome ring · Update() idempotent per frame }
+  class ClusterSlave { <<existing>> View built in ctor · Tick() calls View.Update() · follow-fields delegate }
+  class ClusterUiCache { <<existing>> ctor(bus, time, view?) · facts delegate · monitoring kept · ReachableTargets keyed on View.State }
+  class OrchestratorCoreOptions { View? — the editor passes its node slave's view }
+  class EcsNodeDebugProvider { unsavedCheck / scenarioDirty read ClusterSlave.View }
+  NodeOpSlaveTranslator *-- ClusterFactsIngress
+  OrchestrationObserverTranslator *-- ClusterFactsIngress
+  ClusterSlave *-- ClusterView
+  ClusterUiCache o-- ClusterView
+  OrchestratorCoreOptions ..> ClusterUiCache : View
+  EcsNodeDebugProvider --> ClusterView
+```
+
+*What the picture shows:* the view is owned by the slave, so a node cannot lack it; the editor's cache and its node share ONE instance.
+
+| # | deviation from §3/§4 | prior state — SUPERSEDED | why |
+|---|---|---|---|
+| **D1** | `ClusterSlave`'s constructor builds the view (`slave.View`); `Compose` exposes it on the record (`.View`) rather than building it | V4: "built once per ECS node in `Compose`" | the slave is the one object every node (and ExCon, outside `Compose`) has; `Compose` has no bus in its inputs; one owner by construction |
+| **D2** | the provider's `ClusterState` stays the node's own COMMITTED state; the cluster's is `FollowedClusterState` (already view-backed). `unsavedCheck` / `scenarioDirty` added | V5 listed "ClusterState" | CE-163 deliberately made it the readiness fact (`ClusterStateFrom` doc); changing it alters `waitForReady` |
+| **D3** | `OrchestratorCoreOptions.View` added so the editor's cache and slave share one view; ExCon still has TWO (slave's on its main bus, cache's on the observer bus), each fed by its own ingress | (not in the design) | the editor shares one bus; ExCon's observer bus is quarantined on purpose. ⚠ Residual duplicate: fold by passing `slave.View` to ExCon's cache and dropping the observer's ingress — a later slice |
+
+Side effects (intended): `ClusterOpCompletedEvent` now reaches every ECS node's bus (and ExCon's main bus, so its `AssetOpStatusTracker` resolves); the observer now also raises `MasterGone`; `ReachableTargets` is recomputed from the view's state, not per event.
+
+**Rails:** `ClusterViewTests` (+`CE1436` in `ClusterSlaveTests`), `ClusterUiCacheTests.CE1436…`, `NodeOpSlaveTranslatorTests.CE1436…` (×2), `EveryEcsHostComposesOneClusterHandlerSetRails.CE1436…`, `HrotNodeBuilderTests.CE1436…` (role per host family), `DistributedScenarioSaveTests.CE1436…` (live cluster).
+
+**Cost:** one view with a full 32-outcome ring ≈ 6.4 KB (payload objects included; inventory arrays were already held by the slave); `Update()` ≈ 160 ns on an idle frame, ≈ 2.1 µs with a state + an op outcome (publish+swap+fold). On a 1000-entity headless node (`ctx.Tick`, which runs `ClusterSlave.Tick` → `View.Update`): ≈ 206 µs per frame, of which `View.Update` is ≈ 0.1 µs (≈ 0.05 %) — the view reads four event streams and never touches the world, so it does not scale with entities.
