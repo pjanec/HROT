@@ -2118,13 +2118,9 @@ namespace Hrot.Editor.DebugApi
             var started = await _jobQueue.RunOnMainThread(() => Service().StartUnsavedCheck()).ConfigureAwait(false);
             if (started.Error != null)
                 return (null, Fail(started.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? 503 : 400, started.Error, started.HintCategory));
-            while (!_shutdown.IsCancellationRequested)
-            {
-                var outcome = await _jobQueue.RunOnMainThread(() => Service().UnsavedCheckOutcomeOrNull(started.RequestId)).ConfigureAwait(false);
-                if (outcome is not null) return (outcome, null);
-                try { await Task.Delay(20, _shutdown.Token).ConfigureAwait(false); }
-                catch (OperationCanceledException) { break; }
-            }
+            // ⭐ CE-1440 — the wait is the shared asker's (the toolbar's move polls the same object per frame)
+            var outcome = await Service().UnsavedAsker.WaitAsync(started.RequestId, job => _jobQueue.RunOnMainThread(job), _shutdown.Token).ConfigureAwait(false);
+            if (outcome is not null) return (outcome, null);
             return (null, Fail(503, "The debug API host shut down before the unsaved-changes check was answered.", DebugApiHints.Scenario));
         }
 

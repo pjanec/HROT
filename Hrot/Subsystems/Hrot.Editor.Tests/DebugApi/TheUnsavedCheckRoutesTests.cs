@@ -52,10 +52,31 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
     private int Rounds => _master.Sent.OfType<CheckUnsavedIntent>().Count();
 
     /// <summary>The cluster read model: a round the master was asked for is answered as the test set it up (an answer to the id it was asked under).</summary>
+    private readonly System.Collections.Generic.List<Guid> _readIds = new();
+
     private UnsavedCheckOutcome? Outcome(Guid id)
-        => _master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) && Waited(id)
+        => Record(id) && _master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) && Waited(id)
             ? (_refusal is not null ? new UnsavedCheckOutcome(null, _refusal) : new UnsavedCheckOutcome(_verdict, null))
             : null;
+
+    private bool Record(Guid id) { lock (_readIds) _readIds.Add(id); return true; }
+
+    /// <summary>
+    /// ⭐⭐ CE-1440 (R-3066 audit #13) — HTTP asks through the ONE shared asker (<c>UnsavedCheckAsker</c>, the type the toolbar's move uses): the request id the master was asked under is the
+    /// id every answer read carries. 🔴 Mutation: <c>DebugApiService.UnsavedAsker</c> reading under a fresh <c>Guid.NewGuid()</c> ⇒ the cell never gets its answer ⇒ red (504-style hang).
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE1440_TheCheckRound_FlowsOneRequestIdFromThePublishToTheAnswerRead()
+    {
+        var (host, queue, url) = Start();
+        using var h = host;
+        var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        var asked = Assert.Single(_master.Sent.OfType<CheckUnsavedIntent>());
+        Guid[] reads; lock (_readIds) reads = _readIds.ToArray();
+        Assert.NotEmpty(reads);
+        Assert.All(reads, id => Assert.Equal(asked.RequestId, id));
+    }
 
     /// <summary>⭐ CE-3340 ⑤ — how long the master takes to end a round (a node dead mid-round: until its heartbeat times out); zero = at once.</summary>
     private TimeSpan _roundTakes = TimeSpan.Zero;

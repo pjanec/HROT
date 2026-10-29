@@ -996,4 +996,60 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(Guid.Empty, none.ActiveExercise);
         Assert.Null(none.Session);
     }
+    /// <summary>
+    /// ⭐⭐ CE-1440 (R-3066 audit #13) — the ONE asker: <c>Start</c> publishes ONE <see cref="CheckUnsavedIntent"/> and <c>Read</c> asks the reads under THAT request id; the UI query
+    /// (<see cref="ClusterUnsavedChangesQuery"/>) is built over the same object, so its publish and its per-frame read are the asker's. 🔴 Mutation: <c>Start</c> publishing a fresh id
+    /// apart from the one it returns ⇒ the read ids differ from the published id ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1440_TheAsker_PublishesOneIntent_AndTheQueryReadsTheAnswerUnderThatId()
+    {
+        var bus = new FdpEventBus();
+        var readIds = new List<Guid>();
+        UnsavedCheckOutcome? answer = null;
+        var asker = new UnsavedCheckAsker(() => new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => bus),
+                                          new UnsavedCheckReads(() => true, id => { readIds.Add(id); return answer; }));
+        var query = new ClusterUnsavedChangesQuery(() => "hill-attack", asker);
+
+        UnsavedAnswer? reply = null;
+        query.Ask(a => reply = a);
+        bus.SwapBuffers();
+        var published = Assert.Single(bus.ReadManaged<CheckUnsavedIntent>());
+        query.Poll();                                                       // no answer yet: asked under the published id, no reply
+        Assert.Null(reply);
+        answer = new UnsavedCheckOutcome(new UnsavedCheckResult(true, new[] { 1 }), null);
+        query.Poll();
+        Assert.Equal(UnsavedAnswer.Changed, reply);
+        Assert.NotEmpty(readIds);
+        Assert.All(readIds, id => Assert.Equal(published.RequestId, id));   // the request id flows from the publish to every read
+
+        // …and HTTP's call is the same object's: a second Start is one more intent, readable under its own id
+        var second = asker.Start();
+        bus.SwapBuffers();
+        Assert.Equal(second, Assert.Single(bus.ReadManaged<CheckUnsavedIntent>()).RequestId);
+        Assert.Same(answer, asker.Read(second!.Value));
+        Assert.Equal(second, readIds[^1]);
+        Assert.Null(new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => null)).Start());   // no master reachable ⇒ no id
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1440 / R-4001 — <c>WaitAsync</c> (HTTP's wait) has NO deadline: a round that takes 150 ms is still answered (polled every 5 ms through the caller's queue), and it
+    /// returns null only when the caller's token cancels. 🔴 Mutation: a 40 ms give-up inside <c>WaitAsync</c> ⇒ the slow round reads null ⇒ red.
+    /// </summary>
+    [Fact]
+    public async System.Threading.Tasks.Task CE1440_TheAskersWait_HasNoDeadline_OnlyTheCallersToken()
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = new UnsavedCheckOutcome(UnsavedCheckResult.Unchanged, null);
+        var asker = new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => clock.ElapsedMilliseconds >= 150 ? outcome : null));
+        Assert.Same(outcome, await asker.WaitAsync(Guid.NewGuid(), job => System.Threading.Tasks.Task.FromResult(job()), default, pollMs: 5));
+
+        using var cts = new System.Threading.CancellationTokenSource();
+        var never = new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => null));
+        var waiting = never.WaitAsync(Guid.NewGuid(), job => System.Threading.Tasks.Task.FromResult(job()), cts.Token, pollMs: 5);
+        await System.Threading.Tasks.Task.Delay(60);
+        Assert.False(waiting.IsCompleted);
+        cts.Cancel();
+        Assert.Null(await waiting);
+    }
 }
