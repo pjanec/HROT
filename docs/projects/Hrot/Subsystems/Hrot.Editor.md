@@ -407,7 +407,6 @@ All source files live under `Hrot/Subsystems/Hrot.Editor/`. Namespace root is
 | `EditorOrbatPanel.cs`             | `EditorOrbatPanel` (sealed)                | ImGui entity list reading from `IEditorLogic.View`.                       |
 | `EntityPropertyInspector.cs`      | `EntityPropertyInspector` (sealed)         | ImGui property editor committed via `IEditorLogic.CommitPropertyEdit`.   |
 | `JsonEntityContextMenuHandler.cs` | `JsonEntityContextMenuHandler` (sealed)    | `IEntityContextMenuHandler`; populates context menus from `ContextMenuState.MenuJson`. |
-| `TimeControlStatusBarSection.cs`  | `TimeControlStatusBarSection` (internal sealed) | Status-bar transport controls (play/pause/step/stop) for preview mode. |
 | `EditorTimeTransportAdapter.cs`   | `EditorTimeTransportAdapter` (internal sealed)  | `ITimeTransportFacade`; bridges `IPreviewController` + `MasterSyncController`. |
 
 ### `Hrot.Editor.Windows`
@@ -872,7 +871,7 @@ validation pipelines.
 
 Enter preview only via `IEditorLogic` (or `IPreviewController`). Never write to
 `EntityRepository` outside of ECS systems while in preview mode - all changes will
-be discarded on `ExitPreviewMode()`. The `TimeControlStatusBarSection` binds the
+be discarded on `ExitPreviewMode()`. The main-toolbar time control (`MainToolbarTimeControlSection`; the status-bar copy was removed by CE-4083) binds the
 stop button's enabled state to `IsInPreviewMode`, preventing accidental rewinding
 outside of a preview session.
 

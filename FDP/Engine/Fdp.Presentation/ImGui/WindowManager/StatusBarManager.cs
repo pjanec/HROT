@@ -42,6 +42,11 @@ public class StatusBarManager
     /// </summary>
     public float Height { get; private set; }
 
+    /// <summary>
+    /// ⭐ CE-4083 — the ids of the registered sections, in registration order (the seam a composed-host rail reads to say what a host's status bar carries).
+    /// </summary>
+    public IReadOnlyList<string> SectionIds => _sections.ConvertAll(s => s.Id);
+
     // ── Registration ────────────────────────────────────────────────────────
 
     /// <summary>

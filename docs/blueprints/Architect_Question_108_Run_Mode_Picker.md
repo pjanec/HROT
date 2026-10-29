@@ -239,9 +239,11 @@ graph TD
   SLV --> RLH["ReferenceReplayLoadHandler"]
   SLV --> LLH["ReferenceLiveLoadHandler → RecordingModule"]
   ORC --> GW["AssetInventory: scenario copy into the exercise"]
-  SB["Status-bar time control (CE-4083)"]:::dead
+  SB["Status-bar time control — REMOVED (CE-4083, §2.9)"]:::dead
   classDef dead stroke:#d33,stroke-width:2px,stroke-dasharray: 5 5
 ```
+
+⭐ **AS-BUILT `2026-10-29` (CE-4083):** the dashed box is a **removed** edge — **SUPERSEDED**: until `2026-10-29` it was a live second transport (`ClusterTimeControlStatusBarSection`, wrapped by the editor's `TimeControlStatusBarSection`); it is gone and no status-bar section is a time control (§2.9).
 
 *What the picture shows:* the armed mode is per host; every change to the world goes through the ONE cluster master and the ONE load path; the
 dirty state lives with the master and is announced like the cluster state, so every host shows the same `name*` (UXR-03).
@@ -635,6 +637,17 @@ sequenceDiagram
 
 ⚠ **Not built (named):** a host that supplies `RunModeChoice.RecordedVersionDiffers` (the saved-vs-recorded hash compare — the inventory carries no hash and the copy's `RecordedScenarioStamp` lives in the master's staging, so until a host reads it the AAR → Preview confirmation is the plain one; the two-button form is built and railed); D15's *Keep / Discard* prompt and its setting (CE-4090 built none); `EnterReview()`'s default (D9, UI facade); a back-to-`Start` / exit guard; a live multi-process proof of *Go live from here* and of an ECS node answering the check round.
 
+### 2.9 CE-4083 — the status-bar time control is removed — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+| host | before | now |
+|---|---|---|
+| editor | toolbar group + status-bar `editor_time_controls` (`TimeControlStatusBarSection` → `ClusterTimeControlStatusBarSection`) | toolbar group only (`ShellTimeControlToolbar`) |
+| CGF | toolbar group + status-bar `cgf_time_controls` | toolbar group only |
+| SimHost | ⚠ **status-bar `simhost_time_controls` ONLY — no toolbar group** (its `AttachRunChoice` comment said the toolbar section was not registered) | **toolbar group added** (`SimHostSubsystem.RegisterTimeTransport` → `ShellTimeControlToolbar.Register` over the host's one facade + the choice it holds); status-bar copy gone |
+| IG · ReplayBrowser · ClusterRunner window | no time control (build no `ClusterTimeTransportAdapter`) | unchanged — they never had one |
+
+**Deleted:** `ClusterTimeControlStatusBarSection`, the editor's `TimeControlStatusBarSection` wrapper and the former's 2 smoke tests (mechanical; the toolbar section's `Render_*` rails cover the same render path). **Kept:** `RunNoteStatusBarSection` (D11 — a note, not a time control). **Added seam:** `StatusBarManager.SectionIds`. ⚠ SimHost's `SimHostControlsWindow` panel keeps its own Play/Pause/Step on the same facade (`vis.UI.TimeFacade`) — a panel, not the status bar; untouched. Rails: `TheRunChoiceIsOnEveryHostTests` (editor, CGF, SimHost).
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |
@@ -677,7 +690,7 @@ sequenceDiagram
 | **D10** | confirmations exactly as §3; Live → Preview always asks (no "don't ask again"); timeline actions never ask | ✅ user |
 | **D11** | edits are allowed while Preview or Live runs; a status-bar note, not a banner | ✅ user |
 | **D12** | the armed mode after opening a scenario is the HOST's default: **Preview in the editor, Live on CGF, the all-in-one and the server** — ⭐ ONE host parameter of the shared, unified bootstrap (the start perspective and everything else are the same code on every host) | ✅ user |
-| **D13** | the status-bar time control is removed (CE-4083) — the picker exists once | ✅ user (CE-4083) |
+| **D13** | the status-bar time control is removed (CE-4083) — the picker exists once | ✅ user (CE-4083) — ⭐ **BUILT `2026-10-29`, §2.9** |
 | **D14** | **Live does not imply recording.** A system setting *"Record live runs"* (default ON) decides; the Live icon says which (red recording · green not). Not a conflict with mgmt-1 §8.12 "Always Recording" — that rule keeps the recorder running while the clock is PAUSED, it does not make every live run record | ✅ user (the setting) · ⏸ lean: default ON, one cluster-wide setting the master hands to every node with the live load · ✅ **BUILT (CE-4090)** — §5a as-built |
 | **D15** | at ■ in Live, *"Keep this recording?"* — gated by a second setting *"Ask to keep recordings"* | ✅ user (the prompt + its gate) · ⏸ lean: default OFF (keep silently), Keep is the default button · ✅ the backend half BUILT (CE-4090: `DELETE /exercises/{id}`; the prompt and its second setting are CE-4097) |
 | **D16** | ⭐⭐ **THE START PERSPECTIVE.** While the cluster is **Idle** (at boot, and whenever it returns to Idle — an unload, a stop to Idle, the master gone), EVERY host shows the perspective `Start`: no panels, only the menu items marked *allowed in Idle* — **New scenario from a recipe** (an unsaved scenario based on it; the empty flat-terrain recipe listed first), **Open scenario**, **Open recording (AAR)**, Exit, Help. ⭐ **Open always loads into the editing state** (clock stopped, nothing recorded); what ▶ then does is the host's armed mode (D12) — going live from there is the no-reload go-live (D3), so a separate "Open live" is not needed (fifth pass). Each of them leaves Idle through the ordinary state machine; leaving Idle restores the host's remembered perspective. ⭐ Enforced BY CONSTRUCTION: one gate in the shared presentation layer, registered by the shared bootstrapper, reads the cluster state every host already has (`ClusterStateUpdateEvent`, `MasterGone`); `Start` is claimed by ONE shared window (the start surface — UXR-01), so the A0 rule (`WindowManager.cs:276-297`) holds. While `Start` shows, the perspective toolbar and `POST /perspective` refuse with *"load a scenario first"*. A host that cannot operate the cluster (a Player, SimHost alone) shows *"Waiting for the server to load a scenario"* with no actions; the master gone shows *"Server lost — waiting"*. The Replay Browser (offline, no cluster) and the Stride host (an example only) are exempt. ⛔ No special flat terrain: an existing terrain's empty recipe does it. ⭐ The empty Idle world stays as it is behind `Start` — harnesses and tools that use it keep working; only the UI can no longer reach it | ✅ user |

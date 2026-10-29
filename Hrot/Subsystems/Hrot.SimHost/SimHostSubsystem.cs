@@ -336,13 +336,13 @@ namespace Hrot.SimHost
             // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
             Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
 
-            // ── Time transport controls in status bar ─────────────────────────
+            // ── Time transport (toolbar) ─────────────────────────
             var bus = _app?.OrchestrationEventBus;
             if (bus != null)
             {
                 _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
                 // ⭐ CE-4097 (AQ108 §2.8 ⑥) — SimHost has NO scenario session: Live is armed (D12) and ▶ from Edit is disabled with its reason
-                //   (the shared toolbar section is not registered on this host; its status-bar transport reads the same facade).
+                //   ⭐ CE-4083 (AQ108 D13) — this host's ONLY time control was the status bar's; the shared TOOLBAR transport replaces it (below), over the same facade.
                 _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, control: null);
 
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
@@ -352,14 +352,16 @@ namespace Hrot.SimHost
                 if (vis.UI != null)
                     vis.UI.TimeFacade = _clusterTimeAdapter;
 
-                var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "simhost_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeSection.Render,
-                    perspective:    "SimHost");
+                RegisterTimeTransport(windowManager, _clusterTimeAdapter);
             }
         }
+
+        /// <summary>
+        /// ⭐ CE-4083 — the host's transport: the shared main-toolbar group over the host's one facade (+ the choice it HOLDS, silent-default rule).
+        /// ⛔ No status-bar copy. Its own method so a rail can compose it without the window the visualization needs.
+        /// </summary>
+        internal static void RegisterTimeTransport(Fdp.Presentation.WindowManager.WindowManager windowManager, ClusterTimeTransportAdapter adapter)
+            => Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(windowManager.MainToolbar, adapter, adapter.RunChoice);
 
         /// <summary>Disposes all kernel resources.</summary>
         public void Shutdown()

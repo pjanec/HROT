@@ -1829,7 +1829,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
         Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _canvas, "Scenario");
 
-        // ── Time transport controls in status bar ─────────────────────────
+        // ── Time transport (toolbar) ─────────────────────────
         var bus = _context?.EventBus;
         if (bus != null)
         {
@@ -1841,13 +1841,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   starts asking the day the provider does observe, with no change here.
             _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, _scenarioSession,
                 unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
-            var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
-            windowManager.StatusBar.RegisterSection(
-                id:             "cgf_time_controls",
-                sortOrder:      100,
-                renderDelegate: timeSection.Render,
-                perspective:    "Scenario");
-
+            // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.
             // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
             //    📐 Measured `2026-08-25`: the editor registers `MainToolbarTimeControlSection` on its
             //    toolbar (`EditorSubsystem:4715`) AND a status-bar section; CGF and SimHost had only the
