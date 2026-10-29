@@ -3,10 +3,12 @@ using System.Threading;
 using Fdp.Core;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Runner;
 using Hrot.CGF;
 using Hrot.Common;
+using Hrot.Common.Infrastructure;
 using Hrot.Editor;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
@@ -83,6 +85,64 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         {
             cgf.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1438</c> (R-3066 audit #6) — <b>"a run is running" is guarded INSIDE the run choice, so every host that has one warns — by construction.</b> Measured before: the editor
+    /// passed <c>runningRun</c> + <c>confirmLoad</c> to its File menu (<i>Stop &amp; Load</i>), CGF passed neither, so CGF's File › Open Scenario went straight over a live run. Asserted on the
+    /// CONSTRUCTED hosts: the cluster is heard in <c>OperatingLive</c> through each node's own bus and view, and the host's own choice (the one its File menu's <c>openScenario</c> calls)
+    /// raises the SAME confirmation — a <see cref="RunModeConfirmation"/> with <i>Stop &amp; Load</i> / <i>Cancel</i> — and Cancel loads nothing. (Confirming → stop, then load is the choice's
+    /// own rail over a fake session: <c>TheOneTimeFacadeTests.CE1438_*</c>; here a confirm would load a real scenario.)
+    /// 🔴 Red-proof: the guard removed from <c>RunModeChoice.OpenScenario</c> ⇒ both rows see no <c>Pending</c>.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1438_BothConstructedHosts_AskStopAndLoad_WhenAScenarioIsOpenedOverALiveRun()
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.RegisterWindows(MakeWindowManager());
+
+            AssertAsksStopAndLoadOverALiveRun("editor", editor.RunChoiceForTest, editor.NodeForTest);
+            AssertAsksStopAndLoadOverALiveRun("CGF", cgf.RunChoiceForTest, cgf.NodeForTest);
+        }
+        finally
+        {
+            cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    private static void AssertAsksStopAndLoadOverALiveRun(string host, RunModeChoice? choice, HrotNodeContext? node)
+    {
+        Assert.NotNull(choice);
+        Assert.NotNull(node);
+        Assert.Null(choice!.Pending);
+
+        // the master's broadcast, as this node's ONE cluster view folds it (the adapter's Mode reads that view)
+        node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        node.EventBus.SwapBuffers();
+        node.ClusterSlave.View.Update();
+
+        choice.OpenScenario("any-scenario");
+
+        var ask = choice.Pending;
+        Assert.True(ask is not null, $"{host}: File > Open Scenario over a live run must ask first");
+        Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask!.Buttons.Select(b => b.Label));
+        Assert.Contains("stops the live run", ask.Text);
+        ask.Cancel();
+        Assert.Null(choice.Pending);   // Cancel: nothing was loaded
     }
 
     /// <summary>

@@ -384,34 +384,8 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>⭐ R-4001 — what the toolbar shows while the unsaved-changes round runs.</summary>
     public const string CheckingUnsavedText = "Checking every node for unsaved edits…";
 
-    private const string ConfirmPopupId = "Confirm##mt_run_confirm";
-    private RunModeConfirmation? _confirmOpened;
-
-    /// <summary>⭐ CE-4097 — draws <see cref="RunModeChoice.Pending"/> as a modal: its text and buttons; closing it (Esc / ✕) is Cancel, the last button.</summary>
-    private void DrawConfirmation()
-    {
-        var pending = _choice?.Pending;
-        if (pending is null) { _confirmOpened = null; return; }
-        if (!ReferenceEquals(_confirmOpened, pending)) { ImGui.OpenPopup(ConfirmPopupId); _confirmOpened = pending; }
-
-        bool open = true;
-        if (!ImGui.BeginPopupModal(ConfirmPopupId, ref open, ImGuiWindowFlags.AlwaysAutoResize))
-        {
-            if (!open) pending.Resolve(pending.Buttons[^1]);   // (a modal that was closed without a button)
-            return;
-        }
-        ImGui.TextWrapped(pending.Text);
-        ImGui.Separator();
-        RunModeConfirmation.Button? pressed = null;
-        foreach (var button in pending.Buttons)
-        {
-            if (ImGui.Button(button.Label)) pressed = button;
-            ImGui.SameLine();
-        }
-        if (!open) pressed = pending.Buttons[^1];
-        if (pressed is not null) { ImGui.CloseCurrentPopup(); pending.Resolve(pressed); }
-        ImGui.EndPopup();
-    }
+    /// <summary>⭐ CE-4097 — draws <see cref="RunModeChoice.Pending"/> through the ONE modal helper (CE-1438): its text and buttons; closing it (Esc / ✕) is Cancel, the last button.</summary>
+    private void DrawConfirmation() => ConfirmationModal.Draw(_choice?.Pending);
 
     /// <summary>A coloured disc with the mode's letter; a click opens the mode menu (where there is one).</summary>
     private void DrawModeIndicator(float size)

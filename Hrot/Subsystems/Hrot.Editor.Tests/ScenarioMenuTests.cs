@@ -7,6 +7,7 @@ using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Scenarios;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
+using System.Linq;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
@@ -323,6 +324,29 @@ public sealed class ScenarioMenuTests
         prompt.ResolveConfirm();
         Assert.Equal(1, session.NewExerciseCallCount);
         Assert.False(prompt.IsPrompting);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the <i>New Exercise</i> prompt is the ONE confirmation shape: the controller only PRODUCES a <c>RunModeConfirmation</c> (its title, text, the
+    /// confirming button then Cancel) and holds no title / message / label of its own; one slot, a second request is dropped.
+    /// 🔴 Red-proof: <c>Request</c> re-adding its own <c>ConfirmLabel</c> property / building the model without Cancel last ⇒ the property-set and button-list assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE1438_TheNewExercisePrompt_IsARunModeConfirmation_NotAShapeOfItsOwn()
+    {
+        var prompt = new ConfirmPromptController("p");
+        Assert.Null(prompt.Pending);
+        Assert.True(prompt.Request("New Exercise", "sure?", "Yes", () => { }));
+        Assert.False(prompt.Request("Other", "again?", "No", () => { }));   // one slot: dropped
+
+        var model = Assert.IsType<Hrot.UI.Common.RunMode.RunModeConfirmation>(prompt.Pending);
+        Assert.Equal("New Exercise", model.Title);
+        Assert.Equal("sure?", model.Text);
+        Assert.Equal(new[] { "Yes", "Cancel" }, model.Buttons.Select(b => b.Label));
+        Assert.Equal("p", model.PopupId);
+
+        // the controller keeps no title / message / button of its own — the model is the only holder
+        Assert.Equal(new[] { "IsPrompting", "Pending" }, typeof(ConfirmPromptController).GetProperties().Select(p => p.Name).OrderBy(n => n).ToArray());
     }
 
     /// <summary>⭐⭐ And CANCEL means the exercise survives — the other half of the same branch.</summary>

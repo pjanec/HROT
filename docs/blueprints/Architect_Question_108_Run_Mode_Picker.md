@@ -699,6 +699,83 @@ the perspective while the cluster clock is one · **first-registered wins** — 
 | 6 | SimHost panel Play / Step through `UserTransport` | `SimHostSimulationControlsPanel` gets `IsPlayEnabled`, `IsStepEnabled`, `PlayDisabledReason`, `PlayPause()`, `Step()` (all `UserTransport`); `Render` disables the buttons with the choice's reason as the tooltip | so the routing is assertable without an ImGui frame (the suite's own rule: "pin the routing, not the rendering") |
 | 7 | — | **left per host: `RunNoteStatusBarSection.Register`** (editor, CGF) | D11's note is a status-bar note, not a time control; not part of this item |
 
+### 2.11 CE-1438 — one confirmation shape, and the "a run is running" guard inside the run choice (R-3066 audit #5, #6, #7) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+| the lean rests on | code (measured before the build, `ui@2cd9d28ff`) | design |
+|---|---|---|
+| three confirmation shapes: `ConfirmPromptController` (title / message / confirm label, `Resolve*`), `AppExitPromptController` (`IsPrompting`, three `Resolve*`), `RunModeConfirmation` (text + N buttons, last = Cancel) | ✅ `ConfirmPromptController.cs:23`, `AppExitPromptController.cs:19`, `RunModeTypes.cs:185`; three draw sites: `EditorSubsystem` `DrawExitPromptModal` / `DrawConfirmModal` (two hand-written `BeginPopupModal`s) and `MainToolbarTimeControlSection.DrawConfirmation` | ✅ AQ108 §1 **R3** + **D10** call `RunModeConfirmation` *"the ONE confirmation shape"*; `ConfirmPromptController`'s own header says a second shape is what the seam law forbids |
+| the editor warns *Stop & Load* over a run, CGF does not | ✅ editor passes `runningRun` + `confirmLoad` (`EditorSubsystem.cs` ~4625-4628 → `ScenarioMenuCommands.Guarded`); CGF's `Register` call passes neither (`CgfSubsystem.cs` ~2899-2941) ⇒ its File › Open Scenario goes straight on | ✅ D20 already says *"the File › Open Scenario item of every host ends here"* (the run choice); CE-1025 (`DESIGN_Cluster_Load_Phase.md` §9.1) wrote the warning for the *interactive* host only because it lived in a menu seam |
+| "a run is running" is defined twice | ✅ `ScenarioLoadGuard.RunningRun(inPreview, ClusterState)` (`ScenarioLoadGuard.cs:13`; the editor's seam and `DebugApiService.cs:1306`) vs the facade's `TransportMode` (`ClusterReplayControls.ModeOf`) that `RunModeChoice` reads | ✅ CE-1436 (one cluster read model) / CE-3329 row 21 (one facade) |
+| the editor's `inPreview` flag is not needed to say "dry run" | ✅ `EditorPreviewController.IsInPreviewMode` ≡ `state == OperatingPreview` (`EditorSubsystem.cs:754`) ≡ `TransportMode.Preview`; ⚠ a *live* run can still read as "in preview" on another adapter (CE-4054, `DirectorRunner.cs:570`) ⇒ the override stays as an optional argument | ⛔ no design says otherwise; `ScenarioLoadGuardTests` pins it |
+| no other caller of `ScenarioMenuCommands.Guarded` / `runningRun` / `confirmLoad` | ✅ whole tree `grep -rn "runningRun\|confirmLoad\|Guarded(" Hrot --include=*.cs`: only the registrar, the editor, `ScenarioLoadGuardTests` | — |
+
+```mermaid
+classDiagram
+  class RunModeConfirmation { <<existing, now PUBLIC ctor>> Text · Buttons (last = Cancel) · ⭐Title · ⭐PopupId · Resolve(button) · ⭐Cancel() · ⭐WithCancel(...) }
+  class ConfirmationModal { <<NEW static, Hrot.Presentation>> Draw(RunModeConfirmation?) — the ONE ImGui modal; Esc / X = Cancel }
+  class RunModeRunGuard { <<NEW static, Hrot.Presentation>> Of(TransportMode, inDryRun) : "a live run" / "a dry run" / null · LoadPrompt · RecordingPrompt · StopAndLoad }
+  class RunModeChoice { <<existing>> OpenScenario · OpenRecording — ⭐ AskStopAndLoad first, then LeavingEditing (unchanged) }
+  class ScenarioLoadGuard { <<existing, SHRUNK>> RunningRun(inPreview, state) = RunModeRunGuard.Of(ModeOf(state)) — HTTP's stoppedRun only }
+  class ConfirmPromptController { <<existing, THIN>> Request · Pending : RunModeConfirmation — one slot, no title / label of its own }
+  class AppExitPromptController { <<existing, THIN>> RequestExit · Pending : RunModeConfirmation (Save All and Exit · Discard and Exit · Cancel) }
+  class ScenarioMenuCommands { <<existing>> ⛔ runningRun / confirmLoad / Guarded RETIRED — Open Scenario = openScenario ?? session.OpenForEdit }
+  class MainToolbarTimeControlSection { <<existing>> DrawConfirmation → ConfirmationModal.Draw(choice.Pending) }
+  class EditorSubsystem { <<existing>> DrawPromptModals → ConfirmationModal.Draw ×2 · ⛔ _loadConfirm and the two hand-written modals gone }
+  class DebugApiService { <<existing>> LeaveRunForLoad → ScenarioLoadGuard.RunningRun (UNCHANGED call, same 409 / stoppedRun text) }
+  RunModeChoice ..> RunModeRunGuard : the ONE definition
+  RunModeChoice ..> RunModeConfirmation : Pending
+  ScenarioLoadGuard ..> RunModeRunGuard
+  DebugApiService ..> ScenarioLoadGuard
+  ConfirmPromptController ..> RunModeConfirmation : produces
+  AppExitPromptController ..> RunModeConfirmation : produces
+  ConfirmationModal ..> RunModeConfirmation : draws
+  MainToolbarTimeControlSection ..> ConfirmationModal
+  EditorSubsystem ..> ConfirmationModal
+  ScenarioMenuCommands ..> RunModeChoice : via the host's openScenario
+```
+
+*What the picture shows that prose hid:* the guard has no host-side seam left to forget — CGF and the editor both hand `File › Open Scenario` to the choice they already attach, and the
+choice is the only place that knows both "a run is running" and "what the confirmation looks like".
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant M as File › Open Scenario (ScenarioMenuCommands)
+  participant C as RunModeChoice (this host's)
+  participant G as RunModeRunGuard
+  participant T as Toolbar (ConfirmationModal.Draw)
+  participant S as IRunScenarioControl (the host's session)
+  U->>M: pick "x" over a LIVE run (editor OR CGF — same path)
+  M->>C: openScenario("x")
+  C->>G: Of(facade.Mode)
+  G-->>C: "a live run"
+  C-->>T: Pending = RunModeConfirmation[Stop and Load, Cancel]
+  alt Stop and Load
+    U->>T: press
+    T->>C: Pending.Resolve(button)
+    C->>S: OpenForEdit("x") (the session unloads to Idle, then loads)
+  else Cancel / Esc / X
+    U->>T: dismiss
+    T->>C: Pending.Cancel() — nothing happens
+  end
+```
+
+⭐ **Decisions** *(all three leans adopted)*: ① **`RunModeConfirmation` is THE model**; ONE draw (`ConfirmationModal.Draw`) is used by the toolbar and by the editor's exit and *New Exercise* prompts;
+the two controllers stay as thin PRODUCERS (they own a one-slot / a decision, not a shape) and lose their own title / message / label / button handling.
+② **The run guard moves into `RunModeChoice.OpenScenario` / `OpenRecording`** — every host with a choice warns by construction; the registrar's `runningRun` / `confirmLoad` seams and `Guarded` retire.
+③ **One definition of "running"**: `RunModeRunGuard.Of(TransportMode)`; `ScenarioLoadGuard` keeps only `RunningRun` for HTTP.
+*Rejected:* **passing `runningRun` / `confirmLoad` from CGF too** — fixes one host, keeps the copy-paste seam (the next host forgets again) · **a confirmation service object** — a second owner of a shape that
+a plain model + one static draw already covers · **retiring the two controllers** — the exit prompt's *"is it safe to close?"* decision and `ConfirmPromptController`'s one-slot drop rule are logic worth a headless seam; only their SHAPE was duplicate.
+
+**AS-BUILT deviations from the design above**
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | "a run is running" = the facade `Mode` | `Live` and `Preview` only — a DAR (`Review`) and an AAR (`Replay`) are not a run to stop here; and `LoadingLive` / `LoadingPreview` (which `ScenarioLoadGuard` used to name) map to `Idle` in `ModeOf`, so HTTP's `stoppedRun` is now `null` during those two *loading* states | keeps CE-1025's behaviour for review / replay (a load over them never warned); the loading-state narrowing is the price of ONE definition — the load itself still goes out, only the answer's text differs. `ScenarioLoadGuardTests` pins the table |
+| 2 | `OpenRecording` and `OpenScenario` guarded | both; ⚠ `OpenRecording` over a run is a NEW warning on every host (the editor never had one) | a recording opened over a live run stops it exactly as a scenario load does (`TheOneTimeFacadeTests.CE4097_OnlyAMoveThatLeavesEditing…` used to assert it went straight on — updated) |
+| 3 | `ConfirmPromptController` / `AppExitPromptController` "thin producers (or retired)" | both kept, public `Resolve*` kept; `ConfirmPromptController` keeps only `Pending` / `IsPrompting` / `Request`; the exit prompt's document list is now text inside the model (it was a bulleted ImGui list) | the existing rails call `ResolveConfirm` / `ResolveSaveAndExit` directly; the bullet list is the only visual change of the exit modal |
+| 4 | — | `CgfSubsystem.NodeForTest` (internal) added | the constructed-host rail needs the node's bus + cluster view to "hear" `OperatingLive` |
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |

@@ -1021,6 +1021,11 @@ Rails: `ScenarioLoadSequenceTests` (6) · `EditorScenarioSessionLoadTests` (4, r
 
 ### 9.1 ⭐⭐⭐ `CE-1025` — **A LOAD DURING A LIVE RUN OR A DRY RUN: warn (interactive only), stop it, FORGET its restore point, load from Idle** *(design `2026-10-23`, ui; `build-state: BUILT 2026-10-23` — as-built at the end of this section; R-1031)*
 
+> ⛔ **SUPERSEDED IN PART `2026-10-29` (CE-1438, [AQ108 §2.11](blueprints/Architect_Question_108_Run_Mode_Picker.md)).** The interactive warning no longer lives in the menu seam described below
+> (`ScenarioMenuCommands` `runningRun` / `confirmLoad` / `Guarded`, `ScenarioLoadGuard.Prompt` — all RETIRED): it is `RunModeChoice.OpenScenario` / `OpenRecording` asking *Stop & Load* (a
+> `RunModeConfirmation`), so CGF warns too. "A run is running" is `RunModeRunGuard.Of(TransportMode)`; `ScenarioLoadGuard.RunningRun` remains only for HTTP's `stoppedRun`. The diagrams and as-built
+> text below describe the CE-1025 build and are history where they name the retired members.
+
 🔒 **User, `2026-10-23`:** *"scenario load should warn about it breaks existing live or dryrun and once approved it stop it first
 forgetting the dry run restoration point then performs the load from standby state. Of course the warn dialog only if not tasked
 from ai debug http which is non interactive by design."* ("standby" = `Idle`; ruling 53: the confirm sits where the operator sits,

@@ -636,6 +636,72 @@ public sealed class TheOneTimeFacadeTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #6) — File › Open Scenario over a RUN asks <i>Stop &amp; Load</i> INSIDE the choice (so every host with one warns): a live run and a dry run ask
+    /// (the dry run's text names the restore point it forgets), a DAR / an AAR / Idle do not; Confirm stops-then-loads (<c>OpenForEdit</c>), Cancel and a second open while asking do nothing.
+    /// The confirmation is the ONE <see cref="RunModeConfirmation"/> shape.
+    /// 🔴 Red-proof: <c>OpenScenario</c> without its <c>AskStopAndLoad</c> line ⇒ the Live / Preview rows have no <c>Pending</c>; <c>Confirm</c> not calling the open ⇒ the call list is empty.
+    /// </summary>
+    [Fact]
+    public void CE1438_OpenScenarioOverARun_AsksStopAndLoad_InTheChoice()
+    {
+        foreach (var (state, text) in new[] { (ClusterState.OperatingLive, "stops the live run"), (ClusterState.OperatingPreview, "forgets its restore point") })
+        {
+            var rig = With(state);
+            rig.Choice.OpenScenario("other");
+            var ask = Assert.IsType<RunModeConfirmation>(rig.Choice.Pending);
+            Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask.Buttons.Select(b => b.Label));
+            Assert.Contains(text, ask.Text);
+            Assert.Contains("'other'", ask.Text);
+            Assert.Empty(rig.C.Calls);                       // asked, not loaded
+            Assert.Equal(0, rig.Q.Asked);                    // a run holds no scenario of its own: no unsaved round
+
+            rig.Choice.OpenScenario("third");                // a question is open: another open does not stack one
+            Assert.Same(ask, rig.Choice.Pending);
+
+            ask.Resolve(ask.Buttons[0]);                     // Stop & Load
+            Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
+            Assert.Null(rig.Choice.Pending);
+
+            var cancel = With(state);
+            cancel.Choice.OpenScenario("other");
+            cancel.Choice.Pending!.Cancel();
+            Assert.Empty(cancel.C.Calls);                    // Cancel: the run is untouched
+        }
+
+        foreach (var state in new[] { ClusterState.OperatingReview, ClusterState.OperatingReplay, ClusterState.Idle })
+        {
+            var rig = With(state);
+            rig.Choice.OpenScenario("other");
+            Assert.Null(rig.Choice.Pending);                 // not a run to stop here (CE-1025: unchanged)
+            Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1438</c> (audit #7) — "a run is running" has ONE definition: for every facade <see cref="TransportMode"/>, <see cref="RunModeRunGuard.Of"/> says a run is running exactly when
+    /// the choice asks <i>Stop &amp; Load</i> (and the cluster state reaches the same answer through <c>ClusterReplayControls.ModeOf</c>, which is what HTTP's <c>stoppedRun</c> reads).
+    /// 🔴 Red-proof: <c>Of</c> answering <c>null</c> for <c>Live</c> ⇒ the Live row asks while the definition says no run.
+    /// </summary>
+    [Fact]
+    public void CE1438_TheRunGuardAndTheChoice_AgreeForEveryMode()
+    {
+        foreach (var state in Enum.GetValues<ClusterState>())
+        {
+            var rig = With(state);
+            var mode = ClusterReplayControls.ModeOf(state);
+            Assert.Equal(rig.F.Mode, mode);
+            var running = RunModeRunGuard.Of(mode);
+            rig.Choice.OpenScenario("x");
+            if (mode == TransportMode.Edit) continue;                    // editing asks the unsaved round, not the run guard
+            Assert.True((running is not null) == (rig.Choice.Pending is { } p && p.Buttons[0].Label == RunModeRunGuard.StopAndLoad),
+                        $"{state}: the definition says '{running}', the choice asked={rig.Choice.Pending is not null}");
+        }
+        Assert.Equal("a live run", RunModeRunGuard.Of(TransportMode.Live));
+        Assert.Equal("a dry run", RunModeRunGuard.Of(TransportMode.Preview));
+        Assert.Equal("a dry run", RunModeRunGuard.Of(TransportMode.Live, inDryRun: true));   // a live run can read as "in preview" (CE-4054)
+    }
+
+    /// <summary>
     /// ⭐ ONLY a move that LEAVES EDITING asks (the master refuses a round elsewhere): opening a recording from a Live run, a DAR or an AAR publishes no round; from Edit it asks ONE and, with
     /// unsaved edits, offers <i>Save / Discard / Cancel</i> (Save = SaveCurrent THEN the open; Discard = the open; Cancel = nothing). Opening another scenario asks the same way.
     /// 🔴 Red-proof: <c>LeavingEditing</c> without its <c>Mode != Edit</c> guard ⇒ the Live row publishes a round; the Save arm dropping <c>SaveCurrent</c>.
@@ -648,6 +714,12 @@ public sealed class TheOneTimeFacadeTests
             var running = WithCheckRound(state);
             running.Choice.OpenRecording(RunId);
             Assert.Empty(Sent<CheckUnsavedIntent>(running));                // not editing: nothing of the scenario to lose
+            // ⭐ CE-1438 — a live run / a dry run is stopped by the open, so the choice asks Stop & Load first (no unsaved round); a replay is not a run to stop
+            if (state is ClusterState.OperatingLive or ClusterState.OperatingPreview)
+            {
+                Assert.Empty(running.C.Calls);
+                running.Choice.Pending!.Resolve(running.Choice.Pending.Buttons[0]);
+            }
             Assert.Equal(new[] { $"OpenRecording:{RunId}" }, running.C.Calls);
         }
 

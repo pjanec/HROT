@@ -204,6 +204,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
     /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Live), for the wiring rail.</summary>
     internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+    /// <summary>⭐ CE-1438 — this host's node context (its ONE cluster view and bus), for the constructed-host rail.</summary>
+    internal HrotNodeContext? NodeForTest => _context;
 
     // ⭐ CE-1437 (AQ108 §2.10) — CGF OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
     Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Cgf;

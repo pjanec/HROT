@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
+using ImGuiNET;
 
 namespace Hrot.UI.Common.RunMode;
 
@@ -179,29 +180,56 @@ public interface ISaveInterception
 }
 
 /// <summary>
-/// ⭐⭐ <c>CE-4097</c> (AQ108 R3, D10) — <b>the ONE confirmation shape</b>: a text and its buttons, resolved by pressing one. Drawn as a modal
-/// by the toolbar section; its model is testable without ImGui. The last button of a confirmation is always Cancel (no action).
+/// ⭐⭐ <c>CE-4097</c> (AQ108 R3, D10) — <b>the ONE confirmation shape</b>: a text and its buttons, resolved by pressing one. Drawn by the ONE helper
+/// <see cref="ConfirmationModal"/>; its model is testable without ImGui. The last button of a confirmation is always Cancel (no action).
+/// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the editor's app-exit prompt, its <i>New Exercise</i> prompt and the run choice's own confirmations are ALL instances of this
+/// type: <c>AppExitPromptController</c> / <c>ConfirmPromptController</c> are thin PRODUCERS of it and hold no button list of their own.
 /// </summary>
 public sealed class RunModeConfirmation
 {
     /// <summary>One button: its label and what pressing it does (<see langword="null"/> = nothing — Cancel).</summary>
     public sealed record Button(string Label, Action? Action);
 
-    private readonly Action<RunModeConfirmation> _done;
+    /// <summary>The label of the closing button every confirmation ends with.</summary>
+    public const string CancelLabel = "Cancel";
+
+    private readonly Action<RunModeConfirmation>? _done;
     private bool _resolved;
 
-    internal RunModeConfirmation(string text, IReadOnlyList<Button> buttons, Action<RunModeConfirmation> done)
+    /// <param name="text">What will happen, in the user's words.</param>
+    /// <param name="buttons">The buttons, left to right; the LAST one is Cancel (closing the modal presses it).</param>
+    /// <param name="done">Called when a button is pressed, BEFORE its action — the producer's slot clears itself here.</param>
+    /// <param name="title">The modal's title.</param>
+    /// <param name="popupId">The ImGui id of the modal (unique per producer: two confirmations may be up in one frame).</param>
+    public RunModeConfirmation(string text, IReadOnlyList<Button> buttons, Action<RunModeConfirmation>? done = null,
+                               string title = "Confirm", string popupId = "mt_run_confirm")
     {
+        if (buttons is null || buttons.Count == 0) throw new ArgumentException("a confirmation has at least its Cancel button", nameof(buttons));
         Text = text;
         Buttons = buttons;
         _done = done;
+        Title = title;
+        PopupId = popupId;
     }
+
+    /// <summary>⭐ The one way to build one: <paramref name="actions"/> then a Cancel that does nothing.</summary>
+    public static RunModeConfirmation WithCancel(string text, Action<RunModeConfirmation>? done, string title, string popupId, params Button[] actions)
+        => new(text, actions.Append(new Button(CancelLabel, null)).ToArray(), done, title, popupId);
 
     /// <summary>What will happen, in the user's words (AQ108 §3).</summary>
     public string Text { get; }
 
     /// <summary>The buttons, left to right; the last one is Cancel.</summary>
     public IReadOnlyList<Button> Buttons { get; }
+
+    /// <summary>The modal's title.</summary>
+    public string Title { get; }
+
+    /// <summary>The ImGui id of the modal.</summary>
+    public string PopupId { get; }
+
+    /// <summary>Set by <see cref="ConfirmationModal"/> once it opened the popup for this confirmation (view state: one open per model).</summary>
+    internal bool PopupShown { get; set; }
 
     /// <summary>Presses <paramref name="button"/>: the confirmation is gone, then its action (if any) runs. A second call is ignored.</summary>
     public void Resolve(Button button)
@@ -210,8 +238,45 @@ public sealed class RunModeConfirmation
         if (!Buttons.Contains(button)) throw new ArgumentException("not a button of this confirmation", nameof(button));
         if (_resolved) return;
         _resolved = true;
-        _done(this);
+        _done?.Invoke(this);
         button.Action?.Invoke();
+    }
+
+    /// <summary>Presses the closing Cancel button (Esc / ✕ / a producer's cancel).</summary>
+    public void Cancel() => Resolve(Buttons[^1]);
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-1438</c> — <b>the ONE draw of a <see cref="RunModeConfirmation"/></b>: a modal with its text and buttons; closing it (Esc / ✕) is Cancel, the last button.
+/// The toolbar draws the run choice's pending one, the editor draws its exit and <i>New Exercise</i> prompts — all through here, ⛔ no per-prompt ImGui.
+/// </summary>
+public static class ConfirmationModal
+{
+    /// <summary>Draws <paramref name="pending"/> (nothing when <see langword="null"/>); call once per frame while a confirmation may be up.</summary>
+    public static void Draw(RunModeConfirmation? pending)
+    {
+        if (pending is null) return;
+        var id = $"{pending.Title}###{pending.PopupId}";
+        if (!pending.PopupShown) { ImGui.OpenPopup(id); pending.PopupShown = true; }
+
+        ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
+        bool open = true;
+        if (!ImGui.BeginPopupModal(id, ref open, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings))
+        {
+            if (!open) pending.Cancel();   // (a modal that was closed without a button)
+            return;
+        }
+        ImGui.TextWrapped(pending.Text);
+        ImGui.Separator();
+        RunModeConfirmation.Button? pressed = null;
+        foreach (var button in pending.Buttons)
+        {
+            if (ImGui.Button(button.Label)) pressed = button;
+            ImGui.SameLine();
+        }
+        if (!open) pressed = pending.Buttons[^1];
+        if (pressed is not null) { ImGui.CloseCurrentPopup(); pending.Resolve(pressed); }
+        ImGui.EndPopup();
     }
 }
 

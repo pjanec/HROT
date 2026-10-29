@@ -165,13 +165,15 @@ public sealed class RunModeChoice
     public void OpenRecording(Guid exerciseId, double? atSimSeconds = null)
     {
         if (_control is null || exerciseId == Guid.Empty) return;
-        LeavingEditing("Opening a recording", () =>
+        void Open()
         {
             LastExercise = exerciseId;
             Armed = RunArmed.AAR;
             if (atSimSeconds is { } at) _control.OpenRecording(exerciseId, at);
             else _control.OpenRecording(exerciseId);
-        });
+        }
+        if (AskStopAndLoad(RunModeRunGuard.RecordingPrompt, Open)) return;
+        LeavingEditing("Opening a recording", Open);
     }
 
     /// <summary>
@@ -181,7 +183,22 @@ public sealed class RunModeChoice
     public void OpenScenario(string scenarioName)
     {
         if (_control is null || string.IsNullOrWhiteSpace(scenarioName)) return;
+        if (AskStopAndLoad(run => RunModeRunGuard.LoadPrompt(run, scenarioName), () => _control.OpenForEdit(scenarioName))) return;
         LeavingEditing("Opening another scenario", () => _control.OpenForEdit(scenarioName));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #6, #7) — <b>the "a run is running" guard, INSIDE the choice</b>: a File › Open Scenario / Open Recording over a live run or a dry
+    /// run asks <i>Stop &amp; Load</i> first, on EVERY host that has a choice — by construction, ⛔ not a seam each host remembers to pass (CGF passed none, so its open went straight
+    /// over a run). "Running" is <see cref="RunModeRunGuard.Of"/>, read off the facade's <see cref="TransportMode"/> — the one definition HTTP uses too. The open itself stops the run
+    /// (the session's load unloads to Idle; a dry run's restore point is forgotten). Returns <see langword="true"/> when it asked, or when a question is already open (the move is then not made).
+    /// </summary>
+    private bool AskStopAndLoad(Func<string, string> text, Action proceed)
+    {
+        if (Pending is not null || _asking) return true;
+        if (RunModeRunGuard.Of(_transport.Mode) is not { } run) return false;
+        Ask(RunModeRunGuard.Title, text(run), new RunModeConfirmation.Button(RunModeRunGuard.StopAndLoad, proceed));
+        return true;
     }
 
     /// <summary>
@@ -511,9 +528,10 @@ public sealed class RunModeChoice
         static MovePlan Disabled(string reason) => new(null, "", false, reason, () => { });
     }
 
-    private void Ask(string text, params RunModeConfirmation.Button[] buttons)
-        => Pending = new RunModeConfirmation(text, buttons.Append(new RunModeConfirmation.Button("Cancel", null)).ToArray(),
-                                             done => { if (ReferenceEquals(Pending, done)) Pending = null; });
+    private void Ask(string text, params RunModeConfirmation.Button[] buttons) => Ask("Confirm", text, buttons);
+
+    private void Ask(string title, string text, params RunModeConfirmation.Button[] buttons)
+        => Pending = RunModeConfirmation.WithCancel(text, done => { if (ReferenceEquals(Pending, done)) Pending = null; }, title, "mt_run_confirm", buttons);
 
     // ── D12 + the cluster's state ───────────────────────────────────────────────────────
 

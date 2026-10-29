@@ -614,19 +614,14 @@ namespace Hrot.Editor
         // When the window [X] is clicked with dirty documents open, IAppExitGuard.OnExitRequested opens
         // the modal instead of exiting; the loop keeps running until the user resolves it.
         private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
-        private bool _exitPopupOpened;
 
         /// <summary>
         /// ⭐⭐ <c>CE-046</c> — the confirmation slot for <c>File/Live/New Exercise</c>. ⭐ The controller is
         /// shared and headless *(so a rail can assert both branches)*; only
-        /// <see cref="DrawNewExerciseConfirmModal"/> below knows about ImGui. 🔒 Ruling 53 — an interactive
+        /// <see cref="DrawPromptModals"/> below knows about ImGui. 🔒 Ruling 53 — an interactive
         /// host prompts; CGF logs-and-proceeds instead.
         /// </summary>
-        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new();
-        private bool _newExercisePopupOpened;
-        // ⭐ CE-1025 (R-1031) — the warning before a load over a running live run or dry run (the same modal as New Exercise).
-        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _loadConfirm = new();
-        private bool _loadConfirmPopupOpened;
+        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new("scenario_new_exercise_confirm");
 
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
@@ -3097,105 +3092,15 @@ namespace Hrot.Editor
         public bool ExitApproved => _exitPrompt?.ExitApproved ?? false;
 
         /// <summary>
-        /// Renders the app-exit unsaved-changes modal while a close is pending. ImGui-only; the button
-        /// actions delegate to the headless-testable <see cref="AiShared.Documents.AppExitPromptController"/>.
+        /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the app-exit unsaved-changes prompt and the <c>File/Live/New Exercise</c> confirmation (<c>CE-046</c>) are
+        /// <see cref="Hrot.UI.Common.RunMode.RunModeConfirmation"/>s their controllers produce, drawn through the ONE
+        /// <see cref="Hrot.UI.Common.RunMode.ConfirmationModal"/> the toolbar also uses — ⛔ no per-prompt ImGui here any more. A dismissal (Esc / [X]) is Cancel,
+        /// the last button: the destructive reset must never be the default outcome of walking away. (The load-over-a-run warning is the run choice's own, drawn by the toolbar.)
         /// </summary>
-        private void DrawExitPromptModal()
+        private void DrawPromptModals()
         {
-            if (_exitPrompt == null || !_exitPrompt.IsPrompting) return;
-
-            const string popupId = "Unsaved Changes###ai_app_exit_confirm";
-            if (!_exitPopupOpened)
-            {
-                ImGuiNET.ImGui.OpenPopup(popupId);
-                _exitPopupOpened = true;
-            }
-
-            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
-            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
-
-            bool stayOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
-                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
-            {
-                var dirty = _exitPrompt.DirtyDocuments;
-                ImGuiNET.ImGui.TextUnformatted(
-                    $"You have {dirty.Count} document{(dirty.Count == 1 ? "" : "s")} with unsaved changes:");
-                ImGuiNET.ImGui.Spacing();
-                foreach (var d in dirty)
-                    ImGuiNET.ImGui.BulletText($"{d.Asset.Name}  ({d.Kind})");
-                ImGuiNET.ImGui.Spacing();
-                ImGuiNET.ImGui.TextUnformatted("Save them before exiting?");
-                ImGuiNET.ImGui.Spacing();
-
-                if (ImGuiNET.ImGui.Button("Save All & Exit"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveSaveAndExit(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Discard & Exit"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveDiscardAndExit(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveCancel(); }
-
-                ImGuiNET.ImGui.EndPopup();
-            }
-            else if (!stayOpen)
-            {
-                // Dismissed via the popup's [X] / Esc — treat as Cancel (stay open, nothing saved).
-                _exitPopupOpened = false;
-                _exitPrompt.ResolveCancel();
-            }
-        }
-
-        /// <summary>
-        /// ⭐⭐ <c>CE-046</c> — draws the <c>File/Live/New Exercise</c> confirmation while one is pending.
-        /// ImGui-only; the button meanings live in the headless
-        /// <see cref="AiShared.Scenarios.ConfirmPromptController"/>, exactly as
-        /// <see cref="DrawExitPromptModal"/> splits them for the app-exit prompt.
-        ///
-        /// <para>⚠ Dismissal via <c>[X]</c>/Esc resolves as CANCEL — the destructive reset must never be
-        /// the default outcome of walking away from the prompt.</para>
-        /// </summary>
-        private void DrawNewExerciseConfirmModal()
-        {
-            DrawConfirmModal(_newExerciseConfirm, "New Exercise###scenario_new_exercise_confirm", ref _newExercisePopupOpened);
-            // ⭐ CE-1025 — the load warning, the same modal shape (Cancel / [X] / Esc never load)
-            DrawConfirmModal(_loadConfirm, "Load Scenario###scenario_load_over_run_confirm", ref _loadConfirmPopupOpened);
-        }
-
-        private static void DrawConfirmModal(Hrot.Editor.AiShared.Scenarios.ConfirmPromptController confirm, string popupId, ref bool opened)
-        {
-            if (!confirm.IsPrompting) return;
-
-            if (!opened)
-            {
-                ImGuiNET.ImGui.OpenPopup(popupId);
-                opened = true;
-            }
-
-            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
-            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
-
-            bool stayOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
-                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
-            {
-                ImGuiNET.ImGui.TextUnformatted(confirm.Message);
-                ImGuiNET.ImGui.Spacing();
-
-                if (ImGuiNET.ImGui.Button(confirm.ConfirmLabel))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); opened = false; confirm.ResolveConfirm(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); opened = false; confirm.ResolveCancel(); }
-
-                ImGuiNET.ImGui.EndPopup();
-            }
-            else if (!stayOpen)
-            {
-                opened = false;
-                confirm.ResolveCancel();
-            }
+            Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_exitPrompt?.Pending);
+            Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_newExerciseConfirm.Pending);
         }
 
         public void DrawUI()
@@ -3205,8 +3110,7 @@ namespace Hrot.Editor
             // App-exit unsaved-changes modal — rendered on top when a window-close was deferred.
             if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
             {
-                DrawExitPromptModal();
-                DrawNewExerciseConfirmModal();
+                DrawPromptModals();
             }
 
             // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
@@ -4620,14 +4524,8 @@ namespace Hrot.Editor
                         ? "[Curated] No curated scenarios saved (not a source checkout, or none present)."
                         : $"[Curated] Saved {written.Count} scenario(s) to git: " + string.Join(", ", written);
                 },
-                // ⭐ CE-1025 (R-1031) — Live… / Edit… over a running live run or dry run warn first (this host is the interactive one;
-                //   the HTTP routes never prompt, ruling 53).
-                runningRun:  () => Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(
-                                       _previewController?.IsInPreviewMode == true,
-                                       _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle),
-                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run),
                 openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098
-                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
+                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — a run → Stop & Load, unsaved edits → Save / Discard / Cancel first (CE-1438: the choice asks, no host seam)
                 openScenario: name => { if (_timeTransport?.RunChoice is { } choice) choice.OpenScenario(name); else _editorApp.ScenarioSession.OpenForEdit(name); });
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
