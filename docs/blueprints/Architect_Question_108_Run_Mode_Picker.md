@@ -344,7 +344,7 @@ request is coming · **per-host gates** — four copies (R "shared and unified")
 | 8 | "verify Global-scope windows" | **they DO draw in Start** (`ManagedWindow.Render` shows `Scope == Global or IsPinned or owner == current`): `WindowManager.Render` skips every non-Start, non-volatile window while Start shows (volatile = dialogs, still drawn; pickers draw from the subsystems' `DrawUI`, unaffected); the main toolbar is hidden too | "no panels" |
 | 9 | the menu bar draws only allowed-in-Idle items | one visibility test `GlobalMenuRegistry.Offers` (binding AND, while `IdleOnlyWhen`, allowed-in-Idle) used by the drawn bar, the `/panels` menu model and `HasVisibleDescendant`; contributors (Help, Windows, Perspective) are pruned through the DTO flag `ContextMenuItemDto.AllowedInIdle`; separators drop | drawn bar and model cannot disagree |
 | 10 | `Fdp.Presentation` reaches `ClusterState` | it does (project reference to `Fdp.Toolkits`); `ClusterRest.State` is the real enum | — |
-| 11 | `HostArmedMode` "set from the runner's mode" | `HostArmedModes.For(config.RequestedSubsystems)` (editor ⇒ Preview, else Live) passed to `LocalWindowController`'s constructor, exposed as `ArmedMode`; no behaviour yet | CE-4097 reads it |
+| 11 | ⛔ **SUPERSEDED by §2.10 (CE-1437): `HostArmedMode(s)` and `LocalWindowController.ArmedMode` are DELETED — the table is `RunArmedDefaults`.** `HostArmedMode` "set from the runner's mode" | `HostArmedModes.For(config.RequestedSubsystems)` (editor ⇒ Preview, else Live) passed to `LocalWindowController`'s constructor, exposed as `ArmedMode`; no behaviour yet | CE-4097 reads it |
 | 12 | "New scenario from a recipe" | the item marked is today's `File/Edit/New Scenario` (`ClearWorld`, a local blank) — the recipe form follows CE-4089 | content-folder listing follows CE-4089 |
 | 13 | one headless frame rail per host family | no headless frame harness drives a real runner frame here: the gate is driven through the real `LocalWindowController` with a fake shell (`TheStartGateIsComposedOnceTests`) and the draw through `ImGuiTestFixture` (`StartGateTests`). The per-host system rails (`ClusterConformanceRails`, `TheUiBaselineIsPinnedPerHostRails`) are compiled but boot a real editor process | — |
 
@@ -650,7 +650,7 @@ sequenceDiagram
 
 **Deleted:** `ClusterTimeControlStatusBarSection`, the editor's `TimeControlStatusBarSection` wrapper and the former's 2 smoke tests (mechanical; the toolbar section's `Render_*` rails cover the same render path). **Kept:** `RunNoteStatusBarSection` (D11 — a note, not a time control). **Added seam:** `StatusBarManager.SectionIds`. ⚠ SimHost's `SimHostControlsWindow` panel keeps its own Play/Pause/Step on the same facade (`vis.UI.TimeFacade`) — a panel, not the status bar; untouched. Rails: `TheRunChoiceIsOnEveryHostTests` (editor, CGF, SimHost).
 
-### 2.10 CE-1437 — the run controls are composed ONCE PER PROCESS (R-3066 audit #1, #2, #10) — DESIGN `2026-10-29` (ui)
+### 2.10 CE-1437 — the run controls are composed ONCE PER PROCESS (R-3066 audit #1, #2, #10) — ⭐ **AS-BUILT `2026-10-29` (ui)** (design text kept; the build's deviations are the table at the end of this section)
 
 | the lean rests on | code | design |
 |---|---|---|
@@ -661,15 +661,17 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-  class RunArmedDefaults { <<NEW, Hrot.Presentation>> +For(hostKind) RunArmed — editor Preview, else Live (the ONE table, D12) }
-  class IProvidesRunControls { <<NEW>> Transport : ITimeTransportFacade · RunChoice : RunModeChoice? }
-  class LocalWindowController { <<existing>> ⭐ ComposeRunControls(wm) — ONE toolbar entry, from the operator host's choice, by rule }
+  class RunArmedDefaults { <<NEW, Hrot.Presentation>> +For(RunHostKind) RunArmed — editor Preview, else Live (the ONE table, D12) }
+  class IProvidesRunControls { <<NEW>> HostKind · Transport : ITimeTransportFacade? · RunChoice : RunModeChoice? — implemented by the Editor, Cgf and SimHost subsystems }
+  class RunModeChoice { <<existing>> HasScenarioControl (NEW, read-only) }
+  class LocalWindowController { <<existing>> ⭐ ComposeRunControls(wm) · PickRunControls(hosts) · RunControlsOwner — ONE toolbar entry, from the operator host's choice, by rule }
   class ShellTimeControlToolbar { <<existing>> Register(toolbar, facade, choice) — ⭐ called ONLY by the composition }
   class ClusterTimeTransportAdapter { <<existing>> AttachRunChoice(⭐ RunArmedDefaults.For(kind), control, …) }
   class SimHostControlPanels { <<existing>> ⭐ Play / Step through UserTransport }
   LocalWindowController --> IProvidesRunControls : the subsystems that offer one
   LocalWindowController --> ShellTimeControlToolbar : once
   ClusterTimeTransportAdapter ..> RunArmedDefaults
+  IProvidesRunControls ..> RunModeChoice : offers
 ```
 
 *What the picture shows that prose hid:* the time control's owner moves from three hosts to the one place every host's window is composed (as the
@@ -681,6 +683,18 @@ the first offered (SimHost alone keeps its own); with two operators in one proce
 ③ **`UserTransport` is the only user play entry** — the SimHost panel calls it. ④ every subsystem still builds its own adapter (each node drives
 its own bus); only the TOOLBAR surface is composed once. Rejected: **perspective-scoped entries** (one per host) — the toolbar would change with
 the perspective while the cluster clock is one · **first-registered wins** — still order, not a rule.
+
+**AS-BUILT deviations from the design above** *(each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `RunArmedDefaults.For(hostKind)`; `IProvidesRunControls { Transport, RunChoice }` | `For(RunHostKind)` with `RunHostKind { Editor, Cgf, SimHost, Other }`; the interface has a THIRD member `HostKind` | the editor tie-break ("with two operators, the editor's") needs the rule to know which offer is the editor's without a subsystem-name string compare; the same value keys the table at the host's `AttachRunChoice` |
+| 2 | "an offered choice whose scenario control is not null" | `RunModeChoice.HasScenarioControl` (read-only, `_control is not null`) | the choice held the session privately; nothing exposed it |
+| 3 | `LocalWindowController.ComposeRunControls(wm)` picks and registers | the rule is `PickRunControls` (static, pure); `ComposeRunControls(wm)` registers over its pick and records it as `RunControlsOwner`; called in `OpenLocalWindow` right after `ComposeStartSurface`, i.e. after every host's `RegisterWindows` | the hosts build their adapter inside `RegisterWindows`, so the composer must run after it; a host whose `Transport` is still null (headless, no bus) offers nothing |
+| 4 | SimHost's `RegisterTimeTransport` goes | gone; its adapter + choice come from `SimHostSubsystem.CreateTimeTransport(bus, simTime)` (the host's single `AttachRunChoice` site, now a static) | the real SimHost needs a graphics window for `RegisterWindows`, so no rail could reach its choice; the factory is the constructed piece |
+| 5 | the editor registered its toolbar behind `_previewController != null && _timeController != null && _world != null && MainToolbar != null` | the editor offers `_timeTransport` whenever it is built; that guard now only gates its run-note status-bar section | the guard protected the toolbar registration, which moved to the composer |
+| 6 | SimHost panel Play / Step through `UserTransport` | `SimHostSimulationControlsPanel` gets `IsPlayEnabled`, `IsStepEnabled`, `PlayDisabledReason`, `PlayPause()`, `Step()` (all `UserTransport`); `Render` disables the buttons with the choice's reason as the tooltip | so the routing is assertable without an ImGui frame (the suite's own rule: "pin the routing, not the rendering") |
+| 7 | — | **left per host: `RunNoteStatusBarSection.Register`** (editor, CGF) | D11's note is a status-bar note, not a time control; not part of this item |
 
 ## 3. Every move, with what the user is told
 

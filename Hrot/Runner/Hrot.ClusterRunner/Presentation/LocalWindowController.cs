@@ -7,6 +7,7 @@ using Fdp.Toolkit.Runner;
 using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Systems;
 using Hrot.Common;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.ClusterRunner.Presentation;
 
@@ -37,12 +38,6 @@ internal sealed class LocalWindowController
 
     internal Fdp.Presentation.WindowManager.WindowManager? WindowManager { get; private set; }
 
-    /// <summary>
-    /// ⭐⭐ <c>CE-4096</c> (AQ108 D12) — what ▶ arms on this host: the editor Preview, CGF / the all-in-one / the server Live. ONE bootstrap
-    /// parameter of the shared runner, set from the runner's mode; ⛔ no behaviour hangs on it yet — <c>CE-4097</c> reads it.
-    /// </summary>
-    internal HostArmedMode ArmedMode { get; }
-
     /// <summary>⭐ <c>CE-4096</c> — the ONE start gate of this host (null while no window is open, and on an exempt host).</summary>
     internal StartGate? StartGate { get; private set; }
 
@@ -65,15 +60,42 @@ internal sealed class LocalWindowController
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
         RunnerOptions options,
-        PerspectiveCoordinatorSystem? coordinator,
-        HostArmedMode armedMode = HostArmedMode.Live)
+        PerspectiveCoordinatorSystem? coordinator)
     {
         _shell       = shell;
         _subsystems  = subsystems;
         _options     = options;
         _coordinator = coordinator;
-        ArmedMode    = armedMode;
         _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
+    }
+
+    /// <summary>⭐ <c>CE-1437</c> — the host whose run controls the process's ONE toolbar time control shows (null before <see cref="ComposeRunControls"/>, or when no host offers any).</summary>
+    internal IProvidesRunControls? RunControlsOwner { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1437</c> (AQ108 §2.10 ①) — <b>the run controls, composed ONCE per process</b> beside <see cref="ComposeStartSurface"/>: registers the ONE toolbar time
+    /// control over the offer <see cref="PickRunControls"/> picks. ⛔ The hosts no longer register it (last registration used to win — subsystem order). Called after every
+    /// subsystem's <c>RegisterWindows</c>, when the hosts hold their transports.
+    /// </summary>
+    internal void ComposeRunControls(Fdp.Presentation.WindowManager.WindowManager wm)
+    {
+        var owner = PickRunControls(_subsystems.OfType<IProvidesRunControls>());
+        RunControlsOwner = owner;
+        if (owner?.Transport is { } transport)
+            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice);
+    }
+
+    /// <summary>
+    /// ⭐ The pick RULE (AQ108 §2.10 ①), never registration order: of the hosts that offer a transport, one whose choice HAS a scenario session (an operator: editor, CGF) wins;
+    /// among several operators the editor's; with no operator the first offered; none offered ⇒ <see langword="null"/> (no time control).
+    /// </summary>
+    internal static IProvidesRunControls? PickRunControls(IEnumerable<IProvidesRunControls> hosts)
+    {
+        var offered = hosts.Where(h => h.Transport is not null).ToList();
+        var operators = offered.Where(h => h.RunChoice is { HasScenarioControl: true }).ToList();
+        if (operators.Count > 0)
+            return operators.FirstOrDefault(h => h.HostKind == RunHostKind.Editor) ?? operators[0];
+        return offered.FirstOrDefault();
     }
 
     /// <summary>
@@ -191,6 +213,7 @@ internal sealed class LocalWindowController
         }
 
         ComposeStartSurface(wm);   // ⭐ CE-4096
+        ComposeRunControls(wm);    // ⭐ CE-1437 — the ONE toolbar time control, picked by rule
 
         RegisterLayoutMenu(wm);
 

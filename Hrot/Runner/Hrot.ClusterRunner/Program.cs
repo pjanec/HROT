@@ -411,8 +411,7 @@ class Program
 
             var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
-                shell, subsystems, options, coordinator,
-                armedMode: Hrot.ClusterRunner.HostArmedModes.For(config.RequestedSubsystems));   // ⭐ CE-4096 (D12)
+                shell, subsystems, options, coordinator);   // ⭐ CE-1437: the armed default is RunArmedDefaults (one table), read by the hosts
 
             // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
             //

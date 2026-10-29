@@ -172,7 +172,8 @@ namespace Hrot.Editor
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Fdp.Toolkit.Runner.IWindowTitleSource,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Fdp.Presentation.WindowManager.IClusterRestSource
+        Fdp.Presentation.WindowManager.IClusterRestSource,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         /// <summary>
         /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
@@ -351,6 +352,11 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
         /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — the editor OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
@@ -2467,7 +2473,7 @@ namespace Hrot.Editor
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
             //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
-            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Preview, _editorApp?.ScenarioSession,
+            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Editor), _editorApp?.ScenarioSession,
                 unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                     () => _orchestratorCore != null,
                     id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
@@ -5423,8 +5429,8 @@ namespace Hrot.Editor
                 // ⭐⭐⭐ CE-090 — the `withSeparator` parameter is GONE: both hosts emit the separator, and
                 //    a shared surface takes no host gate. 📄 §5c.14.
                 var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
-                Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                    windowManager.MainToolbar, timeTransportFacade, _timeTransport!.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed (silent-default rule)
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here any more: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process, by rule.
                 // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (CGF registers the same section)
                 Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, timeTransportFacade, "Scenario");
             }

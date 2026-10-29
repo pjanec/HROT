@@ -37,7 +37,8 @@ namespace Hrot.SimHost
     /// </summary>
     public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Hrot.Presentation.DebugApi.IProvidesDebugSurface
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
@@ -84,6 +85,22 @@ namespace Hrot.SimHost
         private ClusterTimeTransportAdapter? _clusterTimeAdapter;
         /// <summary>⭐ CE-4097 — this host's one run choice (no scenario session; default Live), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — SimHost OFFERS its transport + choice; the window composer registers the ONE toolbar time control (alone, SimHost's wins).
+        /// <summary>
+        /// ⭐ CE-1437 — SimHost's ONE adapter + run choice (the single <c>AttachRunChoice</c> site of this host), a static so a rail can build it without the graphics window
+        /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (D12, <see cref="Hrot.UI.Common.RunMode.RunArmedDefaults"/>) and ▶ from Edit is disabled with its reason.
+        /// </summary>
+        internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<double> simTime)
+        {
+            var adapter = new ClusterTimeTransportAdapter(bus, simTime);
+            adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), control: null);
+            return adapter;
+        }
+
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.SimHost;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -340,10 +357,7 @@ namespace Hrot.SimHost
             var bus = _app?.OrchestrationEventBus;
             if (bus != null)
             {
-                _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
-                // ⭐ CE-4097 (AQ108 §2.8 ⑥) — SimHost has NO scenario session: Live is armed (D12) and ▶ from Edit is disabled with its reason
-                //   ⭐ CE-4083 (AQ108 D13) — this host's ONLY time control was the status bar's; the shared TOOLBAR transport replaces it (below), over the same facade.
-                _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, control: null);
+                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app!.CurrentSimTime);
 
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
                 // It had its own private pause flag that nothing read, so its Play/Pause/Step did
@@ -352,16 +366,10 @@ namespace Hrot.SimHost
                 if (vis.UI != null)
                     vis.UI.TimeFacade = _clusterTimeAdapter;
 
-                RegisterTimeTransport(windowManager, _clusterTimeAdapter);
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process (⛔ was CE-4083's RegisterTimeTransport).
             }
         }
-
-        /// <summary>
-        /// ⭐ CE-4083 — the host's transport: the shared main-toolbar group over the host's one facade (+ the choice it HOLDS, silent-default rule).
-        /// ⛔ No status-bar copy. Its own method so a rail can compose it without the window the visualization needs.
-        /// </summary>
-        internal static void RegisterTimeTransport(Fdp.Presentation.WindowManager.WindowManager windowManager, ClusterTimeTransportAdapter adapter)
-            => Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(windowManager.MainToolbar, adapter, adapter.RunChoice);
 
         /// <summary>Disposes all kernel resources.</summary>
         public void Shutdown()

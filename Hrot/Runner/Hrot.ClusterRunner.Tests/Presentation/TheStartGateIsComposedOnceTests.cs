@@ -7,6 +7,10 @@ using Fdp.Toolkit.Runner;
 using Hrot.ClusterRunner.Presentation;
 using Hrot.ClusterRunner.Tests.Mocks;
 using Hrot.Presentation.DebugApi;
+using Hrot.UI.Common.Adapters;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.Panels;
+using Hrot.UI.Common.RunMode;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests.Presentation;
@@ -29,8 +33,8 @@ public class TheStartGateIsComposedOnceTests
         protected override void DrawClientArea() { }
     }
 
-    private static LocalWindowController Controller(IReadOnlyList<ISubsystem> subsystems, HostArmedMode mode = HostArmedMode.Live)
-        => new(new GZH012_Tests.FakePresentationShell(), subsystems, new RunnerOptions(), null, mode);
+    private static LocalWindowController Controller(IReadOnlyList<ISubsystem> subsystems)
+        => new(new GZH012_Tests.FakePresentationShell(), subsystems, new RunnerOptions(), null);
 
     private static Fdp.Presentation.WindowManager.WindowManager BareManager()
         => new(new Fdp.Presentation.Icons.IconAtlas(nint.Zero, 1, 1, 16f));
@@ -152,18 +156,124 @@ public class TheStartGateIsComposedOnceTests
         Assert.Equal("Default", LocalWindowController.ResolveStartupPerspective(new[] { "Start" }, null, persisted: null));
     }
 
-    // ── D12: the armed mode is one parameter ────────────────────────────────────
+    // ── D12: the armed default is ONE table (CE-1437: re-homed from the runner's HostArmedModes onto RunArmedDefaults) ──
 
     [Theory]
-    [InlineData("editor", true)]
-    [InlineData("cgf", false)]
-    [InlineData("all", false)]
-    [InlineData("orchestrator", false)]
-    public void TheArmedMode_IsPreviewInTheEditor_LiveElsewhere(string mode, bool preview)
+    [InlineData(RunHostKind.Editor, RunArmed.Preview)]
+    [InlineData(RunHostKind.Cgf, RunArmed.Live)]
+    [InlineData(RunHostKind.SimHost, RunArmed.Live)]
+    [InlineData(RunHostKind.Other, RunArmed.Live)]
+    public void TheArmedDefault_IsPreviewInTheEditor_LiveElsewhere(RunHostKind kind, RunArmed expected)
+        => Assert.Equal(expected, RunArmedDefaults.For(kind));
+
+    [Fact]
+    public void TheArmedDefaultTable_HasNoOtherPreviewHost()
+        => Assert.Equal(new[] { RunHostKind.Editor },
+            System.Enum.GetValues<RunHostKind>().Where(k => RunArmedDefaults.For(k) == RunArmed.Preview).ToArray());
+
+    // ── CE-1437 (AQ108 §2.10): the run controls are composed ONCE per process, picked BY RULE ────────────────────────
+
+    private sealed class FakeControl : IRunScenarioControl
     {
-        var expected = preview ? HostArmedMode.Preview : HostArmedMode.Live;
-        Assert.Equal(expected, HostArmedModes.For(new[] { mode }));
-        Assert.Equal(expected, Controller(new ISubsystem[] { new MockSubsystem(mode) }, HostArmedModes.For(new[] { mode })).ArmedMode);
+        public string? LoadedScenarioName => "s";
+        public void LoadForLive(string scenarioName) { }
+        public void OpenForEdit(string scenarioName) { }
+        public void OpenRecording(System.Guid exerciseId) { }
+        public void SaveCurrent() { }
+        public void TakeCheckpoint() { }
+    }
+
+    /// <summary>A host that offers run controls over a REAL adapter + choice (built like the real hosts: <see cref="RunArmedDefaults"/> for its kind, a session only when it is an operator).</summary>
+    private sealed class RunHost : MockSubsystem, IProvidesRunControls
+    {
+        public RunHostKind HostKind { get; }
+        public ITimeTransportFacade? Transport { get; }
+        public RunModeChoice? RunChoice { get; }
+        public RunHost(string name, RunHostKind kind, bool operatorHost, bool offers = true) : base(name)
+        {
+            HostKind = kind;
+            if (!offers) return;
+            var adapter = new ClusterTimeTransportAdapter(new Fdp.Core.FdpEventBus(), () => 0.0);
+            RunChoice = adapter.AttachRunChoice(RunArmedDefaults.For(kind), operatorHost ? new FakeControl() : null);
+            Transport = adapter;
+        }
+    }
+
+    private static (LocalWindowController Ctrl, Fdp.Presentation.WindowManager.WindowManager Wm) Composed(params ISubsystem[] subsystems)
+    {
+        var ctrl = Controller(subsystems);
+        var wm = BareManager();
+        ctrl.ComposeStartSurface(wm);
+        ctrl.ComposeRunControls(wm);
+        return (ctrl, wm);
+    }
+
+    private static int TimeControlEntries(Fdp.Presentation.WindowManager.WindowManager wm)
+        => wm.MainToolbar.BuildViewModel(currentPerspective: "Scenario").Entries.Count(e => e.Id == ShellTimeControlToolbar.EntryId);
+
+    [Fact]
+    public void SimHostAndCgf_InEitherOrder_RegisterOneTimeControl_AndItsChoiceIsCgfs()
+    {
+        foreach (var cgfFirst in new[] { true, false })
+        {
+            var cgf = new RunHost("CGF", RunHostKind.Cgf, operatorHost: true);
+            var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
+            var (ctrl, wm) = Composed(cgfFirst ? new ISubsystem[] { cgf, sim } : new ISubsystem[] { sim, cgf });
+
+            Assert.Equal(1, TimeControlEntries(wm));
+            Assert.Same(cgf, ctrl.RunControlsOwner);
+            Assert.Same(cgf.RunChoice, ctrl.RunControlsOwner!.RunChoice);
+        }
+    }
+
+    [Fact]
+    public void EditorAndSimHost_TheEditorsWins()
+    {
+        var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+        var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
+        var (ctrl, wm) = Composed(sim, editor);
+
+        Assert.Equal(1, TimeControlEntries(wm));
+        Assert.Same(editor, ctrl.RunControlsOwner);
+        Assert.Equal(RunArmed.Preview, ctrl.RunControlsOwner!.RunChoice!.HostDefault);
+    }
+
+    [Fact]
+    public void TwoOperators_TheEditorsWins_WhateverTheOrder()
+    {
+        var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+        var cgf = new RunHost("CGF", RunHostKind.Cgf, operatorHost: true);
+        Assert.Same(editor, Composed(cgf, editor).Ctrl.RunControlsOwner);
+        Assert.Same(editor, Composed(editor, cgf).Ctrl.RunControlsOwner);
+    }
+
+    [Fact]
+    public void SimHostAlone_KeepsItsOwn()
+    {
+        var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
+        var (ctrl, wm) = Composed(sim);
+        Assert.Equal(1, TimeControlEntries(wm));
+        Assert.Same(sim, ctrl.RunControlsOwner);
+    }
+
+    [Fact]
+    public void NoRunControls_NoTimeControl_AndAHostThatOffersNothingIsSkipped()
+    {
+        var (ctrl, wm) = Composed(new MockSubsystem("IG"), new RunHost("CGF", RunHostKind.Cgf, operatorHost: true, offers: false));
+        Assert.Equal(0, TimeControlEntries(wm));
+        Assert.Null(ctrl.RunControlsOwner);
+    }
+
+    /// <summary>The toolbar time control comes from the composition and nothing else: a host that holds its transport has put nothing on the toolbar.</summary>
+    [Fact]
+    public void TheToolbarTimeControl_IsRegisteredOnlyByTheComposition()
+    {
+        var host = new RunHost("CGF", RunHostKind.Cgf, operatorHost: true);
+        var ctrl = Controller(new ISubsystem[] { host });
+        var wm = BareManager();
+        Assert.Equal(0, TimeControlEntries(wm));
+        ctrl.ComposeRunControls(wm);
+        Assert.Equal(1, TimeControlEntries(wm));
     }
 
     // ── the one rest read, from any node ────────────────────────────────────────

@@ -91,6 +91,36 @@ public class TheSimControlsActuallyControlTimeTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1437</c> (AQ108 D22) — the panel's ▶ / Step are the USER entry (<c>UserTransport</c>), like the toolbar's: on SimHost's REAL adapter + choice (Live armed, no
+    /// scenario session) from Edit they are DISABLED with the choice's own reason, and pressing them publishes NOTHING — never the raw dry run.
+    /// 🔴 Red-proof: <c>PlayPause()</c> / <c>Step()</c> calling <c>TimeFacade.TogglePlayPause()</c> / <c>Step()</c> raw ⇒ a dry-run intent is published and this reddens.
+    /// </summary>
+    [Fact]
+    public void ThePanelsPlayAndStep_AreTheUserEntry_DisabledWithTheChoicesReason_NeverARawDryRun()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        var adapter = SimHostSubsystem.CreateTimeTransport(bus, () => 0.0);
+        bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit });
+        bus.SwapBuffers();
+        adapter.Update();
+        bus.SwapBuffers();
+        var panel = new SimHostSimulationControlsPanel { TimeFacade = adapter };
+
+        Assert.Equal(TransportMode.Edit, adapter.Mode);
+        Assert.True(adapter.IsPlayPauseEnabled);                     // the RAW facade would let a dry run start — that is exactly what the panel must not use
+        Assert.Equal(Hrot.UI.Common.RunMode.RunArmed.Live, adapter.RunChoice!.Armed);
+        Assert.False(panel.IsPlayEnabled);
+        Assert.False(panel.IsStepEnabled);
+        Assert.NotNull(panel.PlayDisabledReason);
+        Assert.Equal(adapter.RunChoice.PlayDisabledReason, panel.PlayDisabledReason);   // the toolbar shows this same text
+
+        panel.PlayPause();
+        panel.Step();
+        bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<Fdp.Toolkit.Orchestration.TransitionStateIntent>());
+    }
+
+    /// <summary>
     /// The composition root has the transport and must pass it — the defect shape named in
     /// CLAUDE.md's silent-default section. Asserted on the CONSTRUCTED object, not on source.
     /// </summary>

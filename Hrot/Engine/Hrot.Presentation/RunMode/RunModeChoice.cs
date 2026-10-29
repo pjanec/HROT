@@ -37,6 +37,9 @@ public sealed class RunModeChoice
     private bool _resumeWhenLive;      // ▶ in Live armed: the load lands paused (Q86 §4-G); ▶ means run, so the clock resumes once Live is up
     private bool _asking;
 
+    /// <summary>⭐ <c>CE-1437</c> — this host has a scenario session (an <i>operator</i> host: editor, CGF); false on SimHost / IG. Read by the run-controls pick rule.</summary>
+    public bool HasScenarioControl => _control is not null;
+
     /// <summary>⭐ R-4001 — the master's unsaved-changes round is open (shown as "checking…"; no timeout — the operator may <see cref="CancelCheck"/>).</summary>
     public bool IsCheckingUnsaved => _asking;
 

@@ -77,7 +77,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.Equal(RunArmed.Live, choice!.HostDefault);      // D12: CGF / the all-in-one / the server start in Live
             Assert.Equal(RunArmed.Live, choice.Armed);
             Assert.Null(choice.PlayDisabledReason);                // the session is passed: Live-armed ▶ is enabled
-            AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "Scenario");   // ⭐ CE-4083 (AQ108 D13) — success conditions 1 + 2
+            AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, cgf, "Scenario");   // ⭐ CE-4083 + CE-1437
         }
         finally
         {
@@ -98,7 +98,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.Initialize(new SubsystemConfig { Headless = false });
             var windows = MakeWindowManager();
             editor.RegisterWindows(windows);
-            AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "Scenario");
+            AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, editor, "Scenario");
         }
         finally
         {
@@ -107,20 +107,63 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4083</c> — SimHost's ONLY time control used to be the status bar's; it now has the shared toolbar group. SimHost's windows need a real visualization, so this
-    /// composes the host's own <c>RegisterTimeTransport</c> (the one method <c>RegisterWindows</c> calls) over the facade the host builds.
-    /// 🔴 Red-proof: make <c>RegisterTimeTransport</c> a no-op (or re-register a status-bar section in it) ⇒ this reddens.
+    /// ⭐⭐ <c>CE-4083</c> / <c>CE-1437</c> — SimHost's adapter + run choice come from its ONE factory (<c>CreateTimeTransport</c>, the host's single <c>AttachRunChoice</c> site):
+    /// Live armed (<see cref="RunArmedDefaults"/>), no scenario session; the host offers them and the composition puts the toolbar group up. SimHost's windows need a real
+    /// graphics visualization, so the factory is the constructed piece a rail can reach.
+    /// 🔴 Red-proof: the factory passing a literal other than the table's default ⇒ the Live assertion reddens.
     /// </summary>
     [Fact]
-    public void SimHost_HasTheTransportOnTheToolbar_AndNoTimeControlInTheStatusBar()
+    public void SimHost_BuildsItsChoiceFromTheTable_AndTheCompositionPutsItsTransportOnTheToolbar()
     {
+        var adapter = Hrot.SimHost.SimHostSubsystem.CreateTimeTransport(new FdpEventBus(), () => 0.0);
+        var choice = adapter.RunChoice;
+        Assert.NotNull(choice);
+        Assert.Equal(RunArmedDefaults.For(RunHostKind.SimHost), choice!.HostDefault);
+        Assert.Equal(RunArmed.Live, choice.Armed);
+        Assert.False(choice.HasScenarioControl);                // SimHost has no scenario session ⇒ Live-armed ▶ is disabled with its reason
+        Assert.NotNull(choice.PlayDisabledReason);
+
         var windows = MakeWindowManager();
-        var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(new FdpEventBus(), () => 0.0);
-        adapter.AttachRunChoice(RunArmed.Live, control: null);
-
-        Hrot.SimHost.SimHostSubsystem.RegisterTimeTransport(windows, adapter);
-
+        var offer = new Offer(RunHostKind.SimHost, adapter);
+        var controller = new Hrot.ClusterRunner.Presentation.LocalWindowController(null!, new Fdp.Toolkit.Runner.ISubsystem[] { offer }, new Fdp.Toolkit.Runner.RunnerOptions(), null);
+        controller.ComposeRunControls(windows);
+        Assert.Same(offer, controller.RunControlsOwner);
         AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "SimHost");
+    }
+
+    /// <summary>A stand-in for SimHost's offer over the REAL adapter its factory builds (the real subsystem needs a graphics window).</summary>
+    private sealed class Offer : Fdp.Toolkit.Runner.ISubsystem, IProvidesRunControls
+    {
+        public Offer(RunHostKind kind, Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter adapter) { HostKind = kind; Transport = adapter; RunChoice = adapter.RunChoice; }
+        public RunHostKind HostKind { get; }
+        public Hrot.UI.Common.Facades.ITimeTransportFacade? Transport { get; }
+        public RunModeChoice? RunChoice { get; }
+        public string Name => "Offer";
+        public System.Numerics.Vector4 TitleBarColor => default;
+        public void Initialize(SubsystemConfig config) { }
+        public void Update(float deltaTime) { }
+        public void DrawWorld() { }
+        public void DrawUI() { }
+        public void Shutdown() { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1437</c> success condition 2 — on a REAL constructed host: its <c>RegisterWindows</c> puts NO time control on the toolbar (the host no longer registers it),
+    /// it OFFERS its transport + choice, and the composition (<c>LocalWindowController.ComposeRunControls</c>, with this host the only subsystem) picks it and registers the one group.
+    /// 🔴 Red-proof: a host calling <c>ShellTimeControlToolbar.Register</c> from <c>RegisterWindows</c> ⇒ the "none yet" assertion reddens.
+    /// </summary>
+    private static void AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(WindowManager windows, Fdp.Toolkit.Runner.ISubsystem host, string perspective)
+    {
+        Assert.Empty(windows.MainToolbar.BuildViewModel(currentPerspective: perspective).Entries.Where(e => e.Id == ShellTimeControlToolbar.EntryId));   // the host did not register it
+
+        var offer = Assert.IsAssignableFrom<IProvidesRunControls>(host);
+        Assert.NotNull(offer.Transport);
+        Assert.NotNull(offer.RunChoice);
+
+        var controller = new Hrot.ClusterRunner.Presentation.LocalWindowController(null!, new[] { host }, new Fdp.Toolkit.Runner.RunnerOptions(), null);   // the shell is not used by the composition step
+        controller.ComposeRunControls(windows);
+        Assert.Same(host, controller.RunControlsOwner);
+        AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, perspective);
     }
 
     /// <summary>

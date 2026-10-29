@@ -75,7 +75,8 @@ namespace Hrot.CGF;
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
     Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
-    Hrot.Common.EntityCreation.IEntityCreationHost, Fdp.Toolkit.Runner.IWindowTitleSource
+    Hrot.Common.EntityCreation.IEntityCreationHost, Fdp.Toolkit.Runner.IWindowTitleSource,
+    Hrot.UI.Common.RunMode.IProvidesRunControls
 {
     /// <summary>⭐ CE-1290 — the loaded scenario's name, for the window title (null after New / clear).</summary>
     public string? WindowTitleDetail => _scenarioSession?.LoadedScenarioName;
@@ -203,6 +204,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
     /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Live), for the wiring rail.</summary>
     internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+
+    // ⭐ CE-1437 (AQ108 §2.10) — CGF OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
+    Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Cgf;
+    Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
+    Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
 
     /// <summary>
     /// ⭐⭐ <c>BP-510</c> — this node's view of the current load's staging⇄runtime id table.
@@ -1839,7 +1845,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); an ECS node keeps no
             //   cluster read model that sees the round's answer today, so it observes nothing ⇒ ▶ asks no round and counts the scenario as unchanged (the NOTE's rule) — and
             //   starts asking the day the provider does observe, with no change here.
-            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, _scenarioSession,
+            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf), _scenarioSession,
                 unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
             // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.
             // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
@@ -1862,8 +1868,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   `WindowManager:406` is `private readonly MainToolbarManager _mainToolbar = new();` behind
             //   an expression-bodied property, so it can never be null. The editor removed its own copy
             //   for the same reason.
-            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                windowManager.MainToolbar, _clusterTimeAdapter, _clusterTimeAdapter.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed
+            // ⭐ CE-1437 (AQ108 §2.10) — NOT registered here any more: this host offers its transport + choice (IProvidesRunControls) and
+            //   LocalWindowController.ComposeRunControls registers the ONE toolbar entry for the process, by rule.
             // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (the editor registers the same section)
             Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, _clusterTimeAdapter, "Scenario");
         }
