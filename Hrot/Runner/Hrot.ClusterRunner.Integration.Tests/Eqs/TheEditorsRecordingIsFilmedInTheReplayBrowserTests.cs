@@ -82,7 +82,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
     /// The editor's half of the chain, up to ■: opens <see cref="Scenario"/> (the operator's File › Open), arms Live through the choice, ▶, lets the run record for
     /// <paramref name="liveSeconds"/> of wall time, ■. Asserts S1 (the run is live, Live armed, recording) and the first half of S2 (back in Edit, Live still armed) on the way.
     /// </summary>
-    private Run RecordALiveRun(EditorSubsystem editor, bool recordOn, double liveSeconds = 8)
+    private Run RecordALiveRun(EditorSubsystem editor, bool recordOn, double liveSeconds = 8, bool stop = true)
     {
         var choice = editor.RunChoiceForTest ?? throw new InvalidOperationException("the editor has no run choice");
         var transport = editor.TimeTransportForTest!;
@@ -114,6 +114,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         Assert.NotEqual(Guid.Empty, exercise);
 
         PumpFor(editor, liveSeconds);                                                    // the run advances; the recorder captures frames
+        if (!stop) return new Run(exercise, choice, transport);                          // CE-4104: the caller leaves the live run itself (→ AAR)
 
         choice.Stop();                                                                   // ■ per R2: back to editing the scenario, the armed mode stays
         Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "back in OperatingEdit after ■ (R2)");
@@ -242,6 +243,73 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
             // ── RED-PROOF of S2: Record live runs OFF before play - the run happens (S1's live state) and NOTHING new is on disk ──
             RecordALiveRun(editor, recordOn: false, liveSeconds: 3);
             Assert.Single(RecordingsOnDisk());                                           // still only the first run's
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4104</c> switch 1 (AQ108 §3 / D21, handoff <c>HANDOFF_Coordinator_To_Ui_Mode_Switches.md</c> row 1) — <b>Live → AAR</b>, through the real headless editor, ONE editor (a second in the process is the CE-4103 trap),
+    /// both entries in sequence: A — the indicator (<c>Choose(AAR)</c> asks, confirming opens THAT run's recording); B — the timeline's <i>AAR from here</i> (no ask, at the clicked moment). Then ■ in AAR ⇒ the recording's start, still AAR (R2),
+    /// and the recording is listed + opened by the Replay Browser. 🔴 Red-proof: <c>AarFromHere</c> seeking to 0 instead of <c>atSimSeconds</c> ⇒ the position row; the confirm text row breaks on any wording change.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE4104_LiveToAar_BothEntries_OpenTheRunsRecording_StopGoesToItsStart_AndTheReplayBrowserOpensIt()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
+        try
+        {
+            // ── Entry A — the indicator ──
+            var run = RecordALiveRun(editor, recordOn: true, liveSeconds: 6, stop: false);
+            var choice = run.Choice; var transport = run.Transport;
+            Assert.Equal(TransportMode.Live, transport.Mode);
+            choice.Choose(RunArmed.AAR);
+            Assert.NotNull(choice.Pending);
+            Assert.Equal("Ends the live session; its recording opens for AAR", choice.Pending!.Text);
+            Assert.Equal(TransportMode.Live, transport.Mode);                            // asking changes nothing
+            choice.Pending.Resolve(choice.Pending.Buttons[0]);                           // "End live, open AAR"
+            Pump(editor, () => transport.Mode == TransportMode.Replay, 60, "OperatingReplay after confirming Live → AAR");
+            Assert.Equal(run.Exercise, transport.ActiveExercise);                        // THAT run's exercise
+            Assert.Equal(RunArmed.AAR, choice.Armed);
+            Assert.Equal(run.Exercise, choice.LastExercise);
+
+            // back to editing, then a second live run for Entry B
+            choice.Choose(RunArmed.Preview);
+            if (choice.Pending is { } toEdit) toEdit.Resolve(toEdit.Buttons[0]);
+            Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "back to OperatingEdit from the AAR");
+
+            // ── Entry B — AAR from here, at 3 s of a >= 6 s run, no confirmation ──
+            var run2 = RecordALiveRun(editor, recordOn: true, liveSeconds: 8, stop: false);
+            Assert.NotEqual(run.Exercise, run2.Exercise);
+            Assert.True(transport.TotalTime >= 6, $"the run is only {transport.TotalTime:0.0} s long");
+            Assert.Null(choice.AarFromHereDisabledReason);
+            choice.AarFromHere(3.0);
+            Assert.Null(choice.Pending);                                                 // the user picked the moment: no ask
+            Pump(editor, () => transport.Mode == TransportMode.Replay, 60, "OperatingReplay after AAR from here");
+            Assert.Equal(run2.Exercise, transport.ActiveExercise);
+            Assert.Equal(RunArmed.AAR, choice.Armed);
+            PumpFor(editor, 2);                                                          // the seek lands
+            Assert.InRange(transport.TotalTime, 3.0 - 0.15, 3.0 + 0.15);                 // positioned at the clicked moment (a frame or two)
+
+            // ── ■ in AAR — the recording's start, still AAR (R2) ──
+            choice.Stop();
+            Pump(editor, () => transport.TotalTime < 0.15, 30, "the replay back at its start after ■");
+            Assert.Equal(TransportMode.Replay, transport.Mode);
+            Assert.Equal(RunArmed.AAR, choice.Armed);
+            Assert.Equal(run2.Exercise, transport.ActiveExercise);
+
+            // ── the Replay Browser lists and opens the same recording ──
+            using var rb = new BrowserRig(_root, _http, 240 + Interlocked.Increment(ref _domain));
+            var (status, body) = await rb.Call(HttpMethod.Get, "/exercises");
+            Assert.Equal(HttpStatusCode.OK, status);
+            Assert.Contains(body["data"]!["exercises"]!.AsArray(), e => Guid.Parse(e!["exerciseId"]!.ToString()) == run2.Exercise);
+            (status, body) = await rb.Call(HttpMethod.Post, "/replay", $$"""{"exerciseId":"{{run2.Exercise}}"}""");
+            Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+            Assert.True(rb.Browser.ActiveRepo is { EntityCount: > 0 }, "the Replay Browser opened an empty recording");
+            Console.WriteLine($"CE4104 exercises: A={run.Exercise} B={run2.Exercise}");
         }
         finally
         {
