@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Presentation.Fonts;
 using Fdp.Toolkit.Orchestration;
+using NodeEditor.Core.Action;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 
@@ -68,9 +69,11 @@ public sealed class RunModeChoice
     /// <param name="control">The host's scenario session; <see langword="null"/> on a host with none (SimHost, IG) — Live-armed ▶ is then disabled with a reason.</param>
     /// <param name="unsaved">The unsaved-changes seam; default <see cref="ClusterUnsavedChangesQuery"/> with no master and no reads: observes nothing, so a named scenario counts as unchanged (the adapter passes the real one).</param>
     /// <param name="now">Clock of the toast (tests inject one).</param>
+    /// <param name="toasts">⭐ CE-1441 — the shared <see cref="ToastQueue"/> the notes go to (the host may pass its own); default a private one.</param>
     public RunModeChoice(IRunTransport transport, RunArmed hostDefault, IRunScenarioControl? control,
-                         IUnsavedChangesQuery? unsaved = null, Func<DateTime>? now = null)
+                         IUnsavedChangesQuery? unsaved = null, Func<DateTime>? now = null, ToastQueue? toasts = null)
     {
+        Toasts     = toasts ?? new ToastQueue();
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _control   = control;
         // ⭐ part two: the production query is the master's check round (ClusterUnsavedChangesQuery, built by the adapter). A choice built WITHOUT one
@@ -132,9 +135,30 @@ public sealed class RunModeChoice
     /// <summary>⭐ Host seam: opens the shared recording picker — what ▶ does in AAR armed when no exercise has run yet. <see langword="null"/> = none.</summary>
     public Action? PickRecording { get; set; }
 
-    /// <summary>The note after ■ in Live (AQ108 §3); <see langword="null"/> when none or expired.</summary>
-    public RunModeToast? Toast => _toast is { } t && _now() < t.ExpiresAt ? t : null;
-    private RunModeToast? _toast;
+    /// <summary>
+    /// ⭐ CE-1441 (audit #19) — the notes of this choice go through the repo's ONE toast mechanism: an <see cref="EditorNotification"/>
+    /// enqueued on a <see cref="ToastQueue"/> (there is no second toast type). The toolbar is this queue's drainer, via <see cref="Toast"/>.
+    /// </summary>
+    public ToastQueue Toasts { get; }
+
+    /// <summary>The <see cref="NotificationAction.CommandId"/> of the "open the AAR" button of the exercise-recorded note.</summary>
+    public const string ReplayActionId = "run.replay-last";
+
+    /// <summary>The note after ■ in Live / a checkpoint (AQ108 §3): the newest notification on <see cref="Toasts"/> that has not expired; <see langword="null"/> when none.
+    /// Drains the queue (latest wins, as the old single slot did).</summary>
+    public EditorNotification? Toast
+    {
+        get
+        {
+            while (Toasts.TryDequeue(out var n)) _current = (n, _now() + (n.AutoDismiss ?? ToastLifetime));
+            return _current is { } c && _now() < c.ExpiresAt ? c.Notification : null;
+        }
+    }
+    private (EditorNotification Notification, DateTime ExpiresAt)? _current;
+
+    private void Notify(string text, bool offersReplay = false)
+        => Toasts.Enqueue(new EditorNotification("run-mode", NotificationSeverity.Info, text, null, ToastLifetime,
+            offersReplay ? new[] { new NotificationAction("AAR", ReplayActionId) } : null));
 
     // ── ▶ ─────────────────────────────────────────────────────────────────────────────
 
@@ -254,9 +278,9 @@ public sealed class RunModeChoice
     /// </summary>
     public void TakeCheckpoint()
     {
-        if (CheckpointDisabledReason is { } why) { _toast = new($"No checkpoint: {why}", null, _now() + ToastLifetime); return; }
+        if (CheckpointDisabledReason is { } why) { Notify($"No checkpoint: {why}"); return; }
         _control!.TakeCheckpoint();
-        _toast = new("Checkpoint taken", null, _now() + ToastLifetime);
+        Notify("Checkpoint taken");
     }
 
     /// <summary>The session's save intercept: in a Live / DAR / AAR run a Save is a checkpoint (the scenario is NEVER written); elsewhere the save goes through.</summary>
@@ -345,9 +369,10 @@ public sealed class RunModeChoice
             _control!.OpenForEdit(scenario!);
         }
         // §1a: the user's words are DAR / AAR — "Replay" is gone from the vocabulary (D17). A run that was not recorded offers NO AAR button (D14).
-        _toast = recorded && exercise != Guid.Empty
-            ? new($"Exercise recorded ({MainToolbarTimeControlSection.FormatSpan(length)}) — open the AAR", exercise, _now() + ToastLifetime)
-            : new("Live run ended", null, _now() + ToastLifetime);
+        if (recorded && exercise != Guid.Empty)
+            Notify($"Exercise recorded ({MainToolbarTimeControlSection.FormatSpan(length)}) — open the AAR", offersReplay: true);
+        else
+            Notify("Live run ended");
     }
 
     private bool _lastExerciseRecorded = true;   // whether LastExercise's run was recorded (D14): an unrecorded one is never offered for AAR
@@ -359,7 +384,8 @@ public sealed class RunModeChoice
     public void ReplayLastExercise()
     {
         if (_control is null || LastExercise is not { } exercise || !_lastExerciseRecorded) return;
-        _toast = null;
+        _ = Toast;          // drain first, so a queued note cannot outlive the click
+        _current = null;
         OpenRecording(exercise);
     }
 

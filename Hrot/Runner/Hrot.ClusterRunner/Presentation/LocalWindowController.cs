@@ -404,7 +404,7 @@ internal sealed class LocalWindowController
         //   changes the NEXT run: the reset already happened before ImGui was set up, and pretending
         //   otherwise would be a control that lies about when it acts.
         wm.GlobalMenu.RegisterCheckableItem(
-            "View/Settings/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
+            GlobalMenuRegistry.SettingsMenuPath + "/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
             () => _options.ResetLayoutOnRun,
             v =>
             {
@@ -413,16 +413,16 @@ internal sealed class LocalWindowController
                     $"[Layout] Reset-on-start is now {(v ? "ON" : "OFF")} — it applies from the next run.");
             });
 
-        wm.GlobalMenu.RegisterSeparator("View/Settings/Layout/sep_save_default");
+        wm.GlobalMenu.RegisterSeparator(GlobalMenuRegistry.SettingsMenuPath + "/Layout/sep_save_default");
 
         // ⭐ CE-1137 — the scene heard from the 3-D camera outside FPS (off by default, saved in the operator's audio.json). 🔒 User,
         //   2026-10-16: "a menu settings for enabling sounds in 3d map non-FPS mode heard from the camera position".
         wm.GlobalMenu.RegisterCheckableItem(
-            "View/Settings/Sound in the 3-D view (from the camera)",
+            GlobalMenuRegistry.SettingsMenuPath + "/Sound in the 3-D view (from the camera)",
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
 
-        wm.GlobalMenu.RegisterItem("View/Settings/Layout/Save current as default", () =>
+        wm.GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the
             //    half-reset this batch exists to end.

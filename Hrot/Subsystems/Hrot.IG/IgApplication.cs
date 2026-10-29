@@ -682,9 +682,7 @@ public class IgApplication : IDisposable
 
         _camera.Zoom   = IgCameraConstants.InitialZoom;
 
-        // Offset keeps the world origin centred in the window.
-
-        _camera.Offset = _camera.ViewCentre;   // ⭐ CE-4084 — the visible map's centre (MapCamera.Update keeps it there)
+        // Offset: the camera places it at the visible map's centre on its first update (CE-1441) — no host seeds it.
 
 
 

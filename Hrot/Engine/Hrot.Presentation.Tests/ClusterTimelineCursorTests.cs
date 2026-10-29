@@ -320,7 +320,7 @@ public sealed class ClusterTimelineCursorTests
         rig.C.Calls.Clear();
         edge.Run();
         Assert.Equal(new[] { "TakeCheckpoint" }, rig.C.Calls);
-        Assert.Equal("Checkpoint taken", rig.Choice.Toast!.Text);
+        Assert.Equal("Checkpoint taken", rig.Choice.Toast!.Title);
     }
 
     /// <summary>

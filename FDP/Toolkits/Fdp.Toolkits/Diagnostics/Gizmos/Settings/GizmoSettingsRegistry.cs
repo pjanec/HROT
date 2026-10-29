@@ -113,6 +113,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         /// Settings with a different scope are excluded.
         /// </summary>
         public void SaveToDisk(string path, SettingScope scope = SettingScope.Global)
+            => File.WriteAllText(path, ToJson(scope));
+
+        /// <summary>CE-1441 - the <paramref name="scope"/>'s settings as the JSON <see cref="SaveToDisk"/> writes (so a host that owns the
+        /// file IO - the user-folder preferences - writes the same text).</summary>
+        public string ToJson(SettingScope scope = SettingScope.Global)
         {
             var records = new List<ScopeRecord>();
             foreach (var kv in _keyNames)
@@ -127,7 +132,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
                     value = FormatValue(active),
                 });
             }
-            File.WriteAllText(path, JsonSerializer.Serialize(records, FdpJsonOptionsRegistry.DefaultRelaxed));
+            return JsonSerializer.Serialize(records, FdpJsonOptionsRegistry.DefaultRelaxed);
         }
 
         /// <summary>
@@ -136,7 +141,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         public void LoadFromDisk(string path, SettingScope scope = SettingScope.Global)
         {
             if (!File.Exists(path)) return;
-            var records = JsonSerializer.Deserialize<List<ScopeRecord>>(File.ReadAllText(path), FdpJsonOptionsRegistry.DefaultRelaxed);
+            LoadFromJson(File.ReadAllText(path), scope);
+        }
+
+        /// <summary>CE-1441 - <see cref="LoadFromDisk"/>'s body on text already read (see <see cref="ToJson"/>).</summary>
+        public void LoadFromJson(string json, SettingScope scope = SettingScope.Global)
+        {
+            var records = JsonSerializer.Deserialize<List<ScopeRecord>>(json, FdpJsonOptionsRegistry.DefaultRelaxed);
             if (records == null) return;
             foreach (var rec in records)
             {

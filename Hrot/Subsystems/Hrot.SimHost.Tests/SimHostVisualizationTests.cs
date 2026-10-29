@@ -205,6 +205,8 @@ namespace Hrot.SimHost.Tests
 
             var camera = vis.GetMapCamera();
             Assert.NotNull(camera);
+            // ⭐ CE-1441: the host no longer seeds Offset — the camera places it at the visible centre on its first update (MapCamera.Update)
+            camera.Update(0.016f);
             Assert.Equal(new Vector2(640f, 360f), camera.Offset);
 
             kernel.Dispose();

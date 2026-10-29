@@ -174,4 +174,38 @@ public sealed class UnitDebugSettingsTests : IDisposable
         }
         finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
     }
+
+    /// <summary>
+    /// ⭐ CE-1441 (audit #16) — the per-scenario file goes through the ONE user-file helper (<c>SafeTextFile</c>: folder created, temp file + move, no
+    /// <c>.tmp</c> left) and keeps its layout: a file written the OLD way (indented UTF-8 JSON of <c>ToJson()</c>, straight to disk) still restores the pins.
+    /// 🔴 Red-proof: have <c>UnitDebugSettingsMemory.Save</c> call <c>File.WriteAllText(path, …)</c> without creating the folder ⇒ the first assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1441_TheMemoryWritesThroughTheOneHelper_AndReadsAFileTheOldCodeWrote()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "hrot-debug-settings-" + Guid.NewGuid().ToString("N"), "not", "yet");
+        try
+        {
+            var memory = new UnitDebugSettingsMemory(() => dir);
+            var store = UnitDebugSettings.Of(_repo);
+            memory.Tick(_repo, "hill-attack");
+            store.SetTrace(1000, true);
+            memory.Tick(_repo, "hill-attack");                         // saved on change, into a folder that did not exist
+            Assert.True(File.Exists(memory.PathOf("hill-attack")));
+            Assert.Empty(Directory.GetFiles(dir, "*.tmp"));
+            Assert.NotNull(System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(memory.PathOf("hill-attack")!)));
+
+            // a file written exactly as the old code did
+            using var bytes = new MemoryStream();
+            using (var w = new System.Text.Json.Utf8JsonWriter(bytes, new System.Text.Json.JsonWriterOptions { Indented = true }))
+                store.ToJson().WriteTo(w);
+            File.WriteAllBytes(memory.PathOf("legacy")!, bytes.ToArray());
+
+            memory.Tick(_repo, "other");
+            Assert.False(store.IsTraceSet(1000));
+            memory.Tick(_repo, "legacy");
+            Assert.True(store.IsTraceSet(1000));
+        }
+        finally { var root = Path.GetFullPath(Path.Combine(dir, "..", "..")); if (Directory.Exists(root)) Directory.Delete(root, true); }
+    }
 }
