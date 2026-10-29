@@ -53,7 +53,7 @@ public sealed class AssetInventoryProcessManager
         _stagingRoot     = localStagingRoot ?? throw new ArgumentNullException(nameof(localStagingRoot));
         _ledgerDirectory = Path.Combine(
             OrchestrationConstants.GetNodeStagingRoot(localStagingRoot, nodeId),
-            "recording_ledger");
+            OrchestrationConstants.RecordingLedgerDirectoryName);
         HydrateLedger();
     }
 
@@ -263,10 +263,10 @@ public sealed class AssetInventoryProcessManager
     }
 
     /// <summary>The name of the archive's copy of the scenario, beside the recordings (CE-3119).</summary>
-    public const string ArchivedScenarioDirectoryName = "scenario";
+    public const string ArchivedScenarioDirectoryName = OrchestrationConstants.ArchivedScenarioDirectoryName;
 
     /// <summary>Where the start-time copy of an exercise's scenario waits for the export — beside its ledger entry.</summary>
-    private string SnapshotDirectory(Guid exerciseId) => Path.Combine(_ledgerDirectory, $"{exerciseId}.scenario");
+    private string SnapshotDirectory(Guid exerciseId) => Path.Combine(_ledgerDirectory, OrchestrationConstants.GetScenarioSnapshotName(exerciseId));
 
     /// <summary>
     /// ⭐ CE-3119 — copies the scenario the exercise starts from into the ledger, once per exercise, so the archive
@@ -312,7 +312,7 @@ public sealed class AssetInventoryProcessManager
     {
         var snapshot = SnapshotDirectory(exerciseId);
         if (Directory.Exists(snapshot)) return snapshot;
-        var archived = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+        var archived = OrchestrationConstants.GetArchivedScenarioDirectory(_nasBasePath, exerciseId);
         return Directory.Exists(archived) ? archived : null;
     }
 
@@ -365,8 +365,7 @@ public sealed class AssetInventoryProcessManager
     /// </summary>
     private void ArchiveScenario(Guid exerciseId, RecordingLedgerEntry entry)
     {
-        var dest = Path.Combine(
-            _nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+        var dest = OrchestrationConstants.GetArchivedScenarioDirectory(_nasBasePath, exerciseId);
         try
         {
             var snapshot = SnapshotDirectory(exerciseId);

@@ -1487,6 +1487,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "⭐ CE-4093 (AQ108 D20) — a CHECK ROUND on demand, never periodic: each node captures its whole world as a binary keyframe, hashes it and compares it with the baseline taken when the load committed or its slice was last saved; anything that changed counts (not only the scenario's parts). It can only err towards \"changed\" (an identical unit deleted and re-added), never report unchanged for a changed world. ~60 ms per node on a large scenario.",
                 "A save round that FAILED after the last load (the slice pull or the merge) makes the answer changed too — the files on disk are stale whatever the worlds say.",
+                "⭐ CE-3340 (R-4001) — NO deadline of its own: the master always ends the round (a node that stops its heartbeat is ejected, and the round then completes on the nodes that remain), so the answer can take up to the heartbeat timeout when a node died mid-round — never a 504. Give up by aborting the request.",
                 "Only an explicit \"unchanged\" from a node means saved: a node with no baseline counts as changed (and is named in changedNodes). A host with no ECS world does not take part.",
                 "get_status.scenarioDirty reports the LAST round's verdict without running one; load_scenario_live (and load_scenario_edit of another scenario) run this round themselves and answer 409 when it says changed.",
             },
