@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
-updated: 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
-current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
+updated: 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
+current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); ⭐ §0b record an exercise in the editor and film it in the Replay Browser; §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
   film, §6 the traps.
 stale-below: nothing.
 known-rot: none.
@@ -11,6 +11,7 @@ related-designs:
   - PLAN_Feature_Films.md — OWNS what to film (the clip list, docs/films/clips.json) and the overnight pipeline proposal (CE-4034)
   - docs/DESIGN_Map_3D_Mode.md §6ab — OWNS the design (the director camera, the scene capture, the routes; UML; as-built and measured limits §6ab-i)
   - docs/Editor_Headless_Xvfb.md — OWNS the headless launch (Xvfb + Mesa) the films run under
+  - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the armed mode (Preview / Live / AAR), ▶ and ■ (§2.8, §2.14, D22)
   - docs/RUNBOOK_Cluster_Debugging_Over_Http.md — OWNS the HTTP debug API and its traps (the localhost HOSTNAME, a paused cluster)
 -->
 # RUNBOOK — filming the 3-D map
@@ -71,6 +72,75 @@ aimed at (`at` 17.3 for a shot fired at 17.58). ⚠ A muzzle flash shows ~0.1 s 
 | the map's layers / the sound, as the user's clicks | `GET/POST /map/layers` · `GET/POST /audio` — ⚠ a TAKE's layers are transient and never saved |
 
 ⚠ `film.py`'s own `--plan` / shot flags still work, but the camera math is the engine's now (`POST /film/shot {spec, t}`, D-9).
+
+## 0b. ⭐ Record an exercise in the editor, film it in the Replay Browser *(CE-4102, measured `2026-10-29`)*
+
+🔒 *User: "the goal here is to make it possible to easily record exercise so we can prepare movie clips using director in replay browser"*.
+Two processes, ONE staging root: the editor records a LIVE run to disk, the Replay Browser lists it, opens it and the director films it.
+
+```mermaid
+sequenceDiagram
+  participant E as editor :8120
+  participant D as disk FDP_STAGING_ROOT
+  participant R as Replay Browser :8121
+  E->>E: POST /scenario/load/edit · POST /run-mode armed live
+  E->>D: POST /scenario/load/live — runs, records (Record live runs ON)
+  E->>E: POST /sim/stop — ■ back to editing, Live stays armed
+  D-->>R: nodes/node-1/exercises/ID/node_1.fdp + .meta.json
+  R->>R: GET /exercises · POST /replay exerciseId
+  R->>R: POST /director/play scenario + recording + take → GET /director/status until Done
+```
+
+*Caption:* the recording is the only thing the two processes share — the Replay Browser needs no cluster, only the folder.
+
+**① Launch both, the same `FDP_STAGING_ROOT`** (build `Hrot.ClusterRunner` first):
+
+```bash
+D=/home/user/HROT/Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+launch() { (cd $D && FDP_STAGING_ROOT=/tmp/films-staging HROT_DEBUG_API_PORT=$2 setsid nohup \
+  xvfb-run -a --server-args="-screen 0 1600x1000x24" dotnet Hrot.ClusterRunner.dll -m $1 --no-wait > /tmp/$1.log 2>&1 < /dev/null &) ; }
+launch editor 8120          # up in ~15 s
+launch replaybrowser 8121   # up in ~9 s — may start later, it scans the folder when asked
+c() { curl -s --noproxy '*' -m 150 -X $1 http://localhost:$2$3 -H 'Content-Type: application/json' -d "${4:-{\}}"; echo; }
+```
+
+**② Record a live run in the editor:**
+
+```bash
+c POST 8120 /scenario/load/edit '{"name":"hill-attack","waitForReady":true}'
+c POST 8120 /run-mode '{"armed":"live"}'                       # the indicator's move; GET /run-settings shows the cluster's armed mode
+c POST 8120 /scenario/load/live '{"name":"hill-attack","waitForReady":true}'   # OperatingLive, running, recording:true in GET /status
+sleep 60                                                       # the run; GET /status → simTime
+c POST 8120 /sim/stop                                          # ■: back to editing at the start, Live stays armed, the exercise is on disk
+```
+
+**③ Film it in the Replay Browser:**
+
+```bash
+c GET  8121 /exercises                                         # {exerciseId, scenario, durationSeconds} — newest first
+c POST 8121 /replay '{"exerciseId":"<id>"}'                    # OperatingReplay, the recorded entities
+c GET  8121 /director/moments                                  # combat beats to anchor shots on (empty if nothing fired)
+c GET  "8121" "/entities/<networkId>"                          # Components.SimTransform.Position — where to point the camera
+c POST 8121 /director/play '{"scenario":"hill-attack","recording":"<id>","speed":4,
+  "take":{"title":"…","shots":[{"at":2,"seconds":6,"lookAt":[668,522,0],"distance":150,"yaw":45,"pitch":-35,"orbit":3},
+                               {"at":10,"seconds":6,"lookAt":[668,522,0],"distance":40,"yaw":225,"pitch":-15}]}}'
+c GET  8121 /director/status                                   # poll: phase Playing → Done; reports[0]: status ok, problems [], cuts per shot
+```
+
+⭐ To FILM to disk add `"capture":{"dir":"/tmp/films/x","fps":30,"size":"1280x720"}` to `/director/play` (§0a). ⭐ A take may be inline (as
+above, played and never saved), a saved name (`"take":"main"`, `scenarios/<s>/takes/main.take.json`), or drafted on a beat
+(`POST /director/draft {lane, eventIndex}` — needs `/director/moments`).
+
+| ⚠ trap — measured | |
+|---|---|
+| ⛔ **`POST /sim/play` from Edit does NOT start Live** — routes are raw (AQ108 D22): from Edit it is the Preview dry run, which records nothing | start the live run with `POST /scenario/load/live` (the UI's ▶ with Live armed does the same load) |
+| ⚠ **`POST` with no body answers `411 Length Required`** | always send a body — `-d '{}'` (the `c` helper does) |
+| ⚠ **the two processes must share `FDP_STAGING_ROOT`** — the editor writes `{root}/nodes/node-1/exercises/<id>/`, the Replay Browser scans `{root}` | set it on BOTH launches; ⛔ the default is `$TMPDIR/FDP_Temp`, shared with every other run on the box |
+| ⚠ **`/director/moments` is EMPTY when nothing fired** (`hill-attack`, 103 s: 0 beats) | anchor shots on plain seconds (`"at": 2`) and point them at an entity's recorded position |
+| ⚠ **slow under Xvfb + Mesa**: a 16 s take at `speed: 4` took **82 s** (realtime factor ~0.2) | poll `/director/status`; don't block on it |
+| ⚠ before any scenario is opened the editor's `/status.armedMode` (its own default, Preview) may differ from the cluster's `/run-settings.armed` (Live) | they agree from the first open / arm (AQ108 §2.14) |
+| ⚠ `GET /exercises` listed `scenario: null` before `3f7785c24` | fixed: the scenario comes from the recording's sidecar |
+| ⚠ stop both processes after: `pkill -f 'ClusterRunner.dll -m editor'` · `… -m replaybrowser` (and their `xvfb-run` parents) | a leftover holds its port |
 
 ## 1. Quick start
 
