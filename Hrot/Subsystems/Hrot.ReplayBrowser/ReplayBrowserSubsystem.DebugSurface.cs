@@ -312,7 +312,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     /// <summary>The exercises on disk this host can open, newest first (<c>GET /exercises</c>).</summary>
     private IReadOnlyList<ExerciseInventoryItem> ExercisesOnDisk()
         => RecordingGroupInventory.Scan(RecordingsRoot)
-                                  .Select(g => new ExerciseInventoryItem(g.ExerciseId, g.StartTimeUtc, g.Duration, null))
+                                  .Select(g => new ExerciseInventoryItem(g.ExerciseId, g.StartTimeUtc, g.Duration, null, g.ParentExerciseId, g.BranchWallTicks))
                                   .ToList();
 
     private ClusterState ReplayState => _manager is { Contexts.Count: > 0 } ? ClusterState.OperatingReplay : ClusterState.Idle;

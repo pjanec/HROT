@@ -1999,8 +1999,25 @@ namespace Hrot.Editor.DebugApi
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx, Fdp.Toolkit.Orchestration.ClusterState target)
         {
             var name = ctx.Body?["name"]?.GetValue<string>();
+
+            // ⭐⭐ CE-4091 (AQ108 D7, D22) — {recorded: <exerciseId>}: open the recording's scenario copy as a NEW scenario for editing. The name it
+            //   loads under is derived from the id (RecordedScenarioNames); the master's prefetch resolves it to the copy. ⛔ Edit only, and instead
+            //   of a name: the original scenario folder and the recording are never written.
+            if (ctx.Body?["recorded"] is { } recordedNode)
+            {
+                if (target != Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)
+                    return Fail(400, "recorded is for POST /scenario/load/edit: a recording's scenario copy opens for editing, never straight into a run.", DebugApiHints.Scenario);
+                if (!string.IsNullOrWhiteSpace(name))
+                    return Fail(400, "send either name or recorded, not both.", DebugApiHints.Scenario);
+                var (recordedName, recordedError, recordedHint, recordedStatus) = await _jobQueue
+                    .RunOnMainThread(() => Service().RecordedScenarioName(recordedNode is JsonValue rv && rv.TryGetValue(out string? rs) ? rs : recordedNode.ToJsonString()))
+                    .ConfigureAwait(false);
+                if (recordedError is not null) return Fail(recordedStatus, recordedError, recordedHint);
+                name = recordedName;
+            }
+
             if (string.IsNullOrWhiteSpace(name))
-                return Fail(400, "name is required.");
+                return Fail(400, "name is required (or recorded: an exercise id, on load/edit).");
 
             // ⭐⭐ CE-4093 (AQ108 D22) — at the TOP: a load would lose the edits, so the master's check round runs first (ONE helper for both modes)
             if (await GateUnsavedChangesAsync(ctx, name!, target).ConfigureAwait(false) is { } unsaved) return unsaved;

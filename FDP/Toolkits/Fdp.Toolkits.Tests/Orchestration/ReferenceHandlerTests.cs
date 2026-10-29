@@ -581,6 +581,38 @@ public sealed class ReferenceHandlerTests
         Assert.Equal(recorders, controller.RecordingsStarted);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-4097 (AQ108 D5) — a node's answer to the branch carries the parent and branch point of the recording it starts, and they are the
+    /// <b>very</b> <c>RecordingBranch</c> the new recording is opened with (the one <c>RecordingModule</c> writes into the sidecar — see
+    /// <c>RecordingModuleTests</c>): no second record. A listener, which keeps no history, answers empty (= not a branch).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CE4097_A_branch_answers_with_the_parent_and_point_its_recording_is_opened_with(bool hasHistory)
+    {
+        using var world = new EntityRepository();
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0, FrameNumber = 300 });
+        var parent = Guid.NewGuid();
+        var controller = new SeekCapturingController
+        {
+            Branch = hasHistory ? new Fdp.Core.FlightRecorder.RecordingBranch("parent.fdp", 301, parent, 123_456_789L) : null,
+        };
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, ".", world: world);
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid()),
+        }, CancellationToken.None);
+
+        var branch = Assert.IsType<LiveBranchResult>(result);
+        Assert.Equal(hasHistory ? parent : Guid.Empty, branch.ParentExerciseId);
+        Assert.Equal(hasHistory ? 123_456_789L : 0L, branch.BranchWallTicks);
+        Assert.Equal(controller.RecordedBranch?.ParentExerciseId ?? Guid.Empty, branch.ParentExerciseId);   // one source: what the recording is opened with
+        Assert.Equal(controller.RecordedBranch?.BranchWallTicks ?? 0L, branch.BranchWallTicks);
+    }
+
     /// <summary>⭐ CE-4090 — the reference live-load handler (the hosts with no load chain) gates its recorder on the same payload field.</summary>
     [Theory]
     [InlineData(false, 1)]
@@ -658,6 +690,13 @@ public sealed class ReferenceHandlerTests
         /// <summary>⭐ CE-4090 — how many recorders the handler under test started.</summary>
         public int RecordingsStarted { get; private set; }
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) { RecordingsStarted++; return Task.CompletedTask; }
+        /// <summary>CE-4097 — the history the replay on screen would hand a branch (null = a listener: no recording of it).</summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? Branch { get; set; }
+        public Fdp.Core.FlightRecorder.RecordingBranch? CurrentReplayBranch => Branch;
+        /// <summary>CE-4097 — the branch the handler opened the new recording with (what lands in its sidecar).</summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? RecordedBranch { get; private set; }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, Fdp.Core.FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
+        { RecordedBranch = branch; RecordingsStarted++; return Task.CompletedTask; }
         public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
         public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public void ProcessPlaybackTick(GlobalTime currentTime) { }

@@ -46,7 +46,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
     /// <c>CuratedScenarios.SeedFrom</c> — the shipped mechanism that already copies committed scenarios
     /// into the working root. 📄 design §10.8.</para>
     /// </summary>
-    public const string SeedSubfolder = "Recipes";
+    public const string SeedSubfolder = Fdp.Toolkit.Orchestration.RecordedScenarioNames.RecipesFolder;   // ⭐ CE-4091 — ONE definition: a recorded copy opens under the same reserved folder
 
     private readonly IScenarioCreationSession _session;
 

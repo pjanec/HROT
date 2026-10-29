@@ -372,6 +372,33 @@ public sealed class ClusterMasterCheckpointTests
     }
 
     /// <summary>
+    /// ⭐ CE-4097 (AQ108 D5) — the master learns a branch's parent and point from the nodes' answers, and takes the EARLIEST recording node's (as
+    /// <c>ExerciseBranch.Of</c> does off the sidecars): a listener's empty answer never blanks them, and they survive the wire (JSON) like the clock.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void CE4097_TheBranchAggregator_CarriesTheParentAndPointOfTheEarliestRecordingNode()
+    {
+        var parent = Guid.NewGuid();
+        string Json(long clock, Guid p, long point, bool rec) => System.Text.Json.JsonSerializer.Serialize(
+            new LiveBranchResult(new GlobalTime { TotalWallTicks = clock }, rec, p, point), Hrot.Network.Orchestration.OrchestrationJsonOptions.Default);
+        var answers = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<FdpNodeOpType, string>>
+        {
+            [1] = new() { [FdpNodeOpType.PrepareLive] = Json(100, Guid.Empty, 0, rec: false) },   // a listener: earliest clock, no history
+            [2] = new() { [FdpNodeOpType.PrepareLive] = Json(300, parent, 900, rec: true) },
+            [3] = new() { [FdpNodeOpType.PrepareLive] = Json(310, parent, 850, rec: true) },
+        };
+        var result = Assert.IsType<LiveBranchResult>(new LiveBranchAggregator().Aggregate(answers));
+        Assert.Equal((parent, 850L), (result.ParentExerciseId, result.BranchWallTicks));
+
+        var none = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<FdpNodeOpType, string>>
+        {
+            [1] = new() { [FdpNodeOpType.PrepareLive] = Json(100, Guid.Empty, 0, rec: true) },
+        };
+        var plain = Assert.IsType<LiveBranchResult>(new LiveBranchAggregator().Aggregate(none));
+        Assert.Equal((Guid.Empty, 0L), (plain.ParentExerciseId, plain.BranchWallTicks));
+    }
+
+    /// <summary>
     /// Verifies that <see cref="ClusterOpType.TakeCheckpoint"/> with an empty roster
     /// immediately publishes <see cref="OrchestrationStatusCode.Success"/> (no nodes → no-op).
     /// </summary>
