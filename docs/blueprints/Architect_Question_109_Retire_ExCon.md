@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — OPEN (backend, 2026-10-29): retire the ExCon node completely, unless a good reason to keep it is found
 updated: 2026-10-29
-build-state: READY-TO-BUILD — A–F APPROVED 2026-10-29 (R-3067), after CE-1436; §5 the DER inspector — its own decision (lean awaits the user)
+build-state: READY-TO-BUILD — A–F APPROVED 2026-10-29 (R-3067), after CE-1436; §5b the generic wire inspector is part of the same task
 current-answer: §1 the user's account · §3 what ExCon carries and where each would go · §4 sub-questions with leans
 stale-below: nothing
 known-rot: docs/projects/Hrot/Subsystems/Hrot.ExCon.md (2026-05-23) describes ExCon as a live role — superseded by §1 once decided
@@ -88,17 +88,29 @@ diagnostic windows, pls check it and evaluate it."*
 | where would it go? | the shared global diagnostics windows — `DiagnosticsWindowsBundle` (Presentation), attached by IG, CGF, SimHost, the Replay Browser and the editor | `Hrot/Engine/Hrot.Presentation/Windows/DiagnosticsWindowsBundle.cs` |
 | what does it show that nothing else does? | the entity **as received on the wire** — raw descriptors per entity, live, before any translator turns them into components — including from a non-HROT sender (a DIS gateway). The ECS inspector shows components AFTER translation; ddsmonitor records samples to a file, not a live per-entity view | — |
 
-### 5b. ⏳ Lean
+### 5b. ✅ Decided (`2026-10-29`, user: *"yes, record it to be done with the ExCon retirement"*) — ONE generic, automated wire inspector
 
-⭐ **Keep it as a global diagnostic — "Wire Entity Inspector" — with its OWN data source, opt-in:** move the DER descriptor ingress out of ExCon into
-the shared diagnostics (one passive subscriber to the descriptor topics, filling a `DerRepo`), created **only while the window is open** (a mirror
-of every descriptor on every node otherwise costs memory and DDS readers for nothing), and add the window to `DiagnosticsWindowsBundle` so every
-host offers it by construction. Rename nothing it does not need: `DerRepo` stays the one non-ECS mirror; its header stops saying "ExCon".
+📐 **Measured first:** today the DER is filled by hand-written per-descriptor bridging handlers — `NedEntityInfoBridgingHandler`,
+`NedEntityMissionBridgingHandler`, `NedMapOverlayBridgingHandler` (`Hrot/Network/Hrot.Network.NED/ExCon/NedExConIngressTranslators.cs:245-380`) —
+**3 descriptors of 125 wire types**. ⛔ In that form it is not worth keeping. ⭐ But every piece of an automated version exists:
+
+| piece | where it already is |
+|---|---|
+| the list of every wire type, generated (nothing hand-maintained) | `CycloneDDS.IdlMap.g.cs` — one `[assembly: DdsIdlMapping(type, …)]` per type, emitted at build |
+| which types are per-entity | the protocol's rule: **83 of 125** are keyed by the entity id (`EntityId` first; multi-instance: parent id + instance id) — `docs/reference/NED_DDS_Protocol.md` keyed-topic table; the same rule `scripts/ned-wire-inventory.py` applies |
+| a store for raw descriptors per entity | `DerRepo` / `IDerEntity.SetDescriptor` (boxed) |
+| a renderer for ANY boxed descriptor | `DerEntityInspectorPanel` → `ImGuiPropertyTree.Render` (public fields, no per-type code) |
+
+**The build (part of the ExCon retirement task):**
+1. ⛔ **Gate first:** prove a `DdsReader<T>` can be built reflectively for every keyed generated type (ddsmonitor reads any topic from the same DLLs, which suggests yes — unverified here). If it cannot, STOP: the inspector is dropped instead.
+2. ONE `WireEntityMirror` (shared diagnostics, not ExCon): enumerates the mapped types, keeps the entity-keyed ones, opens a typed reader per type by reflection, and puts each sample into a `DerRepo` under its entity id (creating the entity on its first descriptor). ⛔ No per-descriptor code — a new descriptor appears with zero changes.
+3. **Opt-in:** the mirror and its ~83 readers exist ONLY while the window is open (created on open, disposed on close).
+4. The window — "Wire Entity Inspector" — joins `DiagnosticsWindowsBundle`, so every host that attaches the global diagnostics offers it by construction.
+5. Deleted with ExCon: the three bridging handlers, `CreateExConIngressHandlers`, the editor's never-written DER (`EditorApplication._view`) and its dead readers (`EditorOrbatPanel`, `EntityPropertyInspector`); `IDerRepo`'s header stops saying "ExCon".
+6. Rails: every entity-keyed mapped type is mirrored (count matches the protocol's keyed set); a sample of an unseen type appears without code; nothing is read while the window is closed.
 
 | rejected | why |
 |---|---|
-| point the panel at the ECS world instead | it would duplicate the existing ECS `EntityInspectorPanel` — and lose the one thing it is for (the wire, before translation) |
-| keep a DER mirror always on every node | a second entity repository running all the time (the duplication R-3066 removes), for a debugging view |
-| drop it | loses the only live "what did the wire say about entity X" view (the user asked to keep it) |
-
-⏳ What would change the lean: if ddsmonitor gains a live per-entity view, the panel becomes redundant.
+| keep the hand-written bridging handlers | per-descriptor code that covers 3 of 125 types — the opposite of unified |
+| point the panel at the ECS world | duplicates the ECS `EntityInspectorPanel` and loses the wire view (before translation) |
+| a DER mirror always on | a second entity repository on every node, all the time, for a debugging view |
