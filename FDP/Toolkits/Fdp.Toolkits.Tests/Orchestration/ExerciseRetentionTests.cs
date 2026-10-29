@@ -44,6 +44,32 @@ namespace Fdp.Toolkits.Tests.Orchestration
             Assert.False(Directory.Exists(node[2]) || Directory.Exists(node[3]));
         }
 
+        /// <summary>⭐ CE-4090 (AQ108 D15) — discarding ONE recording is the retention code's own delete: that exercise's directory goes from the shared
+        /// <c>exercises</c> and from every node's; every other exercise stays; an id nothing holds deletes 0.</summary>
+        [Fact]
+        public void CE4090_Delete_RemovesOneExercise_FromTheSharedAndEveryNodeDirectory_AndNothingElse()
+        {
+            var id = Guid.NewGuid();
+            var doomed = new[]
+            {
+                Path.Combine(_temp, "exercises", id.ToString()),
+                Path.Combine(_temp, "nodes", "node-400", "exercises", id.ToString()),
+                Path.Combine(_temp, "nodes", "node-401", "exercises", id.ToString()),
+            };
+            foreach (var d in doomed) { Directory.CreateDirectory(d); File.WriteAllText(Path.Combine(d, "node.fdp"), "x"); }
+            var other = Exercise(_temp, "exercises", ageMinutes: 1);
+            var otherOnNode = Exercise(_temp, Path.Combine("nodes", "node-400", "exercises"), ageMinutes: 1);
+
+            Assert.Equal(3, ExerciseRetention.Delete(_temp, id));
+
+            Assert.All(doomed, d => Assert.False(Directory.Exists(d)));
+            Assert.True(Directory.Exists(other) && Directory.Exists(otherOnNode));
+            Assert.Equal(0, ExerciseRetention.Delete(_temp, id));                // gone: nothing left to delete
+            Assert.Equal(0, ExerciseRetention.Delete(_temp, Guid.NewGuid()));    // a stranger
+            Assert.Equal(0, ExerciseRetention.Delete(_temp, Guid.Empty));        // never the whole folder
+            Assert.True(Directory.Exists(other));
+        }
+
         [Fact]
         public void CE3218_Prune_WithZero_KeepsEverything()
         {

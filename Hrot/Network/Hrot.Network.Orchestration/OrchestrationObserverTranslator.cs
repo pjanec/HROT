@@ -120,10 +120,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                     {
                         try
                         {
-                            // Rehydrate the specific DTO expected by ClusterUiCache
-                            payload = JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(
-                                s.Data.ResultJson,
-                                FdpJsonOptionsRegistry.DefaultRelaxed);
+                            payload = DecodeResult(s.Data.ResultJson);
                         }
                         catch
                         {
@@ -184,6 +181,20 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         _capabilitiesReader.Dispose();
     }
 
+    /// <summary>
+    /// The master's op result as the typed payload its readers expect: ⭐ CE-4093 an <see cref="Fdp.Toolkit.Orchestration.UnsavedCheckResult"/> (recognised by its
+    /// one distinctive property — ⛔ the replay result below deserialises "successfully" from ANY JSON object and would swallow it), else the replay
+    /// result <c>ClusterUiCache</c> reads. Throws <see cref="JsonException"/> for text that is not JSON (a refusal's reason): the caller keeps the text.
+    /// </summary>
+    internal static object? DecodeResult(string resultJson)
+    {
+        using (var doc = JsonDocument.Parse(resultJson))
+            if (Fdp.Toolkit.Orchestration.UnsavedCheckResult.LooksLike(doc.RootElement))
+                return JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.UnsavedCheckResult>(resultJson, FdpJsonOptionsRegistry.DefaultRelaxed);
+        // Rehydrate the specific DTO expected by ClusterUiCache
+        return JsonSerializer.Deserialize<Fdp.Toolkit.Orchestration.Handlers.ReplayPrepareResult>(resultJson, FdpJsonOptionsRegistry.DefaultRelaxed);
+    }
+
     /// <summary>⭐ R-3055 — the ONE decoding of the master's inventory sample (this observer and every node's
     /// <see cref="NodeOpSlaveTranslator"/> use it).</summary>
     /// <summary>⭐ CE-3329 — the ONE decoding of the master's cluster-state broadcast (this translator and every node's
@@ -194,6 +205,8 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         ExerciseId   = topic.ExerciseId,
         SessionId    = topic.SessionId,   // ⭐ C2
         ReplayAxis   = (Fdp.Toolkit.Orchestration.ReplayAxis)topic.ReplayAxis,   // ⭐ CE-3329 R-3058
+        RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14
+        RecordLiveRunsOff = topic.RecordLiveRunsOff != 0,
     };
 
     internal static AssetInventoryUpdateEvent InventoryOf(in AssetInventoryTopic data) => new()

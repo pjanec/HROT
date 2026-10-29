@@ -62,6 +62,7 @@ public sealed class TranslatorDtoTests
             TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, ScenarioId = "s",
             ExerciseId = Guid.NewGuid(), TimeMode = "Deterministic", CheckpointingSeconds = 5, TargetWallTicks = TimeSpan.FromSeconds(30).Ticks,
             TargetSimSeconds = 12.5,   // ⭐ CE-3329 R11
+            ForceRecording = true,     // ⭐ CE-4090 D14 — the verifier's live load records whatever the setting says
         };
 
         var json = JsonSerializer.Serialize(TransitionPayloadDto.From(sent), Options);
@@ -100,6 +101,19 @@ public sealed class TranslatorDtoTests
         Assert.Equal(2.5, got.FromSeconds); Assert.Equal(5.0, got.ToSeconds);
         Assert.Null(got.FromSimSeconds); Assert.Null(got.ToSimSeconds);                       // wall form carries no sim bounds
         Assert.Equal(clear, SetReplayLoopPayloadDto.Decode(clear.RequestId, "not json"));
+    }
+
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the run settings cross the wire whole, both ways; an unreadable payload keeps recording ON.</summary>
+    [Fact]
+    public void The_run_settings_cross_the_wire_whole_and_an_unreadable_one_keeps_recording_on()
+    {
+        foreach (var record in new[] { true, false })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.True(SetRunSettingsPayloadDto.Decode(Guid.Empty, "not json").RecordLiveRuns);
+        Assert.True(SetRunSettingsPayloadDto.Decode(Guid.Empty, null).RecordLiveRuns);
     }
 
     // ── Test 4: Unknown enum string should throw ──────────────────────────────

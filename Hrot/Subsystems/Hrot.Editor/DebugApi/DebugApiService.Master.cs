@@ -21,6 +21,120 @@ namespace Hrot.Editor.DebugApi
             "No subsystem on this host has an orchestration bus that reaches the ClusterMaster, so it cannot publish this "
           + "request. Check the 'scenario.load' cell in GET /capabilities.";
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4090</c> (AQ108 D14, D22, §5a) — <b>"this run was not recorded", from the master's broadcast</b>: <see langword="true"/> when the
+        /// run the cluster shows started with <i>Record live runs</i> off; <see langword="null"/> when no node here tracks the cluster state
+        /// (then no gate refuses — the master's own refusal is the authority). The same fact on every host.
+        /// </summary>
+        private bool? RunNotRecordedOrNull => _editorRunNotRecorded?.Invoke() ?? _dispatcher?.RunNotRecordedAnyNode;
+
+        /// <summary>⭐ CE-4090 §5a — the refusal every recording-dependent route answers (HTTP 409, <see cref="RunRecordingGates.NotRecordedReason"/>); <see langword="null"/> when the run is recorded.</summary>
+        private (JsonNode? Result, string? Error, string? HintCategory)? RefuseWhenNotRecorded(string what)
+            => RunNotRecordedOrNull == true
+                ? (null, $"{RunRecordingGates.NotRecordedReason}: {what} needs the run's recording (start the run with 'Record live runs' on — POST /run-settings {{\"recordLiveRuns\": true}}).", DebugApiHints.Scenario)
+                : null;
+
+        /// <summary>⭐ CE-4090 — <c>GET /run-settings</c>: <c>{recordLiveRuns}</c>, read off the master's broadcast (the same fact on every host); a host
+        /// that tracks no cluster read model answers 503-class "No subsystem…".</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) GetRunSettings()
+        {
+            var off = _editorRecordLiveRunsOff?.Invoke() ?? _dispatcher?.RecordLiveRunsOffAnyNode;
+            if (off is null)
+                return (null, "No subsystem on this host keeps the cluster's read model (a ClusterUiCache / ClusterSlave) that carries the run settings.", DebugApiHints.Panel);
+            return (new JsonObject { ["recordLiveRuns"] = !off.Value }, null, null);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4090</c> (AQ108 D14) — <c>POST /run-settings {recordLiveRuns: bool}</c>: the cluster-wide <i>Record live runs</i> setting (default ON),
+        /// held by the MASTER and applied from the NEXT live load; the run on screen is not touched. Any host asks.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) SetRunSettings(JsonNode? body)
+        {
+            if (body?["recordLiveRuns"] is not JsonValue v || !v.TryGetValue(out bool record))
+                return (null, "recordLiveRuns (true | false) is required: {\"recordLiveRuns\": false}.", DebugApiHints.Scenario);
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel);
+            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record };
+            master.SetRunSettings(intent);
+            return (new JsonObject
+            {
+                ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["recordLiveRuns"] = record,
+                ["note"] = "Applies from the next live load; the run on screen keeps its mode (GET /status → recording).",
+            }, null, null);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4090</c> (AQ108 D15) — <c>DELETE /exercises/{id}</c>: discard an UNARCHIVED recording (its ledger entry and staging copies —
+        /// <c>ExerciseRetention.Delete</c>, CE-3218). 404 for an id the master's inventory does not list (a kept exercise stays); the master
+        /// refuses the run still recording.
+        /// </summary>
+        public (JsonNode? Result, string? Error, string? HintCategory, int Status) DeleteExercise(string? idText)
+        {
+            if (!Guid.TryParse(idText, out var id))
+                return (null, $"exerciseId '{idText}' is not an exercise id (GET /exercises lists them).", DebugApiHints.Scenario, 400);
+            var master = MasterOrNull;
+            if (master is null) return (null, NoMaster, DebugApiHints.Panel, 503);
+            var items = _editorExercises?.Invoke() ?? _dispatcher?.ExercisesAnyNode;
+            if (items is null) return (null, "No subsystem on this host keeps the cluster's exercise inventory.", DebugApiHints.Panel, 503);
+            if (!items.Any(x => x.ExerciseId == id))
+                return (null, $"No unarchived exercise {id} (GET /exercises lists them); a kept exercise is not deleted here.", DebugApiHints.Scenario, 404);
+            var intent = new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = id };
+            master.Storage(intent);
+            return (new JsonObject { ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["exerciseId"] = id.ToString() }, null, null, 200);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4091</c> (AQ108 D7, D22) — <c>POST /scenario/load/edit {recorded}</c>: the scenario NAME that opens exercise <paramref name="idText"/>'s
+        /// scenario copy as a new, unsaved scenario (<see cref="RecordedScenarioNames"/>). Only the name is made here — ⛔ nothing is written: the
+        /// master's prefetch puts the copy under that name before it stages it to the nodes. 404 for an id the exercise inventory (when this host
+        /// keeps one) does not list; a recording with no copy fails the load at the master, like any scenario that is not there.
+        /// </summary>
+        public (string? Name, string? Error, string? HintCategory, int Status) RecordedScenarioName(string? idText)
+        {
+            if (!Guid.TryParse(idText, out var id) || id == Guid.Empty)
+                return (null, $"recorded '{idText}' is not an exercise id (GET /exercises lists them).", DebugApiHints.Scenario, 400);
+            var items = _editorExercises?.Invoke() ?? _dispatcher?.ExercisesAnyNode;
+            if (items is not null && !items.Any(x => x.ExerciseId == id))
+                return (null, $"No recording {id} (GET /exercises lists them).", DebugApiHints.Scenario, 404);
+            return (RecordedScenarioNames.ForExercise(id), null, null, 200);
+        }
+
+        // ── ⭐⭐ CE-4093 (AQ108 D20, D22) — the unsaved-changes CHECK ROUND ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>POST /scenario/check-unsaved</c>, first half — asks the master for a check round (every node compares its whole world with its baseline) and returns
+        /// the request id; the host's route waits for the answer (<see cref="UnsavedCheckOutcomeOrNull"/>). ⛔ Never answers from a cache: only a round the master ran.
+        /// </summary>
+        public (Guid RequestId, string? Error, string? HintCategory) StartUnsavedCheck()
+        {
+            var master = MasterOrNull;
+            if (master is null) return (Guid.Empty, NoMaster, DebugApiHints.Panel);
+            var intent = new CheckUnsavedIntent { RequestId = Guid.NewGuid() };
+            try { master.CheckUnsaved(intent); }
+            catch (InvalidOperationException ex) { return (Guid.Empty, ex.Message, DebugApiHints.Scenario); }
+            return (intent.RequestId, null, null);
+        }
+
+        /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended (the master's answer, or its refusal); null while it has not.</summary>
+        public UnsavedCheckOutcome? UnsavedCheckOutcomeOrNull(Guid requestId)
+            => _editorUnsavedCheck?.Invoke(requestId) ?? _dispatcher?.UnsavedCheckAnyNode(requestId);
+
+        /// <summary>⭐ CE-4093 — this host can see check-round answers (it keeps a cluster read model fed by the master); a host that cannot must not gate on them.</summary>
+        public bool ObservesUnsavedChecks => _editorUnsavedCheck != null || _dispatcher?.ObservesUnsavedChecksAnyNode == true;
+
+        /// <summary>⭐ CE-4093 (D22) — <c>GET /status.scenarioDirty</c>: the LAST check round's verdict; null when none ran (or the cluster left editing since). ⛔ Never runs a round.</summary>
+        public bool? ScenarioDirtyOrNull => _editorScenarioDirty?.Invoke() ?? _dispatcher?.ScenarioDirtyAnyNode;
+
+        /// <summary>⭐ CE-4093 — the scenario this host has open (the editor driver's name), or null when this host has no editor driver / none is open.</summary>
+        public string? LoadedScenarioNameOrNull()
+        {
+            try { return _editor.LoadedScenarioName; }
+            catch (Hrot.Presentation.DebugApi.NotSupportedHereException) { return null; }
+        }
+
+        /// <summary>⭐ CE-4093 — the cluster is open for editing: the only state in which unsaved changes can be lost (and the only one the master checks).</summary>
+        public bool IsEditingScenario => CurrentClusterStateOrNull() == ClusterState.OperatingEdit;
+
         /// <summary><c>POST /preview/enter {startPaused?}</c> — the cluster's dry run (<c>OperatingPreview</c>). ⛔ Never recorded (R-3053).</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) EnterPreview(bool startPaused = false)
         {
@@ -46,6 +160,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary><c>POST /checkpoint {label?}</c> — a named keyframe of the LIVE recording (R-3044).</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) TakeCheckpoint(string? label)
         {
+            if (RefuseWhenNotRecorded("a checkpoint") is { } refused) return refused;   // ⭐ CE-4090 §5a
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
             // ⭐ named here when the caller gives no name: a restore finds a checkpoint only by its label (ClusterMaster.StartRestore)
@@ -60,6 +175,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (string.IsNullOrWhiteSpace(label))
                 return (null, "label is required: the label checkpoint returned, e.g. {\"label\": \"before-assault\"}.", DebugApiHints.Scenario);
+            if (RefuseWhenNotRecorded("a checkpoint restore") is { } refused) return refused;   // ⭐ CE-4090 §5a
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
             var intent = new RestoreCheckpointIntent { RequestId = Guid.NewGuid(), Label = label };
@@ -82,6 +198,10 @@ namespace Hrot.Editor.DebugApi
                     ["scenario"]   = x.ScenarioId,
                     ["startUtc"]   = x.StartTimeUtc.ToString("O"),
                     ["durationSeconds"] = Math.Round(x.Duration.TotalSeconds, 3),
+                    // ⭐ CE-4097 (AQ108 D5) — a branched run's parent (null when it began at a load) and the branch point (the parent's
+                    //   wall ticks; atSeconds = (branchWallTicks − the replay's zero) / 1e7)
+                    ["parentExerciseId"] = x.ParentExerciseId == Guid.Empty ? null : x.ParentExerciseId.ToString(),
+                    ["branchWallTicks"]  = x.BranchWallTicks,
                 });
             return (new JsonObject { ["count"] = arr.Count, ["exercises"] = arr }, null, null);
         }
@@ -104,6 +224,8 @@ namespace Hrot.Editor.DebugApi
             }
             else
             {
+                // ⭐ CE-4090 §5a — "keep the last run" when the last run was not recorded: refused, not the newest OLDER exercise
+                if (RefuseWhenNotRecorded("keeping the last run") is { } refused) return refused;
                 var items = (_editorExercises?.Invoke() ?? _dispatcher?.ExercisesAnyNode)?.OrderByDescending(x => x.StartTimeUtc).ToList();
                 if (items is not { Count: > 0 }) return (null, "No exercise to keep: the inventory is empty (list_exercises).", DebugApiHints.Scenario);
                 id = items[0].ExerciseId;
@@ -135,6 +257,8 @@ namespace Hrot.Editor.DebugApi
             var exText = body?["exerciseId"]?.ToString();
             if (!string.IsNullOrWhiteSpace(exText) && !Guid.TryParse(exText, out exerciseId))
                 return (null, $"exerciseId '{exText}' is not a GUID. GET /exercises lists them.", DebugApiHints.Scenario);
+            // ⭐ CE-4090 §5a — "replay the last run" (no exercise named) when the last run was not recorded: refused
+            if (exerciseId == Guid.Empty && RefuseWhenNotRecorded("a replay of the last run") is { } refused) return refused;
             // ⭐ R-3055 (the R-3049 rule) — none named ⇒ Guid.Empty: the MASTER picks the run in progress, else the newest finished one
             //   (ClusterMaster.ResolveReplayExercise) — the same request means the same thing on every host.
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
@@ -309,21 +433,27 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ CE-3329 P3 — the cluster shows a recording (a review or a replay): world-changing commands are refused (D-E).</summary>
         public bool ShowsRecording => CurrentClusterStateOrNull() is { } s && ClusterStates.IsReplaying(s);
 
+        /// <summary>⭐ CE-4090 (AQ108 D22) — the cluster runs a LIVE exercise: the scenario is not saved from it (<c>POST /scenario/save</c> → 409).</summary>
+        public bool ShowsLiveRun => CurrentClusterStateOrNull() == ClusterState.OperatingLive;
+
         /// <summary>
         /// ⭐ CE-3329 <c>POST /review {atSeconds? | atSimSeconds?}</c> (R11) — review the LIVE run in place: the cluster pauses, every node
         /// keeps its live point, and the run's own recording is shown from the moment named (else the live point). ONE request, any host.
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) EnterReview(JsonNode? body)
         {
+            // ⭐⭐ CE-4090 (AQ108 D9) — a review always has an EXPLICIT START: the moment of the live run to look back at. ⛔ "No position = the
+            //   live point" is retired (it opened a review of nothing — the UI picks a window or a timeline moment). A 4xx, before anything else.
+            if (body?["atSeconds"] is null && body?["atSimSeconds"] is null)
+                return (null, "a review needs its start: {\"atSeconds\": <seconds after the run's start>} or {\"atSimSeconds\": <recorded sim seconds>} "
+                            + "(the moment to look back at — the live point is no longer implied).", DebugApiHints.Scenario);
+            if (RefuseWhenNotRecorded("a review (DAR)") is { } refused) return refused;   // ⭐ CE-4090 §5a
             if (!TryReadSeconds(body, out double at, out var error)) return (null, error, DebugApiHints.Scenario);
             if (!TryReadSimSeconds(body, out double? atSim, out error)) return (null, error, DebugApiHints.Scenario);
             if (CurrentClusterStateOrNull() is { } s && s != ClusterState.OperatingLive && s != ClusterState.OperatingReview)
                 return (null, $"A review starts from a live run; the cluster is in {s}.", DebugApiHints.Scenario);
-            bool named = body?["atSeconds"] is not null || atSim is not null;
-            // ⭐ CE-4045 H1b — the ONE construction; no moment named ⇒ the live point (the master's default)
-            var published = PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReview(named ? at : null, atSim));
-            if (published.Result is JsonObject o && !named) o["note"] = "No moment named: the review opens at the live point.";
-            return published;
+            // ⭐ CE-4045 H1b — the ONE construction; the start is explicit (AQ108 D9, above)
+            return PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReview(at, atSim));
         }
 
         /// <summary>⭐ CE-3329 <c>POST /review/exit</c> — back to the live run, exactly where it paused (live, paused).</summary>

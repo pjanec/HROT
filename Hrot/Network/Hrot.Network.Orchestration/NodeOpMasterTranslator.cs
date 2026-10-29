@@ -130,7 +130,8 @@ public sealed class NodeOpMasterTranslator
                     TerrainName: p.TerrainName,
                     IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
                     IsCatchUp:       p.IsCatchUp,          // C7
-                    CheckpointingSeconds: p.CheckpointingSeconds),   // D17
+                    CheckpointingSeconds: p.CheckpointingSeconds,   // D17
+                    RecordingOff: p.RecordingOff),                  // CE-4090 D14
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(
@@ -238,6 +239,14 @@ public sealed class NodeOpMasterTranslator
 
             // ⭐ CE-3299 B3 — a node's export answer is the path it wrote (a JSON string).
             case FdpNodeOpType.ExportCheckpoint:
+            {
+                try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
+            // ⭐ CE-4093 — a node's check answer is the string "changed" | "unchanged" | "no-baseline" (a JSON string on the wire). ⛔ Without
+            //   this case it fell to `default: null` and the master read every node as silent.
+            case FdpNodeOpType.CheckUnsaved:
             {
                 try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
                 catch { return resultJson; }

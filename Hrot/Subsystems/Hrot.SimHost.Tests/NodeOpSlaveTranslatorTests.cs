@@ -214,6 +214,41 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(id, arch.ExerciseId);
     }
 
+    /// <summary>
+    /// ⭐ CE-4090 (AQ108 D14) — the live load's "do not record" decision reaches the node with the payload: <c>RecordingOff</c> decodes from the
+    /// wire, and a sender that omits it (an older peer, or a recording run) decodes to false — record, exactly as before.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\",\"RecordingOff\":true}", true)]
+    [InlineData("{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\",\"RecordingOff\":false}", false)]
+    [InlineData("{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\"}", false)]
+    public void CE4090_DeserializeNodePayload_PrepareLive_CarriesRecordingOff(string json, bool expected)
+    {
+        var payload = NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.PrepareLive, json);
+        Assert.Equal(expected, Assert.IsType<EditLoadHandlerPayload>(payload).RecordingOff);
+    }
+
+    /// <summary>⭐ CE-4090 — the master's cluster-state broadcast tells EVERY node (and the orchestrator's own observers) whether the run is recorded:
+    /// the one decoding (<c>StateOf</c>) keeps <c>RunNotRecorded</c>; an older sender's 0 is "recorded".</summary>
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(0, false)]
+    public void CE4090_TheClusterStateBroadcast_CarriesWhetherTheRunIsRecorded(int onTheWire, bool expected)
+    {
+        var seen = OrchestrationObserverTranslator.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.OperatingLive, RunNotRecorded = onTheWire });
+        Assert.Equal(expected, seen.RunNotRecorded);
+    }
+
+    /// <summary>⭐ CE-4090 — the broadcast carries the SETTING too (inverted: an older sender's 0 reads as ON) through the one decoding.</summary>
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(0, false)]
+    public void CE4090_TheClusterStateBroadcast_CarriesTheRecordLiveRunsSetting(int onTheWire, bool expectedOff)
+    {
+        var seen = OrchestrationObserverTranslator.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle, RecordLiveRunsOff = onTheWire });
+        Assert.Equal(expectedOff, seen.RecordLiveRunsOff);
+    }
+
     // ── Test 4: NodeHeartbeatEvent → NodeHeartbeat written to DDS ────────────
 
     [Fact(Timeout = 10_000)]

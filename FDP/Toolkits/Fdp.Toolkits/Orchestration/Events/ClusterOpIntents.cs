@@ -22,6 +22,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ CE-3329 P1 (R-3057 R11) — a replay's entry point in the RECORDED sim time (<c>atSimSeconds</c>); the master turns it
         /// into wall ticks with the cluster's time map. Wins over <see cref="TargetWallTicks"/> when set.</summary>
         public double? TargetSimSeconds;
+        /// <summary>⭐ CE-4090 (AQ108 D14, §5a) — a live load that MUST record whatever the cluster's <i>Record live runs</i> setting says: the
+        /// scenario verifier compares the run's recording against a golden, so a verify run with recording off would fail for no reason.
+        /// Default false = follow the setting.</summary>
+        public bool ForceRecording;
     }
 
     /// <summary>
@@ -65,6 +69,20 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid RequestId;
         public ReplayAxis Axis;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4090</c> (AQ108 D14) — set the cluster-wide RUN SETTINGS: today <i>Record live runs</i> (default ON). A setting of the
+    /// MASTER (⛔ never per host — two hosts would disagree about whether a run records); it takes effect at the NEXT live load and
+    /// travels to every node on that load's payload. Any host asks. 📄 Architect_Question_108_Run_Mode_Picker.md D14, D22.
+    /// </summary>
+    [EventId(9074)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct SetRunSettingsIntent
+    {
+        public Guid RequestId;
+        /// <summary>Whether a live run starts a recording. ⭐ The scenario verifier forces recording on regardless (<see cref="TransitionStateIntent.ForceRecording"/>).</summary>
+        public bool RecordLiveRuns;
     }
 
     /// <summary>
@@ -150,6 +168,10 @@ namespace Fdp.Toolkit.Orchestration
         /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
         /// </summary>
         SaveScenario,
+
+        /// <summary>⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording: <see cref="ExecuteStorageOpIntent.ExerciseId"/>'s ledger entry and
+        /// its staging copies (<c>ExerciseRetention.Delete</c>, CE-3218). ⛔ Not a kept (archived) exercise, and not the run still recording.</summary>
+        Delete,
     }
 
     /// <summary>
@@ -224,6 +246,18 @@ namespace Fdp.Toolkit.Orchestration
     {
         public Guid RequestId;
         public string? Label;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4093</c> (AQ108 D20) — ask the master for a CHECK ROUND: every node answers whether its whole world differs from its baseline; the
+    /// master's answer is an <see cref="UnsavedCheckResult"/> on <c>ClusterOpCompletedEvent</c> (RequestId = this one). Refused outside editing.
+    /// Published by <c>ClusterOpMasterTranslator</c> for a DDS <c>CheckUnsaved</c>, and by any host's debug surface / UI. No payload.
+    /// </summary>
+    [EventId(9075)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct CheckUnsavedIntent
+    {
+        public Guid RequestId;
     }
 
     /// <summary>

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — the dispatch record (coordinator, 2026-10-28)
 updated: 2026-10-28
-current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked
+current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked · §4 decisions taken after dispatch
 stale-below: nothing
 related-designs:
   - ../DESIGN_Content_Layout.md — R-4097: the content move (CE-4089)
@@ -84,3 +84,9 @@ its own rails until they pass, the lane reviews the tests and the diff (not a re
 - After every piece of work the coordinator fetches the lanes, reads their started-markers, reports and tracker rows, and checks each finished task
   against its *done when* above and the gate report contract (CLAUDE.md, Rule 8) — the tests are believed, the claims are spot-verified.
 - A deviation is folded back into the owning design by the lane that built it (obligation ⑤); the coordinator checks the design moved.
+
+## 4. Decisions taken after dispatch
+
+| date | decision |
+|---|---|
+| `2026-10-28` | **R-4099** — CE-4096's gate treats the cluster as RESTING when Idle has held ≥ 0.5 s (ui's design, AQ108 §2.6 on `ui`); the ordinary load stays TWO requests (Idle, then the load — CE-295), no "resting" flag on the master's broadcast, no wire change. A slow client may flash `Start` for a moment between the two requests — accepted as cosmetic. 🔒 User: *"lean accepted, no chnage in messages (keep load in 2 parts as is now)"* |

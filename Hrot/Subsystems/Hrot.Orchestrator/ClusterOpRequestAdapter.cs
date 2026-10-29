@@ -134,6 +134,7 @@ internal static class ClusterOpRequestAdapter
             ClusterOpType.ExportArchive    => StorageOpType.Export,
             ClusterOpType.ImportArchive    => StorageOpType.Import,
             ClusterOpType.SaveScenario => StorageOpType.SaveScenario,
+            ClusterOpType.DeleteExercise   => StorageOpType.Delete,   // ⭐ CE-4090 D15
             // CE-278: SaveScenario=2 retired; reject an unmapped cluster op instead of silently
             // mapping it to the dead SaveScenario storage op (previous default).
             _ => throw new ArgumentOutOfRangeException(

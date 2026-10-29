@@ -249,6 +249,64 @@ public sealed class LoadPhaseChainTests
         Assert.True(hold.IsCompleted);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ CE-4090 (AQ108 D14, §5a) — <b>LIVE DOES NOT IMPLY RECORDING, on the node.</b> The recorder starts when the load's operating transition
+    /// completes — unless the load's payload said <c>RecordingOff</c>: then NO recorder starts on this node (so no checkpoint / review / restore handler
+    /// finds one, and nothing is written under <c>exercises/&lt;id&gt;</c>). The same load without the flag starts exactly one (the control).
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task CE4090_ALiveLoadStartsTheRecorder_UnlessThePayloadSaysRecordingOff(bool recordingOff, int recorders)
+    {
+        var recorder = new CountingRecorder();
+        var exercise = Guid.NewGuid();
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Map2D, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) },
+            world: null, recordingController: recorder, storageDirectory: ".");
+
+        await chain.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        var hold = chain.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareState, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;
+
+        Assert.Equal(recorders, recorder.Started);
+        if (recorders == 1) Assert.Equal(exercise, recorder.LastExercise);
+    }
+
+    private sealed class CountingRecorder : Fdp.Core.Orchestration.IRecordReplayController
+    {
+        public int Started { get; private set; }
+        public Guid LastExercise { get; private set; }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) { Started++; LastExercise = exerciseId; return Task.CompletedTask; }
+        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+        public void ProcessPlaybackTick(GlobalTime currentTime) { }
+        public Task TeardownReplayAsync() => Task.CompletedTask;
+        public bool IsReplayActive => false;
+        public GlobalTime GetCurrentReplayTime() => default;
+        public float ActiveReplayDurationSeconds => 0f;
+        public long ActiveRecordingStartWallTicks => 0;
+        public long ActiveRecordingEndWallTicks => 0;
+        public long ReplayAnchorWallTicks { get; set; }
+        public string? ActiveReplayFilePath => null;
+        public bool IsRestoringReplay => false;
+        public long ActiveMaxNetworkId => 0;
+        public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => Task.FromResult(default(GlobalTime));
+        public Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout) => Task.FromResult<string?>(null);
+        public void HoldEgress(string reason) { }
+        public void ReleaseEgress() { }
+        public void ReleaseReplayExit() { }
+    }
+
     /// <summary>⭐ An abort cancels the hold and rolls every step back, rather than leaving the cluster waiting.</summary>
     [Fact]
     public async Task AnAbort_CancelsTheHold_AndAbortsEveryStep()
@@ -490,6 +548,102 @@ public sealed class LoadPhaseChainTests
         public bool Aborted { get; private set; }
         public void Abort(LoadPhaseContext context) => Aborted = true;
         public bool IsResolved(EntityRepository? world) => true;
+    }
+
+    // ── CE-4093 (AQ108 D20) — the unsaved-changes BASELINE hooks: a load into editing commits · a late joiner's catch-up completes ──────────────
+
+    private static (LoadPhaseChain Chain, Fdp.Toolkit.Replay.WorldChangeCheck Check, EntityRepository World, FakeStep Step) BaselineChain()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var check = new Fdp.Toolkit.Replay.WorldChangeCheck();
+        // the load's own content: the step's COMMIT builds a unit — the baseline must be taken AFTER it (the loaded world IS the saved one)
+        var step = new FakeStep(LoadPart.KnowledgeBase)
+        {
+            Resolved = false,
+            OnCommit = w => w!.SetComponent(w.CreateEntity(), new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 }),
+        };
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Map2D, new ILoadPartProvider[] { step, new FakeStep(LoadPart.Terrain) }, world, changeCheck: check);
+        return (chain, check, world, step);
+    }
+
+    private static ExecuteNodeOpIntent Loading(ClusterState loading, bool catchUp) => new()
+    {
+        Operation     = NodeOpType.PrepareEdit,
+        TransactionId = Guid.NewGuid(),
+        DomainPayload = new EditLoadHandlerPayload(ScenarioId: "scn", TargetState: loading, IsCatchUp: catchUp),
+    };
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4093</c> hook (a) and (c) — ONE call site in the chain every host runs: when the load into EDITING resolves (every step reported
+    /// resolved, in the frame <c>DrainDeferredAcks</c> releases the hold), the world's content hash becomes the node's baseline — taken AFTER the
+    /// steps' commits (the loaded world is the saved one), never before they resolve. The same for a late joiner's catch-up (the chain flagged
+    /// <c>IsCatchUp</c>). 🔴 Mutation: no <c>BeginSettling</c> in <c>DrainDeferredAcks</c> ⇒ <c>IsSettling</c> / <c>HasBaseline</c> never happen; no <c>SettleStep</c> at its top ⇒ <c>HasBaseline</c> stays false.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CE4093_ALoadIntoEditing_AndACatchUp_TakeTheBaseline_WhenEveryStepResolved(bool catchUp)
+    {
+        var (chain, check, world, step) = BaselineChain();
+        var load = Loading(ClusterState.LoadingEdit, catchUp);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingEdit), CancellationToken.None);
+
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+        Assert.False(check.HasBaseline, "a step is still unresolved: the world is not the loaded one yet");
+
+        step.Resolved = true;
+        chain.DrainDeferredAcks();
+        await hold;
+
+        // the load resolved: the world SETTLES first (a loaded world still gets its first frame of initial work), then it is the baseline
+        Assert.True(check.IsSettling);
+        Assert.False(check.HasBaseline);
+        chain.DrainDeferredAcks();                                 // frame 1 of the settling: the first hash
+        Assert.False(check.HasBaseline);
+        chain.DrainDeferredAcks();                                 // frame 2: the world did not move — it is the baseline
+        Assert.True(check.HasBaseline);
+        Assert.False(check.IsSettling);
+        Assert.Equal(1, world.EntityCount);                       // the step's commit ran before the baseline
+        Assert.False(check.HasChanged(world), "the loaded world is the baseline: a quiet world reads unchanged");
+        world.SetComponent(world.CreateEntity(), new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1001 });
+        Assert.True(check.HasChanged(world));
+    }
+
+    /// <summary>⭐ A load into LIVE takes no baseline: a live run is not edited, and its return to editing is a load of its own.
+    /// 🔴 Mutation: the <c>LoadingEdit</c> condition dropped ⇒ this fails.</summary>
+    [Fact]
+    public async Task CE4093_ALiveLoad_TakesNoBaseline()
+    {
+        var (chain, check, _, step) = BaselineChain();
+        step.Resolved = true;
+        var load = Loading(ClusterState.LoadingLive, catchUp: false);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;
+
+        Assert.False(check.HasBaseline);
+        Assert.False(check.IsSettling);
+    }
+
+    /// <summary>⭐ Entering Idle empties the world ⇒ the baseline goes with it (an emptied world has nothing saved to compare with).
+    /// 🔴 Mutation: no <c>ClearBaseline</c> in <c>OnEnteredIdle</c> ⇒ this fails.</summary>
+    [Fact]
+    public void CE4093_EnteringIdle_ForgetsTheBaseline()
+    {
+        var (chain, check, world, _) = BaselineChain();
+        check.TakeBaseline(world);
+        Assert.True(check.HasBaseline);
+
+        chain.OnEnteredIdle();
+
+        Assert.False(check.HasBaseline);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────

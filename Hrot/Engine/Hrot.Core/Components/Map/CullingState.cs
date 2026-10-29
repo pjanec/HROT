@@ -16,7 +16,11 @@ namespace Hrot.IG.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 [ComponentId(GlobalComponentIds.CullingState)]
-[DataPolicy(DataPolicy.NoScenario)]
+// ⭐ CE-4093 — view state of the CAMERA, never world content: MapCullingSystem rewrites it for EVERY entity every frame from the map's viewport
+//   (absence = visible), so panning the camera changed ~half of it — which read as an edited world to the unsaved-changes check
+//   (📐 measured on uc-urban-battle: moving the viewport was the one churn of an otherwise quiet editor). A recording or checkpoint holding the
+//   recording-time camera's culling would only be overwritten again on the first frame; the type says so by its own flag, like SelectionState (CE-4049).
+[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]
 public struct CullingState
 {
     /// <summary>

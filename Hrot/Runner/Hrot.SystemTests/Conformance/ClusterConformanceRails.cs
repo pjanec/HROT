@@ -88,7 +88,9 @@ public sealed class ClusterConformanceRails
         {
             // ⭐ §6's CONTRACT: switch, STEP, then read. ⛔ A same-frame read returns the empty prefix.
             var switched = await host.Client.SwitchPerspectiveAsync(p);
-            if (!switched.Ok) continue;                 // a perspective that refuses is not this rail's subject
+            // ⛔⛔ CE-4094 — was `if (!switched.Ok) continue;`, which would have passed VACUOUSLY the day a switch is refused (409 while the
+            //    Start perspective shows: load a scenario first). A listed perspective that cannot be switched to is a finding, not a skip.
+            Assert.True(switched.Ok, $"[{host.Mode}] refused to switch to the listed perspective '{p}' ({switched.StatusCode}): {switched.Error}");
             await host.Client.StepAsync(SettleTicks);   // ⚠ may be NOT_SUPPORTED_HERE — see the step rail
             await Task.Delay(150);
 

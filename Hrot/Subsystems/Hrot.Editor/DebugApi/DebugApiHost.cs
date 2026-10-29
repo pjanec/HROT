@@ -640,6 +640,9 @@ namespace Hrot.Editor.DebugApi
             //    404, which is the honest answer — ⛔ better than silently choosing a mode for it.
             _routes.Add(new("POST", "/scenario/load/edit", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)));
             _routes.Add(new("POST", "/scenario/load/live", ctx => HandleScenarioLoad(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)));
+            // ⭐⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: every node compares its whole world with its baseline; the master answers {changed, changedNodes}.
+            //    ⛔ Runs a round each time it is called — GET /status.scenarioDirty only reports the last one.
+            _routes.Add(new("POST", "/scenario/check-unsaved", _ => HandleCheckUnsaved()));
             _routes.Add(new("POST", "/scenario/save", ctx =>
             {
                 var name = ctx.Body?["name"]?.GetValue<string>();
@@ -1029,6 +1032,14 @@ namespace Hrot.Editor.DebugApi
             //   /replay/entities…) is retired. 📄 docs/DESIGN_Http_Control_Through_The_Cluster_Master.md §3.
             _routes.Add(new("GET", "/exercises", _ => RunMainResult(s => ResultOf(s.ListExercises(), unavailable: 503))));
             _routes.Add(new("POST", "/exercises/keep", ctx => RunMainResult(s => ResultOf(s.KeepExercise(ctx.Body), unavailable: 503))));   // ⭐ CE-4058 ③
+            // ⭐ CE-4090 (AQ108 D15) — discard an unarchived recording (404 for an id the inventory does not list); ⭐ D14 — the cluster-wide run settings
+            _routes.Add(new("DELETE", "/exercises/{id}", ctx => RunMainResult(s =>
+            {
+                var (result, error, hint, status) = s.DeleteExercise(ctx.RouteValue("id"));
+                return error is null ? Ok(result) : Fail(status, error, hint);
+            })));
+            _routes.Add(new("GET", "/run-settings", _ => RunMainResult(s => ResultOf(s.GetRunSettings(), unavailable: 503))));
+            _routes.Add(new("POST", "/run-settings", ctx => RunMainResult(s => ResultOf(s.SetRunSettings(ctx.Body), unavailable: 503))));
             _routes.Add(new("POST", "/replay", ctx => PublishAndAwait(ctx, s => s.EnterReplay(ctx.Body), Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay)));
             // ⭐ RB-2 — {atSeconds} | {frame} | {frames: ±n} | {cause: {frame, entity}} | {next: {entity, component?}, direction}: a
             //   lookup resolves on the main thread (a "next" scan runs off it, in a reader of its own), then the ordinary seek.
@@ -1954,7 +1965,9 @@ namespace Hrot.Editor.DebugApi
                 //   exist" — ⛔ collapsing them would make a composition-root defect look like a bad
                 //   request, which is the reading error that costs an afternoon.
                 if (error == null) return Ok(result);
-                return Fail(error.StartsWith("No perspective access", StringComparison.Ordinal) ? 503 : 400,
+                // ⭐ CE-4094 — 409 = "the window manager refused it" (the Start perspective shows): a state conflict, not a bad request.
+                return Fail(error.StartsWith("No perspective access", StringComparison.Ordinal) ? 503
+                          : error.StartsWith(DebugApiService.RefusedPrefix, StringComparison.Ordinal) ? 409 : 400,
                             error, hintCategory);
             })));
 
@@ -1983,8 +1996,28 @@ namespace Hrot.Editor.DebugApi
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx, Fdp.Toolkit.Orchestration.ClusterState target)
         {
             var name = ctx.Body?["name"]?.GetValue<string>();
+
+            // ⭐⭐ CE-4091 (AQ108 D7, D22) — {recorded: <exerciseId>}: open the recording's scenario copy as a NEW scenario for editing. The name it
+            //   loads under is derived from the id (RecordedScenarioNames); the master's prefetch resolves it to the copy. ⛔ Edit only, and instead
+            //   of a name: the original scenario folder and the recording are never written.
+            if (ctx.Body?["recorded"] is { } recordedNode)
+            {
+                if (target != Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit)
+                    return Fail(400, "recorded is for POST /scenario/load/edit: a recording's scenario copy opens for editing, never straight into a run.", DebugApiHints.Scenario);
+                if (!string.IsNullOrWhiteSpace(name))
+                    return Fail(400, "send either name or recorded, not both.", DebugApiHints.Scenario);
+                var (recordedName, recordedError, recordedHint, recordedStatus) = await _jobQueue
+                    .RunOnMainThread(() => Service().RecordedScenarioName(recordedNode is JsonValue rv && rv.TryGetValue(out string? rs) ? rs : recordedNode.ToJsonString()))
+                    .ConfigureAwait(false);
+                if (recordedError is not null) return Fail(recordedStatus, recordedError, recordedHint);
+                name = recordedName;
+            }
+
             if (string.IsNullOrWhiteSpace(name))
-                return Fail(400, "name is required.");
+                return Fail(400, "name is required (or recorded: an exercise id, on load/edit).");
+
+            // ⭐⭐ CE-4093 (AQ108 D22) — at the TOP: a load would lose the edits, so the master's check round runs first (ONE helper for both modes)
+            if (await GateUnsavedChangesAsync(ctx, name!, target).ConfigureAwait(false) is { } unsaved) return unsaved;
 
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
@@ -2064,6 +2097,67 @@ namespace Hrot.Editor.DebugApi
                            + "after its wait: read load.notice in GET /cluster/roster on the orchestrator.");
         }
 
+        /// <summary>⭐ CE-4093 — how long a check round may take to answer: it is one capture + hash per node (~60 ms on a large scenario), so this is a stall, not slowness.</summary>
+        private const double UnsavedCheckTimeoutSeconds = 15.0;
+
+        /// <summary>
+        /// ⭐⭐ CE-4093 (AQ108 D20) — runs ONE check round through the master and waits for its answer, polled through the main-thread queue (the master and the
+        /// read model are ticked there). Returns the outcome, or the failure to send (no master reachable, or no answer within <see cref="UnsavedCheckTimeoutSeconds"/>).
+        /// </summary>
+        private async Task<(Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? Outcome, RouteResult? Failure)> RunCheckRoundAsync()
+        {
+            var started = await _jobQueue.RunOnMainThread(() => Service().StartUnsavedCheck()).ConfigureAwait(false);
+            if (started.Error != null)
+                return (null, Fail(started.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? 503 : 400, started.Error, started.HintCategory));
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed.TotalSeconds < UnsavedCheckTimeoutSeconds)
+            {
+                var outcome = await _jobQueue.RunOnMainThread(() => Service().UnsavedCheckOutcomeOrNull(started.RequestId)).ConfigureAwait(false);
+                if (outcome is not null) return (outcome, null);
+                await Task.Delay(20).ConfigureAwait(false);
+            }
+            return (null, Fail(504, $"The unsaved-changes check was asked of the cluster but no answer came within {UnsavedCheckTimeoutSeconds:0}s "
+                                  + "(a node that never answers holds the round; see GET /cluster/roster).", DebugApiHints.Scenario));
+        }
+
+        /// <summary><c>POST /scenario/check-unsaved</c> — <c>{changed, changedNodes}</c>, the master's check round; 409 when the cluster is not open for editing.</summary>
+        private async Task<RouteResult> HandleCheckUnsaved()
+        {
+            var (outcome, failure) = await RunCheckRoundAsync().ConfigureAwait(false);
+            if (failure is not null) return failure.Value;
+            if (outcome!.Result is not { } r)
+                return Fail(outcome.Refusal == Fdp.Toolkit.Orchestration.UnsavedCheckOutcome.NotEditingReason ? 409 : 502,
+                            outcome.Refusal ?? "the cluster did not answer the check.", DebugApiHints.Scenario);
+            var nodes = new JsonArray();
+            foreach (var n in r.ChangedNodes) nodes.Add(n);
+            return Ok(new JsonObject { ["changed"] = r.Changed, ["changedNodes"] = nodes });
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4093 (AQ108 D22) — the ONE gate both scenario loads pass at their top: a load that would LOSE edits answers 409 "the scenario has unsaved changes"
+        /// unless the body says <c>discardUnsaved: true</c>. Gated: a Live load always; an Edit load of ANOTHER scenario (reloading the one open is the harnesses'
+        /// "start over", and the load of a scenario is not the loss D22 names). Only while the cluster is open for editing and this host can see the master's answer;
+        /// ⛔ nothing is asked in Idle, a preview, a live run or a replay (the world there is not the scenario's). Returns the response to send, or null to go on.
+        /// </summary>
+        private async Task<RouteResult?> GateUnsavedChangesAsync(RequestContext ctx, string name, Fdp.Toolkit.Orchestration.ClusterState target)
+        {
+            if (ctx.Body?["discardUnsaved"] is JsonValue d && d.TryGetValue(out bool discard) && discard) return null;
+            bool gated = await _jobQueue.RunOnMainThread(() =>
+            {
+                var s = Service();
+                if (!s.IsEditingScenario || !s.ObservesUnsavedChecks) return false;
+                return target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
+                    || !string.Equals(s.LoadedScenarioNameOrNull(), name, StringComparison.OrdinalIgnoreCase);
+            }).ConfigureAwait(false);
+            if (!gated) return null;
+
+            var (outcome, failure) = await RunCheckRoundAsync().ConfigureAwait(false);
+            if (failure is not null) return failure;
+            if (outcome!.Result is not { Changed: true } changed) return null;   // unchanged — or the master refused (the state moved): nothing to lose
+            return Fail(409, "the scenario has unsaved changes (nodes: " + string.Join(",", changed.ChangedNodes) + "): save it first (POST /scenario/save), "
+                           + "or send {\"discardUnsaved\": true} to load anyway.", DebugApiHints.Scenario);
+        }
+
         private DebugApiService Service()
             => _service ?? throw new InvalidOperationException("Debug API service not attached yet.");
 
@@ -2071,6 +2165,8 @@ namespace Hrot.Editor.DebugApi
         private static RouteResult ResultOf((JsonNode? Result, string? Error, string? HintCategory) r, int unavailable)
         {
             if (r.Error == null) return Ok(r.Result);
+            // ⭐ CE-4090 (AQ108 D14, §5a) — "this run was not recorded" is a STATE conflict (the same request is fine on a recorded run): 409, not 400
+            if (Fdp.Toolkit.Orchestration.RunRecordingGates.IsConflict(r.Error)) return Fail(409, r.Error, r.HintCategory);
             return Fail(r.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? unavailable : 400, r.Error, r.HintCategory);
         }
 
@@ -2347,6 +2443,15 @@ namespace Hrot.Editor.DebugApi
                     await WriteResponseAsync(ctx, 409, new ApiResponse(false,
                         Error: "The cluster shows a recording (a review or a replay): this would change the world. "
                              + "Return to live first — POST /review/exit, or POST /replay/stop.")).ConfigureAwait(false);
+                    return;
+                }
+
+                // ⭐⭐ CE-4090 (AQ108 D22) — the scenario is never saved from a LIVE run either (the recording case is the guard above): its world is
+                //   not the scenario — take a checkpoint, then make a scenario from it. The master refuses the same save (ClusterMaster).
+                if (method == "POST" && entry.Template == "/scenario/save" && _service?.ShowsLiveRun == true)
+                {
+                    await WriteResponseAsync(ctx, 409, new ApiResponse(false,
+                        Error: Fdp.Toolkit.Orchestration.RunRecordingGates.SaveRefusedInRunReason)).ConfigureAwait(false);
                     return;
                 }
 

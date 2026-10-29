@@ -9,6 +9,11 @@
 **But check which host you are talking to — `get_capabilities` tells you.** The same API is also served by a
 multi-subsystem cluster host (`mode: "all"` = orchestrator + simhost + ig + excon + cgf). There:
 
+- ⭐ **load first, then switch.** A cluster that rests in Idle (nothing loaded — at boot, after an unload) shows the **`Start`**
+  perspective on every host; while it shows, `switch_perspective` answers **HTTP 409** with the reason, and `get_status` reports
+  `perspective: "Start"` with `routedTo` = the perspective the world reads are still answered from. Load a scenario (or open a
+  recording) first — leaving Idle restores the host's remembered perspective by itself — and only then switch. Never script
+  *"switch perspective at boot"*;
 - commands act **in the context of the currently selected perspective** (`switch_perspective`), because that
   is how an operator would drive it — so a read answers for *that node*, not for "the world";
 - capabilities differ per perspective. A call the active perspective cannot serve answers **HTTP 501
@@ -49,6 +54,12 @@ edit-load handler yet), so use **live** when every node must hold the world.
   `checkpoint`, `enter_replay`, `seek_replay`, `save_scenario` are each one master intent.
 - **A checkpoint is part of the LIVE recording** — a named keyframe on every node — not a preview snapshot.
   `restore_checkpoint {label}` continues the live run from it.
+- **Live does not imply recording** (AQ108 D14). The cluster-wide setting *Record live runs* (default ON;
+  `set_run_settings {recordLiveRuns}`) applies from the NEXT live load; `get_status → recording` says whether the run
+  on screen is recorded. A live run loaded with it OFF writes no recording: `checkpoint`, `restore_checkpoint`,
+  `enter_review`, `keep_exercise` and `enter_replay` (of the last run) answer **409 "this run was not recorded"**.
+  `enter_review` needs its start (`atSeconds` or `atSimSeconds`). `save_scenario` answers 409 in a live run and in a
+  replay / review — a live world is not the scenario. `delete_exercise {id}` discards an unarchived recording.
 - **A replay is the cluster's, not a sandbox.** `enter_replay` (one request from any state — the master plans
   the way) puts every node into its own recording; the ORDINARY readers (`list_entities`, `get_entity`,
   `get_entity_brain`, `get_entity_journal`) then read the replayed world. `stop_replay` goes to Idle.

@@ -213,10 +213,15 @@ public sealed class TheClusterControlRoutesTests
         var svc = Host();
         Assert.False(svc.ShowsRecording);
 
-        Assert.Null(svc.EnterReview(null).Error);
+        // ⭐ CE-4090 (AQ108 D9) — a review always has an explicit start: "no moment named ⇒ the live point" is retired
+        Assert.NotNull(svc.EnterReview(null).Error);
+        Assert.NotNull(svc.EnterReview(new JsonObject()).Error);
+        Assert.Empty(_master.Transitions);
+
+        Assert.Null(svc.EnterReview(new JsonObject { ["atSeconds"] = 5 }).Error);
         var enter = Assert.Single(_master.Transitions);
         Assert.Equal(ClusterState.OperatingReview, enter.TargetState);
-        Assert.Equal(0L, enter.TargetWallTicks);           // no moment named ⇒ the master enters at the live point
+        Assert.Equal(TimeSpan.FromSeconds(5).Ticks, enter.TargetWallTicks);
         Assert.Null(enter.TargetSimSeconds);
 
         Assert.Null(svc.EnterReview(new JsonObject { ["atSimSeconds"] = 20 }).Error);
@@ -229,7 +234,7 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions[^1].TargetState);
 
         _state = ClusterState.OperatingEdit;
-        Assert.NotNull(svc.EnterReview(null).Error);       // only from a live run
+        Assert.NotNull(svc.EnterReview(new JsonObject { ["atSeconds"] = 5 }).Error);       // only from a live run
     }
 
     /// <summary>⭐ CE-3329 D-E — every route the host refuses during a review / replay is a real, documented route (a renamed route would
@@ -249,6 +254,45 @@ public sealed class TheClusterControlRoutesTests
         Assert.Null(error);
         var ids = result!["exercises"]!.AsArray().Select(x => x!["exerciseId"]!.GetValue<string>()).ToArray();
         Assert.Equal(new[] { Newer.ExerciseId.ToString(), Older.ExerciseId.ToString() }, ids);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4097 (AQ108 D5, success 4) — the inventory's wire form carries a branched exercise's parent and branch point: the master's JSON
+    /// (<c>ClusterOpMasterTranslator</c>'s options) decoded by the ONE reader every host uses (<c>InventoryOf</c>) keeps both, an OLD peer's JSON
+    /// (no such fields) reads as not-a-branch, and <c>GET /exercises</c> shows both fields (the parent null for a run from a load).
+    /// 🔴 Mutation: <c>ListExercises</c> without the two fields ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4097_The_inventory_wire_carries_the_parent_and_point_and_GET_exercises_shows_them()
+    {
+        var parent = Guid.NewGuid();
+        var branched = new ExerciseInventoryItem(Guid.NewGuid(), new DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(2), "c", parent, 638_900_000_000_000_000L);
+        var json = System.Text.Json.JsonSerializer.Serialize(new[] { branched, Older }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        var topic = new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = json };
+
+        var decoded = Hrot.Common.Orchestration.OrchestrationObserverTranslator.InventoryOf(topic).LocalExercises!;
+        Assert.Equal((parent, branched.BranchWallTicks), (decoded[0].ParentExerciseId, decoded[0].BranchWallTicks));
+        Assert.Equal((Guid.Empty, 0L), (decoded[1].ParentExerciseId, decoded[1].BranchWallTicks));
+
+        // an old peer's inventory: no such fields on the wire
+        var old = $"[{{\"ExerciseId\":\"{Older.ExerciseId}\",\"StartTimeUtc\":\"2026-10-01T08:00:00Z\",\"Duration\":\"00:05:00\",\"ScenarioId\":\"a\"}}]";
+        var oldDecoded = Hrot.Common.Orchestration.OrchestrationObserverTranslator.InventoryOf(
+            new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = old }).LocalExercises!;
+        Assert.Equal((Older.ExerciseId, Guid.Empty, 0L), (oldDecoded[0].ExerciseId, oldDecoded[0].ParentExerciseId, oldDecoded[0].BranchWallTicks));
+
+        var host = new DebugApiService(new PerspectiveScopedDispatcher(
+                       new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", exercises: () => decoded, replayAxis: () => ReplayAxis.Wall) },
+                       currentPerspective: () => "CGF", acksPending: null),
+                   clusterState: () => _state);
+        var (result, error, _) = host.ListExercises();
+        Assert.Null(error);
+        var rows = result!["exercises"]!.AsArray().Select(x => x!.AsObject()).ToList();
+        var b = rows.Single(r => r["exerciseId"]!.GetValue<string>() == branched.ExerciseId.ToString());
+        Assert.Equal(parent.ToString(), b["parentExerciseId"]!.GetValue<string>());
+        Assert.Equal(branched.BranchWallTicks, b["branchWallTicks"]!.GetValue<long>());
+        var plain = rows.Single(r => r["exerciseId"]!.GetValue<string>() == Older.ExerciseId.ToString());
+        Assert.Null(plain["parentExerciseId"]);
+        Assert.Equal(0L, plain["branchWallTicks"]!.GetValue<long>());
     }
 
     // ── RB-1 / RB-2 (docs/DESIGN_Replay_Browser_Debug_Http.md) — the standalone Replay Browser answers the same routes ────────────────
@@ -338,6 +382,8 @@ public sealed class TheClusterControlRoutesTests
         public void Storage(ExecuteStorageOpIntent intent) => throw new InvalidOperationException("no such exercise");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void SetRunSettings(SetRunSettingsIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void CheckUnsaved(CheckUnsavedIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Cancel(CancelOperationIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw new InvalidOperationException("no such exercise");
     }

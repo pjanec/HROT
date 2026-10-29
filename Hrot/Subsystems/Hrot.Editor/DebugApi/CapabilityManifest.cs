@@ -83,6 +83,7 @@ public static class CapabilityManifest
         //    master cell (a bus that reaches it), the same as a scenario load — ⛔ no longer the editor's preview controller.
         if (path.StartsWith("/preview", StringComparison.Ordinal))    return DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/exercises", StringComparison.Ordinal))  return DebugCapabilities.ScenarioLoad;
+        if (path.StartsWith("/run-settings", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;   // ⭐ CE-4090 — a setting of the master
         if (path.StartsWith("/sim", StringComparison.Ordinal))         return DebugCapabilities.TimeDrive;
         // ⭐⭐ HN-029: the LOAD routes are their OWN capability, not `editor.authoring`.
         //    📌 While `/scenario/load` was hardwired to IEditorLogic, a cluster refusal read "authoring is
@@ -90,6 +91,8 @@ public static class CapabilityManifest
         //    scenarios", which is false: it loads them all the time, through 2PC. ⛔ Ordered BEFORE the
         //    /scenario prefix below, which still covers save/list.
         if (path.StartsWith("/scenario/load", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;
+        // ⭐ CE-4093 (AQ108 D20) — the check round is a request to the cluster MASTER, like the loads it gates
+        if (path.StartsWith("/scenario/check-unsaved", StringComparison.Ordinal)) return DebugCapabilities.ScenarioLoad;
         // ⭐⭐ CE-277(c0): SAVE gets its OWN capability, exactly like /scenario/load above (HN-029).
         //    📌 While /scenario/save was hardwired to IEditorLogic (editor.authoring), a cluster refusal read
         //    "authoring is absent here" — true of the editor's DRIVER, but misread as "a cluster cannot save

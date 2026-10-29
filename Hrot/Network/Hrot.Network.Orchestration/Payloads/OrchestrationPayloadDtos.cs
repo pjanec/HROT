@@ -62,14 +62,19 @@ public record TransitionPayloadDto(
 
     // ⭐ CE-3329 P1 (R11) — a replay's entry point in RECORDED sim time; the master resolves it. Additive on the wire.
     [property: JsonPropertyName("TargetSimSeconds")]
-    double?        TargetSimSeconds = null
+    double?        TargetSimSeconds = null,
+
+    // ⭐ CE-4090 (AQ108 D14) — a live load that records whatever the cluster's "Record live runs" setting says (the scenario verifier).
+    //   Additive on the wire; omitted ⇒ false ⇒ follow the setting.
+    [property: JsonPropertyName("ForceRecording")]
+    bool           ForceRecording = false
 )
 {
     /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
     public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
         TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
         TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks,
-        TargetSimSeconds: intent.TargetSimSeconds);
+        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording);
 
     /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
     public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
@@ -82,7 +87,32 @@ public record TransitionPayloadDto(
         CheckpointingSeconds = CheckpointingSeconds,   // D17
         TargetWallTicks      = TargetWallTicks,
         TargetSimSeconds     = TargetSimSeconds,   // CE-3329 R11
+        ForceRecording       = ForceRecording,     // CE-4090 D14
     };
+}
+
+/// <summary>⭐ CE-4090 (AQ108 D14) — payload of <c>ClusterOpType.SetRunSettings</c>: the cluster-wide run settings.</summary>
+public record SetRunSettingsPayloadDto(
+    [property: JsonPropertyName("RecordLiveRuns")]
+    bool RecordLiveRuns = true)
+{
+    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns);
+
+    /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload keeps the default — recording ON.</summary>
+    public static Fdp.Toolkit.Orchestration.SetRunSettingsIntent Decode(Guid requestId, string? json)
+    {
+        bool record = true;
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                if (System.Text.Json.JsonSerializer.Deserialize<SetRunSettingsPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
+                    record = dto.RecordLiveRuns;
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        return new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = requestId, RecordLiveRuns = record };
+    }
 }
 
 /// <summary>Payload DTO for <c>ClusterOpType.ManageEpisode</c> DDS requests.</summary>
@@ -275,7 +305,12 @@ public record NodeTransitionPayloadDto(
 
     // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (see TransitionPayloadDto). Additive; omitted ⇒ 0 ⇒ FULL.
     [property: JsonPropertyName("CheckpointingSeconds")]
-    double         CheckpointingSeconds = 0
+    double         CheckpointingSeconds = 0,
+
+    // ⭐ CE-4090 (AQ108 D14) — this live session must NOT be recorded ("Record live runs" was off when the master minted it). Additive;
+    //   omitted ⇒ false ⇒ record, exactly as before.
+    [property: JsonPropertyName("RecordingOff")]
+    bool           RecordingOff = false
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

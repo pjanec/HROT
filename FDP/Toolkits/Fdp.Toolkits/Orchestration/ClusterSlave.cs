@@ -628,6 +628,13 @@ namespace Fdp.Toolkit.Orchestration
         /// arrives — the default). The same read model on every node.</summary>
         public ReplayAxis ReplayAxis { get; private set; } = ReplayAxis.Sim;
 
+        /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast
+        /// said (false until one arrives, and for a sender that does not set it). The same read model on every node.</summary>
+        public bool RunNotRecorded { get; private set; }
+
+        /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said (false = ON, also before one arrives).</summary>
+        public bool RecordLiveRunsOff { get; private set; }
+
         private void FollowInventory()
         {
             if (_eventBus == null) return;
@@ -651,6 +658,8 @@ namespace Fdp.Toolkit.Orchestration
                 }
                 _clusterState = ev.CurrentState;
                 ReplayAxis    = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
+                RunNotRecorded = ev.RunNotRecorded;   // ⭐ CE-4090 D14
+                RecordLiveRunsOff = ev.RecordLiveRunsOff;
                 if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
                 if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
                     DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");

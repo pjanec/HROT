@@ -51,11 +51,14 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_status",
             Group:   "A — Lifecycle & status",
             Summary: "Runner liveness + sim state summary.",
-            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording }",
+            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty }",
             Hint:    "No params. Example: get_status({})",
             Notes: new[]
             {
                 "Use this to verify the runner is alive and check current run state before driving the sim.",
+                "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
+                "`scenarioDirty` is the LAST check round's verdict (check_unsaved): true = the scenario open for editing has unsaved changes, false = saved; null when no round ran, or the cluster left editing since. Reading it NEVER runs a round — call check_unsaved for a fresh answer.",
+                "`perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is \"Start\" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it).",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "check runner liveness and sim state"),
@@ -1136,6 +1139,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "ALWAYS read `current` back — an unknown name is a no-op, so trusting the 200 would leave you reading the WRONG perspective's panels.",
                 "A 400 names the claimed set; a 503 means perspective access is not wired on this host.",
+                "A 409 means the Start perspective is showing (the cluster rests in Idle, nothing loaded): a switch is refused whatever the name. LOAD FIRST (load_scenario_live / load_scenario_edit), then switch — leaving Idle restores the host's remembered perspective on its own. Read get_status.routedTo to see which perspective the reads are answered from meanwhile.",
                 "The new perspective publishes its panels on the NEXT frame — step a tick before get_panels, or you read the previous one.",
                 "In a cluster host (mode \"all\") this is how you choose which node subsequent commands act on.",
             },
@@ -1383,15 +1387,19 @@ namespace Hrot.Editor.DebugApi
             Group:   "E — Scenario",
             Summary: "Load a scenario for AUTHORING (Edit state), cluster-wide.",
             Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
-            Hint:    "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
+            Hint:    "Req: name (string) OR recorded (an exercise id from list_exercises). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("name", "string", true, "Scenario name (relative path)"),
+                new("name", "string", false, "Scenario name (relative path). Required unless recorded is sent; not with it."),
+                new("recorded", "string", false, "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named Recipes/Recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."),
                 new("waitForReady", "boolean", false, "Wait for the cluster to reach OperatingEdit before returning",
+                    DefaultJson: "false"),
+                new("discardUnsaved", "boolean", false, "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
                     DefaultJson: "false"),
             },
             Notes: new[]
             {
+                "⭐ CE-4093 (AQ108 D22) — a load of ANOTHER scenario while one is open for editing first asks the cluster to compare every node's whole world with its saved baseline (the check_unsaved round) and answers 409 \"the scenario has unsaved changes\" when it differs; save_scenario first, or send discardUnsaved:true. Reloading the scenario already open is not gated.",
                 "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
                 "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
                 "Edit state freezes sim time — nothing ticks until enter_preview or play.",
@@ -1413,15 +1421,18 @@ namespace Hrot.Editor.DebugApi
             Group:   "E — Scenario",
             Summary: "Load a scenario for RUNNING (Live state), cluster-wide, on any host.",
             Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
-            Hint:    "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
+            Hint:    "Req: name (string). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when the scenario open for editing differs from its saved state, unless discardUnsaved:true. Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
                 new("name", "string", true, "Scenario name (relative path)"),
                 new("waitForReady", "boolean", false, "Wait for the cluster to reach OperatingLive before returning",
                     DefaultJson: "false"),
+                new("discardUnsaved", "boolean", false, "Go live even though the scenario open for editing has unsaved changes (they are lost). Without it such a load answers 409.",
+                    DefaultJson: "false"),
             },
             Notes: new[]
             {
+                "⭐ CE-4093 (AQ108 D22) — while a scenario is open for EDITING the cluster first compares every node's whole world with its saved baseline (the check_unsaved round); when it differs this answers 409 \"the scenario has unsaved changes\" — save_scenario first, or send discardUnsaved:true. From Idle, a preview, a live run or a replay nothing is asked.",
                 "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
                 "Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).",
                 "Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.",
@@ -1430,12 +1441,28 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"name\":\"test-move\",\"waitForReady\":true}",
             ExampleGist: "load test-move live across the cluster and wait for ready"),
 
+        [("POST", "/scenario/check-unsaved")] = new RouteDoc(
+            Tool:    "check_unsaved",
+            Group:   "E — Scenario",
+            Summary: "Ask the cluster whether the scenario open for editing has unsaved changes (every node compares its whole world with its baseline).",
+            Returns: "ok:true envelope with changed (bool) and changedNodes (node ids whose world differs from its baseline, or that have none).",
+            Hint:    "No params. Answers 409 unless the cluster is open for editing (OperatingEdit). Example: check_unsaved({})",
+            Notes: new[]
+            {
+                "⭐ CE-4093 (AQ108 D20) — a CHECK ROUND on demand, never periodic: each node captures its whole world as a binary keyframe, hashes it and compares it with the baseline taken when the load committed or its slice was last saved; anything that changed counts (not only the scenario's parts). It can only err towards \"changed\" (an identical unit deleted and re-added), never report unchanged for a changed world. ~60 ms per node on a large scenario.",
+                "A save round that FAILED after the last load (the slice pull or the merge) makes the answer changed too — the files on disk are stale whatever the worlds say.",
+                "Only an explicit \"unchanged\" from a node means saved: a node with no baseline counts as changed (and is named in changedNodes). A host with no ECS world does not take part.",
+                "get_status.scenarioDirty reports the LAST round's verdict without running one; load_scenario_live (and load_scenario_edit of another scenario) run this round themselves and answer 409 when it says changed.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "ask whether the open scenario has unsaved changes"),
+
         [("POST", "/scenario/save")] = new RouteDoc(
             Tool:    "save_scenario",
             Group:   "E — Scenario",
             Summary: "Save the current authored world as a scenario.",
             Returns: "ok:true envelope.",
-            Hint:    "Req: name (string). Example: save_scenario({name:\"my-scenario\"})",
+            Hint:    "Req: name (string). Answers 409 in a live run and in a review / replay (AAR): that world is not the scenario — take a checkpoint, then make a scenario from it. Example: save_scenario({name:\"my-scenario\"})",
             Params: new RouteParam[]
             {
                 new("name", "string", true, "Scenario file name to save as"),
@@ -1924,7 +1951,7 @@ namespace Hrot.Editor.DebugApi
             Group:   "H — Checkpoint / diff",
             Summary: "Take a named checkpoint of the LIVE run — a keyframe of every node's live recording, through the cluster master (R-3044).",
             Returns: "{ published, requestId, label }",
-            Hint:    "Optional: label (string). Requires a live run. Example: checkpoint({label:\"before-assault\"})",
+            Hint:    "Optional: label (string). Requires a live RECORDED run (409 \"this run was not recorded\" otherwise). Example: checkpoint({label:\"before-assault\"})",
             Params: new RouteParam[] { new("label", "string", false, "The checkpoint's name (restore_checkpoint finds it by it); one is made when omitted, and returned") },
             Notes: new[]
             {
@@ -1939,7 +1966,7 @@ namespace Hrot.Editor.DebugApi
             Group:   "H — Checkpoint / diff",
             Summary: "Continue the live run from a named checkpoint, through the cluster master.",
             Returns: "{ published, requestId, label }",
-            Hint:    "Req: label (string, as checkpoint returned it). Requires a live run. Example: restore_checkpoint({label:\"before-assault\"})",
+            Hint:    "Req: label (string, as checkpoint returned it). Requires a live RECORDED run (409 \"this run was not recorded\" otherwise). Example: restore_checkpoint({label:\"before-assault\"})",
             Params: new RouteParam[] { new("label", "string", true, "The checkpoint to restore") },
             ExampleArgsJson: "{\"label\":\"before-assault\"}",
             ExampleGist: "revert all changes since the last checkpoint"),
@@ -1987,7 +2014,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "list_exercises",
             Group:   "I — Replay",
             Summary: "The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053).",
-            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds, parentExerciseId (null = began at a load), branchWallTicks (the parent's wall ticks at the branch; 0 = none)}] } newest first.",
             Hint:    "No params. Example: list_exercises({})",
             Notes: new[] { "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus." },
             ExampleArgsJson: "{}",
@@ -1998,7 +2025,7 @@ namespace Hrot.Editor.DebugApi
             Group:   "I — Replay",
             Summary: "⭐ CE-4058 — \"Keep for films\": archive an exercise — every node's recording, its meta and timeline sidecar, the scenario as it was loaded and Orchestrator.json, into {shared}/exercises/<id>/ (the cluster's Export op).",
             Returns: "{ published, requestId, exerciseId, archive } — archive is the folder the files land in.",
-            Hint:    "Optional: exerciseId (string; the newest when omitted). Example: keep_exercise({})",
+            Hint:    "Optional: exerciseId (string; the newest when omitted — 409 \"this run was not recorded\" when the last run was not recorded). Example: keep_exercise({})",
             Params: new RouteParam[]
             {
                 new("exerciseId", "string", false, "The exercise to keep (list_exercises); the newest when omitted"),
@@ -2010,6 +2037,46 @@ namespace Hrot.Editor.DebugApi
             },
             ExampleArgsJson: "{}",
             ExampleGist: "keep a recording for films"),
+
+        [("DELETE", "/exercises/{id}")] = new RouteDoc(
+            Tool:    "delete_exercise",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording: its ledger entry and its staging copies (the retention code's delete, CE-3218). A kept (archived) exercise and the run still recording are not deleted here.",
+            Returns: "{ published, requestId, exerciseId }; 404 for an id GET /exercises does not list; 400 for a malformed id.",
+            Hint:    "Req: id (path, an exerciseId from list_exercises). Example: delete_exercise({id:\"…\"})",
+            Params: new RouteParam[] { new("id", "string", true, "The exercise to discard (list_exercises)") },
+            Notes: new[]
+            {
+                "The master refuses (the request fails, nothing is deleted) while the exercise is the run still recording: stop the run first.",
+                "keep_exercise archives a recording for films; this is its opposite for a recording that should not pile up.",
+            },
+            ExampleArgsJson: "{\"id\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "discard a recording"),
+
+        [("GET", "/run-settings")] = new RouteDoc(
+            Tool:    "get_run_settings",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does). The same answer on every host.",
+            Returns: "{ recordLiveRuns }",
+            Hint:    "No params. get_status → recording says whether the run on screen is recorded. Example: get_run_settings({})",
+            Notes: new[] { "A set_run_settings is visible here once the master has broadcast it (a frame or two)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "will the next live run be recorded"),
+
+        [("POST", "/run-settings")] = new RouteDoc(
+            Tool:    "set_run_settings",
+            Group:   "I — Replay",
+            Summary: "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording.",
+            Returns: "{ published, requestId, recordLiveRuns, note }",
+            Hint:    "Req: recordLiveRuns (bool). Applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+            Params: new RouteParam[] { new("recordLiveRuns", "boolean", true, "Whether a live run starts a recording (the cluster's default is true)") },
+            Notes: new[]
+            {
+                "The scenario verifier always records, whatever this says.",
+                "A replay → live branch follows the setting like any live run.",
+            },
+            ExampleArgsJson: "{\"recordLiveRuns\":false}",
+            ExampleGist: "run live without recording"),
 
         [("POST", "/replay")] = new RouteDoc(
             Tool:    "enter_replay",
@@ -2075,11 +2142,11 @@ namespace Hrot.Editor.DebugApi
             Group:   "I — Replay",
             Summary: "⭐ CE-3329 — During Action Review: pause the LIVE run and review its own recording in place — every node keeps its exact live point (a full checkpoint in RAM, a labelled keyframe review-<n> in its recording), the past is shown on the wire, and POST /review/exit returns to exactly where it paused. Only from OperatingLive.",
             Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
-            Hint:    "Optional: atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) — else the live point; waitForReady (bool). Example: enter_review({atSimSeconds:30, waitForReady:true})",
+            Hint:    "Req: atSeconds (wall, after the replay's zero) OR atSimSeconds (the recorded sim time) — a review always has an explicit start (400 without one; ⭐ AQ108 D9: the live point is no longer implied); optional waitForReady (bool). 409 \"this run was not recorded\" for a run loaded with 'Record live runs' off. Example: enter_review({atSimSeconds:30, waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("atSeconds", "number", false, "Where the review opens, seconds after the recording's zero (default: the live point)"),
-                new("atSimSeconds", "number", false, "Or the recorded sim time to open at — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
+                new("atSeconds", "number", false, "Where the review opens, seconds after the recording's zero — this or atSimSeconds is REQUIRED (AQ108 D9)"),
+                new("atSimSeconds", "number", false, "Or the recorded sim time to open at (this or atSeconds is REQUIRED) — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReview"),
             },
             Notes: new[] { "In a review: seek with POST /replay/seek (or /review/seek), play / pause / step with /sim/*, the axis with /replay/axis; it pauses itself at the live point.",

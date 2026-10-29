@@ -2494,7 +2494,7 @@ namespace Hrot.Editor
                     //   POST /scenario/load/live (the debug service, late-bound as the verify world is), stopped through the editor's master,
                     //   its file named by the ONE recorder, and played back in this process by the product's player
                     loadLive: name => (_debugApiService ?? throw new InvalidOperationException(
-                        "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true),
+                        "a live verify run loads through the debug service — set HROT_DEBUG_API_PORT (--verify sets one)")).LoadScenarioLive(name, startPaused: true, forceRecording: true),   // ⭐ CE-4090 D14 — a verify run always records
                     master: new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus),   // ⭐ H5 — stop and review
                     state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
@@ -2605,6 +2605,11 @@ namespace Hrot.Editor
                         exercises:         () => _orchestratorCore?.UiCache.AvailableExercises,
                         replayDuration:    () => _orchestratorCore?.UiCache.ReplayDuration,
                         replayAxis:        () => _orchestratorCore?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
+                        runNotRecorded:    () => _orchestratorCore?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
+                        recordLiveRunsOff: () => _orchestratorCore?.UiCache.RecordLiveRunsOff,
+                        // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer and last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS it.
+                        unsavedCheck:      id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id),
+                        scenarioDirty:     () => _orchestratorCore?.UiCache.LastUnsavedCheck?.Changed,
                         // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
                         // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
                         //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records

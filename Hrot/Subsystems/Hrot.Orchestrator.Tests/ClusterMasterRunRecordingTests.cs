@@ -1,0 +1,287 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Fdp.Core;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Time.Domain;
+using Hrot.NED.Descriptors.Orchestration;
+using ClusterState   = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType  = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using FdpNodeOpType  = Fdp.Toolkit.Orchestration.NodeOpType;
+using Xunit;
+
+namespace Hrot.Orchestrator.Tests;
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-4090</c> (AQ108 D14, D15, §5a) — <b>LIVE DOES NOT IMPLY RECORDING</b>, at the MASTER: the cluster-wide <i>Record live runs</i> setting
+/// (default ON) is held by the master, put on the live load's payload for every node and on every cluster-state broadcast, and every gate that
+/// needs a recording (checkpoint, restore, DAR, export, replay of the last run) REFUSES at the master with <c>"this run was not recorded"</c> —
+/// ⛔ never a throw deep in a node. The review / ledger / save gates live in their own feature suites (<c>ClusterMasterReviewTests</c>,
+/// <c>AssetInventoryProcessManagerTests</c>); the branch in <c>ClusterMasterBranchTests</c>.
+/// 📄 docs/blueprints/Architect_Question_108_Run_Mode_Picker.md §4 D14, §5a.
+/// </summary>
+[Collection("OrchestratorTests")]
+public sealed class ClusterMasterRunRecordingTests
+{
+    private const int NodeId = 42;
+
+    /// <summary>One node, Idle; then a live load whose request is <paramref name="livePayloadJson"/>, every prepare ACKed until live. Returns what
+    /// the load put on the wire (the PrepareLive / OperatingLive payloads) and the last cluster-state broadcast.</summary>
+    private sealed record LiveRun(ClusterMaster Master, FdpEventBus Bus, List<ExecuteNodeOpIntent> Prepares, ClusterStateUpdateEvent? LastState);
+
+    private static LiveRun GoLive(bool? recordLiveRuns = null, string livePayloadJson = "{\"TargetState\":\"OperatingLive\"}", Guid? exercise = null)
+    {
+        var bus = new FdpEventBus();
+        var master = new ClusterMaster(bus);
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = NodeId, LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc = DateTimeOffset.UtcNow.Ticks, SubsystemName = "SimHost",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        if (recordLiveRuns is { } record) SetSetting(master, bus, record);
+
+        if (exercise is { } named)
+            livePayloadJson = livePayloadJson.TrimEnd('}') + $",\"ExerciseId\":\"{named}\"}}";
+        return Load(master, bus, livePayloadJson);
+    }
+
+    private static void SetSetting(ClusterMaster master, FdpEventBus bus, bool record)
+    {
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+    }
+
+    private static LiveRun Load(ClusterMaster master, FdpEventBus bus, string payloadJson)
+    {
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState, PayloadJson = payloadJson,
+        });
+        var prepares = new List<ExecuteNodeOpIntent>();
+        ClusterStateUpdateEvent? last = null;
+        for (int round = 0; round < 12; round++)
+        {
+            bus.SwapBuffers();
+            foreach (var ev in bus.ReadManaged<ClusterStateUpdateEvent>()) last = ev;
+            foreach (var intent in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.TargetNodeId == NodeId && i.Operation != FdpNodeOpType.CommitState))
+            {
+                prepares.Add(intent);
+                bus.PublishManaged(new NodeOpCompletedEvent
+                {
+                    TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = NodeId,
+                    StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
+                });
+            }
+            bus.SwapBuffers();
+            master.Tick();
+            if (master.CurrentClusterState == ClusterState.OperatingLive && round > 2) break;
+        }
+        bus.SwapBuffers();
+        foreach (var ev in bus.ReadManaged<ClusterStateUpdateEvent>()) last = ev;
+        return new LiveRun(master, bus, prepares, last);
+    }
+
+    private static EditLoadHandlerPayload Payload(ExecuteNodeOpIntent i) => Assert.IsType<EditLoadHandlerPayload>(i.DomainPayload);
+
+    /// <summary>Sends one ClusterOpRequest and returns the status the master answers it (plus every node op it fanned out).</summary>
+    private static (ClusterOpCompletedEvent? Status, List<ExecuteNodeOpIntent> Ops) Ask(LiveRun run, ClusterOpType op, string payload = "")
+    {
+        var id = Guid.NewGuid();
+        run.Master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = id, OperationType = op, PayloadJson = payload });
+        run.Bus.SwapBuffers(); run.Master.Tick(); run.Bus.SwapBuffers();
+        var status = run.Bus.ReadManaged<ClusterOpCompletedEvent>().Where(e => e.RequestId == id).Cast<ClusterOpCompletedEvent?>().FirstOrDefault();
+        return (status, run.Bus.ReadManaged<ExecuteNodeOpIntent>().ToList());
+    }
+
+    private static void AssertRefusedForNoRecording((ClusterOpCompletedEvent? Status, List<ExecuteNodeOpIntent> Ops) answer)
+    {
+        Assert.NotNull(answer.Status);
+        Assert.Equal(OrchestrationStatusCode.Rejected, answer.Status!.Value.StatusCode);
+        Assert.Equal(RunRecordingGates.NotRecordedReason, answer.Status.Value.ResultPayload);   // the one reason, at the top
+        Assert.Empty(answer.Ops);                                                                // ⛔ nothing reached a node — no throw to be had there
+    }
+
+    // ── 1 · 6 — the setting, and how it reaches every node ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ D14 — the default is ON: the live load's payload says record and nothing is announced as unrecorded (today's behaviour, byte for byte).
+    /// Turning the setting OFF (the intent every host sends) changes the NEXT live load: EVERY live step's payload carries <c>RecordingOff</c>, and the
+    /// master announces <c>RunNotRecorded</c> on the cluster-state broadcast every host reads. Turning it back ON makes the next live load record again.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void The_setting_defaults_on_and_off_rides_the_live_payload_and_the_broadcast_to_every_node()
+    {
+        var run = GoLive();   // the default setting
+        Assert.True(run.Master.RecordLiveRuns);
+        Assert.False(run.Master.RunNotRecorded);
+        Assert.All(run.Prepares.Where(p => p.DomainPayload is EditLoadHandlerPayload), p => Assert.False(Payload(p).RecordingOff));
+        Assert.False(run.LastState!.Value.RunNotRecorded);
+
+        var off = GoLive(recordLiveRuns: false);
+        Assert.False(off.Master.RecordLiveRuns);
+        Assert.True(off.Master.RunNotRecorded);
+        var live = off.Prepares.Where(p => p.Operation == FdpNodeOpType.PrepareLive).ToList();
+        Assert.NotEmpty(live);
+        Assert.All(live, p => Assert.True(Payload(p).RecordingOff, "PrepareLive must tell the node not to record"));
+        Assert.All(off.Prepares.Where(p => p.DomainPayload is EditLoadHandlerPayload { TargetState: Fdp.Toolkit.Orchestration.ClusterState.OperatingLive }),
+                   p => Assert.True(Payload(p).RecordingOff, "the OperatingLive step (where the recorder would start) too"));
+        Assert.NotEqual(Guid.Empty, Payload(live[0]).ExerciseId);                      // the id still exists — only the recording does not
+        Assert.True(off.LastState!.Value.RunNotRecorded, "every host's cluster-state broadcast says it");
+
+        // ON again: from Live back through Idle to a new live load
+        SetSetting(off.Master, off.Bus, true);
+        Assert.True(off.Master.RecordLiveRuns);
+        Assert.True(off.Master.RunNotRecorded, "the run on screen keeps its mode — a setting applies from the NEXT live load");
+        off.Master.Dispose(); run.Master.Dispose();
+    }
+
+    /// <summary>⭐ D14 — a host that is not the master's process sends the setting as a ClusterOp (wire value 24): the master takes it the same way,
+    /// and an unreadable payload keeps the default (recording ON).</summary>
+    [Fact(Timeout = 10_000)]
+    public void The_setting_arrives_as_a_cluster_op_too_and_an_unreadable_one_keeps_recording_on()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus);
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetRunSettings, PayloadJson = "{\"RecordLiveRuns\":false}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.False(master.RecordLiveRuns);
+
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetRunSettings, PayloadJson = "not json" });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.True(master.RecordLiveRuns);
+    }
+
+    /// <summary>⭐ CE-4090 — every host reads the SETTING off the cluster-state broadcast: ON by default (nothing inverted announced), and a
+    /// <c>SetRunSettings</c> makes the master republish the state at once, both ways.</summary>
+    [Fact(Timeout = 10_000)]
+    public void The_setting_itself_rides_the_cluster_state_broadcast_and_is_republished_when_it_changes()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus);
+        ClusterStateUpdateEvent? Last()
+        {
+            ClusterStateUpdateEvent? last = null;
+            foreach (var e in bus.ReadManaged<ClusterStateUpdateEvent>()) last = e;
+            return last;
+        }
+        SetSetting(master, bus, true);
+        Assert.False(Last()!.Value.RecordLiveRunsOff);
+        SetSetting(master, bus, false);
+        Assert.True(Last()!.Value.RecordLiveRunsOff);          // told at once, no load needed
+        SetSetting(master, bus, true);
+        Assert.False(Last()!.Value.RecordLiveRunsOff);
+    }
+
+    // ── 4 — the verifier ──────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ §5a — the scenario verifier compares a RECORDING against a golden: its live load (<c>ForceRecording</c>) records even with the
+    /// setting OFF; the same load without the force does not.</summary>
+    [Fact(Timeout = 10_000)]
+    public void A_verify_run_forces_recording_on_even_when_the_setting_is_off()
+    {
+        var forced = GoLive(recordLiveRuns: false, livePayloadJson: "{\"TargetState\":\"OperatingLive\",\"ForceRecording\":true}");
+        Assert.False(forced.Master.RunNotRecorded);
+        Assert.All(forced.Prepares.Where(p => p.DomainPayload is EditLoadHandlerPayload), p => Assert.False(Payload(p).RecordingOff));
+        Assert.False(forced.LastState!.Value.RunNotRecorded);
+        forced.Master.Dispose();
+
+        var plain = GoLive(recordLiveRuns: false);   // the control: no force ⇒ the setting wins
+        Assert.True(plain.Master.RunNotRecorded);
+        plain.Master.Dispose();
+    }
+
+    // ── 2 — the gates, one per consumer ───────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ §5a — checkpoint: with the run not recorded the master refuses (no TakeSnapshot reaches any node); with it recorded the same
+    /// request fans out as before (the control — "ON behaves exactly as today").</summary>
+    [Fact(Timeout = 10_000)]
+    public void A_checkpoint_of_a_run_that_was_not_recorded_is_refused_at_the_master_and_a_recorded_one_is_not()
+    {
+        var off = GoLive(recordLiveRuns: false);
+        AssertRefusedForNoRecording(Ask(off, ClusterOpType.TakeCheckpoint, "{\"label\":\"cp\"}"));
+        off.Master.Dispose();
+
+        var on = GoLive();
+        var answer = Ask(on, ClusterOpType.TakeCheckpoint, "{\"label\":\"cp\"}");
+        Assert.Contains(answer.Ops, i => i.Operation == FdpNodeOpType.TakeSnapshot);
+        on.Master.Dispose();
+    }
+
+    /// <summary>⭐ §5a — restore: refused at the master, and — the point of the gate — the live clock is NOT paused first (no PauseTime, no
+    /// PrepareRestore on any node); a recorded run restores as before.</summary>
+    [Fact(Timeout = 10_000)]
+    public void A_restore_of_a_run_that_was_not_recorded_is_refused_before_anything_pauses_and_a_recorded_one_is_not()
+    {
+        var off = GoLive(recordLiveRuns: false);
+        var answer = Ask(off, ClusterOpType.RestoreCheckpoint, "{\"label\":\"cp\"}");
+        AssertRefusedForNoRecording(answer);
+        Assert.DoesNotContain(off.Bus.ReadManaged<PauseTimeIntent>(), _ => true);   // ⛔ the old order paused first
+        off.Master.Dispose();
+
+        var on = GoLive();
+        Assert.Contains(Ask(on, ClusterOpType.RestoreCheckpoint, "{\"label\":\"cp\"}").Ops, i => i.Operation == FdpNodeOpType.PrepareRestore);
+        on.Master.Dispose();
+    }
+
+    /// <summary>⭐ §5a — keep / export: archiving the run that was not recorded is refused; another exercise's export is not touched by the gate.</summary>
+    [Fact(Timeout = 10_000)]
+    public void Exporting_the_run_that_was_not_recorded_is_refused_but_an_older_exercise_is_not()
+    {
+        var off = GoLive(recordLiveRuns: false);
+        var activeId = off.Master.ActiveExerciseId;
+        Assert.NotEqual(Guid.Empty, activeId);
+        AssertRefusedForNoRecording(Ask(off, ClusterOpType.ExportArchive, $"{{\"ExerciseId\":\"{activeId}\"}}"));
+
+        var older = Ask(off, ClusterOpType.ExportArchive, $"{{\"ExerciseId\":\"{Guid.NewGuid()}\"}}");
+        Assert.NotEqual(RunRecordingGates.NotRecordedReason, older.Status?.ResultPayload);   // not this gate's business
+        off.Master.Dispose();
+    }
+
+    /// <summary>⭐ §5a — "replay the last run" (no exercise named) after a run that was not recorded is refused — ⛔ never silently the newest OLDER
+    /// exercise; naming an exercise still replays it.</summary>
+    [Fact(Timeout = 10_000)]
+    public void A_replay_of_the_last_run_is_refused_when_it_was_not_recorded_but_a_named_exercise_is_not()
+    {
+        var off = GoLive(recordLiveRuns: false);
+        off.Master.NewestExercise = () => Guid.NewGuid();   // an OLDER recorded exercise exists
+        var refused = Ask(off, ClusterOpType.TransitionState, "{\"TargetState\":\"OperatingReplay\"}");
+        AssertRefusedForNoRecording(refused);
+
+        var named = Ask(off, ClusterOpType.TransitionState, $"{{\"TargetState\":\"OperatingReplay\",\"ExerciseId\":\"{Guid.NewGuid()}\"}}");
+        Assert.NotEqual(OrchestrationStatusCode.Rejected, named.Status?.StatusCode ?? OrchestrationStatusCode.Success);
+        off.Master.Dispose();
+    }
+
+    // ── 5 — discard a recording (D15) ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ D15 — <c>DELETE /exercises/{id}</c> at the master: the host's deleter (the inventory's) is asked once for an id it may discard;
+    /// an unknown id is refused; the exercise still recording is refused WITHOUT asking.</summary>
+    [Fact(Timeout = 10_000)]
+    public void Discarding_a_recording_asks_the_inventory_refuses_unknown_ids_and_never_the_run_still_recording()
+    {
+        var run = GoLive();                                   // recorded, live: its exercise is still recording
+        var asked = new List<Guid>();
+        var known = Guid.NewGuid();
+        run.Master.ExerciseDeleter = id => { asked.Add(id); return id == known; };
+
+        AssertRejected(Ask(run, ClusterOpType.DeleteExercise, $"{{\"ExerciseId\":\"{run.Master.ActiveExerciseId}\"}}"), "still recording");
+        Assert.Empty(asked);
+
+        Assert.Equal(OrchestrationStatusCode.Success, Ask(run, ClusterOpType.DeleteExercise, $"{{\"ExerciseId\":\"{known}\"}}").Status!.Value.StatusCode);
+        AssertRejected(Ask(run, ClusterOpType.DeleteExercise, $"{{\"ExerciseId\":\"{Guid.NewGuid()}\"}}"), "no such");
+        AssertRejected(Ask(run, ClusterOpType.DeleteExercise, "{}"), "required");
+        Assert.Single(asked.Where(a => a == known));
+        run.Master.Dispose();
+
+        static void AssertRejected((ClusterOpCompletedEvent? Status, List<ExecuteNodeOpIntent> Ops) a, string why)
+        {
+            Assert.Equal(OrchestrationStatusCode.Rejected, a.Status!.Value.StatusCode);
+            Assert.Contains(why, (string)a.Status.Value.ResultPayload!);
+        }
+    }
+}

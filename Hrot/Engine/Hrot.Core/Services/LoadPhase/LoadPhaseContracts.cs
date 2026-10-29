@@ -61,14 +61,15 @@ public readonly record struct LoadPhaseContext(
     bool IsNewScenario,
     bool IsWorldBoundary = false,
     bool IsCatchUp = false,
-    double CheckpointingSeconds = 0)   // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (0 = FULL)
+    double CheckpointingSeconds = 0,   // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (0 = FULL)
+    bool RecordingOff = false)         // ⭐ CE-4090 (AQ108 D14) — this live run must not be recorded ("Record live runs" was off at its load)
 {
     /// <summary>⭐ Builds the context from a node-op intent, or <c>null</c> when it carries no load payload.</summary>
     public static LoadPhaseContext? From(ExecuteNodeOpIntent intent)
         => intent.DomainPayload is EditLoadHandlerPayload p
             ? new LoadPhaseContext(
                 intent.TransactionId, p.TargetState, p.ScenarioId,
-                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp, p.CheckpointingSeconds)
+                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp, p.CheckpointingSeconds, p.RecordingOff)
             : null;
 
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>

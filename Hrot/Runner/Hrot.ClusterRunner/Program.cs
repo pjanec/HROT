@@ -452,7 +452,9 @@ class Program
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its
                 //    subsystem's world and time adapter. 📄 ClusterDebugApiComposition.
                 var dispatcher = ClusterDebugApiComposition.Dispatcher(
-                    subsystems, () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty);
+                    subsystems, () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty,
+                    // ⭐⭐ CE-4094 — the alias source for `Start` (AQ108 M7): the ONE remembered perspective lives on the WindowManager.
+                    rememberedPerspective: () => windowCtrl?.WindowManager?.RememberedPerspective);
 
                 // ② construct + attach + start.
                 clusterApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();

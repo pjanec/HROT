@@ -2,7 +2,18 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration
 {
-    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId);
+    /// <summary>
+    /// One exercise of the cluster's inventory (what can be replayed / kept / exported).
+    /// </summary>
+    /// <param name="ParentExerciseId">⭐ CE-4097 (AQ108 D5) — the exercise this one BRANCHED from (a replay going live); <c>Guid.Empty</c> for a run
+    /// that began at a load. ⛔ Not a second record of the branch: it is the recording's own <c>RecordingMetadata.ParentExerciseId</c>
+    /// (<see cref="ExerciseBranch"/> reads it), and the live run's is what the nodes report from the very <c>RecordingBranch</c> they write it from.
+    /// Default = not a branch, so an old peer's inventory reads as one.</param>
+    /// <param name="BranchWallTicks">⭐ The branch point in the metadata's own unit: the parent's WALL time at the frame the branch left it
+    /// (<c>RecordingMetadata.BranchWallTicks</c>; 0 when not a branch). A host converts it to the replay axis as
+    /// <c>atSeconds = (BranchWallTicks − zero) / 1e7</c> with the replay's zero (<c>ReplayPosition</c>) — no sim-seconds twin.</param>
+    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId,
+                                               Guid ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes
@@ -123,6 +134,11 @@ namespace Fdp.Toolkit.Orchestration
         public int TransactionEpoch;
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis (rides every cluster-state publication).</summary>
         public ReplayAxis ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF. Inverse polarity: default false = recorded
+        /// (today's behaviour), so a publisher that does not set it changes nothing. Rides every cluster-state publication.</summary>
+        public bool RunNotRecorded;
+        /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load will do). Inverse polarity: default false = ON.</summary>
+        public bool RecordLiveRunsOff;
     }
 
     /// <summary>
@@ -193,6 +209,10 @@ namespace Fdp.Toolkit.Orchestration
         public bool MasterGone;
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master last said.</summary>
         public ReplayAxis ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — as <see cref="ClusterStateTransitionedEvent.RunNotRecorded"/>.</summary>
+        public bool RunNotRecorded;
+        /// <summary>⭐ CE-4090 — as <see cref="ClusterStateTransitionedEvent.RecordLiveRunsOff"/>.</summary>
+        public bool RecordLiveRunsOff;
     }
 
     /// <summary>

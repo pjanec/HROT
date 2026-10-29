@@ -164,7 +164,8 @@ public sealed partial class ClusterMaster
                 //   learns the master's session (its gate is not closed yet); a boundary clear here destroyed that entity and DDS
                 //   never re-delivers a taken sample — the joiner lost entity 1000. A joiner already in Idle holds only the CURRENT
                 //   world; a node with a stale one is wiped by the Idle step above (F2, R-4019).
-                IsWorldBoundary: false, IsCatchUp: true, CheckpointingSeconds: _currentCheckpointingSeconds), targets);
+                IsWorldBoundary: false, IsCatchUp: true, CheckpointingSeconds: _currentCheckpointingSeconds,
+                RecordingOff: _runNotRecorded && live), targets);
         FanOutNodeOp(NodeOpType.CommitState, c.TransactionId, new CommitStatePayload(loading), targets);
 
         FanOutNodeOp(NodeOpType.PrepareState, c.TransactionId,

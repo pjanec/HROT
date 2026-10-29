@@ -75,6 +75,39 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Contains("TargetState", received[0].PayloadJson);
     }
 
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "do not record" decision is ON THE WIRE: a PrepareLive whose payload says <c>RecordingOff</c>
+    /// reaches the node's reader as <c>"RecordingOff":true</c> (the slave's decoding is rail-tested in <c>NodeOpSlaveTranslatorTests</c>).</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4090_PrepareLive_WithRecordingOff_PutsItOnTheWire()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        using var statusReader    = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter2     = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(new Dictionary<int, DdsWriter<NodeOpCommand>> { [2] = nodeWriter2 }, statusReader, bus);
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TargetNodeId = 2, TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scene1", false, (FdpClusterState)(int)NedClusterState.LoadingLive, RecordingOff: true),
+        });
+        bus.SwapBuffers();
+        Thread.Sleep(300);
+        translator.Tick();
+
+        var received = new List<NodeOpCommand>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (DateTime.UtcNow < deadline && received.Count == 0)
+        {
+            using var scope = nodeOpCmdReader.Take();
+            foreach (var s in scope) if (s.IsValid) received.Add(s.Data);
+            if (received.Count == 0) Thread.Sleep(30);
+        }
+
+        Assert.Contains("\"RecordingOff\":true", Assert.Single(received).PayloadJson);
+    }
+
     // ── Test 2: Egress — null DomainPayload → empty PayloadJson ──────────────
 
     [Fact(Timeout = 10_000)]
@@ -246,6 +279,35 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Single(entries);
         Assert.Equal("\\\\NODE01\\c$\\file.fdp", entries[0].SourceUnc);
         Assert.Equal("exercises/file.fdp", entries[0].RelativeDest);
+    }
+
+    /// <summary>⭐ <c>CE-4093</c> — a node's CheckUnsaved answer crosses the wire as a JSON string and reaches the master as the plain word.
+    /// 🔴 Mutation: no <c>CheckUnsaved</c> case in <c>DeserializeResultPayload</c> ⇒ the payload is null (the master reads a silent node).</summary>
+    [Fact(Timeout = 10_000)]
+    public void NodeOpStatus_CheckUnsaved_ReturnsTheAnswerWord()
+    {
+        using var participant  = new DdsParticipant(TestDomain);
+        using var statusWriter = new DdsWriter<NodeOpStatus>(participant);
+        using var statusReader = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter   = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(_ => nodeWriter, statusReader, bus);
+
+        statusWriter.Write(new NodeOpStatus
+        {
+            TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.CheckUnsaved, NodeId = 5,
+            StatusCode = 0, IsParticipating = true, ResultJson = "\"changed\"",
+        });
+
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+
+        var events = bus.ReadManaged<NodeOpCompletedEvent>();
+        Assert.Single(events);
+        Assert.Equal(FdpNodeOpType.CheckUnsaved, events[0].Operation);
+        Assert.Equal("changed", events[0].ResultPayload);
     }
 
     // ── Test 6: Ingress — non-SerializeLocal with ResultJson → null ResultPayload

@@ -741,7 +741,8 @@ public sealed class StorageGatewayModule
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             var startTime = Directory.GetCreationTimeUtc(d);
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null));
+            var (parent, branchTicks) = ExerciseBranch.Of(ReadSidecars(d));   // ⭐ CE-4097 — the recording's own sidecar
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null, parent, branchTicks));
         }
         return result;
     }
@@ -788,31 +789,44 @@ public sealed class StorageGatewayModule
                 }
             }
 
-            // Case-insensitive match: *.meta.json files may have drifted extension casing
-            // when authored on Windows; PlatformDefault would silently miss them on Linux.
-            var metaFiles = Directory.GetFiles(d, "*.meta.json",
-                new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive });
-            foreach (var metaPath in metaFiles)
+            // ⭐ CE-4097 (AQ108 D5) — every node's sidecar: the duration of the first that has one (as before), and the branch's parent
+            //   and point through ExerciseBranch — the recording's metadata is the ONE source, the inventory keeps no second record.
+            var metas = ReadSidecars(d);
+            foreach (var meta in metas)
             {
-                try
+                if (meta.Duration > TimeSpan.Zero)
                 {
-                    var metaJson = File.ReadAllText(metaPath);
-                    var meta = JsonSerializer.Deserialize<RecordingMetadata>(metaJson,
-                        Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                    if (meta != null && meta.Duration > TimeSpan.Zero)
-                    {
-                        duration = meta.Duration;
-                        break;
-                    }
-                }
-                catch
-                {
+                    duration = meta.Duration;
+                    break;
                 }
             }
+            var (parent, branchTicks) = ExerciseBranch.Of(metas);
 
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId));
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId, parent, branchTicks));
         }
         return result;
+    }
+
+    /// <summary>The recording sidecars (<c>*.meta.json</c>) in an exercise directory, in name order; an unreadable one is skipped.</summary>
+    private static List<RecordingMetadata> ReadSidecars(string exerciseDir)
+    {
+        var list = new List<RecordingMetadata>();
+        // Case-insensitive match: *.meta.json files may have drifted extension casing
+        // when authored on Windows; PlatformDefault would silently miss them on Linux.
+        foreach (var metaPath in Directory.GetFiles(exerciseDir, "*.meta.json",
+                     new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive }).OrderBy(f => f, StringComparer.Ordinal))
+        {
+            try
+            {
+                var meta = JsonSerializer.Deserialize<RecordingMetadata>(File.ReadAllText(metaPath),
+                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                if (meta != null) list.Add(meta);
+            }
+            catch
+            {
+            }
+        }
+        return list;
     }
 
     // CE-278: WriteScenarioManifestAsync (scenario_manifest.json) retired — it was written only by the
@@ -845,24 +859,41 @@ public sealed class StorageGatewayModule
     }
 
     /// <summary>
-    /// ⭐ CE-3119 — copies a scenario's files (the flat files of its directory, the same set
-    /// <see cref="PrefetchScenarioAsync"/> stages) from <paramref name="sourceDirectory"/> into
+    /// ⭐ CE-3119 — copies a scenario's WHOLE folder from <paramref name="sourceDirectory"/> into
     /// <paramref name="destinationDirectory"/>, creating it. Used to snapshot the scenario an exercise runs and to
     /// file that copy with the exercise's recordings (<c>docs/designs/mgmt-1/DESIGN.md</c> §13.3a).
+    /// <para>⭐ <c>CE-4091</c> (AQ108 D7, M2) — the subfolders too: <c>foreign/</c> (the slices of nodes whose format does not merge),
+    /// <c>takes/</c> (the director's) and any nested file. ⛔ Not the working folders a save and an autosave keep (<c>.slices</c>,
+    /// <c>.autosave</c> — a directory whose name starts with a dot): scratch, not part of the scenario. (The prefetch to the nodes still takes the
+    /// top-level files and <c>foreign/node_*.json</c> only — that is what a node loads, and is unchanged.)</para>
     /// </summary>
-    /// <returns>The number of files copied; <c>0</c> when the source does not exist or is empty.</returns>
-    public static int CopyScenarioFiles(string sourceDirectory, string destinationDirectory)
+    /// <param name="exceptFileName">A top-level file name to leave out (the recording's stamp, when the copy is opened as a new scenario).</param>
+    /// <returns>The number of files copied; <c>0</c> when the source does not exist or holds none.</returns>
+    public static int CopyScenarioFiles(string sourceDirectory, string destinationDirectory, string? exceptFileName = null)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) return 0;
         if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentNullException(nameof(destinationDirectory));
 
-        var files = Directory.GetFiles(sourceDirectory);
-        if (files.Length == 0) return 0;
+        return CopyFolder(sourceDirectory, destinationDirectory, exceptFileName);
+    }
 
-        Directory.CreateDirectory(destinationDirectory);
-        foreach (var file in files)
-            File.Copy(file, Path.Combine(destinationDirectory, Path.GetFileName(file)), overwrite: true);
-        return files.Length;
+    private static int CopyFolder(string source, string destination, string? exceptFileName)
+    {
+        int copied = 0;
+        foreach (var file in Directory.GetFiles(source))
+        {
+            if (exceptFileName != null && string.Equals(Path.GetFileName(file), exceptFileName, StringComparison.OrdinalIgnoreCase)) continue;
+            Directory.CreateDirectory(destination);
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+            copied++;
+        }
+        foreach (var dir in Directory.GetDirectories(source))
+        {
+            var name = Path.GetFileName(dir);
+            if (name.StartsWith('.')) continue;   // .slices / .autosave: working folders
+            copied += CopyFolder(dir, Path.Combine(destination, name), null);
+        }
+        return copied;
     }
 
     /// <summary>
