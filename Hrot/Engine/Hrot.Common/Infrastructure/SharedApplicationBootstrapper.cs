@@ -113,6 +113,11 @@ public abstract class SharedApplicationBootstrapper
         plan.Step("context", provides: new[] { "context" }, run: () =>
         {
             context = BuildContext(config, role, networkFactory);
+            // ⭐ CE-1446 B0 — a subclass that declares a TimeRole must have BUILT the node with it (BuildReplicatedNode's timeRole argument): a declared
+            //   role the clock never got is exactly the silent time-authority split §3.1 warns about.
+            if (context.TimeRole != TimeRole)
+                throw new InvalidOperationException(
+                    $"[{GetType().Name}] declares TimeRole {TimeRole} but BuildContext built the node with {context.TimeRole}. Pass TimeRole to BuildReplicatedNode / HrotNodeBuilder.WithTimeRole.");
         });
 
         plan.Step("configured-factory", requires: new[] { "context" }, provides: new[] { "configured-factory" }, run: () =>
@@ -241,6 +246,11 @@ public abstract class SharedApplicationBootstrapper
 
             var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);
             simGroup       = new TogglableSimulationGroup($"{config.SubsystemName}Sim", simSystems);
+            // ⭐ CE-1446 B0 — a host that builds no post-simulation group (CGF) refuses a capability that would put systems in it, rather than drop them silently.
+            if (!BuildsPostSimGroup && postSimSystems.Count > 0)
+                throw new InvalidOperationException(
+                    $"[{config.SubsystemName}] a capability contributed {postSimSystems.Count} post-simulation system(s), but this host builds no post-simulation group " +
+                    "(BuildsPostSimGroup is false). Override BuildsPostSimGroup to true before a capability declares one — do not let the systems be dropped.");
             postSimGroup   = new TogglablePostSimulationGroup($"{config.SubsystemName}PostSim", postSimSystems);
 
             // TogglableInputGroup and TogglablePostSimulationGroup use [UpdateInPhase] attributes
@@ -249,7 +259,9 @@ public abstract class SharedApplicationBootstrapper
             // TogglableSimulationGroup targets SystemPhase.Simulation, which RegisterGlobalSystem
             // rejects. Wrap it in a private IEcsModule and register via RegisterModule instead.
             context.Kernel.RegisterModule(new SimulationGroupModule(simGroup));
-            context.Kernel.RegisterGlobalSystem(postSimGroup);
+            // ⚠ When BuildsPostSimGroup is false the (empty) group is handed to BuildOrchestration as a placeholder and NEVER registered: nothing runs in it.
+            if (BuildsPostSimGroup)
+                context.Kernel.RegisterGlobalSystem(postSimGroup);
         });
 
         // Phase 4b — Additional modules whose internal phase structure must not be flattened.
@@ -531,6 +543,13 @@ public abstract class SharedApplicationBootstrapper
         INetworkFactory? configuredFactory);
 
     // ── Virtual hooks (subclasses may override) ──────────────────────────────
+
+    /// <summary>⭐ CE-1446 B0 — the node's TIME role (default <see cref="TimeRole.Slave"/>: the Orchestrator owns the cluster clock). A subclass that owns its clock (the editor: Standalone)
+    /// overrides it AND passes it to <c>BuildReplicatedNode(…, timeRole)</c>; the base verifies the built context carries it.</summary>
+    protected virtual Fdp.Toolkit.Time.Controllers.TimeRole TimeRole => Fdp.Toolkit.Time.Controllers.TimeRole.Slave;
+
+    /// <summary>⭐ CE-1446 B0 — whether phase 4a builds and registers the post-simulation group (default true). False (CGF): no group is registered and a capability that contributes post-sim systems throws.</summary>
+    protected virtual bool BuildsPostSimGroup => true;
 
     /// <summary>
     /// Phase 4b: Supply additional <see cref="IEcsModule"/> instances whose

@@ -101,10 +101,19 @@ public sealed class SharedApplicationBootstrapperTests
             CallLog.Add(nameof(BuildContext));
             return new HrotNodeBuilder(config)
                 .WithRole(config.SubsystemName, role)
+                .WithTimeRole(IgnoreTimeRoleWhenBuilding ? Fdp.Toolkit.Time.Controllers.TimeRole.Slave : TimeRole)   // ⭐ CE-1446 B0 — what a subclass does via BuildReplicatedNode(…, timeRole)
                 .WithNetworkFactory(networkFactory)
                 .WithReplication(role)
                 .Build();
         }
+
+        // ⭐ CE-1446 B0 — the two new base inputs, settable per test.
+        public Fdp.Toolkit.Time.Controllers.TimeRole DeclaredTimeRole { get; init; } = Fdp.Toolkit.Time.Controllers.TimeRole.Slave;
+        public bool DeclaredBuildsPostSimGroup { get; init; } = true;
+        /// <summary>Models a subclass that declares a TimeRole but forgets to build the node with it.</summary>
+        public bool IgnoreTimeRoleWhenBuilding { get; init; }
+        protected override Fdp.Toolkit.Time.Controllers.TimeRole TimeRole => DeclaredTimeRole;
+        protected override bool BuildsPostSimGroup => DeclaredBuildsPostSimGroup;
 
         protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
         {
@@ -171,6 +180,79 @@ public sealed class SharedApplicationBootstrapperTests
         { Calls.Add(nameof(PopulateSystems)); s.Add(System); }
         public IEnumerable<IEcsModule> ProvideModules() { Calls.Add(nameof(ProvideModules)); return Array.Empty<IEcsModule>(); }
         public void Register(HrotNodeContext c, NodeBootValues v) => Calls.Add(nameof(Register));
+    }
+
+    /// <summary>⭐ CE-1446 B0 — a capability that contributes a POST-simulation system.</summary>
+    private sealed class PostSimCapability : INodeCapability
+    {
+        public string Key => "cap:test-post-sim";
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+        public void PopulateSystems(HrotNodeContext c, List<IEcsModuleSystem> i, List<IEcsModuleSystem> s, List<IEcsModuleSystem> p) => p.Add(new TestSimSystem());
+    }
+
+    /// <summary>⭐ CE-1446 B0 — a declared TimeRole reaches the node's context and its clock (the editor's Standalone is a master-type controller); the default stays Slave — through the ONE build path
+    /// every subclass uses, <c>BuildReplicatedNode(…, timeRole)</c>. 🔴 Red-proof: <c>BuildReplicatedNode</c> dropping its <c>.WithTimeRole(timeRole)</c> ⇒ the Standalone row reads Slave.</summary>
+    [Fact]
+    public void CE1446_ADeclaredTimeRole_ReachesTheContext_AndTheDefaultIsSlave()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var standalone = new TestBootstrapper(factory) { DeclaredTimeRole = Fdp.Toolkit.Time.Controllers.TimeRole.Standalone }
+            .BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        var def = new TestBootstrapper(factory).BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, standalone.TimeRole);
+        Assert.IsType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(standalone.TimeController);
+        Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Slave, def.TimeRole);
+        Assert.IsNotType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(def.TimeController);
+
+        var viaTheSharedBuilder = HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(
+            HeadlessConfig(), NodeRole.None, factory, null, Fdp.Toolkit.Time.Controllers.TimeRole.Standalone);
+        Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, viaTheSharedBuilder.TimeRole);
+        Assert.IsType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(viaTheSharedBuilder.TimeController);
+    }
+
+    /// <summary>⭐ CE-1446 B0 — a subclass that declares a TimeRole but built the node with another fails AT BOOT, naming it (no silent time-authority split).</summary>
+    [Fact]
+    public void CE1446_ATimeRoleTheNodeWasNotBuiltWith_FailsAtBoot()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var sut = new TestBootstrapper(factory) { DeclaredTimeRole = Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, IgnoreTimeRoleWhenBuilding = true };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+        Assert.Contains("declares TimeRole", ex.ToString());
+    }
+
+    private static bool KernelHasPostSimGroup(HrotNodeContext c) => c.Kernel.SystemScheduler.GetAllSystems().Any(x => x is TogglablePostSimulationGroup);
+
+    /// <summary>⭐ CE-1446 B0 — BuildsPostSimGroup=false registers NO post-simulation group (the orchestration still receives a placeholder, never registered); true (default) registers one.
+    /// 🔴 Red-proof: the `if (BuildsPostSimGroup)` guard around the group's registration removed ⇒ the false case finds one.</summary>
+    [Fact]
+    public void CE1446_BuildsPostSimGroupFalse_RegistersNoPostSimGroup_TheDefaultDoes()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var off = new TestBootstrapper(factory) { DeclaredBuildsPostSimGroup = false };
+        var offCtx = off.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        var onCtx = new TestBootstrapper(factory).BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.False(KernelHasPostSimGroup(offCtx));
+        Assert.NotNull(off.ReceivedPostSimGroup);
+        Assert.True(KernelHasPostSimGroup(onCtx));
+    }
+
+    /// <summary>⭐ CE-1446 B0 — with no post-sim group, a capability contributing post-sim systems throws a clear message instead of being dropped; with the group (default) it is fine.
+    /// 🔴 Red-proof: the throw removed ⇒ the false case boots and the systems vanish silently.</summary>
+    [Fact]
+    public void CE1446_APostSimCapability_OnAHostWithoutThatGroup_Throws_ClearlyOnlyThen()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var caps = new INodeCapability[] { new PostSimCapability() };
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            new TestBootstrapper(factory) { DeclaredBuildsPostSimGroup = false, TestCapabilities = caps }.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+        Assert.Contains("post-simulation", ex.Message);
+        Assert.Contains("BuildsPostSimGroup", ex.ToString());
+
+        new TestBootstrapper(factory) { TestCapabilities = caps }.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);   // default: no throw
     }
 
     /// <summary>⭐⭐ CE-4013 — the base asks every hook, in its step order, on every subclass: no host can drop one.</summary>
@@ -453,6 +535,8 @@ public sealed class SharedApplicationBootstrapperTests
             "DeclaredResourceKeys",
             "ResolveResources",
             "ResolveCapabilities",   // ⭐ CE-4013 — the base owns the capability walk
+            "get_TimeRole",          // ⭐ CE-1446 B0 — the two new INPUTS (property getters): a time role and whether a post-sim group is built
+            "get_BuildsPostSimGroup",
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);

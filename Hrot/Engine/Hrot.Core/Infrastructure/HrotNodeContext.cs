@@ -168,6 +168,9 @@ public sealed record HrotNodeContext : IDisposable
     /// </remarks>
     public ITimeController? TimeController { get; init; }
 
+    /// <summary>⭐ CE-1446 B0 — the time role the node was built with (<c>HrotNodeBuilder.WithTimeRole</c>, default Slave). Recorded so the shared bootstrapper can verify a subclass honoured its declared <c>TimeRole</c>.</summary>
+    public Fdp.Toolkit.Time.Controllers.TimeRole TimeRole { get; init; } = Fdp.Toolkit.Time.Controllers.TimeRole.Slave;
+
     /// <summary>
     /// ⭐ CE-4013 (<c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1ae T1) — the extra terrain content THIS node loads with every
     /// terrain; a capability adds to it (the traffic pack's SUMO net), the node's residency reads it. One per node, never per process.
