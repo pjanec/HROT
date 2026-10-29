@@ -400,7 +400,11 @@ sequenceDiagram
 | **A6** | a real save that completes (pull + merge) deletes `.autosave/` | D23 |
 | **A7** | recovery: `GET /scenarios/{name}/autosave` → `{at}` when an autosave exists whose `savedHash` equals the current `scenario.json`'s hash (else it is stale: the file was saved elsewhere since — reported, not offered); `POST /scenario/load/edit {name, recoverAutosave:true}` loads it — the prefetch stager (CE-4091) stages `autosave.json` as the node's `scenario.json` for this load only; the master then holds a `KnownUnsaved("recovered autosave")` fact (generalising `SaveFailedSinceLoad`) so the check round says changed until a real save | the scenario keeps its own name and folder; the recovered world is honestly "unsaved"; the start surface / Open prompt (*"Recover unsaved changes from 14:41?"*) is ui's and reads these two routes |
 
-`build-state` for §4c: **READY-TO-BUILD, gated on A0.**
+| **A8** | ⭐ **a NEVER-SAVED scenario** (a new one from a recipe, D18 — no `scenarios/<name>/`, no `scenario.json`): its autosave lives in the NAS **opened-not-saved area** — the ONE home CE-4089 gives opened recorded copies (D7) — keyed by the recipe it came from + the time it was opened, `savedHash` empty. Offered back on the start surface's *New from a recipe* / start, never on Open (Open lists saved scenarios only): `GET /autosaves` lists every never-saved autosave `{recipe, openedAt, at}`; `POST /scenario/load/edit {recoverAutosave: <id>}` reopens it as the same unsaved new scenario. The first real *Save As* deletes it (A6's rule, this home) | coordinator review `NOTE_Coordinator_To_Backend_CE4099_Design_Review.md` (`2026-10-29`): the plan's done-when is *"an edited, unsaved scenario survives a killed editor"*, and the commonest unsaved scenario has no folder for A5/A7 to point at |
+
+**Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
+
+`build-state` for §4c: **READY-TO-BUILD, gated on A0** (the review accepted A0–A7; A8 added at its request).
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
