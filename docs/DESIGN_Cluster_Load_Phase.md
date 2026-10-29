@@ -1661,7 +1661,7 @@ choice; a later slice with the admission policy (R4).
 
 *Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.
 
-### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: DESIGN`; CE-1445; R-1044)*
+### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: READY-TO-BUILD`; CE-1445; R-1044)*
 
 🔒 **R-1044 (user, `2026-10-29`):** *"The ECS host should be unified, but they should be configurable. So without explicit suppressing some controls, they need to have all of them, because by construction they cannot avoid them, because they are using shared code for Bootstrap. The player node might look differently But just because it is parameterizing its bootstrap code to honor its player role, like for example showing the waiting in the lobby screen."* · ExCon is to be retired and is not an ECS host — ⛔ not touched.
 
@@ -1708,9 +1708,28 @@ PROFILE — so a host cannot lack them, and the player differs only by its profi
 *Rejected:* **an IG-only opt-in interface** (the first §11.8 draft, `032607257`) — one more per-host remembering, exactly what R-1044 forbids ·
 **the IG copies SimHost's wiring** — a fifth copy.
 
-⚠ **Open before READY-TO-BUILD:** CGF does not derive from `SharedApplicationBootstrapper` — the factory must be called where CGF builds its
-`HrotNodeContext` too, and a rail must assert every ECS host subsystem in `HROT.sln` ends up with a `NodeRunControls` (the construction proof).
-The editor builds on CGF's node; measure its path before drawing the sequence.
+📐 **Where it is called — measured (resolves the open point):** every `HrotNodeContext` is built by ONE `HrotNodeBuilder` (`HrotNodeBuilder.cs:269`;
+CGF `CgfSubsystem.cs:685`, the editor `EditorSubsystem.cs:1304`, the others through `SharedApplicationBootstrapper` / the NED extension). ⛔ But
+`Hrot.Common` (the builder) does not reference `Hrot.Presentation` (the adapter, the run choice, the screen) — so the frame cannot construct the
+controls itself. ⇒ the UI-side node composition is where they go: the place each ECS host already calls the shared UI helpers for its node
+(`MapInteractionPack.AttachMapLayers` — CGF `:1610`, IG `IgApplication.cs:971`, SimHost `SimHostVisualization.cs:350`, editor `:2836`;
+`EcsHostClusterHandlers.Compose` — CGF `:1170`, editor `:1886`). ⚠ That is still one call per host; ⭐ the CONSTRUCTION PROOF is rail S1, asserted
+on the constructed hosts, so a host that forgets the call is red. A shared ECS-host UI base that makes the call impossible to skip does not exist
+(measured: no common seam beyond these helpers) — a larger refactor, filed separately if wanted.
+
+```mermaid
+sequenceDiagram
+    participant H as ECS host (Editor / CGF / SimHost / IG)
+    participant B as HrotNodeBuilder
+    participant F as NodeRunControls.For
+    participant LWC as LocalWindowController
+    H->>B: build the node (context with ClusterSlave)
+    H->>F: For(context, profile) — beside AttachMapLayers
+    F-->>H: transport + run choice + gate source (policy from the profile's kind)
+    LWC->>H: IProvidesRunControls (now every ECS host)
+    LWC->>LWC: pick ONE owner; compose toolbar (unless suppressed), LoadingScreen, error section
+```
+*What it shows: the per-host part shrinks to one call carrying a profile; everything after it is the same code for every host.*
 
 **Acceptance (rails):** S1 every ECS host (Editor, CGF, SimHost, IG) has `NodeRunControls` after boot — asserted over the constructed hosts, not
 the source · S2 a player-only process composes the screen + error section once, Player policy · S3 Player: shown in the lobby (closed, not
