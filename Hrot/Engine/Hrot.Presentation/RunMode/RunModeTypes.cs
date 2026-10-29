@@ -113,6 +113,62 @@ public sealed record UnsavedCheckReads(Func<bool> Observes, Func<Guid, UnsavedCh
 }
 
 /// <summary>
+/// ⭐⭐⭐ <c>CE-1440</c> (R-3066 audit #13) — <b>the ONE asker of the master's unsaved-changes check round</b>: it publishes the ONE
+/// <see cref="CheckUnsavedIntent"/> (<see cref="Start"/>) and reads the outcome through <see cref="UnsavedCheckReads"/> (<see cref="Read"/>). The UI move
+/// (<see cref="ClusterUnsavedChangesQuery"/>) polls <see cref="Read"/> once per frame; HTTP (<c>POST /scenario/check-unsaved</c> and the load gate) awaits
+/// <see cref="WaitAsync"/> — the same object polled through the host's main-thread queue. ⛔ No second publish path, no second read path, and
+/// (R-4001) no deadline: the master's round always ends — a node that dies is ejected by its heartbeat — so the wait is bounded only by the caller's token.
+/// </summary>
+public sealed class UnsavedCheckAsker
+{
+    private readonly Func<Hrot.Presentation.DebugApi.IClusterMasterControl?> _master;
+    private readonly UnsavedCheckReads _reads;
+
+    /// <param name="master">Where the round is asked (resolved per call: HTTP's master may be on another node); <see langword="null"/> ⇒ no master reachable.</param>
+    /// <param name="reads">How the answer is read.</param>
+    public UnsavedCheckAsker(Func<Hrot.Presentation.DebugApi.IClusterMasterControl?> master, UnsavedCheckReads reads)
+    {
+        _master = master ?? throw new ArgumentNullException(nameof(master));
+        _reads  = reads  ?? throw new ArgumentNullException(nameof(reads));
+    }
+
+    /// <summary>This host can see check-round answers; a host that cannot must not gate on them.</summary>
+    public bool Observes => _reads.Observes();
+
+    /// <summary>Publishes ONE <see cref="CheckUnsavedIntent"/> and returns its request id; <see langword="null"/> when no master is reachable. A master that refuses to take it throws (<see cref="InvalidOperationException"/>).</summary>
+    public Guid? Start()
+    {
+        var master = _master();
+        if (master is null) return null;
+        var id = Guid.NewGuid();
+        master.CheckUnsaved(new CheckUnsavedIntent { RequestId = id });
+        return id;
+    }
+
+    /// <summary>How round <paramref name="requestId"/> ended (the master's answer, or its refusal); <see langword="null"/> while it has not. Never blocks.</summary>
+    public UnsavedCheckOutcome? Read(Guid requestId) => _reads.Outcome(requestId);
+
+    /// <summary>
+    /// Waits for the round's outcome, polling <see cref="Read"/> every <paramref name="pollMs"/> ms through <paramref name="onMainThread"/> (the master and the read model
+    /// are ticked there). Returns <see langword="null"/> only when <paramref name="ct"/> is cancelled first. ⛔ No deadline of its own (R-4001).
+    /// </summary>
+    public async System.Threading.Tasks.Task<UnsavedCheckOutcome?> WaitAsync(
+        Guid requestId,
+        Func<Func<UnsavedCheckOutcome?>, System.Threading.Tasks.Task<UnsavedCheckOutcome?>> onMainThread,
+        System.Threading.CancellationToken ct, int pollMs = 20)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var outcome = await onMainThread(() => Read(requestId)).ConfigureAwait(false);
+            if (outcome is not null) return outcome;
+            try { await System.Threading.Tasks.Task.Delay(pollMs, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { break; }
+        }
+        return null;
+    }
+}
+
+/// <summary>
 /// ⭐⭐⭐ <c>CE-4097</c> part two (AQ108 D20) — <b>the production <see cref="IUnsavedChangesQuery"/>: the master's ONE check round</b> (CE-4093),
 /// asked ONLY through the members the coordinator's NOTE lists — <c>IClusterMasterControl.CheckUnsaved(new CheckUnsavedIntent{…})</c>, answered by
 /// <c>ISubsystemDebugProvider.UnsavedCheck(requestId)</c> → <see cref="UnsavedCheckOutcome"/> (null until it arrives; polled, never waited on).
@@ -129,8 +185,7 @@ public sealed record UnsavedCheckReads(Func<bool> Observes, Func<Guid, UnsavedCh
 public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
 {
     private readonly Func<string?> _loadedScenarioName;
-    private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _master;
-    private readonly UnsavedCheckReads? _reads;
+    private readonly UnsavedCheckAsker? _asker;
     private (Guid Id, Action<UnsavedAnswer> Reply)? _pending;
 
     /// <param name="loadedScenarioName">The session's loaded scenario name (empty ⇒ NeverSaved).</param>
@@ -138,27 +193,29 @@ public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
     /// <param name="reads">How the answer is read; <see langword="null"/> ⇒ this host observes nothing (a named scenario counts as unchanged).</param>
     public ClusterUnsavedChangesQuery(Func<string?> loadedScenarioName, Hrot.Presentation.DebugApi.IClusterMasterControl? master,
                                       UnsavedCheckReads? reads)
+        : this(loadedScenarioName, master is null || reads is null ? null : new UnsavedCheckAsker(() => master, reads)) { }
+
+    /// <summary>⭐ CE-1440 — over the shared asker (the same object HTTP's check awaits); <see langword="null"/> ⇒ this host observes nothing.</summary>
+    public ClusterUnsavedChangesQuery(Func<string?> loadedScenarioName, UnsavedCheckAsker? asker)
     {
         _loadedScenarioName = loadedScenarioName ?? throw new ArgumentNullException(nameof(loadedScenarioName));
-        _master = master;
-        _reads  = reads;
+        _asker = asker;
     }
 
     /// <inheritdoc/>
     public void Ask(Action<UnsavedAnswer> reply)
     {
         if (string.IsNullOrWhiteSpace(_loadedScenarioName())) { reply(UnsavedAnswer.NeverSaved); return; }
-        if (_master is null || _reads is null || !_reads.Observes()) { reply(UnsavedAnswer.Unchanged); return; }   // no way to see the answer: ask nothing
-        var id = Guid.NewGuid();
+        if (_asker is null || !_asker.Observes) { reply(UnsavedAnswer.Unchanged); return; }   // no way to see the answer: ask nothing
+        if (_asker.Start() is not { } id) { reply(UnsavedAnswer.Unchanged); return; }
         _pending = (id, reply);
-        _master.CheckUnsaved(new CheckUnsavedIntent { RequestId = id });
     }
 
     /// <inheritdoc/>
     public void Poll()
     {
         if (_pending is not { } p) return;
-        if (_reads!.Outcome(p.Id) is not { } outcome) return;   // R-4001: wait — the round ends by itself (heartbeat), or the operator cancels
+        if (_asker!.Read(p.Id) is not { } outcome) return;   // R-4001: wait — the round ends by itself (heartbeat), or the operator cancels
         _pending = null;
         p.Reply(outcome.Result is { Changed: true } ? UnsavedAnswer.Changed : UnsavedAnswer.Unchanged);   // a refusal (Result null): outside editing, nothing to lose
     }

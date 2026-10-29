@@ -246,4 +246,36 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Single(master.Sent.OfType<CheckUnsavedIntent>());             // one round for the move, the same intent type the menu published
     }
+
+    private static string Shape(TransitionStateIntent i)
+        => string.Join("|", typeof(TransitionStateIntent).GetFields().Where(f => f.Name != nameof(TransitionStateIntent.TransactionId))
+                                                           .Select(f => f.Name + "=" + f.GetValue(i)));
+
+    private static DebugApiService ServiceOver(RecordingMasterControl master, ClusterState state)
+        => new(new PerspectiveScopedDispatcher(
+                   new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", master: () => master) },
+                   currentPerspective: () => "CGF", acksPending: null),
+               clusterState: () => state);
+
+    /// <summary>
+    /// ⭐⭐ CE-1440 (R-3066 audit #11) — <c>POST /preview/enter</c> publishes the SAME intent as the toolbar's ▶ (and Step) from Edit, running and start-paused, field by field
+    /// (<c>DryRunIntents.Enter</c>). 🔴 Mutation: <c>EnterPreview</c> back to <c>TimeMode = startPaused ? "Deterministic" : null</c> ⇒ the running cell differs (Continuous vs null) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1440_PostPreviewEnter_IsTheToolbarsDryRunIntent()
+    {
+        foreach (bool startPaused in new[] { false, true })
+        {
+            var toolbar = Adapter(ClusterState.OperatingEdit, RunArmed.Preview, withChoice: false);
+            if (startPaused) toolbar.F.Step(); else toolbar.F.TogglePlayPause();
+            var fromToolbar = Assert.Single(Sent<TransitionStateIntent>(toolbar.Bus));
+
+            var master = new RecordingMasterControl();
+            Assert.Null(ServiceOver(master, ClusterState.OperatingEdit).EnterPreview(startPaused).Error);
+            var fromHttp = Assert.Single(master.Transitions);
+
+            Assert.Equal(Shape(fromToolbar), Shape(fromHttp));
+            Assert.Equal(startPaused ? "Deterministic" : "Continuous", fromHttp.TimeMode);
+        }
+    }
 }

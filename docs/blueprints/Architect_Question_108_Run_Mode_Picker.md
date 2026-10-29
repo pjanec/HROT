@@ -870,6 +870,62 @@ sequenceDiagram
 | 5 | — | `RunHostKind.Orchestrator` added (armed Live, from the table) and `UserTransport.UserStepBy(seconds)`; `ConfirmPromptController.RequestNewExercise` (the one wording of *New Exercise*, now also the editor's) | the pick rule needs to know the owner's kind; the panel's *Step (s)* box has a size; the destructive reset reads the same on both windowed hosts |
 | 6 | the panel's `SendRequest` bus switch | its `PauseTime` / `ResumeTime` / `StepTime` / `SetTimeScale` / `TakeCheckpoint` arms are deleted | nothing builds those requests any more (the duplicate mapping of intents the transport publishes) |
 
+### 2.13 CE-1440 — one dry-run intent, one unsaved asker (R-3066 audit #11, #13; #12 → CE-4101) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+```mermaid
+classDiagram
+    class DryRunIntents {
+        <<static, Hrot.Presentation Facades>>
+        +Enter(startPaused) TransitionStateIntent
+        +Exit() TransitionStateIntent
+    }
+    class UnsavedCheckAsker {
+        <<NEW, Hrot.Presentation RunMode>>
+        +Observes bool
+        +Start() Guid
+        +Read(id) UnsavedCheckOutcome
+        +WaitAsync(id, onMainThread, ct) Task
+    }
+    class UnsavedCheckReads
+    class ClusterUnsavedChangesQuery {
+        +Ask(reply)
+        +Poll()
+    }
+    class ClusterTimeTransportAdapter
+    class DebugApiService {
+        +EnterPreview()
+        +StopReplay()
+        +UnsavedAsker
+    }
+    class DebugApiHost {
+        -RunCheckRoundAsync()
+    }
+    ClusterTimeTransportAdapter ..> DryRunIntents : Play / Step from Edit
+    DebugApiService ..> DryRunIntents : POST /preview/enter
+    UnsavedCheckAsker --> UnsavedCheckReads : reads the outcome
+    ClusterUnsavedChangesQuery --> UnsavedCheckAsker : UI polls per frame
+    DebugApiService --> UnsavedCheckAsker : builds over its master + read model
+    DebugApiHost ..> UnsavedCheckAsker : HTTP awaits (WaitAsync through the job queue)
+```
+
+*Caption: what the picture shows that the prose hides — the dry-run entry is ONE static builder, and the UI's per-frame poll and HTTP's await are the SAME asker object (one publish path, one read path).*
+
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| the master reads `TimeMode` of a preview entry as: only `"Continuous"` resumes the clock; `null` stays paused | ✅ `GlobalContextProcessManager.cs:57` `_resumeWhenPreview = intent.TimeMode == ContinuousTimeMode` (const documented *"absent ⇒ paused"*, line 31) | ✅ §2 CE-3329 row 21: ▶ from Edit "runs the dry run, the same request on every host" — the toolbar's value is the intended one |
+| ⇒ HTTP's `null` for a running preview was a DIVERGENCE, not an equivalent | ✅ measured above; `ClusterMaster.cs:1457` only reads `"Deterministic"` | ✅ DESIGN_Http_Control_Through_The_Cluster_Master §7 "no shortcuts" |
+| the unsaved round had two askers | ✅ `ClusterUnsavedChangesQuery` (publish + poll) and `DebugApiService.StartUnsavedCheck` + `DebugApiHost.RunCheckRoundAsync` (publish + poll) | ✅ backend NOTE `NOTE_Backend_To_Ui_Unsaved_Query_Deadline.md`: "ideally both read through ONE helper" |
+
+**AS-BUILT.** `UnsavedCheckAsker` (`RunModeTypes.cs`) owns `Start` (the ONE `CheckUnsavedIntent` publish through the master control) and `Read` (through `UnsavedCheckReads`); `WaitAsync` is the HTTP form of the UI's per-frame poll: the same `Read`, driven through the host's main-thread queue, no deadline (R-4001), ended only by the caller's token. HTTP status codes and texts are unchanged.
+
+⛔ **#12 ("go to Idle" built four times) is NOT done here — it moved to CE-4101** (the coordinator's one guarded leave door, reusing `ScenarioLoadSequence`'s Idle intent).
+
+⚠ **Behaviour change (#11):** `POST /preview/enter {startPaused:false}` now publishes `TimeMode = "Continuous"`, so the master RESUMES the clock when the preview lands, exactly as the toolbar's ▶ does. Before, HTTP's running preview entered paused (the master only resumes on `"Continuous"`), i.e. the route's name and the toolbar's ▶ disagreed. Start-paused is unchanged.
+
+*Rejected:* **a second HTTP-only asker with an async publish** — exactly the duplicate this removes.
+
+📌 Rails: `TheOneTimeFacadeTests.CE1440_*` (asker publish+read id, no-deadline wait), `TheRunModeRoutesTests.CE1440_*` (`/preview/enter` = toolbar ▶/Step), `TheUnsavedCheckRoutesTests.CE1440_*` (one request id from publish to read).
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |

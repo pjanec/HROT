@@ -158,13 +158,13 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (Guid RequestId, string? Error, string? HintCategory) StartUnsavedCheck()
         {
-            var master = MasterOrNull;
-            if (master is null) return (Guid.Empty, NoMaster, DebugApiHints.Panel);
-            var intent = new CheckUnsavedIntent { RequestId = Guid.NewGuid() };
-            try { master.CheckUnsaved(intent); }
+            try { return UnsavedAsker.Start() is { } id ? (id, null, null) : (Guid.Empty, NoMaster, DebugApiHints.Panel); }
             catch (InvalidOperationException ex) { return (Guid.Empty, ex.Message, DebugApiHints.Scenario); }
-            return (intent.RequestId, null, null);
         }
+
+        /// <summary>⭐⭐ CE-1440 (R-3066 audit #13) — the ONE asker (<see cref="Hrot.UI.Common.RunMode.UnsavedCheckAsker"/>) over this service's master and read model; the toolbar's move uses the same type.</summary>
+        public Hrot.UI.Common.RunMode.UnsavedCheckAsker UnsavedAsker
+            => new(() => MasterOrNull, new Hrot.UI.Common.RunMode.UnsavedCheckReads(() => ObservesUnsavedChecks, UnsavedCheckOutcomeOrNull));
 
         /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended (the master's answer, or its refusal); null while it has not.</summary>
         public UnsavedCheckOutcome? UnsavedCheckOutcomeOrNull(Guid requestId)
@@ -191,13 +191,10 @@ namespace Hrot.Editor.DebugApi
         {
             if (CurrentClusterStateOrNull() == ClusterState.OperatingPreview)
                 return (new JsonObject { ["published"] = false, ["target"] = nameof(ClusterState.OperatingPreview), ["note"] = "Already in preview." }, null, null);
-            return PublishTransition(new TransitionStateIntent
-            {
-                TransactionId = Guid.NewGuid(),
-                TargetState   = ClusterState.OperatingPreview,
-                // ⭐ the master pauses a start-paused preview through the same path as Stop (ClusterMaster: passesSimulationStart)
-                TimeMode      = startPaused ? "Deterministic" : null,
-            });
+            // ⭐⭐ CE-1440 (R-3066 audit #11) — the ONE construction of the dry run's intent (the toolbar's ▶ from Edit builds it too).
+            //   ⚠ Behaviour change: a RUNNING preview now says TimeMode "Continuous" (it was null ⇒ the master left the clock paused:
+            //   GlobalContextProcessManager resumes a preview only on "Continuous"), so POST /preview/enter {startPaused:false} runs, as ▶ does.
+            return PublishTransition(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused));
         }
 
         /// <summary><c>POST /preview/exit</c> — back to <c>OperatingEdit</c>: the dry run is rewound.</summary>
