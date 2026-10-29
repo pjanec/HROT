@@ -79,7 +79,7 @@ public sealed class MapStatsOverlay : IMapLayer
     {
         var viewport = _view.Camera3D.Viewport;
         float y = 0f;
-        // ⭐ CE-1446 (R-1046 §11.9 ③) — the 3-D map is being built in the background: the 2-D map says so (and why it gave up, if the build failed)
+        // ⭐ R-1046 (CE-4078 §11.9 ③) — the 3-D map is being built in the background: the 2-D map says so (and why it gave up, if the build failed)
         if (_view.Pending3D || _view.Pending3DFailure != null)
         {
             var note = _view.Pending3DFailure is { } why ? "3-D map failed: " + why : "Building 3-D map…";

@@ -74,12 +74,12 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     }
 
     /// <summary>
-    /// ⭐ <c>CE-1446</c> (R-1046) S4 — <b>only the Player's map is eager, and it says so through its profile</b>: no host passes the map's build policy to the shared attach except the IG, which passes its profile's
+    /// ⭐ <c>R-1046</c> (CE-4078) S4 — <b>only the Player's map is eager, and it says so through its profile</b>: no host passes the map's build policy to the shared attach except the IG, which passes its profile's
     /// <c>MapBuildPolicy</c> (never a literal), and nothing outside the pack / the profile names <c>Map3DBuildPolicy.Eager</c> — so CGF, SimHost, the editor and the Replay Browser start in 2-D and build on the first request.
     /// 🔴 Mutation: a host passing <c>map3DBuildPolicy: Eager</c> (or the IG a literal) ⇒ this names it.
     /// </summary>
     [Fact]
-    public void CE1446_OnlyThePlayersMapIsEager_AndItReadsItsProfile()
+    public void R1046_OnlyThePlayersMapIsEager_AndItReadsItsProfile()
     {
         var files = ProductionFiles().ToList();
         var passers = files.Where(f => f.Text.Contains("map3DBuildPolicy:") && !f.Rel.EndsWith("MapInteractionPack.cs")).ToList();

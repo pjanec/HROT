@@ -541,7 +541,7 @@ namespace Hrot.ScenarioEditor.Map
             //   people and cars are bodies (CE-4031).
             var traffic = new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider);
             canvas.AddLayer(traffic);
-            // ⭐⭐⭐ CE-1446 (R-1046, DESIGN_Cluster_Load_Phase §11.9) — the 3-D map's build, ONE per map over both background-built layers: the map's `IMapBuildStatus` (the load step's poll), the policy (the player's `Eager`, every
+            // ⭐⭐⭐ R-1046 (CE-4078, DESIGN_Cluster_Load_Phase §11.9) — the 3-D map's build, ONE per map over both background-built layers: the map's `IMapBuildStatus` (the load step's poll), the policy (the player's `Eager`, every
             //   other host on the first 3-D request) and what the view switch asks before going to 3-D. A layer itself, so the canvas pumps it every frame — in 2-D too.
             var map3D = new Fdp.Toolkit.Vis3D.Map3DBuild(new Fdp.Toolkit.Vis3D.IMeshLayer3D[] { terrain, traffic }, map3DBuildPolicy);
             viewSwitch.Build = map3D;

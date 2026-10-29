@@ -327,12 +327,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-1446</c> (R-1046, DESIGN_Cluster_Load_Phase §11.9 ②) S4 — on the CONSTRUCTED IG: its profile puts the map in the load (<c>MapInLoad</c>) and ITS map is built <c>Eager</c> BECAUSE of that flag — one statement, the profile's;
+    /// ⭐⭐ <c>R-1046</c> (CE-4078, DESIGN_Cluster_Load_Phase §11.9 ②) S4 — on the CONSTRUCTED IG: its profile puts the map in the load (<c>MapInLoad</c>) and ITS map is built <c>Eager</c> BECAUSE of that flag — one statement, the profile's;
     /// the map's build is reachable from the node as <c>IgSubsystem.MapBuildStatus</c> (the load step's poll). Headless there is no window to upload into, so the status reads built (nothing to wait for).
     /// 🔴 Mutation: the IG's attach passing no policy (⇒ <c>OnFirst3DRequest</c>) ⇒ the policy cell reds.
     /// </summary>
     [Fact(Timeout = 60_000)]
-    public void CE1446_TheConstructedIgs_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
+    public void R1046_TheConstructedIgs_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
     {
         var ig = new Hrot.IG.IgSubsystem();
         try

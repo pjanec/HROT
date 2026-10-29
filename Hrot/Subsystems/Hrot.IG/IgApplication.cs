@@ -969,7 +969,7 @@ public class IgApplication : IDisposable
             //   two constructors collapsed into one.
             // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
             var mapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer!, _interactionBus, () => _world, map3DBuildPolicy: RunProfile.MapBuildPolicy);   // ⭐ CE-1446 — Eager because the profile says MapInLoad
+                _canvas, _gizmoBuffer!, _interactionBus, () => _world, map3DBuildPolicy: RunProfile.MapBuildPolicy);   // ⭐ R-1046 — Eager because the profile says MapInLoad
             var gizmoLayer = mapLayers.GizmoLayer;
             _map3D = mapLayers.Map3D;
             _gizmoLayer = gizmoLayer;
@@ -1078,7 +1078,7 @@ public class IgApplication : IDisposable
 
         {
 
-            // ⭐ CE-1446 (R-1046) — the 3-D map's build is pumped HERE, ungated: the canvas update below runs only for the active map owner and only while ImGui is not capturing the mouse
+            // ⭐ R-1046 (CE-4078) — the 3-D map's build is pumped HERE, ungated: the canvas update below runs only for the active map owner and only while ImGui is not capturing the mouse
             //   (the waiting screen's modal does), and the player's load waits on this build.
             _map3D?.Update(dt);
 
@@ -1818,7 +1818,7 @@ public class IgApplication : IDisposable
     internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
 
     /// <summary>
-    /// ⭐⭐ <c>CE-1445</c> / <c>CE-1446</c> — what makes the IG a PLAYER (R-1044): its kind (Player gate), the toolbar time control suppressed, and — R-1046 — <c>MapInLoad</c>: its load waits for the 3-D map, so the map builds eagerly.
+    /// ⭐⭐ <c>CE-1445</c> / <c>R-1046</c> — what makes the IG a PLAYER (R-1044): its kind (Player gate), the toolbar time control suppressed, and — R-1046 — <c>MapInLoad</c>: its load waits for the 3-D map, so the map builds eagerly.
     /// ONE statement: the map's policy below and the run controls both read this profile.
     /// </summary>
     internal static readonly Hrot.UI.Common.RunMode.NodeRunProfile RunProfile = new(
@@ -1827,7 +1827,7 @@ public class IgApplication : IDisposable
     private Fdp.Toolkit.Vis3D.Map3DBuild? _map3D;
 
     /// <summary>
-    /// ⭐ CE-1446 (R-1046) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); <see langword="null"/> before the map is attached. Reached from the node as
+    /// ⭐ R-1046 (CE-4078) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); <see langword="null"/> before the map is attached. Reached from the node as
     /// <c>IgSubsystem.MapBuildStatus</c> → here. The map builds <see cref="Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager"/> and is pumped every frame, whoever owns the map and whatever the mouse is over.
     /// </summary>
     internal Fdp.Toolkit.Orchestration.IMapBuildStatus? MapBuildStatus => _map3D;

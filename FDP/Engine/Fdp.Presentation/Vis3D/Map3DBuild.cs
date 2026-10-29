@@ -10,7 +10,7 @@ using Raylib_cs;
 namespace Fdp.Toolkit.Vis3D
 {
     /// <summary>
-    /// ⭐ <c>CE-1446</c> — a 3-D layer whose mesh is built in the background (<see cref="BackgroundMeshBuild{TStreams}"/>): what <see cref="Map3DBuild"/> drives and reads. Implemented by <see cref="TerrainLayer3D"/> and the SUMO
+    /// ⭐ <c>R-1046</c> — a 3-D layer whose mesh is built in the background (<see cref="BackgroundMeshBuild{TStreams}"/>): what <see cref="Map3DBuild"/> drives and reads. Implemented by <see cref="TerrainLayer3D"/> and the SUMO
     /// <c>TrafficLayer3D</c>.
     /// </summary>
     public interface IMeshLayer3D
@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Vis3D
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-1446</c> (R-1046, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.9) — <b>one per map</b>: the 3-D map's build, over its layers. It is the map's <see cref="IMapBuildStatus"/> (the load step's poll: per load, see
+    /// ⭐⭐⭐ <c>R-1046</c> (CE-4078, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.9) — <b>one per map</b>: the 3-D map's build, over its layers. It is the map's <see cref="IMapBuildStatus"/> (the load step's poll: per load, see
     /// <see cref="IsBuilt"/>), applies the <see cref="Map3DBuildPolicy"/> (when the layers' builds start) and is what the <see cref="MapViewSwitch"/> asks before going to 3-D.
     /// A layer (it is one itself, so the canvas updates it every frame — in 2-D too) pumps the finished results onto the GPU from the FRAME thread.
     /// </summary>
