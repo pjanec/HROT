@@ -14,6 +14,15 @@ public sealed class NodeHealthProfile
     /// <summary>⭐ C2 (R-4006 I5) — the cluster session the node reports following; empty until it has seen one.</summary>
     public Guid SessionId { get; set; }
 
+    /// <summary>⭐ <c>CE-3345</c> (AQ110 A) — what the node last reported about ITSELF: its phase (Ready · Booting · Loading · CatchingUp · PlayReady · Failed). The master combines the participants' phases into cluster play-ready.</summary>
+    public Fdp.Toolkit.Orchestration.NodePhase Phase { get; set; }
+
+    /// <summary>⭐ <c>CE-3345</c> — the load step the node is on while Loading / CatchingUp (empty otherwise).</summary>
+    public string Step { get; set; } = string.Empty;
+
+    /// <summary>⭐ <c>CE-3345</c> — why the node's last prepare failed while Failed (empty otherwise).</summary>
+    public string Reason { get; set; } = string.Empty;
+
     /// <summary>CE-286 (C-roles): the node's declared <see cref="NodeRole"/> mask ([Flags], possibly
     /// multi-role), <b>DERIVED</b> from the <c>fdp.role.*</c> subset of <see cref="Capabilities"/> via
     /// <see cref="NodeRoleTokens"/> at ingest (AQ-70 §Q70-C — supersedes CE-282's heartbeat mask).

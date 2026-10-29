@@ -72,15 +72,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         foreach (var sample in hbScope)
         {
             if (!sample.IsValid) continue;
-            _bus.PublishManaged(new NodeHeartbeatEvent
-            {
-                NodeId        = sample.Data.NodeId,
-                LocalStateId  = (int)sample.Data.LocalClusterState,
-                WallTicksUtc  = sample.Data.WallTicksUtc,
-                SubsystemName = sample.Data.SubsystemName ?? string.Empty,
-                SessionId     = sample.Data.SessionId,   // ⭐ C2 — the session the node follows
-                // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
-            });
+            _bus.PublishManaged(Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(sample.Data));   // ⭐ CE-3345 — the ONE mapping
         }
 
         // Capabilities bridge: durable DDS NodeCapabilities -> bus NodeCapabilitiesEvent (CE-285).

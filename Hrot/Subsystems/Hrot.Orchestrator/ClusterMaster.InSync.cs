@@ -62,6 +62,36 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ J1 — the targets of an operator round: the roster's in-sync nodes.</summary>
     private List<int> Participants() => _roster.ActiveNodes.Keys.Where(_inSync.Contains).ToList();
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3070, R-3072, AQ110 B/C) — <b>the cluster level of readiness</b>, combined from what each node reported about ITSELF on its heartbeat. Over the PARTICIPANTS only — the nodes
+    /// <see cref="Participants"/> already names (in sync) that are not an observer (<see cref="IsObserver"/>, R-4014 K6) — so a joiner still catching up, or an observer, never holds anyone else.
+    /// <para><c>PlayReady</c> = there is at least one participant and every one reports <see cref="Fdp.Toolkit.Orchestration.NodePhase.PlayReady"/> (so false in Idle, where nobody has a world);
+    /// <c>Progress</c> = who is still loading and on which step (<i>"CGF (node 2): Terrain"</i>), empty when none is. ⭐ While a scenario-load round is in flight but no participant has yet reported
+    /// loading, the text says the load is starting — the gate closes with the fan-out, not a heartbeat later.</para>
+    /// </summary>
+    private (bool PlayReady, string Progress) Readiness()
+    {
+        bool any = false, all = true;
+        System.Text.StringBuilder? loading = null;
+        foreach (var p in _roster.ActiveNodes.Values)
+        {
+            if (!_inSync.Contains(p.NodeId) || IsObserver(p.NodeId)) continue;
+            any = true;
+            if (p.Phase != Fdp.Toolkit.Orchestration.NodePhase.PlayReady) all = false;
+            if (p.Phase is Fdp.Toolkit.Orchestration.NodePhase.Loading or Fdp.Toolkit.Orchestration.NodePhase.CatchingUp)
+            {
+                loading ??= new System.Text.StringBuilder();
+                if (loading.Length > 0) loading.Append("; ");
+                loading.Append(string.IsNullOrEmpty(p.SubsystemName) ? "node" : p.SubsystemName).Append(" (node ").Append(p.NodeId).Append(')');
+                if (p.Step.Length > 0) loading.Append(": ").Append(p.Step);
+            }
+        }
+        bool loadInFlight = false;
+        foreach (var t in _pendingTransactions.Values) if (t.IsLoadRound) { loadInFlight = true; break; }
+        string progress = loading?.ToString() ?? (loadInFlight ? "the load is starting" : string.Empty);
+        return (any && all && !loadInFlight, progress);
+    }
+
     /// <summary>I1 — a node entering the roster while the cluster is at rest in Idle has nothing to catch up.</summary>
     private void AdmitJoinedNode(int nodeId)
     {

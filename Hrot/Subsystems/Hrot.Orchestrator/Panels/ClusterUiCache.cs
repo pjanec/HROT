@@ -203,6 +203,9 @@ public sealed class ClusterUiCache : IDisposable
                 SubsystemName     = ev.SubsystemName ?? string.Empty,
                 LocalClusterState = (ClusterState)ev.LocalStateId,
                 WallTicksUtc      = ev.WallTicksUtc,
+                Phase             = (int)ev.Phase,   // ⭐ CE-3345 — the node's own report, for the monitoring panel
+                Step              = ev.Step ?? string.Empty,
+                Reason            = ev.Reason ?? string.Empty,
             };
             _nodeReceivedMs[ev.NodeId] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }

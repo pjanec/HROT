@@ -33,7 +33,7 @@ namespace Hrot.Map.Common.ClusterLoad;
 /// never from a hand-written registration order, so <i>"this host forgot to register a step"</i> cannot be
 /// expressed — a required part with no provider throws at startup instead of being silently absent.</para>
 /// </summary>
-public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler
+public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler, ILoadProgressSource
 {
     private readonly IReadOnlyList<ILoadPartProvider> _steps;
     private readonly EntityRepository? _world;
@@ -47,6 +47,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private Guid               _loadTransactionId;
     private LoadPhaseContext?  _loadContext;
     private TaskCompletionSource<object?>? _holdTcs;
+    // ⭐ CE-3345 (R-3070/R-3072) — the step the load is on, reported on the node's heartbeat and in its P4 progress ack. A worker writes it, the frame thread reads it.
+    private volatile string? _currentStep;
     private Guid _pendingExerciseId;
     private double _pendingCheckpointingSeconds;   // ⭐ CE-3299 D17 (R-3045) — the recording mode the load's session asked for
     private bool _pendingRecordingOff;             // ⭐ CE-4090 (AQ108 D14) — the load's session must NOT record ("Record live runs" was off)
@@ -68,6 +70,9 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _storageDirectory = storageDirectory;
         _hostLabel = hostLabel;
     }
+
+    /// <summary>⭐ <c>CE-3345</c> — the name of the load step in flight (a <see cref="LoadPart"/>), or <see langword="null"/> when no load is. While the Operating prepare is held it names the first step not yet resolved.</summary>
+    public string? CurrentLoadStep => _currentStep;
 
     /// <summary>⭐ The ordered parts this chain actually runs — for rails and diagnostics.</summary>
     public IReadOnlyList<LoadPart> Parts => _steps.Select(s => s.Part).ToArray();
@@ -242,14 +247,20 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         //    ⚠ The order change is safe: the scenario extraction reads template ids from the scenario JSON, not the TKB.
         foreach (var step in steps)
             if (!step.PreparesOffFrameThread)
+            {
+                _currentStep = step.Part.ToString();
                 await step.PrepareAsync(context, ct).ConfigureAwait(false);
+            }
 
         var offFrame = steps.Where(s => s.PreparesOffFrameThread).ToArray();
         if (offFrame.Length > 0)
             await Task.Run(async () =>
             {
                 foreach (var step in offFrame)
+                {
+                    _currentStep = step.Part.ToString();
                     await step.PrepareAsync(context, ct).ConfigureAwait(false);
+                }
             }, ct).ConfigureAwait(false);
 
         return null;
@@ -300,6 +311,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _pendingExerciseId = Guid.Empty;
         _loadTransactionId = Guid.Empty;
         _loadContext       = null;
+        _currentStep       = null;
     }
 
     /// <summary>
@@ -331,7 +343,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         if (_holdTcs == null) return;
 
         foreach (var step in _loadContext is { } held ? StepsFor(held) : _steps)
-            if (!step.IsResolved(_world)) return;
+            if (!step.IsResolved(_world)) { _currentStep = step.Part.ToString(); return; }   // ⭐ CE-3345 — the first step still draining is the one the node reports
 
         // ⭐⭐ CE-4093 (AQ108 D20) — THE baseline of the unsaved-changes check STARTS here: the world the load just built IS the saved one — but it
         //   SETTLES first (a world just loaded still gets one frame of initial work: WorldChangeCheck.BeginSettling), so the baseline is the first
@@ -347,6 +359,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
 
         _holdTcs.TrySetResult(null);
         _holdTcs = null;
+        _currentStep = null;
         _loadTransactionId = Guid.Empty;   // ⭐ P8 — the load is done; nothing left to abort
         _loadContext       = null;
     }

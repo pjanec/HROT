@@ -173,6 +173,8 @@ public sealed class ClusterFactsIngress : IDisposable
         ArmedMode = ArmedModeOf(topic.ArmedMode),   // ⭐ CE-3341 R-3068
         WaitingFor = topic.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
         ErrorReason = topic.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
+        ClusterPlayReady = topic.ClusterPlayReady,         // ⭐ CE-3345 R-3070
+        LoadProgress = topic.LoadProgress ?? string.Empty,
     };
 
     /// <summary>⭐ CE-3341 — an armed-mode wire int; a value this build does not know (a newer peer) reads as the default, Live.</summary>

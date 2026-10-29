@@ -7,7 +7,7 @@ namespace Hrot.UI.Common.RunMode;
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — <b>why the user is LEAVING the open scenario for Idle</b> (the OUT door). The reason words the question ("<i>Starting a new exercise</i> leaves editing")
-/// and tells a rail which entry point it drove. ⚠ <see cref="Exit"/> is called by the composition's exit guard (CE-4101 follow-up); <see cref="BackToStart"/> has no caller (see its note).
+/// and tells a rail which entry point it drove. ⚠ <see cref="Exit"/> is called by the composition's exit guard (CE-4101 follow-up).
 /// </summary>
 public enum LeaveReason
 {
@@ -17,12 +17,8 @@ public enum LeaveReason
     HttpStop,
     /// <summary>The film director's stop of its live run (no unsaved scenario can be in play there — it ends a run).</summary>
     DirectorStop,
-    /// <summary>Back to the Start perspective. ⚠ No caller: D16 has no such user action (Start is entered when the cluster rests in Idle, CE-4096), and every path to Idle that loses edits already goes through the door
-    /// (New Exercise, stop). Kept so a future "back to Start" action asks the door instead of inventing its own guard (AQ108 §2.11a deviation 13).</summary>
-    BackToStart,
     /// <summary>⭐ <c>CE-3345</c> (AQ108 §2.15, R-3073) — <i>File › Close</i>: back to Idle (the Start perspective), through the ONE door like every leave (unsaved edits ask first). The way out of a cluster in its ERROR state:
-    /// exempt from the readiness gate. ⛔ Not <see cref="NewExercise"/> (no local world wipe — the unload to Idle is what clears the world). ⚠ <see cref="BackToStart"/> is the same user action under its old name: its
-    /// fold into this member (a Roslyn rename) is pending — the apply step of <c>roslyn_apply_rename</c> errored twice on this tree (the preview showed one file, three sites).</summary>
+    /// exempt from the readiness gate. ⛔ Not <see cref="NewExercise"/> (no local world wipe — the unload to Idle is what clears the world). ⭐ It also IS the old "back to Start" action: the unused <c>BackToStart</c> member was folded into it (CE-3345 part B — deleted, not renamed: <c>Close</c> already existed, so a rename would collide).</summary>
     Close,
     /// <summary>Exit the application — the <c>ScenarioExitGuard</c> the window composition builds over the picked owner's door (File › Exit, the window's [X]).</summary>
     Exit,
@@ -142,7 +138,6 @@ public readonly record struct DoorMove(string What, Func<string, string>? RunTex
     public static DoorMove Leaving(LeaveReason reason) => new(reason switch
     {
         LeaveReason.NewExercise => "Starting a new exercise",
-        LeaveReason.BackToStart => "Going back to the start",
         LeaveReason.Exit        => "Exiting",
         LeaveReason.Close       => "Closing",
         _                       => "Stopping",

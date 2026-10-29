@@ -74,6 +74,52 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-3345</c> — the cluster is in its ERROR state: a required node / role was lost with a world loaded. Every operation is refused except the ways back to Idle.</summary>
         public bool IsInError => ErrorReason.Length > 0;
 
+        // ── play ready (CE-3345 part B, R-3070 / R-3072 / AQ110) — two levels, one object ──────────────────
+
+        /// <summary>⭐⭐ <c>CE-3345</c> — THIS node's own phase, as its slave reports it on its heartbeat (<see cref="NodePhase.Booting"/> until the slave's first <c>Tick</c>). The LOCAL level: read only by this node's host.</summary>
+        public NodePhase LocalPhase { get; private set; } = NodePhase.Booting;
+
+        /// <summary>The load step this node is on (while <see cref="LocalPhase"/> is <c>Loading</c> / <c>CatchingUp</c>), else empty.</summary>
+        public string LocalStep { get; private set; } = string.Empty;
+
+        /// <summary>Why this node's last prepare failed (while <see cref="LocalPhase"/> is <c>Failed</c>), else empty.</summary>
+        public string LocalReason { get; private set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3345</c> — this node committed an <c>Operating*</c> state: its world is loaded.</summary>
+        public bool IsLocalPlayReady => LocalPhase == NodePhase.PlayReady;
+
+        /// <summary>⭐ <c>CE-3345</c> — this node is loading (or catching up): the Operator policy keeps its controls shut.</summary>
+        public bool IsLocalLoading => LocalPhase is NodePhase.Loading or NodePhase.CatchingUp;
+
+        /// <summary>Called by the node's <see cref="ClusterSlave"/> each frame with what it reports; ⛔ nothing else writes the local level.</summary>
+        public void NoteLocalPhase(NodePhase phase, string? step, string? reason)
+        {
+            LocalPhase = phase;
+            LocalStep = step ?? string.Empty;
+            LocalReason = reason ?? string.Empty;
+        }
+
+        /// <summary>⭐⭐ <c>CE-3345</c> (R-3070) — CLUSTER PLAY READY, as the master's last broadcast said: every PARTICIPANT (in sync ∧ not an observer, K6) reports <see cref="NodePhase.PlayReady"/>.
+        /// ⛔ A node outside the in-sync set (a joiner) is never part of it. False in Idle and while any participant loads.</summary>
+        public bool ClusterPlayReady { get; private set; }
+
+        /// <summary>⭐ <c>CE-3345</c> — which participants are still loading and their steps (<i>"CGF (node 2): Terrain"</i>), as the master's last broadcast said; empty = none.</summary>
+        public string LoadProgress { get; private set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3345</c> — some participant is loading (<see cref="LoadProgress"/> is not empty).</summary>
+        public bool IsClusterLoading => LoadProgress.Length > 0;
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3345</c> (R-3072, AQ110 D) — <b>is this host's gate open under <paramref name="policy"/>?</b> The ONE combination of the facts above; ⛔ no host re-derives it.
+        /// <see cref="HostGatePolicy.Operator"/> = <see cref="CanOperate"/> ∧ this node is not loading ∧ (the cluster is not loading ∨ <see cref="ClusterPlayReady"/>);
+        /// <see cref="HostGatePolicy.Player"/> = <see cref="IsLocalPlayReady"/> ∧ <see cref="CanOperate"/> — no cluster-level play-ready clause: what the others are still loading is irrelevant to a player.
+        /// </summary>
+        public bool GateOpen(HostGatePolicy policy) => policy switch
+        {
+            HostGatePolicy.Player => IsLocalPlayReady && CanOperate,
+            _                     => CanOperate && !IsLocalLoading && (!IsClusterLoading || ClusterPlayReady),
+        };
+
         /// <summary>⭐ <c>CE-3344</c> — the master's in-sync set (R-4006) has reached this node; until it has, no node is known to be in sync.</summary>
         public bool HasInSyncSet { get; private set; }
 
@@ -149,6 +195,13 @@ namespace Fdp.Toolkit.Orchestration
             return new UnsavedCheckOutcome(null, o.Payload as string ?? $"the cluster answered {o.Status}");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3345</c> (R-3070) — how op <paramref name="requestId"/> ended and, for a failure, WHY: the reason the failing node's ack carried (<i>"cancelled by the user on node 2"</i>), through the master's op status.
+        /// <see langword="null"/> while it has not ended (or it is older than the last <see cref="OutcomeCapacity"/> ops seen).
+        /// </summary>
+        public (OrchestrationStatusCode Status, string? Reason)? OutcomeOf(Guid requestId)
+            => _outcomes.TryGetValue(requestId, out var o) ? (o.Status, o.Payload as string) : null;
+
         /// <summary>Drains the fact events of this frame. Call once per frame after the bus swap; folding the same frame twice changes nothing
         /// (every fact is last-wins, the outcome ring keys on request id) — so the node's slave and a composing cache may both call it.</summary>
         public void Update()
@@ -170,6 +223,8 @@ namespace Fdp.Toolkit.Orchestration
                 if (ev.MasterGone)
                 {
                     MasterGone = true;
+                    ClusterPlayReady = false;   // ⭐ CE-3345 — no master, no cluster level
+                    LoadProgress = string.Empty;
                 }
                 else
                 {
@@ -181,6 +236,8 @@ namespace Fdp.Toolkit.Orchestration
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     WaitingFor = ev.WaitingFor ?? string.Empty; // ⭐ CE-3344 R-3069
                     ErrorReason = ev.ErrorReason ?? string.Empty; // ⭐ CE-3345 R-3073
+                    ClusterPlayReady = ev.ClusterPlayReady;        // ⭐ CE-3345 R-3070
+                    LoadProgress = ev.LoadProgress ?? string.Empty;
                 }
                 if (State != ClusterState.OperatingEdit) LastUnsavedCheck = null;   // ⭐ CE-4093 — the answer described an open scenario
             }

@@ -174,6 +174,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// <summary>⭐⭐ CE-3345 (R-3073) — the cluster ERROR reason (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>); empty = no error. Set by the master while a mandatory node / role was lost with a world loaded,
         /// cleared when the cluster reaches Idle; the same on every node. Additive on the wire: an older sender omits it, which reads as "no error".</summary>
         [DdsManaged] public string ErrorReason;
+        /// <summary>⭐⭐ CE-3345 (R-3070, AQ110 B) — CLUSTER PLAY READY: the master's combination over the PARTICIPANTS only (in sync, not an observer) — every one reports PlayReady. False while any participant loads, and in Idle.
+        /// Additive on the wire: an older sender omits it, which reads as "not play-ready" (the gate then reads LoadProgress, which an older sender also omits ⇒ "not loading").</summary>
+        public bool ClusterPlayReady;
+        /// <summary>⭐ CE-3345 — which participants are still loading and on what step (<i>"CGF (node 2): Terrain"</i>); empty = none is. Held by the master, the same on every node. Additive on the wire.</summary>
+        [DdsManaged] public string LoadProgress;
     }
 
     /// <summary>
@@ -413,6 +418,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsKey] public int NodeId;
         /// <summary>⭐ C2 (Q91 §4-I I5) — the cluster session this node follows (empty until it has seen one).</summary>
         public Guid SessionId;
+        /// <summary>⭐⭐ CE-3345 (R-3072, AQ110 A) — the node's phase about ITSELF: <c>NodePhase</c> as an int (0 = Ready — also an older sender; 1 Booting · 2 Loading · 3 CatchingUp · 4 PlayReady · 5 Failed; ⛔ permanent, R-42).
+        /// A fact about the node only: the master combines the participants', a host's gate policy decides who waits. Additive on the wire.</summary>
+        public int Phase;
+        /// <summary>⭐ CE-3345 — the load step the node is on while Loading / CatchingUp; empty otherwise.</summary>
+        [DdsManaged] public string Step;
+        /// <summary>⭐ CE-3345 — why the node's last prepare failed while Failed; empty otherwise.</summary>
+        [DdsManaged] public string Reason;
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;

@@ -105,20 +105,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         // ── Heartbeat egress: Bus NodeHeartbeatEvent → DDS NodeHeartbeat ─────
         foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
         {
-            _heartbeatWriter.Write(new NodeHeartbeat
-            {
-                NodeId            = hb.NodeId,
-                SessionId         = hb.SessionId,   // ⭐ C2
-                SubsystemName     = hb.SubsystemName ?? string.Empty,
-                LocalClusterState = (NedClusterState)hb.LocalStateId,
-                WallTicksUtc      = hb.WallTicksUtc,
-                CpuUsage          = 0f,
-                RamUsedBytes      = 0L,
-                SimTickAdvancing  = false,
-                SubsystemsJson    = string.Empty,
-                // CE-286 (C-roles): heartbeat no longer carries the role mask — roles travel as fdp.role.*
-                // capability tokens on the durable NodeCapabilities descriptor.
-            });
+            _heartbeatWriter.Write(NodeHeartbeatWire.ToTopic(hb));   // ⭐ CE-3345 — the ONE mapping
         }
 
         // ── Capabilities egress: Bus NodeCapabilitiesEvent → durable DDS NodeCapabilities (CE-285) ──

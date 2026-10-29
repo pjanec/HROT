@@ -12,6 +12,12 @@ public interface IProvidesRunControls
     /// <summary>What kind of host this is — the pick rule's tie-break (the editor wins among several operators) and the key of <see cref="RunArmedDefaults"/>.</summary>
     RunHostKind HostKind { get; }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3072, AQ110 D) — <b>what this host's controls wait on</b>: read from the ONE table (<see cref="HostGatePolicies.For"/>) by the host's declared <see cref="HostKind"/> — ⛔ a host does not override it.
+    /// The host's gate is <c>ClusterView.GateOpen(GatePolicy)</c> (the editor's, CGF's and the Orchestrator's run controls; the IG, a player, reads <see cref="HostGatePolicy.Player"/> through <see cref="RunHostKind.Ig"/>).
+    /// </summary>
+    Fdp.Toolkit.Orchestration.HostGatePolicy GatePolicy => HostGatePolicies.For(HostKind);
+
     /// <summary>The host's transport; <see langword="null"/> while it has none (before its bus exists / headless) — the host then offers nothing.</summary>
     ITimeTransportFacade? Transport { get; }
 

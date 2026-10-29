@@ -279,4 +279,86 @@ public sealed class ClusterViewTests
         Assert.Equal(string.Empty, view.ErrorReason);
         Assert.Contains("waiting for: Brain (CGF)", view.NotOperableReason);
     }
+
+    // ── ⭐⭐ CE-3345 part B (R-3070, R-3072, AQ110 B/C/D) — the two levels and the gate policies ─────────────────────────────────────────────
+
+    private static (FdpEventBus Bus, ClusterView View) OperableRig(int nodeId = 1)
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId);
+        HearStruct(bus, view, new InSyncSetChangedEvent { NodeIds = new[] { nodeId } });
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        Assert.True(view.CanOperate);
+        return (bus, view);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success conditions 6 and 7 (the view half) — the CLUSTER level (<c>ClusterPlayReady</c>, <c>LoadProgress</c>) is folded from the master's broadcast, the LOCAL level from the node's own report; and the two host
+    /// policies read them differently: a <b>Player</b>'s gate opens on its OWN PlayReady while the cluster is still loading for others (irrelevant to it); an <b>Operator</b>'s stays closed until the cluster is play-ready — and while
+    /// the node itself loads. Neither opens while the cluster cannot be operated at all.
+    /// 🔴 Mutations (each compiles): <c>GateOpen</c> Player arm = the Operator expression ⇒ the "player open while the cluster loads" cell reds; the Operator arm without <c>!IsLocalLoading</c> ⇒ the "local loading" cell reds; without the <c>ClusterPlayReady</c> clause ⇒ the "cluster loading" cell reds;
+    /// <c>ClusterPlayReady</c> not folded ⇒ the final Operator cell reds; <c>CanOperate</c> dropped from either arm ⇒ the not-operable cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3345_TheClusterLevelIsFoldedFromTheBroadcast_AndThePlayerAndOperatorGatesReadItDifferently()
+    {
+        var (bus, view) = OperableRig();
+        Assert.False(view.ClusterPlayReady);
+        Assert.False(view.IsClusterLoading);
+        view.NoteLocalPhase(NodePhase.PlayReady, null, null);
+
+        // another participant is still loading: the cluster is not play-ready
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ClusterPlayReady = false, LoadProgress = "CGF (node 2): Terrain" });
+        Assert.True(view.IsClusterLoading);
+        Assert.Equal("CGF (node 2): Terrain", view.LoadProgress);
+        Assert.True(view.GateOpen(HostGatePolicy.Player));      // ⭐ the player plays on its OWN play-ready: what the others load is irrelevant to it
+        Assert.False(view.GateOpen(HostGatePolicy.Operator));   // ⭐ the operator waits for the cluster
+
+        // this node loads itself: neither opens
+        view.NoteLocalPhase(NodePhase.Loading, "Terrain", null);
+        Assert.False(view.GateOpen(HostGatePolicy.Player));
+        Assert.False(view.GateOpen(HostGatePolicy.Operator));
+        Assert.Equal("Terrain", view.LocalStep);
+
+        // the cluster is done but THIS node is still loading (an observer is excluded from the cluster level): the operator's own load keeps its gate shut
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ClusterPlayReady = true, LoadProgress = "" });
+        Assert.False(view.GateOpen(HostGatePolicy.Operator));
+        Assert.False(view.GateOpen(HostGatePolicy.Player));
+
+        // the whole cluster is play-ready and so is this node
+        view.NoteLocalPhase(NodePhase.PlayReady, null, null);
+        Assert.True(view.ClusterPlayReady);
+        Assert.False(view.IsClusterLoading);
+        Assert.True(view.GateOpen(HostGatePolicy.Operator));
+        Assert.True(view.GateOpen(HostGatePolicy.Player));
+
+        // not operable at all (a mandatory node is missing): both closed
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ClusterPlayReady = true, WaitingFor = "Brain (CGF)" });
+        Assert.False(view.GateOpen(HostGatePolicy.Operator));
+        Assert.False(view.GateOpen(HostGatePolicy.Player));
+
+        // no master ⇒ no cluster level
+        HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
+        Assert.False(view.ClusterPlayReady);
+        Assert.False(view.IsClusterLoading);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3345</c> success condition 4 (the view half) — a failed op's REASON (the failing node's, through the master's op status) is readable per request id; a success has none; an unknown id is unknown.
+    /// 🔴 Mutation: <c>OutcomeOf</c> returning a null reason ⇒ the reason cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3345_TheOpStatusOfAFailedLoad_CarriesTheNodesReason()
+    {
+        var (bus, view) = Rig();
+        var failed = Guid.NewGuid();
+        var ok = Guid.NewGuid();
+        HearStruct(bus, view, new ClusterOpCompletedEvent { RequestId = failed, StatusCode = OrchestrationStatusCode.Failure, ResultPayload = "cancelled by the user on node 2" });
+        HearStruct(bus, view, new ClusterOpCompletedEvent { RequestId = ok, StatusCode = OrchestrationStatusCode.Success });
+
+        Assert.Equal((OrchestrationStatusCode.Failure, "cancelled by the user on node 2"), view.OutcomeOf(failed)!.Value);
+        Assert.Equal((OrchestrationStatusCode.Success, (string?)null), view.OutcomeOf(ok)!.Value);
+        Assert.Null(view.OutcomeOf(Guid.NewGuid()));
+    }
 }
