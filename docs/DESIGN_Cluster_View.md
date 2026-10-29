@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — backend design for ui's frame CE-1436 (one cluster ingress, one cluster read model, on every node)
 updated: 2026-10-29
-build-state: DESIGN — leans V1–V5 await the user (large blast radius: every node's cluster view)
+build-state: READY-TO-BUILD — V1–V5 APPROVED by the user 2026-10-29 (R-3066)
 current-answer: §2 the picture · §3 decisions V1–V5 · §4 build slices
 stale-below: nothing
 known-rot: none
@@ -88,7 +88,9 @@ graph TD
 *What the module picture shows:* the view is built where every ECS host already passes (`Compose`, the CE-3299 D16 rule), so no host can lack it;
 the editor gets it from the same call.
 
-## 3. Decisions (⏳ leans — await the user)
+## 3. Decisions (✅ APPROVED, R-3066)
+
+🔒 User, `2026-10-29`: *"We need to pause any development until we enforce the unification and sharing."* · *"Approved both."*
 
 | # | lean | rejected |
 |---|---|---|
