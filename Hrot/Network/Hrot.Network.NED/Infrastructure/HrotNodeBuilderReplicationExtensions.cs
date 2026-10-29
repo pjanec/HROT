@@ -144,10 +144,14 @@ public static class HrotNodeBuilderReplicationExtensions
     /// shared bootstrapper base cannot hold it because <c>Hrot.Common</c> cannot see NED, so the one copy lives here, beside
     /// <see cref="WithReplication"/>. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
     /// </summary>
+    /// <remarks>⭐ CE-1446 B0 — <paramref name="timeRole"/> (default <see cref="TimeRole.Slave"/>, what every host got) is the ONE way a host that owns its clock (the editor: Standalone) says so;
+    /// a subclass passes its <c>SharedApplicationBootstrapper.TimeRole</c>, which the base then verifies against <c>HrotNodeContext.TimeRole</c>.</remarks>
     public static HrotNodeContext BuildReplicatedNode(HrotNodeConfig config, NodeRole role, Hrot.Core.Network.INetworkFactory? networkFactory,
-                                                      BehaviorRegistry? behaviorRegistry)
+                                                      BehaviorRegistry? behaviorRegistry,
+                                                      Fdp.Toolkit.Time.Controllers.TimeRole timeRole = Fdp.Toolkit.Time.Controllers.TimeRole.Slave)
         => new HrotNodeBuilder(config)
             .WithRole(config.SubsystemName, role)
+            .WithTimeRole(timeRole)
             .WithNetworkFactory(networkFactory)
             .WithReplication(role)
             .WithBehaviorRegistry(behaviorRegistry)

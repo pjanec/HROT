@@ -192,6 +192,15 @@ namespace Hrot.SimHost
         /// Optional <see cref="Fdp.ModuleHost.Scheduling.NetworkLifecycleSystemGroup"/> gating
         /// the three network lifecycle systems during replay.
         /// </param>
+        /// <param name="scenarioHandlers">
+        /// ⭐ CE-1446 B0 — the host's OWN scenario/episode handlers (CGF: <c>CgfEpisodeLoadHandler</c>), registered in place of the default <c>ReferenceEpisodeLoadHandler</c>. Null = the default.
+        /// </param>
+        /// <param name="behaviorRemapper">
+        /// ⭐ CE-1446 B0 — given to the scenario load step so a load that renumbers ids rewrites the EntityRefs inside mission parameters (CGF and the editor hold a behaviour registry and pass one).
+        /// </param>
+        /// <param name="offline">
+        /// ⭐ CE-1446 B0 — an OFFLINE node (the editor): no DDS participant by design, so a Brain role does not need one. Skips the participant guard; the DDS-only parts already key on the participant.
+        /// </param>
         /// <param name="ghostCreationSystem">
         /// Optional <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem"/> whose
         /// <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem.BypassLifecycle"/>
@@ -231,9 +240,12 @@ namespace Hrot.SimHost
             //   second pair, so every host on this path ran two NedSlaveOrchestrationTranslators — the builder's never ticked, its DDS
             //   readers never drained. A caller that HAS them passes them; only a caller with no context builds new ones here.
             ClusterSlave? clusterSlave = null,
-            Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null)
+            Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null,
+            IReadOnlyList<IClusterStateHandler>? scenarioHandlers = null,
+            Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper = null,
+            bool offline = false)
         {
-            if (participant == null && role.HasFlag(NodeRole.Brain))
+            if (!offline && participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
                     $"[SimHost] A DDS participant is required for orchestration role '{role}'. " +
                     "ClusterSlave cannot run without DDS in production.");
@@ -266,7 +278,7 @@ namespace Hrot.SimHost
             if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
 
             IClusterStateHandler? scenarioSaveHandler = null;
-            var scenarioHandlers = new List<IClusterStateHandler>();
+            var handlersToRegister = new List<IClusterStateHandler>();
             if (scenarioSerializer != null)
             {
                 // ⭐⭐⭐ CE-275 ③ / CE-279 — the ONE scenario SAVE handler (same class every host registers); it needs ONLY
@@ -284,11 +296,13 @@ namespace Hrot.SimHost
                     loadProviders.Add(new ScenarioLoadStep(
                         scenarioSerializer, scenarioLoader, scenarioExtractor, scenarioSource,
                         scenarioIdAllocator,
+                        behaviorRemapper: behaviorRemapper,
                         // ⭐ C3 — the LOCAL terrain invocation, made at the one frame the zone entities provably exist.
                         //   ⛔ Not a NodeOp: we are inside the cluster's own load transaction and a nested 2PC would deadlock.
                         terrainLoadService: TerrainLoadService));
 
-                    scenarioHandlers.Add(new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
+                    if (scenarioHandlers != null) handlersToRegister.AddRange(scenarioHandlers);
+                    else handlersToRegister.Add(new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world: null));
                 }
             }
 
@@ -320,7 +334,7 @@ namespace Hrot.SimHost
                 EventAccumulator   = eventAccumulator,
                 IdAllocator        = scenarioIdAllocator,
                 LoadProviders      = loadProviders,
-                ScenarioHandlers   = scenarioHandlers,
+                ScenarioHandlers   = handlersToRegister,
                 ScenarioSaveHandler = scenarioSaveHandler,
                 TerrainService     = TerrainLoadService,
                 TerrainStagingRoot = localTempRoot,

@@ -106,6 +106,77 @@ public sealed class ClusterMasterCatchUpTests
         Assert.Contains(2, master.InSyncNodeIds);
     }
 
+    private static ClusterConfiguration LobbyConfig() => new()
+    {
+        MandatoryRoles = Fdp.Core.NodeRole.None, Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
+        AdmissionPolicy = AdmissionPolicy.Lobby,
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3346</c> (R-3072, AQ110 E) — under <see cref="AdmissionPolicy.Lobby"/> a node joining while a load is PARKED is NOT admitted into it: it is not in the load
+    /// round's targets, waits in the roster not in sync, and is caught up (C7: staging, then Idle · universal load · operating state — to it alone) once the cluster operates.
+    /// ⭐ The DEFAULT (<see cref="AdmissionPolicy.JoinTheLoadWhenParked"/>) is pinned by <see cref="A_node_joining_while_a_load_is_parked_is_in_sync_and_takes_part"/>.
+    /// 🔴 Red-proof: <c>AdmitJoinedNode</c> ignoring the policy ⇒ node 2 is in sync at once and takes part in the load.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void Under_Lobby_a_node_joining_while_a_load_is_parked_waits_and_is_caught_up_once_the_cluster_operates()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, LobbyConfig());
+        HeartbeatWithMuscle(bus, master, 1);
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\",\"ScenarioId\":\"s1\"}",
+        });
+        master.Tick();
+        bus.SwapBuffers();
+        var parked = master.ParkedRequestId;
+        Assert.NotNull(parked);
+
+        Heartbeat(bus, master, 2);                                   // joins while the load is parked
+        Assert.DoesNotContain(2, master.InSyncNodeIds);              // ⭐ Lobby: not admitted into the parked load
+        Assert.Contains(1, master.InSyncNodeIds);
+
+        // the files are staged ⇒ the load resumes; its rounds must never name node 2
+        bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = parked!.Value, ScenarioId = "s1", IsSuccess = true });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var loadOps = new List<ExecuteNodeOpIntent>();
+        for (var ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList(); ops.Count > 0 && loadOps.Count < 100; ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList())
+        {
+            loadOps.AddRange(ops);
+            AnswerAll(bus, master, ops);
+        }
+        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);
+        Assert.NotEmpty(loadOps);
+        Assert.DoesNotContain(loadOps, o => o.TargetNodeId == 2);    // ⭐ not in the load round's targets
+        Assert.DoesNotContain(2, master.InSyncNodeIds);
+
+        // now the cluster operates: the lobby node is caught up — its files first, then the three prepares, to it alone
+        var staging = bus.ReadManaged<ExecutePrefetchIntent>().Single(x => x.ActiveNodeIds.SequenceEqual(new[] { 2 }));
+        Assert.Contains(2, master.CatchingUpNodeIds);
+        bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = staging.RequestId, ScenarioId = "s1", IsSuccess = true });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var catchUpOps = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.NotEmpty(catchUpOps);
+        Assert.All(catchUpOps, o => Assert.Equal(2, o.TargetNodeId));
+        Assert.True(Assert.IsType<EditLoadHandlerPayload>(catchUpOps.First(o => o.Operation == FdpNodeOpType.PrepareLive).DomainPayload).IsCatchUp);
+
+        AnswerAll(bus, master, catchUpOps);
+        Assert.Contains(2, master.InSyncNodeIds);
+        Assert.Empty(master.CatchingUpNodeIds);
+    }
+
+    /// <summary>⭐ CE-3346 — at rest in Idle (nothing parked) BOTH policies admit at once; the policy only decides what happens to a joiner during a parked load.</summary>
+    [Fact(Timeout = 10_000)]
+    public void Under_Lobby_a_node_joining_a_cluster_at_rest_is_still_in_sync_at_once()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, LobbyConfig());
+        Heartbeat(bus, master, 1, 2);
+        Assert.Equal(new[] { 1, 2 }, master.InSyncNodeIds.OrderBy(x => x));
+    }
+
     /// <summary>
     /// ⭐⭐⭐ The whole catch-up: node 2 joins a RUNNING cluster ⇒ not in sync; it receives — alone — Idle, a load marked
     /// <c>IsCatchUp</c> naming no scenario, then the operating state; after its three answers it is in sync. ⛔ Node 1 (in sync)

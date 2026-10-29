@@ -67,6 +67,11 @@ public sealed class HrotRunnerHarness : IDisposable
     // Shared DDS participant owned by the harness; disposed after Orchestrator.Shutdown().
     private readonly DdsParticipant _participant;
 
+    private readonly RunnerOptions _options;
+
+    // ⭐ A subsystem started AFTER boot (StartLate) — it runs in its own host loop, pumped with the rest (PumpFrames / PumpUntil).
+    private readonly System.Collections.Generic.List<SubsystemOrchestrator> _late = new();
+
     public HrotRunnerHarness()
     {
         DomainId = Interlocked.Increment(ref _domainCounter);
@@ -90,6 +95,7 @@ public sealed class HrotRunnerHarness : IDisposable
         Cgf = new CgfSubsystem(factory);  // CGF processes CreateEntityRequest and sends ACKs
 
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
+        _options = options;
         Orchestrator = new SubsystemOrchestrator(new ISubsystem[]
         {
             OrchestratorSvc,   // must be first: starts DdsIdAllocatorServer before SimHost
@@ -142,6 +148,7 @@ public sealed class HrotRunnerHarness : IDisposable
         }
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
+        _options = options;
         Orchestrator = new SubsystemOrchestrator(subsystems, options);
 
         BootOrCleanUp();
@@ -178,9 +185,30 @@ public sealed class HrotRunnerHarness : IDisposable
     public void PumpFrames(int frames)
     {
         for (int i = 0; i < frames; i++)
-        {
-            Orchestrator.RunFrames(1);
-        }
+            RunOneFrame();
+    }
+
+    private void RunOneFrame()
+    {
+        Orchestrator.RunFrames(1);
+        foreach (var late in _late) late.RunFrames(1);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3346</c> rail support — start a subsystem on THIS harness's domain and participant AFTER the cluster is running, the way a
+    /// Player's IG process joins a live exercise: it goes through the same <see cref="SubsystemOrchestrator.Initialize"/> every host uses
+    /// (so no second bootstrap), then is pumped with the others. Build the harness with a mode list that leaves it out
+    /// (<c>HrotRunnerHarness("simhost,excon,cgf", domain)</c> — its <see cref="Ig"/> is constructed but never initialised).
+    /// ⚠ The content seed already ran with the first orchestrator, so it is not repeated.
+    /// ⚠ <paramref name="nodeId"/> is REQUIRED to be distinct: every default node id here is a per-subsystem constant and the IG's (300) is the Orchestrator's
+    /// own — a late IG on the default would merge into the master's own roster entry and prove nothing. A real Player process gets its own id the same way.
+    /// </summary>
+    public void StartLate(ISubsystem subsystem, int nodeId)
+    {
+        var options = new RunnerOptions { Headless = true, DomainId = _options.DomainId, NodeId = nodeId, SeedContent = false };
+        var host = new SubsystemOrchestrator(new[] { subsystem }, options);
+        _late.Add(host);
+        host.Initialize();
     }
 
     public bool PumpUntil(Func<bool> condition, int timeoutFrames = 300)
@@ -189,7 +217,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         for (int i = 0; i < timeoutFrames; i++)
         {
-            Orchestrator.RunFrames(1);
+            RunOneFrame();
             Thread.Sleep(PumpSleepMs);
 
             if (condition()) return true;
@@ -207,6 +235,12 @@ public sealed class HrotRunnerHarness : IDisposable
 
         // QA-002: this also runs from BootOrCleanUp on a HALF-BUILT harness, where a subsystem may
         // never have been initialised. Shutdown must not mask the original boot failure.
+        try
+        {
+            for (int i = _late.Count - 1; i >= 0; i--) _late[i].Shutdown();   // the late joiners first, as the reverse of start
+        }
+        catch (Exception) { /* as below */ }
+
         try
         {
             Orchestrator.Shutdown();

@@ -285,6 +285,7 @@ public sealed class HrotNodeBuilder
             // N₀ item ② (CE-203): the controller Step 4 built and already gave the kernel. Exposed so a
             // host that drives the clock — the editor — need not build a second one.
             TimeController  = timeCtrl,
+            TimeRole        = _timeRole,
         };
     }
 }
