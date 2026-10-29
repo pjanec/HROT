@@ -6625,7 +6625,7 @@ graph TD
 | ⛔ debt | CGF→SimHost · Editor→SimHost/CGF/Orchestrator/IG · ExCon→Orchestrator · NodeComposition→SimHost/IG · ReplayBrowser→CGF/SimHost · Stride Game→NodeComposition/Editor/Orchestrator/CGF/SimHost — railed as a ratchet (`OneBootstrapImplementationRails.NoHost_ReferencesAnotherHost_BeyondTheRecordedDebt`) |
 | ⭐ D17 | `Hrot.EcsNode` is the natural home for the one `BuildContext` helper too, if it references NED |
 
-## ⭐⭐⭐ §4.1af — **`CE-1446` (R-1045): CGF AND THE EDITOR DERIVE FROM `SharedApplicationBootstrapper`** `build-state: DESIGN` *(`2026-10-29`, backend)*
+## ⭐⭐⭐ §4.1af — **`CE-1446` (R-1045): CGF AND THE EDITOR DERIVE FROM `SharedApplicationBootstrapper`** `build-state: READY-TO-BUILD` *(decisions A–D ✅ APPROVED by the user `2026-10-29`: "Approved." — R-3074)* *(`2026-10-29`, backend)*
 
 🔒 **User, `2026-10-29`:** *"Why is CGF not using shared bootstrapper? It must use the same bootstrapper as the other ECS node. That's the
 point of unification and sharing."* ⇒ R-1045 supersedes §4.1j's *"node-bootstrap adoption optional, LAST"* (and §4.1x / §4.1ae W3's restatements).
@@ -6714,7 +6714,7 @@ graph TD
 ```
 *Red: the orphaned slave CGF creates today disappears — the builder's slave is the one slave (D15).*
 
-### Decisions (leans — user approval needed: they change what CGF and the editor run)
+### Decisions — ✅ APPROVED `2026-10-29` (R-3074) as leaned
 
 | # | question | ⭐ lean | rejected |
 |---|---|---|---|
