@@ -49,8 +49,9 @@ internal static class RunChoiceRig
 
     internal sealed record Rig(ClusterTimeTransportAdapter F, FdpEventBus Bus, FakeControl C, FakeUnsaved Q, RunModeChoice Choice, ClusterView View);
 
-    /// <summary>A real adapter on a real bus with a run choice attached; the cluster is heard in <paramref name="state"/> (exercise <see cref="RunId"/>).</summary>
-    internal static Rig With(ClusterState state, RunArmed hostDefault = RunArmed.Preview, UnsavedAnswer answer = UnsavedAnswer.Unchanged,
+    /// <summary>A real adapter on a real bus with a run choice attached; the cluster is heard in <paramref name="state"/> (exercise <see cref="RunId"/>). ⭐ CE-1443 (R-1043): <paramref name="initialArmed"/> is the armed mode the cluster's MASTER was bootstrapped with
+    /// (the first broadcast carries it) — there is no host default on the choice any more.</summary>
+    internal static Rig With(ClusterState state, RunArmed initialArmed = RunArmed.Preview, UnsavedAnswer answer = UnsavedAnswer.Unchanged,
                              bool running = false, double clock = 0, bool withControl = true, string? inventoryScenario = "hill-attack",
                              bool runNotRecorded = false, bool recordLiveRunsOff = false, bool withDoor = false,
                              HostGatePolicy gatePolicy = HostGatePolicy.Operator, Action<string?>? cancelLoad = null)
@@ -60,12 +61,12 @@ internal static class RunChoiceRig
         var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
         var control = withDoor ? new FakeDoorControl() : new FakeControl();
         var unsaved = new FakeUnsaved { Answer = answer };
-        var choice = facade.AttachRunChoice(hostDefault, withControl ? control : null, unsaved, gatePolicy: gatePolicy, cancelLoad: cancelLoad);
+        var choice = facade.AttachRunChoice(withControl ? control : null, unsaved, gatePolicy: gatePolicy, cancelLoad: cancelLoad);
         var rig = new Rig(facade, bus, control, unsaved, choice, view);
         bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });
         if (inventoryScenario != null)
             bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, inventoryScenario) } });
-        Hear(rig, state, runNotRecorded, recordLiveRunsOff);
+        Hear(rig, state, runNotRecorded, recordLiveRunsOff, armed: Enum.Parse<ClusterArmedMode>(initialArmed.ToString()));   // the master's bootstrap armed mode, as its first broadcast says it
         return rig;
     }
 
@@ -89,16 +90,16 @@ internal static class RunChoiceRig
 
     /// <summary>⭐ CE-4097 part two — a REAL adapter on a real bus whose run choice asks the production <see cref="ClusterUnsavedChangesQuery"/> (the master's check round),
     /// reading its answer through <see cref="FakeReads"/>; the cluster is heard in <paramref name="state"/>.</summary>
-    internal static CheckRig WithCheckRound(ClusterState state, RunArmed hostDefault = RunArmed.Live, string? loadedName = "hill-attack", bool observes = true)
+    internal static CheckRig WithCheckRound(ClusterState state, RunArmed initialArmed = RunArmed.Live, string? loadedName = "hill-attack", bool observes = true)
     {
         var bus = new FdpEventBus();
         var view = new ClusterView(bus);
         var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
         var control = new FakeControl { LoadedScenarioName = loadedName };
         var reads = new FakeReads { Observes = observes };
-        var choice = facade.AttachRunChoice(hostDefault, control, unsavedReads: reads.Reads);
+        var choice = facade.AttachRunChoice(control, unsavedReads: reads.Reads);
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, ArmedMode = Enum.Parse<ClusterArmedMode>(initialArmed.ToString()) });   // CE-1443: the master's bootstrap armed mode
         bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
         return new CheckRig(facade, bus, control, choice, reads, view);
     }

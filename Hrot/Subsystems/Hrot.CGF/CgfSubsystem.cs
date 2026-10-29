@@ -248,7 +248,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     public Hrot.Map.Common.Services.TerrainResidency? TerrainResidency { get; private set; }
 
-    private Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher? _terrainPicker;
 
     private readonly CarKinem.Road.RoadNetworkHolder _cgfRoadNetworkHolder =
         new CarKinem.Road.RoadNetworkHolder();
@@ -1853,7 +1852,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
             //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
             //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
-            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf), _scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+            _clusterTimeAdapter.AttachRunChoice(_scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                 unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()),
                 gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf),   // ⭐ CE-1442 — from the table, never a literal
                 cancelLoad: reason => _context?.ClusterSlave.CancelLoad(reason));
@@ -2529,36 +2528,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
 
         // ⭐ The router is the SAME shared type the editor uses; only its two delegates are per-host.
-        //   ⭐⭐ `loadScenario` goes to the Slice A session's OpenForEdit — ⛔ NOT to a CGF-private load
+        //   ⭐⭐ `loadScenario` goes to the Slice A session's LoadScenario (⭐ CE-1443, R-1043: into the cluster's armed mode, through the ONE door) — ⛔ NOT to a CGF-private load
         //   path. That is the whole point of E1 landing first.
         var router = new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(
             openDocument: asset => _aiDocumentManager?.Open(asset),
-            loadScenario: name  => _scenarioSession?.OpenForEdit(name));
+            loadScenario: name  => _scenarioSession?.LoadScenario(name));
 
         _assetPickerLauncher = new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
             openPicker: _shellPickers.OpenPicker,
             catalog:    catalog,
             router:     router);
-
-        // ⭐ W13 (2026-10-03) — the scenario's terrain picker, the SAME class the editor composes.
-        //   Picking loads the terrain on THIS node; the other nodes take it at the next scenario load (the
-        //   save stamps the resident terrain into the header, CE-3015). 📄 docs/DESIGN_Terrain_World.md §7.3.
-        _terrainPicker = new Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher(
-            openPicker:      _shellPickers.OpenPicker,
-            listTerrains:    () => TerrainResidency?.Catalog.List() ?? Array.Empty<string>(),
-            residentTerrain: () => Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_context?.World),
-            applyTerrain:    name =>
-            {
-                try
-                {
-                    TerrainResidency?.EnsureTerrain(_context?.World, name);
-                    FdpLog<CgfSubsystem>.Info($"[Terrain] Scenario terrain set to '{name}' on CGF; the cluster takes it at the next scenario load.");
-                }
-                catch (Exception ex)
-                {
-                    FdpLog<CgfSubsystem>.Error($"[Terrain] Could not load terrain '{name}': {ex.Message}");
-                }
-            });
 
         // ⭐⭐ The New-Asset flow: recipe picker → Save-As browser for the name/folder → the ONE
         //    create-core. ⚠ `_assetCreateController` is non-null here because WireAssetCreation runs
@@ -2868,7 +2847,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 NewProduct:           _newAssetLauncher != null
                     ? p => _newAssetLauncher.Open(p)
                     : null,
-                PickTerrain:          () => _terrainPicker?.Open(),
                 CompileReload:        () => ReloadActiveAiDocument(),
                 CompileReloadEnabled: () => _aiDocumentManager?.Active != null));
             // ⭐⭐⭐ UXI-05 item ④ — CGF's File menu, emitted from the SAME table as its toolbar.
@@ -2938,14 +2916,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //    modal on an unattended node is a hang, not a prompt. ⇒ it PROCEEDS, and the log IS
                 //    the safety net. ⛔ Passing null would proceed SILENTLY, which is the one option the
                 //    ruling forbids.
-                confirmNewExercise: run =>
-                {
-                    FdpLog<CgfSubsystem>.Warn(
-                        "[CGF] New Exercise requested — finishing the running exercise and clearing the "
-                      + "world CLUSTER-WIDE. This node is headless-first and did not prompt (ruling 53); "
-                      + "this log is the record.");
-                    run();
-                },
                 showMigrationHistory: sidecars => FdpLog<CgfSubsystem>.Info(
                     "[CGF] {0} migration sidecar(s) for the loaded scenario.", sidecars.Count),
                 // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording, the same launcher as the editor's: the master's exercise inventory
@@ -2957,7 +2927,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                          ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
                     openRecording: id => _scenarioSession.OpenRecording(id),
-                    hasInventory:  () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true).Open);   // ⭐ CE-1442
+                    hasInventory:  () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true).Open,   // ⭐ CE-1442
+                // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
+                takeCheckpoint:      () => _clusterTimeAdapter?.RunChoice?.TakeCheckpoint(),
+                checkpointDisabledReason: () => _clusterTimeAdapter?.RunChoice?.CheckpointDisabledReason);
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two
@@ -3121,8 +3094,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // 📄 The user's `--mode cgf` visual check, 2026-08-26, symptoms 4/5/6 — ONE root, three symptoms.
         //
         // 🔴🔴 MEASURED: CGF's catalog carried ZERO AssetKind.Scenario entries, because
-        //    ScenarioCatalogContributor lived in Hrot.Editor. ⇒ `File/Edit/Open Scenario`,
-        //    `File/Live/Load Scenario` and `File/Open Asset`'s Scenario tab were all EMPTY.
+        //    ScenarioCatalogContributor lived in Hrot.Editor. ⇒ the File menu's scenario picker
+        //    (then `File/Edit/Open Scenario`, `File/Live/Load Scenario`; now `File/Load Scenario…`) and `File/Open Asset`'s Scenario tab were all EMPTY.
         //    ⚠ CE-049 wired this host's picker and never gave its catalog anything to show — the picker
         //    worked perfectly and had nothing to list, which is why every model-level rail stayed green.
         //

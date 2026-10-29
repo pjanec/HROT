@@ -11,28 +11,27 @@ namespace Hrot.UI.Common.RunMode;
 /// </summary>
 public enum LeaveReason
 {
-    /// <summary><i>File › Live › New Exercise</i> (the cluster-wide reset).</summary>
-    NewExercise,
     /// <summary>HTTP <c>POST /replay/stop</c> — explicit, answers 409 instead of asking.</summary>
     HttpStop,
     /// <summary>The film director's stop of its live run (no unsaved scenario can be in play there — it ends a run).</summary>
     DirectorStop,
     /// <summary>⭐ <c>CE-3345</c> (AQ108 §2.15, R-3073) — <i>File › Close</i>: back to Idle (the Start perspective), through the ONE door like every leave (unsaved edits ask first). The way out of a cluster in its ERROR state:
-    /// exempt from the readiness gate. ⛔ Not <see cref="NewExercise"/> (no local world wipe — the unload to Idle is what clears the world). ⭐ It also IS the old "back to Start" action: the unused <c>BackToStart</c> member was folded into it (CE-3345 part B — deleted, not renamed: <c>Close</c> already existed, so a rename would collide).</summary>
+    /// exempt from the readiness gate. ⭐ <c>CE-1443</c> (U2a): it REPLACES <i>New Exercise</i> (the member is gone) — no local world wipe, the unload to Idle is what clears the world. It also IS the old "back to Start" action: the unused <c>BackToStart</c> member was folded into it (CE-3345 part B).</summary>
     Close,
     /// <summary>Exit the application — the <c>ScenarioExitGuard</c> the window composition builds over the picked owner's door (File › Exit, the window's [X]).</summary>
     Exit,
 }
 
-/// <summary>⭐ CE-3341 (AQ108 §2.14) — which open the OPERATOR made through the door (the choice maps it to the armed mode it sends).</summary>
+/// <summary>
+/// ⭐ <c>CE-1443</c> (U2a, R-1043) — what a scenario LOAD goes into: the one resolution of <see cref="ScenarioDoor.Load"/> (the cluster's armed mode, answered by <see cref="RunModeChoice.LoadTarget"/>).
+/// ⛔ SUPERSEDED: CE-3341's use of this enum to say which open the operator made, so the choice could SEND the host default — no open sends an armed mode any more.
+/// </summary>
 public enum DoorOpen
 {
-    /// <summary>A scenario opened for editing (<see cref="ScenarioDoor.Open"/>).</summary>
+    /// <summary>Into EDITING (<see cref="ScenarioDoor.Open"/>) — Preview armed.</summary>
     Scenario,
-    /// <summary>A scenario loaded live (<see cref="ScenarioDoor.LoadLive"/>).</summary>
+    /// <summary>Into a LIVE run, paused at the start (<see cref="ScenarioDoor.LoadLive"/>) — Live armed.</summary>
     Live,
-    /// <summary>A recording opened into AAR (<see cref="ScenarioDoor.OpenRecording"/>).</summary>
-    Recording,
 }
 
 /// <summary>What a <see cref="DoorQuestion"/> asks (a host may answer the kinds differently: HTTP stops a run and refuses a loss).</summary>
@@ -149,7 +148,6 @@ public readonly record struct DoorMove(string What, Func<string, string>? RunTex
     /// <summary>Leaving the open scenario for Idle.</summary>
     public static DoorMove Leaving(LeaveReason reason) => new(reason switch
     {
-        LeaveReason.NewExercise => "Starting a new exercise",
         LeaveReason.Exit        => "Exiting",
         LeaveReason.Close       => "Closing",
         _                       => "Stopping",
@@ -171,7 +169,7 @@ public interface IHasScenarioDoor
 /// <item>editing (<see cref="TransportMode.Edit"/>) ⇒ the cluster's check round (<see cref="IUnsavedChangesQuery"/>, no deadline, <see cref="CancelCheck"/> while it runs): unsaved ⇒ <i>Save / Discard / Cancel</i>, never saved ⇒ <i>Discard / Cancel</i>;</item>
 /// <item>otherwise the move goes out at once.</item>
 /// </list>
-/// ⭐ The session COMPOSES it: its public <c>OpenForEdit</c> / <c>LoadForLive</c> / <c>OpenRecording</c> / <c>NewExercise</c> are these calls, and its RAW verbs are explicit
+/// ⭐ The session COMPOSES it: its public <c>OpenForEdit</c> / <c>LoadForLive</c> / <c>OpenRecording</c> / <c>Close</c> are these calls, and its RAW verbs are explicit
 /// <see cref="IRunScenarioControl"/> members handed only to the <see cref="RunModeChoice"/> (the same shape as <c>WindowManager.SwitchPerspective</c> over <c>TrySwitchPerspective</c>).
 /// ⛔ No unguarded public open remains: a caller can only reach this.
 /// </summary>
@@ -215,10 +213,10 @@ public sealed class ScenarioDoor
     public Action<Guid>? RecordingOpening { get; set; }
 
     /// <summary>
-    /// ⭐ CE-3341 (AQ108 §2.14, D12a) — set by the run choice: raised just BEFORE the raw verb goes out, and ONLY when the move was answered by the BOUND asker (the caller passed none) —
-    /// i.e. the operator's own open. ⛔ HTTP / agent opens pass their own asker and raise nothing (D22: routes stay explicit and never follow or set the armed mode).
+    /// ⭐⭐ <c>CE-1443</c> (U2a, R-1043) — set by the run choice: what a <see cref="Load"/> goes into NOW — the CLUSTER's armed mode (<see cref="RunModeChoice.LoadTarget"/>). <see langword="null"/> (a door nobody bound: a bare rail,
+    /// a host with no choice) ⇒ editing. ⛔ Nothing is SENT with a load any more: the armed mode is the cluster's one fact, changed only by the indicator (CE-3341 decision ③ withdrawn).
     /// </summary>
-    public Action<DoorOpen>? OperatorOpening { get; set; }
+    public Func<DoorOpen>? LoadTarget { get; set; }
 
     /// <summary>The check round is open (shown as "checking…"; no timeout — the operator may <see cref="CancelCheck"/>).</summary>
     public bool IsCheckingUnsaved => _asking;
@@ -228,7 +226,7 @@ public sealed class ScenarioDoor
 
     /// <summary>
     /// ⭐⭐ <c>CE-1442</c> (U1, §11.7 ②) — set by the run choice: the run gate's reason while it is CLOSED (<see langword="null"/> = open). <see cref="Admit"/> refuses every move that is not a LEAVE while it is non-null
-    /// — the BACKSTOP for HTTP and any direct caller (the menus and the start surface already grey their items through the shared command registration). ⛔ A leave (Close / Exit / New Exercise) is never gated.
+    /// — the BACKSTOP for HTTP and any direct caller (the menus and the start surface already grey their items through the shared command registration). ⛔ A leave (Close / Exit) is never gated.
     /// </summary>
     public Func<string?>? ClosedReason { get; set; }
 
@@ -255,13 +253,22 @@ public sealed class ScenarioDoor
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
-        var operatorMove = asker is null;
         Admit(DoorMove.OpeningScenario(scenarioName), asker, answered, () =>
         {
-            if (operatorMove) OperatorOpening?.Invoke(DoorOpen.Scenario);
             raw.OpenForEdit(scenarioName);
             then?.Invoke();
         });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> (U2a, R-1043) — <b>THE operator's scenario load: it goes into the cluster's CURRENT armed mode, on every host.</b> Live armed ⇒ <see cref="LoadLive"/> (a fresh exercise, paused at the start); Preview armed (and, until the master
+    /// broadcasts the last load's mode, AAR / DAR armed) ⇒ <see cref="Open"/>. The resolution is <see cref="LoadTarget"/> (the run choice's, one place); the File menu, Start's Recent rows and every picker call THIS, never a verb of their own.
+    /// ⛔ Sends no armed mode — the indicator's move is the only writer.
+    /// </summary>
+    public void Load(string scenarioName, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null)
+    {
+        if (LoadTarget?.Invoke() == DoorOpen.Live) LoadLive(scenarioName, asker, answered, then);
+        else Open(scenarioName, asker, answered, then);
     }
 
     /// <summary>Loads <paramref name="scenarioName"/> LIVE (the Orchestrator panel's <i>Load into Live</i>) — the same decision as <see cref="Open"/>.</summary>
@@ -269,10 +276,8 @@ public sealed class ScenarioDoor
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
-        var operatorMove = asker is null;
         Admit(DoorMove.LoadingLive(scenarioName), asker, answered, () =>
         {
-            if (operatorMove) OperatorOpening?.Invoke(DoorOpen.Live);
             raw.LoadForLive(scenarioName);
             then?.Invoke();
         });
@@ -283,11 +288,9 @@ public sealed class ScenarioDoor
     {
         if (exerciseId == Guid.Empty) return;   // Empty means "the master picks" on the wire; an open names one
         var raw = Raw;
-        var operatorMove = asker is null;
         Admit(DoorMove.OpeningRecording, asker, answered, () =>
         {
             RecordingOpening?.Invoke(exerciseId);   // LastExercise bookkeeping — for every caller
-            if (operatorMove) OperatorOpening?.Invoke(DoorOpen.Recording);
             if (atSimSeconds is { } at) raw.OpenRecording(exerciseId, at);
             else raw.OpenRecording(exerciseId);
             then?.Invoke();
@@ -297,7 +300,7 @@ public sealed class ScenarioDoor
     // ── OUT ────────────────────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ The OUT door: leave the open scenario for Idle. A run is simply stopped (■ never asks); editing with unsaved edits asks <i>Save / Discard / Cancel</i> first — so New Exercise no longer discards silently.
+    /// ⭐ The OUT door: leave the open scenario for Idle. A run is simply stopped (■ never asks); editing with unsaved edits asks <i>Save / Discard / Cancel</i> first — so Close never discards silently.
     /// </summary>
     public void Leave(LeaveReason reason, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null)
     {

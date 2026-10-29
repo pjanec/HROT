@@ -65,7 +65,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
     private Hrot.Presentation.DebugApi.ISubsystemDebugProvider? _unsavedReadsProvider;
     private NodeEditor.UI.Picker.PickerRegistry? _pickers;
     private Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor? _scenarioCatalog;   // projects the master's scenario inventory into the picker's catalog
-    private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new("orchestrator_new_exercise_confirm");
 
     /// <summary>⭐ CE-1439 — the run choice of this host (a rail's and the composer's read).</summary>
     internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
@@ -243,7 +242,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         _scenarioSession = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
             _bus, () => core.UiCache.View, () => OrchestrationConstants.GetSharedScenariosRoot());
         var choice = _timeTransport.AttachRunChoice(
-            Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator), _scenarioSession.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+            _scenarioSession.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
             unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()),
             gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator),   // ⭐ CE-1442 — from the table, never a literal
             cancelLoad: reason => _clusterSlave?.CancelLoad(reason));
@@ -287,9 +286,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
     public void DrawUI()
     {
         /* panels registered as ManagedWindows via IWindowRegistrar */
-        // ⭐ CE-1439 — the shared pickers (Open Scenario / Open Recording) and the New Exercise confirmation are drawn once a frame, as CGF and the editor do
+        // ⭐ CE-1439 — the shared pickers (Load Scenario / Open Recording) are drawn once a frame, as CGF and the editor do
         _pickers?.DrawFrame();
-        Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_newExerciseConfirm.Pending);
     }
 
     /// <summary>
@@ -316,7 +314,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         var scenarioPicker = new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
             openPicker: OpenPicker,
             catalog:    catalog,
-            router:     new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(_ => { }, name => _scenarioSession.OpenForEdit(name)));   // Open() below always passes its own onPicked
+            router:     new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(_ => { }, name => _scenarioSession.LoadScenario(name)));   // Open() below always passes its own onPicked
 
         Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
             registerCommand:    windowManager.ShellCommands.Register,
@@ -327,14 +325,15 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             session:            _scenarioSession,
             openPicker:         (kinds, callback) => scenarioPicker.Open(kinds, callback),
             openSaveAsDialog:   null,
-            // ruling 53 — the confirm belongs where the operator sits, and this window has one: it PROMPTS (the ONE wording, shared with the editor)
-            confirmNewExercise: run => _newExerciseConfirm.RequestNewExercise(run),
             // ⭐ CE-4101 — the session's own open / open-recording ARE the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits): no host seam, no unguarded fallback
             openRecordingPicker: new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
                 openPicker:    OpenPicker,
                 listExercises: () => core.UiCache.AvailableExercises,
                 openRecording: id => _scenarioSession.OpenRecording(id),
-                hasInventory:  () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true).Open);   // ⭐ CE-1442
+                hasInventory:  () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true).Open,   // ⭐ CE-1442
+            // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
+            takeCheckpoint:      () => _timeTransport?.RunChoice?.TakeCheckpoint(),
+            checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason);
     }
 
     /// <inheritdoc/>

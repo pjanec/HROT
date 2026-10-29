@@ -13,7 +13,7 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// (the cluster read model's exercise inventory — <c>ClusterUiCache.AvailableExercises</c>, the same list <c>GET /exercises</c>
 /// and the orchestrator's Replay section show), newest first, and on confirm hands the chosen exercise to the host's ONE opener.
 ///
-/// <para>⭐ <b>ONE class for both hosts</b>, exactly as <see cref="TerrainPickerLauncher"/> and <c>AssetPickerLauncher</c>: each host passes
+/// <para>⭐ <b>ONE class for both hosts</b>, exactly as <c>AssetPickerLauncher</c> (and the since-removed terrain picker): each host passes
 /// its inventory, its opener and the shared <c>PickerRegistry.OpenPicker</c> seam, so it is unit-testable without ImGui.</para>
 ///
 /// <para>⭐ <b>The opener is not a second path.</b> In production <c>openRecording</c> is

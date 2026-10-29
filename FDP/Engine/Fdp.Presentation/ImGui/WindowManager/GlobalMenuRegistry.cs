@@ -124,6 +124,27 @@ public class MenuItemNode
 
     /// <summary>Child nodes keyed by path segment name.</summary>
     public Dictionary<string, MenuItemNode> Children { get; } = new();
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> (U2a, AQ108 §2.15a) — where this node sits among its SIBLINGS: ascending; ties keep registration order, so <c>0</c> everywhere (every menu but the <c>File</c> menu) is
+    /// byte-identical to the insertion order this registry always drew. ⭐ Needed because the items of one menu are registered by several hosts and registrars at different times — the
+    /// registration order is not a layout.
+    /// </summary>
+    public int Order { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> — optional per-frame visibility of this leaf or separator (immediate mode, like <see cref="GetEnabled"/>). When <see langword="false"/> the node is NOT DRAWN (not greyed): <see cref="GlobalMenuRegistry.Offers"/>
+    /// — the ONE visibility test — reads it, so the bar, the Start surface, the model and <c>/panels</c> cannot disagree. <see langword="null"/> = always visible.
+    /// </summary>
+    public Func<bool>? GetVisible { get; set; }
+
+    /// <summary>This node's children in DRAW order: by <see cref="Order"/>, then registration order. ⛔ Every draw / model walk uses this, never <see cref="Children"/>'s raw order.</summary>
+    public IEnumerable<MenuItemNode> OrderedChildren()
+    {
+        var ordered = false;
+        foreach (var c in Children.Values) if (c.Order != 0) { ordered = true; break; }
+        return ordered ? Children.Values.OrderBy(c => c.Order) : Children.Values;   // LINQ OrderBy is stable: ties keep registration order
+    }
 }
 
 /// <summary>
@@ -219,7 +240,7 @@ public class GlobalMenuRegistry
     /// <summary>⭐⭐ The ONE visibility test of a tree leaf: it resolves a binding for <paramref name="perspective"/>, and — while
     /// <see cref="IdleOnly"/> — is allowed in Idle. ⛔ Every draw / model path asks this, never <c>ResolveBinding</c> alone.</summary>
     public bool Offers(MenuItemNode node, string? perspective)
-        => node.ResolveBinding(perspective) != null && (!IdleOnly || IsAllowedInIdle(node.AllowedInIdle));
+        => node.ResolveBinding(perspective) != null && (node.GetVisible?.Invoke() ?? true) && (!IdleOnly || IsAllowedInIdle(node.AllowedInIdle));   // ⭐ CE-1443: + the node's own visibility
 
     /// <summary>
     /// ⭐ CE-1441 (audit #20) — THE one rule "this item is allowed in Idle": its flag says so. A tree leaf (<see cref="MenuItemNode.AllowedInIdle"/>),
@@ -251,10 +272,10 @@ public class GlobalMenuRegistry
             if (node.IsSeparator) return;
             if (node.Children.Count > 0)
             {
-                foreach (var c in node.Children.Values) WalkIdle(c, path + "/" + c.Name, into);
+                foreach (var c in node.OrderedChildren()) WalkIdle(c, path + "/" + c.Name, into);
                 return;
             }
-            if (!IsAllowedInIdle(node.AllowedInIdle) || node.ResolveBinding(perspective)?.OnClick is not { } click) return;
+            if (!IsAllowedInIdle(node.AllowedInIdle) || !(node.GetVisible?.Invoke() ?? true) || node.ResolveBinding(perspective)?.OnClick is not { } click) return;
             into.Add(new IdleAction(path, node.ResolveLabel, () => node.GetEnabled?.Invoke() ?? true, click));
         }
 
@@ -329,6 +350,25 @@ public class GlobalMenuRegistry
         node.Bindings.Clear();
         node.Bindings.Add(new MenuBinding(perspective, null, null, null));
         node.IsSeparator = true;
+    }
+
+    // ── Layout rules (CE-1443) ─────────────────────────────────────────────────
+
+    private readonly Dictionary<string, (int Order, Func<bool>? Visible)> _layout = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> (U2a, AQ108 §2.15a) — declares where the node at <paramref name="path"/> sits among its siblings (<paramref name="order"/>) and when it is DRAWN (<paramref name="visible"/>; <see langword="null"/> = always).
+    /// ⭐ It does not matter whether the node exists yet: the several hosts and registrars that fill one menu register at different times, so the rule is kept and applied when the node is created, or at once when it
+    /// is already there. ⛔ It creates no node (a rule for an item no host registers leaves no phantom row in the bar or in <c>/panels</c>). Last write wins.
+    /// </summary>
+    public void SetLayout(string path, int order, Func<bool>? visible = null)
+    {
+        if (string.IsNullOrEmpty(path)) throw new ArgumentException("Menu item path must not be empty.", nameof(path));
+        _layout[path] = (order, visible);
+        var node = MenuCommandAdapter.FindNode(Root, path);
+        if (node is null) return;
+        node.Order = order;
+        node.GetVisible = visible;
     }
 
     // ── Contributors (CE-1243 MB-2) ────────────────────────────────────────────
@@ -464,7 +504,7 @@ public class GlobalMenuRegistry
 
         void Walk(MenuItemNode node, string prefix, List<GlobalMenuItemView> into, string perspective)
         {
-            foreach (var child in node.Children.Values)
+            foreach (var child in node.OrderedChildren())
             {
                 var path = prefix.Length == 0 ? child.Name : $"{prefix}/{child.Name}";
 
@@ -542,15 +582,18 @@ public class GlobalMenuRegistry
 
         var segments = path.Split('/');
         var current = Root;
+        var soFar = "";
 
         foreach (var segment in segments)
         {
             // Skip empty segments (e.g. trailing slash produces an empty last segment).
             if (segment.Length == 0) continue;
+            soFar = soFar.Length == 0 ? segment : soFar + "/" + segment;
 
             if (!current.Children.TryGetValue(segment, out var child))
             {
                 child = new MenuItemNode { Name = segment };
+                if (_layout.TryGetValue(soFar, out var rule)) { child.Order = rule.Order; child.GetVisible = rule.Visible; }   // ⭐ CE-1443: a layout rule declared BEFORE the node exists
                 current.Children[segment] = child;
             }
 

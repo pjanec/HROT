@@ -1040,7 +1040,7 @@ classDiagram
 
 ### 2.14 CE-3341 (ui half) — the armed mode is READ from the cluster and SENT by the operator's open (R-3068, D12a) — ⭐ **AS-BUILT `2026-10-29` (ui)**
 
-⛔ **PARTLY SUPERSEDED `2026-10-29` by R-1043 (user, §2.15):** decision ③ (*the operator's open sends its HOST default*) and the host-side default (`RunModeChoice.HostDefault`, `RunArmedDefaults.For`) are WITHDRAWN — Load always loads into the cluster's CURRENT armed mode, and only the master's initial armed mode differs (the editor's single-node orchestrator: Preview). Decisions ①, ② (read the cluster, one `Arm` writer for the indicator), ④ and ⑤ stand. The rework is built with CE-1443.
+⛔ **PARTLY SUPERSEDED `2026-10-29` by R-1043 (user, §2.15):** decision ③ (*the operator's open sends its HOST default*) and the host-side default (`RunModeChoice.HostDefault`, `RunArmedDefaults.For`) are WITHDRAWN — Load always loads into the cluster's CURRENT armed mode, and only the master's initial armed mode differs (the editor's single-node orchestrator: Preview). Decisions ①, ② (read the cluster, one `Arm` writer for the indicator), ④ and ⑤ stand. ⭐ The rework is BUILT with CE-1443 part A (§2.15a).
 
 | the lean rests on | code — how it IS | design — how it was MEANT to be |
 |---|---|---|
@@ -1152,6 +1152,101 @@ File
 | ✅ **AS-BUILT `CE-3345` part A (backend, `2026-10-29`)** — see `DESIGN_Cluster_Load_Phase.md` §11.5a | `LeaveReason.Close` exists (`ScenarioDoor`, text *"Closing"*; `BackToStart` is still in the enum — the Roslyn fold is pending); ⛔ ~~**load follows the armed mode** is built at the MASTER: `TransitionStateIntent.FollowArmedMode`~~ — **WITHDRAWN `2026-10-29` (user: *"It's a nonsense."*)**: every request to the cluster state machine is EXPLICIT (*"No one is just please load. There is always please load into edit, please load into preview."*); the master never interprets the armed mode. The flag and its resolver are removed |
 | ⛔ **`File/Terrain…` is REMOVED** with `TerrainPickerLauncher` (its only two users: `EditorSubsystem.cs:5118`, `CgfSubsystem.cs:2869`) | the recipe owns the terrain and a scenario's terrain is not replaceable — `DESIGN_Terrain_World.md` §7.3's picker is SUPERSEDED |
 | ⭐⭐ **SAVE NAMES WHAT IT SAVES — never a plain "Save"** *(user, `2026-10-29`: "the save menu item should never be just plain save. It needs to be save scenario, save btree, save HSM etc to Make it clear for the user what is going to be saved.")* | the perspective names its main kind; the item saves the FOCUSED document of that kind and says so: **Save Scenario 'hill-attack'** · **Save BTree 'Patrol'** · **Save HSM …**; likewise **Save Scenario As…**, **Save BTree as Recipe…** (writes `recipes/<kind>/<name>`, which that kind's "New …" then lists — a scenario recipe keeps its terrain and its entities — 🔒 user: *"the recipe should include the entities. That's the point of it. Recipe is not always empty."*). ⭐ **Save All** stays one item and counts what it will write (*Save All (3 changed)*). ⛔ The two save commands of today (`shell.save` by active document, `scenario.save`) become this ONE rule — one per-kind saver each, chosen by the focused document |
+
+### 2.15a ⭐⭐⭐ CE-1443 part A (U2a) — THE ONE FILE MENU + R-1043 — ✅ **AS-BUILT `2026-10-29` (ui)** *(`build-state: BUILT` for part A; the table at the end of this section lists the deviations)*
+
+Frame: §2.15 (the menu, the rules, R-1043 — the user's rulings are binding) · [NOTE backend→ui](batches/NOTE_Backend_To_Ui_File_Menu_And_Error_State.md) · [NOTE ui→backend](batches/NOTE_Ui_To_Backend_Load_Follows_The_Armed_Mode.md) · the run gate it must keep: `DESIGN_Cluster_Load_Phase.md` §11.7 (a command registered through `ScenarioMenuCommands.RegisterCommand` gets the gate). ⛔ Part B (named saves, *Save … as Recipe…*, *Save All (N changed)*) is NOT here: `shell.save` / `scenario.save` stay as they are.
+
+**INVENTORY** (`2026-10-29`; `scripts/cbm.sh search_graph` for `.*(ScenarioMenu|ScenarioDoor|RunModeChoice|ScenarioSession|ShellToolbar|TerrainPicker|RunArmed).*` Class — ⚠ the worktree's graph was still indexing when the answer was due, so the SETS below are the whole-tree grep over `Hrot/ FDP/ Stride/ tools/` (excluding `obj`, worktrees); `check_index_coverage` is not available through the CLI):
+
+| existing | file | what it holds today | this part |
+|---|---|---|---|
+| `ScenarioMenuCommands` | `Hrot.Editor.AiShared/Scenarios/ScenarioMenuCommands.cs` | ONE registration of the scenario items for editor / CGF / Orchestrator, with the run gate in `RegisterCommand`; items under `File/Live`, `File/Edit`, `File/Checkpoint` + 3 top-level | the menu of §2.15 + the layout rules |
+| `ScenarioDoor` / `IHasScenarioDoor` | `Hrot.Presentation/RunMode/ScenarioDoor.cs` | the ONE guarded door; `OperatorOpening` (CE-3341 ③) | + `Load` (R-1043's one resolver call); − `OperatorOpening` |
+| `RunModeChoice` | `Hrot.Presentation/RunMode/RunModeChoice.cs` | `Armed` (reads `IRunTransport.ClusterArmed`), `HostDefault`, `Arm` | − `HostDefault`; + `LoadTarget` (the resolver) bound to the door |
+| `RunArmedDefaults` (+ `RunHostKind`, `HostGatePolicies`) | `Hrot.Presentation/RunMode/RunArmedDefaults.cs` | the per-host default table; the U1 gate table | `RunArmedDefaults` deleted; `RunHostKind` + `HostGatePolicies` stay (file renamed `HostGatePolicies.cs`) |
+| `IScenarioSession` / `EditorScenarioSession` | `Hrot.Editor.AiShared/Scenarios/` | the guarded verbs, `NewExercise` | + `LoadScenario` · `Close` · `RestoreCheckpoint`; − `NewExercise` |
+| `CgfEditorShellToolbar` | `Hrot.Editor.AiShared/Windows/` | the shell slots incl. `File/Terrain…` (`PickTerrainId`) and the asset items | − the terrain slot, command and `HostServices.PickTerrain` |
+| `TerrainPickerLauncher` | `Hrot.Editor.AiShared/Scenarios/` | the W13 terrain picker | ⛔ deleted — its only two users were `EditorSubsystem` / `CgfSubsystem` (§2.15 row 7: the recipe owns the terrain) |
+| `LocalWindowController` | `Hrot.ClusterRunner/Presentation/` | registers `File/Exit` (allowed in Idle) | unchanged; the layout rule orders it last |
+| `GlobalMenuRegistry` / `MenuItemNode` | `Fdp.Presentation/ImGui/WindowManager/` | the trie, `Offers` = THE visibility test, `AllowedInIdle` | + `Order`, `GetVisible`, `SetLayout` (no menu had a hide predicate — measured: `grep IsVisible\|GetVisible\|Hidden` in the registry: none) |
+| checkpoint commands | `ScenarioMenuCommands` `scenario.takeCheckpoint` · `IClusterMasterControl.RestoreCheckpoint` · `ClusterMaster.StartRestore` | the save item exists; the restore has NO operator path (HTTP only) and the master restores only from `OperatingLive` by a LABEL | `Save Checkpoint` = `RunModeChoice.TakeCheckpoint`; `Load Checkpoint…` — see deviation 3 |
+| `ClusterMaster` / `OrchestratorCoreOptions` | `Hrot.Orchestrator` | `ArmedMode` literal `Live` | + the initial armed mode (a bootstrap parameter) |
+
+```mermaid
+classDiagram
+  class GlobalMenuRegistry { <<existing>> Offers(node, perspective) = THE visibility test · AllowedInIdleItems · BuildViewModel · NEW SetLayout(path, order, visible?) · layout rules applied at node creation }
+  class MenuItemNode { <<existing>> Bindings · AllowedInIdle · GetEnabled · NEW Order · NEW GetVisible · NEW OrderedChildren() }
+  class FileMenuLayout { <<NEW static, AiShared.Scenarios>> the ONE table: File path → rank · Apply(menu, isEditing, isLiveRun) declares every rank and the group visibilities and the separators }
+  class ScenarioMenuCommands { <<existing, rewritten>> Register(..) registers: Load Scenario · New Scenario · Load Checkpoint · Open Exercise Recording · Save Checkpoint · Close + the editing items; RegisterCommand = the run gate (CE-1442) }
+  class IScenarioSession { <<existing>> NEW LoadScenario(name) · NEW Close() · NEW RestoreCheckpoint(label) · OpenForEdit · LoadForLive · OpenRecording · TakeCheckpoint · ⛔ NewExercise removed }
+  class EditorScenarioSession { <<existing>> Door · RawLeave · LoadScenario = Door.Load }
+  class ScenarioDoor { <<existing>> NEW Load(name) = LoadTarget() ⇒ Open / LoadLive · NEW LoadTarget seam · Open · LoadLive · OpenRecording · Leave(Close) · ⛔ OperatorOpening removed }
+  class RunModeChoice { <<existing>> Armed (the cluster's) · NEW LoadTarget = THE R-1043 resolver · TakeCheckpoint · Choose/Arm (the indicator) · ⛔ HostDefault removed }
+  class RunArmedDefaults { <<DELETED>> }
+  class HostGatePolicies { <<existing, stays>> the U1 gate table }
+  class ClusterView { <<existing>> ArmedMode (read) · LastLoadMode NOT BUILT (backend) }
+  class ClusterMaster { <<existing>> ArmedMode · NEW initialArmedMode ctor parameter (default Live) }
+  class OrchestratorCore { <<existing>> NEW OrchestratorCoreOptions.InitialArmedMode (Live; the editor passes Preview) }
+  class TerrainPickerLauncher { <<DELETED>> }
+  class CgfEditorShellToolbar { <<existing>> ⛔ File/Terrain… slot removed · the asset items stay }
+  class LocalWindowController { <<existing>> File/Exit }
+  GlobalMenuRegistry *-- MenuItemNode
+  ScenarioMenuCommands --> FileMenuLayout : Apply
+  FileMenuLayout --> GlobalMenuRegistry : SetLayout
+  ScenarioMenuCommands --> IScenarioSession : every item
+  EditorScenarioSession ..|> IScenarioSession
+  EditorScenarioSession *-- ScenarioDoor
+  RunModeChoice --> ScenarioDoor : binds LoadTarget
+  RunModeChoice --> ClusterView : Armed (via IRunTransport.ClusterArmed)
+  OrchestratorCore --> ClusterMaster : initialArmedMode
+  LocalWindowController ..> GlobalMenuRegistry : File/Exit
+  CgfEditorShellToolbar ..> GlobalMenuRegistry : the asset items
+```
+
+*What the picture shows that prose hid:* the File menu is filled by FOUR registrars (`ScenarioMenuCommands`, `CgfEditorShellToolbar`, `EditorSubsystem`'s Save As / Save All, `LocalWindowController`'s Exit) at different times, so "the menu as drawn" cannot be the registration order — the order and the hide rule live as RULES on the registry, applied whenever and by whomever creates the node. And the armed mode has ONE reader on the host (`RunModeChoice.Armed`) and ONE source (the master): there is no host-side default left to drift.
+
+```mermaid
+sequenceDiagram
+  participant U as operator (File › Load Scenario…)
+  participant M as ScenarioMenuCommands item (run gate first)
+  participant S as IScenarioSession (EditorScenarioSession)
+  participant D as ScenarioDoor
+  participant C as RunModeChoice
+  participant L as ScenarioLoadSequence / master
+  U->>M: pick "hill-attack" in the scenario picker
+  M->>S: LoadScenario("hill-attack")
+  S->>D: Load("hill-attack")
+  D->>C: LoadTarget()  (R-1043: the CLUSTER's armed mode)
+  alt Live armed
+    C-->>D: Live
+    D->>D: LoadLive ⇒ Admit(LoadingLive) (run ⇒ Stop and Load · edits ⇒ Save/Discard/Cancel)
+    D->>L: raw LoadForLive (paused at the start, TimeMode Deterministic) — NO SetRunSettingsIntent
+  else Preview armed (the editor's initial) or AAR armed (the last load's mode, until backend adds LastLoadMode: Preview)
+    C-->>D: Scenario
+    D->>D: Open ⇒ Admit(OpeningScenario)
+    D->>L: raw OpenForEdit — NO SetRunSettingsIntent
+  end
+```
+
+⭐ **Decisions** *(each with the measured reason)*: ① **ONE resolver** — `RunModeChoice.LoadTarget` (armed ⇒ Live / edit), called by `ScenarioDoor.Load`, which `IScenarioSession.LoadScenario` calls; the menu item, the asset-picker routers (Start's Recent rows, the Orchestrator / CGF / editor pickers) and the Orchestrator panel's *Load into Edit* all end there (INVENTORY: `OpenForEdit` callers). Explicit verbs stay for what names its mode: New-from-a-recipe (always editing), the checkpoint ■'s return to the scenario, HTTP `POST /scenario/load/*` (D22). ② **no host default**: `OperatorOpening`, `HostDefault`, `RunArmedDefaults` removed; the choice's arm fallback before any broadcast is the master's own default (Live). ③ **the master's initial armed mode is a constructor parameter**, the editor's in-process core passes Preview — the ONE bootstrap difference (user). ④ **the layout is a rule table on the registry** (`SetLayout`), written once by `FileMenuLayout`, not an insertion-order accident. ⑤ **Close** is `IScenarioSession.Close()` = `Door.Leave(LeaveReason.Close)`, exempt from the gate, allowed in Idle. Rejected (one line each): **a `File/Edit` submenu hidden as a whole** — §2.15 says no submenus · **per-host `if (editing)` around each registration** — the remember-to-wire pattern; the rule on the registry makes every registrar agree by construction · **a host-side `LoadMode` parameter on each picker** — five callers would each have to resolve it.
+
+✅ **AS-BUILT `2026-10-29` (ui) — CE-1443 part A.** *(`build-state: BUILT` for part A; part B — the named saves — is still DESIGN. The INVENTORY / diagrams above are the PRIOR STATE where the table below says so.)* The design above is what was built, except:
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | three separators (after the first four · before the editing group · before Close) | **two**: after the first four, and before Close (drawn when a context group above it is) — `FileMenuLayout.SeparatorAfterLoads` / `SeparatorBeforeClose` | the editing group (state `OperatingEdit`) and *Save Checkpoint* (`OperatingLive`) are never drawn together, so the separator between them could never draw |
+| 2 | *Load Checkpoint…* — "the existing restore" | the item is registered on every host, **disabled with its reason on all of them today** (`openCheckpointPicker` seam; none supplied). Built: `IScenarioSession.RestoreCheckpoint(label)` = the existing `RestoreCheckpointIntent` | ⚠ **found, not built:** the restore has no operator path and no label source — `ClusterMaster.StartRestore` (`ClusterMaster.cs:~940`) restores only in `OperatingLive` of a recorded run and only BY LABEL; the only list of marks the UI sees is the REPLAY session's (`MainToolbarTimeControlSection.cs:~203`, `ReplaySession.Checkpoints`), nothing lists a live run's. ⇒ "from Idle, live paused at a checkpoint" needs the master to publish the live recording's marks (and to restore from Idle): backend, not ui |
+| 3 | §2.14 decision ③ withdrawn ("host default on open") | withdrawn **whole**: no open sends ANY armed mode — the scenario open, the live load AND the recording open (which used to arm AAR) — `ScenarioDoor.OperatorOpening` and `DoorOpen.Recording` are gone, `DoorOpen` is now the load target (`Scenario` \| `Live`) | the user's rule is "only the indicator changes the armed mode"; a recording open arming AAR was the same hook. Effect: ▶ after returning from an AAR runs what the indicator says, not AAR |
+| 4 | `HostDefault` / `RunArmedDefaults` removed | also `RunModeChoice`'s ctor and `ClusterTimeTransportAdapter.AttachRunChoice` lost their first parameter (13 call sites); the choice's pre-broadcast value is `RunModeChoice.MasterDefaultArmed` (= Live, the master's own default). `RunArmedDefaults.cs` → `HostGatePolicies.cs` (the file kept only the U1 gate table and `RunHostKind`) | the parameter WAS the host default |
+| 5 | "LastLoadMode IF backend added it" | **not built by backend** (grep `LastLoadMode`: only the two NOTEs) ⇒ AAR / DAR armed loads **into editing**; one line in `RunModeChoice.LoadTarget` to change when the master broadcasts it | the NOTE asked for it; nothing answered |
+| 6 | the master's initial armed mode | `ClusterMaster(bus, config, initialArmedMode = Live)` (cross-lane edit: backend's class) + `OrchestratorCoreOptions.InitialArmedMode`; `EditorSubsystem` passes Preview — the one bootstrap difference. ⚠ the editor's choice reads Live until its first frame folds the master's first broadcast into the view (the broadcast carries Preview) | the view's own default is Live before any broadcast |
+| 7 | the editing group "existing Save / Save As / Save All / New Asset / Open Asset" | those keep their names and paths; the scenario registrar's own items left `File/Edit/…` for top-level paths (**Save Scenario**, **Save Scenario As**, **Migration History**, **Save Curated Scenarios to Git**) and are part of the group; the shell's *New Behavior / Action / Condition…* are in it too | no submenus |
+| 8 | New Exercise replaced by Close | **gone**: the menu item, `IScenarioSession.NewExercise`, `LeaveReason.NewExercise`, the editor's / Orchestrator's confirmation (`ConfirmPromptController`, `RequestNewExercise`; CGF's log-and-proceed). Close asks only what the door asks (a run is stopped without asking — ■ never asks, R3; unsaved edits ⇒ *Save / Discard / Cancel*); Close at a cluster at rest sends nothing | deleting symbols whose only users were the withdrawn item (no Roslyn rename needed) |
+| 9 | the operator load path "the menu, Start, Recent and pickers all call" | `IScenarioSession.LoadScenario` ← the File item, and the asset-picker routers of the editor, CGF and the Orchestrator (what Start's *Load Scenario…* button and the browser's pick call). ⚠ **left explicit on purpose** (they name their mode): *New from a recipe* and the director's load (editing), the Orchestrator panel's *Load into Edit / Live*, ■'s return to the scenario, HTTP `POST /scenario/load/*` | D22 / R2 |
+| 10 | layout "as far as the registry models it" | the registry gained `Order`, `GetVisible`, `SetLayout(path, order, visible?)` (rules applied when the node is created or at once if it exists; no phantom nodes) and `OrderedChildren()` (every draw and model walk) — `FileMenuLayout.Apply` is the ONE table, called by `ScenarioMenuCommands.Register` | four registrars fill the File menu at different times |
+
+📌 **Rails** (each red-proved by a compiling mutation, named in its summary): `ScenarioMenuTests.CE1443_S1_*` · `CE1443_TheFileMenu_IsDrawnInTheLayoutTablesOrder` · `CE1443_S2_*` · `CE1443_S3_*` · `CE1443_S6_*` · `CE1443_SaveCheckpoint_And_LoadCheckpoint_*` · `TheScenarioMenuIsSharedByBothHostsTests` (the flat paths, Start offers the first four + Close, CGF loads through the one load) · `TheOneTimeFacadeTests.CE1443_S3_*` / `CE1443_S4_*` · `ClusterMasterRunRecordingTests.CE1443_S5_*` · `TheRunChoiceIsOnEveryHostTests.TheEditorArmsPreview_OverItsSession` (S5 on the constructed editor) · `EditorScenarioSessionLoadTests` (Close, the one load) · `GlobalMenuRegistryTests.SetLayout_* / GetVisible_*`.
 
 ## 3. Every move, with what the user is told
 

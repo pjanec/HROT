@@ -9,7 +9,7 @@ namespace Hrot.UI.Common.RunMode;
 /// </summary>
 public interface IProvidesRunControls
 {
-    /// <summary>What kind of host this is — the pick rule's tie-break (the editor wins among several operators) and the key of <see cref="RunArmedDefaults"/>.</summary>
+    /// <summary>What kind of host this is — the pick rule's tie-break (the editor wins among several operators) and the key of <see cref="HostGatePolicies"/>.</summary>
     RunHostKind HostKind { get; }
 
     /// <summary>

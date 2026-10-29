@@ -334,10 +334,12 @@ public sealed partial class ClusterMaster : IDisposable
     /// Bus-based constructor.  <c>ClusterMaster</c> ingests heartbeats and publishes
     /// fan-out operations exclusively via the <paramref name="eventBus"/>.
     /// </summary>
-    public ClusterMaster(FdpEventBus eventBus, ClusterConfiguration? config = null)
+    /// <param name="initialArmedMode">⭐ <c>CE-1443</c> (R-1043) — the cluster's INITIAL armed run mode (what ▶ / Load go into until someone arms another): <see cref="ClusterArmedMode.Live"/> for every cluster, Preview for the editor's in-process one-node cluster. Set before the first publication (the standby below carries it).</param>
+    public ClusterMaster(FdpEventBus eventBus, ClusterConfiguration? config = null, ClusterArmedMode initialArmedMode = ClusterArmedMode.Live)
     {
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
         _config   = config ?? ClusterConfiguration.Default;
+        ArmedMode = initialArmedMode;
         _history  = new DistributedTransaction[Math.Max(1, _config.TransactionHistoryCapacity)];
 
         // ⭐⭐ CE-3344 (R-3069) — the latch is over names AND roles: with nothing mandatory at all it is open from the start; otherwise it is CLOSED and the

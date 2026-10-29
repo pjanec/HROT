@@ -3,8 +3,8 @@ using Fdp.Toolkit.Orchestration;
 namespace Hrot.UI.Common.RunMode;
 
 /// <summary>
-/// ⭐ <c>CE-1437</c> (AQ108 §2.10) — the kind of host that builds a run choice. The three subsystems that do each name themselves once; the armed default
-/// is looked up from <see cref="RunArmedDefaults"/>, never written as a literal at the use site.
+/// ⭐ <c>CE-1437</c> (AQ108 §2.10) — the kind of host that builds a run choice. The subsystems that do each name themselves once;
+/// the gate policy is looked up from <see cref="HostGatePolicies"/>, never written as a literal at the use site. ⭐ CE-1443: the armed-default table that lived beside it is GONE (R-1043 — Load always loads into the cluster's armed mode; only the master's bootstrap differs).
 /// </summary>
 public enum RunHostKind
 {
@@ -23,18 +23,7 @@ public enum RunHostKind
 }
 
 /// <summary>
-/// ⭐⭐⭐ <c>CE-1437</c> (AQ108 §2.10 ②, D12) — <b>the ONE armed-default table</b>: what ▶ arms after a scenario is opened — Preview in the editor, Live on every
-/// other host (CGF, SimHost, the all-in-one, the server). ⛔ Replaces the runner's <c>HostArmedMode(s)</c> (read by nothing) and the three literals at the
-/// <c>AttachRunChoice</c> call sites. Lives here so the subsystems and the runner read the same table.
-/// </summary>
-public static class RunArmedDefaults
-{
-    /// <summary>The armed default of a host of this kind: <see cref="RunHostKind.Editor"/> ⇒ Preview, every other kind ⇒ Live.</summary>
-    public static RunArmed For(RunHostKind hostKind) => hostKind == RunHostKind.Editor ? RunArmed.Preview : RunArmed.Live;
-}
-
-/// <summary>
-/// ⭐⭐⭐ <c>CE-3345</c> (R-3072, <c>AQ110</c> D) — <b>the ONE gate-policy table</b>, the <see cref="RunArmedDefaults"/> pattern (R-3068): what each kind of host waits on before its controls open.
+/// ⭐⭐⭐ <c>CE-3345</c> (R-3072, <c>AQ110</c> D) — <b>the ONE gate-policy table</b>, the pattern of the (withdrawn) per-host default table (R-3068): what each kind of host waits on before its controls open.
 /// <see cref="HostGatePolicy.Player"/> for the IG (its own <c>PlayReady</c> alone — what the rest of the cluster loads is irrelevant to it); <see cref="HostGatePolicy.Operator"/> for every other kind (Editor, CGF, Orchestrator,
 /// SimHost, any other: its own load AND the cluster's must be done). ⛔ Never written as a literal at a host: <c>IProvidesRunControls.GatePolicy</c> reads this table from the host's declared <see cref="RunHostKind"/>,
 /// and <c>ClusterView.GateOpen(policy)</c> combines the facts — so no host re-derives it and no two hosts can disagree. ⭐ A new situation is a new policy value here, never a new message.

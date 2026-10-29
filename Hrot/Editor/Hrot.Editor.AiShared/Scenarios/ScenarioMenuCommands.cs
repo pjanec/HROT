@@ -24,11 +24,9 @@ namespace Hrot.Editor.AiShared.Scenarios;
 ///     interface is necessary and not sufficient. Folded into the design's as-built section.</item>
 /// </list></para>
 ///
-/// <para>⭐⭐⭐ <b>THE SUBMENU STRUCTURE — <c>Live/</c> · <c>Edit/</c> · <c>Checkpoint/</c>.</b> The old
-/// flat <c>File/Scenario/*</c> group is what made <c>Load Scenario…</c> a chameleon: it was labelled
-/// generically and meant *load for AUTHORING*. ⇒ every item now names its mode, and the two load modes
-/// are two items rather than one item with a hidden default. ⭐ E1 establishes the structure; the later
-/// asset items *(E2)* and <c>Restore Checkpoint</c> *(Feature X)* slot in with zero menu code.</para>
+/// <para>⭐⭐⭐ <b>CE-1443 (U2a, AQ108 §2.15) — THE ONE FILE MENU, NO SUBMENUS.</b> <i>Load Scenario… · New Scenario… · Load Checkpoint… · Open Exercise Recording… · Save Checkpoint (live run only) · the editing group (editing only) · Close · Exit</i>
+/// — the order, the hide rules and the separators are ONE table, <see cref="FileMenuLayout"/>, applied by <see cref="Register"/> whoever registers the other items. ⛔ SUPERSEDED: the <c>File/Live</c> · <c>File/Edit</c> · <c>File/Checkpoint</c>
+/// submenus and <i>New Exercise</i>. ⭐ <i>Load Scenario…</i> goes into the cluster's CURRENT armed mode on every host (R-1043).</para>
 ///
 /// <para>⭐⭐ <b>Ruling 49 — every item is registered on every host; SERVICEABILITY decides enablement,
 /// never presence.</b> ⚠ A host that composes no asset picker *(CGF today)* gets the item DISABLED with
@@ -54,13 +52,6 @@ public static class ScenarioMenuCommands
     /// <summary>Id for the New Scenario command: <c>"scenario.new"</c> — the LOCAL empty world.</summary>
     public const string NewId = "scenario.new";
 
-    /// <summary>
-    /// Id for the New Exercise command: <c>"scenario.newExercise"</c> — the CLUSTER-WIDE reset.
-    /// ⚠ Distinct from <see cref="NewId"/>: that one wipes locally, this one finishes a running exercise
-    /// everywhere. ⭐ Two ids because they are two actions *(R2)*.
-    /// </summary>
-    public const string NewExerciseId = "scenario.newExercise";
-
     /// <summary>Id for the Save Scenario command: <c>"scenario.save"</c>.</summary>
     public const string SaveId = "scenario.save";
 
@@ -68,26 +59,33 @@ public static class ScenarioMenuCommands
     public const string SaveAsId = "scenario.saveAs";
 
     /// <summary>
-    /// Id for the Open-for-EDIT command: <c>"scenario.load"</c>. ⭐ The id is UNCHANGED so hotkeys, MCP
-    /// identity and every existing rail keep working; only its label and menu path now say *edit*.
+    /// Id for the Load Scenario command: <c>"scenario.load"</c>. ⭐ The id is UNCHANGED so hotkeys, MCP identity and every existing rail keep working; ⭐ <c>CE-1443</c> (R-1043) its meaning is now
+    /// <i>load into the cluster's armed mode</i> (it used to say <i>open for edit</i>).
     /// </summary>
     public const string LoadId = "scenario.load";
 
-    /// <summary>⭐ CE-4097 part two — the menu path of Open Scenario (top level, like Open Recording; ⛔ no <c>File/Live/Load Scenario</c> beside it — the armed mode decides ▶).</summary>
-    public const string OpenScenarioMenuPath = "File/Open Scenario";
+    /// <summary>⭐ <c>CE-1443</c> — the menu path of Load Scenario… (see <see cref="FileMenuLayout"/>: the ONE table of every File path and its rank).</summary>
+    public const string LoadScenarioMenuPath = FileMenuLayout.LoadScenario;
 
-    /// <summary>⭐ CE-4097 part two — the menu path of New Scenario (top level, beside Open Scenario).</summary>
-    public const string NewScenarioMenuPath = "File/New Scenario";
+    /// <summary>⭐ <c>CE-1443</c> — the menu path of New Scenario….</summary>
+    public const string NewScenarioMenuPath = FileMenuLayout.NewScenario;
 
     /// <summary>⭐ CE-4098 (AQ108 D16/D19) — Id for the Open Recording command: <c>"scenario.openRecording"</c>.</summary>
     public const string OpenRecordingId = "scenario.openRecording";
 
-    /// <summary>⭐ CE-4098 — the menu path of Open Recording (a top-level <c>File</c> item: a recording is not a scenario, and the
-    /// verb names no mode — it always opens into AAR).</summary>
-    public const string OpenRecordingMenuPath = "File/Open Recording";
+    /// <summary>⭐ CE-1443 — the menu path of Open Exercise Recording… (a recording is not a scenario, and the verb names no mode — it always opens into AAR).</summary>
+    public const string OpenRecordingMenuPath = FileMenuLayout.OpenExerciseRecording;
 
-    /// <summary>Id for the Take Checkpoint command: <c>"scenario.takeCheckpoint"</c>.</summary>
+    /// <summary>
+    /// Id for the Save Checkpoint command: <c>"scenario.takeCheckpoint"</c>. ⭐ The id is unchanged (hotkeys / MCP identity); ⭐ <c>CE-1443</c> the item is <i>Save Checkpoint</i>, drawn ONLY during a live run.
+    /// </summary>
     public const string TakeCheckpointId = "scenario.takeCheckpoint";
+
+    /// <summary>⭐ <c>CE-1443</c> — Id for the Load Checkpoint command: <c>"scenario.loadCheckpoint"</c> — a live run, paused at the checkpoint.</summary>
+    public const string LoadCheckpointId = "scenario.loadCheckpoint";
+
+    /// <summary>⭐ <c>CE-1443</c> — Id for the Close command: <c>"scenario.close"</c> — back to Idle through the one door (<see cref="IScenarioSession.Close"/>).</summary>
+    public const string CloseId = "scenario.close";
 
     /// <summary>Id for the Migration History command: <c>"scenario.migrationHistory"</c>.</summary>
     public const string MigrationHistoryId = "scenario.migrationHistory";
@@ -95,22 +93,10 @@ public static class ScenarioMenuCommands
     /// <summary>Id for the Save Curated Scenarios to Git command: <c>"scenario.updateCurated"</c>.</summary>
     public const string UpdateCuratedId = "scenario.updateCurated";
 
-    // ── Menu paths (design §3a) ────────────────────────────────────────────────
-
-    /// <summary>Submenu for actions on the LIVE running exercise.</summary>
-    public const string LiveMenuPrefix = "File/Live";
-
-    /// <summary>Submenu for AUTHORING actions on a scenario opened for edit.</summary>
-    public const string EditMenuPrefix = "File/Edit";
-
-    /// <summary>Submenu for checkpoint actions on the live state.</summary>
-    public const string CheckpointMenuPrefix = "File/Checkpoint";
-
     // ── Public API ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Registers the scenario shell commands and surfaces them under
-    /// <see cref="LiveMenuPrefix"/> / <see cref="EditMenuPrefix"/> / <see cref="CheckpointMenuPrefix"/>.
+    /// Registers the scenario shell commands as FLAT <c>File</c> items (<see cref="FileMenuLayout"/>) and declares the whole File menu's layout.
     /// </summary>
     /// <param name="registerCommand">
     /// Registration delegate. In production <c>WindowManager.ShellCommands.Register</c>; in tests a
@@ -133,14 +119,6 @@ public static class ScenarioMenuCommands
     /// Seam that opens the scenario Save-As dialog and invokes the callback with the chosen name.
     /// Nullable for the same reason as <paramref name="openPicker"/>.
     /// </param>
-    /// <param name="confirmNewExercise">
-    /// ⭐⭐⭐ Seam that CONFIRMS the destructive cluster-wide reset and then runs the continuation.
-    /// <para>🔒 <b>Ruling 53</b> — <i>a hard reset is a confirmed cluster-wide operation and the confirm
-    /// belongs where the OPERATOR sits</i>. ⭐ An interactive host passes a modal; a headless-first host
-    /// passes a log-and-proceed *(<c>UX_Feature_Modal_Surfaces.md</c> §2.0b: "the origin still LOGS what
-    /// it skipped … the origin-side log IS THE WHOLE SAFETY NET")*. ⛔ <b>Null runs the reset with no
-    /// prompt and no log</b> — legal only in a rail; a production caller must pass one.</para>
-    /// </param>
     /// <param name="showMigrationHistory">
     /// Seam that surfaces the migration sidecar list. When null the command is still registered but its
     /// handler only reads the sidecars.
@@ -151,6 +129,9 @@ public static class ScenarioMenuCommands
     /// <param name="closedReason">⭐⭐ <c>CE-1442</c> (U1, §11.7 ②) — the run gate's reason while it is CLOSED (<c>RunModeChoice.ClosedReason</c>), <see langword="null"/> when open. Composed into every command's <c>IsEnabled</c> and <c>DynamicDisplayName</c> here, in the ONE registration helper —
     /// so the File menu AND the Start surface (which draws the same menu nodes) grey together, with the reason in the label. ⛔ Exempt: <i>New Exercise</i> (it LEAVES, never gated). Null ⇒ no gate (a rail / a host with no run choice).
     /// ⭐ A production caller that HAS a run choice must pass it (the silent-default rule).</param>
+    /// <param name="takeCheckpoint">⭐ <c>CE-1443</c> — what <i>Save Checkpoint</i> does: the host's run choice (<c>RunModeChoice.TakeCheckpoint</c>: the session's checkpoint + the toast). Null ⇒ the session's own. ⭐ A production caller that HAS a run choice must pass it.</param>
+    /// <param name="checkpointDisabledReason">⭐ <c>CE-1443</c> — why a checkpoint cannot be taken now (<c>RunModeChoice.CheckpointDisabledReason</c>), <see langword="null"/> when it can (and for a host with no choice).</param>
+    /// <param name="openCheckpointPicker">⭐ <c>CE-1443</c> — opens the host's list of the run's checkpoints and calls back with the chosen LABEL (the item then calls <see cref="IScenarioSession.RestoreCheckpoint"/>). Null ⇒ the item is registered but DISABLED with the reason (ruling 49) — ⚠ no host supplies one yet (the live run's marks are not on the cluster view).</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -160,65 +141,84 @@ public static class ScenarioMenuCommands
         IScenarioSession                                          session,
         Action<AssetKindFilter, Action<IEditableAsset?>>?          openPicker,
         Action<Action<string>>?                                    openSaveAsDialog,
-        Action<Action>?                                            confirmNewExercise   = null,
         Action<IReadOnlyList<SidecarFileInfo>>?                    showMigrationHistory = null,
         Func<bool>?                                               isCuratedSaveEnabled = null,
         Action?                                                   saveCuratedToGit     = null,
         Action?                                                   openRecordingPicker  = null,
-        Func<string?>?                                            closedReason         = null)
+        Func<string?>?                                            closedReason         = null,
+        Action?                                                   takeCheckpoint       = null,
+        Func<string?>?                                            checkpointDisabledReason = null,
+        Action<Action<string>>?                                    openCheckpointPicker = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
         if (commands        is null) throw new ArgumentNullException(nameof(commands));
         if (session         is null) throw new ArgumentNullException(nameof(session));
 
-        // ══ File/Live — actions on the running exercise ═════════════════════════
+        // ⭐⭐⭐ CE-1443 (AQ108 §2.15a) — the ONE layout of the File menu (rank, hide rule, separators), declared here and applied to the registry whoever registers an item and whenever (the asset items, Save As / Save All and Exit are
+        //   other registrars'). ⛔ No submenus: File/Live, File/Edit, File/Checkpoint and New Exercise are gone (user, 2026-10-29: "Nothing like 'New exercise' makes clear sense to the user.").
+        FileMenuLayout.Apply(menu, () => session.CurrentClusterState);
 
-        // ⭐⭐⭐ NEW EXERCISE — the cluster-wide reset, behind a confirmation. ⛔ NOT "New Scenario":
-        //    that one is a local wipe for authoring and is registered under File/Edit below. Two ids,
-        //    two labels, two menu homes — R2.
-        RegisterCommand(
-            registerCommand, menu, commands, null,   // ⭐ CE-1442 — New Exercise LEAVES: never gated
-            NewExerciseId, "New Exercise", $"{LiveMenuPrefix}/New Exercise",
-            "Finish the running exercise and start fresh (cluster-wide)",
-            isEnabled: () => true,
-            handler: _ =>
-            {
-                if (confirmNewExercise != null) confirmNewExercise(session.NewExercise);
-                else                            session.NewExercise();
-            });
+        // ══ the first four — what Start offers ══════════════════════════════════
 
-        // ⛔⛔ CE-4097 part two (AQ108 §3 "open another scenario", D12, D22) — NO "File/Live/Load Scenario": the load-in-a-mode menus FOLD into the ONE Open Scenario below.
-        //   ⭐ A scenario always opens into EDITING; what ▶ then does is the host's ARMED mode (Preview in the editor, Live on CGF / the all-in-one / the server, D12), and going
-        //   live from editing is ▶ with Live armed — so a second "load live" item would duplicate Open. HTTP stays explicit: POST /scenario/load/live is unchanged (D22).
-        //   (The id "scenario.loadLive" is retired with the item — a command nobody can reach would be a control that does nothing.)
-
-        // ══ Open / New — top level, like Open Recording: none of them names a mode ═════════════════
-
-        // ⭐ OPEN — /scenario/load/edit, into editing; the armed mode decides ▶. The id is unchanged; the path left the "Edit" submenu (it is no longer one of two ways to open).
-        //   ⭐ CE-4101 — the session's open IS the guarded door (a run → Stop & Load, unsaved edits → Save / Discard / Cancel first, AQ108 §3): no host seam to pass, no unguarded fallback.
+        // ⭐⭐⭐ LOAD SCENARIO — R-1043: it loads into the cluster's CURRENT armed mode, on every host (Live armed ⇒ live, paused at the start · Preview armed ⇒ editing · AAR armed ⇒ the last load's mode). The session's LoadScenario IS the guarded
+        //   door's Load (a run → Stop & Load, unsaved edits → Save / Discard / Cancel, AQ108 §3) resolved by the run choice — ⛔ no host seam, no per-host default, and no armed mode is SENT with the load.
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
-            LoadId, "Open Scenario", OpenScenarioMenuPath,
-            "Open a scenario for editing (cluster-wide); what ▶ then runs is the host's armed mode",
+            LoadId, "Load Scenario…", LoadScenarioMenuPath,
+            "Load a scenario into the armed mode (cluster-wide): Live armed starts a run paused at its start, Preview armed opens it for editing",
             isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, session.OpenForEdit),
-            dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason),
+            handler: _ => PickScenario(openPicker, session.LoadScenario),
+            dynamicDisplayName: Unavailable("Load Scenario…", openPicker != null, NoPickerReason),
             allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
-            NewId, "New Scenario", NewScenarioMenuPath,
+            NewId, "New Scenario…", NewScenarioMenuPath,
             "Create an empty scenario to author",
             isEnabled: () => true,
             handler: _ => session.ClearWorld(),
-            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16) — "New scenario"; ⚠ until CE-4089 it is today's local blank scenario, not yet "from a recipe"
+            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16) — ⚠ until CE-4089 it is today's local blank scenario, not yet "from a recipe"
+
+        // ⭐ LOAD CHECKPOINT — a live run, paused at the checkpoint: the existing restore (the session's RestoreCheckpoint = RestoreCheckpointIntent). ⚠ The host supplies the picker of the labels it can list; none does yet (the live run's
+        //   marks are not on the cluster view — only a replay session carries them), so the item says so rather than doing nothing (ruling 49).
+        RegisterCommand(
+            registerCommand, menu, commands, closedReason,
+            LoadCheckpointId, "Load Checkpoint…", FileMenuLayout.LoadCheckpoint,
+            "Restore a checkpoint of the running exercise: live, paused at the checkpointed state",
+            isEnabled: () => openCheckpointPicker != null,
+            handler: _ => openCheckpointPicker?.Invoke(session.RestoreCheckpoint),
+            dynamicDisplayName: Unavailable("Load Checkpoint…", openCheckpointPicker != null, NoCheckpointListReason),
+            allowedInIdle: true);
+
+        // ⭐⭐ CE-4098 (AQ108 D16 "Open recording (AAR)", D19) — lists the master's exercises (the picker's Recent first) and opens the pick through the session's ONE replay intent.
+        RegisterCommand(
+            registerCommand, menu, commands, closedReason,
+            OpenRecordingId, "Open Exercise Recording…", OpenRecordingMenuPath,
+            "Open a recording the master offers into AAR (cluster-wide)",
+            isEnabled: () => openRecordingPicker != null,
+            handler: _ => openRecordingPicker?.Invoke(),
+            dynamicDisplayName: Unavailable("Open Exercise Recording…", openRecordingPicker != null, NoRecordingsReason),
+            allowedInIdle: true);
+
+        // ══ during a live run ═══════════════════════════════════════════════════
+
+        // ⭐⭐ SAVE CHECKPOINT — drawn ONLY in a live run (FileMenuLayout). The host's run choice takes it (the session's TakeCheckpoint + the toast, and ITS reason when it cannot — an unrecorded run); a host with no choice takes the session's.
+        RegisterCommand(
+            registerCommand, menu, commands, closedReason,
+            TakeCheckpointId, "Save Checkpoint", FileMenuLayout.SaveCheckpoint,
+            "Save the live running state as a checkpoint",
+            isEnabled: () => checkpointDisabledReason?.Invoke() is null,
+            handler: _ => (takeCheckpoint ?? session.TakeCheckpoint).Invoke(),
+            dynamicDisplayName: () => checkpointDisabledReason?.Invoke() is { } why ? $"Save Checkpoint (unavailable — {why})" : "Save Checkpoint");
+
+        // ══ the editing group — drawn ONLY while editing (FileMenuLayout); the names are unchanged in this part ═══════════════
 
         // ⭐ Save falls back to Save-As when nothing is loaded — unchanged behaviour. ⚠ When the host has
         //   no Save-As dialog the fallback cannot run, so the item says so rather than doing nothing.
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
-            SaveId, "Save Scenario", $"{EditMenuPrefix}/Save Scenario",
+            SaveId, "Save Scenario", FileMenuLayout.SaveScenario,
             "Save the currently loaded scenario",
             isEnabled: () => !string.IsNullOrEmpty(session.LoadedScenarioName) || openSaveAsDialog != null,
             handler: _ =>
@@ -231,7 +231,7 @@ public static class ScenarioMenuCommands
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
-            SaveAsId, "Save Scenario As", $"{EditMenuPrefix}/Save Scenario As",
+            SaveAsId, "Save Scenario As", FileMenuLayout.SaveScenarioAs,
             "Save the scenario under a new name",
             isEnabled: () => openSaveAsDialog != null,
             handler: _ => openSaveAsDialog?.Invoke(session.SaveAs),
@@ -239,35 +239,10 @@ public static class ScenarioMenuCommands
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
-            MigrationHistoryId, "Migration History", $"{EditMenuPrefix}/Migration History",
+            MigrationHistoryId, "Migration History", FileMenuLayout.MigrationHistory,
             "Show migration sidecars for the loaded scenario",
             isEnabled: () => true,
             handler: _ => showMigrationHistory?.Invoke(session.GetMigrationSidecars()));
-
-        // ══ File/Open Recording — a recording opens into AAR ════════════════════
-
-        // ⭐⭐ CE-4098 (AQ108 D16 "Open recording (AAR)", D19) — lists the master's exercises (the picker's Recent first) and opens the
-        //    pick through the session's ONE replay intent. ⭐ Offered on the Start surface: it leaves Idle through the ordinary state machine.
-        RegisterCommand(
-            registerCommand, menu, commands, closedReason,
-            OpenRecordingId, "Open Recording", OpenRecordingMenuPath,
-            "Open a recording the master offers into AAR (cluster-wide)",
-            isEnabled: () => openRecordingPicker != null,
-            handler: _ => openRecordingPicker?.Invoke(),
-            dynamicDisplayName: Unavailable("Open Recording", openRecordingPicker != null, NoRecordingsReason),
-            allowedInIdle: true);
-
-        // ══ File/Checkpoint — the live state, saved ═════════════════════════════
-
-        // ⭐⭐ TAKE CHECKPOINT — the existing TakeCheckpointIntent, via the session (which owns the bus).
-        //    ⛔ Restore Checkpoint is NOT here: the save exists cluster-wide, the restore does not
-        //    (design §8, Feature X). Registering a restore item would be a control that cannot work.
-        RegisterCommand(
-            registerCommand, menu, commands, closedReason,
-            TakeCheckpointId, "Take Checkpoint", $"{CheckpointMenuPrefix}/Take Checkpoint",
-            "Save the live running state as a checkpoint",
-            isEnabled: () => true,
-            handler: _ => session.TakeCheckpoint());
 
         // ── scenario.updateCurated ─────────────────────────────────────────────
         // Copies the curated test scenarios' working copies back into the git-committed set. Enabled only
@@ -277,18 +252,28 @@ public static class ScenarioMenuCommands
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
             UpdateCuratedId, "Save Curated Scenarios to Git",
-            $"{EditMenuPrefix}/Save Curated Scenarios to Git",
+            FileMenuLayout.SaveCuratedToGit,
             "Copy the curated test scenarios' working copies back into the git-committed set (only when running from a source checkout)",
             isEnabled: isCuratedSaveEnabled ?? (() => false),
             handler: _ => saveCuratedToGit?.Invoke(),
             // ⭐⭐⭐ VC-3 — SAY WHY when it cannot run, word for word in the shape the layout feature's
             //    "Save current as default" already uses. 📌 The user's 2026-08-17 ruling: an explanatory
-            //    label beats a control that looks broken. 📐 Measured: RenderGlobalMenu DOES draw a
-            //    disabled leaf (greyed, :707) — so the item was never hidden; it simply said nothing,
-            //    which is indistinguishable from "not implemented" to someone looking for it.
+            //    label beats a control that looks broken.
             dynamicDisplayName: () => (isCuratedSaveEnabled ?? (() => false))()
                 ? "Save Curated Scenarios to Git"
                 : "Save Curated Scenarios to Git (unavailable — not running from the source tree)");
+
+        // ══ leaving ═════════════════════════════════════════════════════════════
+
+        // ⭐⭐⭐ CLOSE — back to Idle (Start), through the ONE door (IScenarioSession.Close = Door.Leave(LeaveReason.Close)): a run is stopped, unsaved edits ask first, a cluster in its error state asks only "discard and close?".
+        //   ⛔ NEVER gated (null closedReason): it is how an operator leaves a cluster that is loading or in error. Offered on Start (a no-op at a cluster at rest). Replaces New Exercise.
+        RegisterCommand(
+            registerCommand, menu, commands, null,
+            CloseId, "Close", FileMenuLayout.Close,
+            "Close the scenario or recording and go back to the start screen (cluster-wide)",
+            isEnabled: () => true,
+            handler: _ => session.Close(),
+            allowedInIdle: true);
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
@@ -296,6 +281,7 @@ public static class ScenarioMenuCommands
     private const string NoPickerReason = "no scenario picker on this host";
     private const string NoSaveAsReason = "no Save-As dialog on this host";
     private const string NoRecordingsReason = "no recording inventory on this host";
+    private const string NoCheckpointListReason = "this host cannot list the checkpoints of the run";
 
     /// <summary>
     /// ⭐ VC-3 label helper: when the capability is present the plain name is used *(a null dynamic label,

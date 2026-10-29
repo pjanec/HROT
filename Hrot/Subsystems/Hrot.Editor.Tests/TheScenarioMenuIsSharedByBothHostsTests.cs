@@ -39,7 +39,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     {
         public readonly List<string> OpenForEditCalls = new();
         public readonly List<string> LoadForLiveCalls = new();
-        public int NewExerciseCallCount;
+        public readonly List<string> LoadScenarioCalls = new();
+        public int CloseCallCount;
         public int TakeCheckpointCallCount;
 
         public ClusterState CurrentClusterState => ClusterState.Idle;
@@ -48,7 +49,8 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
 
         public void Update() { }
         public void ClearWorld() { }
-        public void NewExercise() => NewExerciseCallCount++;
+        public void Close() => CloseCallCount++;
+        public void LoadScenario(string n) => LoadScenarioCalls.Add(n);
         public void LoadForLive(string n) => LoadForLiveCalls.Add(n);
         public void OpenForEdit(string n) => OpenForEditCalls.Add(n);
         public void SaveCurrent() { }
@@ -103,15 +105,13 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     }
 
     /// <summary>
-    /// ⭐ <b>The EDITOR shape</b> — an interactive host: it has a picker, a Save-As dialog, and it PROMPTS
-    /// before the destructive reset *(ruling 53 — the confirm belongs where the operator sits)*.
+    /// ⭐ <b>The EDITOR shape</b> — an interactive host: it has a picker and a Save-As dialog. (⭐ CE-1443: New Exercise and its confirmation are gone; Close asks through the door.)
     /// </summary>
-    private static (Session S, Commands C, GlobalMenuRegistry M, ConfirmPromptController P) EditorShape()
+    private static (Session S, Commands C, GlobalMenuRegistry M) EditorShape()
     {
         var s = new Session();
         var c = new Commands();
         var m = new GlobalMenuRegistry();
-        var p = new ConfirmPromptController();
 
         ScenarioMenuCommands.Register(
             registerCommand:    (d, h) => c.Register(d, h),
@@ -119,10 +119,9 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             commands:           c,
             session:            s,
             openPicker:         (kinds, cb) => cb(new Asset("Picked")),
-            openSaveAsDialog:   cb => cb("Named"),
-            confirmNewExercise: run => p.Request("New Exercise", "sure?", "Yes", run));
+            openSaveAsDialog:   cb => cb("Named"));
 
-        return (s, c, m, p);
+        return (s, c, m);
     }
 
     /// <summary>
@@ -136,15 +135,12 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     /// behaviour is NOT gone — it moved to <see cref="NoModalShape"/>, which is now the host shape that
     /// exhibits it.</para>
     ///
-    /// <para>⭐ It still LOGS instead of prompting for <c>New Exercise</c> — a picker is not a confirmation
-    /// dialog, and ruling 53 is about the destructive reset, which stays headless-first here.</para>
     /// </summary>
-    private static (Session S, Commands C, GlobalMenuRegistry M, List<string> Log) CgfShape()
+    private static (Session S, Commands C, GlobalMenuRegistry M) CgfShape()
     {
         var s   = new Session();
         var c   = new Commands();
         var m   = new GlobalMenuRegistry();
-        var log = new List<string>();
 
         ScenarioMenuCommands.Register(
             registerCommand:    (d, h) => c.Register(d, h),
@@ -152,10 +148,9 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             commands:           c,
             session:            s,
             openPicker:         (kinds, cb) => cb(new Asset("PickedOnCgf")),
-            openSaveAsDialog:   cb => cb("NamedOnCgf"),
-            confirmNewExercise: run => { log.Add("new-exercise proceeding without a prompt"); run(); });
+            openSaveAsDialog:   cb => cb("NamedOnCgf"));
 
-        return (s, c, m, log);
+        return (s, c, m);
     }
 
     /// <summary>
@@ -185,26 +180,28 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — the SAME registrar marks the SAME scenario items allowed in Idle on both hosts (so the Start surface offers
-    /// them on either), and the surface's button runs the menu's OWN binding: <c>Open Scenario</c> reaches <c>session.OpenForEdit</c>, <c>Load
-    /// Scenario</c> reaches <c>LoadForLive</c>. ⛔ Save / Save As / Take Checkpoint / New Exercise are not offered in Idle.
-    /// 🔴 Red-proof: drop <c>allowedInIdle: true</c> from <c>Open Scenario</c> ⇒ the set assertion fails.
+    /// ⭐⭐ <c>CE-4096</c> / <c>CE-1443</c> S2 (AQ108 D16, §2.15) — the SAME registrar marks the SAME items allowed in Idle on both hosts (so the Start surface offers them on either): <i>Load Scenario… · New Scenario… · Load Checkpoint… · Open Exercise Recording… · Close</i>
+    /// (Exit is the window controller's); the surface's button runs the menu's OWN binding: <i>Load Scenario…</i> reaches <c>session.LoadScenario</c> (the ONE load — the armed mode decides, R-1043), on CGF too.
+    /// ⛔ Save Checkpoint · Save / Save As · Migration History · the curated copy are not offered in Idle.
+    /// 🔴 Red-proof: drop <c>allowedInIdle: true</c> from Load Scenario… ⇒ the set assertion fails.
     /// </summary>
     [Fact]
     public void CE4096_BothHostShapes_MarkTheSameScenarioItemsAllowedInIdle_AndTheSurfaceRunsTheMenusBinding()
     {
         var editor = EditorShape();
         var cgf = CgfShape();
-        // ⭐ CE-4098 — "Open Recording (AAR)" joins them (D16): offered whether or not a host has an inventory (a host without one shows it greyed with its cause)
-        var expected = new[] { "File/New Scenario", "File/Open Recording", "File/Open Scenario" };   // ⭐ CE-4097 part two: the Live/Edit load items fold into ONE Open
+        var expected = new[] { FileMenuLayout.Close, FileMenuLayout.LoadCheckpoint, FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.OpenExerciseRecording }
+            .OrderBy(p => p, StringComparer.Ordinal).ToArray();
 
         foreach (var m in new[] { editor.M, cgf.M })
             Assert.Equal(expected, m.AllowedInIdleItems().Select(a => a.Path).OrderBy(p => p, StringComparer.Ordinal).ToArray());
 
-        editor.M.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Invoke();
-        Assert.Single(editor.S.OpenForEditCalls);
-        cgf.M.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Invoke();
-        Assert.Single(cgf.S.OpenForEditCalls);   // CGF opens INTO EDITING too; its armed mode (Live) decides ▶
+        editor.M.AllowedInIdleItems().Single(a => a.Path == FileMenuLayout.LoadScenario).Invoke();
+        Assert.Equal("Picked", Assert.Single(editor.S.LoadScenarioCalls));
+        Assert.Empty(editor.S.OpenForEditCalls);
+        cgf.M.AllowedInIdleItems().Single(a => a.Path == FileMenuLayout.LoadScenario).Invoke();
+        Assert.Equal("PickedOnCgf", Assert.Single(cgf.S.LoadScenarioCalls));   // CGF loads into the CLUSTER's armed mode too — no host decides
+        Assert.Empty(cgf.S.OpenForEditCalls);
     }
 
     /// <summary>
@@ -285,27 +282,25 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The paths are the DESIGNED ones</b> — pinned literally, so a rename has to be deliberate.
-    /// 📄 design §3a. ⚠ Pinned as a full set rather than per-item: the property that matters is *"these
-    /// and no others"*, and a per-item test cannot catch an extra item appearing.
+    /// ⭐⭐ <c>CE-1443</c> S1 — <b>the paths are the DESIGNED ones</b> (AQ108 §2.15), pinned literally from the layout table, so a rename has to be deliberate: the leaves this registrar owns, flat under <c>File</c>, in the table's DRAW order.
+    /// ⚠ Pinned as a full set rather than per-item: the property that matters is *"these and no others"* — ⛔ no <c>File/Live</c>, <c>File/Edit</c>, <c>File/Checkpoint</c>, <i>New Exercise</i>.
     /// </summary>
     [Fact]
     public void TheMenuPathsAreTheOnesTheDesignSpecifies()
     {
-        var (_, _, menu, _) = EditorShape();
+        var (_, _, menu) = EditorShape();
 
-        Assert.Equal(new[]
+        var mine = new[]
         {
-            "File/Checkpoint/Take Checkpoint",
-            "File/Edit/Migration History",
-            "File/Edit/Save Curated Scenarios to Git",
-            "File/Edit/Save Scenario",
-            "File/Edit/Save Scenario As",
-            "File/Live/New Exercise",
-            "File/New Scenario",     // ⭐ CE-4097 part two — Open / New are top-level; ⛔ no File/Live/Load Scenario: the armed mode decides ▶
-            "File/Open Recording",   // ⭐ CE-4098
-            "File/Open Scenario",
-        }, MenuPaths(menu));
+            FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SeparatorAfterLoads, FileMenuLayout.SaveCheckpoint,
+            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.SeparatorBeforeClose, FileMenuLayout.Close,
+        };
+        Assert.Equal(mine.OrderBy(p => p, StringComparer.Ordinal).ToArray(), MenuPaths(menu));
+
+        // the DRAW order is the table's, whatever the registration order was
+        var drawn = menu.Root.Children["File"].OrderedChildren().Select(c => "File/" + c.Name).ToArray();
+        Assert.Equal(FileMenuLayout.InOrder.Where(drawn.Contains).ToArray(), drawn);
+        Assert.Equal(mine, drawn);
     }
 
     // ══ ⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording ═══════════════════
@@ -354,7 +349,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
 
         // on the Start screen's model, and the button is the menu's own binding
         var idle = menu.AllowedInIdleItems().Single(a => a.Path == ScenarioMenuCommands.OpenRecordingMenuPath);
-        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Recording");
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Exercise Recording…");
         Assert.True(commands.Get(ScenarioMenuCommands.OpenRecordingId)!.IsEnabled());
         Assert.Null(commands.Get(ScenarioMenuCommands.OpenRecordingId)!.DynamicDisplayName);
 
@@ -377,12 +372,12 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     [Fact]
     public void CE4098_AHostWithNoRecordingInventory_KeepsTheItemGreyedWithItsCause()
     {
-        var (_, commands, menu, _) = CgfShape();   // CgfShape passes no openRecordingPicker
+        var (_, commands, menu) = CgfShape();   // CgfShape passes no openRecordingPicker
 
         var d = commands.Get(ScenarioMenuCommands.OpenRecordingId)!;
         Assert.False(d.IsEnabled());
         Assert.Contains("no recording inventory", d.DynamicDisplayName!());
-        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Recording");
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == "File/Open Exercise Recording…");
     }
 
     // ══ ② ONLY SERVICEABILITY DIFFERS ═══════════════════════════════════════
@@ -425,11 +420,11 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
     [Fact]
     public void OnCgfTheEnabledLoadItemsReachTheSession()
     {
-        var (session, commands, _, _) = CgfShape();
+        var (session, commands, _) = CgfShape();
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
 
-        Assert.Equal("PickedOnCgf", Assert.Single(session.OpenForEditCalls));
+        Assert.Equal("PickedOnCgf", Assert.Single(session.LoadScenarioCalls));   // ⭐ CE-1443: the session's ONE load
     }
 
     /// <summary>
@@ -455,7 +450,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         }
 
         // ⭐ And the always-serviceable items stay live — a blanket disable would be just as wrong.
-        Assert.True(noModal.C.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());
+        Assert.True(noModal.C.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
         Assert.True(noModal.C.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());
     }
 
@@ -475,15 +470,11 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         Assert.Equal(1, editor.S.TakeCheckpointCallCount);
         Assert.Equal(1, cgf.S.TakeCheckpointCallCount);
 
-        // ⭐ New Exercise reaches the same verb on both — the editor via a resolved prompt, CGF directly.
-        Assert.True(editor.C.Invoke(ScenarioMenuCommands.NewExerciseId).Success);
-        Assert.Equal(0, editor.S.NewExerciseCallCount);   // still behind the prompt
-        editor.P.ResolveConfirm();
-        Assert.Equal(1, editor.S.NewExerciseCallCount);
-
-        Assert.True(cgf.C.Invoke(ScenarioMenuCommands.NewExerciseId).Success);
-        Assert.Equal(1, cgf.S.NewExerciseCallCount);
-        Assert.Single(cgf.Log);                            // ⭐ and the log IS the safety net
+        // ⭐ CE-1443 — Close reaches the same verb on both (the door asks, on every host the same way; no per-host confirmation seam is left)
+        Assert.True(editor.C.Invoke(ScenarioMenuCommands.CloseId).Success);
+        Assert.Equal(1, editor.S.CloseCallCount);
+        Assert.True(cgf.C.Invoke(ScenarioMenuCommands.CloseId).Success);
+        Assert.Equal(1, cgf.S.CloseCallCount);
     }
 
     /// <summary>
@@ -499,15 +490,16 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         // ⭐ Invoke() itself refuses a disabled command, so this asserts BOTH gates: the refusal AND that
         //   nothing reached the session.
         Assert.False(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
+        Assert.Empty(session.LoadScenarioCalls);
         Assert.Empty(session.OpenForEditCalls);
         Assert.Empty(session.LoadForLiveCalls);
     }
 
     /// <summary>
     /// ⭐⭐ <c>CE-1442</c> (U1, S7; §11.7 ②) — the run gate reaches EVERY scenario command through the ONE registration helper: while the gate is closed a command registered through <c>RegisterCommand</c> reports
-    /// <c>IsEnabled = false</c> and a label carrying the reason, and the Start surface's idle action for it (which reads the same menu node) is disabled with that label; invoking it does nothing. New Exercise (a LEAVE) is never gated.
+    /// <c>IsEnabled = false</c> and a label carrying the reason, and the Start surface's idle action for it (which reads the same menu node) is disabled with that label; invoking it does nothing. Close (a LEAVE) is never gated.
     /// Open again ⇒ plain labels, enabled. 🔴 Mutations: <c>RegisterCommand</c> without the <c>closedReason</c> wrap ⇒ the enabled / label cells red; the Open Recording call passing <c>null</c> instead of <c>closedReason</c> ⇒ its row reds;
-    /// the New Exercise call passing <c>closedReason</c> ⇒ the leave row reds.
+    /// the Close call passing <c>closedReason</c> ⇒ the leave row reds.
     /// </summary>
     [Fact]
     public void CE1442_AClosedRunGate_GreysEveryScenarioCommand_AndTheStartSurfacesIdleAction_WithTheReason()
@@ -526,7 +518,7 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             openRecordingPicker: () => { },
             closedReason:        () => closed);
 
-        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.NewId, ScenarioMenuCommands.OpenRecordingId, ScenarioMenuCommands.SaveAsId, ScenarioMenuCommands.TakeCheckpointId })
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.NewId, ScenarioMenuCommands.OpenRecordingId, ScenarioMenuCommands.LoadCheckpointId, ScenarioMenuCommands.SaveAsId, ScenarioMenuCommands.TakeCheckpointId })
         {
             var d = c.Get(id)!;
             Assert.False(d.IsEnabled());
@@ -534,20 +526,22 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
             Assert.False(c.Invoke(id).Success);
         }
         Assert.Empty(s.OpenForEditCalls);
+        Assert.Empty(s.LoadScenarioCalls);
 
-        foreach (var idle in m.AllowedInIdleItems().Where(a => a.Path.StartsWith("File/", StringComparison.Ordinal)))
+        foreach (var idle in m.AllowedInIdleItems().Where(a => a.Path.StartsWith("File/", StringComparison.Ordinal) && a.Path != FileMenuLayout.Close))
         {
             Assert.False(idle.Enabled());                                                 // the Start surface reads these very nodes
             Assert.Contains("waiting for: Brain (CGF)", idle.Label());
         }
 
-        Assert.True(c.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());              // a LEAVE is never gated
-        Assert.Null(c.Get(ScenarioMenuCommands.NewExerciseId)!.DynamicDisplayName);
+        Assert.True(c.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());                   // a LEAVE is never gated
+        Assert.Null(c.Get(ScenarioMenuCommands.CloseId)!.DynamicDisplayName);
+        Assert.True(m.AllowedInIdleItems().Single(a => a.Path == FileMenuLayout.Close).Enabled());   // … nor on the Start surface
 
         closed = null;
         Assert.True(c.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
-        Assert.Equal("Open Scenario", c.Get(ScenarioMenuCommands.LoadId)!.DynamicDisplayName?.Invoke() ?? "Open Scenario");
-        Assert.True(m.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Enabled());
+        Assert.Equal("Load Scenario…", c.Get(ScenarioMenuCommands.LoadId)!.DynamicDisplayName?.Invoke() ?? "Load Scenario…");
+        Assert.True(m.AllowedInIdleItems().Single(a => a.Path == FileMenuLayout.LoadScenario).Enabled());
     }
 
     /// <summary>

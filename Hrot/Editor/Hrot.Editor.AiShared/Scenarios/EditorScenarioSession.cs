@@ -37,7 +37,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
 {
     /// <summary>
     /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — <b>the ONE guarded door in and out of the open scenario.</b> This session's PUBLIC <see cref="OpenForEdit"/> / <see cref="LoadForLive"/> / <see cref="OpenRecording(Guid)"/> /
-    /// <see cref="NewExercise"/> are calls on it (a run ⇒ <i>Stop &amp; Load</i> · unsaved edits ⇒ <i>Save / Discard / Cancel</i>); the RAW verbs are EXPLICIT <see cref="IRunScenarioControl"/> members, handed only to the
+    /// <see cref="Close"/> are calls on it (a run ⇒ <i>Stop &amp; Load</i> · unsaved edits ⇒ <i>Save / Discard / Cancel</i>); the RAW verbs are EXPLICIT <see cref="IRunScenarioControl"/> members, handed only to the
     /// <see cref="RunModeChoice"/> (<see cref="RunControl"/>). HTTP asks through <see cref="Door"/> with its refusing asker.
     /// </summary>
     public ScenarioDoor Door { get; }
@@ -178,20 +178,23 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     }
 
     /// <inheritdoc/>
-    /// <remarks>⭐ <c>CE-4101</c> — the OUT door: editing with unsaved edits asks <i>Save / Discard / Cancel</i> first (it used to discard silently); a run is simply stopped.</remarks>
-    public void NewExercise() => Door.Leave(LeaveReason.NewExercise);
+    /// <remarks>⭐ <c>CE-4101</c> / <c>CE-1443</c> — the OUT door: editing with unsaved edits asks <i>Save / Discard / Cancel</i> first; a run is simply stopped. Replaced <i>New Exercise</i>.</remarks>
+    public void Close() => Door.Leave(LeaveReason.Close);
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>CE-1443</c> (R-1043) — the operator's load: the door resolves the cluster's armed mode (<see cref="RunModeChoice.LoadTarget"/>) and opens / loads live.</remarks>
+    public void LoadScenario(string scenarioName) => Door.Load(scenarioName);
 
     /// <summary>
     /// ⭐ The raw leave to Idle the door calls once it has decided: leaves the host's dry run, sends the ONE Idle intent (<see cref="ScenarioLoadSequence.Unload"/>), abandons a queued load (the operator just asked
-    /// for a fresh exercise — honouring it afterwards would undo the request) and, for New Exercise, wipes the local world. ⛔ This is what distinguishes New Exercise from <see cref="ClearWorld"/>: on a cluster only this reaches the other nodes.
+    /// for a fresh exercise — honouring it afterwards would undo the request) and, reaches the other nodes (⛔ not <see cref="ClearWorld"/>, which is local; the unload to Idle clears the world on every node, CE-2101).
     /// </summary>
     private void RawLeave(LeaveReason reason)
     {
-        if (reason == LeaveReason.Exit && CurrentClusterState == ClusterState.Idle) return;   // ⭐ CE-4101 follow-up — exiting a cluster at rest: nothing to stop, no Idle intent to send
+        if (reason is LeaveReason.Exit or LeaveReason.Close && CurrentClusterState == ClusterState.Idle) return;   // ⭐ CE-4101 follow-up / CE-1443 — exiting or closing a cluster at rest: nothing to stop, no Idle intent to send
         _leaveRun?.Invoke();
         _loads.Unload();
-        _loads.Cancel();
-        if (reason == LeaveReason.NewExercise) ClearWorld();
+        _loads.Cancel();   // the operator just asked to leave — honouring a queued load afterwards would undo the request
     }
 
     /// <inheritdoc/>
@@ -327,6 +330,13 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     /// <inheritdoc/>
     public void TakeCheckpoint()
         => _orchestrationBus.PublishManaged(new TakeCheckpointIntent { RequestId = Guid.NewGuid() });
+
+    /// <inheritdoc/>
+    public void RestoreCheckpoint(string label)
+    {
+        if (string.IsNullOrWhiteSpace(label)) return;
+        _orchestrationBus.PublishManaged(new RestoreCheckpointIntent { RequestId = Guid.NewGuid(), Label = label });   // ⭐ CE-1443 — the existing restore path (the master refuses outside a recorded live run)
+    }
 
     /// <inheritdoc/>
     public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars()

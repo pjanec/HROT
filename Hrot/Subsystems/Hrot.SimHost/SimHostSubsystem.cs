@@ -89,12 +89,12 @@ namespace Hrot.SimHost
         // ⭐ CE-1437 (AQ108 §2.10) — SimHost OFFERS its transport + choice; the window composer registers the ONE toolbar time control (alone, SimHost's wins).
         /// <summary>
         /// ⭐ CE-1437 — SimHost's ONE adapter + run choice (the single <c>AttachRunChoice</c> site of this host), a static so a rail can build it without the graphics window
-        /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (D12, <see cref="Hrot.UI.Common.RunMode.RunArmedDefaults"/>) and ▶ from Edit is disabled with its reason.
+        /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (the master's initial armed mode, R-1043) and ▶ from Edit is disabled with its reason.
         /// </summary>
         internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime, Action<string?>? cancelLoad = null)
         {
             var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
-            adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), control: null,
+            adapter.AttachRunChoice(control: null,
                 gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), cancelLoad: cancelLoad);   // ⭐ CE-1442
             return adapter;
         }

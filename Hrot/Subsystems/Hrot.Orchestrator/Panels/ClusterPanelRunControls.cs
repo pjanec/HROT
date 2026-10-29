@@ -56,7 +56,7 @@ public sealed class ClusterPanelRunControls
     {
         var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
         var session = new EditorScenarioSession(bus, view, () => OrchestrationConstants.GetSharedScenariosRoot());
-        adapter.AttachRunChoice(RunArmedDefaults.For(RunHostKind.Other), session.RunControl);
+        adapter.AttachRunChoice(session.RunControl);
         return new ClusterPanelRunControls(adapter, session);
     }
 

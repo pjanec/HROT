@@ -859,7 +859,7 @@ public class WindowManager
     /// <summary>The children of a menu-tree node (one level, recursing into submenus); one icon gutter per level.</summary>
     private void RenderTreeChildren(MenuItemNode node, bool reserve)
     {
-        foreach (var child in node.Children.Values)
+        foreach (var child in node.OrderedChildren())   // ⭐ CE-1443: by Order, then registration order
             RenderTreeRow(child, reserve);
     }
 
@@ -870,7 +870,7 @@ public class WindowManager
         if (child.IsSeparator)
         {
             // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
-            if (child.ResolveBinding(CurrentPerspective) == null || GlobalMenu.IdleOnly) return;   // ⭐ CE-4096: no separators in the Idle-only bar
+            if (child.ResolveBinding(CurrentPerspective) == null || GlobalMenu.IdleOnly || !(child.GetVisible?.Invoke() ?? true)) return;   // ⭐ CE-4096: no separators in the Idle-only bar; ⭐ CE-1443: a separator of a hidden group is hidden with it
             Gui.Separator();
             return;
         }

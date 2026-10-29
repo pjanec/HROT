@@ -15,7 +15,7 @@ namespace Hrot.UI.Common.RunMode;
 /// 📄 <c>docs/blueprints/Architect_Question_108_Run_Mode_Picker.md</c> §1 (the three rules), §2.8 (classes + sequences), §3 (every move), D1 D5 D10 D12 D14 D22.
 ///
 /// <list type="bullet">
-/// <item><b>R1</b> — only <see cref="Choose"/> (and the operator's open, CE-3341) changes <see cref="Armed"/>; ▶ ⏸ ■ never do.</item>
+/// <item><b>R1</b> — only <see cref="Choose"/> (the indicator) changes <see cref="Armed"/>; ▶ ⏸ ■ and every load never do (R-1043).</item>
 /// <item><b>R2</b> — <see cref="Stop"/> returns to where the run came from and the armed mode stays: Preview → the dry run's exit; DAR → back to live;
 /// Live → <c>OpenForEdit(scenario of the active exercise)</c> (the cluster is NEVER sent to plain Idle); AAR → seek to 0, still AAR.</item>
 /// <item><b>R3</b> — a confirmation (<see cref="Pending"/>) only where a jump or a loss needs explaining; ■ never asks.</item>
@@ -75,12 +75,11 @@ public sealed class RunModeChoice
     public static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(8);
 
     /// <param name="transport">The one facade's raw transport.</param>
-    /// <param name="hostDefault">⭐ The HOST's armed mode (AQ108 D12): Preview in the editor, Live on CGF / the all-in-one / the server.</param>
     /// <param name="control">The host's scenario session; <see langword="null"/> on a host with none (SimHost, IG) — Live-armed ▶ is then disabled with a reason.</param>
     /// <param name="unsaved">The unsaved-changes seam; default <see cref="ClusterUnsavedChangesQuery"/> with no master and no reads: observes nothing, so a named scenario counts as unchanged (the adapter passes the real one).</param>
     /// <param name="now">Clock of the toast (tests inject one).</param>
     /// <param name="toasts">⭐ CE-1441 — the shared <see cref="ToastQueue"/> the notes go to (the host may pass its own); default a private one.</param>
-    public RunModeChoice(IRunTransport transport, RunArmed hostDefault, IRunScenarioControl? control,
+    public RunModeChoice(IRunTransport transport, IRunScenarioControl? control,
                          IUnsavedChangesQuery? unsaved = null, Func<DateTime>? now = null, ToastQueue? toasts = null)
     {
         Toasts     = toasts ?? new ToastQueue();
@@ -90,9 +89,8 @@ public sealed class RunModeChoice
         //   (a bare rail) observes nothing: a named scenario counts as unchanged, no name = NeverSaved — the same rule a host with no read model gets.
         _unsaved   = unsaved ?? new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName, master: null, reads: null);
         _now       = now ?? (() => DateTime.UtcNow);
-        HostDefault = hostDefault;
-        _localArmed  = hostDefault;
-        _seenCluster = transport.ClusterArmed;   // the cluster's value at construction is the baseline: the host default shows until it CHANGES
+        _localArmed  = transport.ClusterArmed ?? MasterDefaultArmed;   // ⭐ CE-1443 (R-1043): no host default — the cluster's armed mode (the master's, set by ITS bootstrap), or the master's own default before one is heard
+        _seenCluster = transport.ClusterArmed;   // the cluster's value at construction is the baseline: it shows until it CHANGES
         // ⭐ AQ108 D8 — Save in Live / DAR / AAR is a checkpoint: routed by construction for every save path of the host's ONE session
         if (control is ISaveInterception saves) saves.SaveIntercept = TryCheckpointInsteadOfSave;
         // ⭐⭐ CE-4101 (AQ108 §2.11a) — the decision "a run ⇒ Stop & Load · unsaved ⇒ Save / Discard / Cancel" lives in the session's ONE door; this choice binds it to its transport, its check round and its
@@ -101,9 +99,9 @@ public sealed class RunModeChoice
         {
             _door = (control as IHasScenarioDoor)?.Door ?? new ScenarioDoor(control, () => transport.Mode);
             _door.Bind(() => transport.Mode, _unsaved, _asker);
-            _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller; only the operator's open arms (OperatorOpening)
-            // ⭐ CE-3341 (AQ108 §2.14) — the OPERATOR's open (no asker of its own) sends its armed mode: the HOST's default for a scenario, Live for a live load, AAR for a recording. HTTP / agents send none (D22).
-            _door.OperatorOpening = open => Arm(open switch { DoorOpen.Live => RunArmed.Live, DoorOpen.Recording => RunArmed.AAR, _ => HostDefault });
+            _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller
+            // ⭐⭐ CE-1443 (R-1043) — a scenario LOAD goes into the cluster's CURRENT armed mode: the door asks THIS choice (one resolver, below). ⛔ No open sends an armed mode (CE-3341 decision ③ withdrawn); only the indicator's Choose does.
+            _door.LoadTarget = () => LoadTarget;
             _door.ClosedReason = () => ClosedReason;   // ⭐ CE-1442 — the backstop: the door refuses every non-leave move while the gate is closed
             _door.AlsoBusy = () => _asking;   // ▶ Live's own check round shares the one unsaved seam
         }
@@ -129,7 +127,7 @@ public sealed class RunModeChoice
 
     /// <summary>
     /// What ▶ runs from Edit. ⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode (<see cref="IRunTransport.ClusterArmed"/>): one fact on every node. The value this host last armed (<see cref="Arm"/>)
-    /// shows only until the cluster's value next CHANGES (so the click shows at once; a later arm from another host wins). With no cluster value, the local one. R1: only <see cref="Choose"/> / the operator's open change it.
+    /// shows only until the cluster's value next CHANGES (so the click shows at once; a later arm from another host wins). With no cluster value, the local one. R1: only <see cref="Choose"/> changes it (R-1043: an open never does).
     /// </summary>
     public RunArmed Armed
     {
@@ -144,16 +142,22 @@ public sealed class RunModeChoice
         }
     }
 
-    /// <summary>⭐ CE-3341 — the ONE writer of the armed mode: sets the local (optimistic) value and sends it to the cluster as <c>SetRunSettingsIntent { Armed }</c>.</summary>
+    /// <summary>⭐ CE-1443 — the master's own armed mode before anything else says: <see cref="RunArmed.Live"/> (<c>ClusterMaster</c>'s default; ⛔ the editor's in-process master is BOOTSTRAPPED to Preview, which reaches every node through <c>ClusterView</c>, not through a host table here).</summary>
+    public const RunArmed MasterDefaultArmed = RunArmed.Live;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> (U2a, R-1043) — <b>the ONE resolution of "what does a scenario LOAD go into"</b>: the CLUSTER's current armed mode, on every host. Live ⇒ a load into Live (paused at the start); Preview ⇒ a load into editing;
+    /// AAR ⇒ the mode the LAST scenario load went into (<c>ClusterView.LastLoadMode</c> — ⚠ NOT BUILT by the master yet, so editing until it is). Called through <see cref="ScenarioDoor.Load"/> by the File menu, Start's Recent rows and every picker.
+    /// </summary>
+    public DoorOpen LoadTarget => Armed == RunArmed.Live ? DoorOpen.Live : DoorOpen.Scenario;
+
+    /// <summary>⭐ CE-3341 — the ONE writer of the armed mode: sets the local (optimistic) value and sends it to the cluster as <c>SetRunSettingsIntent { Armed }</c>. ⭐ CE-1443: written ONLY by the indicator's moves (<see cref="Choose"/>) and the moves that name their mode (AAR from here, go live from here, ■ ...); never by a load.</summary>
     private void Arm(RunArmed target)
     {
         _ = Armed;                       // adopt a cluster change heard before this arm, so it is not mistaken for a later one
         _localArmed = target;
         _transport.SendArmed(target);
     }
-
-    /// <summary>⭐ The host's default (AQ108 D12) — the armed mode the OPERATOR's File › Open sends when it opens a scenario for editing (D12a: sent, no longer a per-host reset).</summary>
-    public RunArmed HostDefault { get; }
 
     /// <summary>The exercise of the last live run this choice ended (■ or → AAR) — what AAR armed opens at its start; <see langword="null"/> before any.</summary>
     public Guid? LastExercise { get; private set; }
@@ -249,7 +253,7 @@ public sealed class RunModeChoice
 
     /// <summary>
     /// ⭐ <c>CE-4097</c> part two (AQ108 §3 "open another scenario", D20) — opens <paramref name="scenarioName"/> for EDITING; asks <i>Save / Discard / Cancel</i> first when the scenario
-    /// being edited has unsaved changes (the cluster's check round). The armed mode becomes the host's default through the cluster-state hook (D12). The File › Open Scenario item of every host ends here.
+    /// being edited has unsaved changes (the cluster's check round). ⛔ It sends no armed mode (CE-1443). ⭐ An operator's LOAD is <see cref="ScenarioDoor.Load"/> (the armed mode decides); this verb names EDITING.
     /// ⭐⭐ <c>CE-1438</c> → <c>CE-4101</c> — "a run is running" (<i>Stop &amp; Load</i>) and the unsaved round are the session's ONE <see cref="ScenarioDoor"/>'s decision, ⛔ not this choice's: a picker, a recipe, a panel button
     /// and HTTP reach the same door without going through here.
     /// </summary>
@@ -565,8 +569,8 @@ public sealed class RunModeChoice
     // ── D12 + the cluster's state ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ Called by the adapter every frame with the cluster state it holds. ⭐ CE-3341 (AQ108 §2.14, D12a): the per-host D12 reset to <see cref="HostDefault"/> that lived here is GONE — the armed mode is the
-    /// cluster's one fact, and the operator's open SENDS the host default (see <c>ScenarioDoor.OperatorOpening</c>). Resumes the clock once a ▶-started live load is up.
+    /// ⭐ Called by the adapter every frame with the cluster state it holds. ⭐ CE-3341 (AQ108 §2.14, D12a): the per-host D12 reset that lived here is GONE — the armed mode is the cluster's one fact (⭐ CE-1443: no open sends it
+    /// either; the master's bootstrap sets the initial one). Resumes the clock once a ▶-started live load is up.
     /// </summary>
     public void OnClusterState(ClusterState state)
     {

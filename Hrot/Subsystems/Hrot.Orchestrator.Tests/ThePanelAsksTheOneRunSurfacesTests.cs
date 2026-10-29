@@ -28,7 +28,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         public void Update() { }
         public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => ClusterState.Idle;
         public void ClearWorld() { }
-        public void NewExercise() { }
+        public void Close() { }
         public void SaveAs(string scenarioName) { }
         public void SaveTo(string filePath) { }
         public bool IsDegraded => false;
@@ -58,7 +58,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         var adapter = new ClusterTimeTransportAdapter(bus, () => view, () => 0.0);
         var session = new FakeSession();
         var unsaved = new CountingUnsaved();
-        var choice = adapter.AttachRunChoice(RunArmedDefaults.For(RunHostKind.Orchestrator), session, unsaved);
+        var choice = adapter.AttachRunChoice(session, unsaved);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
         bus.SwapBuffers(); view.Update(); adapter.Update(); bus.SwapBuffers();
         return new Rig(new ClusterPanelRunControls(adapter, choice, session), adapter, bus, session, unsaved, choice);
@@ -207,7 +207,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
 
     /// <summary>
     /// ⭐ The silent-default rule: the Orchestrator HOLDS a transport, a run choice and a session, so its panel is handed THEM (not a private set built over the same bus). The host is an
-    /// operator (its choice has a session), arms Live from the table, and registers the session with the world-less constructor (no local world to wipe).
+    /// operator (its choice has a session), arms Live (the master's initial armed mode), and registers the session with the world-less constructor (no local world to wipe).
     /// 🔴 Mutation: delete the <c>core.ScenarioPanel.RunControls = …</c> line in <c>OrchestratorSubsystem.Initialize</c> ⇒ the panel builds its own and <c>Assert.Same</c> fails.
     /// </summary>
     [Fact]
@@ -220,7 +220,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
             var choice = host.RunChoiceForTest;
             Assert.NotNull(choice);
             Assert.True(choice!.HasScenarioControl);
-            Assert.Equal(RunArmed.Live, choice.HostDefault);
+            Assert.Equal(RunArmed.Live, choice.Armed);   // ⭐ CE-1443: the orchestrator's master is bootstrapped Live (the default); no host default on the choice
             Assert.Same(choice, host.ScenarioPanelForTest!.RunControls!.Choice);
             Assert.Same(host.ScenarioSessionForTest, host.ScenarioPanelForTest.RunControls.Session);
             Assert.Equal(RunHostKind.Orchestrator, ((IProvidesRunControls)host).HostKind);

@@ -623,14 +623,6 @@ namespace Hrot.Editor
         // the modal instead of exiting; the loop keeps running until the user resolves it.
         private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
 
-        /// <summary>
-        /// ⭐⭐ <c>CE-046</c> — the confirmation slot for <c>File/Live/New Exercise</c>. ⭐ The controller is
-        /// shared and headless *(so a rail can assert both branches)*; only
-        /// <see cref="DrawPromptModals"/> below knows about ImGui. 🔒 Ruling 53 — an interactive
-        /// host prompts; CGF logs-and-proceeds instead.
-        /// </summary>
-        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new("scenario_new_exercise_confirm");
-
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
         private Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher? _shellHotkeyDispatcher;
@@ -644,25 +636,6 @@ namespace Hrot.Editor
         // Separate from adapterBundle.PickerRegistry (which is DrawFrame()-ed by canvas windows)
         // to avoid double-DrawFrame on the same registry instance.
         private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
-        private Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher? _terrainPicker;
-
-        /// <summary>
-        /// W13 — make the picked terrain resident on this node through the same residency the load chain
-        /// commits through. ⛔ A bad terrain is reported, never thrown into the UI loop.
-        /// </summary>
-        private void ApplyPickedTerrain(string name)
-        {
-            try
-            {
-                TerrainResidency?.EnsureTerrain(_world, name);
-                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info(
-                    $"[Terrain] Scenario terrain set to '{name}' — saved into the scenario header on the next save.");
-            }
-            catch (Exception ex)
-            {
-                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Error($"[Terrain] Could not load terrain '{name}': {ex.Message}");
-            }
-        }
 
         // BATCH-42 (MTB2-T8b): Save-As browser dialog host for the New-asset flow.
         private NodeEditor.UI.Dialogs.SaveAsBrowserDialog? _saveAsBrowser;
@@ -2430,6 +2403,8 @@ namespace Hrot.Editor
                 // ⭐⭐ CE-4087 — the editor plays every simulation role in-process (the SAME mask it declares to the roster), so its
                 //   own master's load gate is satisfied at once — the editor never refuses itself, nor waits for its own advert.
                 LocalRoles        = EditorCapabilities.DefaultRole,
+                // ⭐⭐ CE-1443 (R-1043) — the ONE bootstrap difference between the editor and every other cluster: its single-node cluster starts in Preview (edit); Load then always goes into the cluster's armed mode.
+                InitialArmedMode  = Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview,
                 // ⭐⭐⭐ HN-037 — the editor's ONE allocator IS its world's authority; a load resets it to 1000.
                 //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
                 IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
@@ -2468,7 +2443,7 @@ namespace Hrot.Editor
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
             //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
-            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Editor), _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+            _timeTransport.AttachRunChoice(_editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                 unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                     () => _orchestratorCore != null,
                     id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)),
@@ -3098,7 +3073,7 @@ namespace Hrot.Editor
         public bool ExitApproved => _exitPrompt?.ExitApproved ?? false;
 
         /// <summary>
-        /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the app-exit unsaved-changes prompt and the <c>File/Live/New Exercise</c> confirmation (<c>CE-046</c>) are
+        /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the app-exit unsaved-changes prompt (⭐ CE-1443: the <i>New Exercise</i> confirmation left with the item) is a
         /// <see cref="Hrot.UI.Common.RunMode.RunModeConfirmation"/>s their controllers produce, drawn through the ONE
         /// <see cref="Hrot.UI.Common.RunMode.ConfirmationModal"/> the toolbar also uses — ⛔ no per-prompt ImGui here any more. A dismissal (Esc / [X]) is Cancel,
         /// the last button: the destructive reset must never be the default outcome of walking away. (The load-over-a-run warning is the run choice's own, drawn by the toolbar.)
@@ -3106,7 +3081,6 @@ namespace Hrot.Editor
         private void DrawPromptModals()
         {
             Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_exitPrompt?.Pending);
-            Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_newExerciseConfirm.Pending);
         }
 
         public void DrawUI()
@@ -3752,7 +3726,7 @@ namespace Hrot.Editor
             // against bare-ctor scenarios.
             _assetPickRouter = new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(
                 openDocument: a => _aiDocumentManager?.Open(a),
-                loadScenario: name => _editorLogic?.LoadScenarioByName(name));
+                loadScenario: name => _editorApp?.ScenarioSession.LoadScenario(name));   // ⭐ CE-1443 (R-1043) — a picked scenario loads into the cluster's armed mode, through the ONE door
 
             // AIE-025: Retarget per-perspective selection stores when the active document changes.
             // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
@@ -4350,14 +4324,6 @@ namespace Hrot.Editor
             _iconProvider = adapterBundle.IconProvider;
             _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
 
-            // ⭐ W13 (2026-10-03) — the scenario's terrain picker, the SAME class CGF composes (CGF == editor).
-            //   📄 docs/DESIGN_Terrain_World.md §7.3.
-            _terrainPicker = new Hrot.Editor.AiShared.Scenarios.TerrainPickerLauncher(
-                openPicker:      _shellPickers.OpenPicker,
-                listTerrains:    () => TerrainResidency?.Catalog.List() ?? Array.Empty<string>(),
-                residentTerrain: () => Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world),
-                applyTerrain:    ApplyPickedTerrain);
-
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
                 ? new Hrot.Editor.AiShared.Browser.AssetPickerLauncher(
@@ -4508,9 +4474,6 @@ namespace Hrot.Editor
                     assetPickerLauncher?.Open(kinds, callback);
                 },
                 openSaveAsDialog:     cb => openScenarioSaveAs(),
-                // ⭐⭐⭐ Ruling 53 — the confirm belongs where the OPERATOR sits, and this host is the
-                //    interactive one, so it PROMPTS. The controller holds the decision; DrawUI draws it.
-                confirmNewExercise:   run => _newExerciseConfirm.RequestNewExercise(run),   // ⭐ CE-1439 — the one wording, shared with the Orchestrator
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.
@@ -4530,7 +4493,10 @@ namespace Hrot.Editor
                         ? "[Git] Nothing saved (not a source checkout, or the repository is already current)."
                         : $"[Git] Saved {written.Count} file(s): " + string.Join(", ", written.Take(8)) + (written.Count > 8 ? ", …" : "");
                 },
-                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open);   // ⭐ CE-4098 (File › Open Scenario / Recording end in the session's guarded door — CE-4101)
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098 (File › Load Scenario / Open Recording end in the session's guarded door — CE-4101)
+                // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
+                takeCheckpoint:      () => _timeTransport?.RunChoice?.TakeCheckpoint(),
+                checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
@@ -5119,7 +5085,6 @@ namespace Hrot.Editor
                     NewAsset:      () => newAssetLauncher?.Open(),
                     // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
                     NewProduct:    newAssetLauncher != null ? p => newAssetLauncher.Open(p) : null,
-                    PickTerrain:   () => _terrainPicker?.Open(),
                     // ⭐⭐ PHASE 2 SLICE ① — was the SECOND of this host's two kind-switches, and it fell
                     //    through in SILENCE for any other kind. ⛔ The shared policy reports instead.
                     CompileReload: () => ReloadActiveAiDocument(

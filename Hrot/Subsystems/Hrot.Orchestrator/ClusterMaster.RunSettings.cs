@@ -38,10 +38,10 @@ public sealed partial class ClusterMaster
 
     /// <summary>
     /// ⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode: what ▶ runs next, ONE fact held HERE and broadcast with every cluster-state
-    /// publication (every node reads it through its <c>ClusterView</c>). Default <see cref="ClusterArmedMode.Live"/> — D12's host default for every host but the
-    /// editor, and the editor sends its own (Preview) with the load that opens a scenario. ⛔ <b>Never reset by a load</b>: only a <c>SetRunSettings{Armed}</c> changes it.
+    /// publication (every node reads it through its <c>ClusterView</c>). ⭐ <c>CE-1443</c> (R-1043): its INITIAL value is a BOOTSTRAP parameter (the constructor's <c>initialArmedMode</c>, default <see cref="ClusterArmedMode.Live"/>;
+    /// the editor's in-process single-node master is built with Preview — the ONE difference between the editor and every other cluster; ⛔ no file config). ⛔ <b>Never reset by a load</b>: only a <c>SetRunSettings{Armed}</c> changes it.
     /// </summary>
-    public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
+    public ClusterArmedMode ArmedMode { get; private set; }
 
     private bool _runNotRecorded;
 

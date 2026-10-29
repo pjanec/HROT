@@ -56,7 +56,7 @@ public sealed class EditorScenarioSessionLoadTests
     {
         var adapter = new ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
         var q = new Asks { Answer = answer };
-        return (adapter.AttachRunChoice(RunArmed.Preview, session.RunControl, q), adapter, q);   // ⭐ the RAW verbs go to the choice only
+        return (adapter.AttachRunChoice(session.RunControl, q), adapter, q);   // ⭐ the RAW verbs go to the choice only
     }
 
     /// <summary>
@@ -117,23 +117,23 @@ public sealed class EditorScenarioSessionLoadTests
         var s2 = NewSession(b2);
         var (c2, _, _) = WithChoice(b2, s2);
         ClusterIs(b2, s2, ClusterState.OperatingLive);
-        s2.NewExercise();
+        s2.Close();
         Assert.Null(c2.Pending);
         Assert.Equal(ClusterState.Idle, Assert.Single(Drain(b2)).TargetState);
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-4101</c> (the OUT door; <i>New Exercise</i> used to discard silently) — over UNSAVED edits <c>NewExercise</c> asks <i>Save / Discard / Cancel</i> FIRST: nothing is published while it asks; Cancel leaves the scenario
+    /// ⭐⭐⭐ <c>CE-4101</c> / <c>CE-1443</c> (the OUT door; <i>New Exercise</i> — replaced by <c>Close</c> — used to discard silently) — over UNSAVED edits <c>Close</c> asks <i>Save / Discard / Cancel</i> FIRST: nothing is published while it asks; Cancel leaves the scenario
     /// open; Save publishes the scenario save and THEN the Idle intent; Discard only the Idle intent; a CLEAN scenario goes at once. Opens over unsaved edits (every IN verb) ask the same.
-    /// 🔴 Red-proof: <c>NewExercise</c> calling <c>RawLeave</c> directly ⇒ the Idle intent is on the bus before any question.
+    /// 🔴 Red-proof: <c>Close</c> calling <c>RawLeave</c> directly ⇒ the Idle intent is on the bus before any question.
     /// </summary>
     [Fact]
-    public void CE4101_OverUnsavedEdits_NewExerciseAndEveryOpen_AskSaveDiscardCancel_BeforeAnythingIsPublished()
+    public void CE4101_OverUnsavedEdits_CloseAndEveryOpen_AskSaveDiscardCancel_BeforeAnythingIsPublished()
     {
         var exercise = Guid.NewGuid();
         var moves = new (string Name, Action<EditorScenarioSession> Call)[]
         {
-            ("NewExercise",   s => s.NewExercise()),
+            ("Close",         s => s.Close()),
             ("OpenForEdit",   s => s.OpenForEdit("other")),
             ("LoadForLive",   s => s.LoadForLive("other")),
             ("OpenRecording", s => s.OpenRecording(exercise)),
@@ -183,11 +183,11 @@ public sealed class EditorScenarioSessionLoadTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4101</c> (the ONE Idle intent) — New Exercise, the transport's raw ■ (a host with no run choice) and <see cref="ScenarioLoadSequence.UnloadIntent"/> publish the SAME intent apart from the TransactionId; a load's
+    /// ⭐⭐ <c>CE-4101</c> (the ONE Idle intent) — Close (ex-New Exercise), the transport's raw ■ (a host with no run choice) and <see cref="ScenarioLoadSequence.UnloadIntent"/> publish the SAME intent apart from the TransactionId; a load's
     /// own unload is it too. 🔴 Red-proof: <c>RawLeave</c> building its own intent (any extra field) ⇒ the equality fails.
     /// </summary>
     [Fact]
-    public void CE4101_NewExerciseAndTheRawStopAndTheLoadsUnload_PublishTheOneIdleIntent()
+    public void CE4101_CloseAndTheRawStopAndTheLoadsUnload_PublishTheOneIdleIntent()
     {
         static TransitionStateIntent Normalised(TransitionStateIntent t, Guid id) { t.TransactionId = id; return t; }
         var id = Guid.NewGuid();
@@ -196,7 +196,7 @@ public sealed class EditorScenarioSessionLoadTests
         var bus = new FdpEventBus();
         var session = NewSession(bus);
         ClusterIs(bus, session, ClusterState.OperatingLive);
-        session.NewExercise();
+        session.Close();
         Assert.Equal(one, Normalised(Assert.Single(Drain(bus)), id));
 
         var rawBus = new FdpEventBus();
@@ -256,6 +256,49 @@ public sealed class EditorScenarioSessionLoadTests
         Assert.Equal(ClusterState.Idle, sent.TargetState);
         Assert.Equal("kept", session.LoadedScenarioName);
         Assert.Equal("Closing", DoorMove.Leaving(LeaveReason.Close).What);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> S3 (R-1043), on the REAL session and the REAL door: <c>LoadScenario</c> goes into the cluster's CURRENT armed mode — Live armed ⇒ the live load (<c>TargetState = OperatingLive</c>, a clock at 0 paused,
+    /// a fresh exercise id), Preview armed ⇒ the edit open, AAR armed ⇒ the edit open (the last load's mode is not on the cluster view yet) — it is the SAME guarded door (a run asks <i>Stop &amp; Load</i>), and ⛔ it publishes no
+    /// <c>SetRunSettingsIntent</c> (the armed mode is the indicator's to change).
+    /// 🔴 Red-proofs: <c>LoadScenario</c> calling <c>OpenForEdit</c> (the withdrawn "open always edits") ⇒ the Live row; <c>Door.Load</c> not asking <c>LoadTarget</c> ⇒ the same; the withdrawn open hook sending the armed mode ⇒ the op assertion.
+    /// </summary>
+    [Fact]
+    public void CE1443_S3_LoadScenario_GoesIntoTheClustersArmedMode_ThroughTheDoor_AndSendsNoArmedMode()
+    {
+        foreach (var (armed, target) in new[]
+        {
+            (ClusterArmedMode.Live,    ClusterState.OperatingLive),
+            (ClusterArmedMode.Preview, ClusterState.OperatingEdit),
+            (ClusterArmedMode.AAR,     ClusterState.OperatingEdit),
+        })
+        {
+            var bus = new FdpEventBus();
+            var session = NewSession(bus);
+            WithChoice(bus, session);
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ArmedMode = armed });   // the master's broadcast: at rest, armed as bootstrapped
+            bus.SwapBuffers(); ViewOf(bus).Update(); session.Update();
+
+            session.LoadScenario("hill");
+            bus.SwapBuffers();
+            var load = Assert.Single(bus.ReadManaged<TransitionStateIntent>());
+            Assert.Equal(target, load.TargetState);
+            Assert.Equal("hill", load.ScenarioId);
+            if (target == ClusterState.OperatingLive) Assert.Equal("Deterministic", load.TimeMode);   // live loads start paused at the start
+            Assert.Empty(bus.ReadManaged<SetRunSettingsIntent>());                                    // R-1043: no load sends an armed mode
+            Assert.Equal("hill", session.LoadedScenarioName);
+        }
+
+        // the same guarded door: over a run it asks Stop & Load first, and publishes nothing until the button
+        var runBus = new FdpEventBus();
+        var runSession = NewSession(runBus);
+        var (choice, _, _) = WithChoice(runBus, runSession);
+        runBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ArmedMode = ClusterArmedMode.Live });
+        runBus.SwapBuffers(); ViewOf(runBus).Update(); runSession.Update();
+        runSession.LoadScenario("other");
+        Assert.NotNull(choice.Pending);
+        Assert.Empty(Drain(runBus));
     }
 
     /// <summary>
@@ -365,21 +408,21 @@ public sealed class EditorScenarioSessionLoadTests
     }
 
     [Fact]
-    public void NewExercise_DropsAWaitingLoad()
+    public void Close_DropsAWaitingLoad()
     {
         var bus = new FdpEventBus();
         var session = NewSession(bus);
         ClusterIs(bus, session, ClusterState.OperatingLive);
 
         session.LoadForLive("b");
-        session.NewExercise();
+        session.Close();
         Drain(bus);
 
         ClusterIs(bus, session, ClusterState.Idle);
         Assert.Empty(Drain(bus));
     }
 
-    /// <summary>⭐ <c>CE-1025</c> (R-1031) — every load request (and New Exercise) leaves the host's dry run FIRST, before anything is asked
+    /// <summary>⭐ <c>CE-1025</c> (R-1031) — every load request (and Close) leaves the host's dry run FIRST, before anything is asked
     /// of the cluster. 🔴 Red-proof: drop the <c>_leaveRun</c> call in <c>LoadForLive</c> ⇒ red.</summary>
     [Fact]
     public void CE1025_EveryLoad_LeavesTheDryRunFirst()
@@ -394,7 +437,8 @@ public sealed class EditorScenarioSessionLoadTests
         Assert.Equal(1, left);
         session.OpenForEdit("c");
         Assert.Equal(2, left);
-        session.NewExercise();
+        ClusterIs(bus, session, ClusterState.OperatingEdit);                   // (a Close at a cluster at REST sends nothing and leaves nothing)
+        session.Close();
         Assert.Equal(3, left);
         session.LoadForLive(" ");                                              // no scenario, no load: the run is not touched
         Assert.Equal(3, left);
@@ -426,7 +470,7 @@ public sealed class EditorScenarioSessionLoadTests
         var bus = new FdpEventBus();
         var session = NewSession(bus);
         var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
-        facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
+        facade.AttachRunChoice(session);
         var run = Guid.NewGuid();
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = run });
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(run, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
@@ -458,7 +502,7 @@ public sealed class EditorScenarioSessionLoadTests
         var bus = new FdpEventBus();
         var session = NewSession(bus);
         var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
-        facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
+        facade.AttachRunChoice(session);
         Assert.NotNull(session.SaveIntercept);                                  // installed by the choice's constructor, not by a host remembering to
         ClusterIs(bus, session, ClusterState.Idle);                             // ⭐ CE-1442 — the run gate is closed until the master's state has reached this node
         session.LoadForLive("hill-attack");                                     // names the scenario (and the load itself is not what is under test)

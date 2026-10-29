@@ -669,7 +669,7 @@ public sealed class HrotNodeBuilderTests
 
         var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ctx.ClusterSlave.View, () => 0);
         var control = new PlayControl();
-        var choice = adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, control,
+        var choice = adapter.AttachRunChoice(control,
             unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => provider));
         void Frame(Action? publish = null) { publish?.Invoke(); bus.SwapBuffers(); ctx.ClusterSlave.Tick(); adapter.Update(); }
 

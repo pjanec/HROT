@@ -355,4 +355,28 @@ public sealed class ClusterMasterRunRecordingTests
         Assert.Equal(ClusterArmedMode.Preview, live.LastState!.Value.ArmedMode);      // and the broadcast still says it
         edit.Master.Dispose();
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> S5 (R-1043) — the master's INITIAL armed mode is a BOOTSTRAP parameter: Live by default (every cluster), Preview when the host passes it (the editor's single-node orchestrator) — held by the master, carried by its
+    /// FIRST broadcast (the standby a master with nothing mandatory publishes at construction), and still moved only by <c>SetRunSettings{Armed}</c> afterwards. ⛔ No file config: the parameter is the only source.
+    /// 🔴 Red-proofs: the constructor ignoring the parameter ⇒ the Preview row; the parameter applied after the standby publication ⇒ the broadcast row; a hard-coded Preview default ⇒ the default row.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE1443_S5_TheInitialArmedMode_IsABootstrapParameter_Live_ByDefault_AndRidesTheFirstBroadcast()
+    {
+        var plainBus = new FdpEventBus();
+        using var plain = new ClusterMaster(plainBus, TestClusterConfig.NothingMandatory());
+        plainBus.SwapBuffers();
+        Assert.Equal(ClusterArmedMode.Live, plain.ArmedMode);
+        Assert.Equal(ClusterArmedMode.Live, LastBroadcast(plainBus)!.Value.ArmedMode);
+
+        var bus = new FdpEventBus();
+        using var editor = new ClusterMaster(bus, TestClusterConfig.NothingMandatory(), initialArmedMode: ClusterArmedMode.Preview);
+        bus.SwapBuffers();
+        Assert.Equal(ClusterArmedMode.Preview, editor.ArmedMode);
+        Assert.Equal(ClusterArmedMode.Preview, LastBroadcast(bus)!.Value.ArmedMode);   // the very first publication already says it
+
+        Op(editor, bus, "{\"Armed\":\"Live\"}");                                        // …and only the run-settings op moves it from there
+        Assert.Equal(ClusterArmedMode.Live, editor.ArmedMode);
+    }
 }

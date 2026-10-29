@@ -57,15 +57,15 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var view = new ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
         var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
         var control = new Control();
-        if (withChoice) facade.AttachRunChoice(armed, control, reads is null ? new Unchanged() : null, reads);
+        if (withChoice) facade.AttachRunChoice(control, reads is null ? new Unchanged() : null, reads);
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
-        Hear(facade, bus, state, view);
+        Hear(facade, bus, state, view, Enum.Parse<ClusterArmedMode>(armed.ToString()));   // ⭐ CE-1443: the armed mode is the master's bootstrap one, as its first broadcast says it
         return (facade, bus, control);
     }
 
-    private static void Hear(ClusterTimeTransportAdapter f, FdpEventBus bus, ClusterState state, ClusterView view)
+    private static void Hear(ClusterTimeTransportAdapter f, FdpEventBus bus, ClusterState state, ClusterView view, ClusterArmedMode? armed = null)
     {
-        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, ArmedMode = armed ?? view.ArmedMode });
         bus.SwapBuffers(); view.Update(); f.Update(); bus.SwapBuffers();
     }
 

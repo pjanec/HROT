@@ -20,9 +20,12 @@ namespace Hrot.Editor.Tests;
 /// menu-structure rails MOVED with the items.</b> 📄
 /// <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3a; <c>AQ60</c> ruling <b>R2</b>.</para>
 ///
-/// <para>⚠⚠ <b>THE LABEL/PATH CHANGE IS DELIBERATE AND VISIBLE — argued, not slipped in.</b> The old flat
-/// <c>File/Scenario/*</c> group is gone; items now live under <c>File/Live</c>, <c>File/Edit</c> and
-/// <c>File/Checkpoint</c>. 📐 The old <c>Load Scenario…</c> was the chameleon R2 names: it was labelled
+/// <para>⭐⭐ <b>CE-1443 (U2a, AQ108 §2.15a) — the submenus are GONE again.</b> The File menu is ONE flat list (<c>FileMenuLayout</c>): <i>Load Scenario… · New Scenario… · Load Checkpoint… · Open Exercise Recording… · Save Checkpoint · the editing group · Close · Exit</i>;
+/// <i>New Exercise</i> is replaced by <i>Close</i> and its confirmation controller is deleted. The rails below were rewritten to that contract (the old assertions are named in the report).</para>
+///
+/// <para>⚠⚠ <b>(history) THE LABEL/PATH CHANGE WAS DELIBERATE AND VISIBLE — argued, not slipped in.</b> The old flat
+/// <c>File/Scenario/*</c> group went; items then lived under <c>File/Live</c>, <c>File/Edit</c> and
+/// <c>File/Checkpoint</c> (⛔ superseded by CE-1443). 📐 The old <c>Load Scenario…</c> was the chameleon R2 names: it was labelled
 /// generically and meant <i>load for AUTHORING</i>. ⇒ the design's §6 gate anticipates exactly this
 /// *("if the editor's existing item labels change, that IS a visible change — argue it in the report")*.
 /// ⭐ <b>Every command ID is unchanged</b>, so hotkeys, MCP identity and every id-keyed rail still
@@ -43,7 +46,10 @@ public sealed class ScenarioMenuTests
     {
         public int UpdateCallCount;
         public int ClearWorldCallCount;
-        public int NewExerciseCallCount;
+        public int CloseCallCount;
+        public ClusterState State = ClusterState.Idle;
+        public readonly List<string> LoadScenarioCalls = new();
+        public readonly List<string> RestoreCheckpointCalls = new();
         public int SaveCurrentCallCount;
         public int TakeCheckpointCallCount;
         public readonly List<string> SaveAsCalls      = new();
@@ -54,13 +60,15 @@ public sealed class ScenarioMenuTests
 
         public IReadOnlyList<SidecarFileInfo> MigrationSidecars { get; set; } = Array.Empty<SidecarFileInfo>();
 
-        public ClusterState CurrentClusterState => ClusterState.Idle;
+        public ClusterState CurrentClusterState => State;
         public string? LoadedScenarioName => LoadedScenarioNameValue;
         public bool IsDegraded => false;
 
         public void Update()                        => UpdateCallCount++;
         public void ClearWorld()                    => ClearWorldCallCount++;
-        public void NewExercise()                   => NewExerciseCallCount++;
+        public void Close()                         => CloseCallCount++;
+        public void LoadScenario(string name)       => LoadScenarioCalls.Add(name);
+        public void RestoreCheckpoint(string label) => RestoreCheckpointCalls.Add(label);
         public void LoadForLive(string name)        => LoadForLiveCalls.Add(name);
         public void OpenForEdit(string name)        => OpenForEditCalls.Add(name);
         public void SaveCurrent()                   => SaveCurrentCallCount++;
@@ -130,7 +138,6 @@ public sealed class ScenarioMenuTests
             string?                                          loadedScenarioName = null,
             Action<AssetKindFilter, Action<IEditableAsset?>>? openPicker         = null,
             Action<Action<string>>?                          openSaveAsDialog   = null,
-            Action<Action>?                                  confirmNewExercise = null,
             Action<IReadOnlyList<SidecarFileInfo>>?           showMigrationHistory = null,
             FakeScenarioSession?                             session            = null)
     {
@@ -145,47 +152,51 @@ public sealed class ScenarioMenuTests
             session:              s,
             openPicker:           openPicker       ?? ((kinds, cb) => { }),
             openSaveAsDialog:     openSaveAsDialog ?? (cb => { }),
-            confirmNewExercise:   confirmNewExercise,
             showMigrationHistory: showMigrationHistory);
 
         return (s, commands, menu);
     }
 
-    // ══ ① The distinct submenu structure (design §3a) ═══════════════════════
+    // ══ ① The ONE flat File menu (AQ108 §2.15 / §2.15a) ═════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The items live under <c>Live/</c>, <c>Edit/</c> and <c>Checkpoint/</c> — the structure IS
-    /// the anti-chameleon guarantee.</b> 🔒 R2 — <i>distinct menu items, no per-host default in the
-    /// menu</i>. ⛔ A single generic <c>Load Scenario…</c> that silently means <i>edit</i> is what this
-    /// replaces.
+    /// ⭐⭐⭐ <c>CE-1443</c> S1 — <b>the File menu this registrar draws has NO submenus</b>: the items it registers are exactly §2.15's, flat under <c>File</c>, and <c>File/Live</c> · <c>File/Edit</c> · <c>File/Checkpoint</c> · <i>New Exercise</i> are gone.
+    /// 🔴 Red-proof: re-registering any item under a submenu (e.g. <c>File/Edit/Save Scenario</c>) ⇒ the submenu assertion; re-adding <c>New Exercise</c> ⇒ the exact-set assertion.
     /// </summary>
     [Fact]
-    public void MenuItems_Registered_UnderTheDistinctSubmenus()
+    public void CE1443_S1_TheFileMenu_IsFlat_AndExactlyTheDesignedItems()
     {
         var (_, _, menu) = CreateRegistrar();
+        var file = menu.Root.Children["File"];
 
-        Assert.True(menu.Root.Children.ContainsKey("File"));
-        var fileNode = menu.Root.Children["File"];
+        Assert.All(file.Children.Values, c => Assert.Empty(c.Children));   // no submenu anywhere under File
+        foreach (var gone in new[] { "Live", "Edit", "Checkpoint", "Scenario", "Terrain…", "New Exercise", "Open Scenario", "New Scenario", "Open Recording", "Take Checkpoint" })
+            Assert.False(file.Children.ContainsKey(gone), $"File/{gone} must be gone");
 
-        // ⛔ The old flat "Scenario" group is GONE — that is the point, not a regression.
-        Assert.False(fileNode.Children.ContainsKey("Scenario"));
+        // the items THIS registrar owns (the asset items, Save / Save As… / Save All and Exit are other registrars')
+        var mine = new[]
+        {
+            FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.SaveCheckpoint,
+            FileMenuLayout.SaveScenario, FileMenuLayout.SaveScenarioAs, FileMenuLayout.MigrationHistory, FileMenuLayout.SaveCuratedToGit, FileMenuLayout.Close,
+        };
+        var registered = LeafPaths(menu).Where(x => !x.Contains("/sep-")).ToArray();
+        Assert.Equal(mine.OrderBy(x => x, StringComparer.Ordinal), registered.OrderBy(x => x, StringComparer.Ordinal));
+    }
 
-        // ⭐ CE-4097 part two — "Live" keeps only New Exercise (the cluster reset); Open / New are top-level beside Open Recording (the armed mode decides ▶)
-        var live = fileNode.Children["Live"];
-        Assert.Equal(new[] { "New Exercise" }, live.Children.Keys.ToArray());
-        Assert.True(fileNode.Children.ContainsKey("Open Scenario"));
-        Assert.True(fileNode.Children.ContainsKey("New Scenario"));
+    /// <summary>The leaf paths of the <c>File</c> menu in DRAW order (<see cref="MenuItemNode.OrderedChildren"/>), whatever their visibility.</summary>
+    private static string[] LeafPaths(GlobalMenuRegistry menu)
+        => menu.Root.Children["File"].OrderedChildren().Where(c => c.Children.Count == 0).Select(c => "File/" + c.Name).ToArray();
 
-        var edit = fileNode.Children["Edit"];
-        Assert.Equal(4, edit.Children.Count);
-        Assert.True(edit.Children.ContainsKey("Save Scenario"));
-        Assert.True(edit.Children.ContainsKey("Save Scenario As"));
-        Assert.True(edit.Children.ContainsKey("Migration History"));
-        Assert.True(edit.Children.ContainsKey("Save Curated Scenarios to Git"));
-
-        var checkpoint = fileNode.Children["Checkpoint"];
-        var takeCheckpoint = Assert.Single(checkpoint.Children);
-        Assert.Equal("Take Checkpoint", takeCheckpoint.Key);
+    /// <summary>⭐ <c>CE-1443</c> — the draw order is the layout table's (rank), not the registration order: registered here in a different order, drawn as <see cref="FileMenuLayout.InOrder"/> says.</summary>
+    [Fact]
+    public void CE1443_TheFileMenu_IsDrawnInTheLayoutTablesOrder()
+    {
+        var (_, _, menu) = CreateRegistrar();
+        var drawn = LeafPaths(menu);
+        var expected = FileMenuLayout.InOrder.Where(drawn.Contains).ToArray();
+        Assert.Equal(expected, drawn);
+        Assert.Equal(FileMenuLayout.LoadScenario, drawn[0]);
+        Assert.Equal(FileMenuLayout.Close, drawn[^1]);   // (Exit is the window controller's own registration)
     }
 
     /// <summary>
@@ -212,10 +223,12 @@ public sealed class ScenarioMenuTests
     {
         var (_, commands, _) = CreateRegistrar();
 
-        Assert.Equal(9, commands.RegisterCallCount);   // ⭐ CE-4097 part two — Load Scenario (live) is folded into Open Scenario: nine
+        Assert.Equal(10, commands.RegisterCallCount);   // ⭐ CE-1443 — New Exercise is gone; Load Checkpoint and Close are new
         Assert.NotNull(commands.Get(ScenarioMenuCommands.OpenRecordingId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
-        Assert.NotNull(commands.Get(ScenarioMenuCommands.NewExerciseId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadCheckpointId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.CloseId));
+        Assert.Null(commands.Get("scenario.newExercise"));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
@@ -224,40 +237,30 @@ public sealed class ScenarioMenuTests
         Assert.NotNull(commands.Get(ScenarioMenuCommands.UpdateCuratedId));
     }
 
-    // ══ ② THE ROUTING RAIL — live vs edit are two different calls ═══════════
+    // ══ ② THE ROUTING RAIL — Load Scenario is the ONE load (R-1043) ════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>THE RAIL THIS SLICE EXISTS FOR: the two load items route to two DIFFERENT session
-    /// verbs.</b> 📄 design §6 *("routing rails — LoadForLive/OpenForEdit publish the live/edit
-    /// TransitionStateIntent")*.
-    ///
-    /// <para>⚠ Asserted as a PAIR in one test on purpose: the failure mode worth catching is not *"live
-    /// does nothing"* but *"live and edit both went to the same place"* — which a per-item test would pass
-    /// happily. 📌 The same shape as <c>AX-018</c>, where two paths silently agreed to be wrong.</para>
+    /// ⭐⭐⭐ <c>CE-1443</c> S3 (R-1043) — <b>Load Scenario… ends in the session's ONE <c>LoadScenario</c></b> (which resolves the cluster's armed mode): ⛔ not in <c>OpenForEdit</c>, not in <c>LoadForLive</c> — no host seam, no per-item mode.
+    /// The picker is the scenario-filtered one; a cancelled pick loads nothing.
+    /// 🔴 Red-proof: the handler calling <c>session.OpenForEdit</c> (the withdrawn "Open always opens into editing") ⇒ the empty-list assertions; calling <c>LoadForLive</c> ⇒ the same.
     /// </summary>
     [Fact]
-    public void TheOneOpenItem_OpensForEditing_AndNoLoadLiveItemExistsAnyMore()
+    public void CE1443_S3_LoadScenario_EndsInTheSessionsOneLoad()
     {
-        // ⭐ CE-4097 part two (AQ108 §3, D12, D22) — the File menu's Live/Edit load items FOLD into the ONE Open Scenario: it opens INTO EDITING (the armed mode decides ▶),
-        //   there is no second "load live" command, and the menu path has no File/Live/Load Scenario.
-        // 🔴 Red-proof: re-registering a load-live command, or Open calling LoadForLive.
-        var (session, commands, menu) = CreateRegistrar(
+        var (session, commands, _) = CreateRegistrar(
             openPicker: (kinds, cb) => cb(new FakeScenarioAsset("PickedScenario")));
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.LoadId).Success);
 
-        Assert.Equal("PickedScenario", Assert.Single(session.OpenForEditCalls));
-        Assert.Empty(session.LoadForLiveCalls);                             // Open never goes live: ▶ with Live armed does
+        Assert.Equal("PickedScenario", Assert.Single(session.LoadScenarioCalls));
+        Assert.Empty(session.OpenForEditCalls);                             // the menu names no mode: the armed mode decides, once, in the choice
+        Assert.Empty(session.LoadForLiveCalls);
         Assert.Null(commands.Get("scenario.loadLive"));
-        Assert.Equal(ScenarioMenuCommands.OpenScenarioMenuPath, "File/Open Scenario");
-        Assert.DoesNotContain(menu.AllowedInIdleItems(), a => a.Path.StartsWith("File/Live/Load"));
+        Assert.Equal("File/Load Scenario…", ScenarioMenuCommands.LoadScenarioMenuPath);
     }
 
-    // ⭐ CE-4101 — the registrar's `openScenario` host seam (and every host's unguarded `else` fallback) is GONE: the Open item ends in the session's OpenForEdit, which IS the guarded door
-    //   (rails: Load_OpensScenarioFilteredModal_AndOpensForEdit here; TheOneGuardedDoorTests for the door itself).
-
     [Fact]
-    public void Load_OpensScenarioFilteredModal_AndOpensForEdit()
+    public void Load_OpensScenarioFilteredModal_AndLoadsThePick()
     {
         AssetKindFilter? capturedFilter = null;
         var (session, commands, _) = CreateRegistrar(
@@ -270,7 +273,7 @@ public sealed class ScenarioMenuTests
         var result = commands.Invoke(ScenarioMenuCommands.LoadId);
         Assert.True(result.Success);
         Assert.Equal(AssetKindFilter.Scenario, capturedFilter);
-        Assert.Equal("PickedScenario", Assert.Single(session.OpenForEditCalls));
+        Assert.Equal("PickedScenario", Assert.Single(session.LoadScenarioCalls));   // ⭐ CE-1443: the one load, not OpenForEdit
     }
 
     [Fact]
@@ -280,130 +283,143 @@ public sealed class ScenarioMenuTests
 
         var result = commands.Invoke(ScenarioMenuCommands.LoadId);
         Assert.True(result.Success);
+        Assert.Empty(session.LoadScenarioCalls);
         Assert.Empty(session.OpenForEditCalls);
         Assert.Empty(session.LoadForLiveCalls);
     }
 
-    // ══ ③ THE CONFIRM BRANCH — New Exercise is destructive ═════════════════
+    // ══ ③ CLOSE — back to Idle through the one door (replaces New Exercise) ═══
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The cluster-wide reset does NOT run until the confirmation resolves.</b>
-    /// 🔒 Ruling 53 — <i>a hard reload is a confirmed cluster-wide reset and the confirm belongs where the
-    /// OPERATOR sits</i>. ⛔ The failure this pins is the worst kind: an operator clicking a menu item and
-    /// losing a running exercise before any prompt appeared.
+    /// ⭐⭐⭐ <c>CE-1443</c> S6 — <b>Close calls the session's ONE <c>Close</c></b> (= <c>Door.Leave(LeaveReason.Close)</c>), is NEVER gated (enabled while the run gate is closed and the cluster is in error — it is how an operator leaves) and is offered on Start;
+    /// and it is not New Scenario (the LOCAL wipe stays apart).
+    /// 🔴 Red-proofs: the handler calling <c>ClearWorld</c> ⇒ the count; registering Close with the gate's <c>closedReason</c> ⇒ the closed-gate assertions; <c>allowedInIdle</c> false ⇒ the Idle assertion.
     /// </summary>
     [Fact]
-    public void NewExercise_DoesNotRunUntilTheConfirmationIsResolved()
+    public void CE1443_S6_Close_IsTheSessionsOneClose_NeverGated_AndOnStart()
     {
-        var prompt = new ConfirmPromptController();
-        var (session, commands, _) = CreateRegistrar(
-            confirmNewExercise: run => prompt.Request("New Exercise", "sure?", "Yes", run));
+        var session = new FakeScenarioSession();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        string? closed = "waiting for: Brain (CGF)";
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, closedReason: () => closed);
 
-        Assert.True(commands.Invoke(ScenarioMenuCommands.NewExerciseId).Success);
+        Assert.True(commands.Invoke(ScenarioMenuCommands.CloseId).Success);       // the gate is CLOSED (and an error would close it the same way): Close still works
+        Assert.Equal(1, session.CloseCallCount);
+        Assert.Equal(0, session.ClearWorldCallCount);                              // not New Scenario: no local wipe
+        Assert.Null(commands.Get(ScenarioMenuCommands.CloseId)!.DynamicDisplayName);   // no gate label on Close
 
-        // ⭐ The prompt is up and NOTHING has happened yet.
-        Assert.True(prompt.IsPrompting);
-        Assert.Equal(0, session.NewExerciseCallCount);
+        // while the gate is closed a GATED item is disabled with the reason — Close, by contrast, is the one that is not
+        Assert.False(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
 
-        prompt.ResolveConfirm();
-        Assert.Equal(1, session.NewExerciseCallCount);
-        Assert.False(prompt.IsPrompting);
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == FileMenuLayout.Close);   // offered on Start
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the <i>New Exercise</i> prompt is the ONE confirmation shape: the controller only PRODUCES a <c>RunModeConfirmation</c> (its title, text, the
-    /// confirming button then Cancel) and holds no title / message / label of its own; one slot, a second request is dropped.
-    /// 🔴 Red-proof: <c>Request</c> re-adding its own <c>ConfirmLabel</c> property / building the model without Cancel last ⇒ the property-set and button-list assertions fail.
+    /// ⚠⚠ <b>NEW SCENARIO IS NOT CLOSE, and this rail is why both ids exist</b> (it kept the New-Exercise rail's point). 📐 The deferred-load state machine calls the LOCAL wipe as step 1 of its own sequence, so if <c>scenario.new</c> had been pointed at the
+    /// cluster-wide leave every load would publish a second <c>Idle</c> intent from inside the handler for the first. ⇒ two verbs, asserted apart.
     /// </summary>
     [Fact]
-    public void CE1438_TheNewExercisePrompt_IsARunModeConfirmation_NotAShapeOfItsOwn()
+    public void NewScenarioClearsLocally_WhileCloseLeavesTheCluster()
     {
-        var prompt = new ConfirmPromptController("p");
-        Assert.Null(prompt.Pending);
-        Assert.True(prompt.Request("New Exercise", "sure?", "Yes", () => { }));
-        Assert.False(prompt.Request("Other", "again?", "No", () => { }));   // one slot: dropped
-
-        var model = Assert.IsType<Hrot.UI.Common.RunMode.RunModeConfirmation>(prompt.Pending);
-        Assert.Equal("New Exercise", model.Title);
-        Assert.Equal("sure?", model.Text);
-        Assert.Equal(new[] { "Yes", "Cancel" }, model.Buttons.Select(b => b.Label));
-        Assert.Equal("p", model.PopupId);
-
-        // the controller keeps no title / message / button of its own — the model is the only holder
-        Assert.Equal(new[] { "IsPrompting", "Pending" }, typeof(ConfirmPromptController).GetProperties().Select(p => p.Name).OrderBy(n => n).ToArray());
-    }
-
-    /// <summary>⭐⭐ And CANCEL means the exercise survives — the other half of the same branch.</summary>
-    [Fact]
-    public void NewExercise_Cancelled_NeverResetsTheCluster()
-    {
-        var prompt = new ConfirmPromptController();
-        var (session, commands, _) = CreateRegistrar(
-            confirmNewExercise: run => prompt.Request("New Exercise", "sure?", "Yes", run));
-
-        Assert.True(commands.Invoke(ScenarioMenuCommands.NewExerciseId).Success);
-        prompt.ResolveCancel();
-
-        Assert.Equal(0, session.NewExerciseCallCount);
-        Assert.False(prompt.IsPrompting);
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b>A headless host's log-and-proceed seam runs it immediately</b> — the CGF arm.
-    /// 📄 <c>UX_Feature_Modal_Surfaces.md</c> §2.0b: <i>"Headless never pre-flights … the origin still
-    /// LOGS what it skipped."</i> ⚠ Asserted so the CGF wiring cannot silently become a no-op prompt.
-    /// </summary>
-    [Fact]
-    public void NewExercise_WithALogAndProceedSeam_RunsImmediately()
-    {
-        bool logged = false;
-        var (session, commands, _) = CreateRegistrar(
-            confirmNewExercise: run => { logged = true; run(); });
-
-        Assert.True(commands.Invoke(ScenarioMenuCommands.NewExerciseId).Success);
-
-        Assert.True(logged);
-        Assert.Equal(1, session.NewExerciseCallCount);
-    }
-
-    /// <summary>
-    /// ⚠⚠ <b>NEW EXERCISE IS NOT NEW SCENARIO, and this rail is why both ids exist.</b>
-    /// 📐 Measured: the deferred-load state machine calls the LOCAL wipe as step 1 of its own sequence, so
-    /// if <c>scenario.new</c> had been pointed at the cluster-wide reset every load would publish a second
-    /// <c>Idle</c> intent from inside the handler for the first. ⇒ two verbs, asserted apart.
-    /// </summary>
-    [Fact]
-    public void NewScenarioClearsLocally_WhileNewExerciseResetsTheCluster()
-    {
-        var (session, commands, _) = CreateRegistrar(confirmNewExercise: run => run());
+        var (session, commands, _) = CreateRegistrar();
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.NewId).Success);
         Assert.Equal(1, session.ClearWorldCallCount);
-        Assert.Equal(0, session.NewExerciseCallCount);
+        Assert.Equal(0, session.CloseCallCount);
 
-        Assert.True(commands.Invoke(ScenarioMenuCommands.NewExerciseId).Success);
-        Assert.Equal(1, session.NewExerciseCallCount);
-        // ⭐ ClearWorld is the SESSION's business inside NewExercise — the menu did not call it again.
-        Assert.Equal(1, session.ClearWorldCallCount);
+        Assert.True(commands.Invoke(ScenarioMenuCommands.CloseId).Success);
+        Assert.Equal(1, session.CloseCallCount);
+        Assert.Equal(1, session.ClearWorldCallCount);   // Close did not wipe locally
     }
 
     // ══ ④ Checkpoint ════════════════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐ <c>File/Checkpoint/Take Checkpoint</c> reaches the session's checkpoint verb.
-    /// ⛔ <c>Restore Checkpoint</c> is deliberately ABSENT — the save exists cluster-wide, the restore does
-    /// not *(design §8, Feature X)*, and registering it would be a control that cannot work.
+    /// ⭐⭐ <c>CE-1443</c> — <b>Save Checkpoint</b> reaches the session's checkpoint verb when the host passes no run choice, and the host's own (the choice's, with its toast) when it does; its reason — the choice's — disables it with the words.
+    /// ⭐ <b>Load Checkpoint…</b> is registered on every host: with a picker it hands the chosen label to the session's <c>RestoreCheckpoint</c> (the existing restore); with none (every host today — the live run's marks are not on the cluster view) it is DISABLED and says why.
     /// </summary>
     [Fact]
-    public void TakeCheckpoint_ReachesTheSession_AndNoRestoreItemExists()
+    public void CE1443_SaveCheckpoint_And_LoadCheckpoint_ReachTheSession()
     {
-        var (session, commands, menu) = CreateRegistrar();
-
+        var (session, commands, _) = CreateRegistrar();
         Assert.True(commands.Invoke(ScenarioMenuCommands.TakeCheckpointId).Success);
-        Assert.Equal(1, session.TakeCheckpointCallCount);
+        Assert.Equal(1, session.TakeCheckpointCallCount);                          // no choice passed: the session's own
 
-        var checkpoint = menu.Root.Children["File"].Children["Checkpoint"];
-        Assert.False(checkpoint.Children.ContainsKey("Restore Checkpoint"));
+        var s2 = new FakeScenarioSession();
+        var c2 = new RecordingCommandSet();
+        var taken = 0;
+        string? why = "this run was not recorded";
+        ScenarioMenuCommands.Register((d, h) => c2.Register(d, h), new GlobalMenuRegistry(), c2, s2, (k, cb) => { }, cb => { },
+            takeCheckpoint: () => taken++, checkpointDisabledReason: () => why,
+            openCheckpointPicker: pick => pick("cp-1"));
+        Assert.False(c2.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());          // the choice's reason greys it …
+        Assert.Contains("this run was not recorded", c2.Get(ScenarioMenuCommands.TakeCheckpointId)!.DynamicDisplayName!());   // … and says it
+        why = null;
+        Assert.True(c2.Invoke(ScenarioMenuCommands.TakeCheckpointId).Success);
+        Assert.Equal(1, taken);                                                    // the host's (the choice's) checkpoint, not the session's
+        Assert.Equal(0, s2.TakeCheckpointCallCount);
+
+        Assert.True(c2.Invoke(ScenarioMenuCommands.LoadCheckpointId).Success);
+        Assert.Equal("cp-1", Assert.Single(s2.RestoreCheckpointCalls));            // the existing restore, by the picked label
+
+        var none = commands.Get(ScenarioMenuCommands.LoadCheckpointId)!;
+        Assert.False(none.IsEnabled());                                            // no picker on this host: registered, disabled …
+        Assert.Contains("unavailable", none.DynamicDisplayName!());                // … and saying why (ruling 49)
+    }
+
+    // ══ ③a VISIBILITY — the editing group only while editing, Save Checkpoint only in a live run (S2) ═══
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> S2 — <b>the context groups are HIDDEN (not greyed) outside their state</b>, whoever registered the item and in whatever order: the asset items and Save / Save All are other registrars' (here registered BEFORE and AFTER the scenario
+    /// registrar, like the shell toolbar and the editor), and the layout rule still hides them. The editing group draws ONLY in <c>OperatingEdit</c>; <i>Save Checkpoint</i> ONLY in <c>OperatingLive</c>; the first four, Close and Exit always; the separator
+    /// before Close only when a context group above it is drawn. The published model (<c>BuildViewModel</c>) says the same, and on Start (the Idle-only bar) the surface offers exactly the first four + Close + Exit, in draw order.
+    /// 🔴 Red-proofs: the editing rule dropped from <c>FileMenuLayout.Apply</c> ⇒ the Idle / Live rows draw the group; <c>SaveCheckpoint</c>'s rule dropped ⇒ the Edit row draws it; the separator's rule dropped ⇒ the Idle row draws a lone separator.
+    /// </summary>
+    [Fact]
+    public void CE1443_S2_TheEditingGroup_And_SaveCheckpoint_AreDrawnOnlyInTheirState_AndStartShowsTheFirstFourPlusCloseAndExit()
+    {
+        var session = new FakeScenarioSession();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+
+        // other registrars' items, BEFORE the scenario registrar (the shell toolbar) …
+        foreach (var path in new[] { FileMenuLayout.NewAsset, FileMenuLayout.OpenAsset, FileMenuLayout.NewBehavior, FileMenuLayout.NewAction, FileMenuLayout.NewCondition, FileMenuLayout.Save })
+            menu.RegisterItem(path, () => { });
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { });
+        // … and AFTER it (the editor's Save As / Save All, the window controller's Exit)
+        menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
+        menu.RegisterItem(FileMenuLayout.SaveAll, () => { });
+        menu.RegisterItem(FileMenuLayout.Exit, () => { }, allowedInIdle: true);
+
+        MenuItemNode Node(string path) => menu.Root.Children["File"].Children[path["File/".Length..]];
+        bool Drawn(string path) => menu.Offers(Node(path), null);
+
+        var alwaysDrawn = new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit, FileMenuLayout.SeparatorAfterLoads };
+        foreach (var state in new[] { ClusterState.Idle, ClusterState.OperatingEdit, ClusterState.OperatingPreview, ClusterState.OperatingLive, ClusterState.OperatingReplay })
+        {
+            session.State = state;
+            var editing = state == ClusterState.OperatingEdit;
+            var live = state == ClusterState.OperatingLive;
+
+            foreach (var path in alwaysDrawn) Assert.True(Drawn(path), $"{state}: {path} is always drawn");
+            foreach (var path in FileMenuLayout.EditingGroup) Assert.Equal(editing, Drawn(path));
+            Assert.Equal(live, Drawn(FileMenuLayout.SaveCheckpoint));
+            Assert.Equal(editing || live, Drawn(FileMenuLayout.SeparatorBeforeClose));
+
+            // the published model is the same truth (it reads the very Offers)
+            var model = menu.BuildViewModel("Scenario").Items.ToDictionary(i => i.Path, i => i.Visible);
+            foreach (var path in FileMenuLayout.EditingGroup) Assert.Equal(editing, model[path]);
+            Assert.Equal(live, model[FileMenuLayout.SaveCheckpoint]);
+        }
+
+        // Start: the Idle-only bar — exactly the first four + Close + Exit, in the table's order
+        session.State = ClusterState.Idle;
+        menu.IdleOnlyWhen = () => true;
+        var offered = menu.AllowedInIdleItems().Select(a => a.Path).ToArray();
+        Assert.Equal(new[] { FileMenuLayout.LoadScenario, FileMenuLayout.NewScenario, FileMenuLayout.LoadCheckpoint, FileMenuLayout.OpenExerciseRecording, FileMenuLayout.Close, FileMenuLayout.Exit }, offered);
+        foreach (var path in FileMenuLayout.EditingGroup.Append(FileMenuLayout.SaveCheckpoint)) Assert.False(Drawn(path));
     }
 
     // ══ ⑤ Save / Save-As ════════════════════════════════════════════════════
@@ -475,7 +491,7 @@ public sealed class ScenarioMenuTests
         }
 
         // ⭐ And the always-serviceable ones stay live — a blanket disable would be just as wrong.
-        Assert.True(cmds.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());
+        Assert.True(cmds.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
         Assert.True(cmds.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
         Assert.True(cmds.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());
     }
@@ -502,7 +518,7 @@ public sealed class ScenarioMenuTests
         var (_, commands, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario");
 
         Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
-        Assert.True(commands.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.SaveId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.SaveAsId)!.IsEnabled());
@@ -563,7 +579,7 @@ public sealed class ScenarioMenuTests
         var (session, _, menu) = CreateRegistrar();
 
         Assert.True(menu.Root.Children.TryGetValue("File", out var fileNode));
-        Assert.True(fileNode.Children.TryGetValue("New Scenario", out var leaf));   // ⭐ CE-4097 part two: New Scenario is top-level (File/New Scenario)
+        Assert.True(fileNode.Children.TryGetValue("New Scenario…", out var leaf));   // ⭐ CE-1443: File/New Scenario…
         Assert.NotNull(leaf.OnClick);
 
         leaf.OnClick();
@@ -627,7 +643,7 @@ public sealed class ScenarioMenuTests
         Assert.True(result.Success);
 
         Assert.False(modal.IsOpen);
-        Assert.Empty(session.OpenForEditCalls);
+        Assert.Empty(session.LoadScenarioCalls);
     }
 
     // ── Fake catalog + icon provider for BATCH-26 unified modal tests ────

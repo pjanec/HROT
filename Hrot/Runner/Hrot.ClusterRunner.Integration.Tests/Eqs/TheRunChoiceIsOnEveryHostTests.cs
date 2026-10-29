@@ -23,7 +23,7 @@ namespace Hrot.ClusterRunner.Integration.Tests.Eqs;
 /// ⭐⭐⭐ <c>CE-4097</c> (AQ108 §2.8, D12) — the run choice is composed ONCE per host, on the CONSTRUCTED hosts (the silent-default rule: a caller that HAS
 /// the dependency must pass it). The editor arms Preview, CGF arms Live, both over the scenario session their File menu uses (so ▶ is enabled), and both
 /// hand the choice to the shared toolbar registrar.
-/// 🔴 Red-proofs: the editor's / CGF's <c>AttachRunChoice</c> default flipped ⇒ the armed assertions; the CGF line passing <c>null</c> for the session ⇒
+/// 🔴 Red-proofs: the editor's master bootstrapped Live (the <c>InitialArmedMode</c> line removed) ⇒ the Preview assertions; the CGF line passing <c>null</c> for the session ⇒
 /// <c>PlayDisabledReason</c> is the "no scenario session" text; the registrar call dropping the choice ⇒ the toolbar entry still exists but the choice is unwired (covered by the
 /// presentation rails — here only that the entry exists on both).
 /// </summary>
@@ -44,12 +44,36 @@ public sealed class TheRunChoiceIsOnEveryHostTests
 
             var choice = editor.RunChoiceForTest;
             Assert.NotNull(choice);
-            Assert.Equal(RunArmed.Preview, choice!.HostDefault);   // D12: the editor starts in Preview
-            Assert.Equal(RunArmed.Preview, choice.Armed);
+            Assert.Equal(RunArmed.Live, choice!.Armed);   // before ANY broadcast has reached the view: the master's own default (⭐ CE-1443 — the editor's Preview is the master's bootstrap, asserted below)
             Assert.Null(choice.PlayDisabledReason);                // a session is wired: ▶ is not disabled for want of one
             choice.Choose(RunArmed.Live);
             Assert.Null(choice.PlayDisabledReason);                // …and Live-armed ▶ neither (it needs the session's LoadForLive)
             // (the editor registers its toolbar only when windowed; the headless editor has none to assert — CGF's windowed build below does)
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> S5 (R-1043), on the CONSTRUCTED editor: its single-node cluster is BOOTSTRAPPED in Preview — the ONE difference from every other cluster. The in-process master holds it, its first broadcast carries it, and once the node's
+    /// view has folded that broadcast the run choice's armed mode IS Preview (no per-host default anywhere). 🔴 Red-proof: the <c>InitialArmedMode</c> line removed from <c>EditorSubsystem</c> ⇒ the master row reads Live.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1443_S5_TheEditorsMasterIsBootstrappedInPreview_AndTheChoiceReadsItOffTheView()
+    {
+        var editor = new EditorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            Assert.Equal(Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview, editor.ClusterMasterForTest!.ArmedMode);
+            editor.ClusterMasterForTest.Tick();                               // the master's frame: its broadcast carries the armed mode …
+            editor.NodeForTest!.EventBus.SwapBuffers();                       // … and the node's frame folds it into the cluster view
+            editor.NodeForTest.ClusterSlave.View.Update();
+            Assert.Equal(Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview, editor.NodeForTest.ClusterSlave.View.ArmedMode);
+            Assert.Equal(RunArmed.Preview, editor.RunChoiceForTest!.Armed);
         }
         finally
         {
@@ -77,8 +101,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
 
             var choice = cgf.RunChoiceForTest;
             Assert.NotNull(choice);
-            Assert.Equal(RunArmed.Live, choice!.HostDefault);      // D12: CGF / the all-in-one / the server start in Live
-            Assert.Equal(RunArmed.Live, choice.Armed);
+            Assert.Equal(RunArmed.Live, choice!.Armed);            // CGF / the all-in-one / the server: the master's default (R-1043: no host default)
             Assert.Null(choice.PlayDisabledReason);                // the session is passed: Live-armed ▶ is enabled
             AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, cgf, "Scenario");   // ⭐ CE-4083 + CE-1437
         }
@@ -235,9 +258,9 @@ public sealed class TheRunChoiceIsOnEveryHostTests
 
     /// <summary>
     /// ⭐⭐ <c>CE-4083</c> / <c>CE-1437</c> — SimHost's adapter + run choice come from its ONE factory (<c>CreateTimeTransport</c>, the host's single <c>AttachRunChoice</c> site):
-    /// Live armed (<see cref="RunArmedDefaults"/>), no scenario session; the host offers them and the composition puts the toolbar group up. SimHost's windows need a real
+    /// Live armed (the master's initial armed mode, R-1043), no scenario session; the host offers them and the composition puts the toolbar group up. SimHost's windows need a real
     /// graphics visualization, so the factory is the constructed piece a rail can reach.
-    /// 🔴 Red-proof: the factory passing a literal other than the table's default ⇒ the Live assertion reddens.
+    /// 🔴 Red-proof: the factory seeding a per-host armed mode ⇒ the Live assertion reddens.
     /// </summary>
     [Fact]
     public void SimHost_BuildsItsChoiceFromTheTable_AndTheCompositionPutsItsTransportOnTheToolbar()
@@ -245,8 +268,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var adapter = Hrot.SimHost.SimHostSubsystem.CreateTimeTransport(new FdpEventBus(), () => null, () => 0.0);
         var choice = adapter.RunChoice;
         Assert.NotNull(choice);
-        Assert.Equal(RunArmedDefaults.For(RunHostKind.SimHost), choice!.HostDefault);
-        Assert.Equal(RunArmed.Live, choice.Armed);
+        Assert.Equal(RunArmed.Live, choice!.Armed);
         Assert.False(choice.HasScenarioControl);                // SimHost has no scenario session ⇒ Live-armed ▶ is disabled with its reason
         Assert.NotNull(choice.PlayDisabledReason);
 
@@ -261,8 +283,8 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>
     private static readonly string[] ScenarioMenuPaths =
     {
-        "File/Checkpoint/Take Checkpoint", "File/Edit/Migration History", "File/Edit/Save Curated Scenarios to Git", "File/Edit/Save Scenario",
-        "File/Edit/Save Scenario As", "File/Live/New Exercise", "File/New Scenario", "File/Open Recording", "File/Open Scenario",
+        "File/Load Scenario…", "File/New Scenario…", "File/Load Checkpoint…", "File/Open Exercise Recording…", "File/Save Checkpoint",
+        "File/Save Scenario", "File/Save Scenario As", "File/Migration History", "File/Save Curated Scenarios to Git", "File/Close",   // ⭐ CE-1443 (AQ108 §2.15): one flat menu, no submenus
     };
 
     /// <summary>Each scenario item's (path, registered, allowed-in-Idle) as this window manager's global menu holds it.</summary>
@@ -320,9 +342,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.DoesNotContain(editorShape, line => line.Contains("MISSING"));
             Assert.Equal(editorShape, ScenarioMenuShape(cgfWindows));
             Assert.Equal(editorShape, ScenarioMenuShape(orchestratorWindows));
-            Assert.Contains("File/Open Scenario: bound=True idle=True", editorShape);
-            Assert.Contains("File/Open Recording: bound=True idle=True", editorShape);
-            Assert.Contains("File/New Scenario: bound=True idle=True", editorShape);
+            Assert.Contains("File/Load Scenario…: bound=True idle=True", editorShape);
+            Assert.Contains("File/Open Exercise Recording…: bound=True idle=True", editorShape);
+            Assert.Contains("File/New Scenario…: bound=True idle=True", editorShape);
+            Assert.Contains("File/Load Checkpoint…: bound=True idle=True", editorShape);
+            Assert.Contains("File/Close: bound=True idle=True", editorShape);
+            Assert.Contains("File/Save Checkpoint: bound=True idle=False", editorShape);                 // live runs only, never on Start
         }
         finally
         {

@@ -116,10 +116,10 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     // ── Scenario members — every one DELEGATES to the shared session (CE-046, design §3 ②) ─────
-    // ⚠⚠ `NewScenario` maps to `ClearWorld`, NOT to `NewExercise`. 📐 Measured: the deferred-load state
-    //    machine calls this as step 1 of its OWN sequence, so pointing it at the cluster-wide reset would
-    //    publish a second Idle intent from inside the handler for the first one. ⭐ `NewExercise` is
-    //    reachable from the File/Live menu item, which is the operator-facing action.
+    // ⚠⚠ `NewScenario` maps to `ClearWorld`, NOT to the cluster-wide leave (`Close`). 📐 Measured: the deferred-load state
+    //    machine calls this as step 1 of its OWN sequence, so pointing it at the cluster-wide leave would
+    //    publish a second Idle intent from inside the handler for the first one. ⭐ `Close` (CE-1443; it replaced New Exercise)
+    //    is the File menu item, which is the operator-facing action.
 
     /// <inheritdoc/>
     public void NewScenario() => _session.ClearWorld();

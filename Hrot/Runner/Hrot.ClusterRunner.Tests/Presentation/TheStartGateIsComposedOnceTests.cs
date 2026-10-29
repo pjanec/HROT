@@ -156,21 +156,21 @@ public class TheStartGateIsComposedOnceTests
         Assert.Equal("Default", LocalWindowController.ResolveStartupPerspective(new[] { "Start" }, null, persisted: null));
     }
 
-    // ── D12: the armed default is ONE table (CE-1437: re-homed from the runner's HostArmedModes onto RunArmedDefaults) ──
+    // ── ⭐ CE-1443 (R-1043): there is NO per-host armed default any more — the armed mode is the cluster's, set by the MASTER's bootstrap ──
 
+    /// <summary>
+    /// ⭐ <c>CE-1443</c> — the withdrawn D12 table (<c>RunArmedDefaults</c>: Preview in the editor, Live elsewhere) left no trace on a host: a choice built for EVERY host kind shows the cluster's armed mode, which (before any broadcast) is the master's own default,
+    /// Live — the editor included (its single-node master is bootstrapped Preview, <c>EditorSubsystem</c> / <c>OrchestratorCoreOptions.InitialArmedMode</c>, and that arrives through the cluster view, not through a host table).
+    /// 🔴 Red-proof: any host kind's choice seeding a per-kind armed mode again ⇒ that kind's row is Preview.
+    /// </summary>
     [Theory]
-    [InlineData(RunHostKind.Editor, RunArmed.Preview)]
-    [InlineData(RunHostKind.Cgf, RunArmed.Live)]
-    [InlineData(RunHostKind.SimHost, RunArmed.Live)]
-    [InlineData(RunHostKind.Orchestrator, RunArmed.Live)]   // ⭐ CE-1439
-    [InlineData(RunHostKind.Other, RunArmed.Live)]
-    public void TheArmedDefault_IsPreviewInTheEditor_LiveElsewhere(RunHostKind kind, RunArmed expected)
-        => Assert.Equal(expected, RunArmedDefaults.For(kind));
-
-    [Fact]
-    public void TheArmedDefaultTable_HasNoOtherPreviewHost()
-        => Assert.Equal(new[] { RunHostKind.Editor },
-            System.Enum.GetValues<RunHostKind>().Where(k => RunArmedDefaults.For(k) == RunArmed.Preview).ToArray());
+    [InlineData(RunHostKind.Editor)]
+    [InlineData(RunHostKind.Cgf)]
+    [InlineData(RunHostKind.SimHost)]
+    [InlineData(RunHostKind.Orchestrator)]
+    [InlineData(RunHostKind.Other)]
+    public void CE1443_NoHostKindCarriesAnArmedDefault(RunHostKind kind)
+        => Assert.Equal(RunArmed.Live, new RunHost("h", kind, operatorHost: true).RunChoice!.Armed);
 
     // ── CE-3345 (R-3072, AQ110 D): the gate policy is ONE table too — Player for the IG, Operator for every other host kind ──
 
@@ -205,7 +205,7 @@ public class TheStartGateIsComposedOnceTests
         public void TakeCheckpoint() { }
     }
 
-    /// <summary>A host that offers run controls over a REAL adapter + choice (built like the real hosts: <see cref="RunArmedDefaults"/> for its kind, a session only when it is an operator).</summary>
+    /// <summary>A host that offers run controls over a REAL adapter + choice (built like the real hosts: a session only when it is an operator; ⭐ CE-1443 no armed default).</summary>
     private sealed class RunHost : MockSubsystem, IProvidesRunControls
     {
         public RunHostKind HostKind { get; }
@@ -219,7 +219,7 @@ public class TheStartGateIsComposedOnceTests
             HostKind = kind;
             if (!offers) return;
             var adapter = new ClusterTimeTransportAdapter(new Fdp.Core.FdpEventBus(), () => null, () => 0.0);
-            RunChoice = adapter.AttachRunChoice(RunArmedDefaults.For(kind), operatorHost ? new FakeControl() : null);
+            RunChoice = adapter.AttachRunChoice(operatorHost ? new FakeControl() : null);
             Transport = adapter;
         }
     }
@@ -260,7 +260,6 @@ public class TheStartGateIsComposedOnceTests
 
         Assert.Equal(1, TimeControlEntries(wm));
         Assert.Same(editor, ctrl.RunControlsOwner);
-        Assert.Equal(RunArmed.Preview, ctrl.RunControlsOwner!.RunChoice!.HostDefault);
     }
 
     [Fact]
@@ -394,7 +393,7 @@ public class TheStartGateIsComposedOnceTests
             var model = ctrl.StartSurface!.Model();
             Assert.Equal(StartVariant.Actions, model.Variant);
             var byLabel = model.Buttons.ToDictionary(b => b.Label);
-            foreach (var label in new[] { "Open Scenario", "New Scenario", "Open Recording" })
+            foreach (var label in new[] { "Load Scenario…", "New Scenario…", "Open Exercise Recording…", "Close" })   // ⭐ CE-1443: the first four + Close (Exit is the controller's)
             {
                 Assert.True(byLabel.ContainsKey(label), $"the Start surface of an Orchestrator-only host must offer '{label}'; it offers: {string.Join(", ", model.Buttons.Select(b => b.Label))}");
                 Assert.True(byLabel[label].Enabled, label);
@@ -405,18 +404,18 @@ public class TheStartGateIsComposedOnceTests
             session.OpenForEdit("earlier");
             session.Update();
             Assert.Equal("earlier", session.LoadedScenarioName);
-            byLabel["New Scenario"].Invoke();
+            byLabel["New Scenario…"].Invoke();
             Assert.Null(session.LoadedScenarioName);
 
-            // Open Scenario → the scenario picker over the master's inventory; a pick opens for edit through the run choice (the request goes out)
-            byLabel["Open Scenario"].Invoke();
+            // Load Scenario… → the scenario picker over the master's inventory; a pick LOADS into the cluster's armed mode (R-1043: Live, this cluster's master default) through the door (the request goes out)
+            byLabel["Load Scenario…"].Invoke();
             var scenarioPick = Assert.Single(opened);
             var harbour = scenarioPick.ItemsProvider().Single(e => e.Tag is Hrot.Editor.AiShared.IEditableAsset a && a.Name == "harbour");
             callbacks[0](new NodeEditor.UI.Picker.PickerResult(new[] { harbour }));
             Assert.Equal("harbour", session.LoadedScenarioName);
 
-            // Open Recording → the recording picker over the same inventory; a pick publishes the ONE replay intent
-            byLabel["Open Recording"].Invoke();
+            // Open Exercise Recording… → the recording picker over the same inventory; a pick publishes the ONE replay intent
+            byLabel["Open Exercise Recording…"].Invoke();
             Assert.Equal(2, opened.Count);
             var recording = opened[1].ItemsProvider().Single(e => e.Tag is ExerciseInventoryItem);
             callbacks[1](new NodeEditor.UI.Picker.PickerResult(new[] { recording }));
@@ -468,7 +467,7 @@ public class TheStartGateIsComposedOnceTests
             HostKind = kind;
             _view = new ClusterView(_bus);
             _adapter = new ClusterTimeTransportAdapter(_bus, () => _view, () => 0.0);
-            RunChoice = _adapter.AttachRunChoice(RunArmedDefaults.For(kind), Control, Unsaved);
+            RunChoice = _adapter.AttachRunChoice(Control, Unsaved);
         }
         public DoorHost Hear(ClusterState state)
         {

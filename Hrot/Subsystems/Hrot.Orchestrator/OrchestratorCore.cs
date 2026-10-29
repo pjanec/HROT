@@ -39,6 +39,13 @@ public sealed class OrchestratorCoreOptions
     /// </summary>
     public Fdp.Core.NodeRole LocalRoles { get; init; } = Fdp.Core.NodeRole.None;
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1443</c> (U2a, R-1043) — the cluster's INITIAL armed run mode: what ▶ and every Load go into until someone arms another. <see cref="Fdp.Toolkit.Orchestration.ClusterArmedMode.Live"/> for every cluster; the editor's in-process
+    /// single-node orchestrator passes <see cref="Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview"/> — 🔒 user: <i>"The orchestrator in the single node editor simply gets the edit as initial armed mode, which should be the only difference in the
+    /// bootstrap code."</i> ⛔ No file config, no per-host table.
+    /// </summary>
+    public Fdp.Toolkit.Orchestration.ClusterArmedMode InitialArmedMode { get; init; } = Fdp.Toolkit.Orchestration.ClusterArmedMode.Live;
+
     /// <summary>The world's ONE id authority, reset at a scenario load (HN-037). Null ⇒ the host has none.</summary>
     public Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority? IdAuthority { get; init; }
 
@@ -96,7 +103,7 @@ public sealed class OrchestratorCore : IDisposable
         var config = o.Config;
         string nas = config.NasBasePath;
 
-        _master = new ClusterMaster(bus, config);
+        _master = new ClusterMaster(bus, config, o.InitialArmedMode);   // ⭐ CE-1443 (R-1043): the initial armed mode is a bootstrap parameter
         _master.LocalNodeId = o.StagingNodeId;   // ⭐ P3 — the master never waits for the node it runs in
         _master.LocalRoles  = o.LocalRoles;      // ⭐ CE-4087 — the roles its own host plays count toward the load gate
         // ⭐ CE-3299 B3 (D3) — a checkpoint is named for ONE wall time on the clock every slave follows (silent-default rule:

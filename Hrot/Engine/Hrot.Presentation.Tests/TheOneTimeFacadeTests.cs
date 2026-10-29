@@ -400,25 +400,25 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(RunArmed.AAR, edit.Choice.Armed);
     }
 
-    // ── ⭐ CE-3341 (AQ108 §2.14, D12a) — the armed mode is the CLUSTER's: READ from its view, SENT by the operator's open ─────────────────────────
+    // ── ⭐ CE-3341 (AQ108 §2.14, D12a) — the armed mode is the CLUSTER's: READ from its view, written ONLY by the indicator (⭐ CE-1443 / R-1043: no open sends it) ─────────────────────────
 
     private static List<SetRunSettingsIntent> Ops(Rig rig) => Sent<SetRunSettingsIntent>(rig);
 
     /// <summary>
-    /// S1 — the choice reads the cluster's armed mode: the view's value wins whenever it CHANGES, whatever the host default is; an unchanged cluster value never overrides what this host armed.
+    /// S1 — the choice reads the cluster's armed mode: the master's BOOTSTRAP mode (what its first broadcast says) shows, the view's value wins whenever it CHANGES; an unchanged cluster value never overrides what this host armed.
     /// 🔴 Red-proof: <c>Armed</c> returning the local value only (the cluster branch removed) ⇒ the <c>Hear</c> rows.
     /// </summary>
     [Theory]
     [InlineData(RunArmed.Live, ClusterArmedMode.Preview, RunArmed.Preview)]
     [InlineData(RunArmed.Preview, ClusterArmedMode.AAR, RunArmed.AAR)]
-    public void CE3341_S1_TheChoiceReadsTheClustersArmedMode(RunArmed hostDefault, ClusterArmedMode heard, RunArmed expected)
+    public void CE3341_S1_TheChoiceReadsTheClustersArmedMode(RunArmed initial, ClusterArmedMode heard, RunArmed expected)
     {
-        var rig = With(ClusterState.OperatingEdit, hostDefault);
-        Assert.Equal(hostDefault, rig.Choice.Armed);                        // the cluster's value has not changed: the host default shows
+        var rig = With(ClusterState.OperatingEdit, initial);
+        Assert.Equal(initial, rig.Choice.Armed);                            // the master's bootstrap armed mode shows (R-1043: there is no host default on the choice)
         Hear(rig, ClusterState.OperatingEdit, armed: heard);
         Assert.Equal(expected, rig.Choice.Armed);
         Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Live);
-        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // …and back: a host default of Preview does not pull it
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // …and back: the bootstrap mode does not pull it
         Assert.Empty(Ops(rig));                                             // reading sends nothing
     }
 
@@ -443,55 +443,54 @@ public sealed class TheOneTimeFacadeTests
     }
 
     /// <summary>
-    /// S3 — the OPERATOR's File › Open sends the host default as ONE op beside the open (editor ⇒ Preview, CGF ⇒ Live); an HTTP open (its own asker) sends none (D22).
-    /// 🔴 Red-proofs: the <c>OperatorOpening</c> raise removed ⇒ the first rows; raised for a caller with its own asker ⇒ the HTTP rows.
+    /// ⭐⭐ <c>CE-1443</c> S3 (R-1043) — a scenario LOAD goes into the cluster's CURRENT armed mode, resolved ONCE (<c>RunModeChoice.LoadTarget</c> → <c>ScenarioDoor.Load</c>): Live armed ⇒ the live load, Preview armed ⇒ the edit open,
+    /// AAR armed ⇒ the edit open (the mode of the LAST load is not on the cluster view yet — backend). It SENDS no armed mode (S4), for the operator's door call and for an HTTP caller's own asker alike.
+    /// 🔴 Red-proofs: <c>LoadTarget</c> always <c>Scenario</c> ⇒ the Live row; always <c>Live</c> ⇒ the Preview / AAR rows; <c>Door.Load</c> ignoring <c>LoadTarget</c> ⇒ the same; the door's <c>LoadTarget</c> not bound by the choice ⇒ the Live row.
     /// </summary>
     [Theory]
-    [InlineData(RunArmed.Preview, ClusterArmedMode.Preview)]   // the editor host
-    [InlineData(RunArmed.Live, ClusterArmedMode.Live)]         // a CGF host
-    public void CE3341_S3_TheOperatorsOpenSendsTheHostDefault_AnHttpOpenSendsNone(RunArmed hostDefault, ClusterArmedMode sent)
+    [InlineData(RunArmed.Live, "LoadForLive:other")]
+    [InlineData(RunArmed.Preview, "OpenForEdit:other")]
+    [InlineData(RunArmed.AAR, "OpenForEdit:other")]
+    public void CE1443_S3_ALoadGoesIntoTheClustersArmedMode(RunArmed armed, string raw)
     {
-        var rig = With(ClusterState.OperatingEdit, hostDefault, withDoor: true);
-        rig.Choice.Choose(hostDefault == RunArmed.Live ? RunArmed.AAR : RunArmed.Live);   // something other than the default is armed
-        Ops(rig);                                                                          // (drain that op)
-        rig.Choice.OpenScenario("other");
-        Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
-        Assert.Equal(sent, Assert.Single(Ops(rig)).Armed);
+        var rig = With(ClusterState.OperatingEdit, armed, withDoor: true);
+        Assert.Equal(armed == RunArmed.Live ? DoorOpen.Live : DoorOpen.Scenario, rig.Choice.LoadTarget);
+        rig.Choice.Door!.Load("other");
+        Assert.Equal(new[] { raw }, rig.C.Calls);
 
-        var http = With(ClusterState.OperatingEdit, hostDefault, withDoor: true);
-        http.Choice.Door!.Open("other", new RefusingAsker());
-        Assert.Equal(new[] { "OpenForEdit:other" }, http.C.Calls);
-        Assert.Empty(Ops(http));
+        var http = With(ClusterState.OperatingEdit, armed, withDoor: true);
+        http.Choice.Door!.Load("other", new RefusingAsker());
+        Assert.Equal(new[] { raw }, http.C.Calls);                           // the same resolution for every caller of the one load
     }
 
     /// <summary>
-    /// S4 — the operator's recording open arms AAR and its live load arms Live (one op each); an HTTP recording open still does the <c>LastExercise</c> bookkeeping but sends no op.
-    /// 🔴 Red-proofs: the Recording / Live mapping in the choice's <c>OperatorOpening</c> swapped ⇒ the two ops; <c>RecordingOpening</c> moved under the operator-only raise ⇒ the HTTP row's <c>LastExercise</c>.
+    /// ⭐⭐ <c>CE-1443</c> S4 (R-1043; withdraws CE-3341 decision ③) — NO open sends an armed mode: not the load of any armed mode, not an edit open, not a live load, not a recording open (which keeps its <c>LastExercise</c> bookkeeping for every caller);
+    /// the indicator's <c>Choose</c> is still the one writer (S2). The armed mode a load found is the armed mode it leaves.
+    /// 🔴 Red-proofs: any open calling <c>SendArmed</c> (the withdrawn hook back) ⇒ the op count; <c>RecordingOpening</c> removed ⇒ the <c>LastExercise</c> row.
     /// </summary>
     [Fact]
-    public void CE3341_S4_TheOperatorsRecordingOpenArmsAar_AndItsLiveLoadArmsLive()
+    public void CE1443_S4_NoOpenSendsAnArmedMode_OnlyTheIndicatorDoes()
     {
-        var rec = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
-        rec.Choice.OpenRecording(RunId);
-        Assert.Equal(new[] { $"OpenRecording:{RunId}" }, rec.C.Calls);
-        Assert.Equal(ClusterArmedMode.AAR, Assert.Single(Ops(rec)).Armed);
-        Assert.Equal(RunArmed.AAR, rec.Choice.Armed);
-
-        var live = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
-        live.Choice.Door!.LoadLive("other");
-        Assert.Equal(new[] { "LoadForLive:other" }, live.C.Calls);
-        Assert.Equal(ClusterArmedMode.Live, Assert.Single(Ops(live)).Armed);
-
-        var http = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
-        http.Choice.Door!.OpenRecording(RunId, asker: new RefusingAsker());
-        Assert.Empty(Ops(http));
-        Assert.Equal(RunId, http.Choice.LastExercise);                      // the bookkeeping is for every caller
-        Assert.Equal(RunArmed.Preview, http.Choice.Armed);                  // …but an HTTP open no longer arms
+        foreach (var armed in new[] { RunArmed.Live, RunArmed.Preview, RunArmed.AAR })
+        {
+            var rig = With(ClusterState.OperatingEdit, armed, withDoor: true);
+            rig.Choice.Door!.Load("a");
+            rig.Choice.OpenScenario("b");
+            rig.Choice.Door!.LoadLive("c");
+            rig.Choice.OpenRecording(RunId);
+            Assert.Equal(4, rig.C.Calls.Count);
+            Assert.Empty(Ops(rig));                                          // not one SetRunSettingsIntent
+            Assert.Equal(armed, rig.Choice.Armed);                           // and the mode is where the cluster had it
+            Assert.Equal(RunId, rig.Choice.LastExercise);                    // the bookkeeping is unchanged
+        }
+        var choose = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        choose.Choice.Choose(RunArmed.Live);
+        Assert.Single(Ops(choose));                                          // the indicator still writes it
     }
 
     /// <summary>
     /// S5 — ■ in Live returns to editing through the RAW open: no armed op, and Live stays armed (R2) through the Idle → Edit that follows. S6 — reaching OperatingEdit no longer resets
-    /// the armed mode to the host default (the D12 hook is gone): the host default is Preview, a load later it is still Live. A dry run's exit keeps its armed mode too.
+    /// the armed mode (the D12 hook is gone): the bootstrap mode is Preview, a load later it is still Live. A dry run's exit keeps its armed mode too.
     /// 🔴 Red-proofs: StopLive arming ⇒ the ■ op row; the D12 reset restored in <c>OnClusterState</c> ⇒ the S6 rows.
     /// </summary>
     [Fact]
@@ -507,9 +506,9 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
         Hear(live, ClusterState.Idle);
         Hear(live, ClusterState.OperatingEdit);                             // S6: the scenario is up for editing again
-        Assert.Equal(RunArmed.Live, live.Choice.Armed);                     // host default is Preview — not applied
+        Assert.Equal(RunArmed.Live, live.Choice.Armed);                     // the bootstrap mode is Preview — not applied
         Hear(live, ClusterState.Idle);
-        Hear(live, ClusterState.OperatingEdit);                             // …nor by any later load (only the OPERATOR's open sends it)
+        Hear(live, ClusterState.OperatingEdit);                             // …nor by any later load (no open sends an armed mode, R-1043)
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
 
         // a dry run's exit is Edit again: the mode armed through the preview's confirmation stays
@@ -810,7 +809,7 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(new[] { "Save", "Discard", "Cancel" }, ask.Buttons.Select(b => b.Label));
         ask.Resolve(ask.Buttons[0]);
         Assert.Equal(new[] { "SaveCurrent", $"OpenRecording:{RunId}" }, edit.C.Calls);   // in THAT order
-        Assert.Equal(RunArmed.AAR, edit.Choice.Armed);
+        Assert.Equal(RunArmed.Live, edit.Choice.Armed);   // ⭐ CE-1443 (R-1043): rewritten — a recording open no longer arms AAR (was AAR); the armed mode is the indicator's
 
         var discard = WithCheckRound(ClusterState.OperatingEdit);
         discard.Choice.OpenScenario("other");
@@ -858,7 +857,7 @@ public sealed class TheOneTimeFacadeTests
         recorded.C.Calls.Clear();
         recorded.Choice.ReplayLastExercise();                               // the toast's button
         Assert.Equal(new[] { $"OpenRecording:{RunId}" }, recorded.C.Calls);
-        Assert.Equal(RunArmed.AAR, recorded.Choice.Armed);
+        Assert.Equal(RunArmed.Live, recorded.Choice.Armed);   // ⭐ CE-1443 (R-1043): rewritten — the toast's AAR button opens the recording without arming AAR (was AAR)
     }
 
     /// <summary>
@@ -1163,13 +1162,13 @@ public sealed class TheOneTimeFacadeTests
             rig.C.Calls.Clear();
         }
 
-        door.Leave(LeaveReason.NewExercise);                                            // the OUT door: a run is stopped, nothing asked
+        door.Leave(LeaveReason.Close);                                                  // the OUT door: a run is stopped, nothing asked
         Assert.Null(rig.Choice.Pending);
-        Assert.Equal(new[] { "Leave:NewExercise" }, rig.C.Calls);
+        Assert.Equal(new[] { "Leave:Close" }, rig.C.Calls);
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-4101</c> — over UNSAVED edits every verb of the door — the OUT one included (New Exercise used to discard silently) — asks <i>Save / Discard / Cancel</i>; Save = <c>SaveCurrent</c> THEN the move, Discard = the move, Cancel =
+    /// ⭐⭐⭐ <c>CE-4101</c> — over UNSAVED edits every verb of the door — the OUT one included (Close) — asks <i>Save / Discard / Cancel</i>; Save = <c>SaveCurrent</c> THEN the move, Discard = the move, Cancel =
     /// nothing; a never-saved scenario offers <i>Discard / Cancel</i>; unchanged goes at once. ONE round per move (the door and the choice share the one seam).
     /// 🔴 Red-proof: <c>Leave</c> without the check (a <c>proceed()</c> straight away) ⇒ the Leave row has no <c>Pending</c>; the Save arm dropping <c>SaveCurrent</c> ⇒ the call list lacks it.
     /// </summary>
@@ -1181,8 +1180,7 @@ public sealed class TheOneTimeFacadeTests
             ("Open",          d => () => d.Open("x"),               "OpenForEdit:x"),
             ("LoadLive",      d => () => d.LoadLive("x"),           "LoadForLive:x"),
             ("OpenRecording", d => () => d.OpenRecording(RunId),    $"OpenRecording:{RunId}"),
-            ("Leave",         d => () => d.Leave(LeaveReason.NewExercise), "Leave:NewExercise"),
-            ("Close",         d => () => d.Leave(LeaveReason.Close),       "Leave:Close"),   // ⭐ CE-3345 — File › Close is the same OUT door
+            ("Close",         d => () => d.Leave(LeaveReason.Close),       "Leave:Close"),   // ⭐ CE-3345 / CE-1443 — File › Close is the OUT door (it replaced New Exercise)
         };
         foreach (var m in moves)
         {
@@ -1351,7 +1349,7 @@ public sealed class TheOneTimeFacadeTests
 
         // no view at all (a bare rig) ⇒ nothing waits
         var bare = new ClusterTimeTransportAdapter(new FdpEventBus(), () => null, () => 0);
-        Assert.True(bare.AttachRunChoice(RunArmed.Live, null).Gate.Open);
+        Assert.True(bare.AttachRunChoice(null).Gate.Open);
     }
 
     /// <summary>
@@ -1361,7 +1359,7 @@ public sealed class TheOneTimeFacadeTests
     [Fact]
     public void CE1442_AClosedGate_DisablesPlayAndEveryMove_WithTheReason()
     {
-        var rig = With(ClusterState.OperatingEdit, hostDefault: RunArmed.Live);
+        var rig = With(ClusterState.OperatingEdit, initialArmed: RunArmed.Live);
         Assert.Null(rig.Choice.PlayDisabledReason);
         HearGate(rig, ClusterState.OperatingEdit, waitingFor: "Brain (CGF)");
         Assert.Contains("waiting for: Brain (CGF)", rig.Choice.PlayDisabledReason);
@@ -1419,7 +1417,7 @@ public sealed class TheOneTimeFacadeTests
             Assert.Equal(why, http.Refusal);                                         // HTTP is refused with the reason
             Assert.Empty(rig.C.Calls);
 
-            foreach (var reason in new[] { LeaveReason.Close, LeaveReason.Exit, LeaveReason.NewExercise })
+            foreach (var reason in new[] { LeaveReason.Close, LeaveReason.Exit })
             {
                 rig.C.Calls.Clear();
                 door.Leave(reason);

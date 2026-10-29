@@ -239,8 +239,8 @@ public interface ISaveInterception
 /// <summary>
 /// ⭐⭐ <c>CE-4097</c> (AQ108 R3, D10) — <b>the ONE confirmation shape</b>: a text and its buttons, resolved by pressing one. Drawn by the ONE helper
 /// <see cref="ConfirmationModal"/>; its model is testable without ImGui. The last button of a confirmation is always Cancel (no action).
-/// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the editor's app-exit prompt, its <i>New Exercise</i> prompt and the run choice's own confirmations are ALL instances of this
-/// type: <c>AppExitPromptController</c> / <c>ConfirmPromptController</c> are thin PRODUCERS of it and hold no button list of their own.
+/// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the editor's app-exit prompt and the run choice's own confirmations are ALL instances of this
+/// type (⭐ CE-1443: the <i>New Exercise</i> prompt left with the item): <c>AppExitPromptController</c> is a thin PRODUCER of it and hold no button list of their own.
 /// </summary>
 public sealed class RunModeConfirmation
 {
