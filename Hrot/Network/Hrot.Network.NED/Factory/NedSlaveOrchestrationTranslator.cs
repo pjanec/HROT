@@ -37,7 +37,8 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
             inventoryReader:    new DdsReader<AssetInventoryTopic>(participant),     // ⭐ R-3055 — what the cluster can replay
             transportCapabilities: ShareToken(nodeId),                               // ⭐ P6 N5 — how the master reaches this node
             sessionReader:      new DdsReader<ReplaySessionTopic>(participant),      // ⭐ CE-3329 — the replay's session layer
-            opStatusReader:     new DdsReader<ClusterOpStatus>(participant));        // ⭐ CE-1436 — how the master's ops ended (the check round's answer), on every node
+            opStatusReader:     new DdsReader<ClusterOpStatus>(participant),         // ⭐ CE-1436 — how the master's ops ended (the check round's answer), on every node
+            contextReader:      new DdsReader<OrchestratorContextTopic>(participant)); // ⭐ CE-3344 — the master's in-sync set, so the node's ClusterView knows whether it is in sync
 
         _fileReceiver = new Hrot.Network.NED.Transfer.DdsFileReceiver(participant, nodeId, NodeRoot(nodeId));
 

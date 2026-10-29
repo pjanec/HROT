@@ -67,6 +67,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         var bus = new FdpEventBus();
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory = System.Array.Empty<string>(),
             HeartbeatTimeoutSeconds = 60f,
             TransactionHistoryCapacity = 10,
@@ -210,6 +211,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,

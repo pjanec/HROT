@@ -21,11 +21,14 @@ namespace Hrot.Orchestrator;
 /// <para>🔒 User, <c>2026-10-28</c>: <i>"scenario should not be able to load at all without muscle role node loaded, as it can not be
 /// edited nor started."</i></para>
 /// <para>⭐ Scope: a request that names a scenario and targets <c>LoadingLive</c> / <c>LoadingEdit</c> / <c>OperatingLive</c> /
-/// <c>OperatingEdit</c>. ⛔ Every other request keeps its behaviour: with the name latch closed it is rejected as before; a missing ROLE
-/// never rejects a time command, a replay or a storage op (an orchestrator with no nodes still pauses its clock).</para>
-/// <para>⚠ Deliberately NOT built: the latch's <i>re-engage on ejection → Degraded → Idle</i> (<c>EjectNode</c>) for a lost ROLE. It is right
-/// for a configured subsystem name; as a default for roles a 5 s CGF blip would tear down every running scenario, and C7 catches a
-/// rejoining node up in place (Q91 §4-M).</para>
+/// <c>OperatingEdit</c>. ⛔ Every other request is rejected while the latch is closed (⭐ <c>CE-3344</c>: the latch now includes the roles, so a cluster that
+/// has not yet reported its Brain and MuscleGround rejects them too — the user's "cluster not ready ⇒ gate closed"; ⛔ SUPERSEDED: "a missing ROLE never rejects
+/// a time command, a replay or a storage op").</para>
+/// <para>⭐⭐ <c>CE-3344</c> (R-3069, user <c>2026-10-29</c>: <i>"role loss means Degraded too"</i>) — the latch is now over names AND roles
+/// (<c>CheckBootstrapLatch</c> releases when <see cref="MissingMandatoryNames"/> and <see cref="MissingMandatoryRoles"/> are both empty), and
+/// <c>EjectNode</c> degrades for a lost mandatory ROLE exactly as for a lost name (Degraded, abort + Idle to the survivors, latch re-engaged); the
+/// role's return re-releases it through the same <c>CheckBootstrapLatch</c>. <i>(⛔ SUPERSEDED: the earlier "deliberately NOT built — a 5 s CGF blip would tear down
+/// every running scenario" — the user ruled it the other way.)</i> The text the cluster is waiting on is published with the cluster state (<c>WaitingFor</c>).</para>
 /// <para>📄 <c>docs/designs/cgf-1/CGF-1-DESIGN.md</c> §3.5, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §9.2,
 /// <c>docs/blueprints/Architect_Question_91_Player_Nodes.md</c> §4-A′, <c>docs/DESIGN_Node_Roles_And_Policies.md</c> §3.4.</para>
 /// </summary>

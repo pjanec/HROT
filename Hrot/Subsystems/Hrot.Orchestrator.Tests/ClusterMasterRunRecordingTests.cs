@@ -33,7 +33,7 @@ public sealed class ClusterMasterRunRecordingTests
     private static LiveRun GoLive(bool? recordLiveRuns = null, string livePayloadJson = "{\"TargetState\":\"OperatingLive\"}", Guid? exercise = null)
     {
         var bus = new FdpEventBus();
-        var master = new ClusterMaster(bus);
+        var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId = NodeId, LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
@@ -143,7 +143,7 @@ public sealed class ClusterMasterRunRecordingTests
     public void The_setting_arrives_as_a_cluster_op_too_and_an_unreadable_one_changes_nothing()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         master.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetRunSettings, PayloadJson = "{\"RecordLiveRuns\":false}",
@@ -162,7 +162,7 @@ public sealed class ClusterMasterRunRecordingTests
     public void The_setting_itself_rides_the_cluster_state_broadcast_and_is_republished_when_it_changes()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         ClusterStateUpdateEvent? Last()
         {
             ClusterStateUpdateEvent? last = null;
@@ -306,7 +306,7 @@ public sealed class ClusterMasterRunRecordingTests
     public void The_armed_mode_is_set_by_the_run_settings_op_and_rides_the_broadcast_at_once()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         Assert.Equal(ClusterArmedMode.Live, master.ArmedMode);                        // the default
 
         Op(master, bus, "{\"Armed\":\"Preview\"}");                                   // the wire op
@@ -325,7 +325,7 @@ public sealed class ClusterMasterRunRecordingTests
     public void An_old_shape_run_settings_op_changes_no_armed_mode_and_an_armed_only_op_changes_no_recording_setting()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         Op(master, bus, "{\"Armed\":\"AAR\"}");
         Assert.True(master.RecordLiveRuns);                                          // armed-only: the recording setting untouched
 

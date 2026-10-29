@@ -31,7 +31,7 @@ public sealed class ClusterMasterCheckpointTests
 
         var bus = new FdpEventBus();
         // No mandatory nodes  → bootstrap latch clears immediately.
-        var master = new ClusterMaster(bus);
+        var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
 
         // Register node via heartbeat.
         bus.PublishManaged(new NodeHeartbeatEvent
@@ -316,7 +316,7 @@ public sealed class ClusterMasterCheckpointTests
         master.Dispose();
 
         var idleBus = new FdpEventBus();
-        using var idle = new ClusterMaster(idleBus);
+        using var idle = new ClusterMaster(idleBus, TestClusterConfig.NothingMandatory());
         var named = new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.RestoreCheckpoint, PayloadJson = "x" };
         idle.HandleClusterOpRequest(named);
         Tick(idle, idleBus);
@@ -406,7 +406,7 @@ public sealed class ClusterMasterCheckpointTests
     public void TakeCheckpoint_BusMode_EmptyRoster_ImmediateSuccess()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);  // no mandatory → latch set immediately
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());  // no mandatory → latch set immediately
 
         var ckRequestId = Guid.NewGuid();
         master.HandleClusterOpRequest(new ClusterOpRequest
@@ -440,7 +440,7 @@ public sealed class ClusterMasterCheckpointTests
     public void ReplaySeek_BusMode_PublishesImmediateSuccess()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         MasterShows.Recording(master);   // ⭐ CE-3329 F8 — a seek is admitted only while the cluster shows a recording
 
         var seekRequestId = Guid.NewGuid();

@@ -22,8 +22,15 @@ namespace Fdp.Toolkit.Orchestration
         private readonly Dictionary<Guid, (OrchestrationStatusCode Status, object? Payload)> _outcomes = new();
         private readonly Queue<Guid> _outcomeOrder = new();
 
-        /// <summary>A view over <paramref name="bus"/>; <see langword="null"/> (the test / offline shape) folds nothing.</summary>
-        public ClusterView(FdpEventBus? bus) { _bus = bus; }
+        /// <summary>
+        /// A view over <paramref name="bus"/>; <see langword="null"/> (the test / offline shape) folds nothing.
+        /// ⭐ <paramref name="nodeId"/> (<c>CE-3344</c>) is the node this view belongs to — the one <see cref="CanOperate"/> looks for in the master's in-sync set;
+        /// <see langword="null"/> (an observer with no node identity, a test) skips that clause.
+        /// </summary>
+        public ClusterView(FdpEventBus? bus, int? nodeId = null) { _bus = bus; NodeId = nodeId; }
+
+        /// <summary>⭐ <c>CE-3344</c> — the node this view belongs to (<see langword="null"/> = none: <see cref="CanOperate"/> then does not ask for it to be in sync).</summary>
+        public int? NodeId { get; }
 
         // ── the cluster state broadcast ────────────────────────────────────────
 
@@ -53,6 +60,47 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode, as the master's last broadcast said: ONE fact, the same on every node
         /// (<see cref="ClusterArmedMode.Live"/> before a broadcast arrives and for a sender that does not set it).</summary>
         public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
+
+        // ── cluster ready (CE-3344, R-3069) ─────────────────────────────────────
+
+        /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — what the cluster is still WAITING FOR before it is ready, as the master's last broadcast said
+        /// (<i>"SimHost, Brain (CGF)"</i>: mandatory names and roles no node has reported); empty = nothing is missing.</summary>
+        public string WaitingFor { get; private set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3344</c> — the master's in-sync set (R-4006) has reached this node; until it has, no node is known to be in sync.</summary>
+        public bool HasInSyncSet { get; private set; }
+
+        private int[] _inSyncNodeIds = Array.Empty<int>();
+
+        /// <summary>⭐ <c>CE-3344</c> — the nodes the master last said are in sync (empty until <see cref="HasInSyncSet"/>).</summary>
+        public IReadOnlyList<int> InSyncNodeIds => _inSyncNodeIds;
+
+        /// <summary>⭐ <c>CE-3344</c> — is THIS view's node in the master's in-sync set? <see langword="true"/> when the view has no <see cref="NodeId"/>.</summary>
+        public bool IsInSync => NodeId is not { } id || (HasInSyncSet && Array.IndexOf(_inSyncNodeIds, id) >= 0);
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <b>why the cluster cannot be operated from this node right now</b>, or <see langword="null"/> when it can. The ONE text the
+        /// HTTP 409 and every grey-out read (<see cref="CanOperate"/> is exactly <c>NotOperableReason == null</c>).
+        /// </summary>
+        public string? NotOperableReason
+        {
+            get
+            {
+                if (MasterGone) return "the cluster's master is gone";
+                if (!HasFollowedState) return "no cluster state has reached this node yet";
+                if (State == ClusterState.Degraded) return WaitingFor.Length > 0 ? $"the cluster is Degraded — waiting for: {WaitingFor}" : "the cluster is Degraded";
+                if (WaitingFor.Length > 0) return $"the cluster is not ready — waiting for: {WaitingFor}";
+                if (!IsInSync) return $"this node ({NodeId}) is not in the master's in-sync set";
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <b>CLUSTER READY, from this node</b>: the master's state has reached it, the state is not <c>Degraded</c>, nothing mandatory is
+        /// missing (<see cref="WaitingFor"/>), the master is present, and this node is in the master's in-sync set. ⛔ The one fact every control's enabled-state and
+        /// every cluster HTTP route reads — never a second copy.
+        /// </summary>
+        public bool CanOperate => NotOperableReason == null;
 
         // ── the asset inventory ───────────────────────────────────────────────
 
@@ -99,6 +147,7 @@ namespace Fdp.Toolkit.Orchestration
         {
             if (_bus == null) return;
             DrainClusterState();
+            DrainInSync();
             DrainInventory();
             DrainReplaySession();
             DrainOpOutcomes();
@@ -122,8 +171,18 @@ namespace Fdp.Toolkit.Orchestration
                     RunNotRecorded = ev.RunNotRecorded;        // ⭐ CE-4090 D14
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
+                    WaitingFor = ev.WaitingFor ?? string.Empty; // ⭐ CE-3344 R-3069
                 }
                 if (State != ClusterState.OperatingEdit) LastUnsavedCheck = null;   // ⭐ CE-4093 — the answer described an open scenario
+            }
+        }
+
+        private void DrainInSync()
+        {
+            foreach (var ev in _bus!.ReadManaged<InSyncSetChangedEvent>())
+            {
+                HasInSyncSet = true;
+                _inSyncNodeIds = ev.NodeIds ?? Array.Empty<int>();
             }
         }
 

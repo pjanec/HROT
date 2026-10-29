@@ -201,4 +201,52 @@ public sealed class ClusterViewTests
         Assert.False(view.HasFollowedState);
         Assert.Null(view.UnsavedCheckOutcomeFor(Guid.NewGuid()));
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <see cref="ClusterView.CanOperate"/> is cluster-ready FROM THIS NODE: the master's state has reached it, is not <c>Degraded</c>, names nothing
+    /// still missing (<c>WaitingFor</c>), the master is present, and (for a view that has a node id) THIS node is in the master's in-sync set. Each clause alone closes it; the reason names it.
+    /// 🔴 Mutations (each compiles): <c>NotOperableReason</c> without the <c>WaitingFor</c> arm ⇒ the waiting cell reds; without the <c>Degraded</c> arm ⇒ the Degraded cell; <c>IsInSync</c> returning
+    /// true ⇒ the outsider cell; <c>MasterGone</c> arm removed ⇒ the master-gone cell.
+    /// </summary>
+    [Fact]
+    public void CE3344_CanOperate_IsClusterReadyFromThisNode_EachClauseAloneClosesIt()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId: 5);
+
+        Assert.False(view.CanOperate);                                               // nothing heard yet
+        Assert.Contains("no cluster state", view.NotOperableReason);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "Brain (CGF)" });
+        HearStruct(bus, view, new InSyncSetChangedEvent { NodeIds = new[] { 5 } });
+        Assert.False(view.CanOperate);                                               // the cluster is waiting
+        Assert.Equal("Brain (CGF)", view.WaitingFor);
+        Assert.Contains("waiting for: Brain (CGF)", view.NotOperableReason);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.Degraded, WaitingFor = "" });
+        Assert.False(view.CanOperate);                                               // Degraded
+        Assert.Contains("Degraded", view.NotOperableReason);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "" });
+        Assert.True(view.CanOperate, view.NotOperableReason);                        // ready, and this node is in sync
+        Assert.Equal(string.Empty, view.WaitingFor);
+
+        HearStruct(bus, view, new InSyncSetChangedEvent { NodeIds = new[] { 6 } });  // the master dropped this node from the set
+        Assert.False(view.CanOperate);
+        Assert.Contains("in-sync", view.NotOperableReason);
+        HearStruct(bus, view, new InSyncSetChangedEvent { NodeIds = new[] { 5, 6 } });
+        Assert.True(view.CanOperate);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
+        Assert.False(view.CanOperate);
+        Assert.Contains("master is gone", view.NotOperableReason);
+
+        // a view with no node id (an observer) does not ask to be in sync — and still follows the rest
+        var observerBus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(observerBus);
+        var observer = new ClusterView(observerBus);
+        HearStruct(observerBus, observer, new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });
+        Assert.True(observer.CanOperate);
+    }
 }

@@ -23,6 +23,17 @@ namespace Hrot.Editor.DebugApi
           + "request. Check the 'scenario.load' cell in GET /capabilities.";
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <b>why the cluster cannot be operated from this host right now</b> (<c>ClusterView.NotOperableReason</c>: waiting for a mandatory
+        /// subsystem or role, Degraded, no master, this node not in sync), or <see langword="null"/> when it can — and when this host keeps no cluster read model (then no gate
+        /// refuses; the master's own refusal is the authority). ONE fact, the same text on every host: what the 409 of every cluster route says.
+        /// </summary>
+        public string? ClusterNotOperableReason => ClusterNotOperableReasonKnown()?.Reason;
+
+        /// <summary>⭐ CE-3344 — the same, with "this host keeps no cluster read model" (<see langword="null"/>) told apart from "operable" (<c>Reason == null</c>).</summary>
+        private (string? Reason, bool Known)? ClusterNotOperableReasonKnown()
+            => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is { } view ? (view.NotOperableReason, true) : null;
+
+        /// <summary>
         /// ⭐⭐ <c>CE-4090</c> (AQ108 D14, D22, §5a) — <b>"this run was not recorded", from the master's broadcast</b>: <see langword="true"/> when the
         /// run the cluster shows started with <i>Record live runs</i> off; <see langword="null"/> when no node here tracks the cluster state
         /// (then no gate refuses — the master's own refusal is the authority). The same fact on every host.

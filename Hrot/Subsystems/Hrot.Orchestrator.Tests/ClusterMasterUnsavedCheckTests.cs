@@ -96,7 +96,7 @@ public sealed class ClusterMasterUnsavedCheckTests
 
         public Rig(params int[] nodes)
         {
-            Master = new ClusterMaster(Bus);
+            Master = new ClusterMaster(Bus, TestClusterConfig.NothingMandatory());
             Master.RegisterAggregator(new UnsavedCheckAggregator());
             Master.RegisterAggregator(new StorageConsensusAggregator());
             foreach (var n in nodes)

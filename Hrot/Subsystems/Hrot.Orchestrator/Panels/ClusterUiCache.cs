@@ -66,8 +66,12 @@ public sealed class ClusterUiCache : IDisposable
     /// the cluster's time map, the checkpoint marks, the review's id and live point. The same on every host; inactive outside a replay.
     /// </summary>
     public Fdp.Toolkit.Orchestration.ReplaySession ReplaySession => _view.ReplaySession;
-    /// <summary>A cluster-state broadcast (or the master's disappearance) has been seen and the cluster is not degraded.</summary>
-    public bool        IsBootstrapped         => (_view.HasFollowedState || _view.MasterGone) && _view.State != Fdp.Toolkit.Orchestration.ClusterState.Degraded;
+    /// <summary>
+    /// ⭐⭐ <c>CE-3344</c> (R-3069) — the cluster is READY from this host: exactly <see cref="ClusterView.CanOperate"/> (the master's state has reached the node, is not
+    /// <c>Degraded</c>, nothing mandatory is missing, the master is present, this node is in sync). ⛔ One fact — it used to be its own "a broadcast was seen and not Degraded",
+    /// a second, weaker copy that stayed true while a mandatory role was missing and (deliberately, until now) after the master was gone.
+    /// </summary>
+    public bool        IsBootstrapped         => _view.CanOperate;
     public bool        HasInFlightTransaction  { get; private set; }
 
     public string[]    AvailableScenarios     => _view.AvailableScenarios;

@@ -74,6 +74,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _editorArmedMode;   // CE-3341 — the cluster's armed mode, from the in-process master's broadcast
         private readonly Func<bool?>? _editorRecordLiveRunsOff;   // CE-4090 — the setting, from the in-process master's broadcast
+        private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _editorClusterView;   // CE-3344 — the in-process node's ONE cluster read model (the 409 gate)
         private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
         private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _editorUnsavedCheck;   // CE-4093 — the in-process master's check round answer
         private readonly Func<bool?>? _editorScenarioDirty;   // CE-4093 — the in-process master's last verdict
@@ -580,8 +581,11 @@ namespace Hrot.Editor.DebugApi
             Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
             // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer + last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS them.
             Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
-            Func<bool?>? scenarioDirty = null)
+            Func<bool?>? scenarioDirty = null,
+            // ⭐⭐ CE-3344 (R-3069) — the editor's node's ONE cluster read model; CanOperate gates the HTTP cluster routes. ⛔ The editor HOLDS it (silent-default rule).
+            Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null)
         {
+            _editorClusterView = clusterView;
             _editorRecordLiveRunsOff = recordLiveRunsOff;
             _editorArmedMode = armedMode;
             _editorRunNotRecorded = runNotRecorded;
@@ -736,6 +740,10 @@ namespace Hrot.Editor.DebugApi
                 ["scenarioDirty"] = ScenarioDirtyOrNull,
                 // ⭐⭐ CE-4097 part two (AQ108 D22) — what ▶ would run from editing on this host: preview | live | aar (null: this host has no run choice). Read-only; POST /run-mode sets it.
                 ["armedMode"]    = TryRead(() => (JsonNode?)ArmedModeText()),
+                // ⭐⭐ CE-3344 (R-3069) — cluster READY from this host (ClusterView.CanOperate): true = the cluster routes work; false + `notOperable` = they answer 409 with that reason;
+                //   absent when this host keeps no cluster read model. ⭐ What a test harness polls before it drives the cluster.
+                ["canOperate"]   = ClusterNotOperableReasonKnown() is { } known ? (JsonNode?)(known.Reason is null) : null,
+                ["notOperable"]  = ClusterNotOperableReasonKnown()?.Reason,
             };
         }
 

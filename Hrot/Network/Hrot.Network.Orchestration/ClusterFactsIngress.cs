@@ -26,6 +26,8 @@ public sealed class ClusterFactsIngress : IDisposable
     private readonly DdsReader<AssetInventoryTopic>?  _inventoryReader;
     private readonly DdsReader<ReplaySessionTopic>?   _sessionReader;
     private readonly DdsReader<ClusterOpStatus>?      _opStatusReader;
+    private readonly DdsReader<OrchestratorContextTopic>? _contextReader;   // ⭐ CE-3344 — the master's in-sync set (R-4006), carried by the context plane
+    private string? _lastInSyncJson;   // the set last published, so the echo of the master's own write on a shared bus ends after one round
 
     /// <summary>An ingress over the given readers; ⭐ a <see langword="null"/> reader (the test / offline shape) reads nothing.</summary>
     public ClusterFactsIngress(
@@ -33,8 +35,10 @@ public sealed class ClusterFactsIngress : IDisposable
         DdsReader<ClusterStateTopic>?    stateReader     = null,
         DdsReader<AssetInventoryTopic>?  inventoryReader = null,
         DdsReader<ReplaySessionTopic>?   sessionReader   = null,
-        DdsReader<ClusterOpStatus>?      opStatusReader  = null)
+        DdsReader<ClusterOpStatus>?      opStatusReader  = null,
+        DdsReader<OrchestratorContextTopic>? contextReader = null)
     {
+        _contextReader   = contextReader;
         _bus             = bus ?? throw new ArgumentNullException(nameof(bus));
         _stateReader     = stateReader;
         _inventoryReader = inventoryReader;
@@ -42,7 +46,7 @@ public sealed class ClusterFactsIngress : IDisposable
         _opStatusReader  = opStatusReader;
     }
 
-    /// <summary>An ingress with all four readers on <paramref name="participant"/>.</summary>
+    /// <summary>An ingress with all five readers on <paramref name="participant"/>.</summary>
     public static ClusterFactsIngress For(DdsParticipant participant, FdpEventBus bus)
     {
         if (participant is null) throw new ArgumentNullException(nameof(participant));
@@ -50,7 +54,8 @@ public sealed class ClusterFactsIngress : IDisposable
             new DdsReader<ClusterStateTopic>(participant),
             new DdsReader<AssetInventoryTopic>(participant),
             new DdsReader<ReplaySessionTopic>(participant),
-            new DdsReader<ClusterOpStatus>(participant));
+            new DdsReader<ClusterOpStatus>(participant),
+            new DdsReader<OrchestratorContextTopic>(participant));
     }
 
     /// <summary>Reads the four fact topics and publishes their events. Call once per frame, before the bus swap.</summary>
@@ -85,6 +90,25 @@ public sealed class ClusterFactsIngress : IDisposable
                     _bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
         }
 
+        // ⭐ CE-3344 (R-3069) — the master's InSync set (durable, one producer) → InSyncSetChangedEvent, so the node's ClusterView knows whether THIS node is in sync.
+        //   An empty field = "not published yet" (the context topic is keyless and also carries the scenario).
+        if (_contextReader != null)
+        {
+            using var l = _contextReader.Take();
+            foreach (var s in l)
+            {
+                if (!s.IsValid || string.IsNullOrWhiteSpace(s.Data.RequiredNodeIdsJson) || s.Data.RequiredNodeIdsJson == _lastInSyncJson) continue;
+                try
+                {
+                    var ids = JsonSerializer.Deserialize<int[]>(s.Data.RequiredNodeIdsJson, FdpJsonOptionsRegistry.DefaultRelaxed);
+                    if (ids == null) continue;
+                    _lastInSyncJson = s.Data.RequiredNodeIdsJson;
+                    _bus.PublishManaged(new InSyncSetChangedEvent { NodeIds = ids });
+                }
+                catch (JsonException) { /* a malformed set says nothing */ }
+            }
+        }
+
         // ClusterOpStatus → ClusterOpCompletedEvent
         if (_opStatusReader != null)
         {
@@ -101,6 +125,7 @@ public sealed class ClusterFactsIngress : IDisposable
         _inventoryReader?.Dispose();
         _sessionReader?.Dispose();
         _opStatusReader?.Dispose();
+        _contextReader?.Dispose();
     }
 
     // ── the ONE decoders ───────────────────────────────────────────────────
@@ -146,6 +171,7 @@ public sealed class ClusterFactsIngress : IDisposable
         RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14
         RecordLiveRunsOff = topic.RecordLiveRunsOff != 0,
         ArmedMode = ArmedModeOf(topic.ArmedMode),   // ⭐ CE-3341 R-3068
+        WaitingFor = topic.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
     };
 
     /// <summary>⭐ CE-3341 — an armed-mode wire int; a value this build does not know (a newer peer) reads as the default, Live.</summary>

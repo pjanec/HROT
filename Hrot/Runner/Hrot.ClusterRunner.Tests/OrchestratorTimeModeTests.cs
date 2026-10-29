@@ -39,6 +39,7 @@ public class OrchestratorTimeModeTests
         // Inject TransitionState → LoadingLive with Deterministic time mode via test hook.
         // HEXAG2-S008: DDS translator path removed in headless mode; UI buttons use HandleClusterOpRequest.
         // TargetState is a string enum value (e.g. "LoadingLive") per StrictStringEnumConverter contract.
+        subsystem.TestHook_ClusterMaster!.LocalRoles = Fdp.Core.NodeRole.Brain | Fdp.Core.NodeRole.MuscleGround;   // ⭐ CE-3344: the cluster must be ready (this host plays the roles) to take a transition
         subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),

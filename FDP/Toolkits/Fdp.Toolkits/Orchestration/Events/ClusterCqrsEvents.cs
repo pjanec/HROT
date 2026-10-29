@@ -141,6 +141,10 @@ namespace Fdp.Toolkit.Orchestration
         public bool RecordLiveRunsOff;
         /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode. Default 0 = <see cref="ClusterArmedMode.Live"/>, so a publisher that never sets it reads as the default.</summary>
         public ClusterArmedMode ArmedMode;
+        /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — what the cluster is still WAITING FOR before it is ready, as <i>"SimHost, Brain (CGF)"</i>: the mandatory subsystem names and roles
+        /// no node has reported yet. <see langword="null"/> / empty = nothing is missing. Rides every cluster-state publication; ⭐ the ONE text — the load wait's
+        /// "waiting for" reads the same master function.</summary>
+        public string? WaitingFor;
     }
 
     /// <summary>
@@ -217,6 +221,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool RecordLiveRunsOff;
         /// <summary>⭐ CE-3341 — as <see cref="ClusterStateTransitionedEvent.ArmedMode"/>.</summary>
         public ClusterArmedMode ArmedMode;
+        /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — as <see cref="ClusterStateTransitionedEvent.WaitingFor"/> (what <see cref="ClusterView.WaitingFor"/> folds).</summary>
+        public string? WaitingFor;
     }
 
     /// <summary>

@@ -59,6 +59,7 @@ public sealed class CqrsOrchestrationIntegrationTests
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -159,6 +160,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         var bus    = new FdpEventBus();
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = new[] { "SimHost" },  // mandatory → latch not cleared immediately
             HeartbeatTimeoutSeconds    = 60f,
             TransactionHistoryCapacity = 10,

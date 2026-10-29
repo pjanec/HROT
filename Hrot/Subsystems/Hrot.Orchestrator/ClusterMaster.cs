@@ -336,7 +336,9 @@ public sealed partial class ClusterMaster : IDisposable
         _config   = config ?? ClusterConfiguration.Default;
         _history  = new DistributedTransaction[Math.Max(1, _config.TransactionHistoryCapacity)];
 
-        if (_config.Mandatory.Length == 0) { _bootstrapLatch = true; PublishStandby(); }
+        // ⭐⭐ CE-3344 (R-3069) — the latch is over names AND roles: with nothing mandatory at all it is open from the start; otherwise it is CLOSED and the
+        //   first Tick opens it once every mandatory name and role has a node that reported (the host's own roles — LocalRoles — are set after construction).
+        if (_config.Mandatory.Length == 0 && _config.MandatoryRoles == NodeRole.None) { _bootstrapLatch = true; PublishStandby(); }
     }
 
     // ── Per-frame tick ────────────────────────────────────────────────────
@@ -348,6 +350,7 @@ public sealed partial class ClusterMaster : IDisposable
         ProcessNodeIdRequests();   // ⭐ C1 — master-assigned node ids
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
+        PublishWaitingForIfChanged();   // ⭐ CE-3344 — what the cluster is waiting for rides the cluster state, so every node can say it
         PublishStepRosterIfChanged();   // ⭐ P3
         DrainInjectedRequests();
 
@@ -681,12 +684,13 @@ public sealed partial class ClusterMaster : IDisposable
     private void CheckBootstrapLatch()
     {
         if (_bootstrapLatch) return;
-        if (_config.Mandatory.Length == 0) return;
 
-        // ⭐ CE-4087 — the name test lives in ONE place (ClusterMaster.Bootstrap.cs), shared with the load wait's "waiting for" text.
-        if (MissingMandatoryNames().Count > 0) return;
+        // ⭐⭐ CE-3344 (R-3069) — CLUSTER READY = every mandatory NAME and ROLE has a node that reported. ⭐ CE-4087 — each test lives in ONE place
+        //   (ClusterMaster.Bootstrap.cs), shared with the load wait's "waiting for" text: names = a roster entry in Idle, roles = a node whose capability advert
+        //   landed (or this host's own LocalRoles).
+        if (MissingMandatoryNames().Count > 0 || MissingMandatoryRoles().Count > 0) return;
 
-        // All mandatory nodes are in Standby — latch released.
+        // Every mandatory name and role is present — latch released.
         _bootstrapLatch = true;
         PublishStandby();
         FdpLog<ClusterMaster>.Info("[Orchestrator] All mandatory nodes reached Standby — bootstrap complete.");
@@ -741,8 +745,12 @@ public sealed partial class ClusterMaster : IDisposable
         // ⭐⭐ P1 — for EVERY node, mandatory or not: a round never waits for a node that is gone.
         DropFromInFlightRounds(nodeId);
 
+        // ⭐⭐ CE-3344 (R-3069, user 2026-10-29: "yes, role loss means Degraded too") — losing a mandatory NAME or leaving a mandatory ROLE with no node degrades the cluster
+        //   through the same path. ⚠ Roles are tested only while the latch is OPEN: with it closed the cluster is not ready anyway and a role is missing for a reason
+        //   that is not this ejection (a booting cluster).
         bool isMandatory = Array.IndexOf(_config.Mandatory, profile.SubsystemName) >= 0;
-        if (!isMandatory) return;
+        bool lostRole    = _bootstrapLatch && MissingMandatoryRoles().Count > 0;
+        if (!isMandatory && !lostRole) return;
 
         // Abort any in-flight transaction.
         if (_activeTransaction != null)
@@ -752,17 +760,20 @@ public sealed partial class ClusterMaster : IDisposable
             _activeTransaction = null;
         }
 
+        // ⭐ CE-3344 — the latch is re-engaged BEFORE the broadcast so the Degraded state carries what is now missing (WaitingFor).
+        _bootstrapLatch = false;
+
         // Publish Degraded system state.
         PublishClusterState(ClusterState.Degraded);
-        FdpLog<ClusterMaster>.Warn("[Orchestrator] System entered Degraded state (mandatory node {0} lost).", profile.SubsystemName);
+        FdpLog<ClusterMaster>.Warn("[Orchestrator] System entered Degraded state (mandatory {0} lost: node {1}, {2}).",
+            lostRole && !isMandatory ? "role" : "node", nodeId, profile.SubsystemName);
 
         // Broadcast AbortTransaction + PrepareState(Standby) to surviving nodes only.
         var survivingIds = new List<int>(_roster.ActiveNodes.Keys);
         FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), null, survivingIds);
         FanOutNodeOp(NodeOpType.PrepareState,     Guid.NewGuid(), (int)ClusterState.Idle, survivingIds);
 
-        // Re-engage bootstrap latch until the mandatory node returns.
-        _bootstrapLatch = false;
+        // The bootstrap latch stays engaged (set above) until the mandatory node / role returns (CheckBootstrapLatch).
     }
 
     // ── Bus-path intent drain methods (CMC-S008) ──────────────────────────
@@ -2208,6 +2219,9 @@ public sealed partial class ClusterMaster : IDisposable
     /// <summary>Publishes a cluster state transition to the bus.</summary>
     private void PublishClusterState(ClusterState state)
     {
+        var waitingFor = WaitingFor() ?? string.Empty;   // ⭐ CE-3344 — empty when nothing mandatory is missing
+        _lastPublishedState = state;
+        _publishedWaitingFor = waitingFor;
         _eventBus.PublishManaged(new ClusterStateTransitionedEvent
         {
             NewStateId       = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
@@ -2219,6 +2233,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
+            WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2229,7 +2244,24 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
+            WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
         });
+    }
+
+    private ClusterState _lastPublishedState = ClusterState.Idle;
+    private string? _publishedWaitingFor;   // null = nothing published yet
+
+    /// <summary>
+    /// ⭐⭐ CE-3344 (R-3069) — while the cluster is not ready (the latch is closed: booting, or after losing a mandatory name / role) the master used to publish NO state at all, so a node
+    /// could not say what was missing. Now it re-publishes the state it last announced (<c>Idle</c> before the first) whenever the missing text CHANGES, so every node's
+    /// <see cref="Fdp.Toolkit.Orchestration.ClusterView.WaitingFor"/> follows. ⛔ It never invents a state — only the text moves.
+    /// </summary>
+    private void PublishWaitingForIfChanged()
+    {
+        if (_bootstrapLatch && _publishedWaitingFor is { Length: 0 }) return;   // ready and already said so: no per-frame text building
+        var waiting = WaitingFor() ?? string.Empty;
+        if (waiting == _publishedWaitingFor) return;
+        PublishClusterState(_lastPublishedState);
     }
 
     /// <summary>

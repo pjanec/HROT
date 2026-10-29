@@ -1,6 +1,11 @@
 using System;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.DebugApi;
@@ -245,6 +250,93 @@ public sealed class TheClusterControlRoutesTests
     {
         foreach (var route in DebugApiHost.WorldChangingRoutes)
             Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is guarded but is not a route");
+    }
+
+    /// <summary>⭐⭐ CE-3344 (R-3069) — every route the cluster-ready gate refuses is a real route, and the ones that must ALWAYS work (cancel, every GET) are not in the set.</summary>
+    [Fact]
+    public void CE3344_Every_cluster_gated_route_exists_and_cancel_and_the_reads_are_not_gated()
+    {
+        foreach (var route in DebugApiHost.ClusterGatedRoutes)
+            Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is gated but is not a route");
+        Assert.DoesNotContain(("POST", "/cluster/cancel"), DebugApiHost.ClusterGatedRoutes);   // a cancel must always work
+        Assert.DoesNotContain(DebugApiHost.ClusterGatedRoutes, r => r.Method == "GET");
+        foreach (var world in DebugApiHost.WorldChangingRoutes) Assert.Contains(world, DebugApiHost.ClusterGatedRoutes);   // the world-changing routes need a ready cluster too
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) success 6 — on a REAL <see cref="DebugApiHost"/>: while the node's <c>ClusterView.CanOperate</c> is false a cluster route answers <b>409</b> naming what the cluster
+    /// is waiting for and publishes NOTHING to the master; a status read answers 200 (carrying <c>canOperate:false</c> + the reason); <c>POST /cluster/cancel</c> is NOT gated; the frame the
+    /// cluster is ready the same request goes through. 🔴 Mutations (each compiles): the gate removed from <c>HandleRequestAsync</c> ⇒ the 409 cells red; <c>/cluster/cancel</c> added to
+    /// <c>ClusterGatedRoutes</c> ⇒ the cancel cell red; <c>ClusterView.CanOperate</c> ignoring <c>WaitingFor</c> ⇒ the first cell red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE3344_WhileTheClusterIsNotOperable_TheClusterRoutesAnswer409WithTheReason_AStatusReadAnswers200_AndCancelIsNeverGated()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId: 5);
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "Brain (CGF)" });
+        Hear(new InSyncSetChangedEvent { NodeIds = new[] { 5 } });
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterView: () => view),
+            },
+            currentPerspective: () => "CGF", acksPending: null);
+        var service = new DebugApiService(dispatcher, clusterState: () => _state);
+
+        var l = new TcpListener(IPAddress.Loopback, 0); l.Start(); int port = ((IPEndPoint)l.LocalEndpoint).Port; l.Stop();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDispatcher(dispatcher);
+        host.AttachService(service);
+        host.Start();
+        string url = $"http://localhost:{port}";
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        StringContent Json(string t) => new(t, Encoding.UTF8, "application/json");
+        async Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request)
+        {
+            for (int i = 0; i < 2000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
+            var response = await request;
+            return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
+        }
+
+        // ── not operable: the cluster waits for its Brain ───────────────────────────────────────────────────────────────────────
+        foreach (var (method, path, body) in new[]
+                 {
+                     ("POST", "/scenario/load/live", """{"scenario":"s1"}"""), ("POST", "/sim/play", "{}"), ("POST", "/run-mode", """{"armed":"preview"}"""),
+                     ("POST", "/cluster/transition", """{"target":"Idle"}"""), ("POST", "/checkpoint", "{}"), ("POST", "/run-settings", """{"recordLiveRuns":true}"""),
+                 })
+        {
+            var (status, json) = await Send(client.PostAsync(url + path, Json(body)));
+            Assert.True(status == HttpStatusCode.Conflict, $"{method} {path} answered {(int)status}, expected 409 while the cluster waits");
+            Assert.Contains("waiting for: Brain (CGF)", json["error"]!.GetValue<string>());
+            Assert.Contains("waiting for: Brain (CGF)", json["data"]!["notOperable"]!.GetValue<string>());
+        }
+        Assert.Empty(_master.Sent);                                                                  // ⭐ nothing reached the master
+
+        var (st, status0) = await Send(client.GetAsync(url + "/status"));                             // a status read is open …
+        Assert.Equal(HttpStatusCode.OK, st);
+        Assert.False(status0["data"]!["canOperate"]!.GetValue<bool>());                               // … and says why the cluster routes are not
+        Assert.Contains("Brain (CGF)", status0["data"]!["notOperable"]!.GetValue<string>());
+
+        (st, _) = await Send(client.PostAsync(url + "/cluster/cancel", Json($"{{\"targetId\":\"{Guid.NewGuid()}\"}}")));   // ⭐ cancel always works
+        Assert.Equal(HttpStatusCode.OK, st);
+        Assert.Single(_master.Cancels);
+        _master.Sent.Clear();
+
+        // ── the cluster is ready: the same request goes through ─────────────────────────────────────────────────────────────────
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "" });
+        Assert.True(view.CanOperate);
+        (st, _) = await Send(client.PostAsync(url + "/run-settings", Json("""{"recordLiveRuns":true}""")));
+        Assert.Equal(HttpStatusCode.OK, st);
+        Assert.Single(_master.Sent.OfType<SetRunSettingsIntent>());
+        (st, status0) = await Send(client.GetAsync(url + "/status"));
+        Assert.True(status0["data"]!["canOperate"]!.GetValue<bool>());
+        Assert.Null(status0["data"]!["notOperable"]);
     }
 
     [Fact]

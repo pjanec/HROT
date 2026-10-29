@@ -57,7 +57,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         DdsReader<AssetInventoryTopic>?   inventoryReader = null,
         string[]?                         transportCapabilities = null,
         DdsReader<ReplaySessionTopic>?    sessionReader = null,
-        DdsReader<ClusterOpStatus>?       opStatusReader = null)
+        DdsReader<ClusterOpStatus>?       opStatusReader = null,
+        DdsReader<OrchestratorContextTopic>? contextReader = null)
     {
         _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
@@ -67,7 +68,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
         _nodeId          = nodeId;
         _jsonOptions     = jsonOptions ?? DefaultOptions;
-        _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader);
+        _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader);
     }
 
     /// <summary>

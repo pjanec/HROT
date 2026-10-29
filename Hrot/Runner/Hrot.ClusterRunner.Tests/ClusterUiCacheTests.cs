@@ -367,6 +367,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         Assert.Same(slave.View, cache.View);
 
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = FdpClusterState.OperatingEdit, ExerciseId = exercise, SessionId = Guid.NewGuid(), RunNotRecorded = true });
+        bus.PublishManaged(new InSyncSetChangedEvent { NodeIds = new[] { 3 } });   // ⭐ CE-3344: ready from this node includes being in the master's in-sync set
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalScenarios = new[] { "one" } });
         bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = round, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 1 }) });
         bus.SwapBuffers();

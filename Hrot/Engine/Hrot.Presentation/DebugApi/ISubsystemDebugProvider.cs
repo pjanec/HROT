@@ -244,6 +244,12 @@ public interface ISubsystemDebugProvider
 
     /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode (the master's broadcast, via this node's <c>ClusterView</c>); null when this node keeps no cluster read model.</summary>
     Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3344</c> (R-3069) — this node's ONE cluster read model (<c>ClusterView</c>): <c>CanOperate</c> / <c>NotOperableReason</c> are what the HTTP cluster routes' 409 gate reads.
+    /// <see langword="null"/> when this node keeps none (then no gate refuses — the master's own refusal is the authority). A default member so a provider that predates it is unchanged.
+    /// </summary>
+    Fdp.Toolkit.Orchestration.ClusterView? ClusterView => null;
     /// <summary>⭐⭐ <c>CE-4093</c> (AQ108 D20) — how the unsaved-changes check round <paramref name="requestId"/> ended, from this node's cluster read model
     /// (the master's answer reaches every host's bus); <see langword="null"/> while it has not, or when this node keeps no such read model.</summary>
     Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId);
@@ -397,6 +403,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<bool?>? _runNotRecorded;   // CE-4090
     private readonly Func<bool?>? _recordLiveRunsOff;   // CE-4090
     private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _armedMode;   // CE-3341
+    private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _clusterView;   // CE-3344
     private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _unsavedCheck;   // CE-4093
     private readonly Func<bool?>? _scenarioDirty;   // CE-4093
     private readonly Func<string?>? _replayRecording;
@@ -484,8 +491,11 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
         // ⭐ CE-4093 (AQ108 D20) — the check round's outcome and the last verdict, from the same cluster read model (ClusterUiCache)
         Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
-        Func<bool?>? scenarioDirty = null)
+        Func<bool?>? scenarioDirty = null,
+        // ⭐⭐ CE-3344 (R-3069) — this node's ONE cluster read model, whose CanOperate the HTTP cluster routes gate on
+        Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null)
     {
+        _clusterView = clusterView;
         _followedClusterState = followedClusterState;
         _masterGone = masterGone;
         _runNotRecorded = runNotRecorded;
@@ -657,6 +667,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public bool? RunNotRecorded => _runNotRecorded?.Invoke();
     public bool? RecordLiveRunsOff => _recordLiveRunsOff?.Invoke();
     public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode => _armedMode?.Invoke();
+    public Fdp.Toolkit.Orchestration.ClusterView? ClusterView => _clusterView?.Invoke();
     public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId) => _unsavedCheck?.Invoke(requestId);
     public bool? ScenarioDirty => _scenarioDirty?.Invoke();
     public bool ObservesUnsavedChecks => _unsavedCheck != null;

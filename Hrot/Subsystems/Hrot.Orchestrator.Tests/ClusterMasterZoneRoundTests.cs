@@ -32,7 +32,7 @@ public sealed class ClusterMasterZoneRoundTests
     private static (ClusterMaster master, FdpEventBus bus) BootstrapWithNodes(params int[] nodeIds)
     {
         var bus    = new FdpEventBus();
-        var master = new ClusterMaster(bus);
+        var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
 
         foreach (var id in nodeIds)
         {
@@ -229,7 +229,7 @@ public sealed class ClusterMasterZoneRoundTests
     private static (ClusterMaster master, FdpEventBus bus) BootstrapWithRoles(params (int Id, string? RoleToken)[] nodes)
     {
         var bus    = new FdpEventBus();
-        var master = new ClusterMaster(bus);
+        var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         foreach (var (id, role) in nodes)
         {
             bus.PublishManaged(new NodeHeartbeatEvent
@@ -302,7 +302,7 @@ public sealed class ClusterMasterZoneRoundTests
     {
         var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround));
         using var _ = master;
-        using var other = new ClusterMaster(new FdpEventBus());
+        using var other = new ClusterMaster(new FdpEventBus(), TestClusterConfig.NothingMandatory());
         Assert.NotEqual(Guid.Empty, master.SessionId);
         Assert.NotEqual(master.SessionId, other.SessionId);   // ⭐ one master = one session
 
@@ -381,7 +381,7 @@ public sealed class ClusterMasterZoneRoundTests
     public void EmptyRoster_ReportsSuccessWithoutFanningOut()
     {
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
 
         var requestId = Guid.NewGuid();
         PublishLoadZone(bus, requestId, "zone-alpha");

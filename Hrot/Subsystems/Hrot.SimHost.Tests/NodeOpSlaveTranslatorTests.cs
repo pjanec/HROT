@@ -272,6 +272,55 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(ClusterArmedMode.Live, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle, ArmedMode = 99 }).ArmedMode);
     }
 
+    /// <summary>⭐⭐ CE-3344 (R-3069) — what the cluster is still WAITING FOR crosses the wire whole: the master's encoding (<c>StateTopicOf</c>) and every node's decoding (<c>StateOf</c>) agree,
+    /// and an older sender's omission (null / empty) reads as "nothing missing". 🔴 Mutation: <c>StateOf</c> not mapping <c>WaitingFor</c> ⇒ red.</summary>
+    [Fact]
+    public void CE3344_TheClusterStateBroadcast_CarriesWhatTheClusterIsWaitingFor_BothWays()
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent
+            { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, WaitingFor = "SimHost, Brain (CGF)" });
+        Assert.Equal("SimHost, Brain (CGF)", topic.WaitingFor);
+        Assert.Equal("SimHost, Brain (CGF)", ClusterFactsIngress.StateOf(topic).WaitingFor);
+
+        Assert.Equal(string.Empty, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).WaitingFor);   // an older sender's sample
+        Assert.Equal(string.Empty, Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent()).WaitingFor);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3344 (R-3069, R-4006) — the master's IN-SYNC set (carried by the durable context topic) reaches a node's bus as <c>InSyncSetChangedEvent</c> through the ONE facts ingress, so the node's
+    /// <c>ClusterView</c> knows whether THIS node is in sync; an unchanged or blank value publishes nothing (the echo of the master's own write on a shared bus ends after one round).
+    /// 🔴 Mutation: the context reader not forwarded to the ingress (<c>contextReader</c> dropped) ⇒ no event ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3344_TheMastersInSyncSet_ReachesTheNodesBus_AndAnUnchangedOneIsNotRepublished()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var cmdReader       = new DdsReader<NodeOpCommand>(participant);
+        using var statusWriter    = new DdsWriter<NodeOpStatus>(participant);
+        using var heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
+        using var contextReader   = new DdsReader<OrchestratorContextTopic>(participant);
+        using var contextWriter   = new DdsWriter<OrchestratorContextTopic>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpSlaveTranslator(cmdReader, statusWriter, heartbeatWriter, bus, nodeId: 5, contextReader: contextReader);
+        Thread.Sleep(400);
+
+        contextWriter.Write(new OrchestratorContextTopic { ScenarioId = "s", RequiredNodeIdsJson = "" });   // the scenario half only: no set yet
+        Thread.Sleep(300);
+        translator.Tick(); bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<InSyncSetChangedEvent>());
+
+        contextWriter.Write(new OrchestratorContextTopic { ScenarioId = "s", RequiredNodeIdsJson = "[5,6]" });
+        Thread.Sleep(300);
+        translator.Tick(); bus.SwapBuffers();
+        Assert.Equal(new[] { 5, 6 }, Assert.Single(bus.ReadManaged<InSyncSetChangedEvent>()).NodeIds);
+
+        contextWriter.Write(new OrchestratorContextTopic { ScenarioId = "t", RequiredNodeIdsJson = "[5,6]" });   // the scenario moved, the set did not
+        Thread.Sleep(300);
+        translator.Tick(); bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<InSyncSetChangedEvent>());
+    }
+
     // ── Test 4: NodeHeartbeatEvent → NodeHeartbeat written to DDS ────────────
 
     [Fact(Timeout = 10_000)]

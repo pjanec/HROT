@@ -1316,7 +1316,7 @@ public sealed class StorageGatewayTkbConsensusTests
         {
             PutAt(author, "p.bp.json", "x", T0);
             var bus = new Fdp.Core.FdpEventBus();
-            using var master = new ClusterMaster(bus);
+            using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
             Guid Send()
             {
                 var id = Guid.NewGuid();
@@ -1359,7 +1359,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public void AssetOpIntent_OnTheBus_IsDrainedByTheMaster_C4()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         var id = Guid.NewGuid();
         bus.PublishManaged(new Fdp.Toolkit.Orchestration.AssetOpIntent { RequestId = id, Kind = "blueprint", NodeId = 1 });
         bus.SwapBuffers();

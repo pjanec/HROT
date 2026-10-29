@@ -130,6 +130,7 @@ namespace Hrot.ExCon
                 runNotRecorded:     () => _uiCache?.RunNotRecorded,   // ⭐ CE-4090 D14
                 recordLiveRunsOff:  () => _uiCache?.RecordLiveRunsOff,
                 armedMode:          () => _uiCache?.ArmedMode,   // ⭐ CE-3341 R-3068
+                clusterView:        () => _uiCache?.View,   // ⭐ CE-3344 R-3069 — the cache's cluster read model (an observer: no node id, so no in-sync clause)
                 unsavedCheck:       id => _uiCache?.UnsavedCheckOutcomeFor(id),   // ⭐ CE-4093 D20
                 scenarioDirty:      () => _uiCache?.LastUnsavedCheck?.Changed);
 

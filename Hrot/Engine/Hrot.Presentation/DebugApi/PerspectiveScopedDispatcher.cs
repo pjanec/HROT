@@ -304,6 +304,11 @@ public sealed class PerspectiveScopedDispatcher
     public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedModeAnyNode
         => Active()?.ArmedMode ?? _providers.Select(p => p.ArmedMode).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐⭐ CE-3344 (R-3069) — the cluster read model from the active node, else any node that keeps one (one cluster, one fact, as <see cref="ClusterStateAnyNode"/>): what the HTTP cluster routes' 409 gate reads.
+    /// <see langword="null"/> when no node here keeps one.</summary>
+    public Fdp.Toolkit.Orchestration.ClusterView? ClusterViewAnyNode
+        => Active()?.ClusterView ?? _providers.Select(p => p.ClusterView).FirstOrDefault(x => x is not null);
+
     public bool? RunNotRecordedAnyNode
         => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
 

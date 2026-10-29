@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Orchestration
         // NodeCapabilities descriptor, never on the per-tick heartbeat (§Q70-B).
         private string[] _capabilityTokens;
         private bool _capabilitiesPublished;
+        private bool _readyHeld;   // ⭐ CE-3344 — HoldReady() was called: the advert waits for MarkReady()
 
         private readonly List<IClusterStateHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
@@ -83,7 +84,7 @@ namespace Fdp.Toolkit.Orchestration
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
-            View = new ClusterView(eventBus);
+            View = new ClusterView(eventBus, nodeId);
         }
 
         // ── Test-only constructor ─────────────────────────────────────────────
@@ -101,8 +102,28 @@ namespace Fdp.Toolkit.Orchestration
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
-            View = new ClusterView(eventBus);
+            View = new ClusterView(eventBus, nodeId);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3344</c> (R-3069) — OPT-IN: this host is not ready at its first <see cref="Tick"/> (it still initialises after the slave started ticking), so the capability
+        /// advert — the node's explicit "I am ready" report, which the master's latch counts roles by — is held until <see cref="MarkReady"/>.
+        /// ⛔ No host calls it today (measured <c>2026-10-29</c>: every host's init finishes before its first Tick, so the default advert-on-first-Tick IS the ready report).
+        /// Must be called before the first <see cref="Tick"/>; a call after the advert went out throws.
+        /// </summary>
+        public void HoldReady()
+        {
+            if (_capabilitiesPublished)
+                throw new InvalidOperationException(
+                    $"[ClusterSlave] node {_nodeId}: HoldReady() after the capability advert went out (the first Tick) is too late — call it before the first Tick.");
+            _readyHeld = true;
+        }
+
+        /// <summary>⭐ <c>CE-3344</c> — this host's initialisation is done: releases the advert <see cref="HoldReady"/> held (it goes out on the next <see cref="Tick"/>). A no-op without a hold.</summary>
+        public void MarkReady() => _readyHeld = false;
+
+        /// <summary>⭐ <c>CE-3344</c> — <see cref="HoldReady"/> was called and <see cref="MarkReady"/> has not been: the node has not reported ready.</summary>
+        public bool IsReadyHeld => _readyHeld;
 
         /// <summary>The capability tokens this node advertises (or has advertised) at join.</summary>
         public IReadOnlyList<string> CapabilityTokens => _capabilityTokens;
@@ -196,7 +217,7 @@ namespace Fdp.Toolkit.Orchestration
         {
             // CE-285 (C-cap): advertise the static capability token set ONCE at join. Durable descriptor →
             // one publish is retained + delivered to the orchestrator and any late joiner (§Q70-B).
-            if (!_capabilitiesPublished && _eventBus != null)
+            if (!_capabilitiesPublished && !_readyHeld && _eventBus != null)
             {
                 _capabilitiesPublished = true;
                 _eventBus.PublishManaged(new NodeCapabilitiesEvent

@@ -150,6 +150,24 @@ namespace Hrot.Editor.DebugApi
             ("DELETE", "/entities/{networkId}"), ("POST", "/checkpoint"), ("POST", "/checkpoint/restore"),
         };
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) — <b>the CLUSTER routes</b>: those that change the cluster (a transition, play / stop / pause / step / time scale, the armed run mode, the run
+        /// settings, opening or leaving a scenario, a replay or a review, a checkpoint, a recording kept or discarded) plus every <see cref="WorldChangingRoutes"/> entry. They answer <b>409</b>
+        /// with the reason (<c>ClusterView.NotOperableReason</c>: <i>waiting for: Brain (CGF)</i>, Degraded, no master, this node not in sync) until <c>ClusterView.CanOperate</c> holds.
+        /// ⛔ Open on purpose: every GET (status, diagnostics, roster, inventory, state), selection / view / panels / assets, and <c>POST /cluster/cancel</c> — a cancel must ALWAYS work.
+        /// A rail asserts every one exists and that the exempt ones are not here.
+        /// </summary>
+        internal static readonly HashSet<(string Method, string Template)> ClusterGatedRoutes = new(WorldChangingRoutes)
+        {
+            ("POST", "/sim/play"), ("POST", "/sim/stop"), ("POST", "/sim/pause"), ("POST", "/sim/step"), ("POST", "/sim/timescale"),
+            ("POST", "/run-mode"), ("POST", "/run-settings"), ("POST", "/preview/enter"), ("POST", "/preview/exit"),
+            ("POST", "/scenario/load/edit"), ("POST", "/scenario/load/live"), ("POST", "/scenario/check-unsaved"),
+            ("POST", "/exercises/keep"), ("DELETE", "/exercises/{id}"),
+            ("POST", "/replay"), ("POST", "/replay/seek"), ("POST", "/review/seek"), ("POST", "/replay/stop"), ("POST", "/review"), ("POST", "/review/exit"),
+            ("POST", "/replay/axis"), ("POST", "/replay/loop"),
+            ("POST", "/cluster/transition"),
+        };
+
         private sealed record RouteEntry(
             string Method,
             string Template,
@@ -2469,6 +2487,17 @@ namespace Hrot.Editor.DebugApi
                 if (_service is null && entry.NeedsService)
                 {
                     await WriteResponseAsync(ctx, 503, new ApiResponse(false, Error: "Debug API not ready")).ConfigureAwait(false);
+                    return;
+                }
+
+                // ⭐⭐⭐ CE-3344 (R-3069) — a cluster that is not READY (a mandatory subsystem / role has not reported, Degraded, no master, this node not in sync) cannot be driven:
+                //   the cluster routes answer 409 with the ONE reason ClusterView carries (the same text the controls grey out with). ⛔ One gate here, before the handler — and BEFORE the
+                //   recording gate below, whose refusal presumes a working cluster. ⭐ cancel and every GET are not in the set.
+                if (ClusterGatedRoutes.Contains((method, entry.Template)) && _service?.ClusterNotOperableReason is { } notOperable)
+                {
+                    await WriteResponseAsync(ctx, 409, new ApiResponse(false,
+                        Data: new JsonObject { ["notOperable"] = notOperable },
+                        Error: $"The cluster is not operable yet: {notOperable}. Poll GET /status (canOperate, notOperable) or GET /cluster/roster; POST /cluster/cancel always works.")).ConfigureAwait(false);
                     return;
                 }
 

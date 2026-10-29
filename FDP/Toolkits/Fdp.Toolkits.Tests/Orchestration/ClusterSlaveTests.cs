@@ -804,4 +804,41 @@ public sealed class ClusterSlaveTests
         // Last CommitState wins
         Assert.Equal(5, slave.LocalStateIdForTest);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3344</c> (R-3069) — the capability advert (the node's explicit "I am ready" report) goes out on the FIRST <c>Tick</c> by default — and a host that called
+    /// <c>HoldReady()</c> before it sends the advert only after <c>MarkReady()</c>; <c>HoldReady()</c> after the advert is too late and throws.
+    /// 🔴 Mutations (each compiles): <c>Tick</c> ignoring <c>_readyHeld</c> ⇒ the held cell reds; <c>MarkReady</c> a no-op ⇒ the released cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3344_TheAdvertGoesOutOnTheFirstTick_UnlessTheHostHeldReadyUntilMarkReady()
+    {
+        static int Adverts(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<NodeCapabilitiesEvent>().Count(); }
+
+        var plainBus = new FdpEventBus();
+        using (var plain = new ClusterSlave(plainBus, nodeId: 1, subsystemName: "Plain"))
+        {
+            plain.Tick();
+            Assert.Equal(1, Adverts(plainBus));                 // today's behaviour: the first Tick IS the ready report
+            Assert.Throws<InvalidOperationException>(() => plain.HoldReady());   // too late: the advert is durable and went out
+        }
+
+        var bus = new FdpEventBus();
+        using var held = new ClusterSlave(bus, nodeId: 2, subsystemName: "Held");
+        held.HoldReady();
+        Assert.True(held.IsReadyHeld);
+        held.Tick(); held.Tick();
+        Assert.Equal(0, Adverts(bus));                          // the host is still initialising: no report
+
+        held.MarkReady();
+        Assert.False(held.IsReadyHeld);
+        held.Tick();
+        var advert = Assert.Single(ReadAdverts(bus));
+        Assert.Equal(2, advert.NodeId);
+
+        held.Tick();
+        Assert.Empty(ReadAdverts(bus));                         // once
+    }
+
+    private static List<NodeCapabilitiesEvent> ReadAdverts(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<NodeCapabilitiesEvent>().ToList(); }
 }

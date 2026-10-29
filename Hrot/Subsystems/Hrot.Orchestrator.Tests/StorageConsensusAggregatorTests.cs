@@ -17,6 +17,7 @@ public sealed class StorageConsensusAggregatorTests
 {
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
