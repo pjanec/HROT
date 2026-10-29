@@ -4286,7 +4286,7 @@ failed — the stale-restore trap, proved by the same rail passing on a clean wo
 | ⭐ **AI-debug command group** | ✅ **ALREADY A SHARED REGISTRAR** both hosts call — `AiDebugCommands.Register` *(`CE-059`)* |
 | ⭐ **the File/save/open toolbar + menu table** | ✅ **ALREADY ONE** — `CgfEditorShellToolbar` via `ShellCommandCoreBundle`, one registration list *(ruling 58)* |
 | ⚠⚠ **the toolbar TIME-CONTROL group** | 🔴 **STILL DUPLICATED** — the only real one left. See `H1` |
-| ⚠ **the STATUS-BAR time section** | ⛔ **NOT a duplicate to collapse:** different section classes and per-host ids *(`editor_time_controls` vs `cgf_time_controls`)*, and the editor's takes four host services CGF has no analogue for. ⭐ Left alone, deliberately |
+| ⚠ **the STATUS-BAR time section** | ⛔ **SUPERSEDED `2026-10-29` — REMOVED outright by CE-4083 (AQ108 D13, `Architect_Question_108_Run_Mode_Picker.md` §2.9); no host has one.** Was: **NOT a duplicate to collapse:** different section classes and per-host ids *(`editor_time_controls` vs `cgf_time_controls`)*, and the editor's takes four host services CGF has no analogue for. ⭐ Left alone, deliberately |
 
 #### 5c.8.2 ⭐ WHAT ACTUALLY REMAINS — two items, both small
 

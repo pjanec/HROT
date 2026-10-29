@@ -77,12 +77,62 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.Equal(RunArmed.Live, choice!.HostDefault);      // D12: CGF / the all-in-one / the server start in Live
             Assert.Equal(RunArmed.Live, choice.Armed);
             Assert.Null(choice.PlayDisabledReason);                // the session is passed: Live-armed ▶ is enabled
-            Assert.Contains(windows.MainToolbar.BuildViewModel(currentPerspective: "Scenario").Entries, e => e.Id == ShellTimeControlToolbar.EntryId);
+            AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "Scenario");   // ⭐ CE-4083 (AQ108 D13) — success conditions 1 + 2
         }
         finally
         {
             cgf.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4083</c> (AQ108 D13: "the picker exists once") — the WINDOWED editor: its toolbar carries the transport group and its status bar carries NO time control.
+    /// 🔴 Red-proof: re-register a <c>"editor_time_controls"</c> status-bar section in <c>EditorSubsystem.RegisterWindows</c> ⇒ the status-bar assertion reddens.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void TheWindowedEditor_HasTheTransportOnTheToolbar_AndNoTimeControlInTheStatusBar()
+    {
+        var editor = new EditorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = false });
+            var windows = MakeWindowManager();
+            editor.RegisterWindows(windows);
+            AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "Scenario");
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4083</c> — SimHost's ONLY time control used to be the status bar's; it now has the shared toolbar group. SimHost's windows need a real visualization, so this
+    /// composes the host's own <c>RegisterTimeTransport</c> (the one method <c>RegisterWindows</c> calls) over the facade the host builds.
+    /// 🔴 Red-proof: make <c>RegisterTimeTransport</c> a no-op (or re-register a status-bar section in it) ⇒ this reddens.
+    /// </summary>
+    [Fact]
+    public void SimHost_HasTheTransportOnTheToolbar_AndNoTimeControlInTheStatusBar()
+    {
+        var windows = MakeWindowManager();
+        var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(new FdpEventBus(), () => 0.0);
+        adapter.AttachRunChoice(RunArmed.Live, control: null);
+
+        Hrot.SimHost.SimHostSubsystem.RegisterTimeTransport(windows, adapter);
+
+        AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "SimHost");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ The two CE-4083 conditions on ONE composed window manager: (1) no status-bar section is a time control, (2) the host's toolbar carries <c>TimeControlGroup</c>.
+    /// ⚠ A time control is recognised by id (<c>*time*</c> / <c>*transport*</c>) — the bar has no richer seam than <c>SectionIds</c>.
+    /// </summary>
+    private static void AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(WindowManager windows, string perspective)
+    {
+        Assert.Contains(windows.MainToolbar.BuildViewModel(currentPerspective: perspective).Entries, e => e.Id == ShellTimeControlToolbar.EntryId);
+
+        var ids = windows.StatusBar.SectionIds;
+        Assert.DoesNotContain(ids, id => id.Contains("time", System.StringComparison.OrdinalIgnoreCase) || id.Contains("transport", System.StringComparison.OrdinalIgnoreCase));
     }
 
     private static int _domain;

@@ -3511,7 +3511,7 @@ namespace Hrot.Editor
                 // 🔴🔴 User: "it is fail in the value changing point - value does not change although
                 //    I do it when sim is paused." 📐 Measured: the two arms below see only the DEBUGGER.
                 //    The pause a designer actually presses is ITimeTransportFacade.TogglePlayPause
-                //    (MainToolbarTimeControlSection:42, ClusterTimeControlStatusBarSection:47), which
+                //    (MainToolbarTimeControlSection:42), which
                 //    sets the clock's TimeScale to 0 -- and NOTHING here asked the clock. ⇒ the panel
                 //    answered Running, TargetFor(Running) is Nowhere, and the dialog refused with
                 //    "only when the simulation is paused" WHILE IT WAS PAUSED.
@@ -5412,17 +5412,11 @@ namespace Hrot.Editor
             // ⭐ CE-484 — the operator's "Behaviour Faults" tab (red until looked at). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
             windowManager.MessageLogRegistry?.RegisterSource(Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared);
 
-            // ?? Time transport controls in status bar ?????????????????????????
+            // ── Time transport: the main toolbar's, and ONLY there ────────────────
+            // ⭐ CE-4083 (AQ108 D13) — the status bar carries NO time control any more ("the picker exists once").
             if (_previewController != null && _timeController != null && _world != null
                 && windowManager.MainToolbar != null)
             {
-                var timeControls = new TimeControlStatusBarSection(_timeTransport!);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "editor_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeControls.Render,
-                    perspective:    "Scenario");
-
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
                 // ⭐⭐ PHASE 2 SLICE ③ — these four lines were duplicated verbatim in CgfSubsystem and now
                 //    live once in `ShellTimeControlToolbar`. 📄 design §5c.8 H1.
