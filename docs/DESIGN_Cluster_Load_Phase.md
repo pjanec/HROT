@@ -1309,3 +1309,107 @@ header (the gateway wrote none for a scenario naming nothing, so the previous on
 | **R-3071** | ⭐⭐ **THE TKB IS LOADED BEFORE ANY SCENARIO LOAD OR SIMULATION START**; a test harness may treat "TKB loaded" as part of usable on the initial empty world | to be measured: where each host loads it, and whether a load can start before the join sync's copy lands (R-4018) |
 
 ⛔ Not part of either gate: the data a surface SHOWS (the scenario / recording lists) — each surface waits for its own arrival fact (`ClusterView.HasInventory`, `ClusterView.cs:60`) and says "waiting for the cluster's list…" rather than showing a false empty.
+
+### 11.1 INVENTORY — measured `2026-10-29` (read-only sweep: `search_code` + `search_graph` + grep over `Hrot/`, `FDP/`, `Stride/`; `docs/` then `.dev/`; ⚠ `check_index_coverage` unavailable through the CLI)
+
+| question | measured | where |
+|---|---|---|
+| does any host still initialize after its first `Tick`? | ⛔ **no** — every host's slave ticks only after `Initialize` returns; no `Task.Run` for terrain / TKB / catalogs at boot (the editor's 2 s blueprint instrumentation is not cluster work) | `EditorSubsystem.cs:1303,2387,2898` · `SimHostApp.cs:533,624` · `IgApplication.cs:1018,1146` · `CgfSubsystem.cs:1662` · `HrotNodeContext.cs:57-66` |
+| the ready report today | the capability advert on the slave's FIRST `Tick` (durable, kept for late joiners) + `LocalStateId` default 0 = Idle on every heartbeat | `ClusterSlave.cs:61,199-216` |
+| the latch | names only; roles only in the load wait; a lost role never degrades | `ClusterMaster.cs:681-690`, `ClusterMaster.Bootstrap.cs:100-127`, `ClusterMaster.cs:755-765` |
+| mandatory config | default names EMPTY, roles `Brain\|MuscleGround`; the editor alone: `ForOneNodeCluster` + `LocalRoles` ⇒ ready at once; no `orchestrator-config.json` in the repo | `ClusterConfiguration.cs:14,34,88-100`, `EditorSubsystem.cs:2426-2432` |
+| the TKB on a load | ⭐ **already R-3071 by construction**: every prefetch syncs the TKB and the load waits on the prefetch; the knowledge-base step precedes the scenario step; a staged-but-missing file throws ⇒ the load fails. The JOIN sync is fire-and-forget and nothing waits on it — the per-load sync covers it | `StorageGatewayModule.cs:387-389`, `AssetPrefetchProcessManager.cs:333-350`, `KnowledgeBaseLoadStep.cs:100`, `HrotUniversalLoadParts.cs:26` |
+| a load on a node | `LoadPhaseChain`: knowledge base → terrain (worker) → scenario; the `Operating*` prepare is HELD until every step `IsResolved`; one empty `InProgress` ack (P4) | `LoadPhaseChain.cs:172-350`, `ClusterSlave.cs:~493` |
+| 3-D map reload | ⛔ OUTSIDE the chain (a frame-thread rebuild) — not covered by the held prepare | AQ91 §4-B3, CE-4078 |
+| progress | none beyond the one empty `InProgress`; mgmt-1's "Step X of Y" was never built | `docs/designs/mgmt-1/DESIGN.md:633` |
+| loading UI | ⛔ none on any host; only the Orchestrator panel greys on `!IsBootstrapped \|\| HasFlight` | `ClusterScenarioPanel.cs:315,565-598` |
+| cancel | master-side only: held / parked / in-flight (`AbortTransaction` → round to Idle, R-4004), HTTP `POST /cluster/cancel`; ⛔ no node-initiated cancel, no UI cancel for a load; the node's `PrepareAsync` gets `default` as its token | `ClusterMaster.cs:2078-2112`, `ClusterSlave.cs:~423,523-592`, `LoadPhaseChain.cs:292` |
+| a failed load round | fails at once (CE-4103) but ⛔ the master stays at the target state — no return to Idle (AQ91 §4-H: *"cluster goes to the initial default state"*) | `ClusterMaster.cs:~2371` |
+| a node's failure reason | only in the node's log — the ack carries none | `ClusterSlave.cs:~289-305` |
+
+### 11.2 The design
+
+```mermaid
+classDiagram
+  class ClusterSlave {
+    +Tick() advert on first Tick = READY
+    +HoldReady() opt-in, async-init hosts
+    +MarkReady()
+    +CancelLoad(reason) NEW
+  }
+  class LoadPhaseChain {
+    +PrepareAsync(ct) real token NEW
+    +AbortLoad()
+    +CurrentStep : string NEW
+  }
+  class ClusterMaster {
+    -CheckBootstrapLatch() names AND roles
+    -EjectNode() name OR role lost ⇒ Degraded
+    -CompleteRound() failed load ⇒ round to Idle NEW
+  }
+  class ClusterStateTopic {
+    +State
+    +WaitingFor : string NEW
+  }
+  class ClusterView {
+    +CanOperate : bool NEW
+    +IsPlayReady : bool NEW
+    +WaitingFor : string NEW
+    +LoadProgress NEW
+  }
+  class DebugApiHost { cluster routes ⇒ 409 + WaitingFor }
+  class LoadingScreen { ui lane: progress + Cancel }
+  ClusterSlave --> LoadPhaseChain : prepares / aborts
+  ClusterSlave ..> ClusterMaster : advert, heartbeat, acks (+reason)
+  ClusterMaster ..> ClusterStateTopic : publishes
+  ClusterStateTopic ..> ClusterView : ClusterFactsIngress
+  ClusterView <-- DebugApiHost : reads
+  ClusterView <-- LoadingScreen : reads
+  LoadingScreen --> ClusterSlave : Cancel
+```
+*What the picture shows that prose hid: every gate reads ONE object (`ClusterView`); cancel goes to the host's OWN node, which fails its ack — the master learns it through the same round it already runs, no new op.*
+
+```mermaid
+sequenceDiagram
+  participant U as user (loading screen)
+  participant S as ClusterSlave (this node)
+  participant L as LoadPhaseChain
+  participant M as ClusterMaster
+  participant V as ClusterView (every node)
+  M->>S: PrepareLive / PrepareEdit (held)
+  S->>M: InProgress (step name)
+  M->>V: op status: loading, node N, step
+  U->>S: Cancel
+  S->>L: AbortLoad (token cancelled)
+  S->>M: Failure ack, reason "cancelled by user on node N"
+  M->>M: round fails now (CE-4103), drops owed acks
+  M->>S: round to Idle (every node)
+  M->>V: state Idle, op status Failure + reason
+```
+*The cancel needs no new master op: the node's failure IS the cancel, and the failed-round path ends in Idle.*
+
+```mermaid
+graph TD
+  subgraph every_host["every ECS host: HrotNodeContext.Tick each frame"]
+    T[ClusterSlave.Tick] --> V2[ClusterView.Update]
+    T --> D[LoadPhaseChain.DrainDeferredAcks]
+  end
+  subgraph master_host["the master's host each frame"]
+    MT[ClusterMaster.Tick] --> LT[CheckBootstrapLatch]
+    MT --> AK[ProcessAcks → CompleteRound]
+  end
+  V2 --> G1[DebugApiHost route gate]
+  V2 --> G2[run controls + loading screen, ui]
+  RB[Replay Browser: no slave, no master]:::dead
+  classDef dead fill:#fdd,stroke:#c00
+```
+*Red: the Replay Browser has no cluster at all — the gate does not apply there (it is offline by design).*
+
+| slice | what | lane |
+|---|---|---|
+| **R1** | latch = names AND roles; role loss ⇒ Degraded; `WaitingFor` on the cluster state; `ClusterView.CanOperate` (state followed ∧ not Degraded ∧ own node in sync ∧ master present); HTTP cluster routes 409 + `WaitingFor` (status/diagnostics stay open); `ClusterSlave.HoldReady/MarkReady` opt-in (no host needs it today — measured) | backend |
+| **R2** | `InProgress` acks carry the step name, re-sent when the step changes; `ClusterView.LoadProgress` + `IsPlayReady`; `ClusterSlave.CancelLoad` → real token, `AbortLoad`, Failure ack WITH a reason; the ack reason reaches the op status; a failed load round ⇒ round to Idle | backend |
+| **R3** | the 3-D map rebuild as a load-chain step on map hosts, so play-ready includes it (folds into CE-4078) | backend + ui |
+| **U1** | greyed controls + "waiting for …"; the loading screen with progress and Cancel; pickers "waiting for the cluster's list…" (`HasInventory`) | ui |
+
+⛔ **Rejected:** a new `Starting` cluster state on the wire (the advert already is the explicit report, and it already gates roles) · a master-side cancel op for the user (the node's own failure already reaches the master through the round) · waiting on the TKB join sync (the per-load sync already makes R-3071 hold).
