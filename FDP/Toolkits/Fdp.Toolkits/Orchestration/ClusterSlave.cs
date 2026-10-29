@@ -83,6 +83,7 @@ namespace Fdp.Toolkit.Orchestration
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
+            View = new ClusterView(eventBus);
         }
 
         // ── Test-only constructor ─────────────────────────────────────────────
@@ -100,6 +101,7 @@ namespace Fdp.Toolkit.Orchestration
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
+            View = new ClusterView(eventBus);
         }
 
         /// <summary>The capability tokens this node advertises (or has advertised) at join.</summary>
@@ -221,8 +223,8 @@ namespace Fdp.Toolkit.Orchestration
             }
 
             // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
+            View.Update();   // ⭐ CE-1436 — the ONE fold of the master's facts (state, inventory, session, op outcomes); the follow-fields below read it
             FollowClusterSession();
-            FollowInventory();
 
             // Poll tickable handlers for deferred ACKs.
             foreach (var handler in _handlers)
@@ -600,22 +602,26 @@ namespace Fdp.Toolkit.Orchestration
         public Guid FollowingSessionId => _followingSessionId;
         private Guid _followingSessionId;
 
-        /// <summary>The cluster state last announced by the master this node follows (<c>Idle</c> until one is seen).</summary>
-        private ClusterState _clusterState = ClusterState.Idle;
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-1436</c> (<c>R-3066</c>) — <b>this node's ONE cluster read model</b>: the master's state broadcast, inventory, replay session and op
+        /// outcomes, folded once. The follow-fields below DELEGATE to it (one owner); a host reads the rest (<see cref="ClusterView.UnsavedCheckOutcomeFor"/>,
+        /// <see cref="ClusterView.LastUnsavedCheck"/>, <see cref="ClusterView.ReplaySession"/>) from here. Drained by <see cref="Tick"/>.
+        /// </summary>
+        public ClusterView View { get; }
 
         /// <summary>
         /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the cluster state the master LAST ANNOUNCED to this node (a public read of what it already
         /// follows). ⚠ Not <see cref="LocalClusterState"/>: that is this node's own COMMITTED state, which stays <c>Idle</c> while the
         /// cluster is already loading — the start gate needs the CLUSTER's. Meaningful only when <see cref="HasFollowedState"/>.
         /// </summary>
-        public ClusterState FollowedClusterState => _clusterState;
+        public ClusterState FollowedClusterState => View.State;
 
         /// <summary>⭐ <c>CE-4096</c> — a real (non-MasterGone) broadcast has reached this node, so <see cref="FollowedClusterState"/> is a
         /// fact and not the <c>Idle</c> default of "no master seen yet".</summary>
-        public bool HasFollowedState { get; private set; }
+        public bool HasFollowedState => View.HasFollowedState;
 
         /// <summary>⭐ <c>CE-4096</c> — the master's last word was <c>MasterGone</c>: set by that broadcast, cleared by the next real one.</summary>
-        public bool MasterGone { get; private set; }
+        public bool MasterGone => View.MasterGone;
 
         /// <summary>
         /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — <b>is this node BEHIND its cluster?</b> It follows a master's session, it is in
@@ -626,7 +632,7 @@ namespace Fdp.Toolkit.Orchestration
         public bool IsJoinFrozen =>
             _followingSessionId != Guid.Empty
             && _localStateId == (int)ClusterState.Idle
-            && _clusterState != ClusterState.Idle;
+            && View.State != ClusterState.Idle;
 
         /// <summary>
         /// ⭐⭐ C2 — a DIFFERENT session id, or the master's cluster-state writer gone, means the world this node belonged to has
@@ -636,25 +642,18 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         /// <summary>⭐ R-3055 — the exercises the master can replay, as its last inventory said (DDS <c>AssetInventoryTopic</c>, through
         /// the node's slave translator); <see langword="null"/> until one arrives. The same read model on every node.</summary>
-        public System.Collections.Generic.IReadOnlyList<ExerciseInventoryItem>? KnownExercises { get; private set; }
+        public System.Collections.Generic.IReadOnlyList<ExerciseInventoryItem>? KnownExercises => View.HasInventory ? View.AvailableExercises : null;
 
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said (Sim until one
         /// arrives — the default). The same read model on every node.</summary>
-        public ReplayAxis ReplayAxis { get; private set; } = ReplayAxis.Sim;
+        public ReplayAxis ReplayAxis => View.ReplayAxis;
 
         /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast
         /// said (false until one arrives, and for a sender that does not set it). The same read model on every node.</summary>
-        public bool RunNotRecorded { get; private set; }
+        public bool RunNotRecorded => View.RunNotRecorded;
 
         /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said (false = ON, also before one arrives).</summary>
-        public bool RecordLiveRunsOff { get; private set; }
-
-        private void FollowInventory()
-        {
-            if (_eventBus == null) return;
-            foreach (var ev in _eventBus.ReadManaged<AssetInventoryUpdateEvent>())
-                KnownExercises = ev.LocalExercises ?? System.Array.Empty<ExerciseInventoryItem>();
-        }
+        public bool RecordLiveRunsOff => View.RecordLiveRunsOff;
 
         private void FollowClusterSession()
         {
@@ -667,16 +666,8 @@ namespace Fdp.Toolkit.Orchestration
                     if (_followingSessionId != Guid.Empty)
                         DropToIdle($"the master of session {_followingSessionId} is gone");
                     _followingSessionId = Guid.Empty;
-                    _clusterState = ClusterState.Idle;
-                    MasterGone = true;          // ⭐ CE-4096
-                    continue;
+                    continue;   // ⭐ CE-4096 — MasterGone / the state / the axis and flags are the VIEW's facts (View.Update folded this broadcast above)
                 }
-                MasterGone = false;             // ⭐ CE-4096 — the next real broadcast
-                HasFollowedState = true;
-                _clusterState = ev.CurrentState;
-                ReplayAxis    = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
-                RunNotRecorded = ev.RunNotRecorded;   // ⭐ CE-4090 D14
-                RecordLiveRunsOff = ev.RecordLiveRunsOff;
                 if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
                 if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
                     DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");
