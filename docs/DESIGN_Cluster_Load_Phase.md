@@ -1749,7 +1749,7 @@ ClusterTimeTransportAdapter` outside the factory and the Orchestrator.
 
 📌 Rails: `TheRunChoiceIsOnEveryHostTests.CE1445_TheConstructedIg_*` (S1) · `TheStartGateIsComposedOnceTests.CE1445_*` (S2, two) · `TheOneTimeFacadeTests.CE1445_ThePlayersWaitingScreen_*` (S3) — each red-proved by a compiling mutation.
 
-### 11.9 ⭐⭐ R3 — the 3-D map in the load: the PLAYER only; everyone else builds it in the background on the first switch *(ui, `2026-10-29`; R-1046; `build-state: DESIGN`)*
+### 11.9 ⭐⭐ R3 — the 3-D map in the load: the PLAYER only; everyone else builds it in the background on the first switch *(ui, `2026-10-29`; R-1046; `build-state: BUILT` (ui half) — §11.9a; the chain step is backend's)*
 
 🔒 **R-1046 (user, `2026-10-29`):** *"I think it is just the player node who needs to include the 3D map into the load chain. The other nodes like CGF and SimHost do not need to load 3D map. Actually, they should start in 2D map as now and load the map on the background when first request for map switching is received. that player-specific behavior needs to be just a parameter of a unified shared code as usual."*
 ⇒ ⛔ SUPERSEDES R3's *"on map hosts"* (AQ110 §4, CE-4078 extension): only a node whose role profile says so (the Player, §11.8's `NodeRunProfile`)
@@ -1799,3 +1799,16 @@ Two points the step relies on, owned by ui's builder:
 never to a map built for the previous scenario; ② **on a `MapInLoad` node the builder STARTS on the terrain commit** (not on a view switch), so the
 step has something to wait for; on every other node it starts on the first 2-D → 3-D request.
 
+
+#### 11.9a ✅ AS-BUILT `2026-10-29` (ui, `3821e0e08`) — the ui half of R-1046
+
+| §11.9 said | built | note |
+|---|---|---|
+| one shared builder, geometry on a worker, upload on the frame | ✅ `BackgroundMeshBuild<T>` (`FDP/Engine/Fdp.Presentation/Vis3D/BackgroundMeshBuild.cs`): a newer identity supersedes a pending one (dropped by generation), `Pump` uploads on the frame, a throwing build or upload reports `Failed` | `TerrainLayer3D` and `TrafficLayer3D` both on it (traffic's identity = net + ambient-ground toggle); neither builds in `Draw3D` any more |
+| `IMapBuildStatus` beside `ILoadProgressSource` | ✅ `Fdp.Toolkits/Orchestration/IMapBuildStatus.cs`; `Map3DBuild` (one per map, also a canvas layer so it runs in 2-D) implements it, PER LOAD (built = each layer's uploaded identity is its source's current one) | a node with NO source yet (no terrain) or no window reads `IsBuilt` = true ⇒ ⚠ **backend's step must come after the terrain commit in the chain** |
+| policy | ✅ `Map3DBuildPolicy.Eager` / `OnFirst3DRequest`; `NodeRunProfile.MapInLoad` (true for the IG) maps to it; `AttachMapLayers(policy)` returns it on `MapLayers.Map3D` | the IG pumps its build itself each `Update` — its canvas update is gated on map ownership and on ImGui not capturing the mouse, and the waiting screen's modal captures it |
+| the switch waits in 2-D | ✅ `MapViewSwitch.Build` / `Pending3D` / `Pending3DFailure`; a request on an unbuilt map starts the build and stays 2-D, completes into 3-D when built; back to 2-D cancels; `MapStatsOverlay` shows *Building 3-D map…* | ⚠ applies to every `Set(true)` — Film, possession and follow wait too on the first 3-D use |
+| where backend reads it | `IgSubsystem.MapBuildStatus` → `IgApplication`'s `Map3DBuild` | the other hosts discard `MapLayers.Map3D` (they need no step) |
+
+⚠ **Found, not built:** `TerrainPicker.Build` (`Fdp.Presentation/Vis3D/Picking.cs:144-175`) is a third heavy frame-thread build (the whole terrain mesh + grid, on the first 3-D pick) · `TerrainWorldQuery.BuildTagged` builds the terrain mesh twice (`:166-170`) · the director's ready probe does not wait for the map (a take could start while it builds). The `TerrainWorld` read off-thread is safe: init-only properties (`TerrainWorld.cs:90-117`) + a pure static `TerrainWorldMesh.Build`.
+📌 Rails: `Map3DTests` (the helper off-thread, superseded never uploaded, failure; `Map3DBuild` per load + policy; the switch waits) · `TheRunChoiceIsOnEveryHostTests` (the constructed IG: `MapInLoad`, an Eager map, the status reachable) · `EveryMapHostAttachesTheSharedLayersTests` (only the IG passes a policy) — each red-proved.
