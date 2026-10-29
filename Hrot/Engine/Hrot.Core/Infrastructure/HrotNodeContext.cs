@@ -198,11 +198,10 @@ public sealed record HrotNodeContext : IDisposable
         //   (the world is put to the review's moment while this node still reads OperatingLive: MEASURED on the real editor, 314 → 299 → the index reset to one frame) and AFTER it on return. The index is frozen throughout.
         bool reviewInFlight = ReviewInFlightForTest?.Invoke()
             ?? (_reviewHandler ??= ClusterSlave.RegisteredHandlers.OfType<Fdp.Toolkit.Orchestration.Handlers.ReferenceReviewHandler>().FirstOrDefault())?.InReview == true;
-        if (reviewInFlight) _timelineAfterReview = true;
+        if (reviewInFlight) _timelineAfterReview = true;   // ⭐ entering a DAR: the world is rewound under a state that still says live — the hold below keeps the index (no step, no reset)
         if (Fdp.Toolkit.Orchestration.ClusterStates.IsReview(state)) _timelineAfterReview = true;
         else if (state == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)
         {
-            if (reviewInFlight) { _timelineState = state; return; }   // ⭐ CE-1448 — entering a DAR: the world is rewound under a state that still says live — no step, no reset
             if (_timelineState != Fdp.Toolkit.Orchestration.ClusterState.OperatingLive && !_timelineAfterReview) Timeline.Reset(World);
             // ⭐ CE-1448 — the state flips to OperatingLive when the review's world is put back, but the master returns the clock to the live point only a few frames later. MEASURED (the DAR rails): the first live
             //   steps still read this node's own last frame (== the index's last), then the clock snaps back to L (a few frames BEHIND it), then climbs — and the snap-back looked like a rewind and reset the index
