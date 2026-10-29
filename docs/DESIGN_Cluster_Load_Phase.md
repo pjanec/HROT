@@ -1661,7 +1661,7 @@ choice; a later slice with the admission policy (R4).
 
 *Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.
 
-### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: READY-TO-BUILD`; CE-1445; R-1044)*
+### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: BUILT` — §11.8a; CE-1445; R-1044)*
 
 🔒 **R-1044 (user, `2026-10-29`):** *"The ECS host should be unified, but they should be configurable. So without explicit suppressing some controls, they need to have all of them, because by construction they cannot avoid them, because they are using shared code for Bootstrap. The player node might look differently But just because it is parameterizing its bootstrap code to honor its player role, like for example showing the waiting in the lobby screen."* · ExCon is to be retired and is not an ECS host — ⛔ not touched.
 
@@ -1735,6 +1735,19 @@ sequenceDiagram
 the source · S2 a player-only process composes the screen + error section once, Player policy · S3 Player: shown in the lobby (closed, not
 loading) with the reason; hidden when play-ready; no Cancel · S4 operator behaviour unchanged (`CE1442_*` rails) · S5 no `new
 ClusterTimeTransportAdapter` outside the factory and the Orchestrator.
+
+#### 11.8a ✅ AS-BUILT `2026-10-29` (ui, `0df1b7d11`) — CE-1445
+
+| §11.8 said | built | why |
+|---|---|---|
+| `NodeRunControls.For(HrotNodeContext, NodeRunProfile)` | ✅ `Hrot.Presentation/RunMode/NodeRunControls.cs` + a second overload `For(bus, view, simTime, cancelLoad, profile)` that the node overload delegates to (ONE place builds the adapter) | SimHost's static rail builder has a bus, no node context |
+| the profile | ✅ `NodeRunProfile(Kind, Control, UnsavedReads, SuppressTimeControl)`; a Player profile drops `cancelLoad` | — |
+| CGF, SimHost, editor use it | ✅ no `new ClusterTimeTransportAdapter` left in them; ⚠ **a FIFTH copy found: `StrideNodeShell.cs:740`** (no run choice at all) — CE-1449, needs a Windows build | — |
+| the IG offers run controls | ✅ `IgSubsystem : IProvidesRunControls`, built in `IgApplication` after `BootstrapNode`; the IG pumps the adapter each frame; its debug provider still has no drive (Q54/D4) | — |
+| the composer | ✅ toolbar only when `!SuppressTimeControl`; `LoadingScreen` gets the owner's policy; with no operator a non-Player host is preferred (every existing process keeps its owner) | — |
+| the player's screen | ✅ visible whenever the gate is closed — including cluster ERROR (then it shows the reason beside the red error section); `CanCancel` false | kept on purpose: a player in an erroring cluster can do nothing either |
+
+📌 Rails: `TheRunChoiceIsOnEveryHostTests.CE1445_TheConstructedIg_*` (S1) · `TheStartGateIsComposedOnceTests.CE1445_*` (S2, two) · `TheOneTimeFacadeTests.CE1445_ThePlayersWaitingScreen_*` (S3) — each red-proved by a compiling mutation.
 
 ### 11.9 ⭐⭐ R3 — the 3-D map in the load: the PLAYER only; everyone else builds it in the background on the first switch *(ui, `2026-10-29`; R-1046; `build-state: DESIGN`)*
 
