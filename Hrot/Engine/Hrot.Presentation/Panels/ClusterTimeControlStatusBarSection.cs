@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 using ImGuiNET;
 
 namespace Hrot.UI.Common.Panels;
@@ -42,19 +43,19 @@ public sealed class ClusterTimeControlStatusBarSection
         bool showPlay = isPaused;
         if (TransportIcons.DrawTransportButton("##tc_pp", iconSize,
                 showPlay ? TransportIcons.BtnShape.Play : TransportIcons.BtnShape.Pause,
-                enabled: _facade.IsPlayPauseEnabled))
+                enabled: _facade.IsUserPlayEnabled()))
         {
-            _facade.TogglePlayPause();
+            _facade.UserPlayPause();
         }
 
         ImGui.SameLine();
 
         // ── [Step] — enabled only when paused ────────────────────────────
         if (TransportIcons.DrawTransportButton("##tc_step", iconSize,
-                TransportIcons.BtnShape.Step, enabled: _facade.IsStepEnabled)
-            && _facade.IsStepEnabled)
+                TransportIcons.BtnShape.Step, enabled: _facade.IsUserStepEnabled())
+            && _facade.IsUserStepEnabled())
         {
-            _facade.Step();
+            _facade.UserStep();
         }
 
         ImGui.SameLine();

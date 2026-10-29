@@ -6,6 +6,7 @@ using Fdp.Presentation.Panels.Timeline;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.UI.Common.Adapters;
 
@@ -86,7 +87,7 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
 
     /// <summary>⭐ The ONE wall → facade conversion (Seek and SetLoop share it): Sim = sim seconds through the session's map; Wall (or a map-less
     /// v6 session) = seconds after the session's zero.</summary>
-    private static double ToFacadeAxis(ITimeTransportFacade f, ReplaySession s, long wallTicks)
+    internal static double ToFacadeAxis(ITimeTransportFacade f, ReplaySession s, long wallTicks)
         => f.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
             ? map.SimAt(wallTicks)
             : (wallTicks - s.ZeroWallTicks) / (double)Tps;
@@ -136,6 +137,41 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
         f.EnterReviewAtSim(index.FrameSim[index.FrameAt(wallTicks)]);   // the frame at / before the click
     }
 
+    // ── ⭐ CE-4097 part two (AQ108 D21) — the run-mode items at the clicked moment, through the host's ONE run choice; none asks ───────────
+
+    /// <summary>
+    /// In Live: <i>AAR from here</i> (ends the live run; its recording opens at that frame's sim time — the same column <see cref="EnterReview"/> reads). In an AAR: <i>Go live from here</i>
+    /// (seek, then the built branch). In any run: <i>Take checkpoint here</i> — ⚠ a checkpoint is a keyframe of the LIVE recorder, so it exists only at the live edge (Live); a past moment,
+    /// a DAR and an AAR show the item greyed with the reason. The DAR item of Live is the panel's own (<see cref="EnterReview"/>).
+    /// </summary>
+    public IEnumerable<TimelineMenuItem> ModeMenuItems(long wallTicks, string time)
+    {
+        if (_facade() is not { RunChoice: { } choice }) yield break;
+        var mode = Mode;
+        if (mode == TimelineMode.Live)
+        {
+            var index = Index;
+            bool hasSim = CanReview;   // the live index carries a sim column
+            var why = choice.AarFromHereDisabledReason ?? (hasSim ? null : "the timeline has no sim time yet");
+            yield return new TimelineMenuItem(Label($"AAR from {time}", why),
+                () => { if (CanReview) choice.AarFromHere(index.FrameSim[index.FrameAt(wallTicks)]); }, why is null);
+        }
+        if (mode == TimelineMode.Replay)
+        {
+            var why = choice.GoLiveFromHereDisabledReason;
+            yield return new TimelineMenuItem(Label($"Go live from {time}", why), () => choice.GoLiveFromHere(() => Seek(wallTicks)), why is null);
+        }
+        if (mode is TimelineMode.Live or TimelineMode.Review or TimelineMode.Replay)
+        {
+            var why = choice.CheckpointDisabledReason
+                      ?? (mode == TimelineMode.Live && Math.Abs(wallTicks - Now) > Tps ? "a checkpoint captures the live state now — click the live edge" : null)
+                      ?? (mode == TimelineMode.Review ? "go back to live to take one" : null);
+            yield return new TimelineMenuItem(Label("Take checkpoint here", why), choice.TakeCheckpoint, why is null);
+        }
+    }
+
+    private static string Label(string label, string? disabledReason) => disabledReason is null ? label : $"{label} — {disabledReason}";
+
     public long? LivePoint => ActiveSession is { IsReview: true, LivePointSeconds: { } l } s ? s.ZeroWallTicks + (long)Math.Round(l * Tps) : null;
 
     public IReadOnlyList<CheckpointMark> Checkpoints => ActiveSession?.Checkpoints ?? Array.Empty<CheckpointMark>();
@@ -183,8 +219,8 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
     // ── play / pause: the facade's ─────────────────────────────────────────────────────────────────────────────
 
     public bool IsPlaying => _facade() is { IsPaused: false };
-    public bool CanPlay => _facade() is { IsPlayPauseEnabled: true };
-    public void TogglePlay() { if (_facade() is { IsPlayPauseEnabled: true } f) f.TogglePlayPause(); }
+    public bool CanPlay => _facade()?.IsUserPlayEnabled() == true;   // ⭐ CE-4097 part two (D22): Space is a USER control — from Edit it is the armed mode's ▶
+    public void TogglePlay() => _facade()?.UserPlayPause();
 
     private static long[] ToArray(IReadOnlyList<long> list)
     {

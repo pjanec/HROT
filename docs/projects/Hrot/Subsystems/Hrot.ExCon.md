@@ -1,5 +1,9 @@
 # Hrot.ExCon
 
+> ⛔ **Retirement proposed (`2026-10-29`, user):** [`Architect_Question_109_Retire_ExCon.md`](../../../blueprints/Architect_Question_109_Retire_ExCon.md) — the load-bearing reason (IG as a remote 2-D map) is gone; this page describes the node as it was.
+>
+> ⭐ **Related design:** [`DESIGN_Cluster_View.md`](../../../DESIGN_Cluster_View.md) (CE-1436) — one cluster-facts ingress and one `ClusterView` on every node; this project's observer keeps only the monitoring topics (V2).
+
 **Project path:** `Hrot/Subsystems/Hrot.ExCon/Hrot.ExCon.csproj`
 **Date:** 2026-05-23
 

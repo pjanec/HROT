@@ -108,7 +108,8 @@ public class WindowManager
         //    GlobalMenu would have produced a SECOND top-level menu with the same name, side by side.
         // ⇒ ⭐ this item moves into GlobalMenu (route, don't duplicate) so `Settings` is ONE menu that
         //    hosts can extend — which is what the layout items now do.
-        GlobalMenu.RegisterItem("Settings/UI Scale & Fonts…", () => _openSettingsModal = true);
+        //    ⭐ CE-4085: Settings is a SUBMENU of View (View ▸ Settings ▸ …), not a top-level menu — ⛔ SUPERSEDED: the top-level Settings.
+        GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/UI Scale & Fonts…", () => _openSettingsModal = true);
 
         // ⭐⭐ CE-1243 MB-3 (docs/UX/UX_Feature_Menu_Follows_Focus.md §MB) — the shell's own per-frame menus are CONTRIBUTORS of the one
         //    menu tree, drawn by the same walk and the same rows as every registered item. ⛔ SUPERSEDED: RenderPerspectiveMenu (a
@@ -116,6 +117,8 @@ public class WindowManager
         GlobalMenu.RegisterContributor("wm/perspective", () => OnlyIfAny(PerspectiveMenuDto()), OnPerspectiveMenuAction);
         GlobalMenu.RegisterContributor("wm/windows",     () => OnlyIfAny(WindowsMenuDto()),     HandleHostMenuAction);
         GlobalMenu.RegisterContributor("wm/help",        () => new[] { HelpMenuDto() },        HandleHostMenuAction);
+        // ⭐⭐ CE-4096 (AQ108 D16) — while Start shows, the bar's model holds only items marked allowed-in-Idle (one visibility test, GlobalMenu.Offers).
+        GlobalMenu.IdleOnlyWhen = () => IsStartShowing;
     }
 
     /// <summary>The icon atlas supplied at construction time.</summary>
@@ -397,10 +400,18 @@ public class WindowManager
     /// </summary>
     public IReadOnlyList<(string Perspective, bool IsChecked)> BuildPerspectiveMenuModel()
     {
-        return GetPerspectives()
+        return GetSelectablePerspectives()
             .Select(p => (p, IsPerspectiveActive(p)))
             .ToList();
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4096</c> — the perspectives a USER may pick (the menu and the toolbar): <see cref="GetPerspectives"/> without
+    /// <see cref="StartPerspectiveName"/>, which only the start gate enters. ⛔ <see cref="GetPerspectives"/> itself still lists Start —
+    /// <c>A0</c> needs the full claimed set.
+    /// </summary>
+    public IReadOnlyList<string> GetSelectablePerspectives()
+        => GetPerspectives().Where(p => p != StartPerspectiveName).ToList();
 
     /// <summary>
     /// Selects a perspective via <see cref="SwitchPerspective"/>.
@@ -707,8 +718,11 @@ public class WindowManager
             //    deliberate departure from the usual publish-inside-the-draw rule.
             _mainToolbar.PublishSnapshot(CurrentPerspective);
 
-            if (_mainToolbar.Height > 0f)
+            if (_mainToolbar.Height > 0f && !IsStartShowing)   // ⭐ CE-4096: Start shows no toolbar (no panels, only the Idle-allowed menu items)
                 _mainToolbar.RenderInline(CurrentPerspective);
+
+            // ⭐ CE-4085: Help (the right-aligned menu) is drawn LAST, flush with the bar's right edge, after the toolbar.
+            RenderMenuBar(contributions, rightAligned: true);
 
             Gui.EndMainMenuBar();
         }
@@ -757,6 +771,11 @@ public class WindowManager
                 continue;
             }
 
+            // ⭐⭐ CE-4096 (AQ108 D16) — "no panels": Global-scope and pinned windows draw in EVERY perspective (ManagedWindow.Render's gate), so
+            //    Start must hide them explicitly. Measured: ManagedWindow.Render shows `Scope == Global || IsPinned || owner == current`.
+            //    ⭐ A VOLATILE window is a dialog spawned on demand (a file picker, a confirm) and still draws.
+            if (IsStartShowing && !win.IsVolatile && win.OwningPerspective != StartPerspectiveName) continue;
+
             win.Render(CurrentPerspective, _atlas);
         }
 
@@ -792,13 +811,24 @@ public class WindowManager
     /// ⭐⭐ <c>CE-1243</c> MB-3 — the bar: every top-level menu (<see cref="GlobalMenuRegistry.BarMenus"/>) as ONE menu, its tree items
     /// first, then each contributor's items under the same label. Rows are <see cref="GizmoMap.Presentation.MenuRows"/>'.
     /// </summary>
-    private void RenderMenuBar(IReadOnlyList<MenuContribution> contributions)
+    private void RenderMenuBar(IReadOnlyList<MenuContribution> contributions, bool rightAligned = false)
     {
         var bar = GlobalMenu.BarMenus(contributions);
         bool reserveTop = MenuIcons != null && bar.Any(m => !string.IsNullOrEmpty(TopIcon(m)));
         foreach (var menu in bar)
         {
-            bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : n.ResolveBinding(CurrentPerspective) != null);
+            // ⭐ CE-4085: two passes over the ONE bar — the left-flowing menus, then (after the toolbar) the right-aligned one (Help).
+            if (menu.RightAligned != rightAligned) continue;
+            if (rightAligned)
+            {
+                // Flush with the bar's right edge, but never over what is already drawn (a narrow window keeps the flow position).
+                float width = Gui.CalcTextSize(menu.Name).X + Gui.GetStyle().FramePadding.X * 2f
+                              + (MenuIcons != null && !string.IsNullOrEmpty(TopIcon(menu)) ? Gui.GetFrameHeight() : 0f);
+                float x = System.Math.Max(Gui.GetCursorPosX(), Gui.GetWindowWidth() - Gui.GetStyle().WindowPadding.X - width);
+                Gui.SameLine();
+                Gui.SetCursorPosX(x);
+            }
+            bool treeShows = menu.Node is { } n && (n.Children.Count > 0 ? HasVisibleDescendant(n) : GlobalMenu.Offers(n, CurrentPerspective));
             if (!treeShows && menu.Parts.Count == 0) continue;   // ⛔ UXI-05: no dead headers
 
             bool isLeaf = (menu.Node == null || menu.Node.Children.Count == 0)
@@ -840,7 +870,7 @@ public class WindowManager
         if (child.IsSeparator)
         {
             // ⭐ UXI-05: a separator scoped to another perspective is skipped with its group.
-            if (child.ResolveBinding(CurrentPerspective) == null) return;
+            if (child.ResolveBinding(CurrentPerspective) == null || GlobalMenu.IdleOnly) return;   // ⭐ CE-4096: no separators in the Idle-only bar
             Gui.Separator();
             return;
         }
@@ -860,7 +890,7 @@ public class WindowManager
 
         // ⚠ Read from CurrentPerspective at DRAW time, never cached — the whole feature is that it changes when focus does.
         var binding = child.ResolveBinding(CurrentPerspective);
-        if (binding == null) return;
+        if (binding == null || !GlobalMenu.Offers(child, CurrentPerspective)) return;   // ⭐ CE-4096: Offers = the binding AND (in Start) allowed-in-Idle
         bool enabled = child.GetEnabled?.Invoke() ?? true;
 
         if (binding.GetChecked != null && binding.OnCheckedChanged != null)
@@ -899,7 +929,7 @@ public class WindowManager
                 continue;
             }
 
-            if (child.ResolveBinding(CurrentPerspective) != null) return true;
+            if (GlobalMenu.Offers(child, CurrentPerspective)) return true;
         }
         return false;
     }
@@ -1005,7 +1035,7 @@ public class WindowManager
             Icon = "status/info",
             Children = new[]
             {
-                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info" }
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info", AllowedInIdle = true }   // ⭐ CE-4096: Help stays in Idle
             }
         };
 
@@ -1021,7 +1051,9 @@ public class WindowManager
     private Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto PerspectiveMenuDto()
     {
         _perspectiveMenuModel = BuildPerspectiveMenuModel();
-        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        // ⭐ CE-4085: a "Perspective" SUBMENU contributed under the top-level "View" (merged into the one View menu by BarMenus).
+        //    An empty switcher contributes nothing (no dead header) — see OnlyIfAny.
+        var submenu = new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
             Label = GlobalMenuRegistry.PerspectiveMenu,
             Children = _perspectiveMenuModel.Select((e, i) => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
@@ -1029,6 +1061,11 @@ public class WindowManager
                 Id = PerspectiveActionBase - i, Label = GetPerspectiveLabel(e.Perspective), IsChecked = e.IsChecked,
                 Icon = GetPerspectiveIconKey(e.Perspective),
             }).ToArray(),
+        };
+        return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        {
+            Label = "View",
+            Children = submenu.Children is { Length: > 0 } ? new[] { submenu } : Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>(),
         };
     }
 

@@ -344,6 +344,78 @@ public sealed class HrotNodeBuilderTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V5) — the ONE ECS-node provider reads the node's ONE cluster view for the unsaved-changes check, on the host
+    /// families CGF (Brain), SimHost (Muscle|Perception|Navigation) and IG (Map2D): <c>ObservesUnsavedChecks</c> is true by construction (it was false on
+    /// all three — ▶ asked no round), and a round the master answered reaches <c>UnsavedCheck(requestId)</c> and <c>ScenarioDirty</c> through the node's own
+    /// tick; leaving editing drops the verdict. 🔴 Mutation: the factory's <c>unsavedCheck:</c> argument removed ⇒ <c>ObservesUnsavedChecks</c> false ⇒
+    /// the first assertion fails; <c>scenarioDirty:</c> returning null ⇒ the verdict assertion fails.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Core.NodeRole.Brain, 93)]
+    [InlineData(Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver, 92)]
+    [InlineData(Fdp.Core.NodeRole.Map2D, 91)]
+    public void CE1436_Node_TheEcsNodeDebugProvider_ObservesTheCheckRound_OnEveryHostFamily(Fdp.Core.NodeRole role, int nodeId)
+    {
+        using var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", role).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        var round = Guid.NewGuid();
+        void Hear<T>(T ev) { ctx.EventBus.PublishManaged(ev); ctx.EventBus.SwapBuffers(); ctx.ClusterSlave.Tick(); }
+
+        Assert.True(provider.ObservesUnsavedChecks);
+        Assert.Null(provider.UnsavedCheck(round));                                    // not answered yet
+        Assert.Null(provider.ScenarioDirty);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+        Hear(new Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent
+        {
+            RequestId = round, StatusCode = Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success,
+            ResultPayload = new Fdp.Toolkit.Orchestration.UnsavedCheckResult(true, new[] { 3 }),
+        });
+
+        Assert.True(provider.UnsavedCheck(round)!.Result!.Changed);                   // ⭐ the master's answer, read off THIS node
+        Assert.True(provider.ScenarioDirty);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Assert.Null(provider.ScenarioDirty);                                          // the scenario is no longer open
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the ONE ECS-node provider answers the start gate's input through the node's <c>ClusterSlave</c>, on every
+    /// node (CGF, SimHost, IG, Traffic all go through it): <c>FollowedClusterState</c> is null until a master is heard, then the CLUSTER's state
+    /// (while the node's own committed <c>ClusterState</c> is still Idle), and <c>MasterGone</c> follows the MasterGone broadcast.
+    /// 🔴 Red-proof: <c>followedClusterState:</c> returning null behind a runtime-false guard ⇒ the follow assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE4096_Node_TheEcsNodeDebugProvider_ReportsTheFollowedClusterState_AndMasterGone()
+    {
+        using var ctx = InitialisedNode(94);
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        void Hear(Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent ev)
+        {
+            ctx.EventBus.PublishManaged(ev);
+            ctx.EventBus.SwapBuffers();
+            ctx.ClusterSlave.Tick();
+        }
+
+        Assert.Null(provider.FollowedClusterState);                                   // no master heard: distinguishable from Idle
+        Assert.False(provider.MasterGone);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, SessionId = Guid.NewGuid() });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, provider.FollowedClusterState);   // ⭐ the cluster's …
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, provider.ClusterState);                    // … not the node's own commit
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(provider.MasterGone);
+
+        HrotNodeContext? none = null;                                                 // before Initialize / after Shutdown: nothing, no throw
+        var gone = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => none);
+        Assert.Null(gone.FollowedClusterState);
+        Assert.False(gone.MasterGone);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> — a host with its OWN frame (the editor) steps the node's timeline through <see cref="HrotNodeContext.StepTimeline"/>, with
     /// no <c>Tick</c>: the entity that gained a network id is indexed into <c>ctx.Timeline</c>, and the access every host serves
     /// (<c>EcsNodeDebugProvider.TimelineOf</c>) is the SAME for the context and reads that same source.

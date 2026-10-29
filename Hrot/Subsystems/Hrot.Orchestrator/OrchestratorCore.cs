@@ -45,6 +45,12 @@ public sealed class OrchestratorCoreOptions
     /// <summary>⭐⭐ P6 part 2 (Q91 §4-E2) — the DDS file transport for nodes that advertised no share; null = share only (today).</summary>
     public Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? DdsTransfer { get; init; }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1436</c> — the cluster read model of the host's node, when the host is also an ECS node on THIS bus (the editor): its <c>ClusterSlave.View</c>,
+    /// so the core's <see cref="ClusterUiCache"/> and the node share ONE set of facts. Null (the orchestrator, which runs no node) ⇒ the cache builds its own.
+    /// </summary>
+    public Fdp.Toolkit.Orchestration.ClusterView? View { get; init; }
+
     /// <summary>The file dialog the diagnostics panel opens.</summary>
     public required Fdp.Presentation.Abstractions.IFileDialogService FileDialogService { get; init; }
 }
@@ -100,7 +106,7 @@ public sealed class OrchestratorCore : IDisposable
         //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11.
         _master.IdAuthority = o.IdAuthority;
 
-        UiCache       = new ClusterUiCache(bus, o.TimeReads);
+        UiCache       = new ClusterUiCache(bus, o.TimeReads, o.View);
         // ⭐ R-3055 — the master resolves a replay that names no exercise; the newest finished one is in the core's inventory read model
         _master.NewestExercise = () => UiCache.AvailableExercises.Length == 0
             ? null

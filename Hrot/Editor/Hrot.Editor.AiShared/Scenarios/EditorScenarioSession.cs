@@ -31,8 +31,11 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// *"Uniform in every host — there is no editor-only live-load driver to prefer."* ⇒ the asymmetry is
 /// the design, not an oversight; each node's own live-load handler does its own clearing.</para>
 /// </summary>
-public sealed class EditorScenarioSession : IScenarioSession
+public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.RunMode.ISaveInterception
 {
+    /// <inheritdoc/>
+    public Func<bool>? SaveIntercept { get; set; }
+
     /// <summary>The file name every scenario directory stores its world under.</summary>
     public const string ScenarioFileName = "scenario.json";
 
@@ -178,8 +181,27 @@ public sealed class EditorScenarioSession : IScenarioSession
     }
 
     /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId) => OpenRecording(exerciseId, null);
+
+    /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId, double? atSimSeconds)
+    {
+        if (exerciseId == Guid.Empty) return;   // ⭐ Empty means "the master picks" on the wire; an Open-Recording pick always names one
+        _leaveRun?.Invoke();
+        // A queued scenario load would otherwise fire after the replay request and undo it.
+        _loads.Cancel();
+        // ⭐ CE-4098 — the ONE construction of the replay intent (POST /replay {exerciseId} and the orchestrator's Load Replay end in it);
+        //   the master plans the unload + the replay from ANY state in one request, so there is no Idle hop here. ⭐ CE-4097 part two (D21): at a moment
+        //   of the recording's own sim clock when the timeline's "AAR from here" names one (the sim target wins on either axis); null = its start.
+        _orchestrationBus.PublishManaged(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(exerciseId, simSeconds: atSimSeconds));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ <c>CE-4097</c> part two (AQ108 D8, D22) — in a Live / DAR / AAR run a run choice (<see cref="SaveIntercept"/>) turns a Save into a checkpoint and the
+    /// scenario is NEVER written. Every user save path ends here (File › Save, Ctrl+S, the toolbar); HTTP <c>POST /scenario/save</c> is explicit and 409s in those states.</remarks>
     public void SaveCurrent()
     {
+        if (SaveIntercept?.Invoke() == true) return;
         if (string.IsNullOrEmpty(_loadedScenarioName)) return;
         PublishScenarioSave(_loadedScenarioName!);
     }

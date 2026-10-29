@@ -39,7 +39,7 @@ public sealed class TakeStore
 
     /// <param name="scenarioHash">⭐ <c>CE-1303</c> P2a (docs/DESIGN_Director_Timeline_Editor.md §11m D8) — where a scenario's hash comes from when
     /// this store holds no scenario file: the Replay Browser's store sits BESIDE A RECORDING (TE-1), whose meta names the scenario's hash
-    /// (<c>RecordingMetadata.ScenarioHash</c>, the one rule <c>ScenarioDescription.HashOf</c>). Null, or a null answer: the file under the root.</param>
+    /// (⭐ CE-3340 ② — the version that RAN: <c>RecordedScenarioStamp.VersionOf</c>, the go-live stamp of the recording's copy, the meta's load-time hash only as its fallback; the one rule <c>ScenarioDescription.HashOf</c>). Null, or a null answer: the file under the root.</param>
     /// <param name="scenarioTakes">⭐ <c>CE-1304</c> P4 (docs/DESIGN_Director_Timeline_Editor.md §11s D7; TE-1 "the reverse needs no operation") — a store BESIDE A
     /// RECORDING also shows its scenario's OWN takes (a promoted take plays on every later recording of it): read where this store has no take of that
     /// name; ⛔ never written — a save writes beside the recording (an adjustment on a recording is a recording take until promoted).</param>

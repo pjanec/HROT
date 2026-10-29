@@ -171,8 +171,17 @@ namespace Hrot.Editor
     /// </summary>
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Fdp.Toolkit.Runner.IWindowTitleSource,
-        Hrot.Common.EntityCreation.IEntityCreationHost
+        Hrot.Common.EntityCreation.IEntityCreationHost,
+        Fdp.Presentation.WindowManager.IClusterRestSource
     {
+        /// <summary>
+        /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
+        /// operate it, its master is never "gone", and the state is the one its own session announces (Idle until a scenario is opened).
+        /// ⛔ The editor builds no <c>ISubsystemDebugProvider</c> in the runner, so this is its one answer.
+        /// </summary>
+        public Fdp.Presentation.WindowManager.ClusterRest ReadClusterRest()
+            => new(_editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, MasterGone: false, CanOperate: true);
+
         /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — the editor's node id. 🔒 User, <c>2026-10-17</c>: <i>"No valid node ID should be
         /// 0."</i> 0 means "no node" and, on a creation request, "the system picks"; the editor is an offline one-node cluster, so 1.</summary>
         internal const int EditorNodeId = 1;
@@ -340,6 +349,8 @@ namespace Hrot.Editor
         // ⭐ CE-4038 (docs/DESIGN_Film_Director.md) — the film director: one runner, two remotes (the /director/* routes, the Director panel)
         private Hrot.UI.Common.Map3D.Director.DirectorPack? _directorPack;
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
+        /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
@@ -2418,6 +2429,7 @@ namespace Hrot.Editor
                 //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11. 🔒 User: "Editor is no exception".
                 IdAuthority       = Fdp.Toolkit.NetworkSpawning.WorldIdAuthority.FromAllocator(_idAllocator!),
                 FileDialogService = _fileDialogService,
+                View              = _node?.ClusterSlave.View,   // ⭐ CE-1436 — the editor's node and its core's cache share ONE cluster read model (same bus)
             });
             _clusterMaster = _orchestratorCore.Master;
             // ⭐ CE-4089 — the content seed (scenarios/, assets/, recipes/ → the NAS) ran at the top of Initialize, before the asset catalogue read it.
@@ -2457,6 +2469,13 @@ namespace Hrot.Editor
             // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
             _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(_orchestrationBus!,
                 localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
+            // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
+            //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
+            //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
+            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Preview, _editorApp?.ScenarioSession,
+                unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
+                    () => _orchestratorCore != null,
+                    id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -3959,6 +3978,7 @@ namespace Hrot.Editor
                                       Kinds       = AssetKindFilter.All,
                                       ShowAllTab  = false,
                                       RowCommands = assetRowCommands,
+                                      Recent      = Hrot.UI.Common.Picker.UserRecentPicks.Shared,   // ⭐ CE-4098 — the SAME store the shell pickers use
                                   },
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
@@ -3977,7 +3997,7 @@ namespace Hrot.Editor
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
-            windowManager.GlobalMenu.RegisterItem("Settings/Reset all debug settings for this scenario", () =>
+            windowManager.GlobalMenu.RegisterItem("View/Settings/Reset all debug settings for this scenario", () =>
             {
                 if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
             });
@@ -4233,7 +4253,8 @@ namespace Hrot.Editor
                 _shellInputSource);
 
             // BATCH-43 (MTB2-T8b): scenario Save-As → SaveAsBrowserDialog (same browser as New + doc Save-As).
-            Action openScenarioSaveAs = () =>
+            // ⭐ CE-4097 — the optional `onNamed` is the run choice's "Save as… and go live": called with the saved name once the save was published
+            Action<Action<string>?> openScenarioSaveAsThen = onNamed =>
             {
                 if (_editorLogic == null || _newAssetServices == null) return;
 
@@ -4262,8 +4283,11 @@ namespace Hrot.Editor
 
                     _editorLogic?.SaveScenarioAs(fullName);
                     _saveAllStatus = $"[OK] Saved scenario as '{fullName}'.";
+                    onNamed?.Invoke(fullName);
                 });
             };
+            Action openScenarioSaveAs = () => openScenarioSaveAsThen(null);
+            if (_timeTransport?.RunChoice is { } runChoice) runChoice.SaveAsPrompt = onNamed => openScenarioSaveAsThen(onNamed);
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
@@ -4537,6 +4561,17 @@ namespace Hrot.Editor
                     recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory)
                 : null;
 
+            // ⭐⭐ CE-4098 (AQ108 D16/D19) — File › Open Recording: the master's exercise inventory (the core's cluster read model, the SAME
+            //   list GET /exercises serves) in the shared picker; a pick opens into AAR through the session's ONE replay intent.
+            var recordingPickerLauncher = _editorApp != null
+                ? new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
+                    openPicker:     _shellPickers.OpenPicker,
+                    listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
+                                          ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
+                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
+                    openRecording:  id => { if (_timeTransport?.RunChoice is { } choice) choice.OpenRecording(id); else _editorApp.ScenarioSession.OpenRecording(id); })
+                : null;
+
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
@@ -4588,7 +4623,10 @@ namespace Hrot.Editor
                 runningRun:  () => Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(
                                        _previewController?.IsInPreviewMode == true,
                                        _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle),
-                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run));
+                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run),
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098
+                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
+                openScenario: name => { if (_timeTransport?.RunChoice is { } choice) choice.OpenScenario(name); else _editorApp.ScenarioSession.OpenForEdit(name); });
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
@@ -5398,7 +5436,9 @@ namespace Hrot.Editor
                 //    a shared surface takes no host gate. 📄 §5c.14.
                 var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
                 Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                    windowManager.MainToolbar, timeTransportFacade);
+                    windowManager.MainToolbar, timeTransportFacade, _timeTransport!.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed (silent-default rule)
+                // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (CGF registers the same section)
+                Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, timeTransportFacade, "Scenario");
             }
 
             // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.

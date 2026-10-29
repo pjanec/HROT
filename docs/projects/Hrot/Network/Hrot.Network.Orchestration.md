@@ -1,5 +1,7 @@
 # Hrot.Network.Orchestration
 
+> ⭐ **Related design:** [`DESIGN_Cluster_View.md`](../../../DESIGN_Cluster_View.md) (CE-1436) — one cluster-facts ingress and one `ClusterView` on every node; this project's observer keeps only the monitoring topics (V2).
+
 | Field        | Value                                                                 |
 |--------------|-----------------------------------------------------------------------|
 | Project      | `Hrot.Network.Orchestration`                                          |
@@ -43,10 +45,20 @@ The assembly provides five major services:
    deserialises the payload, publishes `ExecuteNodeOpIntent` for the local handler
    pipeline, and writes `NodeHeartbeat` / `NodeOpStatus` back to DDS.
 
+4a. **Cluster-facts ingress** (CE-1436) -- `ClusterFactsIngress` is the ONE reader
+   of the cluster's FACT topics (`ClusterStateTopic`, `AssetInventoryTopic`,
+   `ReplaySessionTopic`, `ClusterOpStatus`); each is decoded once (`StateOf`,
+   `InventoryOf`, `DecodeResult`, `OpCompletedOf`) and published as the bus event
+   the node's `ClusterView` folds. BOTH `NodeOpSlaveTranslator` (every ECS node) and
+   `OrchestrationObserverTranslator` (ExCon) own one. See `docs/DESIGN_Cluster_View.md`.
+
 5. **Observer path** -- `OrchestrationObserverTranslator` is a read-only
-   subscriber that monitors all seven orchestration DDS topics and republishes
-   them as bus events so that UI caches (`ClusterUiCache`) and monitoring
-   subsystems can observe the full cluster state without directly touching DDS.
+   subscriber that monitors the cluster's MONITORING topics (heartbeats,
+   capabilities, time mode, the node-op command/status mirror) and, through the
+   shared `ClusterFactsIngress`, the fact topics, republishing them as bus events so
+   that UI caches (`ClusterUiCache`) and monitoring subsystems can observe the full
+   cluster state without directly touching DDS. The monitoring half stays here
+   because on an acting node those events drive its own egress and execution.
 
 Supporting types in the assembly define the DDS wire schema (`OrchestrationMessages.cs`
 inside the `Hrot.NED.Descriptors.Orchestration` namespace), the payload DTO records
@@ -183,6 +195,7 @@ Hrot.Network.Orchestration/
 | `NodeOpMasterTranslator.cs` | `Hrot.Network.Orchestration` | `NodeOpMasterTranslator` (sealed class) |
 | `NodeOpSlaveTranslator.cs` | `Hrot.Common.Orchestration` | `NodeOpSlaveTranslator` (sealed class, `IOrchestrationTranslator`) |
 | `OrchestrationObserverTranslator.cs` | `Hrot.Common.Orchestration` | `OrchestrationObserverTranslator` (sealed class, `IDisposable`) |
+| `ClusterFactsIngress.cs` | `Hrot.Common.Orchestration` | `ClusterFactsIngress` (sealed class, `IDisposable`) — the one fact-topic ingress, owned by both translators above |
 | `IClusterOpHandler.cs` | `Hrot.Common.Orchestration` | `IClusterOpHandler` (interface) |
 | `ITickableClusterOpHandler.cs` | `Hrot.Common.Orchestration` | `ITickableClusterOpHandler` (interface) |
 | `HrotHandlerAdapter.cs` | `Hrot.Common.Orchestration` | `HrotHandlerAdapter` (sealed class, `ITickableClusterStateHandler`) |

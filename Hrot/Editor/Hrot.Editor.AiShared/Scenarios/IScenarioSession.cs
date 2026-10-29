@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
@@ -27,7 +29,7 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// a second <c>Idle</c> intent from inside the handler for the first one. ⇒ ⛔ the design's single
 /// <c>NewExercise()</c> member is <b>as-built as two</b>; recorded in the design §4.</para>
 /// </summary>
-public interface IScenarioSession
+public interface IScenarioSession : IRunScenarioControl
 {
     /// <summary>
     /// ⭐⭐ Pumps the session once per frame: drains <see cref="ClusterStateUpdateEvent"/> and advances the
@@ -55,45 +57,11 @@ public interface IScenarioSession
     /// </summary>
     void NewExercise();
 
-    /// <summary>
-    /// ⭐⭐⭐ <b>Load for RUNNING, cluster-wide</b> — the <c>/scenario/load/live</c> path.
-    /// Publishes <c>TransitionStateIntent{OperatingLive}</c> with a <b>fresh</b> <c>ExerciseId</c>: a live
-    /// load IS a new exercise run, and that id is what recording/replay keys off.
-    /// </summary>
-    void LoadForLive(string scenarioName);
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>Open for AUTHORING, cluster-wide</b> — the <c>/scenario/load/edit</c> path.
-    /// Asks for <see cref="ClusterState.Idle"/>, wipes locally once idle, then requests
-    /// <c>OperatingEdit</c>. ⭐ <c>ExerciseId</c> is deliberately fresh-per-transaction here as it always
-    /// was; authoring is not an exercise run, which is why the direct cluster-intent arm in
-    /// <c>DebugApiService.LoadScenarioEdit</c> uses <c>Guid.Empty</c>.
-    /// </summary>
-    void OpenForEdit(string scenarioName);
-
-    /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
-    void SaveCurrent();
-
     /// <summary>Saves the world as a new scenario and remembers the name for <see cref="SaveCurrent"/>.</summary>
     void SaveAs(string scenarioName);
 
     /// <summary>Serializes the world to an explicit file path *(the raw round-trip seam)*.</summary>
     void SaveTo(string filePath);
-
-    /// <summary>
-    /// ⭐⭐ <b>Saves the live running state</b> — publishes the existing <c>TakeCheckpointIntent</c> to the
-    /// master *(<c>File/Checkpoint/Take Checkpoint</c>)*.
-    ///
-    /// <para>⚠ <b>DEVIATION from design §4</b>, argued: the class diagram draws
-    /// <c>ScenarioMenuCommands ..&gt; TakeCheckpointIntent</c> — the menu publishing directly. ⛔ That would
-    /// put the same one-line publish in BOTH hosts' composition roots *(two implementations of one
-    /// concept — ruling 9)*. ⭐ The session already holds the orchestration bus, so it is the single home.
-    /// Folded into the design's as-built section.</para>
-    /// </summary>
-    void TakeCheckpoint();
-
-    /// <summary>The currently loaded scenario name, or <c>null</c> after a clear.</summary>
-    string? LoadedScenarioName { get; }
 
     /// <summary>True when the loaded scenario came up in degraded mode *(snapshot fallback)*.</summary>
     bool IsDegraded { get; }

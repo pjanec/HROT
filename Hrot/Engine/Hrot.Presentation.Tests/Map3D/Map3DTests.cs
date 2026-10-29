@@ -3086,6 +3086,122 @@ public sealed class Map3DTests
         Assert.InRange(Vector2.Distance(centre, new Vector2(-120, 300)), 0f, 0.05f);
     }
 
+    // ── CE-4084 (docs/DESIGN_Map_3D_Mode.md §6af) — the map's centre is the centre of the VISIBLE area ──────────────────────────
+
+    private static readonly Vector2 BigView = new(1600, 900);
+    private static readonly Vector2 OffCentre = new(1000, 380);   // the hole between docked panels, not the window's middle (800, 450)
+
+    private static MapCamera3D DockedCamera(Vector2 centre) => new()
+    {
+        ViewportOverride = BigView,
+        ViewCentreSource = _ => centre,
+        GroundHeight = (_, _) => 0f,
+        Pose = new CameraPose(new Vector3(10, 20, 0), 150f, 0.7f, -0.6f),
+    };
+
+    /// <summary>The projection exactly as it was before CE-4084 (principal point = the window's middle): the oracle for "no dockspace, no change".</summary>
+    private static Vector2 OldWorldToScreen(MapCamera3D c, Vector3 world, Vector2 vp)
+    {
+        var v = world - c.Eye;
+        float z = Vector3.Dot(v, c.Forward);
+        float tan = MathF.Tan(c.FovyDegrees * MathF.PI / 360f), aspect = vp.X / vp.Y;
+        float nx = Vector3.Dot(v, c.Right) / (z * tan * aspect), ny = Vector3.Dot(v, c.Up) / (z * tan);
+        return new Vector2((nx + 1f) * 0.5f * vp.X, (1f - ny) * 0.5f * vp.Y);
+    }
+
+    private static Vector3 OldRayDirection(MapCamera3D c, Vector2 px, Vector2 vp)
+    {
+        float nx = 2f * px.X / vp.X - 1f, ny = 1f - 2f * px.Y / vp.Y;
+        float tan = MathF.Tan(c.FovyDegrees * MathF.PI / 360f), aspect = vp.X / vp.Y;
+        return Vector3.Normalize(c.Forward + c.Right * (nx * tan * aspect) + c.Up * (ny * tan));
+    }
+
+    /// <summary>⭐ CE-4084 SC1 — with an off-centre visible area c: the look-at point is drawn AT c; a pixel's ray and the world point's pixel are inverses
+    /// (the pick equals the draw); the frustum Raylib is given puts the view axis at NDC (0,0) of c, with the field of view's scale unchanged.</summary>
+    [Fact]
+    public void CE4084_OffCentre_TheLookAtIsDrawnAtTheVisibleCentre_PickEqualsDraw_AndTheFrustumAgrees()
+    {
+        var cam = DockedCamera(OffCentre);
+        var at = cam.WorldToScreen(cam.LookAt);
+        Assert.InRange(Vector2.Distance(at, OffCentre), 0f, 0.05f);
+
+        foreach (var p in new[] { new Vector2(300, 200), new Vector2(1000, 380), new Vector2(1500, 800), new Vector2(120, 700) })
+        {
+            var onRay = cam.Eye + cam.RayDirection(p) * 90f;
+            Assert.InRange(Vector2.Distance(cam.WorldToScreen(onRay), p), 0f, 0.1f);
+        }
+
+        // the frustum: the view axis (x = y = 0 on the near plane) lands on the pixel c; the width/height (the scale) are the symmetric ones
+        double near = cam.NearClip;
+        var f = MapCamera3D.FrustumBounds(BigView, OffCentre, cam.FovyDegrees, near);
+        double pxX = (0 - f.Left) / (f.Right - f.Left) * BigView.X, pxY = (f.Top - 0) / (f.Top - f.Bottom) * BigView.Y;
+        Assert.Equal(OffCentre.X, pxX, 2);
+        Assert.Equal(OffCentre.Y, pxY, 2);
+        var sym = MapCamera3D.FrustumBounds(BigView, BigView / 2f, cam.FovyDegrees, near);
+        Assert.Equal(sym.Right - sym.Left, f.Right - f.Left, 6);
+        Assert.Equal(sym.Top - sym.Bottom, f.Top - f.Bottom, 6);
+        Assert.Equal(-sym.Left, sym.Right, 9);                 // and the centred one is exactly symmetric — Raylib's own
+        Assert.Equal(-sym.Bottom, sym.Top, 9);
+    }
+
+    /// <summary>⭐ CE-4084 SC2 — with the visible centre at the window's middle, the projection and the ray are what they were before.</summary>
+    [Fact]
+    public void CE4084_CentredVisibleArea_ChangesNothing_ProjectionAndRayAreTheOldOnes()
+    {
+        var cam = DockedCamera(BigView / 2f);
+        foreach (var w in new[] { new Vector3(10, 20, 0), new Vector3(60, -30, 5), new Vector3(-20, 90, 12) })
+            Assert.InRange(Vector2.Distance(cam.WorldToScreen(w), OldWorldToScreen(cam, w, BigView)), 0f, 0.01f);
+        foreach (var p in new[] { new Vector2(0, 0), new Vector2(800, 450), new Vector2(1234, 321) })
+            Assert.InRange(Vector3.Distance(cam.RayDirection(p), OldRayDirection(cam, p, BigView)), 0f, 1e-5f);
+        var f = MapCamera3D.FrustumBounds(BigView, BigView / 2f, cam.FovyDegrees, 1.0);
+        Assert.Equal(-f.Left, f.Right, 9);
+    }
+
+    /// <summary>⭐ CE-4084 SC3 — the wheel zooms toward the VISIBLE centre: the eye travels along the view axis, which passes through c, so the
+    /// ground point under c is the same after the glide as before.</summary>
+    [Fact]
+    public void CE4084_TheWheel_HeadsForTheWorldPointUnderTheVisibleCentre()
+    {
+        var cam = DockedCamera(OffCentre);
+        var input = new FakeInput { MousePosition = new Vector2(600, 400) };
+        cam.Update(0.016f);
+        var before = cam.ScreenToWorld(OffCentre);
+        float distance = cam.Distance;
+
+        input.MouseWheelMove = 1f; Frame(cam, input);
+        input.MouseWheelMove = 0f; for (int i = 0; i < 60; i++) Frame(cam, input);
+
+        Assert.True(cam.Distance < distance - 3f, "the wheel did not travel");
+        var after = cam.ScreenToWorld(OffCentre);
+        Assert.InRange(Vector2.Distance(before, after), 0f, 0.1f);
+    }
+
+    /// <summary>⭐ CE-4084 SC5 — 2-D ↔ 3-D keeps the world point at the visible centre: the overhead pose that matches a 2-D camera, and the 2-D
+    /// camera matched back by the switch, both centre the same ground point at c.</summary>
+    [Fact]
+    public void CE4084_TheSwitch_KeepsTheWorldPointAtTheVisibleCentre_BothWays()
+    {
+        var focus = new Vector2(250, -40);
+        var two = new MapCamera { ViewportOverride = BigView, ViewCentreSource = _ => OffCentre };
+        two.Zoom = 2.5f;
+        two.Update(0.016f);                                  // anchors the 2-D camera at c
+        two.FocusOn(focus);
+        two.Update(0.016f);
+        Assert.InRange(Vector2.Distance(two.WorldToScreen(focus), OffCentre), 0f, 0.05f);
+
+        var three = new MapCamera3D { ViewportOverride = BigView, ViewCentreSource = _ => OffCentre };
+        three.Pose = three.OverheadMatching(two);            // 2-D → 3-D
+        Assert.InRange(Vector2.Distance(new Vector2(three.LookAt.X, three.LookAt.Y), focus), 0f, 0.05f);
+        Assert.InRange(Vector2.Distance(three.WorldToScreen(new Vector2(focus.X, focus.Y)), OffCentre), 0f, 0.05f);
+
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = BigView, ViewCentreSource = _ => OffCentre });
+        sw.Set(true, animate: false);
+        sw.Set(false, animate: false);                       // 3-D → 2-D
+        Assert.InRange(Vector2.Distance(two.ScreenToWorld(OffCentre), focus), 0f, 0.05f);
+    }
+
     // ── CE-1033 S4 — the terrain by surface and material, water ──
 
     [Fact]

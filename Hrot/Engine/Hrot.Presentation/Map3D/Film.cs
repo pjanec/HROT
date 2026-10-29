@@ -336,6 +336,8 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             }
             var viewport = camera.ViewportOverride;
             camera.ViewportOverride = new Vector2(w, h);   // the projection and every pixel-sized thing, at the frame's size
+            var centreSource = camera.ViewCentreSource;
+            camera.ViewCentreSource = vp => vp / 2f;      // ⭐ CE-4084 — a film frame has no docked panels: its centre is its own middle
             var camera2D = _view.Is3D ? null : _canvas.Camera;
             var view2D = camera2D?.GetCameraView();
             try
@@ -369,6 +371,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             {
                 _capturing = false;
                 camera.ViewportOverride = viewport;
+                camera.ViewCentreSource = centreSource;
                 if (camera2D != null && view2D is { } restore) camera2D.ApplyCameraView(restore);
             }
 

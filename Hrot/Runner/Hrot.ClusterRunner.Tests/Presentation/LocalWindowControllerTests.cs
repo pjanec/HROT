@@ -9,6 +9,7 @@ namespace Hrot.ClusterRunner.Tests.Presentation;
 /// <summary>
 /// GZH-012: Tests for <see cref="LocalWindowController"/>.
 /// </summary>
+[Xunit.Collection("UserLayoutFolder")]
 public class GZH012_Tests
 {
     // ── Fake shell ─────────────────────────────────────────────────────────────
@@ -116,6 +117,7 @@ public class GZH012_Tests
 /// ⭐ <c>CE-1290</c> (docs/DESIGN_Map_3D_Mode.md §6ac) — the window's title names the loaded scenario, as an editor's does.
 /// 🔒 User, 2026-10-23: <i>"i need to see currently loaded scenario name in the title of the clusterrunner as editors usually do"</i>.
 /// </summary>
+[Xunit.Collection("UserLayoutFolder")]
 public class CE1290_WindowTitleTests
 {
     /// <summary>A subsystem that offers a title detail — the editor's or CGF's loaded scenario, as a settable field.</summary>

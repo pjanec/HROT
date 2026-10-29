@@ -71,7 +71,8 @@ namespace Hrot.SimHost.Modules.Orchestration
     public sealed record EcsHostClusterHandlers(
         EcsRecordReplayController RecordReplayController,
         ReferencePreviewHandler   DryRun,
-        Fdp.Toolkit.Replay.WorldChangeCheck ChangeCheck)
+        Fdp.Toolkit.Replay.WorldChangeCheck ChangeCheck,
+        ClusterView View)
     {
         /// <summary>
         /// ⭐⭐⭐ <c>D16</c> (<c>R-3046</c>) — <b>THE cluster handlers of an ECS host, composed in ONE place.</b> The recording
@@ -167,7 +168,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             // 9. Live load — LAST: FinalizeLive, and a cold PrepareLive nothing above claimed.
             slave.RegisterHandler(new ReferenceLiveLoadHandler(controller, h.StagingRoot));
 
-            return new EcsHostClusterHandlers(controller, dryRun, changeCheck);
+            return new EcsHostClusterHandlers(controller, dryRun, changeCheck, slave.View);   // ⭐ CE-1436 — the node's ONE cluster read model (the slave owns it, so no host can lack it)
         }
     }
 }

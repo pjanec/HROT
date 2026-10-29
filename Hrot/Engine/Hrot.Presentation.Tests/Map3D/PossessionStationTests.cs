@@ -1150,6 +1150,57 @@ public sealed partial class PossessionStationTests
         }
     }
 
+    /// <summary>A picker that records the ray it was asked about (the crosshair's pick).</summary>
+    private sealed class RayRecorder : IPicker3D
+    {
+        public Vector3 Direction;
+        public PickFilter Kind => PickFilter.EntityParts;
+        public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit) { Direction = direction; hit = default; return false; }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4084 (docs/DESIGN_Map_3D_Mode.md §6af) — the crosshair's aim pick goes through the VISIBLE map's centre, which is the view axis (the
+    /// lens shift puts the principal point there): so with an off-centre area the pick ray IS the camera's forward, and it is the ray of the pixel
+    /// the HUD draws the crosshair at.
+    /// </summary>
+    [Fact]
+    public void CE4084_TheAimPick_IsAtTheVisibleCentre_NotTheWindowsMiddle()
+    {
+        var c = new Vector2(900f, 300f);
+        var cam = new MapCamera3D { ViewportOverride = Viewport, ViewCentreSource = _ => c };
+        cam.Pose = new CameraPose(new Vector3(0, 0, 0), 80f, 0.4f, -0.4f);
+        var rec = new RayRecorder();
+        cam.Pickers.Add(rec);
+
+        FpsCameraDriver.Aim(cam);
+
+        Assert.InRange(Vector3.Distance(rec.Direction, cam.RayDirection(c)), 0f, 1e-5f);
+        Assert.InRange(Vector3.Distance(rec.Direction, cam.Forward), 0f, 1e-4f);
+        Assert.True(Vector3.Distance(rec.Direction, cam.RayDirection(Viewport / 2f)) > 0.05f, "it still aims at the window's middle");
+    }
+
+    /// <summary>⭐ CE-4084 — the visible centre is the middle of the dockspace's open hole, else the view's middle; a camera reads it through its
+    /// ONE seam, and with no area its projection is the old one.</summary>
+    [Fact]
+    public void CE4084_TheVisibleCentre_IsTheOpenAreasMiddle_ElseTheViewsMiddle_AndTheCameraReadsIt()
+    {
+        var saved = Fdp.Presentation.WindowManager.OpenMapArea.Current;
+        try
+        {
+            Fdp.Presentation.WindowManager.OpenMapArea.Current = (400f, 60f, 1400f, 800f);
+            Assert.Equal(new Vector2(1100f, 460f), Fdp.Presentation.WindowManager.OpenMapArea.Centre(new Vector2(2200f, 1200f)));
+            var cam = new MapCamera3D { ViewportOverride = new Vector2(2200f, 1200f), LookAt = new Vector3(5, 6, 0), Distance = 100f };
+            Assert.Equal(new Vector2(1100f, 460f), cam.ViewCentre);                           // the default source
+            Assert.InRange(Vector2.Distance(cam.WorldToScreen(cam.LookAt), new Vector2(1100f, 460f)), 0f, 0.05f);
+
+            Fdp.Presentation.WindowManager.OpenMapArea.Current = null;
+            cam.ViewCentreSource = cam.ViewCentreSource;                                      // re-read
+            Assert.Equal(new Vector2(1100f, 600f), cam.ViewCentre);                           // no dockspace: the view's middle
+            Assert.InRange(Vector2.Distance(cam.WorldToScreen(cam.LookAt), new Vector2(1100f, 600f)), 0f, 0.05f);
+        }
+        finally { Fdp.Presentation.WindowManager.OpenMapArea.Current = saved; }
+    }
+
     /// <summary>⭐ CE-1140 — the open map area is read from the dockspace only when it is a sane rectangle inside the window; anything
     /// else falls back to "unknown" (the whole view), never to a mis-placed corner.</summary>
     [Fact]

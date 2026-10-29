@@ -80,9 +80,6 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>The ground height at a point — keeps the look-at point on the relief (R-248). Null ⇒ the look-at Z is kept.</summary>
         public Func<float, float, float>? GroundHeight { get; set; }
 
-        /// <summary>The screen size when no window is open (tests); the window's size otherwise.</summary>
-        public Vector2 FallbackViewport { get; set; } = new(1280, 720);
-
         private float _dt;
         private Vector2 _lastMouse;
         private bool _looking, _panning;
@@ -92,7 +89,6 @@ namespace Fdp.Toolkit.Vis3D
         private float _wheelIdle = float.PositiveInfinity;   // ⭐ CE-1138 — seconds since the last wheel click
         private int _wheelStreak;                   // ⭐ CE-1138 — clicks in the current streak (0 = a lone click)
         private float _wheelSign;
-        private Vector2? _frameViewport;            // ⭐ CE-1072 — the window size, read once a frame
         private Vector2 _followedXY = new(float.NaN, float.NaN);   // the look-at XY the ground height was last matched at
 
         // animation
@@ -130,23 +126,6 @@ namespace Fdp.Toolkit.Vis3D
         public Vector3 Right => Vector3.Cross(Forward, Up);
         public Vector3 Eye => LookAt - Forward * Distance;
 
-        /// <summary>A fixed screen size instead of the window's (tests; a camera drawing into a sub-viewport).</summary>
-        public Vector2? ViewportOverride { get; set; }
-
-        /// <remarks>⭐ CE-1072 — read from the window ONCE a frame (cleared in <see cref="Update"/>): 📐 measured 2026-10-14, asking
-        /// the window per call cost 13 % of a 3-D frame, because <see cref="ZoomAt"/> asks it for every primitive drawn.</remarks>
-        public Vector2 Viewport => ViewportOverride ?? (_frameViewport ??= WindowOpen()
-            ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight())
-            : FallbackViewport);
-
-        /// <summary>False in a test process with no window — or no native Raylib at all (the 2-D camera's math is window-free too).</summary>
-        private static bool WindowOpen()
-        {
-            try { return Raylib.IsWindowReady(); }
-            catch (DllNotFoundException) { return false; }
-            catch (EntryPointNotFoundException) { return false; }
-        }
-
         private float TanHalfFov => MathF.Tan(FovyDegrees * MathF.PI / 360f);
 
         /// <summary>Metres on the ground per screen pixel, at the look-at point.</summary>
@@ -166,7 +145,7 @@ namespace Fdp.Toolkit.Vis3D
         public CameraPose OverheadMatching(MapCamera camera2D)
         {
             var vp = Viewport;
-            var centre = camera2D.ScreenToWorld(vp / 2f);
+            var centre = camera2D.ScreenToWorld(ViewCentre);   // ⭐ CE-4084 — the VISIBLE map's centre, not the window's
             float ground = GroundHeight?.Invoke(centre.X, centre.Y) ?? 0f;
             float distance = vp.Y / camera2D.Zoom / 2f / TanHalfFov;
             return new CameraPose(new Vector3(centre, ground), Math.Clamp(distance, MinDistance, MaxDistance), NorthUpYaw, OverheadPitch);
@@ -227,7 +206,7 @@ namespace Fdp.Toolkit.Vis3D
         public override void Update(float dt)
         {
             _cachePixel = new Vector2(float.NaN);   // a new frame: entities may have moved
-            _frameViewport = null;                  // ⭐ CE-1072 — and the window may have been resized
+            ResetFrameCache();                      // ⭐ CE-1072 / CE-4084 — the window may have been resized, the visible area moved
             if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
             _dt = dt;
             if (_driver != null)
@@ -505,21 +484,37 @@ namespace Fdp.Toolkit.Vis3D
         public Vector2 WorldToScreen(Vector3 world)
         {
             var vp = Viewport;
+            var c = ViewCentre;   // ⭐ CE-4084 — the principal point: the look-at point is drawn at the visible map's centre
             var v = world - Eye;
             float z = Vector3.Dot(v, Forward);
             if (z <= 1e-4f) return new Vector2(-1e6f, -1e6f);
             float tan = TanHalfFov, aspect = vp.X / MathF.Max(1f, vp.Y);
             float nx = Vector3.Dot(v, Right) / (z * tan * aspect);
             float ny = Vector3.Dot(v, Up) / (z * tan);
-            return new Vector2((nx + 1f) * 0.5f * vp.X, (1f - ny) * 0.5f * vp.Y);
+            return new Vector2(c.X + nx * 0.5f * vp.X, c.Y - ny * 0.5f * vp.Y);
+        }
+
+        /// <summary>
+        /// ⭐ CE-4084 (§6af) — the projection's frustum at the near plane for a view of <paramref name="vp"/> pixels whose principal point is
+        /// the pixel <paramref name="centre"/>: the symmetric frustum's field of view (its SCALE stays tied to the full viewport height) shifted
+        /// so the view axis passes through <paramref name="centre"/>. With <c>centre = vp / 2</c> it is exactly the symmetric one. Pure, so a
+        /// rail can check that <paramref name="centre"/> maps to NDC (0, 0) without a GL context.
+        /// </summary>
+        public static (double Left, double Right, double Bottom, double Top) FrustumBounds(Vector2 vp, Vector2 centre, float fovyDegrees, double near)
+        {
+            double t = Math.Tan(fovyDegrees * Math.PI / 360.0), w = Math.Max(1f, vp.X), h = Math.Max(1f, vp.Y);
+            double a = w / h, nt = near * t;
+            return (-nt * a * (2.0 * centre.X / w), nt * a * (2.0 * (w - centre.X) / w),
+                    -nt * (2.0 * (h - centre.Y) / h), nt * (2.0 * centre.Y / h));
         }
 
         /// <summary>The direction (HROT, unit) of the ray through a screen pixel.</summary>
         public Vector3 RayDirection(Vector2 screenPos)
         {
             var vp = Viewport;
-            float nx = 2f * screenPos.X / MathF.Max(1f, vp.X) - 1f;
-            float ny = 1f - 2f * screenPos.Y / MathF.Max(1f, vp.Y);
+            var c = ViewCentre;   // ⭐ CE-4084 — the inverse of WorldToScreen: pick = draw
+            float nx = 2f * (screenPos.X - c.X) / MathF.Max(1f, vp.X);
+            float ny = -2f * (screenPos.Y - c.Y) / MathF.Max(1f, vp.Y);
             float tan = TanHalfFov, aspect = vp.X / MathF.Max(1f, vp.Y);
             return Vector3.Normalize(Forward + Right * (nx * tan * aspect) + Up * (ny * tan));
         }
@@ -600,6 +595,13 @@ namespace Fdp.Toolkit.Vis3D
             }
             Rlgl.SetClipPlanes(NearClip, FarClip);
             Raylib.BeginMode3D(cam);
+            // ⭐ CE-4084 (§6af) — the lens shift: Raylib's projection is symmetric (its principal point = the window's middle); replace it
+            //   with the same field of view shifted so the look-at point lands at the VISIBLE map's centre (WorldToScreen / RayDirection agree).
+            var fr = FrustumBounds(vp, ViewCentre, FovyDegrees, NearClip);
+            Rlgl.MatrixMode(MatrixMode.Projection);
+            Rlgl.LoadIdentity();
+            Rlgl.Frustum(fr.Left, fr.Right, fr.Bottom, fr.Top, NearClip, FarClip);
+            Rlgl.MatrixMode(MatrixMode.ModelView);
             // ⭐ CE-1146 (§6aa.CL) — the cloud decks, as background: before every layer, without depth, so the world is drawn over them
             if (a.Clouds is { Length: > 0 } clouds) CloudDeckRenderer.Draw(this, clouds);
         }

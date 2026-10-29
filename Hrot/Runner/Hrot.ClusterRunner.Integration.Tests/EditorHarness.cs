@@ -105,13 +105,14 @@ public sealed class EditorHarness : IDisposable
     /// blueprint registries, and the mission service. Endpoints in those groups answer their own
     /// "not available" — they are out of scope for the entity/spawn/command tier this unlocks.</para>
     /// </remarks>
-    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService()
+    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService(
+        IPreviewController? preview = null, System.Func<Fdp.Toolkit.Orchestration.ClusterState>? clusterState = null)
         => new(
             world:          Repo,
             entityMap:      EntityMap,
             extraction:     new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(Repo, EntityMap),
             time:           new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(OrchBus, () => _timeController!.GetCurrentState().TotalTime),   // ⭐ CE-3329 row 21 — the one facade
-            preview:        Preview,
+            preview:        preview ?? Preview,
             editor:         Editor,
             eventHistory:   _eventHistory,
             timeController: _timeController!,
@@ -119,7 +120,7 @@ public sealed class EditorHarness : IDisposable
             //   answering NOT_SUPPORTED_HERE. See BpManager's remarks for why it is real, not a stub.
             bpManager:      BpManager,
             // ⭐ The harness is a single offline editor: it is always "the one node, operating".
-            clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+            clusterState:   clusterState ?? (() => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit),
             // ⭐ CE-515 ③ — the harness HOLDS a creation pack; a debug API built without it is the silent-default
             //   pattern (POST /entities/spawn and /create-request would refuse).
             entityCreation: _ => EntityCreation,

@@ -164,7 +164,10 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
             Keywords: null,
             IconTextureId: null,
             Tag: asset,
-            IconKey: AssetKindIcons.ResolveIconKey(asset));
+            IconKey: AssetKindIcons.ResolveIconKey(asset),
+            // ⭐ CE-4098 (AQ108 D19) — remembered in the asset KIND's Recent list, shared with the asset browser and the
+            //   scenario/recording pickers; the picker shows these first.
+            RecentContext: AssetRecents.ContextFor(asset.Kind));
     }
 
     /// <summary>
@@ -183,7 +186,7 @@ public sealed class AssetPickerSource : IPickerSource<IEditableAsset>
     // ── Identity / search helpers ──────────────────────────────────────
 
     /// <inheritdoc/>
-    public string GetItemKey(IEditableAsset item) => item.AssetId.ToString();
+    public string GetItemKey(IEditableAsset item) => AssetRecents.ItemKey(item);   // ⭐ CE-4098 — ONE definition of the identity a Recent entry is kept by
 
     /// <inheritdoc/>
     public string GetSearchableText(IEditableAsset item) => item.Name;

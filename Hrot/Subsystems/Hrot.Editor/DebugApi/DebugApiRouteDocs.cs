@@ -51,10 +51,11 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_status",
             Group:   "A — Lifecycle & status",
             Summary: "Runner liveness + sim state summary.",
-            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty }",
+            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode }",
             Hint:    "No params. Example: get_status({})",
             Notes: new[]
             {
+                "⭐ CE-4097 (AQ108 D22) — `armedMode` is what the toolbar's ▶ would run from editing on this host: preview | live | aar (set_run_mode changes it); null when the host has no run choice. play / step never follow it.",
                 "Use this to verify the runner is alive and check current run state before driving the sim.",
                 "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
                 "`scenarioDirty` is the LAST check round's verdict (check_unsaved): true = the scenario open for editing has unsaved changes, false = saved; null when no round ran, or the cluster left editing since. Reading it NEVER runs a round — call check_unsaved for a fresh answer.",
@@ -1275,9 +1276,44 @@ namespace Hrot.Editor.DebugApi
             Notes: new[]
             {
                 "Time advances after play (until pause or a breakpoint fires).",
+                "⭐ CE-4097 (AQ108 D22) — EXPLICIT: from editing play is the DRY RUN (preview) on every host, whatever run mode the host has ARMED (get_status → armedMode). It never loads a live run. The toolbar's ▶ follows the armed mode; this route does not — to go live use load_scenario_live, to change what the toolbar's ▶ does use set_run_mode.",
             },
             ExampleArgsJson: "{}",
             ExampleGist: "start or resume simulation"),
+
+        [("POST", "/sim/stop")] = new RouteDoc(
+            Tool:    "stop",
+            Group:   "D — Sim / preview / time",
+            Summary: "⭐ CE-4097 (AQ108 D22) — ■: the SAME stop as the toolbar's ■. A dry run goes back to editing; a live run ends and the scenario reopens for editing at its start (the armed mode stays Live); a DAR goes back to live; an AAR goes back to the recording's start.",
+            Returns: "{ published, stoppedFrom, armedMode, state }; 409 where there is nothing to stop (editing, Idle).",
+            Hint:    "No params. Example: stop({})",
+            Notes: new[]
+            {
+                "It is ONE call with the toolbar's ■ — a request and a click do exactly the same thing.",
+                "Leaving editing is unloading the scenario, which is a load route's job: stop from editing answers 409.",
+                "The answer says what was published; the cluster state changes a frame or two later (get_status → clusterState).",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "stop the run like the toolbar's stop button"),
+
+        [("POST", "/run-mode")] = new RouteDoc(
+            Tool:    "set_run_mode",
+            Group:   "D — Sim / preview / time",
+            Summary: "⭐ CE-4097 (AQ108 D22) — arm what the toolbar's ▶ will run from editing: preview | live | aar (the run-mode indicator's menu, for agents that drive the UI). It changes ONLY the armed mode; play, step and stop never follow it.",
+            Returns: "{ armedMode, mode }; 409 (with the confirmation's text) when the indicator would ask first and confirm was not sent; 409 when the move cannot be made.",
+            Hint:    "Req: armed (preview | live | aar). Optional: confirm (bool) — accept the confirmation the indicator would show. Example: set_run_mode({armed:\"live\"})",
+            Params: new RouteParam[]
+            {
+                new("armed", "string", true, "preview | live | aar"),
+                new("confirm", "boolean", false, "Accept the confirmation the indicator would ask (e.g. \"Ends the live session; you return to editing the scenario at its start\"); without it such a move answers 409 with that text and does nothing"),
+            },
+            Notes: new[]
+            {
+                "From editing (or Idle) arming loses nothing and never asks. While a run goes, arming another mode ends the run and is confirmed — pass confirm:true to accept it.",
+                "get_status → armedMode reads the result. CGF / the all-in-one / the server default to live, the editor to preview.",
+            },
+            ExampleArgsJson: "{\"armed\":\"live\"}",
+            ExampleGist: "arm live for the next play"),
 
         [("POST", "/sim/pause")] = new RouteDoc(
             Tool:    "pause",
@@ -1451,6 +1487,7 @@ namespace Hrot.Editor.DebugApi
             {
                 "⭐ CE-4093 (AQ108 D20) — a CHECK ROUND on demand, never periodic: each node captures its whole world as a binary keyframe, hashes it and compares it with the baseline taken when the load committed or its slice was last saved; anything that changed counts (not only the scenario's parts). It can only err towards \"changed\" (an identical unit deleted and re-added), never report unchanged for a changed world. ~60 ms per node on a large scenario.",
                 "A save round that FAILED after the last load (the slice pull or the merge) makes the answer changed too — the files on disk are stale whatever the worlds say.",
+                "⭐ CE-3340 (R-4001) — NO deadline of its own: the master always ends the round (a node that stops its heartbeat is ejected, and the round then completes on the nodes that remain), so the answer can take up to the heartbeat timeout when a node died mid-round — never a 504. Give up by aborting the request.",
                 "Only an explicit \"unchanged\" from a node means saved: a node with no baseline counts as changed (and is named in changedNodes). A host with no ECS world does not take part.",
                 "get_status.scenarioDirty reports the LAST round's verdict without running one; load_scenario_live (and load_scenario_edit of another scenario) run this round themselves and answer 409 when it says changed.",
             },

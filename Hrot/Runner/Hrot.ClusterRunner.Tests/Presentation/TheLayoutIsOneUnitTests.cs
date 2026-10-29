@@ -22,6 +22,7 @@ namespace Hrot.ClusterRunner.Tests.Presentation;
 /// layout. ⚠⚠ <b>The production folder name is a <c>const</c></b>, so these drive
 /// <see cref="LayoutPaths"/> directly for the file half and the controller for the ORDER half.</para>
 /// </summary>
+[Xunit.Collection("UserLayoutFolder")]
 public sealed class TheLayoutIsOneUnitTests
 {
     // ══ the cold-start perspective — the handoff's "measure, do not assume" ══
@@ -93,6 +94,8 @@ public sealed class TheLayoutIsOneUnitTests
     [Fact]
     public void TheDefaultIsNeverASubsystemThatClaimsNoPerspective()
     {
+        // ⭐ CE-4096 — hermetic: a persisted ActivePerspective (a sibling test's Close writes one) would be honoured instead of the composition-order default
+        System.IO.File.Delete(Fdp.Presentation.WindowManager.LayoutPaths.UserWindowSettingsPath(RaylibPresentationShell.AppFolderName));
         var shell = new GZH012_Tests.FakePresentationShell();
         var subsystems = new ISubsystem[]
         {

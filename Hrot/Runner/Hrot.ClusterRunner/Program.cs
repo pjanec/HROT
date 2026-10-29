@@ -422,7 +422,8 @@ class Program
 
             var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
-                shell, subsystems, options, coordinator);
+                shell, subsystems, options, coordinator,
+                armedMode: Hrot.ClusterRunner.HostArmedModes.For(config.RequestedSubsystems));   // ⭐ CE-4096 (D12)
 
             // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
             //
@@ -675,7 +676,8 @@ class Program
                     // WindowShouldClose() is edge-triggered (it reads AND resets the GLFW close flag),
                     // so this fires once on the frame the window [X] is clicked. Ask every guard: if any
                     // DEFERS (unsaved work → it opens its own modal), keep running; otherwise exit now.
-                    if (Raylib_cs.Raylib.WindowShouldClose())
+                    // ⭐ CE-4096 — the Exit item / start-surface button is the same request as the [X]: it takes the same guards.
+                    if (Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest())
                     {
                         bool deferred = false;
                         foreach (var guard in exitGuards)
@@ -744,6 +746,7 @@ class Program
                     ImGuiNET.ImGui.End();
                     // --------------------------------
 
+                    windowCtrl.TickStartGate();   // ⭐ CE-4096 — the ONE start gate, fed once a frame, before the window manager draws
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
