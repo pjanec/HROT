@@ -124,6 +124,72 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — on the CONSTRUCTED hosts, EVERY entry to the scenario a caller can reach — the session's public open / live load / open recording / New Exercise, and (the editor) the logic the pickers,
+    /// New-from-a-recipe and the director's load call — goes through the ONE door: over a live run each asks <i>Stop &amp; Load</i> in the host's own pending slot and publishes NOTHING until the operator confirms; Cancel leaves the
+    /// run alone. (The unsaved asks, the OUT door and HTTP are the door's own rails: <c>TheOneTimeFacadeTests.CE4101_*</c>, <c>EditorScenarioSessionLoadTests.CE4101_*</c>, <c>TheUnsavedCheckRoutesTests.CE4101_*</c>.)
+    /// 🔴 Red-proof: a host passing its session's RAW verbs to a picker (or a public raw verb on the session) ⇒ the row sees no <c>Pending</c> and an Idle intent on the node's bus.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4101_BothConstructedHosts_EveryEntryToTheScenario_GoesThroughTheDoor_OverALiveRun()
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.RegisterWindows(MakeWindowManager());
+
+            var editorLogic = editor.EditorLogic;
+            AssertEveryEntryAsks("editor", editor.RunChoiceForTest, editor.NodeForTest, editor.ScenarioSessionForTest,
+                ("EditorLogic.LoadScenarioByName", () => editorLogic.LoadScenarioByName("any-scenario")));
+            AssertEveryEntryAsks("CGF", cgf.RunChoiceForTest, cgf.NodeForTest, cgf.ScenarioSessionForTest);
+        }
+        finally
+        {
+            cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    private static void AssertEveryEntryAsks(string host, RunModeChoice? choice, HrotNodeContext? node, Hrot.Editor.AiShared.Scenarios.IScenarioSession? session,
+                                             params (string Name, System.Action Call)[] extra)
+    {
+        Assert.NotNull(choice);
+        Assert.NotNull(node);
+        Assert.NotNull(session);
+        node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        node.EventBus.SwapBuffers();
+        node.ClusterSlave.View.Update();
+
+        var entries = new (string Name, System.Action Call)[]
+        {
+            ("session.OpenForEdit",    () => session!.OpenForEdit("any-scenario")),
+            ("session.LoadForLive",    () => session!.LoadForLive("any-scenario")),
+            ("session.OpenRecording",  () => session!.OpenRecording(System.Guid.NewGuid())),
+        }.Concat(extra).ToArray();
+        foreach (var entry in entries)
+        {
+            entry.Call();
+            var ask = choice!.Pending;
+            Assert.True(ask is not null, $"{host}: {entry.Name} over a live run must ask first");
+            Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask!.Buttons.Select(b => b.Label));
+            node.EventBus.SwapBuffers();
+            Assert.Empty(node.EventBus.ReadManaged<TransitionStateIntent>());      // asked, nothing published
+            ask.Cancel();
+            Assert.Null(choice.Pending);
+        }
+    }
+
     private static void AssertAsksStopAndLoadOverALiveRun(string host, RunModeChoice? choice, HrotNodeContext? node)
     {
         Assert.NotNull(choice);

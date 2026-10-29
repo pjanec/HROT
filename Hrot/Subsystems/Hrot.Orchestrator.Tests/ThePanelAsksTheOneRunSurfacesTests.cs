@@ -22,8 +22,17 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
 {
     private static readonly Guid RunId = Guid.Parse("00000000-0000-0000-0000-0000000000b1");
 
-    private sealed class FakeSession : IRunScenarioControl
+    /// <summary>⭐ CE-4101 — the panel holds the GUARDED session (<see cref="IScenarioSession"/>); the choice holds the RAW verbs (<see cref="IRunScenarioControl"/>). This fake is both, so a rail sees every call either way.</summary>
+    private sealed class FakeSession : IRunScenarioControl, Hrot.Editor.AiShared.Scenarios.IScenarioSession
     {
+        public void Update() { }
+        public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => ClusterState.Idle;
+        public void ClearWorld() { }
+        public void NewExercise() { }
+        public void SaveAs(string scenarioName) { }
+        public void SaveTo(string filePath) { }
+        public bool IsDegraded => false;
+        public IReadOnlyList<Fdp.Core.Serialization.Migrations.SidecarFileInfo> GetMigrationSidecars() => Array.Empty<Fdp.Core.Serialization.Migrations.SidecarFileInfo>();
         public string? LoadedScenarioName { get; set; } = "hill-attack";
         public readonly List<string> Calls = new();
         public void LoadForLive(string scenarioName) => Calls.Add($"LoadForLive:{scenarioName}");
@@ -113,7 +122,29 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         Assert.Equal(new[] { "OpenForEdit:harbour" }, rig.Session.Calls);
     }
 
-    /// <summary><i>Load into Live</i> is the session's explicit live load (D22: an explicit control names its mode) — the panel runs no load sequence of its own.
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a, the panel's <i>Load into Live</i> row) — over a REAL world-less session the panel's live load is the session's guarded DOOR: over a live run it asks <i>Stop &amp; Load</i> in the host's
+    /// pending slot and publishes NOTHING until the operator confirms (it used to go straight over the run); over unsaved edits it asks <i>Save / Discard / Cancel</i> (it had no unsaved check — a loss).
+    /// 🔴 Mutation: <c>LoadIntoLive</c> calling <c>Session.RunControl.LoadForLive</c> (the raw verb) ⇒ no confirmation is pending and the live-load intent is already on the bus.
+    /// </summary>
+    [Fact]
+    public void LoadIntoLive_OverARun_AsksStopAndLoad_AndOverUnsavedEdits_AsksSaveDiscardCancel_ThroughTheSessionsDoor()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var controls = ClusterPanelRunControls.OverBus(bus, () => view);
+        void Hear(ClusterState s) { bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = s }); bus.SwapBuffers(); view.Update(); controls.Update(); bus.SwapBuffers(); }
+
+        Hear(ClusterState.OperatingLive);
+        controls.LoadIntoLive("harbour");
+        var ask = Assert.IsType<RunModeConfirmation>(controls.Choice.Pending);
+        Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask.Buttons.Select(b => b.Label));
+        Assert.Empty(Sent<TransitionStateIntent>(bus));                              // asked, nothing sent
+        ask.Resolve(ask.Buttons[0]);
+        Assert.Equal(ClusterState.Idle, Assert.Single(Sent<TransitionStateIntent>(bus)).TargetState);   // the load's own unload first (CE-295)
+    }
+
+    /// <summary><i>Load into Live</i> is the session's live load THROUGH ITS DOOR (CE-4101) — the panel runs no load sequence of its own.
     /// 🔴 Mutation: <c>LoadIntoLive</c> calls <c>Session.OpenForEdit</c> ⇒ the call list differs.</summary>
     [Fact]
     public void LoadIntoLive_IsTheSessionsLiveLoad()

@@ -409,9 +409,11 @@ namespace Hrot.Editor.DebugApi
                 new("exerciseId", "string", false, "Exercise GUID for a replay"),
                 new("timeMode", "string", false, "Time mode for the load"),
                 new("targetWallTicks", "number", false, "Wall-clock ticks the transition should take effect at"),
+                new("discardUnsaved", "boolean", false, "⭐ CE-4101 — for a move that leaves an open scenario (Idle, OperatingReplay, a scenario load): go even though it has unsaved changes (they are lost). Without it such a move answers 409."),
             },
             Notes: new[]
             {
+                "⭐ CE-4101 (AQ108 §2.11a) — a transition to Idle, OperatingReplay, or OperatingEdit / OperatingLive WITH a scenario is the editor's guarded door's decision: while a scenario is open for editing with unsaved changes it answers 409 \"the scenario has unsaved changes\" unless discardUnsaved:true; a running run is simply stopped. Every other target is the master's raw verb by name.",
                 "ASYNCHRONOUS: the answer confirms the intent was PUBLISHED, not that the cluster reached the state — poll get_status or get_cluster_roster.",
                 "Pass the returned transactionId to cancel_cluster_operation to cancel it; a cancel returns the cluster to Idle (R-4004).",
                 "Any node with an orchestration bus can publish it; a host without one answers 503.",
@@ -2127,6 +2129,7 @@ namespace Hrot.Editor.DebugApi
                 new("atSeconds", "number", false, "Where to enter, seconds after the exercise's start (default 0)"),
                 new("atSimSeconds", "number", false, "⭐ CE-3329 — or where to enter in the RECORDED sim time (the run's own clock; a pause lands at its end); needs a v7 recording — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"),
                 new("waitForReady", "boolean", false, "Wait until the cluster reports OperatingReplay"),
+                new("discardUnsaved", "boolean", false, "⭐ CE-4101 — open the recording even though the scenario open for editing has unsaved changes (they are lost). Without it such an open answers 409."),
                 new("path", "string", false, "Replay Browser only (RB-2): one recording file (.fdp) to open, need not be in list_exercises"),
                 new("paths", "array", false, "Replay Browser only (RB-2): a node group — one .fdp per node of one exercise"),
             },
@@ -2170,7 +2173,12 @@ namespace Hrot.Editor.DebugApi
             Summary: "Leave the replay: the cluster goes to Idle.",
             Returns: "{ published, transactionId, target } (+ awaited, reached with waitForReady).",
             Hint:    "Optional: waitForReady (bool). Example: stop_replay({waitForReady:true})",
-            Params: new RouteParam[] { new("waitForReady", "boolean", false, "Wait until the cluster reports Idle") },
+            Params: new RouteParam[]
+            {
+                new("waitForReady", "boolean", false, "Wait until the cluster reports Idle"),
+                new("discardUnsaved", "boolean", false, "⭐ CE-4101 — stop even though the scenario open for editing has unsaved changes (they are lost). Without it a stop while editing answers 409."),
+            },
+            Notes: new[] { "⭐ CE-4101 (AQ108 §2.11a) — the OUT door: while a scenario is open for EDITING with unsaved changes this answers 409 \"the scenario has unsaved changes\" unless discardUnsaved:true; a running run is simply stopped." },
             ExampleArgsJson: "{\"waitForReady\":true}",
             ExampleGist: "end the replay"),
 

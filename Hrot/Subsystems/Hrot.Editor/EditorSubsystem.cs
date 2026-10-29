@@ -352,6 +352,8 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
         /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
+        /// <summary>⭐ CE-4101 — the host's scenario session (the GUARDED surface every caller holds), for the constructed-host door rails.</summary>
+        internal Hrot.Editor.AiShared.Scenarios.IScenarioSession? ScenarioSessionForTest => _editorApp?.ScenarioSession;
 
         // ⭐ CE-1437 (AQ108 §2.10) — the editor OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
         Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
@@ -2470,7 +2472,7 @@ namespace Hrot.Editor
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
             //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
-            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Editor), _editorApp?.ScenarioSession,
+            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Editor), _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                 unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                     () => _orchestratorCore != null,
                     id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
@@ -4479,8 +4481,8 @@ namespace Hrot.Editor
                     openPicker:     _shellPickers.OpenPicker,
                     listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
                                           ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
-                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
-                    openRecording:  id => { if (_timeTransport?.RunChoice is { } choice) choice.OpenRecording(id); else _editorApp.ScenarioSession.OpenRecording(id); })
+                    // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
+                    openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id))
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
@@ -4523,9 +4525,7 @@ namespace Hrot.Editor
                         ? "[Curated] No curated scenarios saved (not a source checkout, or none present)."
                         : $"[Curated] Saved {written.Count} scenario(s) to git: " + string.Join(", ", written);
                 },
-                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098
-                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — a run → Stop & Load, unsaved edits → Save / Discard / Cancel first (CE-1438: the choice asks, no host seam)
-                openScenario: name => { if (_timeTransport?.RunChoice is { } choice) choice.OpenScenario(name); else _editorApp.ScenarioSession.OpenForEdit(name); });
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open);   // ⭐ CE-4098 (File › Open Scenario / Recording end in the session's guarded door — CE-4101)
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

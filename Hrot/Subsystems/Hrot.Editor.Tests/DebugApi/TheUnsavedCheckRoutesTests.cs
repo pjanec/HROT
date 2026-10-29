@@ -195,6 +195,50 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions.Last().TargetState);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a, D22) — HTTP <c>POST /replay/stop</c> is the OUT door, asked with the REFUSING asker: while EDITING with unsaved changes it answers <b>409</b> with the loads' own words (nothing published);
+    /// <c>discardUnsaved</c> asks the cluster nothing and stops; a clean scenario costs one round; a LIVE run is stopped with no round at all. Every stop publishes the ONE Idle intent (equal to
+    /// <c>ScenarioLoadSequence.UnloadIntent</c> apart from the TransactionId).
+    /// 🔴 Mutation: <c>StopReplay</c> publishing without the door ⇒ the 409 cell sees an Idle transition; <c>RefusingAsker</c> proceeding on <c>Unsaved</c> ⇒ the same cell is red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE4101_ReplayStop_WhileEditing_IsTheOutDoor_409OnUnsaved_ThenTheOneIdleIntent()
+    {
+        var (host, queue, url) = Start();
+        using var h = host;
+
+        _verdict = new UnsavedCheckResult(true, new[] { 2, 5 });
+        var (status, body) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        var error = body["error"]!.GetValue<string>();
+        Assert.Contains("the scenario has unsaved changes (nodes: 2,5)", error);
+        Assert.Contains("discardUnsaved", error);
+        Assert.Equal(1, Rounds);
+        Assert.Empty(_master.Transitions);                                        // ⭐ nothing was published
+
+        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("""{"discardUnsaved":true}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(1, Rounds);                                                  // the discard asked no round
+        var idle = Assert.Single(_master.Transitions);
+        var one = ScenarioLoadSequence.UnloadIntent();
+        one.TransactionId = idle.TransactionId;
+        Assert.Equal(one, idle);                                                  // the ONE Idle intent
+
+        _master.Sent.Clear(); _master.Transitions.Clear();
+        _verdict = UnsavedCheckResult.Unchanged;
+        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(1, Rounds);                                                  // a clean scenario: one round, then it goes
+        Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+
+        _master.Sent.Clear(); _master.Transitions.Clear();
+        _state = ClusterState.OperatingLive;
+        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(0, Rounds);                                                  // a run holds no scenario: nothing is asked
+        Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+    }
+
     /// <summary>One helper for both loads: a load of ANOTHER scenario for editing is gated the same way (a host that has no editor driver cannot tell it is the same one).</summary>
     [Fact(Timeout = 90_000)]
     public async Task LoadEdit_OfAnotherScenario_IsGatedByTheSameCheck()

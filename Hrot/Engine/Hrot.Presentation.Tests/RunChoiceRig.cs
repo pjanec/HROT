@@ -6,6 +6,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using Hrot.UI.Common.Adapters;
+using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Presentation.Tests;
@@ -17,7 +18,7 @@ namespace Hrot.Presentation.Tests;
 /// </summary>
 internal static class RunChoiceRig
 {
-    internal sealed class FakeControl : IRunScenarioControl, ISaveInterception
+    internal class FakeControl : IRunScenarioControl, ISaveInterception
     {
         public Func<bool>? SaveIntercept { get; set; }
         public string? LoadedScenarioName { get; set; } = "hill-attack";
@@ -28,6 +29,13 @@ internal static class RunChoiceRig
         public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Calls.Add($"OpenRecording:{exerciseId}@{atSimSeconds?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}");
         public void SaveCurrent() => Calls.Add("SaveCurrent");
         public void TakeCheckpoint() => Calls.Add("TakeCheckpoint");
+    }
+
+    /// <summary>⭐ CE-4101 — a fake session that, like <c>EditorScenarioSession</c>, owns its ONE <see cref="ScenarioDoor"/> over its raw verbs (the choice binds to it); a leave is recorded as <c>Leave:&lt;reason&gt;</c>.</summary>
+    internal sealed class FakeDoorControl : FakeControl, IHasScenarioDoor
+    {
+        public FakeDoorControl() { Door = new ScenarioDoor(this, () => TransportMode.Idle, reason => Calls.Add($"Leave:{reason}")); }
+        public ScenarioDoor Door { get; }
     }
 
     internal sealed class FakeUnsaved : IUnsavedChangesQuery
@@ -44,12 +52,12 @@ internal static class RunChoiceRig
     /// <summary>A real adapter on a real bus with a run choice attached; the cluster is heard in <paramref name="state"/> (exercise <see cref="RunId"/>).</summary>
     internal static Rig With(ClusterState state, RunArmed hostDefault = RunArmed.Preview, UnsavedAnswer answer = UnsavedAnswer.Unchanged,
                              bool running = false, double clock = 0, bool withControl = true, string? inventoryScenario = "hill-attack",
-                             bool runNotRecorded = false, bool recordLiveRunsOff = false)
+                             bool runNotRecorded = false, bool recordLiveRunsOff = false, bool withDoor = false)
     {
         var bus = new FdpEventBus();
         var view = new ClusterView(bus);   // ⭐ CE-1436 — the node's ONE cluster view; the rig advances it as ClusterSlave.Tick does
         var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
-        var control = new FakeControl();
+        var control = withDoor ? new FakeDoorControl() : new FakeControl();
         var unsaved = new FakeUnsaved { Answer = answer };
         var choice = facade.AttachRunChoice(hostDefault, withControl ? control : null, unsaved);
         var rig = new Rig(facade, bus, control, unsaved, choice, view);

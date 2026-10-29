@@ -148,8 +148,6 @@ public static class ScenarioMenuCommands
     /// <param name="openRecordingPicker">⭐ <c>CE-4098</c> (AQ108 D16/D19) — opens the recording picker (<see cref="RecordingPickerLauncher.Open"/>),
     /// which lists the exercises the master recorded and opens the pick into AAR through <see cref="IScenarioSession.OpenRecording"/>.
     /// Null ⇒ the item is registered but DISABLED with the reason in its label (ruling 49: serviceability decides enablement, never presence).</param>
-    /// <param name="openScenario">⭐ <c>CE-4097</c> part two (AQ108 §3 "open another scenario") — the host's GUARDED open of a picked scenario for editing: the run choice's
-    /// <c>OpenScenario</c>, which asks <i>Stop &amp; Load</i> over a running run (CE-1438) and the cluster's check round and, with unsaved edits, <i>Save / Discard / Cancel</i> first. Null ⇒ the session's own open (a rail, a host with no choice).</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -163,8 +161,7 @@ public static class ScenarioMenuCommands
         Action<IReadOnlyList<SidecarFileInfo>>?                    showMigrationHistory = null,
         Func<bool>?                                               isCuratedSaveEnabled = null,
         Action?                                                   saveCuratedToGit     = null,
-        Action?                                                   openRecordingPicker  = null,
-        Action<string>?                                           openScenario         = null)
+        Action?                                                   openRecordingPicker  = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -195,13 +192,13 @@ public static class ScenarioMenuCommands
         // ══ Open / New — top level, like Open Recording: none of them names a mode ═════════════════
 
         // ⭐ OPEN — /scenario/load/edit, into editing; the armed mode decides ▶. The id is unchanged; the path left the "Edit" submenu (it is no longer one of two ways to open).
-        //   ⭐ A host passes `openScenario` (its run choice's guarded open: unsaved edits → Save / Discard / Cancel first, AQ108 §3); null ⇒ the session's open, unguarded.
+        //   ⭐ CE-4101 — the session's open IS the guarded door (a run → Stop & Load, unsaved edits → Save / Discard / Cancel first, AQ108 §3): no host seam to pass, no unguarded fallback.
         RegisterCommand(
             registerCommand, menu, commands,
             LoadId, "Open Scenario", OpenScenarioMenuPath,
             "Open a scenario for editing (cluster-wide); what ▶ then runs is the host's armed mode",
             isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, name => (openScenario ?? session.OpenForEdit)(name)),
+            handler: _ => PickScenario(openPicker, session.OpenForEdit),
             dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason),
             allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 

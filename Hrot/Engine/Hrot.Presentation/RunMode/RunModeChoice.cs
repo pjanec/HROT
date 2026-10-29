@@ -32,6 +32,9 @@ public sealed class RunModeChoice
     private readonly IUnsavedChangesQuery _unsaved;
     private readonly Func<DateTime> _now;
 
+    private readonly ScenarioDoor? _door;           // ⭐ CE-4101 — the session's ONE guarded door (every USER move in or out goes through it); null on a host with no scenario session
+    private readonly ConfirmingAsker _asker = new(); // ⭐ CE-4101 — the one pending slot the toolbar draws (the door's questions and this choice's own confirmations)
+
     private ClusterState _lastState = ClusterState.Idle;
     private bool _keepArmedOnEdit;     // set by OUR OWN return-to-editing moves (■ in Live, → Preview): the Edit that follows is not a fresh open
     private bool _resumeWhenLive;      // ▶ in Live armed: the load lands paused (Q86 §4-G); ▶ means run, so the clock resumes once Live is up
@@ -41,15 +44,18 @@ public sealed class RunModeChoice
     public bool HasScenarioControl => _control is not null;
 
     /// <summary>⭐ R-4001 — the master's unsaved-changes round is open (shown as "checking…"; no timeout — the operator may <see cref="CancelCheck"/>).</summary>
-    public bool IsCheckingUnsaved => _asking;
+    public bool IsCheckingUnsaved => _asking || (_door?.IsCheckingUnsaved ?? false);
 
     /// <summary>⭐ R-4001 — the operator gives up waiting for the round: nothing proceeds, the move is not made.</summary>
     public void CancelCheck()
     {
+        _door?.CancelCheck();
         if (!_asking) return;
         _unsaved.Cancel();
         _asking = false;
     }
+
+    private bool Busy => Pending is not null || _asking || (_door?.IsBusy ?? false);
 
     /// <summary>How long a <see cref="Toast"/> shows.</summary>
     public static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(8);
@@ -72,6 +78,15 @@ public sealed class RunModeChoice
         Armed       = hostDefault;
         // ⭐ AQ108 D8 — Save in Live / DAR / AAR is a checkpoint: routed by construction for every save path of the host's ONE session
         if (control is ISaveInterception saves) saves.SaveIntercept = TryCheckpointInsteadOfSave;
+        // ⭐⭐ CE-4101 (AQ108 §2.11a) — the decision "a run ⇒ Stop & Load · unsaved ⇒ Save / Discard / Cancel" lives in the session's ONE door; this choice binds it to its transport, its check round and its
+        //   pending slot. A control with no door of its own (a rail's fake) gets one over the same raw verbs, so the choice calls the door either way.
+        if (control is not null)
+        {
+            _door = (control as IHasScenarioDoor)?.Door ?? new ScenarioDoor(control, () => transport.Mode);
+            _door.Bind(() => transport.Mode, _unsaved, _asker);
+            _door.RecordingOpening = exercise => { LastExercise = exercise; Armed = RunArmed.AAR; };
+            _door.AlsoBusy = () => _asking;   // ▶ Live's own check round shares the one unsaved seam
+        }
     }
 
     private long? _pendingBranchSeekWall;   // ⭐ D5: ■ in a branched run — seek the parent's AAR here once its session is known
@@ -102,7 +117,7 @@ public sealed class RunModeChoice
     public Guid? LastExercise { get; private set; }
 
     /// <summary>The confirmation waiting for a button (R3); <see langword="null"/> when none. The toolbar draws it as a modal.</summary>
-    public RunModeConfirmation? Pending { get; private set; }
+    public RunModeConfirmation? Pending => _asker.Pending;
 
     /// <summary>
     /// ⭐ Host seam for "Save as… and go live": asks the user for a scenario NAME, SAVES the scenario under it, then calls back with the name.
@@ -139,7 +154,7 @@ public sealed class RunModeChoice
     /// <param name="startPaused">Step from Edit: the dry run paused at its first frame (Live and AAR load paused anyway).</param>
     public void Play(bool startPaused = false)
     {
-        if (Pending is not null || _asking) return;   // a question is open: ▶ does not stack another
+        if (Busy) return;   // a question is open: ▶ does not stack another
         if (PlayDisabledReason is not null) return;
         switch (Armed)
         {
@@ -164,72 +179,20 @@ public sealed class RunModeChoice
     /// </summary>
     public void OpenRecording(Guid exerciseId, double? atSimSeconds = null)
     {
-        if (_control is null || exerciseId == Guid.Empty) return;
-        void Open()
-        {
-            LastExercise = exerciseId;
-            Armed = RunArmed.AAR;
-            if (atSimSeconds is { } at) _control.OpenRecording(exerciseId, at);
-            else _control.OpenRecording(exerciseId);
-        }
-        if (AskStopAndLoad(RunModeRunGuard.RecordingPrompt, Open)) return;
-        LeavingEditing("Opening a recording", Open);
+        if (_door is null || exerciseId == Guid.Empty) return;
+        _door.OpenRecording(exerciseId, atSimSeconds);   // ⭐ CE-4101 — the door asks (Stop & Load / Save-Discard-Cancel); its RecordingOpening hook arms AAR when the open goes out
     }
 
     /// <summary>
     /// ⭐ <c>CE-4097</c> part two (AQ108 §3 "open another scenario", D20) — opens <paramref name="scenarioName"/> for EDITING; asks <i>Save / Discard / Cancel</i> first when the scenario
     /// being edited has unsaved changes (the cluster's check round). The armed mode becomes the host's default through the cluster-state hook (D12). The File › Open Scenario item of every host ends here.
+    /// ⭐⭐ <c>CE-1438</c> → <c>CE-4101</c> — "a run is running" (<i>Stop &amp; Load</i>) and the unsaved round are the session's ONE <see cref="ScenarioDoor"/>'s decision, ⛔ not this choice's: a picker, a recipe, a panel button
+    /// and HTTP reach the same door without going through here.
     /// </summary>
     public void OpenScenario(string scenarioName)
     {
-        if (_control is null || string.IsNullOrWhiteSpace(scenarioName)) return;
-        if (AskStopAndLoad(run => RunModeRunGuard.LoadPrompt(run, scenarioName), () => _control.OpenForEdit(scenarioName))) return;
-        LeavingEditing("Opening another scenario", () => _control.OpenForEdit(scenarioName));
-    }
-
-    /// <summary>
-    /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #6, #7) — <b>the "a run is running" guard, INSIDE the choice</b>: a File › Open Scenario / Open Recording over a live run or a dry
-    /// run asks <i>Stop &amp; Load</i> first, on EVERY host that has a choice — by construction, ⛔ not a seam each host remembers to pass (CGF passed none, so its open went straight
-    /// over a run). "Running" is <see cref="RunModeRunGuard.Of"/>, read off the facade's <see cref="TransportMode"/> — the one definition HTTP uses too. The open itself stops the run
-    /// (the session's load unloads to Idle; a dry run's restore point is forgotten). Returns <see langword="true"/> when it asked, or when a question is already open (the move is then not made).
-    /// </summary>
-    private bool AskStopAndLoad(Func<string, string> text, Action proceed)
-    {
-        if (Pending is not null || _asking) return true;
-        if (RunModeRunGuard.Of(_transport.Mode) is not { } run) return false;
-        Ask(RunModeRunGuard.Title, text(run), new RunModeConfirmation.Button(RunModeRunGuard.StopAndLoad, proceed));
-        return true;
-    }
-
-    /// <summary>
-    /// ⭐ THE ONE guard for a move that LEAVES EDITING (AQ108 D20): <paramref name="proceed"/> runs at once when nothing is being edited (a run holds no scenario of its own, and the master
-    /// refuses a check round outside editing), else after the check round — unchanged: at once; changed: <i>Save / Discard / Cancel</i>; never saved: <i>Discard / Cancel</i>.
-    /// ⭐ ONE <c>CheckUnsaved</c> per move, whichever menu item or button started it.
-    /// </summary>
-    private void LeavingEditing(string what, Action proceed)
-    {
-        if (Pending is not null || _asking) return;
-        if (_transport.Mode != TransportMode.Edit) { proceed(); return; }
-
-        _asking = true;
-        _unsaved.Ask(answer =>
-        {
-            _asking = false;
-            switch (answer)
-            {
-                case UnsavedAnswer.Unchanged:
-                    proceed();
-                    break;
-                case UnsavedAnswer.Changed:
-                    Ask($"This scenario has unsaved changes. {what} leaves editing.",
-                        new RunModeConfirmation.Button("Save", () => { _control!.SaveCurrent(); proceed(); }),
-                        new RunModeConfirmation.Button("Discard", proceed));
-                    break;
-                case UnsavedAnswer.NeverSaved:
-                    Ask($"This scenario has never been saved. {what} discards it.", new RunModeConfirmation.Button("Discard", proceed));
-                    break;
-            }
-        });
+        if (_door is null || string.IsNullOrWhiteSpace(scenarioName)) return;
+        _door.Open(scenarioName);
     }
 
     // ── ⭐ AQ108 D21 — the timeline's menu: a mode change at the clicked moment, without asking ─────────────────────────
@@ -530,8 +493,7 @@ public sealed class RunModeChoice
 
     private void Ask(string text, params RunModeConfirmation.Button[] buttons) => Ask("Confirm", text, buttons);
 
-    private void Ask(string title, string text, params RunModeConfirmation.Button[] buttons)
-        => Pending = RunModeConfirmation.WithCancel(text, done => { if (ReferenceEquals(Pending, done)) Pending = null; }, title, "mt_run_confirm", buttons);
+    private void Ask(string title, string text, params RunModeConfirmation.Button[] buttons) => _asker.Show(title, text, buttons);
 
     // ── D12 + the cluster's state ───────────────────────────────────────────────────────
 

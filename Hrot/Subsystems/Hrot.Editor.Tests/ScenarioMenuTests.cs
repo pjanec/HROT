@@ -253,24 +253,8 @@ public sealed class ScenarioMenuTests
         Assert.DoesNotContain(menu.AllowedInIdleItems(), a => a.Path.StartsWith("File/Live/Load"));
     }
 
-    /// <summary>⭐ CE-4097 part two — a host passes its run choice's GUARDED open (unsaved edits → Save / Discard / Cancel): the pick reaches IT, not the session's raw open.</summary>
-    [Fact]
-    public void TheOpenItem_GoesThroughTheHostsGuardedOpen_WhenOneIsPassed()
-    {
-        var session = new FakeScenarioSession();
-        var cmds = new RecordingCommandSet();
-        var guarded = new List<string>();
-        ScenarioMenuCommands.Register(
-            registerCommand: (d, h) => cmds.Register(d, h),
-            menu: new GlobalMenuRegistry(), commands: cmds, session: session,
-            openPicker: (kinds, cb) => cb(new FakeScenarioAsset("PickedScenario")), openSaveAsDialog: null,
-            openScenario: guarded.Add);
-
-        Assert.True(cmds.Invoke(ScenarioMenuCommands.LoadId).Success);
-
-        Assert.Equal(new[] { "PickedScenario" }, guarded);
-        Assert.Empty(session.OpenForEditCalls);
-    }
+    // ⭐ CE-4101 — the registrar's `openScenario` host seam (and every host's unguarded `else` fallback) is GONE: the Open item ends in the session's OpenForEdit, which IS the guarded door
+    //   (rails: Load_OpensScenarioFilteredModal_AndOpensForEdit here; TheOneGuardedDoorTests for the door itself).
 
     [Fact]
     public void Load_OpensScenarioFilteredModal_AndOpensForEdit()

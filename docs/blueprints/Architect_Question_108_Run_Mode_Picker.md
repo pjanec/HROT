@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
-updated: 2026-10-29 (CE-1439: §2.12 as-built — the Orchestrator composes the scenario menu and the panel asks the one run surfaces) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
+updated: 2026-10-29 (CE-4101: §2.11a as-built — the ONE guarded door in and out of the open scenario; §2.11's guard moved from the choice into it) · 2026-10-29 (CE-1439: §2.12 as-built — the Orchestrator composes the scenario menu and the panel asks the one run surfaces) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
 current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
@@ -701,6 +701,8 @@ the perspective while the cluster clock is one · **first-registered wins** — 
 
 ### 2.11 CE-1438 — one confirmation shape, and the "a run is running" guard inside the run choice (R-3066 audit #5, #6, #7) — ⭐ **AS-BUILT `2026-10-29` (ui)**
 
+> ⚠ **Moved by CE-4101 (§2.11a, `2026-10-29`):** the "a run is running" guard and the unsaved round now live in the session's ONE `ScenarioDoor`, not in `RunModeChoice` (`AskStopAndLoad` / `LeavingEditing` are gone; the choice binds the door and calls it). The text below is the CE-1438 build as it was.
+
 | the lean rests on | code (measured before the build, `ui@2cd9d28ff`) | design |
 |---|---|---|
 | three confirmation shapes: `ConfirmPromptController` (title / message / confirm label, `Resolve*`), `AppExitPromptController` (`IsPrompting`, three `Resolve*`), `RunModeConfirmation` (text + N buttons, last = Cancel) | ✅ `ConfirmPromptController.cs:23`, `AppExitPromptController.cs:19`, `RunModeTypes.cs:185`; three draw sites: `EditorSubsystem` `DrawExitPromptModal` / `DrawConfirmModal` (two hand-written `BeginPopupModal`s) and `MainToolbarTimeControlSection.DrawConfirmation` | ✅ AQ108 §1 **R3** + **D10** call `RunModeConfirmation` *"the ONE confirmation shape"*; `ConfirmPromptController`'s own header says a second shape is what the seam law forbids |
@@ -776,53 +778,67 @@ a plain model + one static draw already covers · **retiring the two controllers
 | 3 | `ConfirmPromptController` / `AppExitPromptController` "thin producers (or retired)" | both kept, public `Resolve*` kept; `ConfirmPromptController` keeps only `Pending` / `IsPrompting` / `Request`; the exit prompt's document list is now text inside the model (it was a bulleted ImGui list) | the existing rails call `ResolveConfirm` / `ResolveSaveAndExit` directly; the bullet list is the only visual change of the exit modal |
 | 4 | — | `CgfSubsystem.NodeForTest` (internal) added | the constructed-host rail needs the node's bus + cluster view to "hear" `OperatingLive` |
 
-### 2.11a CE-4101 — ONE guarded door IN (open a scenario / recording) and ONE OUT (leave to Idle) — DESIGN `2026-10-29` (ui)
+### 2.11a CE-4101 — ONE guarded door IN (open a scenario / recording) and ONE OUT (leave to Idle) — ⭐ **AS-BUILT `2026-10-29` (ui)** (design text kept; the build's deviations are the table at the end of this section)
 
 🔒 User, on CE-1438: *"this again looks like missing unification, isnt there still dupliction?"* — the DECISION is one (§2.11), the DOOR is not:
-`IScenarioSession.OpenForEdit` / `LoadForLive` / `OpenRecording` stay public and unguarded, so each caller must remember the choice. Frame:
+`IScenarioSession.OpenForEdit` / `LoadForLive` / `OpenRecording` stayed public and unguarded, so each caller had to remember the choice. Frame:
 [NOTE](batches/NOTE_Coordinator_To_Ui_One_Guarded_Scenario_Door.md) (coordinator, widened by the user).
 
-**INVENTORY** (`2026-10-29`; graph `search_code "OpenForEdit("` → 15 hits incl. `EditorSubsystem.RegisterWindows`, `CgfSubsystem.WirePickerShell` /
-`SaveAllAiDocuments`; grep over `Hrot/ FDP/` agrees; ⚠ `check_index_coverage` not available through the CLI):
+**INVENTORY** (`2026-10-29`, re-measured before the build: `scripts/cbm.sh search_code` for `OpenForEdit(` · `LoadForLive(` · `OpenRecording(` · `LoadScenarioByName(` · `ClusterState.Idle` + whole-tree grep over `Hrot/ FDP/ Stride/`
+(excluding `obj`, tests, `.claude/worktrees`); ⚠ `check_index_coverage` is not available through the CLI, so coverage of the graph itself was not checked — the greps are the whole-tree answer).
+Rows marked ➕ were NOT in the first table; they were added and fixed:
 
-| door | caller | guarded today? |
-|---|---|---|
-| IN | File › Open Scenario / Recording — editor `:4483,:4528`, CGF `:2949,:2951`, Orchestrator `:333` | ✅ via the choice, each with an UNGUARDED `else` fallback |
-| IN | the asset browser's scenario pick — CGF `:2529`, editor `:3753`, Orchestrator `:316` | ⛔ the session directly |
-| IN | New from a recipe — `ScenarioNewAssetService.cs:138` → `LoadScenarioByName` → `EditorApplication.cs:131` → `OpenForEdit` | ⛔ |
-| IN | the editor's director load — `EditorSubsystem.cs:2490` | ⛔ |
-| IN | the Orchestrator panel's *Load into Live* — `ClusterPanelRunControls.cs:93` | ⛔ (and no unsaved check — a loss) |
-| IN | HTTP loads — `DebugApiService.cs:1212,1244` | ✅ own 409 over `RunModeRunGuard.Of` |
-| OUT | New Exercise — `EditorScenarioSession.cs:171` (Idle intent, no unsaved check — a loss) | ⛔ |
-| OUT | the raw ■ — `ClusterTimeTransportAdapter.cs:185` (`StopRaw`, no run choice) | ⛔ |
-| OUT | the director's live stop — `EditorDirector.cs:85` | ⛔ |
-| OUT | HTTP `/replay/stop` — `DebugApiService.Master.cs:443`; the load's own unload — `ScenarioLoadSequence.cs:60` | (explicit) · ✅ |
+| door | caller | guarded before | now |
+|---|---|---|---|
+| IN | File › Open Scenario / Recording — editor, CGF, Orchestrator | ✅ via the choice, each with an UNGUARDED `else` fallback | the session's own `OpenForEdit` / `OpenRecording` ARE the door; the `openScenario` seam and every fallback deleted |
+| IN | the asset browser's scenario pick — CGF `WirePickerShell`, editor, Orchestrator | ⛔ the session directly | the same door (the session's verbs) |
+| IN | New from a recipe — `ScenarioNewAssetService` → `LoadScenarioByName` → `EditorApplication` | ⛔ | the door; the save-as follows the open that WENT OUT (`then`) |
+| IN | the editor's director load — `EditorSubsystem` `EditorDirectorHost(load: …)` | ⛔ | the door (via `EditorApplication.LoadScenarioByName`) |
+| IN | the Orchestrator panel's *Load into Live* — `ClusterPanelRunControls.LoadIntoLive` | ⛔ (and no unsaved check — a loss) | `IScenarioSession.LoadForLive` = the door |
+| IN | HTTP `POST /scenario/load/edit` — `DebugApiService.LoadScenarioEdit` / `BeginLoadScenario` | its own route-level 409 | the editor's door, asked with `RefusingAsker`; same 409 and text |
+| IN ➕ | HTTP `POST /scenario/load/live` — `DebugApiService.LoadScenarioLive` (its own load sequence: `ForceRecording`, the `startPaused` time mode) | its own route-level 409 | `HttpDoor.Admit` decides, the route's own publish executes |
+| IN ➕ | HTTP `POST /replay` — `DebugApiService.EnterReplay` | ⛔ unguarded (unsaved edits lost) | `Admit(OpeningRecording)`; 409 over unsaved edits unless `discardUnsaved` |
+| IN ➕ | HTTP `POST /cluster/transition` to Idle / Edit+scenario / Live+scenario / Replay — `RequestClusterTransition` | ⛔ unguarded | `Admit(<the move of the target>)`; every other target stays the master's raw verb by name |
+| OUT | New Exercise — `EditorScenarioSession` | ⛔ Idle intent, no unsaved check (a loss) | `Door.Leave(NewExercise)`: Save / Discard / Cancel first |
+| OUT | the raw ■ — `ClusterTimeTransportAdapter.StopRaw` | ⛔ own intent | `ScenarioLoadSequence.UnloadIntent()` (a host with no session: nothing of a scenario to ask) |
+| OUT | the director's live stop — `EditorDirectorHost.StopLive` | ⛔ own intent | `UnloadIntent()` (it ends a LIVE run: no edited scenario) |
+| OUT | HTTP `POST /replay/stop` — `DebugApiService.StopReplay` | ⛔ own intent, no check | `Admit(Leaving(HttpStop))`; 409 over unsaved edits unless `discardUnsaved`; `UnloadIntent()` |
+| OUT | the load's own unload — `ScenarioLoadSequence.Request` | ✅ | `Unload()` (the one builder) |
+| — | `ClusterMaster.cs` ~2110 (the master's own bootstrap unload) | the master | left as it is (the master) |
 
 ```mermaid
 classDiagram
-  class ScenarioDoor { <<NEW, Hrot.Presentation — the ONE decision>> +Open(name) · +LoadLive(name) · +OpenRecording(id, at?) · +Leave(LeaveReason) · decides: a run ⇒ Stop & Load · unsaved ⇒ Save / Discard / Cancel · never saved ⇒ Save As }
-  class IDoorAsker { <<NEW>> Ask(DoorQuestion, proceed) · Refuse(reason) }
-  class ConfirmingAsker { <<NEW, UI hosts>> → RunModeConfirmation in the one pending slot (drawn by ConfirmationModal) }
-  class RefusingAsker { <<NEW, HTTP>> → the route's 409 with the question's text (D22 unchanged) }
-  class EditorScenarioSession { <<existing>> ⭐ public open / load / leave = through its ScenarioDoor · raw verbs only as explicit IRunScenarioControl members }
-  class IRunScenarioControl { <<existing>> the RAW verbs — handed ONLY to RunModeChoice (R2's ■ paths need them unasked) }
-  class RunModeChoice { <<existing>> mode logic (armed, R2) · ⛔ no own AskStopAndLoad / LeavingEditing — calls the door }
-  class ScenarioLoadSequence { <<existing>> ⭐ Unload() — the ONE Idle intent (the OUT door and the load's first half) }
-  class ScenarioMenuCommands { <<existing>> ⭐ registered ONCE by the composition (CE-1437 precedent); openers = the door, no fallback }
+  class ScenarioDoor { <<NEW, Hrot.Presentation — the ONE decision>> +Open(name) · +LoadLive(name) · +OpenRecording(id, at?) · +Leave(LeaveReason) · +Admit(DoorMove, asker, answered, go) · decides: a run ⇒ Stop & Load · editing + unsaved ⇒ Save / Discard / Cancel · never saved ⇒ Discard / Cancel }
+  class DoorMove { <<NEW record>> OpeningScenario · LoadingLive · OpeningRecording · Leaving(reason) — its words and how a run it stops is worded }
+  class IDoorAsker { <<NEW>> DiscardsUnsaved · Ask(DoorQuestion) }
+  class ConfirmingAsker { <<NEW, UI hosts>> Pending slot → RunModeConfirmation (drawn by ConfirmationModal) · Show(title, text, buttons) }
+  class RefusingAsker { <<NEW, HTTP + non-interactive>> a run ⇒ stopped (StoppedRun) · a loss ⇒ Refusal text (the route's 409) · discardUnsaved }
+  class IHasScenarioDoor { <<NEW>> Door }
+  class EditorScenarioSession { <<existing>> ⭐ public OpenForEdit / LoadForLive / OpenRecording / NewExercise = Door calls · RawLeave · RunControl · raw verbs = EXPLICIT IRunScenarioControl members }
+  class IScenarioSession { <<existing>> ⭐ no longer extends IRunScenarioControl — guarded members only }
+  class IRunScenarioControl { <<existing>> the RAW verbs — handed ONLY to RunModeChoice (R2's moves ask their own confirmation) }
+  class RunModeChoice { <<existing>> mode logic (armed, R2) · binds the door in its ctor (transport mode, unsaved seam, ConfirmingAsker) · ⛔ no own AskStopAndLoad / LeavingEditing }
+  class ScenarioLoadSequence { <<existing>> ⭐ UnloadIntent() — the ONE Idle intent · Unload() }
+  class DebugApiService { <<existing>> HttpDoor = the editor's door, else a deciding-only door · HttpAsker · HttpUnsavedGate }
+  class ScenarioMenuCommands { <<existing>> openers = session.OpenForEdit (the door) — no openScenario seam, no fallback }
   ScenarioDoor --> IDoorAsker
+  ScenarioDoor ..> DoorMove
   IDoorAsker <|.. ConfirmingAsker
   IDoorAsker <|.. RefusingAsker
+  IHasScenarioDoor <|.. EditorScenarioSession
   EditorScenarioSession *-- ScenarioDoor
-  EditorScenarioSession ..|> IRunScenarioControl
+  EditorScenarioSession ..|> IScenarioSession
+  EditorScenarioSession ..|> IRunScenarioControl : explicit
   RunModeChoice --> IRunScenarioControl : raw, R2 only
-  RunModeChoice --> ScenarioDoor : every user move
-  ScenarioDoor --> ScenarioLoadSequence : Unload / Request
-  ScenarioMenuCommands --> ScenarioDoor
+  RunModeChoice --> ScenarioDoor : every user move (Bind)
+  RunModeChoice *-- ConfirmingAsker
+  EditorScenarioSession --> ScenarioLoadSequence : Unload / Request
+  DebugApiService --> ScenarioDoor : Open / Admit with RefusingAsker
+  ScenarioMenuCommands --> IScenarioSession
 ```
 
-*What the picture shows that prose hid:* a caller holding the SESSION (menu, picker, recipe, panel, director, HTTP) can only reach the door; the raw
-verbs exist only on `IRunScenarioControl`, implemented EXPLICITLY, and only the run choice is handed that interface — the
-`WindowManager.SwitchPerspective` → `TrySwitchPerspective` shape. The Idle intent exists once (`ScenarioLoadSequence.Unload`).
+*What the picture shows that prose hid:* a caller holding the SESSION (menu, picker, recipe, panel, director load, HTTP) can only reach the door — `IScenarioSession` no longer inherits the raw verbs, which are explicit
+`IRunScenarioControl` members and are handed only to the run choice (the `WindowManager.SwitchPerspective` → `TrySwitchPerspective` shape). The Idle intent exists once (`ScenarioLoadSequence.UnloadIntent`).
 
 ```mermaid
 sequenceDiagram
@@ -832,25 +848,42 @@ sequenceDiagram
   participant L as ScenarioLoadSequence
   C->>D: Open("hill-attack")
   alt a run is running (RunModeRunGuard)
-    D->>A: Ask "Stop & Load / Cancel"   (HTTP: Refuse → 409)
+    D->>A: Ask "Stop & Load / Cancel"   (HTTP: stops it, names it)
   else editing with unsaved edits (the one check round, R-4001)
-    D->>A: Ask "Save / Discard / Cancel"
+    D->>A: Ask "Save / Discard / Cancel"   (HTTP: refuses, 409)
   end
-  A-->>D: proceed
-  D->>L: Request(load)   (Unload first when not Idle — the one Idle intent)
+  A-->>D: proceed (the pressed button's move)
+  D->>L: raw OpenForEdit → Request(load)   (Unload first when not Idle — the one Idle intent)
 ```
 
-⭐ **Decisions:** ① the decision moves from `RunModeChoice` (`AskStopAndLoad`, `LeavingEditing`) into `ScenarioDoor`; the choice keeps the mode logic
+⭐ **Decisions** *(as designed; the build kept all six)*: ① the decision moves from `RunModeChoice` (`AskStopAndLoad`, `LeavingEditing`) into `ScenarioDoor`; the choice keeps the mode logic
 and calls the door for every user move. ② the asker is injected per host role: UI hosts the confirming asker (its pending slot is the one the toolbar
-already draws), HTTP the refusing asker ⇒ its 409s (D22) come from the same decision, not `DebugApiService`'s own check. ③ **no unguarded public
-open**: the session's public `OpenForEdit` / `LoadForLive` / `OpenRecording` go through the door; the raw verbs become explicit
-`IRunScenarioControl` members, passed only to the run choice. ④ **the OUT door** `Leave(reason)` — New Exercise, back to `Start`, exit, ■ from edit,
-the director's stop — the same decision (unsaved ⇒ Save / Discard / Cancel; a run ⇒ stop it), the one Idle intent; HTTP `/replay/stop` calls it with
-*refuse*. ⑤ the scenario menu is registered ONCE by the composition (the three per-host `Register` lambdas and their `else` fallbacks deleted).
-⑥ a rail that fails when production code reaches a raw open (the constructed objects, not source text) + a rail per inventory row.
+already draws), HTTP the refusing asker ⇒ its 409s (D22) come from the same decision. ③ **no unguarded public
+open**: the session's public `OpenForEdit` / `LoadForLive` / `OpenRecording` go through the door; the raw verbs are explicit
+`IRunScenarioControl` members, passed only to the run choice. ④ **the OUT door** `Leave(reason)` — New Exercise (built); back to `Start` and exit (CE-4100 ② wires them: the enum and the decision exist); ■ from edit
+is not offered by the facade; the director's stop ends a live run. ⑤ the scenario menu's openers are the door (the three per-host lambdas lost their `else` fallbacks).
+⑥ rails that fail when production code reaches a raw open (the constructed objects, not source text) + a rail per inventory row.
 Rejected (one line each): **route the missing callers through `RunModeChoice` one by one** — the remember-to-wire pattern that produced this ·
 **enforce only at the master** — it can refuse but cannot show *Save / Discard / Cancel* · **a guard flag callers pass** — callers forget flags.
-**Absorbs:** CE-1440 #12 (go to Idle) and CE-4100 ② (back-to-Start / exit guard).
+**Absorbs:** CE-1440 #12 (go to Idle) and CE-4100 ② (back-to-Start / exit guard — the decision exists, its two callers are CE-4100's).
+
+**AS-BUILT deviations from the design above**
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `IDoorAsker { Ask(DoorQuestion, proceed); Refuse(reason) }` | `Ask(DoorQuestion)` — the question's buttons carry the continuation — plus `DiscardsUnsaved`; a refusal is `RefusingAsker.Refusal` (no `Refuse` member) | one member answers both hosts; HTTP reads the refusal text off its own asker |
+| 2 | never-saved ⇒ *Save As* | never-saved ⇒ *Discard / Cancel* (D20 as built in §2.8a) | *Save as…* needs the host's Save-As dialog (`RunModeChoice.SaveAsPrompt`), which only ▶ Live's *Save as… and go live* has |
+| 3 | the verbs only | + `ScenarioDoor.Admit(DoorMove, asker, answered, go)` | HTTP's live load and its stop publish THEIR OWN intent (`ForceRecording` / the `startPaused` time mode / the reply's `transactionId`), which the session's raw verbs do not carry; the DECISION is still the door's |
+| 4 | HTTP's 409 "from the same decision, not `DebugApiService`'s own check" | the route still awaits the cluster's check round (no deadline, `UnsavedCheckAsker.WaitAsync`) and hands the verdict to the door as `HttpUnsavedGate`; the 409 and its text come from `RefusingAsker`. A host with no editor logic (a cluster node) gets a deciding-only door (`raw: null`) over the cluster state — the same class | the round is awaited asynchronously through the job queue; the door's own per-frame poll is the UI's |
+| 5 | HTTP loads + `/replay/stop` | + `POST /replay` and `POST /cluster/transition` (Idle / Edit+scenario / Live+scenario / Replay) through the door (inventory ➕) | measured in the re-run grep: both lost unsaved edits; every other `target` stays the master's raw verb by name |
+| 6 | "the scenario menu registered ONCE by the composition" | the `openScenario` seam and the unguarded fallbacks are deleted (the openers ARE the session's door); ⚠ the editor and CGF still call `ScenarioMenuCommands.Register` from their own `RegisterWindows` (the Orchestrator through `ComposeScenarioActions`, CE-1439) | moving the editor's and CGF's registration into `ComposeScenarioActions` needs their picker / Save-As / confirmation composition, a separate change; the door makes it safe either way — a second registration can no longer open unguarded |
+| 7 | the director's stop through `Leave` | `ScenarioLoadSequence.UnloadIntent()` through the director host's master; no door call | it ends a LIVE run: no scenario is being edited, so the door has nothing to ask; wiring the door into the 19-argument host buys nothing |
+| 8 | `IScenarioSession` unchanged | no longer extends `IRunScenarioControl`; `EditorScenarioSession.RunControl` / `EditorApplication.RunControl` hand the raw verbs to `AttachRunChoice`; `IEditorLogic` + `IScenarioCreationSession` gained `LoadScenarioByName(name, then)` (default members) and `IEditorLogic.Door` | `then` is what makes New-from-a-recipe save only after the open WENT OUT (a cancelled open used to be followed by a save of whatever the world held) |
+| 9 | — | New Exercise keeps the menu's destructive confirmation (ruling 53) and, over unsaved edits, the door's *Save / Discard / Cancel* follows: two questions in that one case | the confirmation words the cluster-wide reset; the door words the loss |
+| 10 | — | a session with NO run choice has an unbound door: a run is stopped (a `RefusingAsker`), unsaved edits are not checked (it has no round to ask) | headless rails and hosts without a choice keep today's behaviour |
+
+📌 Rails: `TheOneTimeFacadeTests.CE4101_*` (the door's decision for every verb over a run / unsaved edits, the refusing asker and `Admit`, the choice's own moves, the raw ■'s Idle intent) · `EditorScenarioSessionLoadTests.CE4101_*` (the real session: no public raw open, every verb asks, New Exercise asks over unsaved edits, the ONE Idle intent, `then`) ·
+`ThePanelAsksTheOneRunSurfacesTests.LoadIntoLive_OverARun_*` · `ScenarioNewAssetTests.CE4101_*` · `TheUnsavedCheckRoutesTests.CE4101_*` (HTTP stop) · `TheDirectorsStopIsTheOneIdleIntentTests` · `TheRunChoiceIsOnEveryHostTests.CE4101_*` (the constructed editor and CGF).
 
 ### 2.12 CE-1439 — the scenario actions on every operator host (R-3066 audit #8, #9) — ⭐ **AS-BUILT `2026-10-29` (ui)**
 

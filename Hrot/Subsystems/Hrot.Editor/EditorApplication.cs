@@ -131,6 +131,15 @@ public sealed class EditorApplication : IEditorLogic
     public void LoadScenarioByName(string scenarioName) => _session.OpenForEdit(scenarioName);
 
     /// <inheritdoc/>
+    public void LoadScenarioByName(string scenarioName, Action then) => _session.Door.Open(scenarioName, then: then);
+
+    /// <inheritdoc/>
+    public Hrot.UI.Common.RunMode.ScenarioDoor Door => _session.Door;
+
+    /// <summary>⭐ CE-4101 — the session's RAW verbs, for <c>AttachRunChoice</c> only.</summary>
+    public Hrot.UI.Common.RunMode.IRunScenarioControl RunControl => _session.RunControl;
+
+    /// <inheritdoc/>
     public void SaveCurrentScenario() => _session.SaveCurrent();
 
     /// <inheritdoc/>

@@ -82,8 +82,8 @@ namespace Hrot.Editor.Director
         // ⭐ CE-4045 H1a — a live run and its recording (Scenario Regression §10-1)
         public void LoadLive(string scenario) { _loaded = true; _loadLive(scenario); }
         public bool IsOperatingLive => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive;
-        public void StopLive() => _master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-            { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        // ⭐ CE-4101 — the director stops a LIVE run (no scenario is being edited there, so the door has nothing to ask): the ONE Idle intent, not a hand-built copy
+        public void StopLive() => _master.Transition(Fdp.Toolkit.Orchestration.ScenarioLoadSequence.UnloadIntent());
 
         // ⭐ CE-4045 H5 — the review through the ONE construction of its intents (the same as POST /review and the facade)
         public void EnterReview(double simSeconds) => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReview(simSeconds: simSeconds));

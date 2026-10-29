@@ -6,6 +6,8 @@ using Fdp.Core;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
 using Hrot.ScenarioEditor.Services;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
@@ -31,8 +33,21 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// *"Uniform in every host — there is no editor-only live-load driver to prefer."* ⇒ the asymmetry is
 /// the design, not an oversight; each node's own live-load handler does its own clearing.</para>
 /// </summary>
-public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.RunMode.ISaveInterception
+public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioControl, IHasScenarioDoor, Hrot.UI.Common.RunMode.ISaveInterception
 {
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — <b>the ONE guarded door in and out of the open scenario.</b> This session's PUBLIC <see cref="OpenForEdit"/> / <see cref="LoadForLive"/> / <see cref="OpenRecording(Guid)"/> /
+    /// <see cref="NewExercise"/> are calls on it (a run ⇒ <i>Stop &amp; Load</i> · unsaved edits ⇒ <i>Save / Discard / Cancel</i>); the RAW verbs are EXPLICIT <see cref="IRunScenarioControl"/> members, handed only to the
+    /// <see cref="RunModeChoice"/> (<see cref="RunControl"/>). HTTP asks through <see cref="Door"/> with its refusing asker.
+    /// </summary>
+    public ScenarioDoor Door { get; }
+
+    /// <summary>
+    /// ⭐ <c>CE-4101</c> — the RAW verbs, for the run choice and for nobody else (<c>AttachRunChoice</c>): its mode moves (■ in Live, → Preview, go-live from Edit) ask their own R3 confirmation and then must open WITHOUT the door asking again.
+    /// ⛔ Any other caller holds the session (<see cref="IScenarioSession"/>) and reaches only the door.
+    /// </summary>
+    public IRunScenarioControl RunControl => this;
+
     /// <inheritdoc/>
     public Func<bool>? SaveIntercept { get; set; }
 
@@ -127,6 +142,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
                 if (load.TargetState == ClusterState.OperatingEdit) ClearWorld();
                 _loadedScenarioName = load.ScenarioId;
             });
+        Door = new ScenarioDoor(this, () => ClusterReplayControls.ModeOf(CurrentClusterState), RawLeave);
     }
 
     // ⭐ CE-1025 (R-1031, load design §9.1) — leaves the host's own dry run WITHOUT a rewind, FIRST, at every load request (and New
@@ -162,27 +178,36 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     }
 
     /// <inheritdoc/>
-    public void NewExercise()
+    /// <remarks>⭐ <c>CE-4101</c> — the OUT door: editing with unsaved edits asks <i>Save / Discard / Cancel</i> first (it used to discard silently); a run is simply stopped.</remarks>
+    public void NewExercise() => Door.Leave(LeaveReason.NewExercise);
+
+    /// <summary>
+    /// ⭐ The raw leave to Idle the door calls once it has decided: leaves the host's dry run, sends the ONE Idle intent (<see cref="ScenarioLoadSequence.Unload"/>), abandons a queued load (the operator just asked
+    /// for a fresh exercise — honouring it afterwards would undo the request) and, for New Exercise, wipes the local world. ⛔ This is what distinguishes New Exercise from <see cref="ClearWorld"/>: on a cluster only this reaches the other nodes.
+    /// </summary>
+    private void RawLeave(LeaveReason reason)
     {
         _leaveRun?.Invoke();
-        // ⭐⭐ The cluster-wide half: ask the master to finish whatever is running and return to Idle.
-        //    ⛔ This is what distinguishes New Exercise from ClearWorld — on a single-process editor the
-        //    two look almost identical, but on a cluster only this one reaches the other nodes.
-        _orchestrationBus.PublishManaged(new TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = ClusterState.Idle,
-        });
-
-        // ⚠ Any load that was waiting for idle is abandoned — the operator just asked for a fresh
-        //   exercise, so honouring a queued load afterwards would silently undo their request.
+        _loads.Unload();
         _loads.Cancel();
-
-        ClearWorld();
+        if (reason == LeaveReason.NewExercise) ClearWorld();
     }
 
     /// <inheritdoc/>
-    public void OpenForEdit(string scenarioName)
+    public void OpenForEdit(string scenarioName) => Door.Open(scenarioName);
+
+    /// <inheritdoc/>
+    public void LoadForLive(string scenarioName) => Door.LoadLive(scenarioName);
+
+    /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId) => Door.OpenRecording(exerciseId);
+
+    /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Door.OpenRecording(exerciseId, atSimSeconds);
+
+    // ── ⭐ CE-4101 — the RAW verbs: explicit IRunScenarioControl members, reached only through the door (after it decided) or the run choice (after its own confirmation) ──────────
+
+    void IRunScenarioControl.OpenForEdit(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
@@ -195,8 +220,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
         });
     }
 
-    /// <inheritdoc/>
-    public void LoadForLive(string scenarioName)
+    void IRunScenarioControl.LoadForLive(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
@@ -217,11 +241,9 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
         });
     }
 
-    /// <inheritdoc/>
-    public void OpenRecording(Guid exerciseId) => OpenRecording(exerciseId, null);
+    void IRunScenarioControl.OpenRecording(Guid exerciseId) => ((IRunScenarioControl)this).OpenRecording(exerciseId, null);
 
-    /// <inheritdoc/>
-    public void OpenRecording(Guid exerciseId, double? atSimSeconds)
+    void IRunScenarioControl.OpenRecording(Guid exerciseId, double? atSimSeconds)
     {
         if (exerciseId == Guid.Empty) return;   // ⭐ Empty means "the master picks" on the wire; an Open-Recording pick always names one
         _leaveRun?.Invoke();

@@ -204,6 +204,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
     /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Live), for the wiring rail.</summary>
     internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+    /// <summary>⭐ CE-4101 — the host's scenario session (the GUARDED surface every caller holds), for the constructed-host door rails.</summary>
+    internal Hrot.Editor.AiShared.Scenarios.IScenarioSession? ScenarioSessionForTest => _scenarioSession;
     /// <summary>⭐ CE-1438 — this host's node context (its ONE cluster view and bus), for the constructed-host rail.</summary>
     internal HrotNodeContext? NodeForTest => _context;
 
@@ -1848,7 +1850,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
             //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
             //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
-            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf), _scenarioSession,
+            _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf), _scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                 unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
             // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.
             // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
@@ -2945,10 +2947,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     openPicker:    _shellPickers.OpenPicker,
                     listExercises: () => Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _context?.ClusterSlave)()
                                          ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
-                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
-                    openRecording: id => { if (_clusterTimeAdapter?.RunChoice is { } choice) choice.OpenRecording(id); else _scenarioSession.OpenRecording(id); }).Open,
-                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
-                openScenario: name => { if (_clusterTimeAdapter?.RunChoice is { } choice) choice.OpenScenario(name); else _scenarioSession.OpenForEdit(name); });
+                    // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
+                    openRecording: id => _scenarioSession.OpenRecording(id)).Open);
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two

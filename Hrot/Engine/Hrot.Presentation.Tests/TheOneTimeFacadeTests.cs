@@ -1032,8 +1032,158 @@ public sealed class TheOneTimeFacadeTests
         Assert.Null(new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => null)).Start());   // no master reachable ⇒ no id
     }
 
+    // ── ⭐⭐⭐ CE-4101 (AQ108 §2.11a) — the ONE guarded door in and out of the open scenario ─────────────────────────────────────────────────────────
+
+    private static ScenarioDoor DoorOf(Rig rig) => ((FakeDoorControl)rig.C).Door;
+
     /// <summary>
-    /// ⭐⭐ CE-1440 / R-4001 — <c>WaitAsync</c> (HTTP's wait) has NO deadline: a round that takes 150 ms is still answered (polled every 5 ms through the caller's queue), and it
+    /// ⭐⭐⭐ <c>CE-4101</c> — a caller that holds the session's DOOR (menu, picker, recipe, panel, HTTP) reaches the raw verb only through the decision: over a LIVE run every IN verb asks <i>Stop &amp; Load</i> in the toolbar's own
+    /// pending slot and the raw verb is NOT reached until the button is pressed; the OUT verb (leave to Idle) stops a run without asking (■ never asks).
+    /// 🔴 Red-proof: <c>Admit</c> without its run-guard branch ⇒ the first <c>Pending</c> is null and the raw verb is already in the call list.
+    /// </summary>
+    [Fact]
+    public void CE4101_EveryInVerbOfTheDoor_OverALiveRun_AsksStopAndLoad_AndTheRawVerbWaitsForTheButton()
+    {
+        var rig = With(ClusterState.OperatingLive, withDoor: true);
+        var door = DoorOf(rig);
+        var verbs = new (string Name, Action Call, string Raw)[]
+        {
+            ("Open",          () => door.Open("x"),             "OpenForEdit:x"),
+            ("LoadLive",      () => door.LoadLive("x"),         "LoadForLive:x"),
+            ("OpenRecording", () => door.OpenRecording(RunId),  $"OpenRecording:{RunId}"),
+        };
+        foreach (var v in verbs)
+        {
+            v.Call();
+            var ask = Assert.IsType<RunModeConfirmation>(rig.Choice.Pending);          // the toolbar's own slot — the one thing ConfirmationModal draws
+            Assert.Equal(new[] { RunModeRunGuard.StopAndLoad, "Cancel" }, ask.Buttons.Select(b => b.Label));
+            Assert.Empty(rig.C.Calls);                                                   // asked, not opened
+            ask.Resolve(ask.Buttons[0]);
+            Assert.Equal(new[] { v.Raw }, rig.C.Calls);
+            rig.C.Calls.Clear();
+        }
+
+        door.Leave(LeaveReason.NewExercise);                                            // the OUT door: a run is stopped, nothing asked
+        Assert.Null(rig.Choice.Pending);
+        Assert.Equal(new[] { "Leave:NewExercise" }, rig.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> — over UNSAVED edits every verb of the door — the OUT one included (New Exercise used to discard silently) — asks <i>Save / Discard / Cancel</i>; Save = <c>SaveCurrent</c> THEN the move, Discard = the move, Cancel =
+    /// nothing; a never-saved scenario offers <i>Discard / Cancel</i>; unchanged goes at once. ONE round per move (the door and the choice share the one seam).
+    /// 🔴 Red-proof: <c>Leave</c> without the check (a <c>proceed()</c> straight away) ⇒ the Leave row has no <c>Pending</c>; the Save arm dropping <c>SaveCurrent</c> ⇒ the call list lacks it.
+    /// </summary>
+    [Fact]
+    public void CE4101_EveryVerbOfTheDoor_OverUnsavedEdits_AsksSaveDiscardCancel_TheOutDoorToo()
+    {
+        var moves = new (string Name, Func<ScenarioDoor, Action> Call, string Raw)[]
+        {
+            ("Open",          d => () => d.Open("x"),               "OpenForEdit:x"),
+            ("LoadLive",      d => () => d.LoadLive("x"),           "LoadForLive:x"),
+            ("OpenRecording", d => () => d.OpenRecording(RunId),    $"OpenRecording:{RunId}"),
+            ("Leave",         d => () => d.Leave(LeaveReason.NewExercise), "Leave:NewExercise"),
+        };
+        foreach (var m in moves)
+        {
+            var rig = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Changed, withDoor: true);
+            m.Call(DoorOf(rig))();
+            var ask = Assert.IsType<RunModeConfirmation>(rig.Choice.Pending);
+            Assert.Equal(new[] { "Save", "Discard", "Cancel" }, ask.Buttons.Select(b => b.Label));
+            Assert.Contains("unsaved changes", ask.Text);
+            Assert.Equal(1, rig.Q.Asked);
+            Assert.Empty(rig.C.Calls);                                                   // asked, not moved
+            ask.Resolve(ask.Buttons[0]);                                                 // Save
+            Assert.Equal(new[] { "SaveCurrent", m.Raw }, rig.C.Calls);
+
+            var discard = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Changed, withDoor: true);
+            m.Call(DoorOf(discard))();
+            discard.Choice.Pending!.Resolve(discard.Choice.Pending.Buttons[1]);
+            Assert.Equal(new[] { m.Raw }, discard.C.Calls);
+
+            var cancel = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Changed, withDoor: true);
+            m.Call(DoorOf(cancel))();
+            cancel.Choice.Pending!.Cancel();
+            Assert.Empty(cancel.C.Calls);
+
+            var never = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.NeverSaved, withDoor: true);
+            m.Call(DoorOf(never))();
+            Assert.Equal(new[] { "Discard", "Cancel" }, never.Choice.Pending!.Buttons.Select(b => b.Label));
+
+            var clean = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Unchanged, withDoor: true);
+            m.Call(DoorOf(clean))();
+            Assert.Null(clean.Choice.Pending);
+            Assert.Equal(new[] { m.Raw }, clean.C.Calls);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> (D22) — HTTP's asker over the SAME door: nothing is prompted; a run is stopped and named (<c>StoppedRun</c>, HTTP's <c>stoppedRun</c>); a LOSS is refused with HTTP's own words; <c>discardUnsaved</c>
+    /// asks the cluster nothing at all; and a caller's own execution (<c>Admit</c>, HTTP's live load / stop) replaces the raw verb — never both.
+    /// 🔴 Red-proof: <c>RefusingAsker</c> proceeding on <c>Unsaved</c> ⇒ the refusal is null and the raw verb ran.
+    /// </summary>
+    [Fact]
+    public void CE4101_TheRefusingAsker_StopsARun_RefusesALoss_AndAdmitRunsTheCallersOwnMove()
+    {
+        var edit = With(ClusterState.OperatingEdit, withDoor: true);
+        var refusing = new RefusingAsker(q => $"refused:{q.Kind}");
+        DoorOf(edit).Open("x", refusing, answered: UnsavedAnswer.Changed);
+        Assert.Equal("refused:Unsaved", refusing.Refusal);
+        Assert.Empty(edit.C.Calls);                                                      // nothing went
+        Assert.Null(edit.Choice.Pending);                                                // and nothing was prompted
+
+        var discarding = new RefusingAsker(discardUnsaved: true);
+        DoorOf(edit).Open("x", discarding);                                              // no round is asked: the caller accepts the loss
+        Assert.Equal(0, edit.Q.Asked);
+        Assert.Null(discarding.Refusal);
+        Assert.Equal(new[] { "OpenForEdit:x" }, edit.C.Calls);
+
+        var live = With(ClusterState.OperatingLive, withDoor: true);
+        var stopper = new RefusingAsker();
+        DoorOf(live).Open("x", stopper);
+        Assert.Equal(RunModeRunGuard.LiveRun, stopper.StoppedRun);                       // the run it stopped, as HTTP names it
+        Assert.Null(stopper.Refusal);
+        Assert.Equal(new[] { "OpenForEdit:x" }, live.C.Calls);
+        Assert.Null(live.Choice.Pending);
+
+        var own = With(ClusterState.OperatingLive, withDoor: true);
+        var mine = new List<string>();
+        DoorOf(own).Admit(DoorMove.LoadingLive("x"), new RefusingAsker(), UnsavedAnswer.Unchanged, () => mine.Add("my publish"));
+        Assert.Equal(new[] { "my publish" }, mine);
+        Assert.Empty(own.C.Calls);                                                       // the caller's move replaced the raw verb
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> — the choice's OWN mode moves (■ in Live, → Preview) ask their own R3 confirmation and then open through the RAW verb: no second <i>Stop &amp; Load</i> from the door on top of them.
+    /// 🔴 Red-proof: <c>StopLive</c> calling the door instead of the raw control ⇒ the Live row has a <c>Pending</c> and no <c>OpenForEdit</c>.
+    /// </summary>
+    [Fact]
+    public void CE4101_TheRunChoicesOwnMoves_ReachTheRawVerb_WithoutTheDoorAskingAgain()
+    {
+        var live = With(ClusterState.OperatingLive, withDoor: true);
+        live.F.Stop();                                                                   // R2: ■ in Live returns to the scenario's editing
+        Assert.Null(live.Choice.Pending);
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> (the ONE Idle intent) — the transport's raw ■ (a host with no session), and <c>ScenarioLoadSequence.UnloadIntent</c> publish the SAME intent apart from the TransactionId.
+    /// 🔴 Red-proof: <c>StopRaw</c> building its own intent with a <c>TimeMode</c> ⇒ the equality fails.
+    /// </summary>
+    [Fact]
+    public void CE4101_TheRawStop_PublishesTheOneIdleIntent()
+    {
+        var (facade, bus) = In(ClusterState.OperatingLive);
+        facade.Stop();
+        bus.SwapBuffers();
+        var sent = Assert.Single(bus.ReadManaged<TransitionStateIntent>());
+        var one = ScenarioLoadSequence.UnloadIntent();
+        one.TransactionId = sent.TransactionId;
+        Assert.Equal(one, sent);
+        Assert.Equal(ClusterState.Idle, sent.TargetState);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1440</c> / R-4001 — <c>WaitAsync</c> (HTTP's wait) has NO deadline: a round that takes 150 ms is still answered (polled every 5 ms through the caller's queue), and it
     /// returns null only when the caller's token cancels. 🔴 Mutation: a 40 ms give-up inside <c>WaitAsync</c> ⇒ the slow round reads null ⇒ red.
     /// </summary>
     [Fact]

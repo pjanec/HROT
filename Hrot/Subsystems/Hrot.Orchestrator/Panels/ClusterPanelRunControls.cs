@@ -28,12 +28,12 @@ public sealed class ClusterPanelRunControls
     public RunModeChoice Choice { get; }
 
     /// <summary>The host's scenario session.</summary>
-    public IRunScenarioControl Session { get; }
+    public IScenarioSession Session { get; }
 
     /// <param name="transport">The host's transport.</param>
     /// <param name="choice">The host's run choice — the guarded open, the checkpoint and the unsaved check live there.</param>
     /// <param name="session">The host's scenario session.</param>
-    public ClusterPanelRunControls(ITimeTransportFacade transport, RunModeChoice choice, IRunScenarioControl session)
+    public ClusterPanelRunControls(ITimeTransportFacade transport, RunModeChoice choice, IScenarioSession session)
     {
         Transport = transport ?? throw new ArgumentNullException(nameof(transport));
         Choice    = choice    ?? throw new ArgumentNullException(nameof(choice));
@@ -56,7 +56,7 @@ public sealed class ClusterPanelRunControls
     {
         var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
         var session = new EditorScenarioSession(bus, view, () => OrchestrationConstants.GetSharedScenariosRoot());
-        adapter.AttachRunChoice(RunArmedDefaults.For(RunHostKind.Other), session);
+        adapter.AttachRunChoice(RunArmedDefaults.For(RunHostKind.Other), session.RunControl);
         return new ClusterPanelRunControls(adapter, session);
     }
 
@@ -89,7 +89,7 @@ public sealed class ClusterPanelRunControls
     /// <summary><i>Load into Edit</i> — the run choice's GUARDED open (<c>Stop &amp; Load</c> over a run; <i>Save / Discard / Cancel</i> over unsaved edits): the very call <c>File › Open Scenario</c> ends in.</summary>
     public void LoadIntoEdit(string scenarioName) => Choice.OpenScenario(scenarioName);
 
-    /// <summary><i>Load into Live</i> — the session's explicit live load (the <c>/scenario/load/live</c> path, ⭐ D22: an explicit control names its mode and does what it names).</summary>
+    /// <summary><i>Load into Live</i> — the session's live load, through its ONE guarded door (⭐ CE-4101: <i>Stop &amp; Load</i> over a run, <i>Save / Discard / Cancel</i> over unsaved edits — it asked neither before; the explicit HTTP <c>/scenario/load/live</c> is D22's own).</summary>
     public void LoadIntoLive(string scenarioName) => Session.LoadForLive(scenarioName);
 
     /// <summary><i>Open AAR</i> — the run choice's recording open (the guard and the unsaved check, then the session's ONE replay intent): what <c>File › Open Recording</c> ends in.</summary>

@@ -135,8 +135,9 @@ public sealed class ScenarioNewAssetService : INewAssetService
 
         // FromSeed: load the seed by the name the CLUSTER can resolve — the reserved subfolder of the
         // scenarios root the seeds are staged into (see SeedSubfolder) — then save under the new name.
-        _session.LoadScenarioByName(SeedNameToScenarioName(recipe.Name));
-        _session.SaveScenarioAs(fullName);
+        // ⭐ CE-4101 — the load is GUARDED (a run ⇒ Stop & Load, unsaved edits ⇒ Save / Discard / Cancel): the save-as follows the open that WENT OUT, ⛔ never a cancelled one (it would
+        //   save whatever the world holds under the new name).
+        _session.LoadScenarioByName(SeedNameToScenarioName(recipe.Name), () => _session.SaveScenarioAs(fullName));
 
         // Scenario assets don't have a file path in the Assets tree — they live
         // in the scenarios root (managed by IEditorLogic/NAS).

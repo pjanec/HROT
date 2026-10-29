@@ -26,4 +26,7 @@ public interface IScenarioCreationSession
     /// The name may be a relative path (e.g. <c>"Combat/Patrol"</c>).
     /// </summary>
     void LoadScenarioByName(string scenarioName);
+
+    /// <summary>⭐ CE-4101 — the load is GUARDED (it may ask the user first): <paramref name="then"/> runs once the open went out, never when the user cancelled. The default is the unguarded shape a fake has.</summary>
+    void LoadScenarioByName(string scenarioName, System.Action then) { LoadScenarioByName(scenarioName); then(); }
 }

@@ -242,7 +242,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         _scenarioSession = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
             _bus, () => core.UiCache.View, () => OrchestrationConstants.GetSharedScenariosRoot());
         var choice = _timeTransport.AttachRunChoice(
-            Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator), _scenarioSession,
+            Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator), _scenarioSession.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
             unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
         core.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, choice, _scenarioSession);
     }
@@ -315,7 +315,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             catalog:    catalog,
             router:     new Hrot.Editor.AiShared.Browser.AssetPickActionRouter(_ => { }, name => _scenarioSession.OpenForEdit(name)));   // Open() below always passes its own onPicked
 
-        var choice = _timeTransport.RunChoice;
         Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
             registerCommand:    windowManager.ShellCommands.Register,
             menu:               windowManager.GlobalMenu,
@@ -325,12 +324,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             openSaveAsDialog:   null,
             // ruling 53 — the confirm belongs where the operator sits, and this window has one: it PROMPTS (the ONE wording, shared with the editor)
             confirmNewExercise: run => _newExerciseConfirm.RequestNewExercise(run),
-            // the guarded open: Stop & Load over a run, Save / Discard / Cancel over unsaved edits (CE-1438 / D20) — the run choice's, as on every host
-            openScenario:       choice is null ? null : choice.OpenScenario,
+            // ⭐ CE-4101 — the session's own open / open-recording ARE the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits): no host seam, no unguarded fallback
             openRecordingPicker: new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
                 openPicker:    OpenPicker,
                 listExercises: () => core.UiCache.AvailableExercises,
-                openRecording: id => { if (choice is not null) choice.OpenRecording(id); else _scenarioSession.OpenRecording(id); }).Open);
+                openRecording: id => _scenarioSession.OpenRecording(id)).Open);
     }
 
     /// <inheritdoc/>

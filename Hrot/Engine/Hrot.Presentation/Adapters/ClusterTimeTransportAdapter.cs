@@ -182,7 +182,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         if (ClusterStates.IsReview(_currentState)) { ExitReview(); return; }   // R-3060 — ■ in a review = back to live
         // ⭐ a dry run goes back to edit (the master puts the clock back, PreviewClockProcessManager); anything else to idle
         if (_currentState == ClusterState.OperatingPreview) { _bus.PublishManaged(DryRunIntents.Exit()); return; }
-        _bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle });
+        _bus.PublishManaged(ScenarioLoadSequence.UnloadIntent());   // ⭐ CE-4101 — the ONE Idle intent (no session here: nothing of a scenario to ask about)
     }
 
     /// <inheritdoc/>
