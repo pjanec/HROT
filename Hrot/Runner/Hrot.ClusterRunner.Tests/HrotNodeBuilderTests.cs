@@ -543,6 +543,39 @@ public sealed class HrotNodeBuilderTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's ENTRY does not restart the index either: the world is rewound to the review's moment while this node's state still reads <c>OperatingLive</c> (measured on the real editor: frame 314 → 299 under
+    /// a live state, the index reset to one frame). While a review is in flight (the handler holds the live point) the node steps nothing and resets nothing; the whole round trip keeps the index.
+    /// 🔴 Red-proof: the in-flight hold removed ⇒ the rewound frame under a live state reads as a rewind and the index restarts.
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_WhileAReviewIsInFlight_AnEarlierFrameUnderALiveState_DoesNotResetTheIndex()
+    {
+        using var ctx = InitialisedNode(90);
+        bool inFlight = false;
+        ctx.ReviewInFlightForTest = () => inFlight;
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+
+        inFlight = true;                                                              // the review's prepare has committed: the handler holds the live point
+        SimFrame(ctx, 3);                                                             // the world is at the review's moment, the state still says live
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        inFlight = false;                                                             // finalize committed
+        SimFrame(ctx, 0);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 5); SimFrame(ctx, 3);                                           // the return: stale, then the clock snaps back
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6);
+        Assert.Equal(6, ctx.Timeline.Frames);
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> E1 — entering <c>OperatingLive</c> from anything but a review (here an edit session that indexed frames) starts the index
     /// AFRESH: frame 0 is the run's first frame. 🔴 Red-proof: the reset skipped (behind a runtime condition) ⇒ the edit's frames stay.
     /// </summary>

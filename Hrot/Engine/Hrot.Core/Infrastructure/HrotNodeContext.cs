@@ -196,7 +196,8 @@ public sealed record HrotNodeContext : IDisposable
         else _recordingTimeline?.Sync(null);
         // ⭐⭐ CE-1448 — a review is IN FLIGHT from the moment its prepare commits (the handler holds the live point) to the moment its finalize commits — which is BEFORE the cluster state says so on entry
         //   (the world is put to the review's moment while this node still reads OperatingLive: MEASURED on the real editor, 314 → 299 → the index reset to one frame) and AFTER it on return. The index is frozen throughout.
-        bool reviewInFlight = (_reviewHandler ??= ClusterSlave.RegisteredHandlers.OfType<Fdp.Toolkit.Orchestration.Handlers.ReferenceReviewHandler>().FirstOrDefault())?.InReview == true;
+        bool reviewInFlight = ReviewInFlightForTest?.Invoke()
+            ?? (_reviewHandler ??= ClusterSlave.RegisteredHandlers.OfType<Fdp.Toolkit.Orchestration.Handlers.ReferenceReviewHandler>().FirstOrDefault())?.InReview == true;
         if (reviewInFlight) _timelineAfterReview = true;
         if (Fdp.Toolkit.Orchestration.ClusterStates.IsReview(state)) _timelineAfterReview = true;
         else if (state == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)
@@ -225,6 +226,9 @@ public sealed record HrotNodeContext : IDisposable
     private Fdp.Toolkit.Orchestration.ClusterState _timelineState;
     private bool _timelineAfterReview;
     private Fdp.Toolkit.Orchestration.Handlers.ReferenceReviewHandler? _reviewHandler;
+
+    /// <summary>⭐ CE-1448 — a rail's own answer to "is a review in flight" (the review handler's, when null): the handler needs a live recording and a master's barrier, which a unit rail does not have.</summary>
+    public System.Func<bool>? ReviewInFlightForTest { get; set; }
 
     /// <summary>The context the node's timeline lanes apply in: the live world.</summary>
     public static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext { get; } = new(Live: true);
