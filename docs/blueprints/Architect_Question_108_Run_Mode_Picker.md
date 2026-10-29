@@ -1239,7 +1239,7 @@ sequenceDiagram
 | 2 | *Load Checkpoint…* — "the existing restore" | the item is registered on every host, **disabled with its reason on all of them today** (`openCheckpointPicker` seam; none supplied). Built: `IScenarioSession.RestoreCheckpoint(label)` = the existing `RestoreCheckpointIntent` | ⚠ **found, not built:** the restore has no operator path and no label source — `ClusterMaster.StartRestore` (`ClusterMaster.cs:~940`) restores only in `OperatingLive` of a recorded run and only BY LABEL; the only list of marks the UI sees is the REPLAY session's (`MainToolbarTimeControlSection.cs:~203`, `ReplaySession.Checkpoints`), nothing lists a live run's. ⇒ "from Idle, live paused at a checkpoint" needs the master to publish the live recording's marks (and to restore from Idle): backend, not ui |
 | 3 | §2.14 decision ③ withdrawn ("host default on open") | withdrawn **whole**: no open sends ANY armed mode — the scenario open, the live load AND the recording open (which used to arm AAR) — `ScenarioDoor.OperatorOpening` and `DoorOpen.Recording` are gone, `DoorOpen` is now the load target (`Scenario` \| `Live`) | the user's rule is "only the indicator changes the armed mode"; a recording open arming AAR was the same hook. Effect: ▶ after returning from an AAR runs what the indicator says, not AAR |
 | 4 | `HostDefault` / `RunArmedDefaults` removed | also `RunModeChoice`'s ctor and `ClusterTimeTransportAdapter.AttachRunChoice` lost their first parameter (13 call sites); the choice's pre-broadcast value is `RunModeChoice.MasterDefaultArmed` (= Live, the master's own default). `RunArmedDefaults.cs` → `HostGatePolicies.cs` (the file kept only the U1 gate table and `RunHostKind`) | the parameter WAS the host default |
-| 5 | "LastLoadMode IF backend added it" | **not built by backend** (grep `LastLoadMode`: only the two NOTEs) ⇒ AAR / DAR armed loads **into editing**; one line in `RunModeChoice.LoadTarget` to change when the master broadcasts it | the NOTE asked for it; nothing answered |
+| 5 | "LastLoadMode IF backend added it" | ⛔ SUPERSEDED the same day: backend built `ClusterView.LastLoadMode` and ui wired it (`RunModeChoice.LoadTarget` reads `IRunTransport.ClusterLastLoad`; rail `TheOneTimeFacadeTests.R1043_WithAarArmed_ALoadGoesIntoTheLastLoadsMode`). Prior state: **not built by backend** (grep `LastLoadMode`: only the two NOTEs) ⇒ AAR / DAR armed loads **into editing**; one line in `RunModeChoice.LoadTarget` to change when the master broadcasts it | the NOTE asked for it; nothing answered |
 | 6 | the master's initial armed mode | `ClusterMaster(bus, config, initialArmedMode = Live)` (cross-lane edit: backend's class) + `OrchestratorCoreOptions.InitialArmedMode`; `EditorSubsystem` passes Preview — the one bootstrap difference. ⚠ the editor's choice reads Live until its first frame folds the master's first broadcast into the view (the broadcast carries Preview) | the view's own default is Live before any broadcast |
 | 7 | the editing group "existing Save / Save As / Save All / New Asset / Open Asset" | those keep their names and paths; the scenario registrar's own items left `File/Edit/…` for top-level paths (**Save Scenario**, **Save Scenario As**, **Migration History**, **Save Curated Scenarios to Git**) and are part of the group; the shell's *New Behavior / Action / Condition…* are in it too | no submenus |
 | 8 | New Exercise replaced by Close | **gone**: the menu item, `IScenarioSession.NewExercise`, `LeaveReason.NewExercise`, the editor's / Orchestrator's confirmation (`ConfirmPromptController`, `RequestNewExercise`; CGF's log-and-proceed). Close asks only what the door asks (a run is stopped without asking — ■ never asks, R3; unsaved edits ⇒ *Save / Discard / Cancel*); Close at a cluster at rest sends nothing | deleting symbols whose only users were the withdrawn item (no Roslyn rename needed) |
@@ -1247,6 +1247,40 @@ sequenceDiagram
 | 10 | layout "as far as the registry models it" | the registry gained `Order`, `GetVisible`, `SetLayout(path, order, visible?)` (rules applied when the node is created or at once if it exists; no phantom nodes) and `OrderedChildren()` (every draw and model walk) — `FileMenuLayout.Apply` is the ONE table, called by `ScenarioMenuCommands.Register` | four registrars fill the File menu at different times |
 
 📌 **Rails** (each red-proved by a compiling mutation, named in its summary): `ScenarioMenuTests.CE1443_S1_*` · `CE1443_TheFileMenu_IsDrawnInTheLayoutTablesOrder` · `CE1443_S2_*` · `CE1443_S3_*` · `CE1443_S6_*` · `CE1443_SaveCheckpoint_And_LoadCheckpoint_*` · `TheScenarioMenuIsSharedByBothHostsTests` (the flat paths, Start offers the first four + Close, CGF loads through the one load) · `TheOneTimeFacadeTests.CE1443_S3_*` / `CE1443_S4_*` · `ClusterMasterRunRecordingTests.CE1443_S5_*` · `TheRunChoiceIsOnEveryHostTests.TheEditorArmsPreview_OverItsSession` (S5 on the constructed editor) · `EditorScenarioSessionLoadTests` (Close, the one load) · `GlobalMenuRegistryTests.SetLayout_* / GetVisible_*`.
+
+### 2.15b ⭐⭐ CE-1443 part B (B1 + B2) — SAVE NAMES WHAT IT SAVES, and RECIPES — ✅ **AS-BUILT `2026-10-29` (ui)**
+
+Built against §2.15's row *"SAVE NAMES WHAT IT SAVES"*. ⭐ Reused, not added: `GlobalMenuRegistry` visibility (§2.15a row 10), the per-kind save delegates of `ShellSaveCommands`, `AssetRoots.RecipesFor(kind)` / `ScenariosRecipesRoot`, `ContentLayout.ScenarioRecipeName`, the existing Save-As dialog seam.
+
+```mermaid
+classDiagram
+    class SaveLabels { +For(verb, doc) string }
+    class RecipeFiles { +Files(AssetKind) +PathFor(kind, name) +Read~T~(kind, read) }
+    class ShellSaveCommands { shell.save · shell.saveAs · shell.saveAsRecipe · Save All (N changed) }
+    class ScenarioMenuCommands { scenario.save · scenario.saveAs · scenario.saveAsRecipe }
+    class AssetRoots { +RecipesFor(kind) +ScenariosRecipesRoot }
+    class BTreeNewAssetService
+    class HsmNewAssetService
+    class BlueprintEditorBootstrap { DiscoverRecipes }
+    ShellSaveCommands ..> SaveLabels
+    ScenarioMenuCommands ..> SaveLabels
+    ShellSaveCommands ..> RecipeFiles : PathFor (writes)
+    BTreeNewAssetService ..> RecipeFiles : Read (lists)
+    HsmNewAssetService ..> RecipeFiles : Read (lists)
+    BlueprintEditorBootstrap ..> RecipeFiles : Read (lists)
+    RecipeFiles ..> AssetRoots
+```
+*What the picture shows that prose hid: ONE recipe root per kind is both the place a recipe is written and the place "New …" lists — the writer and the three listers share `RecipeFiles`, so they cannot disagree on root or extension.*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| B1 | one rule for save names | `SaveLabels` names every save (*Save Scenario 'x'*, *Save BTree 'y'*, *… As…*, *Save All (N changed)*); the duplicate `scenario.save`/`scenario.saveAs` registration in `ShellSaveCommands` removed; `File/Save` / `Save As…` drawn only when there is a document to save | two registrars had registered the same two scenario commands |
+| B2a | *Save BTree as Recipe…* writes `recipes/<kind>/<name>` | `shell.saveAsRecipe` (*Save BTree 'y' as Recipe…*) writes through the kind's own save delegate to `RecipeFiles.PathFor` = the NAS `recipes/behaviors/<Folder>/<name><ext>`; ⭐ never overwrites (*name (2)*…); the open document stays dirty (a recipe is a copy, not a save of the document). Blueprint: the written copy carries `EditorMetadata.Recipe` (DisplayName = name) so the lister keeps it — `SaveActiveBlueprintCommand.SaveAsRecipe` | overwriting another author's recipe silently was the alternative |
+| B2b | that kind's "New …" lists it | BTree and HSM `AvailableRecipes` add the on-disk recipes after Empty / Starter (their `TODO: wire IRecipeDiscovery` is gone); Blueprint's discovery moved onto the same `RecipeFiles` | ⛔ prior state: only Blueprint listed files; the TODOs were the gap |
+| B2c | a scenario recipe keeps terrain and entities | `scenario.saveAsRecipe` (*Save Scenario 'x' as Recipe…*) = `session.SaveAs(ContentLayout.ScenarioRecipeName(name))` — a full scenario save under `recipes/scenarios/<name>`, which New Scenario already lists live; disabled with its reason where the host has no Save-As dialog | the existing save writes the whole scenario, entities included |
+| — | (one root?) | listing and saving both use the NAS root (`AssetRoots.cs` `RecipesFor` / `ScenariosRecipesRoot`) | ⛔ an earlier chat claim of a repo-vs-NAS split was wrong |
+
+📌 **Rails** (each red-proved by a compiling mutation): `SaveCommandsTests.CE1443_B2_SaveAsRecipe_*` (no-overwrite loop removed ⇒ red) · `BTreeNewAssetTests.CE1443_B2_NewBTree_ListsTheRecipesOnDisk` (listing dropped ⇒ red) · `ScenarioMenuTests.CE1443_B2_SaveScenarioAsRecipe_SavesUnderTheRecipeName` (recipe name dropped ⇒ red) · Blueprint `DiscoverRecipesTests` unchanged and green.
 
 ## 3. Every move, with what the user is told
 
