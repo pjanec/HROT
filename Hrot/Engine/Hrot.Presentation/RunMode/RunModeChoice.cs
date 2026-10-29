@@ -37,6 +37,17 @@ public sealed class RunModeChoice
     private bool _resumeWhenLive;      // ▶ in Live armed: the load lands paused (Q86 §4-G); ▶ means run, so the clock resumes once Live is up
     private bool _asking;
 
+    /// <summary>⭐ R-4001 — the master's unsaved-changes round is open (shown as "checking…"; no timeout — the operator may <see cref="CancelCheck"/>).</summary>
+    public bool IsCheckingUnsaved => _asking;
+
+    /// <summary>⭐ R-4001 — the operator gives up waiting for the round: nothing proceeds, the move is not made.</summary>
+    public void CancelCheck()
+    {
+        if (!_asking) return;
+        _unsaved.Cancel();
+        _asking = false;
+    }
+
     /// <summary>How long a <see cref="Toast"/> shows.</summary>
     public static readonly TimeSpan ToastLifetime = TimeSpan.FromSeconds(8);
 

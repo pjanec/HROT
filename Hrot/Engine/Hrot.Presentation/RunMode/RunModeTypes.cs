@@ -93,6 +93,9 @@ public interface IUnsavedChangesQuery
 
     /// <summary>Called once per frame by <see cref="RunModeChoice.Update"/>: delivers an answer that has arrived since (no blocking, ever). Default: nothing to poll.</summary>
     void Poll() { }
+
+    /// <summary>⭐ R-4001 — the operator gives up on an open question: <c>reply</c> is then never called. ⛔ There is no timeout.</summary>
+    void Cancel() { }
 }
 
 /// <summary>
@@ -117,32 +120,27 @@ public sealed record UnsavedCheckReads(Func<bool> Observes, Func<Guid, UnsavedCh
 /// <remarks>
 /// <para>NeverSaved stays decided HERE by an empty <see cref="IRunScenarioControl.LoadedScenarioName"/> (the master's round answers "changed" for a
 /// world, not "there is no file"). A host that observes nothing answers Unchanged for a named scenario — the same rule the HTTP gate uses.</para>
-/// <para>A refusal (the master refuses outside editing) reads as Unchanged: nothing of the SCENARIO can be lost outside editing. ⚠ No answer within
-/// <see cref="Deadline"/> reads as Changed — fail closed to the Save-first prompt (the HTTP gate fails closed with a 504).</para>
+/// <para>A refusal (the master refuses outside editing) reads as Unchanged: nothing of the SCENARIO can be lost outside editing.</para>
+/// <para>⭐⭐ <b>R-4001 — no timeout</b> (backend CE-3340 ⑤ removes the HTTP gate's the same way): the master's round ends by itself — a node whose
+/// heartbeat stops is removed from it — so the answer always comes; a stuck-but-alive round is shown ("checking…") and the operator cancels it
+/// (<see cref="Cancel"/>). ⛔ SUPERSEDED: a fixed 15 s <c>Deadline</c> that read as Changed.</para>
 /// </remarks>
 public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
 {
-    /// <summary>How long a round may take before the answer is taken as "changed" (the HTTP gate's own 15 s).</summary>
-    public static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
-
     private readonly Func<string?> _loadedScenarioName;
     private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _master;
     private readonly UnsavedCheckReads? _reads;
-    private readonly Func<DateTime> _now;
-
-    private (Guid Id, Action<UnsavedAnswer> Reply, DateTime Due)? _pending;
+    private (Guid Id, Action<UnsavedAnswer> Reply)? _pending;
 
     /// <param name="loadedScenarioName">The session's loaded scenario name (empty ⇒ NeverSaved).</param>
     /// <param name="master">Where the round is asked (<c>OrchestrationBusMasterControl</c> on the host's bus); <see langword="null"/> ⇒ nothing is asked.</param>
     /// <param name="reads">How the answer is read; <see langword="null"/> ⇒ this host observes nothing (a named scenario counts as unchanged).</param>
-    /// <param name="now">Clock of the deadline (tests inject one).</param>
     public ClusterUnsavedChangesQuery(Func<string?> loadedScenarioName, Hrot.Presentation.DebugApi.IClusterMasterControl? master,
-                                      UnsavedCheckReads? reads, Func<DateTime>? now = null)
+                                      UnsavedCheckReads? reads)
     {
         _loadedScenarioName = loadedScenarioName ?? throw new ArgumentNullException(nameof(loadedScenarioName));
         _master = master;
         _reads  = reads;
-        _now    = now ?? (() => DateTime.UtcNow);
     }
 
     /// <inheritdoc/>
@@ -151,7 +149,7 @@ public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
         if (string.IsNullOrWhiteSpace(_loadedScenarioName())) { reply(UnsavedAnswer.NeverSaved); return; }
         if (_master is null || _reads is null || !_reads.Observes()) { reply(UnsavedAnswer.Unchanged); return; }   // no way to see the answer: ask nothing
         var id = Guid.NewGuid();
-        _pending = (id, reply, _now() + Deadline);
+        _pending = (id, reply);
         _master.CheckUnsaved(new CheckUnsavedIntent { RequestId = id });
     }
 
@@ -159,15 +157,13 @@ public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
     public void Poll()
     {
         if (_pending is not { } p) return;
-        UnsavedAnswer? answer = null;
-        if (_reads!.Outcome(p.Id) is { } outcome)
-            answer = outcome.Result is { Changed: true } ? UnsavedAnswer.Changed : UnsavedAnswer.Unchanged;   // a refusal (Result null): outside editing, nothing to lose
-        else if (_now() >= p.Due)
-            answer = UnsavedAnswer.Changed;
-        if (answer is null) return;
+        if (_reads!.Outcome(p.Id) is not { } outcome) return;   // R-4001: wait — the round ends by itself (heartbeat), or the operator cancels
         _pending = null;
-        p.Reply(answer.Value);
+        p.Reply(outcome.Result is { Changed: true } ? UnsavedAnswer.Changed : UnsavedAnswer.Unchanged);   // a refusal (Result null): outside editing, nothing to lose
     }
+
+    /// <inheritdoc/>
+    public void Cancel() => _pending = null;
 }
 
 /// <summary>

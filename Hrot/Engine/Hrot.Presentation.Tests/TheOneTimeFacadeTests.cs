@@ -596,10 +596,10 @@ public sealed class TheOneTimeFacadeTests
     /// <summary>
     /// ⭐ NOTE rules, each a row: a host that observes nothing (<c>ObservesUnsavedChecks</c> false) asks NO round and counts the scenario as unchanged; NeverSaved stays decided by an empty loaded
     /// name — also without asking; a master's refusal (not editing) reads as unchanged; ⚠ no answer within the deadline fails CLOSED to the Save-first prompt.
-    /// 🔴 Red-proof: dropping the <c>Observes()</c> guard publishes a round nobody can answer (the ▶ then waits 15 s); dropping the deadline arm never answers.
+    /// 🔴 Red-proof: dropping the <c>Observes()</c> guard publishes a round nobody can answer (the ▶ then waits for an answer that cannot come); dropping the deadline arm never answers.
     /// </summary>
     [Fact]
-    public void CE4097_TheUnsavedCheck_NotObserved_NeverSaved_Refused_AndTheDeadline()
+    public void CE4097_TheUnsavedCheck_NotObserved_NeverSaved_Refused_AndNoTimeout_OnlyACancel()
     {
         var blind = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live, observes: false);
         blind.F.UserPlayPause();
@@ -619,17 +619,18 @@ public sealed class TheOneTimeFacadeTests
         Frame(refused);
         Assert.Equal(new[] { "LoadForLive:hill-attack" }, refused.C.Calls);
 
-        var clock = DateTime.UtcNow;
-        var bus = new FdpEventBus();
-        var master = new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => bus);
-        var query = new ClusterUnsavedChangesQuery(() => "hill-attack", master, new FakeReads().Reads, () => clock);
-        UnsavedAnswer? got = null;
-        query.Ask(a => got = a);
-        query.Poll();
-        Assert.Null(got);
-        clock += ClusterUnsavedChangesQuery.Deadline + TimeSpan.FromSeconds(1);
-        query.Poll();
-        Assert.Equal(UnsavedAnswer.Changed, got);                           // fail closed: Save first
+        // ⭐ R-4001 — NO timeout: an unanswered round stays open (shown as checking), however long; the operator cancels it
+        var waiting = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        waiting.F.UserPlayPause();
+        for (int i = 0; i < 1000; i++) Frame(waiting);
+        Assert.True(waiting.F.RunChoice!.IsCheckingUnsaved);                 // still waiting — nothing timed it out
+        Assert.Null(waiting.F.RunChoice.Pending);                            // ⛔ and no Save-first question was invented
+        Assert.Empty(waiting.C.Calls);                                       // nothing proceeded
+        waiting.F.RunChoice.CancelCheck();
+        Assert.False(waiting.F.RunChoice.IsCheckingUnsaved);
+        waiting.R.Answer(Sent<CheckUnsavedIntent>(waiting), changed: false);   // a late answer after the cancel
+        Frame(waiting);
+        Assert.Empty(waiting.C.Calls);                                       // the cancelled move is not made
     }
 
     /// <summary>

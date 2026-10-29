@@ -370,8 +370,19 @@ public sealed class MainToolbarTimeControlSection
             if (toast.ReplayExercise is not null) { if (ImGui.SmallButton(toast.Text + "##mt_toast")) _choice.ReplayLastExercise(); }
             else ImGui.TextDisabled(toast.Text);
         }
+        // ⭐ R-4001 — the unsaved round has no timeout: it is shown while it runs, and the operator may cancel it
+        if (_choice?.IsCheckingUnsaved == true)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled(CheckingUnsavedText);
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Cancel##mt_check_cancel")) _choice.CancelCheck();
+        }
         DrawConfirmation();
     }
+
+    /// <summary>⭐ R-4001 — what the toolbar shows while the unsaved-changes round runs.</summary>
+    public const string CheckingUnsavedText = "Checking every node for unsaved edits…";
 
     private const string ConfirmPopupId = "Confirm##mt_run_confirm";
     private RunModeConfirmation? _confirmOpened;
