@@ -151,14 +151,19 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
 
 
     // used by ClusterMaster (HEXAG2-S008: factory-based constructor)
-    public OrchestratorSubsystem(INetworkFactory networkFactory)
+    public OrchestratorSubsystem(INetworkFactory networkFactory, ClusterConfiguration? configuration = null)
     {
         _networkFactory = networkFactory;
+        _configuration  = configuration;
     }
+
+    // ⭐ CE-3347 (R-3069) — a composition root that knows its deployment declares it (e.g. a cluster with no Brain node requires no
+    //   Brain); null = the ONE configuration source every host reads (orchestrator-config.json, else the default).
+    private readonly ClusterConfiguration? _configuration;
 
     public void Initialize(SubsystemConfig config)
     {
-        _config = ClusterConfiguration.LoadFromWorkingDirectory();
+        _config = _configuration ?? ClusterConfiguration.LoadFromWorkingDirectory();
 
         // HEXAG2-S008: Use INetworkFactory to create the participant.
         // Parameterless constructor (headless/test mode) leaves _networkFactory null;
