@@ -352,6 +352,8 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
         /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
+        /// <summary>⭐ CE-4102 — the host's ONE time transport (what the choice and the toolbar read: mode, recording flag, active exercise), for the end-to-end armed-mode rail.</summary>
+        internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? TimeTransportForTest => _timeTransport;
         /// <summary>⭐ CE-4101 — the host's scenario session (the GUARDED surface every caller holds), for the constructed-host door rails.</summary>
         internal Hrot.Editor.AiShared.Scenarios.IScenarioSession? ScenarioSessionForTest => _editorApp?.ScenarioSession;
 
