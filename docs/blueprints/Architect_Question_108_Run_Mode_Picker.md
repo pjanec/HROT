@@ -723,6 +723,79 @@ sequenceDiagram
 
 ⚠ **Open edges after this:** a hard-coded `GateUnsavedChangesAsync` timeout of 15 s answers 504 (fail closed) when no answer arrives; a `load/edit` of the scenario already open is NOT gated (the harnesses' "start over") — D22's *"never saved"* half (a scenario with no file) and the UI's *Save / Discard / Cancel* are CE-4097's; the multi-process cluster path (observer decode over DDS) is covered by a unit rail on `DecodeResult`, not by a live DDS run.
 
+### 4c. ⭐ Design — D23 AUTOSAVE (`CE-4099`, backend, `2026-10-29`) — READY-TO-BUILD, gated on A0
+
+📐 **Inventory** (graph `search_graph` on `.*(Autosave|AutoSave|ScenarioSave|SaveCore|Sandbox).*`, 40 hits + grep `-i autosave` over `Hrot/ FDP/`): no
+autosave code exists (the grep hits are CE-4091's dot-folder skip, `StorageGatewayModule.cs:893`, and the unrelated AI-JSON `_aiJsonAutoSaveOnEdit` in
+`EditorSubsystem`); ⚠ there are TWO node save handlers — `ExConScenarioSaveHandler` (ExCon has no ECS world; it writes its observer state as a
+foreign slice) beside `HrotScenarioSaveHandler`, so the `Autosave` flag must route ExCon's slice into `.autosave/` too (or ExCon declines an autosave —
+measure what its slice holds). The pieces it composes exist — `HrotScenarioSaveHandler` (the ONE node save: `ScenarioSaveCore.Write(serializer, world, file, header)`, which needs only a
+serializer and an `EntityRepository`), the master's `SaveScenario` fan-out + `StorageProcessManager` pull/merge, `WorldKeyframes.Capture/Apply`, the
+sandbox-repo precedent (`RecordingExportService.cs:44`), the CE-4093 check round, and CE-4091's prefetch stager for loading a substitute file.
+
+```mermaid
+classDiagram
+  class ClusterMaster { <<existing>> AutosaveEvery: TimeSpan · TickAutosave() NEW · SaveFailedSinceLoad → KnownUnsaved(reason) }
+  class StorageProcessManager { <<existing>> merge slices → target file · autosave target NEW · real save deletes .autosave NEW }
+  class HrotScenarioSaveHandler { <<existing>> PrepareAsync: payload.Autosave ⇒ capture on frame, extract on worker NEW }
+  class ScenarioSaveHandlerPayload { <<existing>> ScenarioName · Autosave: bool NEW }
+  class BaselineAfterSaveHandler { <<existing>> Commit: skip when Autosave NEW }
+  class WorldKeyframes { <<existing>> Capture · Apply }
+  class ScenarioSaveCore { <<existing>> Write(serializer, world, file, header) }
+  class AutosaveFiles { <<NEW, Fdp.Toolkits>> Dir(scenarioDir) · DataFile · MetaFile · IsNewerThanSaved() }
+  class AssetPrefetchProcessManager { <<existing>> SourceStager (CE-4091) · recover ⇒ stage autosave as scenario.json NEW }
+  ClusterMaster --> StorageProcessManager : SaveScenario intent, Autosave=true
+  ClusterMaster ..> ClusterMaster : CheckUnsaved round first (CE-4093)
+  HrotScenarioSaveHandler --> WorldKeyframes
+  HrotScenarioSaveHandler --> ScenarioSaveCore : on a sandbox repo (worker)
+  BaselineAfterSaveHandler --> HrotScenarioSaveHandler : wraps
+  StorageProcessManager --> AutosaveFiles
+  AssetPrefetchProcessManager --> AutosaveFiles
+```
+
+*What the picture shows that prose hid:* there is NO second save path. Autosave is the existing save round with one flag. The flag changes three
+things and nothing else: where the merged file goes, whether the node re-baselines, and whether the node extracts on a worker.
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster (OperatingEdit)
+  participant N as each node (frame thread)
+  participant W as worker (private sandbox)
+  participant S as StorageProcessManager
+  M->>M: every AutosaveEvery (default 2 min)
+  M->>N: CheckUnsaved round (CE-4093)
+  N-->>M: changed / unchanged
+  alt nobody changed
+    Note over M: skip, nothing written
+  else changed
+    M->>N: SerializeLocal {name, Autosave=true}
+    N->>N: WorldKeyframes.Capture (singletons ON) ~30 ms
+    N->>W: Task.Run(keyframe)
+    W->>W: new EntityRepository + register types + Apply + ScenarioSaveCore.Write → node .autosave slice
+    W-->>N: manifest (Prepare completes)
+    N-->>M: ACK (Commit: NO re-baseline)
+    M->>S: pull slices → merge → scenarios/<name>/.autosave/autosave.json + autosave.meta.json {at, savedHash}
+  end
+  Note over M,S: a real save that completes deletes .autosave/
+```
+
+| # | decision | why |
+|---|---|---|
+| **A0** | ⛔ **GATE — measure first, build only if it holds:** for 3 curated scenarios (incl. `uc-urban-battle` and `pc-defend-house`), `ScenarioSaveCore.Write` on the live world and on a sandbox repo rebuilt from `WorldKeyframes.Capture(…, singletons ON)` produce **byte-identical JSON**; and `ScenarioSerializer` holds no mutable state a frame-thread caller writes (read every field). If either fails: STOP, report which types/fields differ | the whole design rests on "the keyframe carries everything the save reads". The check round's capture leaves singletons OFF (§4a); the save reads `TerrainDefinition.ResidentName` / `ScenarioDescription.ResidentOf` — singletons — so autosave's capture turns them ON |
+| **A1** | the trigger is the MASTER: every `AutosaveEvery` (default 2 min; `POST /run-settings {autosaveMinutes}`, 0 = off) while `OperatingEdit`, it first runs the CE-4093 check round; only "changed" starts an autosave round | one clock, one decision for the cluster; an untouched scenario writes nothing; reuses the check round instead of a second change detector |
+| **A2** | the round IS the save round with `ScenarioSaveHandlerPayload.Autosave = true` — the same fan-out, handler, pull and merge | ⛔ no second save implementation (the shared-and-unified rule) |
+| **A3** | an autosave is NOT a save: no node re-baselines (`BaselineAfterSaveHandler` skips it), the master's unsaved fact is untouched, a failed autosave only logs (never a 409, never a user toast) | otherwise an autosave would make the world read "saved" and the next go-live would skip *Save first?* |
+| **A4** | the node extracts on a WORKER from a private sandbox repo (capture on the frame thread, ≈30 ms) | R-4001: only work that touches no shared data runs on a worker — the sandbox is private; the frame never blocks for the JSON |
+| **A5** | files: `scenarios/<name>/.autosave/autosave.json` (NOT `scenario.json`, so no scenario enumerator ever lists it) + `autosave.meta.json {at, savedHash}` (`savedHash` = the hash of the `scenario.json` it was based on); dot-folder already skipped by CE-4091's copy | Open never lists it by construction, not by a filter every listing must remember |
+| **A6** | a real save that completes (pull + merge) deletes `.autosave/` | D23 |
+| **A7** | recovery: `GET /scenarios/{name}/autosave` → `{at}` when an autosave exists whose `savedHash` equals the current `scenario.json`'s hash (else it is stale: the file was saved elsewhere since — reported, not offered); `POST /scenario/load/edit {name, recoverAutosave:true}` loads it — the prefetch stager (CE-4091) stages `autosave.json` as the node's `scenario.json` for this load only; the master then holds a `KnownUnsaved("recovered autosave")` fact (generalising `SaveFailedSinceLoad`) so the check round says changed until a real save | the scenario keeps its own name and folder; the recovered world is honestly "unsaved"; the start surface / Open prompt (*"Recover unsaved changes from 14:41?"*) is ui's and reads these two routes |
+
+| **A8** | ⭐ **a NEVER-SAVED scenario** (a new one from a recipe, D18 — no `scenarios/<name>/`, no `scenario.json`): its autosave lives in the NAS **opened-not-saved area** — the ONE home CE-4089 gives opened recorded copies (D7) — keyed by the recipe it came from + the time it was opened, `savedHash` empty. Offered back on the start surface's *New from a recipe* / start, never on Open (Open lists saved scenarios only): `GET /autosaves` lists every never-saved autosave `{recipe, openedAt, at}`; `POST /scenario/load/edit {recoverAutosave: <id>}` reopens it as the same unsaved new scenario. The first real *Save As* deletes it (A6's rule, this home) | coordinator review `NOTE_Coordinator_To_Backend_CE4099_Design_Review.md` (`2026-10-29`): the plan's done-when is *"an edited, unsaved scenario survives a killed editor"*, and the commonest unsaved scenario has no folder for A5/A7 to point at |
+
+**Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
+
+`build-state` for §4c: **READY-TO-BUILD, gated on A0** (the review accepted A0–A7; A8 added at its request).
+
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
 | # | answer | what it changes here |
