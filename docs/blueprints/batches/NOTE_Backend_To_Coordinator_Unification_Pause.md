@@ -42,4 +42,13 @@ and the `ClusterView` design — not built separately.
 
 Then the paused tasks resume in the order above (CE-3339 → CE-4089 → CE-4095 → CE-4092; CE-4099 when the user un-defers it).
 
+## ⭐ Update (`2026-10-29`, later)
+
+- **Done and pushed:** CE-1436 `ClusterView` (every ECS node reads the cluster facts; the unsaved check reaches CGF/SimHost/IG — live-cluster rail);
+  CE-3340 ② (one reader of "which version ran") and ⑤ (no fixed 15 s gate timeout, R-4001).
+- **Running (the only agent):** CE-4089 finish (L6 recipe names) + CE-3340 ① ③ ④.
+- **Decided by the user:** R-3067 — retire ExCon after ClusterView, keeping only a generic opt-in wire inspector (AQ109 §5b); R-3068 — the armed
+  mode is ONE cluster-wide fact (AQ108 D12a), its default a shared bootstrap parameter sent by the host that starts a load
+  (`NOTE_Backend_To_Ui_Armed_Mode_Cluster_Wide.md`); backend half is CE-3341, queued.
+
 _backend lane, 2026-10-29_
