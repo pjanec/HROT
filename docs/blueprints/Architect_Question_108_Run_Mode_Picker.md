@@ -1038,7 +1038,7 @@ classDiagram
 
 📌 Rails: `TheOneTimeFacadeTests.CE1440_*` (asker publish+read id, no-deadline wait), `TheRunModeRoutesTests.CE1440_*` (`/preview/enter` = toolbar ▶/Step), `TheUnsavedCheckRoutesTests.CE1440_*` (one request id from publish to read).
 
-### 2.14 CE-3341 (ui half) — the armed mode is READ from the cluster and SENT by the operator's open (R-3068, D12a) — 📐 **DESIGN `2026-10-29` (ui)**
+### 2.14 CE-3341 (ui half) — the armed mode is READ from the cluster and SENT by the operator's open (R-3068, D12a) — ⭐ **AS-BUILT `2026-10-29` (ui)**
 
 | the lean rests on | code — how it IS | design — how it was MEANT to be |
 |---|---|---|
@@ -1111,6 +1111,15 @@ deleted, with `_keepArmedOnEdit` (its only reason). ⑤ a host with no time cont
 *Rejected:* **send from `ScenarioLoadSequence`** — HTTP uses it too, so it would arm on every agent load (D22) · **keep the per-host reset AND send** —
 two writers, hosts disagree for a frame and forever on a host that missed the op · **the door maps opens to modes** — it would need the host default; the
 choice already owns it.
+
+⭐ **As-built deviations (`2026-10-29`, ui) — the design was built as drawn; these are the details it left open:**
+
+| the design said | built | why |
+|---|---|---|
+| ① "the choice's own value shows until the next CHANGE of the cluster's value is heard" | `RunModeChoice.Armed` is a getter over `IRunTransport.ClusterArmed`: `_seenCluster` is the cluster's value at CONSTRUCTION (the baseline), and a later different value replaces the local one; `Arm` first adopts any pending change, then sets the local value | the view reads `Live` before any broadcast, so a baseline of "unknown" would show Live on the editor at start (host default Preview) and break every rail built on it; a change is the only thing that proves another host armed |
+| ③ `ScenarioDoor.OperatorOpening` raised "only when the move was answered by the bound asker" | raised when the CALLER passed no asker (`asker is null`) — inside the go-lambda, just before the raw verb; `RecordingOpening` (the `LastExercise` bookkeeping) still runs for every caller and no longer arms | `Admit` resolves `asker ?? _asker`; "no asker passed" is exactly the operator's call, and an explicit asker (HTTP's `RefusingAsker`) is exactly D22's |
+| ② every `Armed = X` becomes `Arm(X)` | also the dry run's `Stop & arm`, AAR → Live/Preview, `AarFromHere` and `GoLiveFromHere` — every write — each sends the op | one writer; those moves change the armed mode the same way the indicator does |
+| ⑤ hosts with no time control send nothing | unchanged: `RunModeChoice` exists only where `AttachRunChoice` ran | — |
 
 ## 3. Every move, with what the user is told
 

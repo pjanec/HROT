@@ -392,4 +392,8 @@ public interface IRunTransport
     void Seek(double t);
     /// <summary>From a replay: a new live run from the moment it stands at (the built branch, D18).</summary>
     void BranchLive();
+    /// <summary>⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode as this node last heard it (<c>ClusterView.ArmedMode</c>, mapped by name); <see langword="null"/> when the adapter has no view (no node yet).</summary>
+    RunArmed? ClusterArmed { get; }
+    /// <summary>⭐ CE-3341 — publish the armed mode as the cluster-wide setting (<c>SetRunSettingsIntent { Armed }</c> on the bus). The ONE caller is <see cref="RunModeChoice"/>'s <c>Arm</c>.</summary>
+    void SendArmed(RunArmed armed);
 }

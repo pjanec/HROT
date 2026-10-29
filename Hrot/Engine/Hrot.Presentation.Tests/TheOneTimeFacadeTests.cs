@@ -400,41 +400,119 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(RunArmed.AAR, edit.Choice.Armed);
     }
 
+    // ── ⭐ CE-3341 (AQ108 §2.14, D12a) — the armed mode is the CLUSTER's: READ from its view, SENT by the operator's open ─────────────────────────
+
+    private static List<SetRunSettingsIntent> Ops(Rig rig) => Sent<SetRunSettingsIntent>(rig);
+
     /// <summary>
-    /// ⭐ D12 — opening a scenario for editing resets the armed mode to the HOST's default (editor Preview, CGF Live), however it was opened (the
-    /// cluster reaching Edit through Idle); the exceptions are the choice's own returns to editing (R2: ■ in Live keeps Live) and a dry run's exit.
-    /// 🔴 Red-proofs: the reset removed ⇒ these rows; the keep-flag removed ⇒ the ■ row of the next test; the dry-run exclusion removed ⇒ its preview row.
+    /// S1 — the choice reads the cluster's armed mode: the view's value wins whenever it CHANGES, whatever the host default is; an unchanged cluster value never overrides what this host armed.
+    /// 🔴 Red-proof: <c>Armed</c> returning the local value only (the cluster branch removed) ⇒ the <c>Hear</c> rows.
     /// </summary>
     [Theory]
-    [InlineData(RunArmed.Preview, RunArmed.Live)]   // the editor: was Live, a scenario is opened ⇒ Preview
-    [InlineData(RunArmed.Live, RunArmed.Preview)]   // CGF: was Preview, a scenario is opened ⇒ Live
-    public void CE4097_D12_OpeningAScenarioResetsTheArmedModeToTheHostDefault(RunArmed hostDefault, RunArmed chosen)
+    [InlineData(RunArmed.Live, ClusterArmedMode.Preview, RunArmed.Preview)]
+    [InlineData(RunArmed.Preview, ClusterArmedMode.AAR, RunArmed.AAR)]
+    public void CE3341_S1_TheChoiceReadsTheClustersArmedMode(RunArmed hostDefault, ClusterArmedMode heard, RunArmed expected)
     {
         var rig = With(ClusterState.OperatingEdit, hostDefault);
-        rig.Choice.Choose(chosen);
-        Assert.Equal(chosen, rig.Choice.Armed);
-        Hear(rig, ClusterState.Idle);                                       // the load's unload …
-        Assert.Equal(chosen, rig.Choice.Armed);                             // (Idle alone is not an open)
-        Hear(rig, ClusterState.OperatingEdit);                              // … and the scenario is up for editing
-        Assert.Equal(hostDefault, rig.Choice.Armed);
+        Assert.Equal(hostDefault, rig.Choice.Armed);                        // the cluster's value has not changed: the host default shows
+        Hear(rig, ClusterState.OperatingEdit, armed: heard);
+        Assert.Equal(expected, rig.Choice.Armed);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Live);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // …and back: a host default of Preview does not pull it
+        Assert.Empty(Ops(rig));                                             // reading sends nothing
     }
 
+    /// <summary>
+    /// S2 — the indicator's <c>Choose(Live)</c> from Edit publishes exactly ONE <c>SetRunSettingsIntent{Armed=Live}</c>, shows Live at once, and a LATER cluster change wins.
+    /// 🔴 Red-proof: <c>Arm</c> without <c>SendArmed</c> ⇒ the count; the optimistic local removed ⇒ the first assert; the change detector removed ⇒ the last.
+    /// </summary>
     [Fact]
-    public void CE4097_D12_OurOwnReturnToEditing_KeepsTheArmedMode_AndADryRunExitDoesNotReset()
+    public void CE3341_S2_ChooseSendsOneOp_ShowsAtOnce_AndALaterClusterChangeWins()
     {
-        // ■ in Live (editor: default Preview, but Live is armed): back to editing keeps Live
+        var rig = With(ClusterState.OperatingEdit, RunArmed.Preview);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Preview);   // the cluster agrees with the editor's default
+        rig.Choice.Choose(RunArmed.Live);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // optimistic: before any broadcast
+        var op = Assert.Single(Ops(rig));
+        Assert.Equal(ClusterArmedMode.Live, op.Armed);
+        Assert.Null(op.RecordLiveRuns);                                     // one setting only: the other is "no change"
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Live);      // the master echoes our op
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Preview);   // another host armed Preview afterwards
+        Assert.Equal(RunArmed.Preview, rig.Choice.Armed);
+    }
+
+    /// <summary>
+    /// S3 — the OPERATOR's File › Open sends the host default as ONE op beside the open (editor ⇒ Preview, CGF ⇒ Live); an HTTP open (its own asker) sends none (D22).
+    /// 🔴 Red-proofs: the <c>OperatorOpening</c> raise removed ⇒ the first rows; raised for a caller with its own asker ⇒ the HTTP rows.
+    /// </summary>
+    [Theory]
+    [InlineData(RunArmed.Preview, ClusterArmedMode.Preview)]   // the editor host
+    [InlineData(RunArmed.Live, ClusterArmedMode.Live)]         // a CGF host
+    public void CE3341_S3_TheOperatorsOpenSendsTheHostDefault_AnHttpOpenSendsNone(RunArmed hostDefault, ClusterArmedMode sent)
+    {
+        var rig = With(ClusterState.OperatingEdit, hostDefault, withDoor: true);
+        rig.Choice.Choose(hostDefault == RunArmed.Live ? RunArmed.AAR : RunArmed.Live);   // something other than the default is armed
+        Ops(rig);                                                                          // (drain that op)
+        rig.Choice.OpenScenario("other");
+        Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
+        Assert.Equal(sent, Assert.Single(Ops(rig)).Armed);
+
+        var http = With(ClusterState.OperatingEdit, hostDefault, withDoor: true);
+        http.Choice.Door!.Open("other", new RefusingAsker());
+        Assert.Equal(new[] { "OpenForEdit:other" }, http.C.Calls);
+        Assert.Empty(Ops(http));
+    }
+
+    /// <summary>
+    /// S4 — the operator's recording open arms AAR and its live load arms Live (one op each); an HTTP recording open still does the <c>LastExercise</c> bookkeeping but sends no op.
+    /// 🔴 Red-proofs: the Recording / Live mapping in the choice's <c>OperatorOpening</c> swapped ⇒ the two ops; <c>RecordingOpening</c> moved under the operator-only raise ⇒ the HTTP row's <c>LastExercise</c>.
+    /// </summary>
+    [Fact]
+    public void CE3341_S4_TheOperatorsRecordingOpenArmsAar_AndItsLiveLoadArmsLive()
+    {
+        var rec = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        rec.Choice.OpenRecording(RunId);
+        Assert.Equal(new[] { $"OpenRecording:{RunId}" }, rec.C.Calls);
+        Assert.Equal(ClusterArmedMode.AAR, Assert.Single(Ops(rec)).Armed);
+        Assert.Equal(RunArmed.AAR, rec.Choice.Armed);
+
+        var live = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        live.Choice.Door!.LoadLive("other");
+        Assert.Equal(new[] { "LoadForLive:other" }, live.C.Calls);
+        Assert.Equal(ClusterArmedMode.Live, Assert.Single(Ops(live)).Armed);
+
+        var http = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        http.Choice.Door!.OpenRecording(RunId, asker: new RefusingAsker());
+        Assert.Empty(Ops(http));
+        Assert.Equal(RunId, http.Choice.LastExercise);                      // the bookkeeping is for every caller
+        Assert.Equal(RunArmed.Preview, http.Choice.Armed);                  // …but an HTTP open no longer arms
+    }
+
+    /// <summary>
+    /// S5 — ■ in Live returns to editing through the RAW open: no armed op, and Live stays armed (R2) through the Idle → Edit that follows. S6 — reaching OperatingEdit no longer resets
+    /// the armed mode to the host default (the D12 hook is gone): the host default is Preview, a load later it is still Live. A dry run's exit keeps its armed mode too.
+    /// 🔴 Red-proofs: StopLive arming ⇒ the ■ op row; the D12 reset restored in <c>OnClusterState</c> ⇒ the S6 rows.
+    /// </summary>
+    [Fact]
+    public void CE3341_S5_S6_StopInLiveSendsNothing_AndReachingEditNoLongerResetsTheArmedMode()
+    {
         var live = With(ClusterState.OperatingEdit, RunArmed.Preview);
         live.Choice.Choose(RunArmed.Live);
-        Hear(live, ClusterState.OperatingLive);
+        Ops(live);                                                          // (drain the arming op)
+        Hear(live, ClusterState.OperatingLive, armed: ClusterArmedMode.Live);
         live.F.Stop();
-        Hear(live, ClusterState.Idle);
-        Hear(live, ClusterState.OperatingEdit);
+        Assert.Empty(Ops(live));                                            // S5: ■ sends no armed mode …
+        Assert.Contains("OpenForEdit:hill-attack", live.C.Calls);           // … it is the raw return to the scenario
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
-        Hear(live, ClusterState.Idle);                                      // …but the NEXT, user-made open resets it
-        Hear(live, ClusterState.OperatingEdit);
-        Assert.Equal(RunArmed.Preview, live.Choice.Armed);
+        Hear(live, ClusterState.Idle);
+        Hear(live, ClusterState.OperatingEdit);                             // S6: the scenario is up for editing again
+        Assert.Equal(RunArmed.Live, live.Choice.Armed);                     // host default is Preview — not applied
+        Hear(live, ClusterState.Idle);
+        Hear(live, ClusterState.OperatingEdit);                             // …nor by any later load (only the OPERATOR's open sends it)
+        Assert.Equal(RunArmed.Live, live.Choice.Armed);
 
-        // a dry run's exit is Edit again, not a new scenario: the mode armed through the preview's confirmation stays
+        // a dry run's exit is Edit again: the mode armed through the preview's confirmation stays
         var preview = With(ClusterState.OperatingEdit, RunArmed.Preview);
         Hear(preview, ClusterState.OperatingPreview);
         preview.Choice.Choose(RunArmed.Live);

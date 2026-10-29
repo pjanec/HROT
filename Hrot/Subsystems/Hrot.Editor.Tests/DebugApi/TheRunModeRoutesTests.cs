@@ -179,11 +179,17 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("live", body["data"]!["armedMode"]!.GetValue<string>());
         Assert.Equal(RunArmed.Live, edit.F.RunChoice!.Armed);
+        Assert.Equal(ClusterArmedMode.Live, Assert.Single(Sent<SetRunSettingsIntent>(edit.Bus)).Armed);   // ⭐ CE-3341 S7 — the route's arm IS the cluster op (one)
         (status, body) = await Send(queue, _client.GetAsync(url + "/status"));
         Assert.Equal("live", body["data"]!["armedMode"]!.GetValue<string>());
+        Assert.Empty(Sent<SetRunSettingsIntent>(edit.Bus));                  // reading status sends nothing
+        (status, _) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"preview"}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(ClusterArmedMode.Preview, Assert.Single(Sent<SetRunSettingsIntent>(edit.Bus)).Armed);   // S7 — Preview, one op
 
         (status, body) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"nonsense"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(Sent<SetRunSettingsIntent>(edit.Bus));                  // a refused word arms nothing
 
         var live = Adapter(ClusterState.OperatingLive, RunArmed.Live);
         var (host2, queue2, url2) = Start(live.F, ClusterState.OperatingLive);
@@ -195,11 +201,13 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Empty(live.C.Calls);                                          // nothing was done …
         Assert.Null(live.F.RunChoice!.Pending);                              // … and no question is left standing for the next click
         Assert.Equal(RunArmed.Live, live.F.RunChoice.Armed);
+        Assert.Empty(Sent<SetRunSettingsIntent>(live.Bus));                  // … and the unconfirmed 409 sent no armed mode
 
         (status, body) = await Send(queue2, _client.PostAsync(url2 + "/run-mode", Json("""{"armed":"preview","confirm":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);     // the confirmed move: the live run ended, the scenario reopens
         Assert.Equal(RunArmed.Preview, live.F.RunChoice.Armed);
+        Assert.Equal(ClusterArmedMode.Preview, Assert.Single(Sent<SetRunSettingsIntent>(live.Bus)).Armed);   // the confirmed move arms through the same op
     }
 
     /// <summary>⭐ A host with no run choice on its facade answers <c>armedMode: null</c> in <c>/status</c> and 503 to <c>/run-mode</c> — absent and explained, never a made-up default.</summary>

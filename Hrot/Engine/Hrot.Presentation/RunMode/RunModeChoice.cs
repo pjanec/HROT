@@ -15,7 +15,7 @@ namespace Hrot.UI.Common.RunMode;
 /// 📄 <c>docs/blueprints/Architect_Question_108_Run_Mode_Picker.md</c> §1 (the three rules), §2.8 (classes + sequences), §3 (every move), D1 D5 D10 D12 D14 D22.
 ///
 /// <list type="bullet">
-/// <item><b>R1</b> — only <see cref="Choose"/> changes <see cref="Armed"/>; ▶ ⏸ ■ never do.</item>
+/// <item><b>R1</b> — only <see cref="Choose"/> (and the operator's open, CE-3341) changes <see cref="Armed"/>; ▶ ⏸ ■ never do.</item>
 /// <item><b>R2</b> — <see cref="Stop"/> returns to where the run came from and the armed mode stays: Preview → the dry run's exit; DAR → back to live;
 /// Live → <c>OpenForEdit(scenario of the active exercise)</c> (the cluster is NEVER sent to plain Idle); AAR → seek to 0, still AAR.</item>
 /// <item><b>R3</b> — a confirmation (<see cref="Pending"/>) only where a jump or a loss needs explaining; ■ never asks.</item>
@@ -37,7 +37,8 @@ public sealed class RunModeChoice
     private readonly ConfirmingAsker _asker = new(); // ⭐ CE-4101 — the one pending slot the toolbar draws (the door's questions and this choice's own confirmations)
 
     private ClusterState _lastState = ClusterState.Idle;
-    private bool _keepArmedOnEdit;     // set by OUR OWN return-to-editing moves (■ in Live, → Preview): the Edit that follows is not a fresh open
+    private RunArmed _localArmed;       // ⭐ CE-3341 — what THIS host last armed; shown only until the cluster's value next CHANGES (see Armed)
+    private RunArmed? _seenCluster;     // ⭐ CE-3341 — the cluster's armed mode as last observed (the change detector for _localArmed)
     private bool _resumeWhenLive;      // ▶ in Live armed: the load lands paused (Q86 §4-G); ▶ means run, so the clock resumes once Live is up
     private bool _asking;
 
@@ -81,7 +82,8 @@ public sealed class RunModeChoice
         _unsaved   = unsaved ?? new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName, master: null, reads: null);
         _now       = now ?? (() => DateTime.UtcNow);
         HostDefault = hostDefault;
-        Armed       = hostDefault;
+        _localArmed  = hostDefault;
+        _seenCluster = transport.ClusterArmed;   // the cluster's value at construction is the baseline: the host default shows until it CHANGES
         // ⭐ AQ108 D8 — Save in Live / DAR / AAR is a checkpoint: routed by construction for every save path of the host's ONE session
         if (control is ISaveInterception saves) saves.SaveIntercept = TryCheckpointInsteadOfSave;
         // ⭐⭐ CE-4101 (AQ108 §2.11a) — the decision "a run ⇒ Stop & Load · unsaved ⇒ Save / Discard / Cancel" lives in the session's ONE door; this choice binds it to its transport, its check round and its
@@ -90,7 +92,9 @@ public sealed class RunModeChoice
         {
             _door = (control as IHasScenarioDoor)?.Door ?? new ScenarioDoor(control, () => transport.Mode);
             _door.Bind(() => transport.Mode, _unsaved, _asker);
-            _door.RecordingOpening = exercise => { LastExercise = exercise; Armed = RunArmed.AAR; };
+            _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller; only the operator's open arms (OperatorOpening)
+            // ⭐ CE-3341 (AQ108 §2.14) — the OPERATOR's open (no asker of its own) sends its armed mode: the HOST's default for a scenario, Live for a live load, AAR for a recording. HTTP / agents send none (D22).
+            _door.OperatorOpening = open => Arm(open switch { DoorOpen.Live => RunArmed.Live, DoorOpen.Recording => RunArmed.AAR, _ => HostDefault });
             _door.AlsoBusy = () => _asking;   // ▶ Live's own check round shares the one unsaved seam
         }
     }
@@ -113,10 +117,32 @@ public sealed class RunModeChoice
         if (_branchInFrames > 0 && --_branchInFrames == 0 && _transport.Mode == TransportMode.Replay) _transport.BranchLive();
     }
 
-    /// <summary>What ▶ runs from Edit (R1: only <see cref="Choose"/> changes it; D12: reset to <see cref="HostDefault"/> when a scenario is opened).</summary>
-    public RunArmed Armed { get; private set; }
+    /// <summary>
+    /// What ▶ runs from Edit. ⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode (<see cref="IRunTransport.ClusterArmed"/>): one fact on every node. The value this host last armed (<see cref="Arm"/>)
+    /// shows only until the cluster's value next CHANGES (so the click shows at once; a later arm from another host wins). With no cluster value, the local one. R1: only <see cref="Choose"/> / the operator's open change it.
+    /// </summary>
+    public RunArmed Armed
+    {
+        get
+        {
+            if (_transport.ClusterArmed is { } cluster)
+            {
+                if (cluster != _seenCluster) { _seenCluster = cluster; _localArmed = cluster; }
+                return _localArmed;
+            }
+            return _localArmed;
+        }
+    }
 
-    /// <summary>⭐ The host's default (AQ108 D12) — what <see cref="Armed"/> returns to whenever a scenario is opened for editing.</summary>
+    /// <summary>⭐ CE-3341 — the ONE writer of the armed mode: sets the local (optimistic) value and sends it to the cluster as <c>SetRunSettingsIntent { Armed }</c>.</summary>
+    private void Arm(RunArmed target)
+    {
+        _ = Armed;                       // adopt a cluster change heard before this arm, so it is not mistaken for a later one
+        _localArmed = target;
+        _transport.SendArmed(target);
+    }
+
+    /// <summary>⭐ The host's default (AQ108 D12) — the armed mode the OPERATOR's File › Open sends when it opens a scenario for editing (D12a: sent, no longer a per-host reset).</summary>
     public RunArmed HostDefault { get; }
 
     /// <summary>The exercise of the last live run this choice ended (■ or → AAR) — what AAR armed opens at its start; <see langword="null"/> before any.</summary>
@@ -241,7 +267,7 @@ public sealed class RunModeChoice
         if (AarFromHereDisabledReason is not null) return;
         var exercise = _transport.ActiveExercise;
         LastExercise = exercise;
-        Armed = RunArmed.AAR;
+        Arm(RunArmed.AAR);
         _control!.OpenRecording(exercise, Math.Max(0, simSeconds));
     }
 
@@ -258,7 +284,7 @@ public sealed class RunModeChoice
     {
         if (GoLiveFromHereDisabledReason is not null) return;
         seekToMoment();
-        Armed = RunArmed.Live;
+        Arm(RunArmed.Live);
         _branchInFrames = 2;
     }
 
@@ -365,8 +391,8 @@ public sealed class RunModeChoice
         }
         else
         {
-            _keepArmedOnEdit = true;                   // R2: the armed mode stays (D12's reset is for a FRESH open)
-            _control!.OpenForEdit(scenario!);
+            _control!.OpenForEdit(scenario!);          // R2: the RAW verb — sends no armed mode, the cluster's stays
+
         }
         // §1a: the user's words are DAR / AAR — "Replay" is gone from the vocabulary (D17). A run that was not recorded offers NO AAR button (D14).
         if (recorded && exercise != Guid.Empty)
@@ -457,7 +483,7 @@ public sealed class RunModeChoice
                 return new("Stops the preview and returns to the scenario's start", $"Stop preview, arm {target}", true, null, () =>
                 {
                     _transport.StopRaw();
-                    Armed = target;
+                    Arm(target);
                 });
 
             case TransportMode.Live:
@@ -471,7 +497,7 @@ public sealed class RunModeChoice
                     {
                         LastExercise = exercise;
                         _lastExerciseRecorded = true;
-                        Armed = RunArmed.AAR;
+                        Arm(RunArmed.AAR);
                         _control.OpenRecording(exercise);
                     });
                 }
@@ -481,8 +507,7 @@ public sealed class RunModeChoice
                 return new("Ends the live session; you return to editing the scenario at its start", "End live, edit scenario", true, null, () =>
                 {
                     if (_transport.ActiveExercise != Guid.Empty) LastExercise = _transport.ActiveExercise;
-                    Armed = RunArmed.Preview;
-                    _keepArmedOnEdit = true;
+                    Arm(RunArmed.Preview);
                     _control.OpenForEdit(scenario!);
                 });
 
@@ -493,7 +518,7 @@ public sealed class RunModeChoice
                     var at = MainToolbarTimeControlSection.FormatSpan(_transport.TotalTime);
                     return new($"A new exercise starts from {at}; this recording stays unchanged", "Go live from here", true, null, () =>
                     {
-                        Armed = RunArmed.Live;
+                        Arm(RunArmed.Live);
                         _transport.BranchLive();
                     });
                 }
@@ -501,20 +526,20 @@ public sealed class RunModeChoice
                 var recorded = ScenarioOfRun();
                 if (string.IsNullOrWhiteSpace(recorded)) return Disabled("the scenario of this recording is not known");
                 var replayed = _transport.ActiveExercise;
-                void OpenCurrent() { Armed = RunArmed.Preview; _keepArmedOnEdit = true; _control!.OpenForEdit(recorded!); }
+                void OpenCurrent() { Arm(RunArmed.Preview); _control!.OpenForEdit(recorded!); }
                 if (replayed != Guid.Empty && RecordedVersionDiffers?.Invoke(replayed, recorded!) == true)
                     // ⭐ CE-4091: the saved scenario is not the one this recording ran — say so and offer both
                     return new($"Ends the AAR. The saved {recorded} has changed since this recording was made: edit the version the recording ran (as a copy), or the current scenario?",
                                "Open the recorded version (as a copy)", true, null, () =>
                     {
-                        Armed = RunArmed.Preview; _keepArmedOnEdit = true;
+                        Arm(RunArmed.Preview);
                         _control!.OpenForEdit(RecordedScenarioNames.ForExercise(replayed));
                     }, "Open the current scenario", OpenCurrent);
                 return new($"Ends the AAR; you return to editing {recorded} at its start", "End AAR, edit scenario", true, null, OpenCurrent);
 
             default:
                 // Edit / Idle — nothing running: arming loses nothing (R3: no confirmation)
-                return new(null, "", true, null, () => Armed = target);
+                return new(null, "", true, null, () => Arm(target));
         }
 
         static MovePlan Disabled(string reason) => new(null, "", false, reason, () => { });
@@ -527,23 +552,14 @@ public sealed class RunModeChoice
     // ── D12 + the cluster's state ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ AQ108 D12 — called by the adapter for every cluster-state broadcast. <b>The hook:</b> the cluster reaching <c>OperatingEdit</c> from anything but
-    /// a dry run means a scenario was opened for editing ⇒ <see cref="Armed"/> returns to <see cref="HostDefault"/>. One hook for every way in
-    /// (the File menu, the Start surface, <c>POST /scenario/load/edit</c>) — ⛔ not per opener. The exception is OUR OWN return to editing (■ in Live,
-    /// → Preview): R2 says the armed mode stays. Also resumes the clock once a ▶-started live load is up.
+    /// ⭐ Called by the adapter every frame with the cluster state it holds. ⭐ CE-3341 (AQ108 §2.14, D12a): the per-host D12 reset to <see cref="HostDefault"/> that lived here is GONE — the armed mode is the
+    /// cluster's one fact, and the operator's open SENDS the host default (see <c>ScenarioDoor.OperatorOpening</c>). Resumes the clock once a ▶-started live load is up.
     /// </summary>
     public void OnClusterState(ClusterState state)
     {
         var previous = _lastState;
         if (state == previous) return;
         _lastState = state;
-
-        if (state == ClusterState.OperatingEdit
-            && previous is not (ClusterState.LoadingPreview or ClusterState.OperatingPreview or ClusterState.UnloadingPreview))
-        {
-            if (_keepArmedOnEdit) _keepArmedOnEdit = false;
-            else Armed = HostDefault;
-        }
 
         if (state == ClusterState.OperatingLive && _resumeWhenLive)
         {

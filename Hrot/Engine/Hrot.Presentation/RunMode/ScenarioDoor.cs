@@ -24,6 +24,17 @@ public enum LeaveReason
     Exit,
 }
 
+/// <summary>⭐ CE-3341 (AQ108 §2.14) — which open the OPERATOR made through the door (the choice maps it to the armed mode it sends).</summary>
+public enum DoorOpen
+{
+    /// <summary>A scenario opened for editing (<see cref="ScenarioDoor.Open"/>).</summary>
+    Scenario,
+    /// <summary>A scenario loaded live (<see cref="ScenarioDoor.LoadLive"/>).</summary>
+    Live,
+    /// <summary>A recording opened into AAR (<see cref="ScenarioDoor.OpenRecording"/>).</summary>
+    Recording,
+}
+
 /// <summary>What a <see cref="DoorQuestion"/> asks (a host may answer the kinds differently: HTTP stops a run and refuses a loss).</summary>
 public enum DoorQuestionKind
 {
@@ -191,6 +202,12 @@ public sealed class ScenarioDoor
     /// <summary>⭐ Set by the run choice: a recording is about to be opened (its <c>LastExercise</c> / AAR-armed bookkeeping) — so EVERY way of opening one, the picker's included, leaves the choice right.</summary>
     public Action<Guid>? RecordingOpening { get; set; }
 
+    /// <summary>
+    /// ⭐ CE-3341 (AQ108 §2.14, D12a) — set by the run choice: raised just BEFORE the raw verb goes out, and ONLY when the move was answered by the BOUND asker (the caller passed none) —
+    /// i.e. the operator's own open. ⛔ HTTP / agent opens pass their own asker and raise nothing (D22: routes stay explicit and never follow or set the armed mode).
+    /// </summary>
+    public Action<DoorOpen>? OperatorOpening { get; set; }
+
     /// <summary>The check round is open (shown as "checking…"; no timeout — the operator may <see cref="CancelCheck"/>).</summary>
     public bool IsCheckingUnsaved => _asking;
 
@@ -220,7 +237,13 @@ public sealed class ScenarioDoor
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
-        Admit(DoorMove.OpeningScenario(scenarioName), asker, answered, () => { raw.OpenForEdit(scenarioName); then?.Invoke(); });
+        var operatorMove = asker is null;
+        Admit(DoorMove.OpeningScenario(scenarioName), asker, answered, () =>
+        {
+            if (operatorMove) OperatorOpening?.Invoke(DoorOpen.Scenario);
+            raw.OpenForEdit(scenarioName);
+            then?.Invoke();
+        });
     }
 
     /// <summary>Loads <paramref name="scenarioName"/> LIVE (the Orchestrator panel's <i>Load into Live</i>) — the same decision as <see cref="Open"/>.</summary>
@@ -228,7 +251,13 @@ public sealed class ScenarioDoor
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         var raw = Raw;
-        Admit(DoorMove.LoadingLive(scenarioName), asker, answered, () => { raw.LoadForLive(scenarioName); then?.Invoke(); });
+        var operatorMove = asker is null;
+        Admit(DoorMove.LoadingLive(scenarioName), asker, answered, () =>
+        {
+            if (operatorMove) OperatorOpening?.Invoke(DoorOpen.Live);
+            raw.LoadForLive(scenarioName);
+            then?.Invoke();
+        });
     }
 
     /// <summary>Opens a recording into AAR (at its start, or at <paramref name="atSimSeconds"/> of its own clock).</summary>
@@ -236,9 +265,11 @@ public sealed class ScenarioDoor
     {
         if (exerciseId == Guid.Empty) return;   // Empty means "the master picks" on the wire; an open names one
         var raw = Raw;
+        var operatorMove = asker is null;
         Admit(DoorMove.OpeningRecording, asker, answered, () =>
         {
-            RecordingOpening?.Invoke(exerciseId);
+            RecordingOpening?.Invoke(exerciseId);   // LastExercise bookkeeping — for every caller
+            if (operatorMove) OperatorOpening?.Invoke(DoorOpen.Recording);
             if (atSimSeconds is { } at) raw.OpenRecording(exerciseId, at);
             else raw.OpenRecording(exerciseId);
             then?.Invoke();
