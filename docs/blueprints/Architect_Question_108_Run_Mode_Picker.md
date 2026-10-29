@@ -650,6 +650,38 @@ sequenceDiagram
 
 **Deleted:** `ClusterTimeControlStatusBarSection`, the editor's `TimeControlStatusBarSection` wrapper and the former's 2 smoke tests (mechanical; the toolbar section's `Render_*` rails cover the same render path). **Kept:** `RunNoteStatusBarSection` (D11 — a note, not a time control). **Added seam:** `StatusBarManager.SectionIds`. ⚠ SimHost's `SimHostControlsWindow` panel keeps its own Play/Pause/Step on the same facade (`vis.UI.TimeFacade`) — a panel, not the status bar; untouched. Rails: `TheRunChoiceIsOnEveryHostTests` (editor, CGF, SimHost).
 
+### 2.10 CE-1437 — the run controls are composed ONCE PER PROCESS (R-3066 audit #1, #2, #10) — DESIGN `2026-10-29` (ui)
+
+| the lean rests on | code | design |
+|---|---|---|
+| the toolbar time control is ONE process-wide entry, last registration wins | ✅ `ShellTimeControlToolbar.cs:40,72` (`EntryId`, no perspective) → `MainToolbarManager.RegisterEntry` replace-or-add | ✅ D13 "the picker exists once" |
+| three hosts register it, so in a multi-host process the LAST host owns ▶ | ✅ `EditorSubsystem.cs:5426`, `CgfSubsystem.cs:1865`, `SimHostSubsystem.cs:364`; order = subsystem order in `LocalWindowController` | ⛔ R-3066 / CLAUDE.md "make hosts agree by construction" |
+| the armed default is owned twice | ✅ `HostArmedModes.For` (runner, internal) → `LocalWindowController.ArmedMode`, read by nothing · literals at the three `AttachRunChoice` sites | ✅ D12 "ONE host parameter of the shared bootstrap" |
+| SimHost's panel ▶ bypasses the user entry | ✅ `SimHostControlPanels.cs:61,64` call the facade raw | ✅ D22: user controls follow the armed mode (`UserTransport`), routes stay raw |
+
+```mermaid
+classDiagram
+  class RunArmedDefaults { <<NEW, Hrot.Presentation>> +For(hostKind) RunArmed — editor Preview, else Live (the ONE table, D12) }
+  class IProvidesRunControls { <<NEW>> Transport : ITimeTransportFacade · RunChoice : RunModeChoice? }
+  class LocalWindowController { <<existing>> ⭐ ComposeRunControls(wm) — ONE toolbar entry, from the operator host's choice, by rule }
+  class ShellTimeControlToolbar { <<existing>> Register(toolbar, facade, choice) — ⭐ called ONLY by the composition }
+  class ClusterTimeTransportAdapter { <<existing>> AttachRunChoice(⭐ RunArmedDefaults.For(kind), control, …) }
+  class SimHostControlPanels { <<existing>> ⭐ Play / Step through UserTransport }
+  LocalWindowController --> IProvidesRunControls : the subsystems that offer one
+  LocalWindowController --> ShellTimeControlToolbar : once
+  ClusterTimeTransportAdapter ..> RunArmedDefaults
+```
+
+*What the picture shows that prose hid:* the time control's owner moves from three hosts to the one place every host's window is composed (as the
+start gate did, §2.6), and its pick becomes a RULE — ⛔ never registration order.
+
+⭐ **Decisions:** ① **the rule:** the run controls of a host whose choice HAS a scenario session (an operator host: editor, CGF) win; with none,
+the first offered (SimHost alone keeps its own); with two operators in one process (none today), the editor's. ② **one armed-default table**
+(`RunArmedDefaults`, in Hrot.Presentation so both the subsystems and the runner read it); `HostArmedMode(s)` in the runner is deleted.
+③ **`UserTransport` is the only user play entry** — the SimHost panel calls it. ④ every subsystem still builds its own adapter (each node drives
+its own bus); only the TOOLBAR surface is composed once. Rejected: **perspective-scoped entries** (one per host) — the toolbar would change with
+the perspective while the cluster clock is one · **first-registered wins** — still order, not a rule.
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |
