@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — coordinator → backend: after the armed-mode MVP — fix CE-4103 first, then on call for ui's CE-4104 (the mode switches)
+state: LIVE — coordinator → backend: after the armed-mode MVP — CE-4103 and CE-3343 first, write the CE-3339 row, then on call for ui's CE-4104 (the mode switches); amended 2026-10-29 before backend started (rule 1a)
 updated: 2026-10-29
 current-answer: the whole note
 stale-below: nothing
@@ -23,6 +23,15 @@ switches like live->AAR, AAR->live, live->DAR, DAR->live … Only once this is w
 | ③ | a SECOND `EditorSubsystem` in one process never leaves Idle | find the cause; fix if cheap, else record it (test-only today) |
 
 Rails in each feature's own suite; fold what you learn into the owning design (orchestration / content layout).
+
+## 1b. ⭐ Also now (user, `2026-10-29`: *"yes, do both"*) — amended before you started (rule 1a; ancestry checked)
+
+| # | what | why |
+|---|---|---|
+| ① | **CE-3343** — route the 47 test-only repo-root walk-ups through the one existing walk-up (`ContentLayout.TryFindSourceTree`) | R-3066 step 4: the unification the user wants finished first. ⚠ `6196efa68` only FILED the row — no code moved (one file changed, the tracker). Mechanical ⇒ **Sonnet**, one agent at a time; it touches test files only, so it does not collide with ui's CE-4104 |
+| ② | **write the CE-3339 row** (the two scenario hashes for AAR → Preview — the recorded copy's and each saved scenario's, `HANDOFF_Coordinator_To_Backend_Scenario_Hashes.md`) | the id was allocated in your pause note and is cited by the plan, but ⛔ **no row exists in the tracker**. Note the partly built worktree in it. It stays PARKED (plan §5) |
+
+Order: CE-4103 → CE-3343 (one Sonnet agent at a time); the CE-3339 row any time.
 
 ## 2. Then on call for CE-4104
 
