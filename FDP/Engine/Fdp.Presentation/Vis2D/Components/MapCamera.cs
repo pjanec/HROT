@@ -83,6 +83,7 @@ namespace Fdp.Toolkit.Vis2D.Components
 
         private Vector2? _frameViewport;            // ⭐ CE-1072 — the window size, read once a frame
         private Vector2? _frameCentre;              // ⭐ CE-4084 — the visible centre, read once a frame
+        private bool _started;                      // ⭐ CE-1441 — the first Update has run (it places a never-placed Offset)
         private Vector2 _frameCentreFor;            // the viewport it was read for (a film frame has another size)
         private Func<Vector2, Vector2> _viewCentreSource = OpenMapArea.Centre;
 
@@ -150,7 +151,7 @@ namespace Fdp.Toolkit.Vis2D.Components
         public Vector2 Offset
         {
             get => InnerCamera.Offset;
-            set => InnerCamera.Offset = value;
+            set { InnerCamera.Offset = value; _started = true; }   // ⭐ CE-1441 — an Offset a host placed itself is never re-seeded
         }
 
         // Configuration
@@ -262,6 +263,14 @@ namespace Fdp.Toolkit.Vis2D.Components
 
             // ⭐ CE-4084 — the picture's centre follows the visible map (a docked panel moves it); the picture itself does not jump.
             ResetFrameCache();
+            // ⭐ CE-1441 (audit #18) — THE one place a camera starts centred on the visible map: a host that never placed Offset (still at
+            //   the constructor's (0,0)) gets it at ViewCentre on the FIRST update, with Target untouched — so the world point the host set
+            //   as Target IS the one drawn at the centre. (IG, CGF and SimHost each used to seed `Offset = ViewCentre` themselves.)
+            if (!_started)
+            {
+                _started = true;
+                if (InnerCamera.Offset == Vector2.Zero && IsFinite(ViewCentre)) InnerCamera.Offset = ViewCentre;
+            }
             AnchorAt(ViewCentre);
 
             if (EnableSmoothing)
@@ -415,6 +424,7 @@ namespace Fdp.Toolkit.Vis2D.Components
             InnerCamera.Zoom   = source.InnerCamera.Zoom;
             InnerCamera.Target = source.InnerCamera.Target;
             InnerCamera.Offset = source.InnerCamera.Offset;
+            _started      = true;                  // ⭐ CE-1441 — a full picture, Offset included
             _targetZoom   = source._targetZoom;
             _targetTarget = source._targetTarget;
             _isDragging   = false;
@@ -513,6 +523,7 @@ namespace Fdp.Toolkit.Vis2D.Components
             InnerCamera.Zoom   = view.Zoom;
             InnerCamera.Target = view.Target;
             InnerCamera.Offset = view.Offset;
+            _started      = true;                  // ⭐ CE-1441 — a full picture, Offset included: nothing to seed
             _targetZoom   = view.SmoothZoom;
             _targetTarget = view.SmoothTarget;
             _isDragging   = false;

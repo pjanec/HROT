@@ -17,7 +17,6 @@ using AssetOpIntent           = Fdp.Toolkit.Orchestration.AssetOpIntent;
 using ManageEpisodeIntent     = Fdp.Toolkit.Orchestration.ManageEpisodeIntent;
 using ExecuteStorageOpIntent  = Fdp.Toolkit.Orchestration.ExecuteStorageOpIntent;
 using StorageOpType           = Fdp.Toolkit.Orchestration.StorageOpType;
-using TakeCheckpointIntent    = Fdp.Toolkit.Orchestration.TakeCheckpointIntent;
 using SeekReplayIntent        = Fdp.Toolkit.Orchestration.SeekReplayIntent;
 using CancelOperationIntent   = Fdp.Toolkit.Orchestration.CancelOperationIntent;
 
@@ -68,39 +67,8 @@ public sealed class ClusterScenarioPanel
         // HEXAG2-S012: zero ClusterOpIntent references; each operation type is mapped directly.
         switch ((FdpClusterOpType)(int)req.OperationType)
         {
-            case FdpClusterOpType.PauseTime:
-                _bus!.PublishManaged(new PauseTimeIntent());
-                break;
-
-            case FdpClusterOpType.ResumeTime:
-                _bus!.PublishManaged(new ResumeTimeIntent());
-                break;
-
-            case FdpClusterOpType.StepTime:
-            {
-                StepTimePayloadDto? dto = null;
-                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                {
-                    try { dto = JsonSerializer.Deserialize<StepTimePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default); }
-                    catch { }
-                }
-                float delta = dto != null && dto.FixedDelta > 0f ? dto.FixedDelta : 1f / 60f;
-                _bus!.PublishManaged(new StepTimeIntent { DeltaSeconds = delta });
-                break;
-            }
-
-            case FdpClusterOpType.SetTimeScale:
-            {
-                SetTimeScalePayloadDto? dto = null;
-                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                {
-                    try { dto = JsonSerializer.Deserialize<SetTimeScalePayloadDto>(req.PayloadJson, OrchestrationJsonOptions.Default); }
-                    catch { }
-                }
-                float scale = dto != null && dto.TimeScale > 0f ? dto.TimeScale : 1f;
-                _bus!.PublishManaged(new SetTimeScaleIntent { TimeScale = scale });
-                break;
-            }
+            // ⭐ CE-1439 — PauseTime / ResumeTime / StepTime / SetTimeScale / TakeCheckpoint are no longer built here: the panel's controls ask the host's transport and run choice
+            //   (ClusterPanelRunControls), the ONE place those intents are published. ⛔ A second mapping of them in this switch was the duplicate.
 
             case FdpClusterOpType.TransitionState:
             {
@@ -134,10 +102,6 @@ public sealed class ClusterScenarioPanel
                     Operation  = StorageOpType.Import,
                     ExerciseId = ExtractGuidField(req.PayloadJson),
                 });
-                break;
-
-            case FdpClusterOpType.TakeCheckpoint:
-                _bus!.PublishManaged(new TakeCheckpointIntent { RequestId = req.RequestId });
                 break;
 
             case FdpClusterOpType.ReplaySeek:
@@ -258,19 +222,30 @@ public sealed class ClusterScenarioPanel
     private int _selectedExerciseIdx        = -1;
     private bool _startPaused = false;
 
-    // ⭐ CE-295 — "Load into Edit / Live" go through the ONE shared sequence: from Live or Edit it asks for Idle first
-    //   (the unload) and sends the load once the cluster is Idle. A single request planned an empty path from the
-    //   target state itself and only copied the files. Pumped every frame (Update and Render).
-    private Fdp.Toolkit.Orchestration.ScenarioLoadSequence? _loads;
-    private Fdp.Toolkit.Orchestration.ScenarioLoadSequence Loads
-        => _loads ??= new Fdp.Toolkit.Orchestration.ScenarioLoadSequence(
-               send: intent => SendRequest(new ClusterOpRequest
-               {
-                   RequestId     = intent.TransactionId,
-                   OperationType = ClusterOpType.TransitionState,
-                   PayloadJson   = JsonSerializer.Serialize(TransitionPayloadDto.From(intent), OrchestrationJsonOptions.Default),   // ⭐ R-3055 — the ONE encoding
-               }),
-               currentState: () => (FdpClusterState)(int)EffectiveState);
+    // ⭐⭐⭐ CE-1439 (AQ108 §2.12) — this panel is the MONITOR; what it ASKS for (pause / resume / step / speed, the loads, Open AAR, the checkpoint) goes through the host's ONE run
+    //   surfaces — the transport's USER entry, the run choice and the scenario session — via ClusterPanelRunControls. ⛔ The panel's own ScenarioLoadSequence (CE-295's copy of the session's)
+    //   and its own pause / step / checkpoint / replay-transition requests are GONE.
+    private ClusterPanelRunControls? _controls;
+    private bool _controlsAreOwned;
+
+    /// <summary>
+    /// ⭐ The host's run surfaces. A host that HAS them (the Orchestrator, the editor) passes them — ⛔ a production caller that holds the dependency must pass it. A host that composes none (ExCon,
+    /// being retired — R-3067) gets the SAME shared classes built over this panel's own bus, advanced by <see cref="Update"/>; a panel with neither (the master-bound ctor, no bus) has its
+    /// controls disabled, with the reason shown.
+    /// </summary>
+    public ClusterPanelRunControls? RunControls
+    {
+        get => _controls ??= BuildOwnedControls();
+        set { _controls = value; _controlsAreOwned = false; }
+    }
+
+    private ClusterPanelRunControls? BuildOwnedControls()
+    {
+        if (_bus is null) return null;
+        _controlsAreOwned = true;
+        return ClusterPanelRunControls.OverBus(_bus, () => _uiCache.View, () => _uiCache.MasterSimTime);
+    }
+
     private int _selectedEpisodeIdx        = -1;
 
     // ── Replay section state ──────────────────────────────────────────────
@@ -312,7 +287,7 @@ public sealed class ClusterScenarioPanel
     /// <summary>Advances the seek debounce timer. Call once per frame from the subsystem Update().</summary>
     public void Update(float dt)
     {
-        _loads?.Pump();   // CE-295 — a load waiting for the unload goes out once the cluster is Idle
+        if (_controlsAreOwned) RunControls?.Update();   // ⭐ CE-1439 — only controls this panel built itself; a host advances its own
         if (!_seekPending) return;
         _seekDebounceTimer -= dt;
         if (_seekDebounceTimer > 0f) return;
@@ -334,7 +309,6 @@ public sealed class ClusterScenarioPanel
     /// <param name="disableAll">When <c>true</c>, all interactive controls are disabled.</param>
     public void Render()
     {
-        _loads?.Pump();   // CE-295 — also pumped here: a host that holds the master may draw without calling Update
         // Compute disable flag from ClusterMaster's true internal state.
         // HasInFlightTransaction is reset to false immediately after the fan-out
         // completes, so buttons re-enable as soon as the transition is dispatched.
@@ -462,44 +436,32 @@ public sealed class ClusterScenarioPanel
 
         float timeScale = _uiCache.MasterTimeScale;
         bool isPaused = _uiCache.IsPaused;
+        var controls = RunControls;
+        if (controls is null) ImGui.TextDisabled("(no run controls on this host)");
+        // ⭐ CE-1439 — the USER's ▶ / Step / speed, through the host's transport + run choice (⛔ no intents of this panel's own)
+        bool canPlay = controls?.CanPlayPause ?? false;
+        if (!canPlay) ImGui.BeginDisabled();
         if (ImGui.Button(isPaused ? "Resume##OrcResume" : "Pause##OrcPause"))
-            SendRequest(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = isPaused ? ClusterOpType.ResumeTime : ClusterOpType.PauseTime,
-                PayloadJson   = string.Empty,
-            });
+            controls!.PauseOrResume();
+        if (!canPlay) ImGui.EndDisabled();
 
         ImGui.SameLine();
-        if (!isPaused) ImGui.BeginDisabled();
+        bool canStep = isPaused && (controls?.CanStep ?? false);
+        if (!canStep) ImGui.BeginDisabled();
         ImGui.SetNextItemWidth(80f);
         ImGui.InputFloat("Step (s)##OrcStepDelta", ref _stepDeltaSeconds, 0f, 0f, "%.4f");
         if (_stepDeltaSeconds <= 0f) _stepDeltaSeconds = 1f / 60f;
         ImGui.SameLine();
         if (ImGui.Button("Step##OrcStep"))
-        {
-            SendRequest(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = ClusterOpType.StepTime,
-                PayloadJson   = JsonSerializer.Serialize(
-                    new StepTimePayloadDto(FixedDelta: _stepDeltaSeconds),
-                    OrchestrationJsonOptions.Default),
-            });
-        }
-        if (!isPaused) ImGui.EndDisabled();
+            controls!.Step(_stepDeltaSeconds);
+        if (!canStep) ImGui.EndDisabled();
 
         ImGui.SameLine();
         ImGui.SetNextItemWidth(150f);
+        if (controls is null) ImGui.BeginDisabled();
         if (ImGui.SliderFloat("Speed##OrcSpeed", ref timeScale, 0.1f, 10.0f, "%.1fx"))
-            SendRequest(new ClusterOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = ClusterOpType.SetTimeScale,
-                PayloadJson   = JsonSerializer.Serialize(
-                    new SetTimeScalePayloadDto(TimeScale: timeScale),
-                    OrchestrationJsonOptions.Default),
-            });
+            controls?.SetTimeScale(timeScale);
+        if (controls is null) ImGui.EndDisabled();
 
         if (disableAll) ImGui.EndDisabled();
     }
@@ -829,23 +791,21 @@ public sealed class ClusterScenarioPanel
 
         if (ImGui.BeginChild("##OrcCheckpoint", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
-            bool checkpointDisabled = disableAll || currentState != ClusterState.OperatingLive;
+            // ⭐ CE-1439 — the run choice's checkpoint (the session's TakeCheckpoint + the toast) and ITS reason; ⛔ not a second "is it Live?" test of this panel's own
+            var controls = RunControls;
+            string? why = controls is null ? "no run controls on this host" : controls.CheckpointDisabledReason;
+            bool checkpointDisabled = disableAll || why is not null;
             if (checkpointDisabled) ImGui.BeginDisabled();
 
             if (ImGui.Button("Take Checkpoint"))
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TakeCheckpoint,
-                    PayloadJson   = string.Empty,
-                });
+                controls!.TakeCheckpoint();
 
             if (checkpointDisabled) ImGui.EndDisabled();
 
-            if (currentState != ClusterState.OperatingLive)
+            if (why is not null)
             {
                 ImGui.SameLine();
-                ImGui.TextDisabled("(requires RunningLive)");
+                ImGui.TextDisabled($"({why})");
             }
         }
         ImGui.EndChild();
@@ -869,30 +829,15 @@ public sealed class ClusterScenarioPanel
             ImGui.Combo("Select Scenario##OrcLoadId", ref _selectedLoadScenarioIdx,
                 _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
             ImGui.SameLine();
+            // ⭐ CE-1439 — Load into Edit = the run choice's guarded open (what File › Open Scenario ends in); Load into Live = the session's explicit live load
+            bool noControls = RunControls is null;
+            if (noControls) ImGui.BeginDisabled();
             if (ImGui.Button("Load into Edit##OrcLoadEdit") && _selectedLoadScenarioIdx >= 0)
-            {
-                string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
-                Loads.Request(new TransitionStateIntent
-                {
-                    TransactionId = Guid.NewGuid(),
-                    TargetState   = FdpClusterState.OperatingEdit,
-                    ScenarioId    = scenId,
-                    ExerciseId    = Guid.Empty,
-                });
-            }
+                RunControls!.LoadIntoEdit(_uiCache.AvailableScenarios[_selectedLoadScenarioIdx]);
             ImGui.SameLine();
             if (ImGui.Button("Load into Live##OrcLoadLive") && _selectedLoadScenarioIdx >= 0)
-            {
-                string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
-                Loads.Request(new TransitionStateIntent
-                {
-                    TransactionId = Guid.NewGuid(),
-                    TargetState   = FdpClusterState.OperatingLive,
-                    ScenarioId    = scenId,
-                    ExerciseId    = Guid.NewGuid(),
-                    TimeMode      = _startPaused ? "Deterministic" : null,
-                });
-            }
+                RunControls!.LoadIntoLive(_uiCache.AvailableScenarios[_selectedLoadScenarioIdx]);
+            if (noControls) ImGui.EndDisabled();
 
             if (disableAll) ImGui.EndDisabled();
         }
@@ -929,19 +874,10 @@ public sealed class ClusterScenarioPanel
                 ImGui.EndCombo();
             }
             ImGui.SameLine();
+            if (RunControls is null) ImGui.BeginDisabled();
             if (ImGui.Button("Open AAR##OrcReplayBtn") && _selectedExerciseIdx >= 0)
-            {
-                Guid exerciseId = available[_selectedExerciseIdx].ExerciseId;
-
-                SendRequest(new ClusterOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: exerciseId, TimeMode: null),
-                        OrchestrationJsonOptions.Default),
-                });
-            }
+                RunControls!.OpenAar(available[_selectedExerciseIdx].ExerciseId);   // ⭐ CE-1439 — the run choice's recording open (guard + unsaved check), what File › Open Recording ends in
+            if (RunControls is null) ImGui.EndDisabled();
 
             // Seek slider — only when RunningReplay
             if (EffectiveState == ClusterState.OperatingReplay)

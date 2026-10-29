@@ -23,16 +23,12 @@ public static class UserRecentPicks
 {
     public const string FileName = "recent-picks.json";
 
-    /// <summary>The app's user-folder name — the one <c>AudioSettings</c> and the layout use.</summary>
-    private const string AppFolderName = Hrot.UI.Common.Audio.AudioSettings.AppFolderName;
-
     private static readonly Lazy<RecentStore> SharedStore = new(() => Open(DefaultPath()), isThreadSafe: true);
 
     /// <summary>Where this user's file is (the folder is created); null when there is no user folder.</summary>
     public static string? DefaultPath()
     {
-        try { return Path.Combine(LayoutPaths.UserDirectory(AppFolderName), FileName); }
-        catch (Exception) { return null; }
+        return Hrot.UI.Common.UserFiles.TryPathOf(FileName);
     }
 
     /// <summary>The store persisted at <paramref name="path"/> (in-memory when it is null or empty).</summary>

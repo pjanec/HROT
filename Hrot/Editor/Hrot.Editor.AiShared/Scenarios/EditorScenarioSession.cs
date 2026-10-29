@@ -6,6 +6,8 @@ using Fdp.Core;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
 using Hrot.ScenarioEditor.Services;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
@@ -31,22 +33,37 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// *"Uniform in every host — there is no editor-only live-load driver to prefer."* ⇒ the asymmetry is
 /// the design, not an oversight; each node's own live-load handler does its own clearing.</para>
 /// </summary>
-public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.RunMode.ISaveInterception
+public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioControl, IHasScenarioDoor, Hrot.UI.Common.RunMode.ISaveInterception
 {
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — <b>the ONE guarded door in and out of the open scenario.</b> This session's PUBLIC <see cref="OpenForEdit"/> / <see cref="LoadForLive"/> / <see cref="OpenRecording(Guid)"/> /
+    /// <see cref="NewExercise"/> are calls on it (a run ⇒ <i>Stop &amp; Load</i> · unsaved edits ⇒ <i>Save / Discard / Cancel</i>); the RAW verbs are EXPLICIT <see cref="IRunScenarioControl"/> members, handed only to the
+    /// <see cref="RunModeChoice"/> (<see cref="RunControl"/>). HTTP asks through <see cref="Door"/> with its refusing asker.
+    /// </summary>
+    public ScenarioDoor Door { get; }
+
+    /// <summary>
+    /// ⭐ <c>CE-4101</c> — the RAW verbs, for the run choice and for nobody else (<c>AttachRunChoice</c>): its mode moves (■ in Live, → Preview, go-live from Edit) ask their own R3 confirmation and then must open WITHOUT the door asking again.
+    /// ⛔ Any other caller holds the session (<see cref="IScenarioSession"/>) and reaches only the door.
+    /// </summary>
+    public IRunScenarioControl RunControl => this;
+
     /// <inheritdoc/>
     public Func<bool>? SaveIntercept { get; set; }
 
     /// <summary>The file name every scenario directory stores its world under.</summary>
     public const string ScenarioFileName = "scenario.json";
 
-    private readonly ScenarioFileService     _fileService;
+    // ⭐ CE-1439 — BOTH null together on a host with no world of its own (the Orchestrator, the cluster master's window): the only three members that touch them
+    //   (ClearWorld, SaveTo, GetMigrationSidecars) then have nothing local to act on. ⛔ Never one without the other.
+    private readonly ScenarioFileService?    _fileService;
     private readonly FdpEventBus             _orchestrationBus;
-    private readonly EntityRepository        _world;
+    private readonly EntityRepository?       _world;
     private readonly MigrationAlertManager   _alertManager;
     private readonly Func<string>            _scenariosRoot;
 
     private string?      _loadedScenarioName;
-    private ClusterState _currentClusterState = ClusterState.Idle;
+    private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?> _clusterView;   // ⭐ CE-1436 — the node's ONE cluster read model; this session folds no state of its own
 
     // ⭐ CE-295 — every load goes through the ONE shared sequence (Idle first, then the load); this session's own
     //   wait-for-Idle was where the sequence came from, and LoadForLive used to skip it.
@@ -66,20 +83,58 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     public EditorScenarioSession(
         ScenarioFileService    fileService,
         FdpEventBus            orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,
         EntityRepository       world,
         Func<string>           scenariosRoot,
         MigrationAlertManager? alertManager = null,
         Action?                leaveRun     = null)
+        : this(
+            fileService ?? throw new ArgumentNullException(nameof(fileService)),
+            orchestrationBus, clusterView,
+            world       ?? throw new ArgumentNullException(nameof(world)),
+            scenariosRoot, alertManager, leaveRun, worldless: false)
     {
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1439</c> (AQ108 §2.12) — <b>the SAME session on a host with NO world of its own</b>: the Orchestrator, whose window operates the cluster (open a scenario, open a
+    /// recording, checkpoint, save through the master) while the entities live on the nodes. ⭐ Not a second implementation: every cluster verb is the shared body; what a world-less host
+    /// legitimately has nothing to act on is exactly the three LOCAL members — <see cref="ClearWorld"/> (resets the loaded name and the migration alert, wipes nothing),
+    /// <see cref="SaveTo"/> (the raw-path writer; throws — it has no production caller) and <see cref="GetMigrationSidecars"/> (empty). 📐 Measured: those are the only
+    /// <c>_world</c> / <c>_fileService</c> readers in this class.
+    /// </summary>
+    public EditorScenarioSession(
+        FdpEventBus            orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,
+        Func<string>           scenariosRoot,
+        MigrationAlertManager? alertManager = null,
+        Action?                leaveRun     = null)
+        : this(null, orchestrationBus, clusterView, null, scenariosRoot, alertManager, leaveRun, worldless: true)
+    {
+    }
+
+    private EditorScenarioSession(
+        ScenarioFileService?   fileService,
+        FdpEventBus            orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,
+        EntityRepository?      world,
+        Func<string>           scenariosRoot,
+        MigrationAlertManager? alertManager,
+        Action?                leaveRun,
+        bool                   worldless)
+    {
+        if (worldless != (fileService is null) || worldless != (world is null))
+            throw new ArgumentException("A session has its file service AND its world, or neither (CE-1439).");
         _leaveRun         = leaveRun;
-        _fileService      = fileService      ?? throw new ArgumentNullException(nameof(fileService));
+        _clusterView      = clusterView      ?? throw new ArgumentNullException(nameof(clusterView));
+        _fileService      = fileService;
         _orchestrationBus = orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus));
-        _world            = world            ?? throw new ArgumentNullException(nameof(world));
+        _world            = world;
         _scenariosRoot    = scenariosRoot    ?? throw new ArgumentNullException(nameof(scenariosRoot));
         _alertManager     = alertManager     ?? new MigrationAlertManager();
         _loads = new ScenarioLoadSequence(
             send:         intent => _orchestrationBus.PublishManaged(intent),
-            currentState: () => _currentClusterState,
+            currentState: () => CurrentClusterState,
             beforeLoad:   load =>
             {
                 // An authoring load starts the editor's world on a blank slate (WorldResetEvent + SoftClear); a live
@@ -87,6 +142,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
                 if (load.TargetState == ClusterState.OperatingEdit) ClearWorld();
                 _loadedScenarioName = load.ScenarioId;
             });
+        Door = new ScenarioDoor(this, () => ClusterReplayControls.ModeOf(CurrentClusterState), RawLeave);
     }
 
     // ⭐ CE-1025 (R-1031, load design §9.1) — leaves the host's own dry run WITHOUT a rewind, FIRST, at every load request (and New
@@ -98,7 +154,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     public MigrationAlertManager AlertManager => _alertManager;
 
     /// <inheritdoc/>
-    public ClusterState CurrentClusterState => _currentClusterState;
+    public ClusterState CurrentClusterState => _clusterView()?.State ?? ClusterState.Idle;
 
     /// <inheritdoc/>
     public string? LoadedScenarioName => _loadedScenarioName;
@@ -109,9 +165,6 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <inheritdoc/>
     public void Update()
     {
-        foreach (var ev in _orchestrationBus.ReadManaged<ClusterStateUpdateEvent>())
-            _currentClusterState = ev.CurrentState;
-
         // ⭐ CE-295 — a load waiting for the unload goes out once the cluster reports Idle.
         _loads.Pump();
     }
@@ -119,33 +172,43 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <inheritdoc/>
     public void ClearWorld()
     {
-        _fileService.NewScenario(_world);
+        _fileService?.NewScenario(_world!);   // a world-less host (CE-1439) has no local world to wipe
         _loadedScenarioName = null;
         _alertManager.OnScenarioCleared();
     }
 
     /// <inheritdoc/>
-    public void NewExercise()
+    /// <remarks>⭐ <c>CE-4101</c> — the OUT door: editing with unsaved edits asks <i>Save / Discard / Cancel</i> first (it used to discard silently); a run is simply stopped.</remarks>
+    public void NewExercise() => Door.Leave(LeaveReason.NewExercise);
+
+    /// <summary>
+    /// ⭐ The raw leave to Idle the door calls once it has decided: leaves the host's dry run, sends the ONE Idle intent (<see cref="ScenarioLoadSequence.Unload"/>), abandons a queued load (the operator just asked
+    /// for a fresh exercise — honouring it afterwards would undo the request) and, for New Exercise, wipes the local world. ⛔ This is what distinguishes New Exercise from <see cref="ClearWorld"/>: on a cluster only this reaches the other nodes.
+    /// </summary>
+    private void RawLeave(LeaveReason reason)
     {
+        if (reason == LeaveReason.Exit && CurrentClusterState == ClusterState.Idle) return;   // ⭐ CE-4101 follow-up — exiting a cluster at rest: nothing to stop, no Idle intent to send
         _leaveRun?.Invoke();
-        // ⭐⭐ The cluster-wide half: ask the master to finish whatever is running and return to Idle.
-        //    ⛔ This is what distinguishes New Exercise from ClearWorld — on a single-process editor the
-        //    two look almost identical, but on a cluster only this one reaches the other nodes.
-        _orchestrationBus.PublishManaged(new TransitionStateIntent
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetState   = ClusterState.Idle,
-        });
-
-        // ⚠ Any load that was waiting for idle is abandoned — the operator just asked for a fresh
-        //   exercise, so honouring a queued load afterwards would silently undo their request.
+        _loads.Unload();
         _loads.Cancel();
-
-        ClearWorld();
+        if (reason == LeaveReason.NewExercise) ClearWorld();
     }
 
     /// <inheritdoc/>
-    public void OpenForEdit(string scenarioName)
+    public void OpenForEdit(string scenarioName) => Door.Open(scenarioName);
+
+    /// <inheritdoc/>
+    public void LoadForLive(string scenarioName) => Door.LoadLive(scenarioName);
+
+    /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId) => Door.OpenRecording(exerciseId);
+
+    /// <inheritdoc/>
+    public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Door.OpenRecording(exerciseId, atSimSeconds);
+
+    // ── ⭐ CE-4101 — the RAW verbs: explicit IRunScenarioControl members, reached only through the door (after it decided) or the run choice (after its own confirmation) ──────────
+
+    void IRunScenarioControl.OpenForEdit(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
@@ -158,8 +221,7 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
         });
     }
 
-    /// <inheritdoc/>
-    public void LoadForLive(string scenarioName)
+    void IRunScenarioControl.LoadForLive(string scenarioName)
     {
         if (string.IsNullOrWhiteSpace(scenarioName)) return;
         _leaveRun?.Invoke();
@@ -180,11 +242,9 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
         });
     }
 
-    /// <inheritdoc/>
-    public void OpenRecording(Guid exerciseId) => OpenRecording(exerciseId, null);
+    void IRunScenarioControl.OpenRecording(Guid exerciseId) => ((IRunScenarioControl)this).OpenRecording(exerciseId, null);
 
-    /// <inheritdoc/>
-    public void OpenRecording(Guid exerciseId, double? atSimSeconds)
+    void IRunScenarioControl.OpenRecording(Guid exerciseId, double? atSimSeconds)
     {
         if (exerciseId == Guid.Empty) return;   // ⭐ Empty means "the master picks" on the wire; an Open-Recording pick always names one
         _leaveRun?.Invoke();
@@ -258,7 +318,11 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
     /// <remarks>⚠ CE-275 — the ONLY remaining raw-path writer, and it has no production caller (the facade
     /// method that reaches it is unreferenced). Scheduled for removal; all real saves go through
     /// <see cref="SaveAs"/>/<see cref="SaveCurrent"/> and the cluster handler.</remarks>
-    public void SaveTo(string filePath) => _fileService.SaveScenario(_world, filePath);
+    public void SaveTo(string filePath)
+    {
+        if (_fileService is null || _world is null) throw new NotSupportedException("This host has no world of its own to write (the cluster saves through the master — SaveAs / SaveCurrent).");
+        _fileService.SaveScenario(_world, filePath);
+    }
 
     /// <inheritdoc/>
     public void TakeCheckpoint()
@@ -266,12 +330,12 @@ public sealed class EditorScenarioSession : IScenarioSession, Hrot.UI.Common.Run
 
     /// <inheritdoc/>
     public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars()
-        => _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
+        => _fileService is null ? Array.Empty<SidecarFileInfo>() : _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
 
     private void WriteScenarioDirectory(string scenarioName)
     {
         var dir = Path.Combine(_scenariosRoot(), scenarioName);
         Directory.CreateDirectory(dir);
-        _fileService.SaveScenario(_world, Path.Combine(dir, ScenarioFileName));
+        SaveTo(Path.Combine(dir, ScenarioFileName));
     }
 }

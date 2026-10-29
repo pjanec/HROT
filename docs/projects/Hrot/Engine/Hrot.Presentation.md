@@ -117,7 +117,7 @@ Design goals:
 +--------------------+                 +------------------------+
 
 +----------------------------------+   uses   +--------------------+
-| ClusterTimeControlStatusBarSection+-------->| ITimeTransportFacade|
+| MainToolbarTimeControlSection    +-------->| ITimeTransportFacade|
 +----------------------------------+          +--------------------+
 ```
 
@@ -242,7 +242,7 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 
 | File | Namespace | Type | Description |
 |---|---|---|---|
-| `ClusterTimeControlStatusBarSection.cs` | `Hrot.UI.Common.Panels` | `sealed class` | Status-bar section: play/pause, step, stop buttons and sim-time / time-rate display. Backed by `ITimeTransportFacade`. Renders `HH:MM:SS.SSS` and a time-rate popup. |
+| ~~`ClusterTimeControlStatusBarSection.cs`~~ | | | REMOVED `2026-10-29` (CE-4083, AQ108 D13) — the transport is the main toolbar's `MainToolbarTimeControlSection` (registered by `ShellTimeControlToolbar`) on every host. |
 | `ConfigPanel.cs` | `Hrot.UI.Common.Panels` | `sealed class` | Seven layer-visibility toggle checkboxes and an icon-scale slider. `HandleSendConfigPatch` builds a `MapLayerState` and calls `IMapConfigController.ApplyConfig`. |
 | `MissionPanel.cs` | `Hrot.UI.Common.Panels` | `sealed class` | Implements `IPickInteractionContext`. Displays selected entity mission plan, handles JUMP/ABORT control commands, task editing, and async map picks for `MoveToLocation` / `FollowRoute` tasks. Uses `BehaviorUiRegistry` to render behavior-parameter DTOs. |
 | `PanelConstants.cs` | `Hrot.UI.Common.Panels` | `static class` | Shared constants: icon scale range, filter text max length, behavior params buffer size, move-to defaults, error messages. |
@@ -626,15 +626,9 @@ public sealed class ConfigPanel
 }
 ```
 
-#### `ClusterTimeControlStatusBarSection`
+#### `ClusterTimeControlStatusBarSection` — removed `2026-10-29` (CE-4083)
 
-```csharp
-public sealed class ClusterTimeControlStatusBarSection
-{
-    public ClusterTimeControlStatusBarSection(ITimeTransportFacade facade);
-    public void Render();   // call each frame inside status-bar window
-}
-```
+The status bar carries no time control; use `ShellTimeControlToolbar.Register(toolbar, facade, runChoice)`.
 
 #### `PreviewPanel`
 
@@ -975,9 +969,8 @@ The assembly grants internal access to:
 var timeFacade = new ClusterTimeTransportAdapter(eventBus, () => simEngine.CurrentTime);
 // Call timeFacade.Update() each frame before SwapBuffers.
 
-// 2. Time-control status bar
-var timeStatusBar = new ClusterTimeControlStatusBarSection(timeFacade);
-statusBarManager.Register(() => timeStatusBar.Render());
+// 2. Time control: the main toolbar (CE-4083 removed the status-bar copy)
+ShellTimeControlToolbar.Register(windowManager.MainToolbar, timeFacade, timeFacade.RunChoice);
 
 // 3. ORBAT panel
 var orbatPanel = new SharedOrbatPanel();

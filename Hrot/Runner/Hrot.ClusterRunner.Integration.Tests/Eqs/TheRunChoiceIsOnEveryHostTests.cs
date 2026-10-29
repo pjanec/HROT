@@ -1,12 +1,15 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Fdp.Core;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Runner;
 using Hrot.CGF;
 using Hrot.Common;
+using Hrot.Common.Infrastructure;
 using Hrot.Editor;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
@@ -77,12 +80,398 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.Equal(RunArmed.Live, choice!.HostDefault);      // D12: CGF / the all-in-one / the server start in Live
             Assert.Equal(RunArmed.Live, choice.Armed);
             Assert.Null(choice.PlayDisabledReason);                // the session is passed: Live-armed ▶ is enabled
-            Assert.Contains(windows.MainToolbar.BuildViewModel(currentPerspective: "Scenario").Entries, e => e.Id == ShellTimeControlToolbar.EntryId);
+            AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, cgf, "Scenario");   // ⭐ CE-4083 + CE-1437
         }
         finally
         {
             cgf.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1438</c> (R-3066 audit #6) — <b>"a run is running" is guarded INSIDE the run choice, so every host that has one warns — by construction.</b> Measured before: the editor
+    /// passed <c>runningRun</c> + <c>confirmLoad</c> to its File menu (<i>Stop &amp; Load</i>), CGF passed neither, so CGF's File › Open Scenario went straight over a live run. Asserted on the
+    /// CONSTRUCTED hosts: the cluster is heard in <c>OperatingLive</c> through each node's own bus and view, and the host's own choice (the one its File menu's <c>openScenario</c> calls)
+    /// raises the SAME confirmation — a <see cref="RunModeConfirmation"/> with <i>Stop &amp; Load</i> / <i>Cancel</i> — and Cancel loads nothing. (Confirming → stop, then load is the choice's
+    /// own rail over a fake session: <c>TheOneTimeFacadeTests.CE1438_*</c>; here a confirm would load a real scenario.)
+    /// 🔴 Red-proof: the guard removed from <c>RunModeChoice.OpenScenario</c> ⇒ both rows see no <c>Pending</c>.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1438_BothConstructedHosts_AskStopAndLoad_WhenAScenarioIsOpenedOverALiveRun()
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.RegisterWindows(MakeWindowManager());
+
+            AssertAsksStopAndLoadOverALiveRun("editor", editor.RunChoiceForTest, editor.NodeForTest);
+            AssertAsksStopAndLoadOverALiveRun("CGF", cgf.RunChoiceForTest, cgf.NodeForTest);
+        }
+        finally
+        {
+            cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — on the CONSTRUCTED hosts, EVERY entry to the scenario a caller can reach — the session's public open / live load / open recording / New Exercise, and (the editor) the logic the pickers,
+    /// New-from-a-recipe and the director's load call — goes through the ONE door: over a live run each asks <i>Stop &amp; Load</i> in the host's own pending slot and publishes NOTHING until the operator confirms; Cancel leaves the
+    /// run alone. (The unsaved asks, the OUT door and HTTP are the door's own rails: <c>TheOneTimeFacadeTests.CE4101_*</c>, <c>EditorScenarioSessionLoadTests.CE4101_*</c>, <c>TheUnsavedCheckRoutesTests.CE4101_*</c>.)
+    /// 🔴 Red-proof: a host passing its session's RAW verbs to a picker (or a public raw verb on the session) ⇒ the row sees no <c>Pending</c> and an Idle intent on the node's bus.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4101_BothConstructedHosts_EveryEntryToTheScenario_GoesThroughTheDoor_OverALiveRun()
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.RegisterWindows(MakeWindowManager());
+
+            var editorLogic = editor.EditorLogic;
+            AssertEveryEntryAsks("editor", editor.RunChoiceForTest, editor.NodeForTest, editor.ScenarioSessionForTest,
+                ("EditorLogic.LoadScenarioByName", () => editorLogic.LoadScenarioByName("any-scenario")));
+            AssertEveryEntryAsks("CGF", cgf.RunChoiceForTest, cgf.NodeForTest, cgf.ScenarioSessionForTest);
+        }
+        finally
+        {
+            cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    private static void AssertEveryEntryAsks(string host, RunModeChoice? choice, HrotNodeContext? node, Hrot.Editor.AiShared.Scenarios.IScenarioSession? session,
+                                             params (string Name, System.Action Call)[] extra)
+    {
+        Assert.NotNull(choice);
+        Assert.NotNull(node);
+        Assert.NotNull(session);
+        node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        node.EventBus.SwapBuffers();
+        node.ClusterSlave.View.Update();
+
+        var entries = new (string Name, System.Action Call)[]
+        {
+            ("session.OpenForEdit",    () => session!.OpenForEdit("any-scenario")),
+            ("session.LoadForLive",    () => session!.LoadForLive("any-scenario")),
+            ("session.OpenRecording",  () => session!.OpenRecording(System.Guid.NewGuid())),
+        }.Concat(extra).ToArray();
+        foreach (var entry in entries)
+        {
+            entry.Call();
+            var ask = choice!.Pending;
+            Assert.True(ask is not null, $"{host}: {entry.Name} over a live run must ask first");
+            Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask!.Buttons.Select(b => b.Label));
+            node.EventBus.SwapBuffers();
+            Assert.Empty(node.EventBus.ReadManaged<TransitionStateIntent>());      // asked, nothing published
+            ask.Cancel();
+            Assert.Null(choice.Pending);
+        }
+    }
+
+    private static void AssertAsksStopAndLoadOverALiveRun(string host, RunModeChoice? choice, HrotNodeContext? node)
+    {
+        Assert.NotNull(choice);
+        Assert.NotNull(node);
+        Assert.Null(choice!.Pending);
+
+        // the master's broadcast, as this node's ONE cluster view folds it (the adapter's Mode reads that view)
+        node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        node.EventBus.SwapBuffers();
+        node.ClusterSlave.View.Update();
+
+        choice.OpenScenario("any-scenario");
+
+        var ask = choice.Pending;
+        Assert.True(ask is not null, $"{host}: File > Open Scenario over a live run must ask first");
+        Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask!.Buttons.Select(b => b.Label));
+        Assert.Contains("stops the live run", ask.Text);
+        ask.Cancel();
+        Assert.Null(choice.Pending);   // Cancel: nothing was loaded
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4083</c> (AQ108 D13: "the picker exists once") — the WINDOWED editor: its toolbar carries the transport group and its status bar carries NO time control.
+    /// 🔴 Red-proof: re-register a <c>"editor_time_controls"</c> status-bar section in <c>EditorSubsystem.RegisterWindows</c> ⇒ the status-bar assertion reddens.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void TheWindowedEditor_HasTheTransportOnTheToolbar_AndNoTimeControlInTheStatusBar()
+    {
+        var editor = new EditorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = false });
+            var windows = MakeWindowManager();
+            editor.RegisterWindows(windows);
+            AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(windows, editor, "Scenario");
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4083</c> / <c>CE-1437</c> — SimHost's adapter + run choice come from its ONE factory (<c>CreateTimeTransport</c>, the host's single <c>AttachRunChoice</c> site):
+    /// Live armed (<see cref="RunArmedDefaults"/>), no scenario session; the host offers them and the composition puts the toolbar group up. SimHost's windows need a real
+    /// graphics visualization, so the factory is the constructed piece a rail can reach.
+    /// 🔴 Red-proof: the factory passing a literal other than the table's default ⇒ the Live assertion reddens.
+    /// </summary>
+    [Fact]
+    public void SimHost_BuildsItsChoiceFromTheTable_AndTheCompositionPutsItsTransportOnTheToolbar()
+    {
+        var adapter = Hrot.SimHost.SimHostSubsystem.CreateTimeTransport(new FdpEventBus(), () => null, () => 0.0);
+        var choice = adapter.RunChoice;
+        Assert.NotNull(choice);
+        Assert.Equal(RunArmedDefaults.For(RunHostKind.SimHost), choice!.HostDefault);
+        Assert.Equal(RunArmed.Live, choice.Armed);
+        Assert.False(choice.HasScenarioControl);                // SimHost has no scenario session ⇒ Live-armed ▶ is disabled with its reason
+        Assert.NotNull(choice.PlayDisabledReason);
+
+        var windows = MakeWindowManager();
+        var offer = new Offer(RunHostKind.SimHost, adapter);
+        var controller = new Hrot.ClusterRunner.Presentation.LocalWindowController(null!, new Fdp.Toolkit.Runner.ISubsystem[] { offer }, new Fdp.Toolkit.Runner.RunnerOptions(), null);
+        controller.ComposeRunControls(windows);
+        Assert.Same(offer, controller.RunControlsOwner);
+        AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "SimHost");
+    }
+
+    /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>
+    private static readonly string[] ScenarioMenuPaths =
+    {
+        "File/Checkpoint/Take Checkpoint", "File/Edit/Migration History", "File/Edit/Save Curated Scenarios to Git", "File/Edit/Save Scenario",
+        "File/Edit/Save Scenario As", "File/Live/New Exercise", "File/New Scenario", "File/Open Recording", "File/Open Scenario",
+    };
+
+    /// <summary>Each scenario item's (path, registered, allowed-in-Idle) as this window manager's global menu holds it.</summary>
+    private static string[] ScenarioMenuShape(WindowManager windows) => ScenarioMenuPaths.Select(path =>
+    {
+        var node = windows.GlobalMenu.Root;
+        foreach (var segment in path.Split('/'))
+        {
+            if (!node.Children.TryGetValue(segment, out var next)) return $"{path}: MISSING";
+            node = next;
+        }
+        return $"{path}: bound={node.Bindings.Count > 0} idle={node.AllowedInIdle}";
+    }).ToArray();
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1439</c> (AQ108 §2.12; R-3066 audit #9) — <b>the scenario menu is the SAME on the three operator hosts</b>, on the CONSTRUCTED hosts: the windowed editor and CGF register it in their <c>RegisterWindows</c>,
+    /// the Orchestrator through the composer's <c>ComposeScenarioActions</c> — every item present, bound, and the same allowed-in-Idle flags (the ones its Start surface draws). Before this item the Orchestrator's shape was
+    /// nine MISSING lines.
+    /// 🔴 Mutation: the Orchestrator's <c>ComposeScenarioActions</c> registering nothing (or the registrar dropping <c>allowedInIdle</c> for one item on one host) ⇒ the shapes differ.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1439_TheScenarioMenu_IsTheSame_OnTheEditor_Cgf_AndTheOrchestrator()
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        var orchestrator = new Hrot.Orchestrator.OrchestratorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = false });
+            var editorWindows = MakeWindowManager();
+            editor.RegisterWindows(editorWindows);
+            Assert.All(ScenarioMenuShape(editorWindows), line => Assert.Contains("MISSING", line));   // ⭐ CE-4101 follow-up: RegisterWindows registers NO scenario item any more
+
+            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            var cgfWindows = MakeWindowManager();
+            cgf.RegisterWindows(cgfWindows);
+            Assert.All(ScenarioMenuShape(cgfWindows), line => Assert.Contains("MISSING", line));
+
+            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+            var orchestratorWindows = MakeWindowManager();
+
+            // ⭐ the ONE registration: each host alone in its process, composed by the runner's composition — it asks the picked owner to register
+            ComposeLikeTheRunner(editorWindows, editor);
+            ComposeLikeTheRunner(cgfWindows, cgf);
+            ComposeLikeTheRunner(orchestratorWindows, orchestrator);
+
+            var editorShape = ScenarioMenuShape(editorWindows);
+            Assert.DoesNotContain(editorShape, line => line.Contains("MISSING"));
+            Assert.Equal(editorShape, ScenarioMenuShape(cgfWindows));
+            Assert.Equal(editorShape, ScenarioMenuShape(orchestratorWindows));
+            Assert.Contains("File/Open Scenario: bound=True idle=True", editorShape);
+            Assert.Contains("File/Open Recording: bound=True idle=True", editorShape);
+            Assert.Contains("File/New Scenario: bound=True idle=True", editorShape);
+        }
+        finally
+        {
+            orchestrator.Shutdown();
+            cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    private static Hrot.ClusterRunner.Presentation.LocalWindowController ComposeLikeTheRunner(WindowManager windows, params ISubsystem[] hosts)
+    {
+        var controller = new Hrot.ClusterRunner.Presentation.LocalWindowController(null!, hosts, new RunnerOptions(), null);   // the shell is not used by the composition step
+        controller.ComposeRunControls(windows);
+        return controller;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> follow-up (AQ108 §2.11a ④) — on the CONSTRUCTED hosts, composed by the runner's <c>LocalWindowController</c>: (1) in every host combination the process has ONE scenario exit guard, over the
+    /// picked owner's REAL session door; (2) an exit over a never-saved scenario (the editor and CGF, heard in Edit through their own bus and view) asks <i>Discard / Cancel</i> — Cancel does not take the exit, Discard
+    /// does; at rest (every host, the Orchestrator included) the exit is taken at once. (The menu's single registration is <c>CE1439_*</c> above.)
+    /// 🔴 Mutation: the composition not building <c>ScenarioExit</c> ⇒ the first exit row is taken unasked and the single-guard row finds none.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4101_OnTheConstructedHosts_TheExitGoesThroughTheOwnersDoor_OneGuardPerProcess() => ExitThroughTheOwnersDoor(withCgf: true);
+
+    /// <summary>⭐ The same rail without CGF (its DDS participant is what fails to create where DDS is unavailable): the editor and the Orchestrator alone.</summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4101_OnTheConstructedEditorAndOrchestrator_TheExitGoesThroughTheOwnersDoor_OneGuardPerProcess() => ExitThroughTheOwnersDoor(withCgf: false);
+
+    private static void ExitThroughTheOwnersDoor(bool withCgf)
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        var orchestrator = new Hrot.Orchestrator.OrchestratorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            if (withCgf)
+            {
+                cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+                cgf.RegisterWindows(MakeWindowManager());
+            }
+            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+
+            // (1) every combination: ONE scenario exit guard, over the owner's session door
+            var sessions = new Dictionary<ISubsystem, Hrot.Editor.AiShared.Scenarios.IScenarioSession>
+            {
+                [editor] = editor.ScenarioSessionForTest!, [orchestrator] = orchestrator.ScenarioSessionForTest!,
+            };
+            if (withCgf) sessions[cgf] = cgf.ScenarioSessionForTest!;
+            var combos = new List<ISubsystem[]> { new ISubsystem[] { editor }, new ISubsystem[] { orchestrator }, new ISubsystem[] { editor, orchestrator } };
+            if (withCgf)
+                combos.AddRange(new[] { new ISubsystem[] { cgf }, new ISubsystem[] { orchestrator, cgf }, new ISubsystem[] { cgf, editor }, new ISubsystem[] { orchestrator, cgf, editor } });
+            foreach (var combo in combos)
+            {
+                var controller = ComposeLikeTheRunner(MakeWindowManager(), combo);
+                var owner = (ISubsystem)Assert.IsAssignableFrom<IProvidesRunControls>(controller.RunControlsOwner);
+                var guard = Assert.Single(((Hrot.ClusterRunner.Presentation.ExitGuardChain)controller.ExitGuard).Guards.OfType<Hrot.ClusterRunner.Presentation.ScenarioExitGuard>());
+                Assert.Same(((Hrot.UI.Common.RunMode.IHasScenarioDoor)sessions[owner]).Door, guard.Door);
+            }
+
+            // (2) exit over a never-saved scenario, heard in Edit, on the editor and CGF (each alone)
+            var edits = new List<(ISubsystem, HrotNodeContext?, RunModeChoice?)> { (editor, editor.NodeForTest, editor.RunChoiceForTest) };
+            if (withCgf) edits.Add((cgf, cgf.NodeForTest, cgf.RunChoiceForTest));
+            foreach (var (host, node, choice) in edits)
+            {
+                Assert.NotNull(node);
+                var controller = ComposeLikeTheRunner(MakeWindowManager(), host);
+                Assert.True(controller.ExitDue(true), $"{host.Name}: a cluster at rest — the exit is taken at once");
+
+                node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+                node.EventBus.SwapBuffers();
+                node.ClusterSlave.View.Update();
+
+                Assert.False(controller.ExitDue(true), $"{host.Name}: exit over a never-saved scenario must ask");
+                Assert.Equal(new[] { "Discard", "Cancel" }, choice!.Pending!.Buttons.Select(b => b.Label));
+                choice.Pending.Cancel();
+                Assert.False(controller.ExitDue(false), $"{host.Name}: Cancel must not take the exit");
+
+                Assert.False(controller.ExitDue(true));
+                var ask = choice.Pending!;
+                ask.Resolve(ask.Buttons.Single(b => b.Label == "Discard"));
+                Assert.True(controller.ExitDue(false), $"{host.Name}: Discard exits");
+            }
+
+            // the Orchestrator alone, at rest: the exit is taken at once (its door has nothing to ask)
+            Assert.True(ComposeLikeTheRunner(MakeWindowManager(), orchestrator).ExitDue(true));
+        }
+        finally
+        {
+            orchestrator.Shutdown();
+            if (withCgf) cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    /// <summary>A stand-in for SimHost's offer over the REAL adapter its factory builds (the real subsystem needs a graphics window).</summary>
+    private sealed class Offer : Fdp.Toolkit.Runner.ISubsystem, IProvidesRunControls
+    {
+        public Offer(RunHostKind kind, Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter adapter) { HostKind = kind; Transport = adapter; RunChoice = adapter.RunChoice; }
+        public RunHostKind HostKind { get; }
+        public Hrot.UI.Common.Facades.ITimeTransportFacade? Transport { get; }
+        public RunModeChoice? RunChoice { get; }
+        public string Name => "Offer";
+        public System.Numerics.Vector4 TitleBarColor => default;
+        public void Initialize(SubsystemConfig config) { }
+        public void Update(float deltaTime) { }
+        public void DrawWorld() { }
+        public void DrawUI() { }
+        public void Shutdown() { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1437</c> success condition 2 — on a REAL constructed host: its <c>RegisterWindows</c> puts NO time control on the toolbar (the host no longer registers it),
+    /// it OFFERS its transport + choice, and the composition (<c>LocalWindowController.ComposeRunControls</c>, with this host the only subsystem) picks it and registers the one group.
+    /// 🔴 Red-proof: a host calling <c>ShellTimeControlToolbar.Register</c> from <c>RegisterWindows</c> ⇒ the "none yet" assertion reddens.
+    /// </summary>
+    private static void AssertTheHostOffersItsTransport_AndTheCompositionPutsItOnTheToolbar(WindowManager windows, Fdp.Toolkit.Runner.ISubsystem host, string perspective)
+    {
+        Assert.Empty(windows.MainToolbar.BuildViewModel(currentPerspective: perspective).Entries.Where(e => e.Id == ShellTimeControlToolbar.EntryId));   // the host did not register it
+
+        var offer = Assert.IsAssignableFrom<IProvidesRunControls>(host);
+        Assert.NotNull(offer.Transport);
+        Assert.NotNull(offer.RunChoice);
+
+        var controller = new Hrot.ClusterRunner.Presentation.LocalWindowController(null!, new[] { host }, new Fdp.Toolkit.Runner.RunnerOptions(), null);   // the shell is not used by the composition step
+        controller.ComposeRunControls(windows);
+        Assert.Same(host, controller.RunControlsOwner);
+        AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, perspective);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ The two CE-4083 conditions on ONE composed window manager: (1) no status-bar section is a time control, (2) the host's toolbar carries <c>TimeControlGroup</c>.
+    /// ⚠ A time control is recognised by id (<c>*time*</c> / <c>*transport*</c>) — the bar has no richer seam than <c>SectionIds</c>.
+    /// </summary>
+    private static void AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(WindowManager windows, string perspective)
+    {
+        Assert.Contains(windows.MainToolbar.BuildViewModel(currentPerspective: perspective).Entries, e => e.Id == ShellTimeControlToolbar.EntryId);
+
+        var ids = windows.StatusBar.SectionIds;
+        Assert.DoesNotContain(ids, id => id.Contains("time", System.StringComparison.OrdinalIgnoreCase) || id.Contains("transport", System.StringComparison.OrdinalIgnoreCase));
     }
 
     private static int _domain;

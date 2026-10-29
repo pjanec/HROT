@@ -414,8 +414,7 @@ class Program
 
             var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
-                shell, subsystems, options, coordinator,
-                armedMode: Hrot.ClusterRunner.HostArmedModes.For(config.RequestedSubsystems));   // ⭐ CE-4096 (D12)
+                shell, subsystems, options, coordinator);   // ⭐ CE-1437: the armed default is RunArmedDefaults (one table), read by the hosts
 
             // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
             //
@@ -618,10 +617,6 @@ class Program
             {
                 // 4. The proper non-headless Render Loop.
                 // App-exit guards (e.g. the editor's unsaved-changes prompt) may DEFER a window-close.
-                var exitGuards = subsystems
-                    .OfType<Fdp.Toolkit.Runner.IAppExitGuard>()
-                    .ToList();
-                bool exiting = false;
 
                 // Remote-desktop clicks (TeamViewer / Parsec / RDP) inject WM_*BUTTONDOWN and
                 // WM_*BUTTONUP microseconds apart, so both land in one glfwPollEvents() drain and
@@ -633,7 +628,7 @@ class Program
                 using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
                 var frameStats = Hrot.ClusterRunner.Presentation.FrameStats.FromEnvironment();   // ⭐ CE-1072 — HROT_FRAME_STATS=1
 
-                while (!exiting)
+                while (true)
                 {
                     // ③ + ④ — THE FRAME BOUNDARY. 🔴 ORDER MATTERS (HN-007): the API's jobs drain FIRST,
                     //    serving the PREVIOUS frame's complete captures, and only then is the captured set
@@ -663,18 +658,12 @@ class Program
                     float dt = Raylib_cs.Raylib.GetFrameTime();
 
                     // WindowShouldClose() is edge-triggered (it reads AND resets the GLFW close flag),
-                    // so this fires once on the frame the window [X] is clicked. Ask every guard: if any
-                    // DEFERS (unsaved work → it opens its own modal), keep running; otherwise exit now.
-                    // ⭐ CE-4096 — the Exit item / start-surface button is the same request as the [X]: it takes the same guards.
-                    if (Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest())
-                    {
-                        bool deferred = false;
-                        foreach (var guard in exitGuards)
-                            if (guard.OnExitRequested() == Fdp.Toolkit.Runner.ExitDisposition.Deferred)
-                                deferred = true;
-                        if (!deferred)
-                            break; // no unsaved work → exit immediately (skip this frame's render)
-                    }
+                    // so this fires once on the frame the window [X] is clicked.
+                    // ⭐ CE-4096 — the Exit item / start-surface button is the same request as the [X].
+                    // ⭐ CE-4101 follow-up (AQ108 §2.11a ④) — ONE exit decision, `LocalWindowController.ExitDue`: the request asks the ONE guard (the subsystems' — the editor's unsaved documents — then the composition's
+                    //   scenario guard over the ▶ owner's door); a question it opens DEFERS the exit while the loop keeps drawing it, an answer in favour approves it on a later frame, a Cancel never does.
+                    if (windowCtrl.ExitDue(Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest()))
+                        break; // nothing (left) to ask → exit (skip this frame's render)
 
                     frameStats?.Begin();
                     orchestrator.Update(dt);
@@ -744,10 +733,6 @@ class Program
                     Raylib_cs.Raylib.EndDrawing();
                     frameStats?.EndFrame();
 
-                    // A guard's modal approved exit this frame (Save All & Exit / Discard & Exit).
-                    foreach (var guard in exitGuards)
-                        if (guard.ExitApproved)
-                            exiting = true;
                 }
 
             }

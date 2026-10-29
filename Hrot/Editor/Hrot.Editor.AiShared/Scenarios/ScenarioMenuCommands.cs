@@ -145,15 +145,9 @@ public static class ScenarioMenuCommands
     /// Seam that surfaces the migration sidecar list. When null the command is still registered but its
     /// handler only reads the sidecars.
     /// </param>
-    /// <param name="runningRun">⭐ <c>CE-1025</c> (R-1031) — the run a load would break ("a live run" / "a dry run"), or null
-    /// (<see cref="ScenarioLoadGuard.RunningRun"/>). Null seam: never warn.</param>
-    /// <param name="confirmLoad">⭐ <c>CE-1025</c> — confirms a load over a running run (title, message, label, continuation) — the same
-    /// prompt as <paramref name="confirmNewExercise"/> (ruling 53). Asked AFTER the pick, only while a run is running.</param>
     /// <param name="openRecordingPicker">⭐ <c>CE-4098</c> (AQ108 D16/D19) — opens the recording picker (<see cref="RecordingPickerLauncher.Open"/>),
     /// which lists the exercises the master recorded and opens the pick into AAR through <see cref="IScenarioSession.OpenRecording"/>.
     /// Null ⇒ the item is registered but DISABLED with the reason in its label (ruling 49: serviceability decides enablement, never presence).</param>
-    /// <param name="openScenario">⭐ <c>CE-4097</c> part two (AQ108 §3 "open another scenario") — the host's GUARDED open of a picked scenario for editing: the run choice's
-    /// <c>OpenScenario</c>, which asks the cluster's check round and, with unsaved edits, <i>Save / Discard / Cancel</i> first. Null ⇒ the session's own open (a rail, a host with no choice).</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -167,10 +161,7 @@ public static class ScenarioMenuCommands
         Action<IReadOnlyList<SidecarFileInfo>>?                    showMigrationHistory = null,
         Func<bool>?                                               isCuratedSaveEnabled = null,
         Action?                                                   saveCuratedToGit     = null,
-        Func<string?>?                                            runningRun           = null,
-        Action<string, string, string, Action>?                   confirmLoad          = null,
-        Action?                                                   openRecordingPicker  = null,
-        Action<string>?                                           openScenario         = null)
+        Action?                                                   openRecordingPicker  = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -201,13 +192,13 @@ public static class ScenarioMenuCommands
         // ══ Open / New — top level, like Open Recording: none of them names a mode ═════════════════
 
         // ⭐ OPEN — /scenario/load/edit, into editing; the armed mode decides ▶. The id is unchanged; the path left the "Edit" submenu (it is no longer one of two ways to open).
-        //   ⭐ A host passes `openScenario` (its run choice's guarded open: unsaved edits → Save / Discard / Cancel first, AQ108 §3); null ⇒ the session's open, unguarded.
+        //   ⭐ CE-4101 — the session's open IS the guarded door (a run → Stop & Load, unsaved edits → Save / Discard / Cancel first, AQ108 §3): no host seam to pass, no unguarded fallback.
         RegisterCommand(
             registerCommand, menu, commands,
             LoadId, "Open Scenario", OpenScenarioMenuPath,
             "Open a scenario for editing (cluster-wide); what ▶ then runs is the host's armed mode",
             isEnabled: () => openPicker != null,
-            handler: _ => PickScenario(openPicker, name => Guarded(name, openScenario ?? session.OpenForEdit, runningRun, confirmLoad)),
+            handler: _ => PickScenario(openPicker, session.OpenForEdit),
             dynamicDisplayName: Unavailable("Open Scenario", openPicker != null, NoPickerReason),
             allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 
@@ -308,17 +299,6 @@ public static class ScenarioMenuCommands
     /// </summary>
     private static Func<string>? Unavailable(string displayName, bool serviceable, string reason)
         => serviceable ? null : () => $"{displayName} (unavailable — {reason})";
-
-    /// <summary>⭐ <c>CE-1025</c> (R-1031) — a load over a running live run or dry run asks first; otherwise it loads at once. The load
-    /// itself (the session) stops the run and forgets its restore point.</summary>
-    internal static void Guarded(string scenario, Action<string> load, Func<string?>? runningRun,
-        Action<string, string, string, Action>? confirmLoad)
-    {
-        if (confirmLoad != null && runningRun?.Invoke() is { } run)
-            confirmLoad(ScenarioLoadGuard.Title, ScenarioLoadGuard.Prompt(run, scenario), ScenarioLoadGuard.ConfirmLabel, () => load(scenario));
-        else
-            load(scenario);
-    }
 
     private static void PickScenario(
         Action<AssetKindFilter, Action<IEditableAsset?>>? openPicker,

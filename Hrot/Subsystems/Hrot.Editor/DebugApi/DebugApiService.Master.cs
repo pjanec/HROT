@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Toolkit.Orchestration;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.DebugApi
 {
@@ -180,13 +181,13 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (Guid RequestId, string? Error, string? HintCategory) StartUnsavedCheck()
         {
-            var master = MasterOrNull;
-            if (master is null) return (Guid.Empty, NoMaster, DebugApiHints.Panel);
-            var intent = new CheckUnsavedIntent { RequestId = Guid.NewGuid() };
-            try { master.CheckUnsaved(intent); }
+            try { return UnsavedAsker.Start() is { } id ? (id, null, null) : (Guid.Empty, NoMaster, DebugApiHints.Panel); }
             catch (InvalidOperationException ex) { return (Guid.Empty, ex.Message, DebugApiHints.Scenario); }
-            return (intent.RequestId, null, null);
         }
+
+        /// <summary>⭐⭐ CE-1440 (R-3066 audit #13) — the ONE asker (<see cref="Hrot.UI.Common.RunMode.UnsavedCheckAsker"/>) over this service's master and read model; the toolbar's move uses the same type.</summary>
+        public Hrot.UI.Common.RunMode.UnsavedCheckAsker UnsavedAsker
+            => new(() => MasterOrNull, new Hrot.UI.Common.RunMode.UnsavedCheckReads(() => ObservesUnsavedChecks, UnsavedCheckOutcomeOrNull));
 
         /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended (the master's answer, or its refusal); null while it has not.</summary>
         public UnsavedCheckOutcome? UnsavedCheckOutcomeOrNull(Guid requestId)
@@ -213,13 +214,10 @@ namespace Hrot.Editor.DebugApi
         {
             if (CurrentClusterStateOrNull() == ClusterState.OperatingPreview)
                 return (new JsonObject { ["published"] = false, ["target"] = nameof(ClusterState.OperatingPreview), ["note"] = "Already in preview." }, null, null);
-            return PublishTransition(new TransitionStateIntent
-            {
-                TransactionId = Guid.NewGuid(),
-                TargetState   = ClusterState.OperatingPreview,
-                // ⭐ the master pauses a start-paused preview through the same path as Stop (ClusterMaster: passesSimulationStart)
-                TimeMode      = startPaused ? "Deterministic" : null,
-            });
+            // ⭐⭐ CE-1440 (R-3066 audit #11) — the ONE construction of the dry run's intent (the toolbar's ▶ from Edit builds it too).
+            //   ⚠ Behaviour change: a RUNNING preview now says TimeMode "Continuous" (it was null ⇒ the master left the clock paused:
+            //   GlobalContextProcessManager resumes a preview only on "Continuous"), so POST /preview/enter {startPaused:false} runs, as ▶ does.
+            return PublishTransition(Hrot.UI.Common.Facades.DryRunIntents.Enter(startPaused));
         }
 
         /// <summary><c>POST /preview/exit</c> — back to <c>OperatingEdit</c>: the dry run is rewound.</summary>
@@ -319,7 +317,7 @@ namespace Hrot.Editor.DebugApi
         /// run in progress, else the newest finished one), at
         /// <c>atSeconds</c> after its start (else the start), from ANY state: ONE request — the planner unloads first when it must.
         /// </summary>
-        public (JsonNode? Result, string? Error, string? HintCategory) EnterReplay(JsonNode? body)
+        public (JsonNode? Result, string? Error, string? HintCategory) EnterReplay(JsonNode? body, HttpUnsavedGate? gate = null)
         {
             // ⭐ RB-2 — {path | paths}: a recording file or node group that need not be in any inventory. Only the standalone Replay
             //   Browser opens files (its own seam); a cluster host replays what its master recorded, so it refuses rather than guess.
@@ -340,7 +338,12 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4045 H1b — the intent through ReplaySessionIntents, the ONE construction (the director's replay check builds it there too)
             //   C9: wall ticks AFTER the replay's zero (the earliest first frame across the nodes); 0 = the start · CE-3329 R11: or a RECORDED
             //   sim time, resolved by the master once the nodes' maps are in
-            var published = PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(exerciseId, at, atSim));
+            // ⭐ CE-4101 — opening a recording leaves editing like any open: the editor's door decides (HTTP's refusing asker: a run is stopped, unsaved edits are refused with a 409 unless discarded)
+            (JsonNode? Result, string? Error, string? HintCategory) published = default;
+            var asker = HttpAsker(gate);
+            HttpDoor.Admit(DoorMove.OpeningRecording, asker, gate?.Answer ?? UnsavedAnswer.Unchanged,
+                () => published = PublishTransition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReplay(exerciseId, at, atSim)));
+            if (asker.Refusal is { } refusal) return (null, refusal, ConflictHint);
             if (published.Result is JsonObject o)
             {
                 o["exerciseId"] = exerciseId == Guid.Empty ? null : exerciseId.ToString();
@@ -461,8 +464,18 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary><c>POST /replay/stop</c> — leave the replay (to <c>Idle</c>).</summary>
-        public (JsonNode? Result, string? Error, string? HintCategory) StopReplay()
-            => PublishTransition(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle });
+        /// <remarks>
+        /// ⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — the ONE Idle intent (<see cref="Fdp.Toolkit.Orchestration.ScenarioLoadSequence.UnloadIntent"/>), sent once the editor's OUT door lets it through: a stop while EDITING with unsaved
+        /// changes is refused (<see cref="ConflictHint"/> ⇒ 409, the same text as a load's) unless the body discarded them; a run is simply stopped.
+        /// </remarks>
+        public (JsonNode? Result, string? Error, string? HintCategory) StopReplay(HttpUnsavedGate? gate = null)
+        {
+            var intent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.UnloadIntent();
+            (JsonNode? Result, string? Error, string? HintCategory) published = default;
+            var asker = HttpAsker(gate);
+            HttpDoor.Admit(DoorMove.Leaving(LeaveReason.HttpStop), asker, gate?.Answer ?? UnsavedAnswer.Unchanged, () => published = PublishTransition(intent));
+            return asker.Refusal is { } refusal ? (null, refusal, ConflictHint) : published;
+        }
 
         /// <summary><c>GET /replay/status</c> — the cluster's state, the loaded replay's length, and this node's clock.</summary>
         public JsonNode GetReplayStatus()

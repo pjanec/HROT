@@ -6,6 +6,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
 using Hrot.UI.Common.Adapters;
+using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Presentation.Tests;
@@ -17,7 +18,7 @@ namespace Hrot.Presentation.Tests;
 /// </summary>
 internal static class RunChoiceRig
 {
-    internal sealed class FakeControl : IRunScenarioControl, ISaveInterception
+    internal class FakeControl : IRunScenarioControl, ISaveInterception
     {
         public Func<bool>? SaveIntercept { get; set; }
         public string? LoadedScenarioName { get; set; } = "hill-attack";
@@ -30,6 +31,13 @@ internal static class RunChoiceRig
         public void TakeCheckpoint() => Calls.Add("TakeCheckpoint");
     }
 
+    /// <summary>⭐ CE-4101 — a fake session that, like <c>EditorScenarioSession</c>, owns its ONE <see cref="ScenarioDoor"/> over its raw verbs (the choice binds to it); a leave is recorded as <c>Leave:&lt;reason&gt;</c>.</summary>
+    internal sealed class FakeDoorControl : FakeControl, IHasScenarioDoor
+    {
+        public FakeDoorControl() { Door = new ScenarioDoor(this, () => TransportMode.Idle, reason => Calls.Add($"Leave:{reason}")); }
+        public ScenarioDoor Door { get; }
+    }
+
     internal sealed class FakeUnsaved : IUnsavedChangesQuery
     {
         public UnsavedAnswer Answer = UnsavedAnswer.Unchanged;
@@ -39,19 +47,20 @@ internal static class RunChoiceRig
 
     internal static readonly Guid RunId = Guid.Parse("00000000-0000-0000-0000-0000000000a1");
 
-    internal sealed record Rig(ClusterTimeTransportAdapter F, FdpEventBus Bus, FakeControl C, FakeUnsaved Q, RunModeChoice Choice);
+    internal sealed record Rig(ClusterTimeTransportAdapter F, FdpEventBus Bus, FakeControl C, FakeUnsaved Q, RunModeChoice Choice, ClusterView View);
 
     /// <summary>A real adapter on a real bus with a run choice attached; the cluster is heard in <paramref name="state"/> (exercise <see cref="RunId"/>).</summary>
     internal static Rig With(ClusterState state, RunArmed hostDefault = RunArmed.Preview, UnsavedAnswer answer = UnsavedAnswer.Unchanged,
                              bool running = false, double clock = 0, bool withControl = true, string? inventoryScenario = "hill-attack",
-                             bool runNotRecorded = false, bool recordLiveRunsOff = false)
+                             bool runNotRecorded = false, bool recordLiveRunsOff = false, bool withDoor = false)
     {
         var bus = new FdpEventBus();
-        var facade = new ClusterTimeTransportAdapter(bus, () => clock);
-        var control = new FakeControl();
+        var view = new ClusterView(bus);   // ⭐ CE-1436 — the node's ONE cluster view; the rig advances it as ClusterSlave.Tick does
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
+        var control = withDoor ? new FakeDoorControl() : new FakeControl();
         var unsaved = new FakeUnsaved { Answer = answer };
         var choice = facade.AttachRunChoice(hostDefault, withControl ? control : null, unsaved);
-        var rig = new Rig(facade, bus, control, unsaved, choice);
+        var rig = new Rig(facade, bus, control, unsaved, choice, view);
         bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });
         if (inventoryScenario != null)
             bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, inventoryScenario) } });
@@ -75,31 +84,34 @@ internal static class RunChoiceRig
         }
     }
 
-    internal sealed record CheckRig(ClusterTimeTransportAdapter F, FdpEventBus Bus, FakeControl C, RunModeChoice Choice, FakeReads R);
+    internal sealed record CheckRig(ClusterTimeTransportAdapter F, FdpEventBus Bus, FakeControl C, RunModeChoice Choice, FakeReads R, ClusterView View);
 
     /// <summary>⭐ CE-4097 part two — a REAL adapter on a real bus whose run choice asks the production <see cref="ClusterUnsavedChangesQuery"/> (the master's check round),
     /// reading its answer through <see cref="FakeReads"/>; the cluster is heard in <paramref name="state"/>.</summary>
     internal static CheckRig WithCheckRound(ClusterState state, RunArmed hostDefault = RunArmed.Live, string? loadedName = "hill-attack", bool observes = true)
     {
         var bus = new FdpEventBus();
-        var facade = new ClusterTimeTransportAdapter(bus, () => 0);
+        var view = new ClusterView(bus);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
         var control = new FakeControl { LoadedScenarioName = loadedName };
         var reads = new FakeReads { Observes = observes };
         var choice = facade.AttachRunChoice(hostDefault, control, unsavedReads: reads.Reads);
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
-        bus.SwapBuffers(); facade.Update(); bus.SwapBuffers();
-        return new CheckRig(facade, bus, control, choice, reads);
+        bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
+        return new CheckRig(facade, bus, control, choice, reads, view);
     }
 
     /// <summary>One frame of the facade (<c>Update</c> between swaps), as the host runs it — delivers a check answer that has arrived.</summary>
-    internal static void Frame(CheckRig rig) { rig.Bus.SwapBuffers(); rig.F.Update(); rig.Bus.SwapBuffers(); }
+    internal static void Frame(CheckRig rig) { rig.Bus.SwapBuffers(); rig.View.Update(); rig.F.Update(); rig.Bus.SwapBuffers(); }
 
     /// <summary>The cluster state changes (as the master's broadcast says), then the facade's frame runs.</summary>
-    internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false)
+    /// <remarks>⭐ CE-3341 — <paramref name="armed"/> is the cluster's armed mode the broadcast carries; <see langword="null"/> repeats what the view last held (a state change alone never moves it).</remarks>
+    internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false, ClusterArmedMode? armed = null)
     {
-        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff });
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff, ArmedMode = armed ?? rig.View.ArmedMode });
         rig.Bus.SwapBuffers();
+        rig.View.Update();
         rig.F.Update();
         rig.Bus.SwapBuffers();
     }

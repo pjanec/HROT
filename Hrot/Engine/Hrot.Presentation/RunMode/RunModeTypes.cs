@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Orchestration;
 using Hrot.UI.Common.Facades;
+using ImGuiNET;
 
 namespace Hrot.UI.Common.RunMode;
 
@@ -93,6 +94,9 @@ public interface IUnsavedChangesQuery
 
     /// <summary>Called once per frame by <see cref="RunModeChoice.Update"/>: delivers an answer that has arrived since (no blocking, ever). Default: nothing to poll.</summary>
     void Poll() { }
+
+    /// <summary>⭐ R-4001 — the operator gives up on an open question: <c>reply</c> is then never called. ⛔ There is no timeout.</summary>
+    void Cancel() { }
 }
 
 /// <summary>
@@ -109,6 +113,62 @@ public sealed record UnsavedCheckReads(Func<bool> Observes, Func<Guid, UnsavedCh
 }
 
 /// <summary>
+/// ⭐⭐⭐ <c>CE-1440</c> (R-3066 audit #13) — <b>the ONE asker of the master's unsaved-changes check round</b>: it publishes the ONE
+/// <see cref="CheckUnsavedIntent"/> (<see cref="Start"/>) and reads the outcome through <see cref="UnsavedCheckReads"/> (<see cref="Read"/>). The UI move
+/// (<see cref="ClusterUnsavedChangesQuery"/>) polls <see cref="Read"/> once per frame; HTTP (<c>POST /scenario/check-unsaved</c> and the load gate) awaits
+/// <see cref="WaitAsync"/> — the same object polled through the host's main-thread queue. ⛔ No second publish path, no second read path, and
+/// (R-4001) no deadline: the master's round always ends — a node that dies is ejected by its heartbeat — so the wait is bounded only by the caller's token.
+/// </summary>
+public sealed class UnsavedCheckAsker
+{
+    private readonly Func<Hrot.Presentation.DebugApi.IClusterMasterControl?> _master;
+    private readonly UnsavedCheckReads _reads;
+
+    /// <param name="master">Where the round is asked (resolved per call: HTTP's master may be on another node); <see langword="null"/> ⇒ no master reachable.</param>
+    /// <param name="reads">How the answer is read.</param>
+    public UnsavedCheckAsker(Func<Hrot.Presentation.DebugApi.IClusterMasterControl?> master, UnsavedCheckReads reads)
+    {
+        _master = master ?? throw new ArgumentNullException(nameof(master));
+        _reads  = reads  ?? throw new ArgumentNullException(nameof(reads));
+    }
+
+    /// <summary>This host can see check-round answers; a host that cannot must not gate on them.</summary>
+    public bool Observes => _reads.Observes();
+
+    /// <summary>Publishes ONE <see cref="CheckUnsavedIntent"/> and returns its request id; <see langword="null"/> when no master is reachable. A master that refuses to take it throws (<see cref="InvalidOperationException"/>).</summary>
+    public Guid? Start()
+    {
+        var master = _master();
+        if (master is null) return null;
+        var id = Guid.NewGuid();
+        master.CheckUnsaved(new CheckUnsavedIntent { RequestId = id });
+        return id;
+    }
+
+    /// <summary>How round <paramref name="requestId"/> ended (the master's answer, or its refusal); <see langword="null"/> while it has not. Never blocks.</summary>
+    public UnsavedCheckOutcome? Read(Guid requestId) => _reads.Outcome(requestId);
+
+    /// <summary>
+    /// Waits for the round's outcome, polling <see cref="Read"/> every <paramref name="pollMs"/> ms through <paramref name="onMainThread"/> (the master and the read model
+    /// are ticked there). Returns <see langword="null"/> only when <paramref name="ct"/> is cancelled first. ⛔ No deadline of its own (R-4001).
+    /// </summary>
+    public async System.Threading.Tasks.Task<UnsavedCheckOutcome?> WaitAsync(
+        Guid requestId,
+        Func<Func<UnsavedCheckOutcome?>, System.Threading.Tasks.Task<UnsavedCheckOutcome?>> onMainThread,
+        System.Threading.CancellationToken ct, int pollMs = 20)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var outcome = await onMainThread(() => Read(requestId)).ConfigureAwait(false);
+            if (outcome is not null) return outcome;
+            try { await System.Threading.Tasks.Task.Delay(pollMs, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { break; }
+        }
+        return null;
+    }
+}
+
+/// <summary>
 /// ⭐⭐⭐ <c>CE-4097</c> part two (AQ108 D20) — <b>the production <see cref="IUnsavedChangesQuery"/>: the master's ONE check round</b> (CE-4093),
 /// asked ONLY through the members the coordinator's NOTE lists — <c>IClusterMasterControl.CheckUnsaved(new CheckUnsavedIntent{…})</c>, answered by
 /// <c>ISubsystemDebugProvider.UnsavedCheck(requestId)</c> → <see cref="UnsavedCheckOutcome"/> (null until it arrives; polled, never waited on).
@@ -117,57 +177,51 @@ public sealed record UnsavedCheckReads(Func<bool> Observes, Func<Guid, UnsavedCh
 /// <remarks>
 /// <para>NeverSaved stays decided HERE by an empty <see cref="IRunScenarioControl.LoadedScenarioName"/> (the master's round answers "changed" for a
 /// world, not "there is no file"). A host that observes nothing answers Unchanged for a named scenario — the same rule the HTTP gate uses.</para>
-/// <para>A refusal (the master refuses outside editing) reads as Unchanged: nothing of the SCENARIO can be lost outside editing. ⚠ No answer within
-/// <see cref="Deadline"/> reads as Changed — fail closed to the Save-first prompt (the HTTP gate fails closed with a 504).</para>
+/// <para>A refusal (the master refuses outside editing) reads as Unchanged: nothing of the SCENARIO can be lost outside editing.</para>
+/// <para>⭐⭐ <b>R-4001 — no timeout</b> (backend CE-3340 ⑤ removes the HTTP gate's the same way): the master's round ends by itself — a node whose
+/// heartbeat stops is removed from it — so the answer always comes; a stuck-but-alive round is shown ("checking…") and the operator cancels it
+/// (<see cref="Cancel"/>). ⛔ SUPERSEDED: a fixed 15 s <c>Deadline</c> that read as Changed.</para>
 /// </remarks>
 public sealed class ClusterUnsavedChangesQuery : IUnsavedChangesQuery
 {
-    /// <summary>How long a round may take before the answer is taken as "changed" (the HTTP gate's own 15 s).</summary>
-    public static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
-
     private readonly Func<string?> _loadedScenarioName;
-    private readonly Hrot.Presentation.DebugApi.IClusterMasterControl? _master;
-    private readonly UnsavedCheckReads? _reads;
-    private readonly Func<DateTime> _now;
-
-    private (Guid Id, Action<UnsavedAnswer> Reply, DateTime Due)? _pending;
+    private readonly UnsavedCheckAsker? _asker;
+    private (Guid Id, Action<UnsavedAnswer> Reply)? _pending;
 
     /// <param name="loadedScenarioName">The session's loaded scenario name (empty ⇒ NeverSaved).</param>
     /// <param name="master">Where the round is asked (<c>OrchestrationBusMasterControl</c> on the host's bus); <see langword="null"/> ⇒ nothing is asked.</param>
     /// <param name="reads">How the answer is read; <see langword="null"/> ⇒ this host observes nothing (a named scenario counts as unchanged).</param>
-    /// <param name="now">Clock of the deadline (tests inject one).</param>
     public ClusterUnsavedChangesQuery(Func<string?> loadedScenarioName, Hrot.Presentation.DebugApi.IClusterMasterControl? master,
-                                      UnsavedCheckReads? reads, Func<DateTime>? now = null)
+                                      UnsavedCheckReads? reads)
+        : this(loadedScenarioName, master is null || reads is null ? null : new UnsavedCheckAsker(() => master, reads)) { }
+
+    /// <summary>⭐ CE-1440 — over the shared asker (the same object HTTP's check awaits); <see langword="null"/> ⇒ this host observes nothing.</summary>
+    public ClusterUnsavedChangesQuery(Func<string?> loadedScenarioName, UnsavedCheckAsker? asker)
     {
         _loadedScenarioName = loadedScenarioName ?? throw new ArgumentNullException(nameof(loadedScenarioName));
-        _master = master;
-        _reads  = reads;
-        _now    = now ?? (() => DateTime.UtcNow);
+        _asker = asker;
     }
 
     /// <inheritdoc/>
     public void Ask(Action<UnsavedAnswer> reply)
     {
         if (string.IsNullOrWhiteSpace(_loadedScenarioName())) { reply(UnsavedAnswer.NeverSaved); return; }
-        if (_master is null || _reads is null || !_reads.Observes()) { reply(UnsavedAnswer.Unchanged); return; }   // no way to see the answer: ask nothing
-        var id = Guid.NewGuid();
-        _pending = (id, reply, _now() + Deadline);
-        _master.CheckUnsaved(new CheckUnsavedIntent { RequestId = id });
+        if (_asker is null || !_asker.Observes) { reply(UnsavedAnswer.Unchanged); return; }   // no way to see the answer: ask nothing
+        if (_asker.Start() is not { } id) { reply(UnsavedAnswer.Unchanged); return; }
+        _pending = (id, reply);
     }
 
     /// <inheritdoc/>
     public void Poll()
     {
         if (_pending is not { } p) return;
-        UnsavedAnswer? answer = null;
-        if (_reads!.Outcome(p.Id) is { } outcome)
-            answer = outcome.Result is { Changed: true } ? UnsavedAnswer.Changed : UnsavedAnswer.Unchanged;   // a refusal (Result null): outside editing, nothing to lose
-        else if (_now() >= p.Due)
-            answer = UnsavedAnswer.Changed;
-        if (answer is null) return;
+        if (_asker!.Read(p.Id) is not { } outcome) return;   // R-4001: wait — the round ends by itself (heartbeat), or the operator cancels
         _pending = null;
-        p.Reply(answer.Value);
+        p.Reply(outcome.Result is { Changed: true } ? UnsavedAnswer.Changed : UnsavedAnswer.Unchanged);   // a refusal (Result null): outside editing, nothing to lose
     }
+
+    /// <inheritdoc/>
+    public void Cancel() => _pending = null;
 }
 
 /// <summary>
@@ -183,29 +237,56 @@ public interface ISaveInterception
 }
 
 /// <summary>
-/// ⭐⭐ <c>CE-4097</c> (AQ108 R3, D10) — <b>the ONE confirmation shape</b>: a text and its buttons, resolved by pressing one. Drawn as a modal
-/// by the toolbar section; its model is testable without ImGui. The last button of a confirmation is always Cancel (no action).
+/// ⭐⭐ <c>CE-4097</c> (AQ108 R3, D10) — <b>the ONE confirmation shape</b>: a text and its buttons, resolved by pressing one. Drawn by the ONE helper
+/// <see cref="ConfirmationModal"/>; its model is testable without ImGui. The last button of a confirmation is always Cancel (no action).
+/// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the editor's app-exit prompt, its <i>New Exercise</i> prompt and the run choice's own confirmations are ALL instances of this
+/// type: <c>AppExitPromptController</c> / <c>ConfirmPromptController</c> are thin PRODUCERS of it and hold no button list of their own.
 /// </summary>
 public sealed class RunModeConfirmation
 {
     /// <summary>One button: its label and what pressing it does (<see langword="null"/> = nothing — Cancel).</summary>
     public sealed record Button(string Label, Action? Action);
 
-    private readonly Action<RunModeConfirmation> _done;
+    /// <summary>The label of the closing button every confirmation ends with.</summary>
+    public const string CancelLabel = "Cancel";
+
+    private readonly Action<RunModeConfirmation>? _done;
     private bool _resolved;
 
-    internal RunModeConfirmation(string text, IReadOnlyList<Button> buttons, Action<RunModeConfirmation> done)
+    /// <param name="text">What will happen, in the user's words.</param>
+    /// <param name="buttons">The buttons, left to right; the LAST one is Cancel (closing the modal presses it).</param>
+    /// <param name="done">Called when a button is pressed, BEFORE its action — the producer's slot clears itself here.</param>
+    /// <param name="title">The modal's title.</param>
+    /// <param name="popupId">The ImGui id of the modal (unique per producer: two confirmations may be up in one frame).</param>
+    public RunModeConfirmation(string text, IReadOnlyList<Button> buttons, Action<RunModeConfirmation>? done = null,
+                               string title = "Confirm", string popupId = "mt_run_confirm")
     {
+        if (buttons is null || buttons.Count == 0) throw new ArgumentException("a confirmation has at least its Cancel button", nameof(buttons));
         Text = text;
         Buttons = buttons;
         _done = done;
+        Title = title;
+        PopupId = popupId;
     }
+
+    /// <summary>⭐ The one way to build one: <paramref name="actions"/> then a Cancel that does nothing.</summary>
+    public static RunModeConfirmation WithCancel(string text, Action<RunModeConfirmation>? done, string title, string popupId, params Button[] actions)
+        => new(text, actions.Append(new Button(CancelLabel, null)).ToArray(), done, title, popupId);
 
     /// <summary>What will happen, in the user's words (AQ108 §3).</summary>
     public string Text { get; }
 
     /// <summary>The buttons, left to right; the last one is Cancel.</summary>
     public IReadOnlyList<Button> Buttons { get; }
+
+    /// <summary>The modal's title.</summary>
+    public string Title { get; }
+
+    /// <summary>The ImGui id of the modal.</summary>
+    public string PopupId { get; }
+
+    /// <summary>Set by <see cref="ConfirmationModal"/> once it opened the popup for this confirmation (view state: one open per model).</summary>
+    internal bool PopupShown { get; set; }
 
     /// <summary>Presses <paramref name="button"/>: the confirmation is gone, then its action (if any) runs. A second call is ignored.</summary>
     public void Resolve(Button button)
@@ -214,8 +295,45 @@ public sealed class RunModeConfirmation
         if (!Buttons.Contains(button)) throw new ArgumentException("not a button of this confirmation", nameof(button));
         if (_resolved) return;
         _resolved = true;
-        _done(this);
+        _done?.Invoke(this);
         button.Action?.Invoke();
+    }
+
+    /// <summary>Presses the closing Cancel button (Esc / ✕ / a producer's cancel).</summary>
+    public void Cancel() => Resolve(Buttons[^1]);
+}
+
+/// <summary>
+/// ⭐⭐ <c>CE-1438</c> — <b>the ONE draw of a <see cref="RunModeConfirmation"/></b>: a modal with its text and buttons; closing it (Esc / ✕) is Cancel, the last button.
+/// The toolbar draws the run choice's pending one, the editor draws its exit and <i>New Exercise</i> prompts — all through here, ⛔ no per-prompt ImGui.
+/// </summary>
+public static class ConfirmationModal
+{
+    /// <summary>Draws <paramref name="pending"/> (nothing when <see langword="null"/>); call once per frame while a confirmation may be up.</summary>
+    public static void Draw(RunModeConfirmation? pending)
+    {
+        if (pending is null) return;
+        var id = $"{pending.Title}###{pending.PopupId}";
+        if (!pending.PopupShown) { ImGui.OpenPopup(id); pending.PopupShown = true; }
+
+        ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
+        bool open = true;
+        if (!ImGui.BeginPopupModal(id, ref open, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings))
+        {
+            if (!open) pending.Cancel();   // (a modal that was closed without a button)
+            return;
+        }
+        ImGui.TextWrapped(pending.Text);
+        ImGui.Separator();
+        RunModeConfirmation.Button? pressed = null;
+        foreach (var button in pending.Buttons)
+        {
+            if (ImGui.Button(button.Label)) pressed = button;
+            ImGui.SameLine();
+        }
+        if (!open) pressed = pending.Buttons[^1];
+        if (pressed is not null) { ImGui.CloseCurrentPopup(); pending.Resolve(pressed); }
+        ImGui.EndPopup();
     }
 }
 
@@ -239,9 +357,6 @@ public sealed record RunModeIndicator(string Glyph, Vector4 Color, string Word, 
 
 /// <summary>One entry of the indicator's mode menu: the mode it arms, whether it can be chosen now (and why not), and the confirmation it asks first.</summary>
 public sealed record RunModeMove(RunArmed Target, string Label, string? ConfirmText, bool Enabled, string? DisabledReason, bool IsArmed);
-
-/// <summary>A short note the toolbar shows after ■ in Live (AQ108 §3): <c>"Exercise recorded (12:31) — Replay it"</c> or <c>"Live run ended"</c>.</summary>
-public sealed record RunModeToast(string Text, Guid? ReplayExercise, DateTime ExpiresAt);
 
 /// <summary>
 /// ⭐⭐ <c>CE-4097</c> (AQ108 §2.8) — the raw transport the <see cref="RunModeChoice"/> stands on: the cases that keep TODAY's behaviour (dry-run
@@ -277,4 +392,8 @@ public interface IRunTransport
     void Seek(double t);
     /// <summary>From a replay: a new live run from the moment it stands at (the built branch, D18).</summary>
     void BranchLive();
+    /// <summary>⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode as this node last heard it (<c>ClusterView.ArmedMode</c>, mapped by name); <see langword="null"/> when the adapter has no view (no node yet).</summary>
+    RunArmed? ClusterArmed { get; }
+    /// <summary>⭐ CE-3341 — publish the armed mode as the cluster-wide setting (<c>SetRunSettingsIntent { Armed }</c> on the bus). The ONE caller is <see cref="RunModeChoice"/>'s <c>Arm</c>.</summary>
+    void SendArmed(RunArmed armed);
 }

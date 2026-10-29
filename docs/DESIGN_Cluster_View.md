@@ -9,7 +9,7 @@ known-conflict: none
 related-designs:
   - blueprints/batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md — the FRAME (ui, CE-1436): goal, leans, fences, acceptance
   - blueprints/batches/NOTE_Backend_To_Ui_ClusterView_Built.md — the hand-back: what ui can now read on every host
-  - blueprints/Architect_Question_108_Run_Mode_Picker.md — §4b the check round whose answer must reach every host; §2.6 CE-4096's ClusterSlave follow-fields; §2.8a the gap
+  - blueprints/Architect_Question_108_Run_Mode_Picker.md — §4b the check round whose answer must reach every host; §2.6 CE-4096's ClusterSlave follow-fields; §2.8a deviation 12 OWNS the ui half: the time facade (`ClusterTimeTransportAdapter`) and the editor's `EditorScenarioSession` READ the node's `ClusterView` and fold none of its facts
   - projects/Hrot/Network/Hrot.Network.Orchestration.md — §5 the observer path (ExCon's passive reader) this design folds into one ingress
   - blueprints/Architect_Question_109_Retire_ExCon.md — ExCon's retirement (proposed 2026-10-29) would remove V2's difference and the observer translator
   - projects/Hrot/Subsystems/Hrot.ExCon.md — the observer bus + ClusterUiCache on ExCon (the monitoring half stays there, V2)

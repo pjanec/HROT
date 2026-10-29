@@ -7,6 +7,7 @@ using Fdp.Toolkit.Runner;
 using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Systems;
 using Hrot.Common;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.ClusterRunner.Presentation;
 
@@ -37,12 +38,6 @@ internal sealed class LocalWindowController
 
     internal Fdp.Presentation.WindowManager.WindowManager? WindowManager { get; private set; }
 
-    /// <summary>
-    /// ⭐⭐ <c>CE-4096</c> (AQ108 D12) — what ▶ arms on this host: the editor Preview, CGF / the all-in-one / the server Live. ONE bootstrap
-    /// parameter of the shared runner, set from the runner's mode; ⛔ no behaviour hangs on it yet — <c>CE-4097</c> reads it.
-    /// </summary>
-    internal HostArmedMode ArmedMode { get; }
-
     /// <summary>⭐ <c>CE-4096</c> — the ONE start gate of this host (null while no window is open, and on an exempt host).</summary>
     internal StartGate? StartGate { get; private set; }
 
@@ -61,20 +56,93 @@ internal sealed class LocalWindowController
 
     internal void RequestExit() => _exitRequested = true;
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> follow-up — the frame loop's exit decision, ONCE at the top of a frame (so a rail drives the very policy the loop runs): <paramref name="requestedThisFrame"/> is the window's [X] or the Exit item
+    /// (<see cref="TakeExitRequest"/>); the request asks <see cref="ExitGuard"/> (it may open a question and DEFER), and a deferred question that was answered <i>Discard / Save &amp; Exit</i> approves the exit on a later frame.
+    /// <see langword="true"/> = leave the loop now; a Cancel anywhere keeps it <see langword="false"/>.
+    /// </summary>
+    internal bool ExitDue(bool requestedThisFrame)
+    {
+        if (requestedThisFrame && ExitGuard.OnExitRequested() != ExitDisposition.Deferred) return true;   // nothing to ask (or every question already answered in favour): exit now
+        return ExitGuard.ExitApproved;
+    }
+
     internal LocalWindowController(
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
         RunnerOptions options,
-        PerspectiveCoordinatorSystem? coordinator,
-        HostArmedMode armedMode = HostArmedMode.Live)
+        PerspectiveCoordinatorSystem? coordinator)
     {
         _shell       = shell;
         _subsystems  = subsystems;
         _options     = options;
         _coordinator = coordinator;
-        ArmedMode    = armedMode;
         _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
+        ExitGuard = new ExitGuardChain(subsystems.OfType<IAppExitGuard>().ToArray());   // until the run controls are composed: the subsystems' own guards only
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> follow-up (AQ108 §2.11a ④) — <b>the process's ONE exit guard</b> (the frame loop asks it for the window's [X] and File › Exit): the subsystems' own guards (the editor's unsaved DOCUMENTS)
+    /// first, then — when a run-controls owner with a scenario door was picked — the <see cref="ScenarioExit"/> guard over that owner's <see cref="ScenarioDoor"/>. Rebuilt by <see cref="ComposeRunControls"/>.
+    /// </summary>
+    internal IAppExitGuard ExitGuard { get; private set; }
+
+    /// <summary>⭐ <c>CE-4101</c> follow-up — the ONE guard of the open scenario's exit (null before <see cref="ComposeRunControls"/>, or when no host offers a scenario door: SimHost alone has nothing of a scenario to lose).</summary>
+    internal ScenarioExitGuard? ScenarioExit { get; private set; }
+
+    /// <summary>
+    /// The chain: documents first, the scenario door LAST — the door's approval is what stops the run / unloads the scenario, so that step runs only when nothing asked before it can still cancel the exit
+    /// (a Cancel at the document question loses nothing; a Discard of documents followed by a Cancel at the scenario question would have lost them without an exit).
+    /// </summary>
+    private void ComposeExitGuard(IProvidesRunControls? owner)
+    {
+        var door = owner?.RunChoice?.Door;
+        ScenarioExit = door is null ? null : new ScenarioExitGuard(door);
+        var guards = _subsystems.OfType<IAppExitGuard>().ToList();
+        if (ScenarioExit is not null) guards.Add(ScenarioExit);
+        ExitGuard = new ExitGuardChain(guards);
+    }
+
+    /// <summary>⭐ <c>CE-1437</c> — the host whose run controls the process's ONE toolbar time control shows (null before <see cref="ComposeRunControls"/>, or when no host offers any).</summary>
+    internal IProvidesRunControls? RunControlsOwner { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1437</c> (AQ108 §2.10 ①) — <b>the run controls, composed ONCE per process</b> beside <see cref="ComposeStartSurface"/>: registers the ONE toolbar time
+    /// control over the offer <see cref="PickRunControls"/> picks. ⛔ The hosts no longer register it (last registration used to win — subsystem order). Called after every
+    /// subsystem's <c>RegisterWindows</c>, when the hosts hold their transports.
+    /// </summary>
+    internal void ComposeRunControls(Fdp.Presentation.WindowManager.WindowManager wm)
+    {
+        var owner = PickRunControls(_subsystems.OfType<IProvidesRunControls>());
+        RunControlsOwner = owner;
+        if (owner?.Transport is { } transport)
+            Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice);
+        ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
+        owner?.ComposeScenarioActions(wm);   // ⭐ CE-1439 — the scenario menu (and so the Start surface's Open / New / Recording) of the host that owns ▶, by the same rule
+    }
+
+    /// <summary>
+    /// ⭐ The pick RULE (AQ108 §2.10 ①, §2.12), never registration order: of the hosts that offer a transport, one whose choice HAS a scenario session (an operator: editor, CGF,
+    /// Orchestrator) wins; among several operators the one that holds a WORLD of its own first — <see cref="OperatorRank"/> (editor, CGF, then the world-less Orchestrator);
+    /// with no operator the first offered; none offered ⇒ <see langword="null"/> (no time control).
+    /// </summary>
+    internal static IProvidesRunControls? PickRunControls(IEnumerable<IProvidesRunControls> hosts)
+    {
+        var offered = hosts.Where(h => h.Transport is not null).ToList();
+        var operators = offered.Where(h => h.RunChoice is { HasScenarioControl: true }).ToList();
+        if (operators.Count > 0)
+            return operators.OrderBy(h => OperatorRank(h.HostKind)).First();   // OrderBy is stable: equal ranks keep the subsystem order
+        return offered.FirstOrDefault();
+    }
+
+    /// <summary>⭐ CE-1439 — among operator hosts the one with a local world to author in wins; the Orchestrator (the master's window, no world) is the fallback owner.</summary>
+    private static int OperatorRank(RunHostKind kind) => kind switch
+    {
+        RunHostKind.Editor       => 0,
+        RunHostKind.Cgf          => 1,
+        RunHostKind.Orchestrator => 2,
+        _                        => 3,
+    };
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — <b>the start surface, composed ONCE for every cluster-runner host</b>: registers the one window that
@@ -191,6 +259,7 @@ internal sealed class LocalWindowController
         }
 
         ComposeStartSurface(wm);   // ⭐ CE-4096
+        ComposeRunControls(wm);    // ⭐ CE-1437 — the ONE toolbar time control, picked by rule
 
         RegisterLayoutMenu(wm);
 
@@ -335,7 +404,7 @@ internal sealed class LocalWindowController
         //   changes the NEXT run: the reset already happened before ImGui was set up, and pretending
         //   otherwise would be a control that lies about when it acts.
         wm.GlobalMenu.RegisterCheckableItem(
-            "View/Settings/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
+            GlobalMenuRegistry.SettingsMenuPath + "/Layout/Reset to default on start",   // ⭐ CE-4085: Settings is a submenu of View
             () => _options.ResetLayoutOnRun,
             v =>
             {
@@ -344,16 +413,16 @@ internal sealed class LocalWindowController
                     $"[Layout] Reset-on-start is now {(v ? "ON" : "OFF")} — it applies from the next run.");
             });
 
-        wm.GlobalMenu.RegisterSeparator("View/Settings/Layout/sep_save_default");
+        wm.GlobalMenu.RegisterSeparator(GlobalMenuRegistry.SettingsMenuPath + "/Layout/sep_save_default");
 
         // ⭐ CE-1137 — the scene heard from the 3-D camera outside FPS (off by default, saved in the operator's audio.json). 🔒 User,
         //   2026-10-16: "a menu settings for enabling sounds in 3d map non-FPS mode heard from the camera position".
         wm.GlobalMenu.RegisterCheckableItem(
-            "View/Settings/Sound in the 3-D view (from the camera)",
+            GlobalMenuRegistry.SettingsMenuPath + "/Sound in the 3-D view (from the camera)",
             () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
             v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
 
-        wm.GlobalMenu.RegisterItem("View/Settings/Layout/Save current as default", () =>
+        wm.GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the
             //    half-reset this batch exists to end.

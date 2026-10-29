@@ -239,6 +239,45 @@ public class StartGateTests : IDisposable
         Assert.Equal(new[] { 7 }, seen);
     }
 
+    /// <summary>
+    /// ⭐ CE-1441 (audit #20) — ONE rule decides "allowed in Idle" (<c>GlobalMenuRegistry.IsAllowedInIdle</c>): the bar (tree leaves via <c>Offers</c>, contributed
+    /// items via <c>PruneToIdle</c>) and the start surface (<c>AllowedInIdleItems</c>) can never disagree — an item is on the Idle bar iff the surface offers it.
+    /// A contributed item with the flag UNSET is not allowed (only an explicit <c>true</c> is).
+    /// 🔴 Red-proof: make <c>IsAllowedInIdle</c> return <c>allowedInIdle != false</c> ⇒ the unset contributed item shows on the bar and the truth-table row fails.
+    /// </summary>
+    [Fact]
+    public void CE1441_OneIdlePredicate_TheBarAndTheSurfaceAgree_ForTreeAndContributedItems()
+    {
+        Assert.True(GlobalMenuRegistry.IsAllowedInIdle(true));
+        Assert.False(GlobalMenuRegistry.IsAllowedInIdle(false));
+        Assert.False(GlobalMenuRegistry.IsAllowedInIdle(null));
+
+        var wm = new WM(_atlas);
+        RegisterMenu(wm);
+        wm.GlobalMenu.RegisterContributor("host/files", () => new[]
+        {
+            new ContextMenuItemDto { Label = "Host", Children = new[]
+            {
+                new ContextMenuItemDto { Id = 1, Label = "Yes", AllowedInIdle = true },
+                new ContextMenuItemDto { Id = 2, Label = "No", AllowedInIdle = false },
+                new ContextMenuItemDto { Id = 3, Label = "Unset" },
+            } },
+        }, _ => { });
+        wm.GlobalMenu.IdleOnlyWhen = () => true;
+
+        var open = wm.GlobalMenu.Root.Children["File"].Children["Open Scenario"];
+        var save = wm.GlobalMenu.Root.Children["File"].Children["Save Scenario"];
+        Assert.True(wm.GlobalMenu.Offers(open, wm.CurrentPerspective));
+        Assert.False(wm.GlobalMenu.Offers(save, wm.CurrentPerspective));
+
+        var bar = VisibleItems(wm);
+        var surface = wm.GlobalMenu.AllowedInIdleItems().Select(a => a.Path).ToList();
+        foreach (var label in new[] { "Open Scenario", "Yes", "No", "Unset", "Save Scenario" })
+            Assert.Equal(surface.Any(p => p.EndsWith(label)), bar.Any(p => p.EndsWith(label)));   // the bar shows it iff the surface offers it
+        Assert.Contains(bar, p => p.EndsWith("Yes"));
+        Assert.DoesNotContain(bar, p => p.EndsWith("No") || p.EndsWith("Unset"));
+    }
+
     // ── 4. no other panel shows ────────────────────────────────────────────────
 
     [Fact]

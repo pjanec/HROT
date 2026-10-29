@@ -29,8 +29,33 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// a second <c>Idle</c> intent from inside the handler for the first one. ⇒ ⛔ the design's single
 /// <c>NewExercise()</c> member is <b>as-built as two</b>; recorded in the design §4.</para>
 /// </summary>
-public interface IScenarioSession : IRunScenarioControl
+public interface IScenarioSession
 {
+    // ── ⭐⭐⭐ CE-4101 (AQ108 §2.11a) — THE GUARDED DOOR. ⛔ This interface does NOT extend IRunScenarioControl any more: that one holds the RAW verbs (open / load / open a recording WITHOUT
+    //    asking), handed only to the run choice. Every member below is the guarded one — a run ⇒ Stop & Load · unsaved edits ⇒ Save / Discard / Cancel (the session's Door); a caller that holds a session
+    //    can only reach the door.
+
+    /// <summary>The currently loaded scenario name, or <c>null</c> after a clear.</summary>
+    string? LoadedScenarioName { get; }
+
+    /// <summary>⭐ GUARDED — opens <paramref name="scenarioName"/> for AUTHORING, cluster-wide (the door asks <i>Stop &amp; Load</i> over a run, <i>Save / Discard / Cancel</i> over unsaved edits).</summary>
+    void OpenForEdit(string scenarioName);
+
+    /// <summary>⭐ GUARDED — loads <paramref name="scenarioName"/> for RUNNING, cluster-wide (a fresh exercise; the same decision as <see cref="OpenForEdit"/>).</summary>
+    void LoadForLive(string scenarioName);
+
+    /// <summary>⭐ GUARDED — opens a RECORDING into AAR (the same decision as <see cref="OpenForEdit"/>).</summary>
+    void OpenRecording(Guid exerciseId);
+
+    /// <summary>⭐ GUARDED — <see cref="OpenRecording(Guid)"/> at a moment of the recording's own sim clock; <see langword="null"/> = its start. A default member so a fake need not state it.</summary>
+    void OpenRecording(Guid exerciseId, double? atSimSeconds) => OpenRecording(exerciseId);
+
+    /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
+    void SaveCurrent();
+
+    /// <summary>Saves the live running state — publishes the existing <c>TakeCheckpointIntent</c> to the master.</summary>
+    void TakeCheckpoint();
+
     /// <summary>
     /// ⭐⭐ Pumps the session once per frame: drains <see cref="ClusterStateUpdateEvent"/> and advances the
     /// deferred-load state machine *(a load first asks the cluster for <see cref="ClusterState.Idle"/>,
@@ -53,7 +78,7 @@ public interface IScenarioSession : IRunScenarioControl
     /// ⭐⭐⭐ <b>The CLUSTER-WIDE reset</b> — finishes any running exercise and starts fresh
     /// *(<c>File/Live/New Exercise</c>)*. Requests <see cref="ClusterState.Idle"/> of the master and wipes
     /// locally. ⚠ <b>Destructive</b>: the caller owns the confirmation *(ruling 53 — the confirm belongs
-    /// where the operator sits, and a headless node logs instead of prompting)*.
+    /// where the operator sits, and a headless node logs instead of prompting)*. ⭐ <c>CE-4101</c> — GUARDED: editing with unsaved edits asks <i>Save / Discard / Cancel</i> first.
     /// </summary>
     void NewExercise();
 

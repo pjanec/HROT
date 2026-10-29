@@ -37,6 +37,17 @@ public interface IEditorLogic
     void LoadScenarioByName(string scenarioName);
 
     /// <summary>
+    /// ⭐ <c>CE-4101</c> — <see cref="LoadScenarioByName(string)"/> followed by <paramref name="then"/> ONCE THE OPEN WENT OUT: the open is GUARDED (a run ⇒ Stop &amp; Load, unsaved edits ⇒ Save / Discard / Cancel), so a
+    /// caller that continues with something that only makes sense after the load (New-from-a-recipe saves the seed as the new name) must not run it when the user cancelled. The default is the unguarded shape a fake has.
+    /// </summary>
+    void LoadScenarioByName(string scenarioName, System.Action then) { LoadScenarioByName(scenarioName); then(); }
+
+    /// <summary>
+    /// ⭐ <c>CE-4101</c> — the ONE guarded door of this editor's scenario session (HTTP asks through it with its refusing asker); <see langword="null"/> on a fake that has no session.
+    /// </summary>
+    Hrot.UI.Common.RunMode.ScenarioDoor? Door => null;
+
+    /// <summary>
     /// Saves the current world state to the scenario most recently loaded via
     /// <see cref="LoadScenarioByName"/>. When no scenario is loaded, does nothing.
     /// </summary>

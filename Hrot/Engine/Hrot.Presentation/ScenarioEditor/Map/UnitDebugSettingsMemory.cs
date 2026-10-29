@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using Fdp.Core;
-using Fdp.Presentation.WindowManager;
+using NodeEditor.Core.IO;
 using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Hrot.ScenarioEditor.Map
@@ -26,8 +26,7 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>The default folder: <c>&lt;user folder&gt;/debug-settings</c>, or null when there is no user folder.</summary>
         public static string? DefaultDirectory()
         {
-            try { return Path.Combine(LayoutPaths.UserDirectory(Hrot.UI.Common.Audio.AudioSettings.AppFolderName), "debug-settings"); }
-            catch (Exception) { return null; }
+            return Hrot.UI.Common.UserFiles.TryPathOf("debug-settings");
         }
 
         /// <summary>The file of <paramref name="scenario"/> (its name made file-safe), or null without a folder.</summary>
@@ -60,20 +59,19 @@ namespace Hrot.ScenarioEditor.Map
             if (_scenario is not { Length: > 0 } s || PathOf(s) is not { } path) return;
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 // a writer, not JsonSerializerOptions: this repo turns reflection-based serialization off (measured: the options form threw
                 // "must specify a TypeInfoResolver", swallowed below — nothing was ever saved)
                 using var bytes = new MemoryStream();
                 using (var writer = new System.Text.Json.Utf8JsonWriter(bytes, new System.Text.Json.JsonWriterOptions { Indented = true }))
                     store.ToJson().WriteTo(writer);
-                File.WriteAllBytes(path, bytes.ToArray());
+                SafeTextFile.TryWrite(path, System.Text.Encoding.UTF8.GetString(bytes.ToArray()));
             }
             catch (Exception) { /* a read-only folder: the settings live for this run only */ }
         }
 
         private static JsonNode? Read(string path)
         {
-            try { return JsonNode.Parse(File.ReadAllText(path)); }
+            try { return SafeTextFile.TryRead(path) is { } text ? JsonNode.Parse(text) : null; }
             catch (Exception) { return null; }   // a bad file: start clean
         }
     }

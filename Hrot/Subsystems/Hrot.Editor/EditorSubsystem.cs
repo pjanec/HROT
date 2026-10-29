@@ -172,7 +172,8 @@ namespace Hrot.Editor
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Fdp.Toolkit.Runner.IWindowTitleSource,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Fdp.Presentation.WindowManager.IClusterRestSource
+        Fdp.Presentation.WindowManager.IClusterRestSource,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         /// <summary>
         /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — what the start gate reads here: the editor HOSTS the (in-process) master, so it can always
@@ -351,6 +352,19 @@ namespace Hrot.Editor
         /// <summary>⭐ CE-1364 T3 — the take open for editing (one <c>TakeEditor</c> shared by the Director window and the Event Timeline) and the editor's undo stack for it.</summary>
         /// <summary>⭐ CE-4097 — this host's one run choice (what ▶ runs; default Preview), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _timeTransport?.RunChoice;
+        /// <summary>⭐ CE-4102 — the host's ONE time transport (what the choice and the toolbar read: mode, recording flag, active exercise), for the end-to-end armed-mode rail.</summary>
+        internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? TimeTransportForTest => _timeTransport;
+        /// <summary>⭐ CE-4101 — the host's scenario session (the GUARDED surface every caller holds), for the constructed-host door rails.</summary>
+        internal Hrot.Editor.AiShared.Scenarios.IScenarioSession? ScenarioSessionForTest => _editorApp?.ScenarioSession;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — the editor OFFERS its transport + choice; the window composer registers the ONE toolbar time control (this host no longer does).
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
+
+        // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu registered ONCE, by the composer's picked ▶ owner; built in RegisterWindows.
+        private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
+        void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
@@ -608,19 +622,14 @@ namespace Hrot.Editor
         // When the window [X] is clicked with dirty documents open, IAppExitGuard.OnExitRequested opens
         // the modal instead of exiting; the loop keeps running until the user resolves it.
         private Hrot.Editor.AiShared.Documents.AppExitPromptController? _exitPrompt;
-        private bool _exitPopupOpened;
 
         /// <summary>
         /// ⭐⭐ <c>CE-046</c> — the confirmation slot for <c>File/Live/New Exercise</c>. ⭐ The controller is
         /// shared and headless *(so a rail can assert both branches)*; only
-        /// <see cref="DrawNewExerciseConfirmModal"/> below knows about ImGui. 🔒 Ruling 53 — an interactive
+        /// <see cref="DrawPromptModals"/> below knows about ImGui. 🔒 Ruling 53 — an interactive
         /// host prompts; CGF logs-and-proceeds instead.
         /// </summary>
-        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new();
-        private bool _newExercisePopupOpened;
-        // ⭐ CE-1025 (R-1031) — the warning before a load over a running live run or dry run (the same modal as New Exercise).
-        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _loadConfirm = new();
-        private bool _loadConfirmPopupOpened;
+        private readonly Hrot.Editor.AiShared.Scenarios.ConfirmPromptController _newExerciseConfirm = new("scenario_new_exercise_confirm");
 
         // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
         private ImGuiInputSource? _shellInputSource;
@@ -2383,7 +2392,7 @@ namespace Hrot.Editor
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(
-                fileService, _world.Bus, _orchestrationBus!, _world,
+                fileService, _world.Bus, _orchestrationBus!, () => _node?.ClusterSlave.View, _world,
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath,
                 // ⭐ CE-1025 (R-1031) — every load (menu, HTTP edit, the film director) leaves the editor's dry run first, WITHOUT a
@@ -2454,14 +2463,19 @@ namespace Hrot.Editor
                 () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, _timeCommands!);
             // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
             _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(_orchestrationBus!,
+                () => _node?.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view (its in-process core's cache shares it)
                 localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
             //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
-            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Preview, _editorApp?.ScenarioSession,
+            _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Editor), _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                 unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                     () => _orchestratorCore != null,
                     id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
+            // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
+            //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
+            if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
+                _orchestratorCore.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, panelChoice, panelSession);
 
             // ── 8a. ⭐ CE-4038 — the film director (docs/DESIGN_Film_Director.md §1a): built from what this method HOLDS (the load, the
             //    cluster state, the preview controller, ITimeCommands, the world) — ⛔ none of it defaulted (the silent-default rule).
@@ -3081,105 +3095,15 @@ namespace Hrot.Editor
         public bool ExitApproved => _exitPrompt?.ExitApproved ?? false;
 
         /// <summary>
-        /// Renders the app-exit unsaved-changes modal while a close is pending. ImGui-only; the button
-        /// actions delegate to the headless-testable <see cref="AiShared.Documents.AppExitPromptController"/>.
+        /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — the app-exit unsaved-changes prompt and the <c>File/Live/New Exercise</c> confirmation (<c>CE-046</c>) are
+        /// <see cref="Hrot.UI.Common.RunMode.RunModeConfirmation"/>s their controllers produce, drawn through the ONE
+        /// <see cref="Hrot.UI.Common.RunMode.ConfirmationModal"/> the toolbar also uses — ⛔ no per-prompt ImGui here any more. A dismissal (Esc / [X]) is Cancel,
+        /// the last button: the destructive reset must never be the default outcome of walking away. (The load-over-a-run warning is the run choice's own, drawn by the toolbar.)
         /// </summary>
-        private void DrawExitPromptModal()
+        private void DrawPromptModals()
         {
-            if (_exitPrompt == null || !_exitPrompt.IsPrompting) return;
-
-            const string popupId = "Unsaved Changes###ai_app_exit_confirm";
-            if (!_exitPopupOpened)
-            {
-                ImGuiNET.ImGui.OpenPopup(popupId);
-                _exitPopupOpened = true;
-            }
-
-            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
-            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
-
-            bool stayOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
-                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
-            {
-                var dirty = _exitPrompt.DirtyDocuments;
-                ImGuiNET.ImGui.TextUnformatted(
-                    $"You have {dirty.Count} document{(dirty.Count == 1 ? "" : "s")} with unsaved changes:");
-                ImGuiNET.ImGui.Spacing();
-                foreach (var d in dirty)
-                    ImGuiNET.ImGui.BulletText($"{d.Asset.Name}  ({d.Kind})");
-                ImGuiNET.ImGui.Spacing();
-                ImGuiNET.ImGui.TextUnformatted("Save them before exiting?");
-                ImGuiNET.ImGui.Spacing();
-
-                if (ImGuiNET.ImGui.Button("Save All & Exit"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveSaveAndExit(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Discard & Exit"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveDiscardAndExit(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); _exitPopupOpened = false; _exitPrompt.ResolveCancel(); }
-
-                ImGuiNET.ImGui.EndPopup();
-            }
-            else if (!stayOpen)
-            {
-                // Dismissed via the popup's [X] / Esc — treat as Cancel (stay open, nothing saved).
-                _exitPopupOpened = false;
-                _exitPrompt.ResolveCancel();
-            }
-        }
-
-        /// <summary>
-        /// ⭐⭐ <c>CE-046</c> — draws the <c>File/Live/New Exercise</c> confirmation while one is pending.
-        /// ImGui-only; the button meanings live in the headless
-        /// <see cref="AiShared.Scenarios.ConfirmPromptController"/>, exactly as
-        /// <see cref="DrawExitPromptModal"/> splits them for the app-exit prompt.
-        ///
-        /// <para>⚠ Dismissal via <c>[X]</c>/Esc resolves as CANCEL — the destructive reset must never be
-        /// the default outcome of walking away from the prompt.</para>
-        /// </summary>
-        private void DrawNewExerciseConfirmModal()
-        {
-            DrawConfirmModal(_newExerciseConfirm, "New Exercise###scenario_new_exercise_confirm", ref _newExercisePopupOpened);
-            // ⭐ CE-1025 — the load warning, the same modal shape (Cancel / [X] / Esc never load)
-            DrawConfirmModal(_loadConfirm, "Load Scenario###scenario_load_over_run_confirm", ref _loadConfirmPopupOpened);
-        }
-
-        private static void DrawConfirmModal(Hrot.Editor.AiShared.Scenarios.ConfirmPromptController confirm, string popupId, ref bool opened)
-        {
-            if (!confirm.IsPrompting) return;
-
-            if (!opened)
-            {
-                ImGuiNET.ImGui.OpenPopup(popupId);
-                opened = true;
-            }
-
-            var center = ImGuiNET.ImGui.GetMainViewport().GetCenter();
-            ImGuiNET.ImGui.SetNextWindowPos(center, ImGuiNET.ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
-
-            bool stayOpen = true;
-            if (ImGuiNET.ImGui.BeginPopupModal(popupId, ref stayOpen,
-                    ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoSavedSettings))
-            {
-                ImGuiNET.ImGui.TextUnformatted(confirm.Message);
-                ImGuiNET.ImGui.Spacing();
-
-                if (ImGuiNET.ImGui.Button(confirm.ConfirmLabel))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); opened = false; confirm.ResolveConfirm(); }
-                ImGuiNET.ImGui.SameLine();
-                if (ImGuiNET.ImGui.Button("Cancel"))
-                { ImGuiNET.ImGui.CloseCurrentPopup(); opened = false; confirm.ResolveCancel(); }
-
-                ImGuiNET.ImGui.EndPopup();
-            }
-            else if (!stayOpen)
-            {
-                opened = false;
-                confirm.ResolveCancel();
-            }
+            Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_exitPrompt?.Pending);
+            Hrot.UI.Common.RunMode.ConfirmationModal.Draw(_newExerciseConfirm.Pending);
         }
 
         public void DrawUI()
@@ -3189,8 +3113,7 @@ namespace Hrot.Editor
             // App-exit unsaved-changes modal — rendered on top when a window-close was deferred.
             if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
             {
-                DrawExitPromptModal();
-                DrawNewExerciseConfirmModal();
+                DrawPromptModals();
             }
 
             // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
@@ -3503,7 +3426,7 @@ namespace Hrot.Editor
                 // 🔴🔴 User: "it is fail in the value changing point - value does not change although
                 //    I do it when sim is paused." 📐 Measured: the two arms below see only the DEBUGGER.
                 //    The pause a designer actually presses is ITimeTransportFacade.TogglePlayPause
-                //    (MainToolbarTimeControlSection:42, ClusterTimeControlStatusBarSection:47), which
+                //    (MainToolbarTimeControlSection:42), which
                 //    sets the clock's TimeScale to 0 -- and NOTHING here asked the clock. ⇒ the panel
                 //    answered Running, TargetFor(Running) is Nowhere, and the dialog refused with
                 //    "only when the simulation is paused" WHILE IT WAS PAUSED.
@@ -3984,7 +3907,7 @@ namespace Hrot.Editor
                 () => _gizmoLayer?.ConsumeMainMenu(), () => _interactionBus);
             // ⭐ CE-1329 (Brain View §12r BV-71) — forget every unit's remembered debug settings (pins, traces, the followed unit) of the
             //   loaded scenario; the Brain tab's Debug section resets one unit
-            windowManager.GlobalMenu.RegisterItem("View/Settings/Reset all debug settings for this scenario", () =>
+            windowManager.GlobalMenu.RegisterItem(GlobalMenuRegistry.SettingsMenuPath + "/Reset all debug settings for this scenario", () =>
             {
                 if (_world != null) Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(_world).ResetAll();
             });
@@ -4555,18 +4478,20 @@ namespace Hrot.Editor
                     openPicker:     _shellPickers.OpenPicker,
                     listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
                                           ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
-                    // ⭐ CE-4097 part two (§3): the pick goes through the run choice, which asks "Save / Discard / Cancel" first when it would leave unsaved edits
-                    openRecording:  id => { if (_timeTransport?.RunChoice is { } choice) choice.OpenRecording(id); else _editorApp.ScenarioSession.OpenRecording(id); })
+                    // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
+                    openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id))
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
+            // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — NOT registered here any more: BUILT here (the pickers, Save-As and status wiring live in this method) and handed to the composer, which asks only the
+            //   picked ▶ owner to run it (IProvidesRunControls.ComposeScenarioActions) — one owner by rule, never the last RegisterWindows.
             if (_editorApp != null)
-            Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
-                registerCommand:      windowManager.ShellCommands.Register,
-                menu:                 windowManager.GlobalMenu,
-                commands:             windowManager.ShellCommands,
+            _composeScenarioMenu = wm => Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
+                registerCommand:      wm.ShellCommands.Register,
+                menu:                 wm.GlobalMenu,
+                commands:             wm.ShellCommands,
                 // ⭐⭐ CE-046 — the registrar now binds to the SHARED session, which is what lets CGF
                 //    register the identical items. 📄 design §3 ④.
                 session:              _editorApp.ScenarioSession,
@@ -4580,12 +4505,7 @@ namespace Hrot.Editor
                 openSaveAsDialog:     cb => openScenarioSaveAs(),
                 // ⭐⭐⭐ Ruling 53 — the confirm belongs where the OPERATOR sits, and this host is the
                 //    interactive one, so it PROMPTS. The controller holds the decision; DrawUI draws it.
-                confirmNewExercise:   run => _newExerciseConfirm.Request(
-                    "New Exercise",
-                    "This finishes the running exercise and clears the world on every node.\n"
-                  + "Unsaved scenario changes will be lost.",
-                    "Finish & Start Fresh",
-                    run),
+                confirmNewExercise:   run => _newExerciseConfirm.RequestNewExercise(run),   // ⭐ CE-1439 — the one wording, shared with the Orchestrator
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.
@@ -4605,15 +4525,7 @@ namespace Hrot.Editor
                         ? "[Git] Nothing saved (not a source checkout, or the repository is already current)."
                         : $"[Git] Saved {written.Count} file(s): " + string.Join(", ", written.Take(8)) + (written.Count > 8 ? ", …" : "");
                 },
-                // ⭐ CE-1025 (R-1031) — Live… / Edit… over a running live run or dry run warn first (this host is the interactive one;
-                //   the HTTP routes never prompt, ruling 53).
-                runningRun:  () => Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(
-                                       _previewController?.IsInPreviewMode == true,
-                                       _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle),
-                confirmLoad: (title, message, label, run) => _loadConfirm.Request(title, message, label, run),
-                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098
-                // ⭐ CE-4097 part two (AQ108 §3): File › Open Scenario goes through the run choice — unsaved edits → Save / Discard / Cancel first
-                openScenario: name => { if (_timeTransport?.RunChoice is { } choice) choice.OpenScenario(name); else _editorApp.ScenarioSession.OpenForEdit(name); });
+                openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open);   // ⭐ CE-4098 (File › Open Scenario / Recording end in the session's guarded door — CE-4101)
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
@@ -5405,25 +5317,19 @@ namespace Hrot.Editor
             // ⭐ CE-484 — the operator's "Behaviour Faults" tab (red until looked at). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
             windowManager.MessageLogRegistry?.RegisterSource(Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared);
 
-            // ?? Time transport controls in status bar ?????????????????????????
+            // ── Time transport: the main toolbar's, and ONLY there ────────────────
+            // ⭐ CE-4083 (AQ108 D13) — the status bar carries NO time control any more ("the picker exists once").
             if (_previewController != null && _timeController != null && _world != null
                 && windowManager.MainToolbar != null)
             {
-                var timeControls = new TimeControlStatusBarSection(_timeTransport!);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "editor_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeControls.Render,
-                    perspective:    "Scenario");
-
                 // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
                 // ⭐⭐ PHASE 2 SLICE ③ — these four lines were duplicated verbatim in CgfSubsystem and now
                 //    live once in `ShellTimeControlToolbar`. 📄 design §5c.8 H1.
                 // ⭐⭐⭐ CE-090 — the `withSeparator` parameter is GONE: both hosts emit the separator, and
                 //    a shared surface takes no host gate. 📄 §5c.14.
                 var timeTransportFacade = _timeTransport!;   // ⭐ CE-3329 row 21 — the one facade
-                Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(
-                    windowManager.MainToolbar, timeTransportFacade, _timeTransport!.RunChoice);   // ⭐ CE-4097 — the choice this host HOLDS is passed (silent-default rule)
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here any more: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process, by rule.
                 // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (CGF registers the same section)
                 Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, timeTransportFacade, "Scenario");
             }

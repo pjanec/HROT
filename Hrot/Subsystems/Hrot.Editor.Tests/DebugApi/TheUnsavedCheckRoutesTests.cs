@@ -52,10 +52,31 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
     private int Rounds => _master.Sent.OfType<CheckUnsavedIntent>().Count();
 
     /// <summary>The cluster read model: a round the master was asked for is answered as the test set it up (an answer to the id it was asked under).</summary>
+    private readonly System.Collections.Generic.List<Guid> _readIds = new();
+
     private UnsavedCheckOutcome? Outcome(Guid id)
-        => _master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) && Waited(id)
+        => Record(id) && _master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) && Waited(id)
             ? (_refusal is not null ? new UnsavedCheckOutcome(null, _refusal) : new UnsavedCheckOutcome(_verdict, null))
             : null;
+
+    private bool Record(Guid id) { lock (_readIds) _readIds.Add(id); return true; }
+
+    /// <summary>
+    /// ⭐⭐ CE-1440 (R-3066 audit #13) — HTTP asks through the ONE shared asker (<c>UnsavedCheckAsker</c>, the type the toolbar's move uses): the request id the master was asked under is the
+    /// id every answer read carries. 🔴 Mutation: <c>DebugApiService.UnsavedAsker</c> reading under a fresh <c>Guid.NewGuid()</c> ⇒ the cell never gets its answer ⇒ red (504-style hang).
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE1440_TheCheckRound_FlowsOneRequestIdFromThePublishToTheAnswerRead()
+    {
+        var (host, queue, url) = Start();
+        using var h = host;
+        var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        var asked = Assert.Single(_master.Sent.OfType<CheckUnsavedIntent>());
+        Guid[] reads; lock (_readIds) reads = _readIds.ToArray();
+        Assert.NotEmpty(reads);
+        Assert.All(reads, id => Assert.Equal(asked.RequestId, id));
+    }
 
     /// <summary>⭐ CE-3340 ⑤ — how long the master takes to end a round (a node dead mid-round: until its heartbeat times out); zero = at once.</summary>
     private TimeSpan _roundTakes = TimeSpan.Zero;
@@ -172,6 +193,50 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(1, Rounds);
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions.Last().TargetState);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a, D22) — HTTP <c>POST /replay/stop</c> is the OUT door, asked with the REFUSING asker: while EDITING with unsaved changes it answers <b>409</b> with the loads' own words (nothing published);
+    /// <c>discardUnsaved</c> asks the cluster nothing and stops; a clean scenario costs one round; a LIVE run is stopped with no round at all. Every stop publishes the ONE Idle intent (equal to
+    /// <c>ScenarioLoadSequence.UnloadIntent</c> apart from the TransactionId).
+    /// 🔴 Mutation: <c>StopReplay</c> publishing without the door ⇒ the 409 cell sees an Idle transition; <c>RefusingAsker</c> proceeding on <c>Unsaved</c> ⇒ the same cell is red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE4101_ReplayStop_WhileEditing_IsTheOutDoor_409OnUnsaved_ThenTheOneIdleIntent()
+    {
+        var (host, queue, url) = Start();
+        using var h = host;
+
+        _verdict = new UnsavedCheckResult(true, new[] { 2, 5 });
+        var (status, body) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        Assert.Equal(HttpStatusCode.Conflict, status);
+        var error = body["error"]!.GetValue<string>();
+        Assert.Contains("the scenario has unsaved changes (nodes: 2,5)", error);
+        Assert.Contains("discardUnsaved", error);
+        Assert.Equal(1, Rounds);
+        Assert.Empty(_master.Transitions);                                        // ⭐ nothing was published
+
+        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("""{"discardUnsaved":true}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(1, Rounds);                                                  // the discard asked no round
+        var idle = Assert.Single(_master.Transitions);
+        var one = ScenarioLoadSequence.UnloadIntent();
+        one.TransactionId = idle.TransactionId;
+        Assert.Equal(one, idle);                                                  // the ONE Idle intent
+
+        _master.Sent.Clear(); _master.Transitions.Clear();
+        _verdict = UnsavedCheckResult.Unchanged;
+        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(1, Rounds);                                                  // a clean scenario: one round, then it goes
+        Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+
+        _master.Sent.Clear(); _master.Transitions.Clear();
+        _state = ClusterState.OperatingLive;
+        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(0, Rounds);                                                  // a run holds no scenario: nothing is asked
+        Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
     }
 
     /// <summary>One helper for both loads: a load of ANOTHER scenario for editing is gated the same way (a host that has no editor driver cannot tell it is the same one).</summary>

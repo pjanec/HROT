@@ -1,5 +1,7 @@
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Documents;
+using Hrot.UI.Common.RunMode;
+using System.Linq;
 using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Documents;
@@ -99,6 +101,50 @@ public sealed class AppExitPromptControllerTests
         Assert.Same(a, dirty[0]);
         Assert.Same(c, dirty[1]);
         Assert.DoesNotContain(b, dirty);
+    }
+
+    // ── ⭐ CE-1438 (R-3066 audit #5) — the prompt IS a RunModeConfirmation ──────────────────────
+
+    /// <summary>
+    /// The exit prompt is the ONE confirmation shape — a <see cref="RunModeConfirmation"/> listing the dirty documents, buttons <i>Save All &amp; Exit / Discard &amp; Exit / Cancel</i> (Cancel last: Esc / ✕ press it).
+    /// Pressing a BUTTON of the model (what the one modal helper does) behaves exactly as the <c>Resolve*</c> methods: Save saves once and approves, Discard approves, Cancel keeps the editor open; each clears the prompt.
+    /// 🔴 Red-proof: the Save button's action wired to the Discard method ⇒ <c>saves()</c> stays 0; the Cancel button approving exit ⇒ <c>ExitApproved</c>.
+    /// </summary>
+    [Fact]
+    public void CE1438_ThePrompt_IsARunModeConfirmation_AndItsButtonsDoWhatTheResolveMethodsDo()
+    {
+        var (ctrl, dm, saves) = Make();
+        dm.Open(new FakeAsset("Alpha", AssetKind.Blueprint)).MarkDirty();
+        Assert.Null(ctrl.Pending);
+        Assert.False(ctrl.RequestExit());
+
+        var model = Assert.IsType<RunModeConfirmation>(ctrl.Pending);
+        Assert.Equal(new[] { "Save All & Exit", "Discard & Exit", "Cancel" }, model.Buttons.Select(b => b.Label));
+        Assert.Contains("Alpha", model.Text);
+        Assert.Contains("1 document with unsaved changes", model.Text);
+        Assert.False(ctrl.RequestExit());
+        Assert.Same(model, ctrl.Pending);                       // a second [X] keeps the one prompt
+
+        model.Resolve(model.Buttons[0]);                         // Save All & Exit
+        Assert.Equal(1, saves());
+        Assert.True(ctrl.ExitApproved);
+        Assert.Null(ctrl.Pending);
+        Assert.False(ctrl.IsPrompting);
+
+        var (discard, dm2, saves2) = Make();
+        dm2.Open(new FakeAsset()).MarkDirty();
+        discard.RequestExit();
+        discard.Pending!.Resolve(discard.Pending.Buttons[1]);    // Discard & Exit
+        Assert.Equal(0, saves2());
+        Assert.True(discard.ExitApproved);
+
+        var (cancel, dm3, saves3) = Make();
+        dm3.Open(new FakeAsset()).MarkDirty();
+        cancel.RequestExit();
+        cancel.Pending!.Cancel();                                // Esc / ✕ / Cancel
+        Assert.Equal(0, saves3());
+        Assert.False(cancel.ExitApproved);
+        Assert.False(cancel.IsPrompting);
     }
 
     // ── Resolve* ────────────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-26
-current-answer: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
+updated: 2026-10-29
+current-answer: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
   what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
@@ -168,6 +169,29 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066) *(state at `ui@71e8ac588`, pushed, tree clean)*
+
+🔒 User: *"We need to pause any development until we enforce the unification and sharing."* ui's share is BUILT — report:
+[NOTE_Ui_To_Coordinator_Unification_Done.md](batches/NOTE_Ui_To_Coordinator_Unification_Done.md). AQ108 §2.10 – §2.13 + §2.11a carry every as-built.
+⏳ Open: CE-1441 (as files are touched) · R-3068 ②–④ (waits on backend CE-3341) · CE-4100 (the rest of CE-4097, after the pause).
+⭐ Learned: **one Sonnet agent at a time** (CLAUDE.md) · **remove a worktree right after merging it** (eleven filled the disk) · after removing worktrees,
+`dotnet build-server shutdown` (the compiler server kept their analyzer paths ⇒ "Could not load file or assembly" from source generators) ·
+the CGF-constructing integration rails fail together on DDS participant creation and pass alone — re-run them alone before calling a red real.
+
+## ⭐⭐⭐ SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES *(state at `ui@4cb975e71`, everything pushed, tree clean)*
+
+| batch | task | state | where |
+|---|---|---|---|
+| editor fixes ([HANDOFF](batches/HANDOFF_Coordinator_To_Ui_Editor_Fixes.md)) | CE-4085 menu order · CE-4081 Esc stops a take · CE-4084 the map's visible centre | ✅ all built | Menu Follows Focus §MB.2 · Film Director §8.4 · Map 3-D §6af |
+| run modes ([HANDOFF](batches/HANDOFF_Coordinator_To_Ui_Run_Modes.md)) | CE-4098 Recent + Open Recording · CE-4096 Start screen · CE-4097 mode picker (core + part two) · CE-4083 status-bar time control removed | ✅ all built (CE-4096/4098 ahead of CE-4089, user) | AQ108 §2.6–§2.9 |
+| — | CE-4054 `inPreview` half | ✅ closed (already fixed; rails added) | Replay Time Axis §12y |
+| — | CE-1392 flaky rebuild test | ⏭ in the flaky lane, row open (backend) | tracker |
+
+⏳ **Waits on backend:** CE-1436 — one cluster ingress + one cluster read model on every node ([NOTE (frame)](batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md)); until it lands CGF / SimHost / IG hosts go live without the unsaved-edits prompt · the recorded-scenario hash for AAR → Preview's two buttons ([NOTE](batches/NOTE_Ui_To_Backend_Recorded_Scenario_Hash.md)) · CE-4089 the content move (the Start screen / pickers then list the new folders with no ui change).
+⚠ **Not built (AQ108 §2.8a):** "ask to keep recordings" (no setting exists) · checkpoint-here in AAR (no recorder in a replay) · D9's review-start default.
+⭐ **Rules learned this session:** one Sonnet agent at a time (CLAUDE.md, user `2026-10-29`) · an absence claim needs a WHOLE-tree search (a one-folder grep sent backend a wrong note — coordinator caught it).
+⚠ Known pre-existing reds: `EverySystemForgetsTheLastWorldTests`, `EverySystemStateFieldIsClassifiedTests` (runner), `TheDetailsPanelHonoursARequestForAViewTests.CE1150_*` (AiShared); load-flaky HTTP rails in `Hrot.Editor.Tests` pass alone.
 
 ## ⭐⭐⭐ SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS *(state at `ui` after the CE-1364 merge; merged `backend@491e09c7a`, `coordinator@8375318cc`)*
 

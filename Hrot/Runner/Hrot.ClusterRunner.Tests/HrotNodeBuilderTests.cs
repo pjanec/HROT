@@ -639,4 +639,60 @@ public sealed class HrotNodeBuilderTests
         Assert.Null(ctx.ShownTimeline);
         Assert.Null(Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx).Source());
     }
+
+    private sealed class PlayControl : Hrot.UI.Common.RunMode.IRunScenarioControl
+    {
+        public readonly System.Collections.Generic.List<string> Calls = new();
+        public string? LoadedScenarioName => "s";
+        public void LoadForLive(string scenarioName) => Calls.Add("LoadForLive:" + scenarioName);
+        public void OpenForEdit(string scenarioName) { }
+        public void OpenRecording(System.Guid exerciseId) { }
+        public void SaveCurrent() => Calls.Add("SaveCurrent");
+        public void TakeCheckpoint() { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-1436 (R-3066; AQ108 §2.8a) — on a CGF-SHAPED host (a Brain node: the real <c>HrotNodeBuilder</c> context, its slave's ONE <c>ClusterView</c>, the real
+    /// <c>EcsNodeDebugProvider</c>) ▶ with Live armed over an UNSAVED node asks the master's check round and, once the master's answer arrives on the node bus, shows the
+    /// <i>Save and go live</i> confirmation — the answer read through the provider (<c>UnsavedCheckReads.From</c>), the adapter reading the same view. Nothing loads before the answer.
+    /// ⛔ The gap this closes: a CGF host had no reader, so ▶ skipped the prompt and loaded the saved scenario over the edits.
+    /// 🔴 Mutation: <c>EcsNodeDebugProvider</c>'s <c>unsavedCheck:</c> returning <c>null</c> (a provider that "observes" but never hears) ⇒ no prompt ever appears.
+    /// </summary>
+    [Fact]
+    public void CE1436_CgfShapedHost_PlayLive_OverAnUnsavedNode_OffersSaveAndGoLive_FromTheMastersAnswer()
+    {
+        using var ctx = new HrotNodeBuilder(HeadlessConfig(93)).WithRole("Test", Fdp.Core.NodeRole.Brain).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        var bus = ctx.EventBus;
+
+        var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ctx.ClusterSlave.View, () => 0);
+        var control = new PlayControl();
+        var choice = adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, control,
+            unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => provider));
+        void Frame(Action? publish = null) { publish?.Invoke(); bus.SwapBuffers(); ctx.ClusterSlave.Tick(); adapter.Update(); }
+
+        Frame(() => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent
+            { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() }));
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ctx.ClusterSlave.View.State);
+
+        Hrot.UI.Common.RunMode.UserTransport.UserPlayPause(adapter);               // ▶, Live armed, in edit
+        bus.SwapBuffers();
+        var asked = System.Linq.Enumerable.Single(bus.ReadManaged<Fdp.Toolkit.Orchestration.CheckUnsavedIntent>());   // the master's ONE round
+        Frame();
+        Assert.Empty(control.Calls);                                                // undecided until the master answers
+        Assert.Null(choice.Pending);
+
+        Frame(() => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent
+        {
+            RequestId = asked.RequestId, StatusCode = Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success,
+            ResultPayload = new Fdp.Toolkit.Orchestration.UnsavedCheckResult(true, new[] { 3 }),   // the node has unsaved changes
+        }));
+        Frame();                                                                    // the choice's per-frame poll delivers the answer
+
+        Assert.Empty(control.Calls);                                                // still nothing loaded: the user decides
+        Assert.NotNull(choice.Pending);
+        Assert.Equal(new[] { "Save and go live", "Cancel" }, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
+    }
 }

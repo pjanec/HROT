@@ -71,6 +71,34 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
             }
         }
 
+        /// <summary>
+        /// ⭐ CE-1441 (audit #18) — a host does NOT seed <c>Offset = ViewCentre</c>: the camera places a never-placed Offset at the visible centre on its
+        /// FIRST update, with <c>Target</c> untouched — so the world point the host set as Target is the one drawn at the centre (IG / CGF / SimHost relied on
+        /// their own seed for exactly this). A host that placed Offset itself, or applied a full view, is left alone.
+        /// 🔴 Red-proof: delete the <c>InnerCamera.Offset = ViewCentre</c> line in <c>MapCamera.Update</c> ⇒ <c>AnchorAt</c> moves Target instead and the first assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE1441_TheFirstUpdate_CentresANeverPlacedOffset_WithoutMovingTheTarget()
+        {
+            var cam = new MapCamera { ViewportOverride = Window, ViewCentreSource = _ => DockedCentre };
+            var t = new Vector2(120, -80);
+            cam.FocusOn(t);                                 // what a host sets, never touching Offset
+            cam.Zoom = 2f;
+
+            cam.Update(0.016f);
+
+            Assert.Equal(DockedCentre, cam.Offset);
+            Assert.Equal(t, cam.InnerCamera.Target);                                          // not shifted to keep a (0,0)-anchored picture
+            Assert.InRange(Vector2.Distance(cam.WorldToScreen(t), DockedCentre), 0f, 0.01f);   // Target IS at the centre
+
+            // a host that placed Offset itself is not re-seeded (the picture is kept; AnchorAt then moves Target as before)
+            var placed = new MapCamera { ViewportOverride = Window, ViewCentreSource = _ => DockedCentre, Offset = Vector2.Zero };
+            placed.FocusOn(t);
+            placed.Zoom = 2f;
+            placed.Update(0.016f);
+            Assert.NotEqual(t, placed.InnerCamera.Target);
+        }
+
         /// <summary>CE-4084 — with no dockspace the centre is the window's middle (the default source reads no area).</summary>
         [Fact]
         public void CE4084_WithoutAVisibleArea_TheCentreIsTheWindowsMiddle()

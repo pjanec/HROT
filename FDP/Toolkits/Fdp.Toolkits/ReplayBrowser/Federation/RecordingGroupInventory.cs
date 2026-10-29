@@ -13,8 +13,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// </summary>
     /// <param name="ParentExerciseId">⭐ CE-4097 — the exercise this one branched from (<see cref="ExerciseBranch"/>); <c>Guid.Empty</c> = not a branch.</param>
     /// <param name="BranchWallTicks">⭐ the branch point, in the sidecar's own unit; 0 when not a branch.</param>
+    /// <param name="ScenarioName">⭐ CE-4102 — the scenario the run loaded (the sidecars' <see cref="RecordingMetadata.ScenarioName"/>); <see langword="null"/> when none says.</param>
     public sealed record RecordingGroup(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, IReadOnlyList<string> Paths,
-                                        Guid ParentExerciseId = default, long BranchWallTicks = 0);
+                                        Guid ParentExerciseId = default, long BranchWallTicks = 0, string? ScenarioName = null);
 
     /// <summary>
     /// ⭐ RB-1 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — <b>the exercises a standalone Replay Browser can open</b>: every
@@ -54,7 +55,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                 .Select(kv =>
                 {
                     var (parent, branchTicks) = ExerciseBranch.Of(sidecars[kv.Key]);   // ⭐ CE-4097 — the sidecars' own record
-                    return new RecordingGroup(kv.Key, kv.Value.Start, kv.Value.Duration, kv.Value.Nodes.Values.ToList(), parent, branchTicks);
+                    var scenario = sidecars[kv.Key].Select(m => m.ScenarioName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n));   // ⭐ CE-4102
+                    return new RecordingGroup(kv.Key, kv.Value.Start, kv.Value.Duration, kv.Value.Nodes.Values.ToList(), parent, branchTicks, scenario);
                 })
                 .OrderByDescending(g => g.StartTimeUtc)
                 .ToList();

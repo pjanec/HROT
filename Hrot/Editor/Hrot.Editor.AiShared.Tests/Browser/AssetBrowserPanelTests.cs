@@ -855,6 +855,57 @@ public sealed class AssetBrowserPanelTests
     }
 
     /// <summary>
+    /// ⭐ CE-1441 (audit #15) — the browser keeps NO second "last opened" memory: <see cref="AssetBrowserPanel.LastOpenedByKind"/> and the initial
+    /// reveal are the HEAD of the kind's Recent list in the ONE <c>RecentStore</c>. So a pick made through ANY picker (here: a direct push, as
+    /// the Open-Asset picker does) is what a brand-new panel reveals, and a panel's own activation is what the store holds.
+    /// 🔴 Red-proof: make the panel's memory a private store again (<c>_memory = new RecentStore()</c>, ignoring <c>options.Recent</c>) ⇒ both assertions on the shared pick fail.
+    /// </summary>
+    [Fact]
+    public void CE1441_LastOpened_IsTheHeadOfTheOneRecentStore_NotASecondMemory()
+    {
+        var bp1 = new FakeAsset { Kind = AssetKind.Blueprint, Name = "A" };
+        var bp2 = new FakeAsset { Kind = AssetKind.Blueprint, Name = "B" };
+        var catalog = new FakeCatalog(bp1, bp2);
+        var store = new NodeEditor.UI.Picker.RecentStore();
+        var ctx = AssetRecents.ContextFor(AssetKind.Blueprint);
+
+        var panel = CreatePanelWithRecent(catalog, store, AssetKindFilter.Blueprint);
+        Assert.Empty(panel.LastOpenedByKind);
+
+        panel.ActivateAsset(bp1);
+        Assert.Equal(AssetRecents.ItemKey(bp1), store.GetRecent(ctx)[0]);          // the panel wrote the ONE store ...
+        Assert.Equal("A", panel.LastOpenedByKind[AssetKind.Blueprint]);
+
+        store.Push(ctx, AssetRecents.ItemKey(bp2));                                 // ... and a pick made elsewhere is what it reads back
+        Assert.Equal("B", panel.LastOpenedByKind[AssetKind.Blueprint]);
+
+        var fresh = CreatePanelWithRecent(catalog, store, AssetKindFilter.Blueprint);   // a new panel reveals the shared head
+        Assert.Same(bp2, fresh.Selection);
+    }
+
+    /// <summary>⭐ CE-1441 — a legacy <c>lastOpened</c> map (host session prefs) only SEEDS a kind the store has nothing for; the store's own head wins.
+    /// 🔴 Red-proof: drop the <c>Count == 0</c> guard in <c>RestoreLastOpened</c> ⇒ the legacy path overrides the store's head and fails.</summary>
+    [Fact]
+    public void CE1441_ALegacyLastOpenedMap_OnlySeedsAnEmptyKind()
+    {
+        var bp1 = new FakeAsset { Kind = AssetKind.Blueprint, Name = "A" };
+        var bp2 = new FakeAsset { Kind = AssetKind.Blueprint, Name = "B" };
+        var catalog = new FakeCatalog(bp1, bp2);
+        var legacy = new Dictionary<AssetKind, string> { [AssetKind.Blueprint] = "A" };
+
+        var empty = new NodeEditor.UI.Picker.RecentStore();
+        var seeded = new AssetBrowserPanel(catalog, new FakeIconProvider(),
+            new AssetBrowserPanelOptions { Kinds = AssetKindFilter.Blueprint, Recent = empty }, legacy);
+        Assert.Equal("A", seeded.LastOpenedByKind[AssetKind.Blueprint]);
+
+        var held = new NodeEditor.UI.Picker.RecentStore();
+        held.Push(AssetRecents.ContextFor(AssetKind.Blueprint), AssetRecents.ItemKey(bp2));
+        var kept = new AssetBrowserPanel(catalog, new FakeIconProvider(),
+            new AssetBrowserPanelOptions { Kinds = AssetKindFilter.Blueprint, Recent = held }, legacy);
+        Assert.Equal("B", kept.LastOpenedByKind[AssetKind.Blueprint]);
+    }
+
+    /// <summary>
     /// ⭐ CE-4098 success 3 — a remembered asset the catalog no longer holds is not shown (no ghost row, no crash); the filter narrows the
     /// section like every other list. Red-proof: have <c>RecentFor</c> skip the <c>byId</c> lookup and return an empty placeholder per key ⇒ fails.
     /// </summary>

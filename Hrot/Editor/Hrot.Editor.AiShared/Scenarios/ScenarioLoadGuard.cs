@@ -1,30 +1,17 @@
 using Fdp.Toolkit.Orchestration;
+using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
 /// <summary>
-/// ⭐ <c>CE-1025</c> (R-1031) — what a scenario load would break: the run that is running now, if any, and the one line the interactive
-/// load warns with. Pure. 📄 docs/DESIGN_Cluster_Load_Phase.md §9.1.
+/// ⭐ <c>CE-1025</c> (R-1031) — what a scenario load would break, as HTTP names it (<c>stoppedRun</c>). 📄 docs/DESIGN_Cluster_Load_Phase.md §9.1.
+/// ⭐⭐ <c>CE-1438</c> (R-3066 audit #7) — <b>no definition of its own any more</b>: "a run is running" is <see cref="RunModeRunGuard.Of"/>, read off the facade's
+/// <see cref="TransportMode"/> (the cluster state through <see cref="ClusterReplayControls.ModeOf"/>), the SAME one the run choice's <i>Stop &amp; Load</i> asks with.
+/// The interactive warning moved into <see cref="RunModeChoice"/> (every host with a choice warns by construction).
 /// </summary>
 public static class ScenarioLoadGuard
 {
-    /// <summary>"a live run" / "a dry run" when one is running, else null. ⚠ A PAUSED dry run counts: it still holds a restore point.
-    /// ⭐ The editor's dry run wins the name: it plays inside a live-loaded cluster (<c>OperatingLive</c>), measured live 2026-10-23.</summary>
-    public static string? RunningRun(bool inPreview, ClusterState state) => inPreview ? DryRun : state switch
-    {
-        ClusterState.LoadingLive or ClusterState.OperatingLive => LiveRun,
-        ClusterState.LoadingPreview or ClusterState.OperatingPreview => DryRun,
-        _ => null,
-    };
-
-    public const string LiveRun = "a live run";
-    public const string DryRun = "a dry run";
-
-    /// <summary>The warning shown before an interactive load over <paramref name="run"/>. Only a dry run has a restore point to forget.</summary>
-    public static string Prompt(string run, string scenario) => run == DryRun
-        ? $"Loading '{scenario}' stops the dry run and forgets its restore point:\nStop will not bring the current world back."
-        : $"Loading '{scenario}' stops the live run.";
-
-    public const string Title = "Load Scenario";
-    public const string ConfirmLabel = "Stop & Load";
+    /// <summary>"a live run" / "a dry run" when one is running, else null — the one definition, applied to the cluster state.</summary>
+    public static string? RunningRun(bool inPreview, ClusterState state) => RunModeRunGuard.Of(ClusterReplayControls.ModeOf(state), inPreview);
 }

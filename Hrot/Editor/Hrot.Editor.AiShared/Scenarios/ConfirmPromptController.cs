@@ -1,43 +1,37 @@
 using System;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
 /// <summary>
-/// ⭐⭐ <b>A one-slot deferred confirmation: the DECISION logic for a destructive action, with no ImGui in
-/// it.</b> 📄 <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3a *(<c>File/Live/New Exercise</c> —
-/// "with a confirmation dialog about finishing a running exercise")*.
+/// ⭐⭐ <b>A one-slot deferred confirmation: the PRODUCER of a <see cref="RunModeConfirmation"/> for a destructive action, with no ImGui in it.</b>
+/// 📄 <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3a *(<c>File/Live/New Exercise</c> — "with a confirmation dialog about finishing a running exercise")*.
 ///
-/// <para>⭐ <b>Mirrors <c>AppExitPromptController</c> deliberately</b> — the editor's app-exit modal
-/// already splits *"what the buttons mean"* (a headless controller) from *"how it is drawn"* (an
-/// <c>ImGui</c> method in the composition root). ⛔ Inventing a second shape for the same problem is what
-/// the seam law exists to prevent, so this reuses the pattern rather than a modal framework.</para>
+/// <para>⭐⭐ <c>CE-1438</c> (R-3066 audit #5) — <b>it holds NO title / message / button list of its own any more.</b> The ONE confirmation shape is
+/// <see cref="RunModeConfirmation"/> (AQ108 R3, D10), drawn by the ONE <see cref="ConfirmationModal"/>; this type only owns the SLOT and the
+/// continuation. ⛔ A second shape for the same problem is what the seam law forbids.</para>
 ///
-/// <para>⭐⭐ <b>ONE slot on purpose.</b> A second request while one is pending is DROPPED, not queued:
-/// two stacked confirmations for a cluster-wide reset is worse than one, and a queue would let a
-/// forgotten prompt fire a destructive action long after the operator moved on.</para>
+/// <para>⭐⭐ <b>ONE slot on purpose.</b> A second request while one is pending is DROPPED, not queued: two stacked confirmations for a cluster-wide reset
+/// is worse than one, and a queue would let a forgotten prompt fire a destructive action long after the operator moved on.</para>
 ///
-/// <para>⚠ This type carries no scenario knowledge at all — the continuation is opaque. That is what lets
-/// an interactive host prompt, a headless host log-and-proceed *(ruling 53)*, and a rail assert both
-/// branches without a window.</para>
+/// <para>⚠ This type carries no scenario knowledge at all — the continuation is opaque. That is what lets an interactive host prompt, a headless host
+/// log-and-proceed *(ruling 53)*, and a rail assert both branches without a window.</para>
 /// </summary>
 public sealed class ConfirmPromptController
 {
-    private Action? _onConfirm;
+    private readonly string _popupId;
+
+    /// <param name="popupId">The ImGui id of this producer's modal (unique per producer).</param>
+    public ConfirmPromptController(string popupId = "scenario_confirm") => _popupId = popupId;
+
+    /// <summary>The confirmation awaiting the operator (draw it with <see cref="ConfirmationModal.Draw"/>); <see langword="null"/> when none.</summary>
+    public RunModeConfirmation? Pending { get; private set; }
 
     /// <summary>True while a confirmation is awaiting the operator.</summary>
-    public bool IsPrompting => _onConfirm != null;
-
-    /// <summary>Title for the pending prompt; empty when nothing is pending.</summary>
-    public string Title { get; private set; } = string.Empty;
-
-    /// <summary>Body text for the pending prompt; empty when nothing is pending.</summary>
-    public string Message { get; private set; } = string.Empty;
-
-    /// <summary>Label for the confirming button; empty when nothing is pending.</summary>
-    public string ConfirmLabel { get; private set; } = string.Empty;
+    public bool IsPrompting => Pending != null;
 
     /// <summary>
-    /// Queues a confirmation. ⚠ Dropped when one is already pending — see the type remarks.
+    /// Queues a confirmation: <paramref name="confirmLabel"/> runs <paramref name="onConfirm"/>, Cancel does not. ⚠ Dropped when one is already pending.
     /// </summary>
     /// <returns><see langword="true"/> when the request was taken, <see langword="false"/> when dropped.</returns>
     public bool Request(string title, string message, string confirmLabel, Action onConfirm)
@@ -45,32 +39,26 @@ public sealed class ConfirmPromptController
         if (onConfirm is null) throw new ArgumentNullException(nameof(onConfirm));
         if (IsPrompting) return false;
 
-        Title        = title        ?? string.Empty;
-        Message      = message      ?? string.Empty;
-        ConfirmLabel = confirmLabel ?? "OK";
-        _onConfirm   = onConfirm;
+        Pending = RunModeConfirmation.WithCancel(message ?? string.Empty, done => { if (ReferenceEquals(Pending, done)) Pending = null; },
+                                                 title ?? string.Empty, _popupId,
+                                                 new RunModeConfirmation.Button(confirmLabel ?? "OK", onConfirm));
         return true;
     }
 
     /// <summary>
-    /// Runs the pending continuation and clears the slot. ⭐ The slot is cleared BEFORE the continuation
-    /// runs, so an action that itself requests a confirmation cannot be dropped by its own prompt.
+    /// ⭐ <c>CE-1439</c> — the ONE wording of the <i>New Exercise</i> confirmation (ruling 53: the confirm belongs where the operator sits), shared by every host that has a window (the editor, the
+    /// Orchestrator) so the destructive cluster-wide reset reads the same everywhere. A headless-first host (CGF) logs and proceeds instead.
     /// </summary>
-    public void ResolveConfirm()
-    {
-        var run = _onConfirm;
-        Clear();
-        run?.Invoke();
-    }
+    public bool RequestNewExercise(Action run) => Request(
+        "New Exercise",
+        "This finishes the running exercise and clears the world on every node.\n"
+      + "Unsaved scenario changes will be lost.",
+        "Finish & Start Fresh",
+        run);
 
-    /// <summary>Discards the pending continuation — the destructive action does NOT run.</summary>
-    public void ResolveCancel() => Clear();
+    /// <summary>Presses the confirming button (the first). ⭐ The slot is cleared BEFORE the continuation runs, so an action that itself requests a confirmation is not dropped by its own prompt.</summary>
+    public void ResolveConfirm() => Pending?.Resolve(Pending.Buttons[0]);
 
-    private void Clear()
-    {
-        _onConfirm   = null;
-        Title        = string.Empty;
-        Message      = string.Empty;
-        ConfirmLabel = string.Empty;
-    }
+    /// <summary>Presses Cancel — the destructive action does NOT run.</summary>
+    public void ResolveCancel() => Pending?.Cancel();
 }

@@ -219,7 +219,14 @@ public class GlobalMenuRegistry
     /// <summary>⭐⭐ The ONE visibility test of a tree leaf: it resolves a binding for <paramref name="perspective"/>, and — while
     /// <see cref="IdleOnly"/> — is allowed in Idle. ⛔ Every draw / model path asks this, never <c>ResolveBinding</c> alone.</summary>
     public bool Offers(MenuItemNode node, string? perspective)
-        => node.ResolveBinding(perspective) != null && (!IdleOnly || node.AllowedInIdle);
+        => node.ResolveBinding(perspective) != null && (!IdleOnly || IsAllowedInIdle(node.AllowedInIdle));
+
+    /// <summary>
+    /// ⭐ CE-1441 (audit #20) — THE one rule "this item is allowed in Idle": its flag says so. A tree leaf (<see cref="MenuItemNode.AllowedInIdle"/>),
+    /// a contributed item (<see cref="ContextMenuItemDto.AllowedInIdle"/>, nullable) and every walk that asks (<see cref="Offers"/>,
+    /// <see cref="AllowedInIdleItems"/>, <see cref="PruneToIdle"/>) go through it, so the bar, the start surface and the contributions can never disagree.
+    /// </summary>
+    internal static bool IsAllowedInIdle(bool? allowedInIdle) => allowedInIdle == true;
 
     /// <summary>One thing the start surface can offer: a menu leaf allowed in Idle, invoked through the very binding the menu uses.</summary>
     public sealed record IdleAction(string Path, Func<string> Label, Func<bool> Enabled, Action Invoke);
@@ -247,7 +254,7 @@ public class GlobalMenuRegistry
                 foreach (var c in node.Children.Values) WalkIdle(c, path + "/" + c.Name, into);
                 return;
             }
-            if (!node.AllowedInIdle || node.ResolveBinding(perspective)?.OnClick is not { } click) return;
+            if (!IsAllowedInIdle(node.AllowedInIdle) || node.ResolveBinding(perspective)?.OnClick is not { } click) return;
             into.Add(new IdleAction(path, node.ResolveLabel, () => node.GetEnabled?.Invoke() ?? true, click));
         }
 
@@ -259,7 +266,7 @@ public class GlobalMenuRegistry
                 foreach (var c in children) WalkIdleDto(c, path + "/" + c.Label, contributor, into);
                 return;
             }
-            if (dto.AllowedInIdle != true) return;
+            if (!IsAllowedInIdle(dto.AllowedInIdle)) return;
             var id = dto.Id;
             var enabled = dto.Enabled ?? true;
             into.Add(new IdleAction(path + (path.EndsWith("/" + dto.Label) ? "" : "/" + dto.Label), () => dto.Label ?? "", () => enabled, () => contributor.OnAction(id)));
@@ -287,7 +294,7 @@ public class GlobalMenuRegistry
                     Children = sub.ToArray(),
                 });
             }
-            else if (dto.AllowedInIdle == true) kept.Add(dto);
+            else if (IsAllowedInIdle(dto.AllowedInIdle)) kept.Add(dto);
         }
         return kept;
     }

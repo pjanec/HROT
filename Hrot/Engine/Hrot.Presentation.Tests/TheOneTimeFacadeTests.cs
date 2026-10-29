@@ -26,11 +26,13 @@ public sealed class TheOneTimeFacadeTests
                                                                            ReplaySession? session = null, double clock = 0, bool running = false)
     {
         var bus = new FdpEventBus();
-        var facade = new ClusterTimeTransportAdapter(bus, () => clock);
+        var view = new ClusterView(bus);   // ⭐ CE-1436 — the node's ONE cluster view, advanced by its owner (here the test, as ClusterSlave.Tick does)
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ReplayAxis = axis });
         if (session != null) bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
         bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });   // paused unless `running`
         bus.SwapBuffers();
+        view.Update();
         facade.Update();
         bus.SwapBuffers();   // drop the setup; what the facade publishes next is all the read buffer holds
         return (facade, bus);
@@ -162,7 +164,7 @@ public sealed class TheOneTimeFacadeTests
     {
         var session = new ReplaySession { Active = true, IsReview = true };
         Assert.Same(session, In(ClusterState.OperatingReview, ReplayAxis.Sim, session).Facade.Session);
-        Assert.Null(In(ClusterState.OperatingLive).Facade.Session);
+        Assert.False(In(ClusterState.OperatingLive).Facade.Session is { Active: true });   // CE-1436: the view's empty session, not a null
     }
 
     [Fact]
@@ -345,7 +347,7 @@ public sealed class TheOneTimeFacadeTests
         Assert.Empty(Sent<TransitionStateIntent>(live));                    // ⛔ never Idle
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
         Assert.Equal(RunId, live.Choice.LastExercise);
-        Assert.Equal("Exercise recorded (12:34) — open the AAR", live.Choice.Toast!.Text);
+        Assert.Equal("Exercise recorded (12:34) — open the AAR", live.Choice.Toast!.Title);
 
         var replay = With(ClusterState.OperatingReplay, RunArmed.AAR);
         replay.F.Stop();
@@ -362,8 +364,8 @@ public sealed class TheOneTimeFacadeTests
     {
         var live = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         live.F.Stop();
-        Assert.Equal("Live run ended", live.Choice.Toast!.Text);
-        Assert.Null(live.Choice.Toast!.ReplayExercise);
+        Assert.Equal("Live run ended", live.Choice.Toast!.Title);
+        Assert.Null(live.Choice.Toast!.Actions);
     }
 
     /// <summary>⭐ A host with NO scenario session keeps today's ■ in a live run (to Idle) — hosts without a session are unchanged.</summary>
@@ -398,41 +400,119 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(RunArmed.AAR, edit.Choice.Armed);
     }
 
+    // ── ⭐ CE-3341 (AQ108 §2.14, D12a) — the armed mode is the CLUSTER's: READ from its view, SENT by the operator's open ─────────────────────────
+
+    private static List<SetRunSettingsIntent> Ops(Rig rig) => Sent<SetRunSettingsIntent>(rig);
+
     /// <summary>
-    /// ⭐ D12 — opening a scenario for editing resets the armed mode to the HOST's default (editor Preview, CGF Live), however it was opened (the
-    /// cluster reaching Edit through Idle); the exceptions are the choice's own returns to editing (R2: ■ in Live keeps Live) and a dry run's exit.
-    /// 🔴 Red-proofs: the reset removed ⇒ these rows; the keep-flag removed ⇒ the ■ row of the next test; the dry-run exclusion removed ⇒ its preview row.
+    /// S1 — the choice reads the cluster's armed mode: the view's value wins whenever it CHANGES, whatever the host default is; an unchanged cluster value never overrides what this host armed.
+    /// 🔴 Red-proof: <c>Armed</c> returning the local value only (the cluster branch removed) ⇒ the <c>Hear</c> rows.
     /// </summary>
     [Theory]
-    [InlineData(RunArmed.Preview, RunArmed.Live)]   // the editor: was Live, a scenario is opened ⇒ Preview
-    [InlineData(RunArmed.Live, RunArmed.Preview)]   // CGF: was Preview, a scenario is opened ⇒ Live
-    public void CE4097_D12_OpeningAScenarioResetsTheArmedModeToTheHostDefault(RunArmed hostDefault, RunArmed chosen)
+    [InlineData(RunArmed.Live, ClusterArmedMode.Preview, RunArmed.Preview)]
+    [InlineData(RunArmed.Preview, ClusterArmedMode.AAR, RunArmed.AAR)]
+    public void CE3341_S1_TheChoiceReadsTheClustersArmedMode(RunArmed hostDefault, ClusterArmedMode heard, RunArmed expected)
     {
         var rig = With(ClusterState.OperatingEdit, hostDefault);
-        rig.Choice.Choose(chosen);
-        Assert.Equal(chosen, rig.Choice.Armed);
-        Hear(rig, ClusterState.Idle);                                       // the load's unload …
-        Assert.Equal(chosen, rig.Choice.Armed);                             // (Idle alone is not an open)
-        Hear(rig, ClusterState.OperatingEdit);                              // … and the scenario is up for editing
-        Assert.Equal(hostDefault, rig.Choice.Armed);
+        Assert.Equal(hostDefault, rig.Choice.Armed);                        // the cluster's value has not changed: the host default shows
+        Hear(rig, ClusterState.OperatingEdit, armed: heard);
+        Assert.Equal(expected, rig.Choice.Armed);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Live);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // …and back: a host default of Preview does not pull it
+        Assert.Empty(Ops(rig));                                             // reading sends nothing
     }
 
+    /// <summary>
+    /// S2 — the indicator's <c>Choose(Live)</c> from Edit publishes exactly ONE <c>SetRunSettingsIntent{Armed=Live}</c>, shows Live at once, and a LATER cluster change wins.
+    /// 🔴 Red-proof: <c>Arm</c> without <c>SendArmed</c> ⇒ the count; the optimistic local removed ⇒ the first assert; the change detector removed ⇒ the last.
+    /// </summary>
     [Fact]
-    public void CE4097_D12_OurOwnReturnToEditing_KeepsTheArmedMode_AndADryRunExitDoesNotReset()
+    public void CE3341_S2_ChooseSendsOneOp_ShowsAtOnce_AndALaterClusterChangeWins()
     {
-        // ■ in Live (editor: default Preview, but Live is armed): back to editing keeps Live
+        var rig = With(ClusterState.OperatingEdit, RunArmed.Preview);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Preview);   // the cluster agrees with the editor's default
+        rig.Choice.Choose(RunArmed.Live);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // optimistic: before any broadcast
+        var op = Assert.Single(Ops(rig));
+        Assert.Equal(ClusterArmedMode.Live, op.Armed);
+        Assert.Null(op.RecordLiveRuns);                                     // one setting only: the other is "no change"
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Live);      // the master echoes our op
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);
+        Hear(rig, ClusterState.OperatingEdit, armed: ClusterArmedMode.Preview);   // another host armed Preview afterwards
+        Assert.Equal(RunArmed.Preview, rig.Choice.Armed);
+    }
+
+    /// <summary>
+    /// S3 — the OPERATOR's File › Open sends the host default as ONE op beside the open (editor ⇒ Preview, CGF ⇒ Live); an HTTP open (its own asker) sends none (D22).
+    /// 🔴 Red-proofs: the <c>OperatorOpening</c> raise removed ⇒ the first rows; raised for a caller with its own asker ⇒ the HTTP rows.
+    /// </summary>
+    [Theory]
+    [InlineData(RunArmed.Preview, ClusterArmedMode.Preview)]   // the editor host
+    [InlineData(RunArmed.Live, ClusterArmedMode.Live)]         // a CGF host
+    public void CE3341_S3_TheOperatorsOpenSendsTheHostDefault_AnHttpOpenSendsNone(RunArmed hostDefault, ClusterArmedMode sent)
+    {
+        var rig = With(ClusterState.OperatingEdit, hostDefault, withDoor: true);
+        rig.Choice.Choose(hostDefault == RunArmed.Live ? RunArmed.AAR : RunArmed.Live);   // something other than the default is armed
+        Ops(rig);                                                                          // (drain that op)
+        rig.Choice.OpenScenario("other");
+        Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
+        Assert.Equal(sent, Assert.Single(Ops(rig)).Armed);
+
+        var http = With(ClusterState.OperatingEdit, hostDefault, withDoor: true);
+        http.Choice.Door!.Open("other", new RefusingAsker());
+        Assert.Equal(new[] { "OpenForEdit:other" }, http.C.Calls);
+        Assert.Empty(Ops(http));
+    }
+
+    /// <summary>
+    /// S4 — the operator's recording open arms AAR and its live load arms Live (one op each); an HTTP recording open still does the <c>LastExercise</c> bookkeeping but sends no op.
+    /// 🔴 Red-proofs: the Recording / Live mapping in the choice's <c>OperatorOpening</c> swapped ⇒ the two ops; <c>RecordingOpening</c> moved under the operator-only raise ⇒ the HTTP row's <c>LastExercise</c>.
+    /// </summary>
+    [Fact]
+    public void CE3341_S4_TheOperatorsRecordingOpenArmsAar_AndItsLiveLoadArmsLive()
+    {
+        var rec = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        rec.Choice.OpenRecording(RunId);
+        Assert.Equal(new[] { $"OpenRecording:{RunId}" }, rec.C.Calls);
+        Assert.Equal(ClusterArmedMode.AAR, Assert.Single(Ops(rec)).Armed);
+        Assert.Equal(RunArmed.AAR, rec.Choice.Armed);
+
+        var live = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        live.Choice.Door!.LoadLive("other");
+        Assert.Equal(new[] { "LoadForLive:other" }, live.C.Calls);
+        Assert.Equal(ClusterArmedMode.Live, Assert.Single(Ops(live)).Armed);
+
+        var http = With(ClusterState.OperatingEdit, RunArmed.Preview, withDoor: true);
+        http.Choice.Door!.OpenRecording(RunId, asker: new RefusingAsker());
+        Assert.Empty(Ops(http));
+        Assert.Equal(RunId, http.Choice.LastExercise);                      // the bookkeeping is for every caller
+        Assert.Equal(RunArmed.Preview, http.Choice.Armed);                  // …but an HTTP open no longer arms
+    }
+
+    /// <summary>
+    /// S5 — ■ in Live returns to editing through the RAW open: no armed op, and Live stays armed (R2) through the Idle → Edit that follows. S6 — reaching OperatingEdit no longer resets
+    /// the armed mode to the host default (the D12 hook is gone): the host default is Preview, a load later it is still Live. A dry run's exit keeps its armed mode too.
+    /// 🔴 Red-proofs: StopLive arming ⇒ the ■ op row; the D12 reset restored in <c>OnClusterState</c> ⇒ the S6 rows.
+    /// </summary>
+    [Fact]
+    public void CE3341_S5_S6_StopInLiveSendsNothing_AndReachingEditNoLongerResetsTheArmedMode()
+    {
         var live = With(ClusterState.OperatingEdit, RunArmed.Preview);
         live.Choice.Choose(RunArmed.Live);
-        Hear(live, ClusterState.OperatingLive);
+        Ops(live);                                                          // (drain the arming op)
+        Hear(live, ClusterState.OperatingLive, armed: ClusterArmedMode.Live);
         live.F.Stop();
-        Hear(live, ClusterState.Idle);
-        Hear(live, ClusterState.OperatingEdit);
+        Assert.Empty(Ops(live));                                            // S5: ■ sends no armed mode …
+        Assert.Contains("OpenForEdit:hill-attack", live.C.Calls);           // … it is the raw return to the scenario
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
-        Hear(live, ClusterState.Idle);                                      // …but the NEXT, user-made open resets it
-        Hear(live, ClusterState.OperatingEdit);
-        Assert.Equal(RunArmed.Preview, live.Choice.Armed);
+        Hear(live, ClusterState.Idle);
+        Hear(live, ClusterState.OperatingEdit);                             // S6: the scenario is up for editing again
+        Assert.Equal(RunArmed.Live, live.Choice.Armed);                     // host default is Preview — not applied
+        Hear(live, ClusterState.Idle);
+        Hear(live, ClusterState.OperatingEdit);                             // …nor by any later load (only the OPERATOR's open sends it)
+        Assert.Equal(RunArmed.Live, live.Choice.Armed);
 
-        // a dry run's exit is Edit again, not a new scenario: the mode armed through the preview's confirmation stays
+        // a dry run's exit is Edit again: the mode armed through the preview's confirmation stays
         var preview = With(ClusterState.OperatingEdit, RunArmed.Preview);
         Hear(preview, ClusterState.OperatingPreview);
         preview.Choice.Choose(RunArmed.Live);
@@ -596,10 +676,10 @@ public sealed class TheOneTimeFacadeTests
     /// <summary>
     /// ⭐ NOTE rules, each a row: a host that observes nothing (<c>ObservesUnsavedChecks</c> false) asks NO round and counts the scenario as unchanged; NeverSaved stays decided by an empty loaded
     /// name — also without asking; a master's refusal (not editing) reads as unchanged; ⚠ no answer within the deadline fails CLOSED to the Save-first prompt.
-    /// 🔴 Red-proof: dropping the <c>Observes()</c> guard publishes a round nobody can answer (the ▶ then waits 15 s); dropping the deadline arm never answers.
+    /// 🔴 Red-proof: dropping the <c>Observes()</c> guard publishes a round nobody can answer (the ▶ then waits for an answer that cannot come); dropping the deadline arm never answers.
     /// </summary>
     [Fact]
-    public void CE4097_TheUnsavedCheck_NotObserved_NeverSaved_Refused_AndTheDeadline()
+    public void CE4097_TheUnsavedCheck_NotObserved_NeverSaved_Refused_AndNoTimeout_OnlyACancel()
     {
         var blind = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live, observes: false);
         blind.F.UserPlayPause();
@@ -619,17 +699,84 @@ public sealed class TheOneTimeFacadeTests
         Frame(refused);
         Assert.Equal(new[] { "LoadForLive:hill-attack" }, refused.C.Calls);
 
-        var clock = DateTime.UtcNow;
-        var bus = new FdpEventBus();
-        var master = new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => bus);
-        var query = new ClusterUnsavedChangesQuery(() => "hill-attack", master, new FakeReads().Reads, () => clock);
-        UnsavedAnswer? got = null;
-        query.Ask(a => got = a);
-        query.Poll();
-        Assert.Null(got);
-        clock += ClusterUnsavedChangesQuery.Deadline + TimeSpan.FromSeconds(1);
-        query.Poll();
-        Assert.Equal(UnsavedAnswer.Changed, got);                           // fail closed: Save first
+        // ⭐ R-4001 — NO timeout: an unanswered round stays open (shown as checking), however long; the operator cancels it
+        var waiting = WithCheckRound(ClusterState.OperatingEdit, RunArmed.Live);
+        waiting.F.UserPlayPause();
+        for (int i = 0; i < 1000; i++) Frame(waiting);
+        Assert.True(waiting.F.RunChoice!.IsCheckingUnsaved);                 // still waiting — nothing timed it out
+        Assert.Null(waiting.F.RunChoice.Pending);                            // ⛔ and no Save-first question was invented
+        Assert.Empty(waiting.C.Calls);                                       // nothing proceeded
+        waiting.F.RunChoice.CancelCheck();
+        Assert.False(waiting.F.RunChoice.IsCheckingUnsaved);
+        waiting.R.Answer(Sent<CheckUnsavedIntent>(waiting), changed: false);   // a late answer after the cancel
+        Frame(waiting);
+        Assert.Empty(waiting.C.Calls);                                       // the cancelled move is not made
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1438</c> (R-3066 audit #6) — File › Open Scenario over a RUN asks <i>Stop &amp; Load</i> INSIDE the choice (so every host with one warns): a live run and a dry run ask
+    /// (the dry run's text names the restore point it forgets), a DAR / an AAR / Idle do not; Confirm stops-then-loads (<c>OpenForEdit</c>), Cancel and a second open while asking do nothing.
+    /// The confirmation is the ONE <see cref="RunModeConfirmation"/> shape.
+    /// 🔴 Red-proof: <c>OpenScenario</c> without its <c>AskStopAndLoad</c> line ⇒ the Live / Preview rows have no <c>Pending</c>; <c>Confirm</c> not calling the open ⇒ the call list is empty.
+    /// </summary>
+    [Fact]
+    public void CE1438_OpenScenarioOverARun_AsksStopAndLoad_InTheChoice()
+    {
+        foreach (var (state, text) in new[] { (ClusterState.OperatingLive, "stops the live run"), (ClusterState.OperatingPreview, "forgets its restore point") })
+        {
+            var rig = With(state);
+            rig.Choice.OpenScenario("other");
+            var ask = Assert.IsType<RunModeConfirmation>(rig.Choice.Pending);
+            Assert.Equal(new[] { "Stop & Load", "Cancel" }, ask.Buttons.Select(b => b.Label));
+            Assert.Contains(text, ask.Text);
+            Assert.Contains("'other'", ask.Text);
+            Assert.Empty(rig.C.Calls);                       // asked, not loaded
+            Assert.Equal(0, rig.Q.Asked);                    // a run holds no scenario of its own: no unsaved round
+
+            rig.Choice.OpenScenario("third");                // a question is open: another open does not stack one
+            Assert.Same(ask, rig.Choice.Pending);
+
+            ask.Resolve(ask.Buttons[0]);                     // Stop & Load
+            Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
+            Assert.Null(rig.Choice.Pending);
+
+            var cancel = With(state);
+            cancel.Choice.OpenScenario("other");
+            cancel.Choice.Pending!.Cancel();
+            Assert.Empty(cancel.C.Calls);                    // Cancel: the run is untouched
+        }
+
+        foreach (var state in new[] { ClusterState.OperatingReview, ClusterState.OperatingReplay, ClusterState.Idle })
+        {
+            var rig = With(state);
+            rig.Choice.OpenScenario("other");
+            Assert.Null(rig.Choice.Pending);                 // not a run to stop here (CE-1025: unchanged)
+            Assert.Equal(new[] { "OpenForEdit:other" }, rig.C.Calls);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1438</c> (audit #7) — "a run is running" has ONE definition: for every facade <see cref="TransportMode"/>, <see cref="RunModeRunGuard.Of"/> says a run is running exactly when
+    /// the choice asks <i>Stop &amp; Load</i> (and the cluster state reaches the same answer through <c>ClusterReplayControls.ModeOf</c>, which is what HTTP's <c>stoppedRun</c> reads).
+    /// 🔴 Red-proof: <c>Of</c> answering <c>null</c> for <c>Live</c> ⇒ the Live row asks while the definition says no run.
+    /// </summary>
+    [Fact]
+    public void CE1438_TheRunGuardAndTheChoice_AgreeForEveryMode()
+    {
+        foreach (var state in Enum.GetValues<ClusterState>())
+        {
+            var rig = With(state);
+            var mode = ClusterReplayControls.ModeOf(state);
+            Assert.Equal(rig.F.Mode, mode);
+            var running = RunModeRunGuard.Of(mode);
+            rig.Choice.OpenScenario("x");
+            if (mode == TransportMode.Edit) continue;                    // editing asks the unsaved round, not the run guard
+            Assert.True((running is not null) == (rig.Choice.Pending is { } p && p.Buttons[0].Label == RunModeRunGuard.StopAndLoad),
+                        $"{state}: the definition says '{running}', the choice asked={rig.Choice.Pending is not null}");
+        }
+        Assert.Equal("a live run", RunModeRunGuard.Of(TransportMode.Live));
+        Assert.Equal("a dry run", RunModeRunGuard.Of(TransportMode.Preview));
+        Assert.Equal("a dry run", RunModeRunGuard.Of(TransportMode.Live, inDryRun: true));   // a live run can read as "in preview" (CE-4054)
     }
 
     /// <summary>
@@ -645,6 +792,12 @@ public sealed class TheOneTimeFacadeTests
             var running = WithCheckRound(state);
             running.Choice.OpenRecording(RunId);
             Assert.Empty(Sent<CheckUnsavedIntent>(running));                // not editing: nothing of the scenario to lose
+            // ⭐ CE-1438 — a live run / a dry run is stopped by the open, so the choice asks Stop & Load first (no unsaved round); a replay is not a run to stop
+            if (state is ClusterState.OperatingLive or ClusterState.OperatingPreview)
+            {
+                Assert.Empty(running.C.Calls);
+                running.Choice.Pending!.Resolve(running.Choice.Pending.Buttons[0]);
+            }
             Assert.Equal(new[] { $"OpenRecording:{RunId}" }, running.C.Calls);
         }
 
@@ -685,7 +838,7 @@ public sealed class TheOneTimeFacadeTests
         var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         Assert.Equal("this run was not recorded", unrecorded.Choice.DarDisabledReason);
         unrecorded.F.Stop();
-        Assert.Null(unrecorded.Choice.Toast!.ReplayExercise);               // "Live run ended" — no AAR button
+        Assert.Null(unrecorded.Choice.Toast!.Actions);               // "Live run ended" — no AAR button
         Hear(unrecorded, ClusterState.OperatingEdit);
         unrecorded.Choice.Choose(RunArmed.AAR);
         Assert.Equal("this run was not recorded", unrecorded.Choice.PlayDisabledReason);
@@ -698,9 +851,9 @@ public sealed class TheOneTimeFacadeTests
         Assert.Null(recorded.Choice.DarDisabledReason);
         recorded.F.Stop();
         var toast = recorded.Choice.Toast!;
-        Assert.Equal(RunId, toast.ReplayExercise);
-        Assert.StartsWith("Exercise recorded (0:00)", toast.Text);
-        Assert.DoesNotContain("Replay", toast.Text);                        // the user's word is AAR (D17)
+        Assert.Equal(RunModeChoice.ReplayActionId, Assert.Single(toast.Actions!).CommandId);
+        Assert.StartsWith("Exercise recorded (0:00)", toast.Title);
+        Assert.DoesNotContain("Replay", toast.Title);                        // the user's word is AAR (D17)
         Hear(recorded, ClusterState.OperatingEdit);
         recorded.C.Calls.Clear();
         recorded.Choice.ReplayLastExercise();                               // the toast's button
@@ -720,21 +873,43 @@ public sealed class TheOneTimeFacadeTests
             var run = With(state, RunArmed.Live);
             Assert.True(SaveRoute(run.Choice, run.C));
             Assert.Equal(new[] { "TakeCheckpoint" }, run.C.Calls);
-            Assert.Equal("Checkpoint taken", run.Choice.Toast!.Text);
+            Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);
         }
 
         var aar = With(ClusterState.OperatingReplay, RunArmed.Live);
         Assert.True(SaveRoute(aar.Choice, aar.C));
         Assert.Empty(aar.C.Calls);                                          // nothing published, nothing written
-        Assert.Contains("recording cannot take a checkpoint", aar.Choice.Toast!.Text);
+        Assert.Contains("recording cannot take a checkpoint", aar.Choice.Toast!.Title);
 
         var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         Assert.True(SaveRoute(unrecorded.Choice, unrecorded.C));
         Assert.Empty(unrecorded.C.Calls);
-        Assert.Contains("this run was not recorded", unrecorded.Choice.Toast!.Text);
+        Assert.Contains("this run was not recorded", unrecorded.Choice.Toast!.Title);
 
         var edit = With(ClusterState.OperatingEdit, RunArmed.Live);
         Assert.False(SaveRoute(edit.Choice, edit.C));                       // editing: the ordinary save
+    }
+
+    /// <summary>
+    /// ⭐ CE-1441 (audit #19) — the run-mode notes ride the repo's ONE toast mechanism: a checkpoint (and the note after ■) is an
+    /// <c>EditorNotification</c> on the shared <c>ToastQueue</c> (<c>Choice.Toasts</c>), and the toolbar's <c>Toast</c> is that queue's drainer — no second toast
+    /// type. 🔴 Red-proof: have <c>RunModeChoice.Notify</c> set <c>_current</c> directly instead of <c>Toasts.Enqueue</c> ⇒ the queue assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1441_TheCheckpointNote_IsOnTheSharedToastQueue_AndTheToolbarDrainsIt()
+    {
+        var run = With(ClusterState.OperatingLive, RunArmed.Live);
+        Assert.Empty(run.Choice.Toasts.Pending);
+        Assert.True(SaveRoute(run.Choice, run.C));
+
+        var queued = Assert.Single(run.Choice.Toasts.Pending);              // on the shared queue, before anyone drains it
+        Assert.Equal("Checkpoint taken", queued.Title);
+        Assert.Equal(NodeEditor.Core.Action.NotificationSeverity.Info, queued.Severity);
+        Assert.Null(queued.Actions);                                         // a plain note: no AAR button
+
+        Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);           // the toolbar's read drains it ...
+        Assert.Empty(run.Choice.Toasts.Pending);
+        Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);           // ... and it stays up for its lifetime
     }
 
     /// <summary>The route a session's <c>SaveCurrent</c> takes: the intercept the choice installed on <paramref name="control"/> (true = handled).</summary>
@@ -857,5 +1032,274 @@ public sealed class TheOneTimeFacadeTests
         var edit = With(ClusterState.OperatingEdit);
         edit.Choice.AarFromHere(1);
         Assert.Empty(edit.C.Calls);
+    }
+
+    // ── CE-1436 (R-3066, docs/DESIGN_Cluster_View.md §5; AQ108 §2.8a) — the adapter READS the node's ONE ClusterView; it folds no cluster fact itself ──────────────
+
+    /// <summary>
+    /// ⭐ CE-1436 — the adapter's mode, recording flags, axis, active exercise (its scenario and D5 parent / branch point, found in ANY of the view's three exercise lists) and session are
+    /// the VIEW's: the master's broadcasts are published on the node bus, folded by the view's real <c>Update</c>, and the adapter reports them.
+    /// 🔴 Red-proof: <c>ActiveExerciseItem</c> scanning only <c>AvailableExercises</c> (the archived run is then not found) ⇒ the scenario / branch rows go null.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheAdapterReportsWhatTheNodesViewFolded()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
+        var parent = Guid.Parse("00000000-0000-0000-0000-0000000000b9");
+        var session = new ReplaySession { Active = true, ZeroWallTicks = 5_000_000_000 };
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunId, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true });
+        bus.PublishManaged(new AssetInventoryUpdateEvent
+        {
+            LocalExercises = new[] { new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.Zero, "other") },
+            ArchivedExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack", parent, 5_070_000_000) },   // the run is listed in the ARCHIVED scope
+        });
+        bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
+        bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
+
+        Assert.Equal(TransportMode.Live, facade.Mode);
+        Assert.Equal(ReplayAxis.Wall, facade.Axis);
+        Assert.False(facade.RecordsLiveRuns);                                  // RunNotRecorded, in a live run
+        Assert.Equal(RunId, facade.ActiveExercise);
+        Assert.Equal("hill-attack", facade.ActiveExerciseScenario);
+        Assert.Equal((parent, 5_070_000_000L), facade.ActiveExerciseBranch);
+        Assert.Same(session, facade.Session);
+        Assert.Equal(5_000_000_000L, facade.ReplayZeroWallTicks);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1436 — the adapter no longer drains the cluster-fact events itself: its own bus carries a broadcast saying Edit while the view (the node's, fed elsewhere) says OperatingLive ⇒ the adapter is
+    /// Live; and with no view at all (no node yet) it reads the empty view (Idle).
+    /// 🔴 Red-proof: re-adding <c>foreach (var ev in _bus.ReadManaged&lt;ClusterStateUpdateEvent&gt;()) …</c> to <c>Update</c> with its own state field ⇒ the adapter follows its own bus (Edit) and the Mode row fails.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheAdapterDoesNotDrainTheClusterEventsItself()
+    {
+        var nodeBus = new FdpEventBus();
+        var view = new ClusterView(nodeBus);
+        nodeBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunId, RecordLiveRunsOff = true });
+        nodeBus.SwapBuffers(); view.Update();
+
+        var ownBus = new FdpEventBus();                                        // what the adapter's own bus carries is NOT the view's input
+        var facade = new ClusterTimeTransportAdapter(ownBus, () => view, () => 0);
+        ownBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, ExerciseId = Guid.NewGuid() });
+        ownBus.SwapBuffers(); facade.Update(); ownBus.SwapBuffers();
+
+        Assert.Equal(TransportMode.Live, facade.Mode);                         // the view's state, not the bus's
+        Assert.True(facade.IsStopEnabled);                                     // operating, and not Edit
+        Assert.Equal(RunId, facade.ActiveExercise);
+
+        var none = new ClusterTimeTransportAdapter(new FdpEventBus(), () => null, () => 0);
+        Assert.True(none.IsPlayPauseEnabled);                                  // Idle: the empty view
+        Assert.False(none.IsStopEnabled);
+        Assert.Equal(Guid.Empty, none.ActiveExercise);
+        Assert.Null(none.Session);
+    }
+    /// <summary>
+    /// ⭐⭐ CE-1440 (R-3066 audit #13) — the ONE asker: <c>Start</c> publishes ONE <see cref="CheckUnsavedIntent"/> and <c>Read</c> asks the reads under THAT request id; the UI query
+    /// (<see cref="ClusterUnsavedChangesQuery"/>) is built over the same object, so its publish and its per-frame read are the asker's. 🔴 Mutation: <c>Start</c> publishing a fresh id
+    /// apart from the one it returns ⇒ the read ids differ from the published id ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1440_TheAsker_PublishesOneIntent_AndTheQueryReadsTheAnswerUnderThatId()
+    {
+        var bus = new FdpEventBus();
+        var readIds = new List<Guid>();
+        UnsavedCheckOutcome? answer = null;
+        var asker = new UnsavedCheckAsker(() => new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => bus),
+                                          new UnsavedCheckReads(() => true, id => { readIds.Add(id); return answer; }));
+        var query = new ClusterUnsavedChangesQuery(() => "hill-attack", asker);
+
+        UnsavedAnswer? reply = null;
+        query.Ask(a => reply = a);
+        bus.SwapBuffers();
+        var published = Assert.Single(bus.ReadManaged<CheckUnsavedIntent>());
+        query.Poll();                                                       // no answer yet: asked under the published id, no reply
+        Assert.Null(reply);
+        answer = new UnsavedCheckOutcome(new UnsavedCheckResult(true, new[] { 1 }), null);
+        query.Poll();
+        Assert.Equal(UnsavedAnswer.Changed, reply);
+        Assert.NotEmpty(readIds);
+        Assert.All(readIds, id => Assert.Equal(published.RequestId, id));   // the request id flows from the publish to every read
+
+        // …and HTTP's call is the same object's: a second Start is one more intent, readable under its own id
+        var second = asker.Start();
+        bus.SwapBuffers();
+        Assert.Equal(second, Assert.Single(bus.ReadManaged<CheckUnsavedIntent>()).RequestId);
+        Assert.Same(answer, asker.Read(second!.Value));
+        Assert.Equal(second, readIds[^1]);
+        Assert.Null(new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => null)).Start());   // no master reachable ⇒ no id
+    }
+
+    // ── ⭐⭐⭐ CE-4101 (AQ108 §2.11a) — the ONE guarded door in and out of the open scenario ─────────────────────────────────────────────────────────
+
+    private static ScenarioDoor DoorOf(Rig rig) => ((FakeDoorControl)rig.C).Door;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> — a caller that holds the session's DOOR (menu, picker, recipe, panel, HTTP) reaches the raw verb only through the decision: over a LIVE run every IN verb asks <i>Stop &amp; Load</i> in the toolbar's own
+    /// pending slot and the raw verb is NOT reached until the button is pressed; the OUT verb (leave to Idle) stops a run without asking (■ never asks).
+    /// 🔴 Red-proof: <c>Admit</c> without its run-guard branch ⇒ the first <c>Pending</c> is null and the raw verb is already in the call list.
+    /// </summary>
+    [Fact]
+    public void CE4101_EveryInVerbOfTheDoor_OverALiveRun_AsksStopAndLoad_AndTheRawVerbWaitsForTheButton()
+    {
+        var rig = With(ClusterState.OperatingLive, withDoor: true);
+        var door = DoorOf(rig);
+        var verbs = new (string Name, Action Call, string Raw)[]
+        {
+            ("Open",          () => door.Open("x"),             "OpenForEdit:x"),
+            ("LoadLive",      () => door.LoadLive("x"),         "LoadForLive:x"),
+            ("OpenRecording", () => door.OpenRecording(RunId),  $"OpenRecording:{RunId}"),
+        };
+        foreach (var v in verbs)
+        {
+            v.Call();
+            var ask = Assert.IsType<RunModeConfirmation>(rig.Choice.Pending);          // the toolbar's own slot — the one thing ConfirmationModal draws
+            Assert.Equal(new[] { RunModeRunGuard.StopAndLoad, "Cancel" }, ask.Buttons.Select(b => b.Label));
+            Assert.Empty(rig.C.Calls);                                                   // asked, not opened
+            ask.Resolve(ask.Buttons[0]);
+            Assert.Equal(new[] { v.Raw }, rig.C.Calls);
+            rig.C.Calls.Clear();
+        }
+
+        door.Leave(LeaveReason.NewExercise);                                            // the OUT door: a run is stopped, nothing asked
+        Assert.Null(rig.Choice.Pending);
+        Assert.Equal(new[] { "Leave:NewExercise" }, rig.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> — over UNSAVED edits every verb of the door — the OUT one included (New Exercise used to discard silently) — asks <i>Save / Discard / Cancel</i>; Save = <c>SaveCurrent</c> THEN the move, Discard = the move, Cancel =
+    /// nothing; a never-saved scenario offers <i>Discard / Cancel</i>; unchanged goes at once. ONE round per move (the door and the choice share the one seam).
+    /// 🔴 Red-proof: <c>Leave</c> without the check (a <c>proceed()</c> straight away) ⇒ the Leave row has no <c>Pending</c>; the Save arm dropping <c>SaveCurrent</c> ⇒ the call list lacks it.
+    /// </summary>
+    [Fact]
+    public void CE4101_EveryVerbOfTheDoor_OverUnsavedEdits_AsksSaveDiscardCancel_TheOutDoorToo()
+    {
+        var moves = new (string Name, Func<ScenarioDoor, Action> Call, string Raw)[]
+        {
+            ("Open",          d => () => d.Open("x"),               "OpenForEdit:x"),
+            ("LoadLive",      d => () => d.LoadLive("x"),           "LoadForLive:x"),
+            ("OpenRecording", d => () => d.OpenRecording(RunId),    $"OpenRecording:{RunId}"),
+            ("Leave",         d => () => d.Leave(LeaveReason.NewExercise), "Leave:NewExercise"),
+        };
+        foreach (var m in moves)
+        {
+            var rig = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Changed, withDoor: true);
+            m.Call(DoorOf(rig))();
+            var ask = Assert.IsType<RunModeConfirmation>(rig.Choice.Pending);
+            Assert.Equal(new[] { "Save", "Discard", "Cancel" }, ask.Buttons.Select(b => b.Label));
+            Assert.Contains("unsaved changes", ask.Text);
+            Assert.Equal(1, rig.Q.Asked);
+            Assert.Empty(rig.C.Calls);                                                   // asked, not moved
+            ask.Resolve(ask.Buttons[0]);                                                 // Save
+            Assert.Equal(new[] { "SaveCurrent", m.Raw }, rig.C.Calls);
+
+            var discard = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Changed, withDoor: true);
+            m.Call(DoorOf(discard))();
+            discard.Choice.Pending!.Resolve(discard.Choice.Pending.Buttons[1]);
+            Assert.Equal(new[] { m.Raw }, discard.C.Calls);
+
+            var cancel = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Changed, withDoor: true);
+            m.Call(DoorOf(cancel))();
+            cancel.Choice.Pending!.Cancel();
+            Assert.Empty(cancel.C.Calls);
+
+            var never = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.NeverSaved, withDoor: true);
+            m.Call(DoorOf(never))();
+            Assert.Equal(new[] { "Discard", "Cancel" }, never.Choice.Pending!.Buttons.Select(b => b.Label));
+
+            var clean = With(ClusterState.OperatingEdit, answer: UnsavedAnswer.Unchanged, withDoor: true);
+            m.Call(DoorOf(clean))();
+            Assert.Null(clean.Choice.Pending);
+            Assert.Equal(new[] { m.Raw }, clean.C.Calls);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> (D22) — HTTP's asker over the SAME door: nothing is prompted; a run is stopped and named (<c>StoppedRun</c>, HTTP's <c>stoppedRun</c>); a LOSS is refused with HTTP's own words; <c>discardUnsaved</c>
+    /// asks the cluster nothing at all; and a caller's own execution (<c>Admit</c>, HTTP's live load / stop) replaces the raw verb — never both.
+    /// 🔴 Red-proof: <c>RefusingAsker</c> proceeding on <c>Unsaved</c> ⇒ the refusal is null and the raw verb ran.
+    /// </summary>
+    [Fact]
+    public void CE4101_TheRefusingAsker_StopsARun_RefusesALoss_AndAdmitRunsTheCallersOwnMove()
+    {
+        var edit = With(ClusterState.OperatingEdit, withDoor: true);
+        var refusing = new RefusingAsker(q => $"refused:{q.Kind}");
+        DoorOf(edit).Open("x", refusing, answered: UnsavedAnswer.Changed);
+        Assert.Equal("refused:Unsaved", refusing.Refusal);
+        Assert.Empty(edit.C.Calls);                                                      // nothing went
+        Assert.Null(edit.Choice.Pending);                                                // and nothing was prompted
+
+        var discarding = new RefusingAsker(discardUnsaved: true);
+        DoorOf(edit).Open("x", discarding);                                              // no round is asked: the caller accepts the loss
+        Assert.Equal(0, edit.Q.Asked);
+        Assert.Null(discarding.Refusal);
+        Assert.Equal(new[] { "OpenForEdit:x" }, edit.C.Calls);
+
+        var live = With(ClusterState.OperatingLive, withDoor: true);
+        var stopper = new RefusingAsker();
+        DoorOf(live).Open("x", stopper);
+        Assert.Equal(RunModeRunGuard.LiveRun, stopper.StoppedRun);                       // the run it stopped, as HTTP names it
+        Assert.Null(stopper.Refusal);
+        Assert.Equal(new[] { "OpenForEdit:x" }, live.C.Calls);
+        Assert.Null(live.Choice.Pending);
+
+        var own = With(ClusterState.OperatingLive, withDoor: true);
+        var mine = new List<string>();
+        DoorOf(own).Admit(DoorMove.LoadingLive("x"), new RefusingAsker(), UnsavedAnswer.Unchanged, () => mine.Add("my publish"));
+        Assert.Equal(new[] { "my publish" }, mine);
+        Assert.Empty(own.C.Calls);                                                       // the caller's move replaced the raw verb
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> — the choice's OWN mode moves (■ in Live, → Preview) ask their own R3 confirmation and then open through the RAW verb: no second <i>Stop &amp; Load</i> from the door on top of them.
+    /// 🔴 Red-proof: <c>StopLive</c> calling the door instead of the raw control ⇒ the Live row has a <c>Pending</c> and no <c>OpenForEdit</c>.
+    /// </summary>
+    [Fact]
+    public void CE4101_TheRunChoicesOwnMoves_ReachTheRawVerb_WithoutTheDoorAskingAgain()
+    {
+        var live = With(ClusterState.OperatingLive, withDoor: true);
+        live.F.Stop();                                                                   // R2: ■ in Live returns to the scenario's editing
+        Assert.Null(live.Choice.Pending);
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> (the ONE Idle intent) — the transport's raw ■ (a host with no session), and <c>ScenarioLoadSequence.UnloadIntent</c> publish the SAME intent apart from the TransactionId.
+    /// 🔴 Red-proof: <c>StopRaw</c> building its own intent with a <c>TimeMode</c> ⇒ the equality fails.
+    /// </summary>
+    [Fact]
+    public void CE4101_TheRawStop_PublishesTheOneIdleIntent()
+    {
+        var (facade, bus) = In(ClusterState.OperatingLive);
+        facade.Stop();
+        bus.SwapBuffers();
+        var sent = Assert.Single(bus.ReadManaged<TransitionStateIntent>());
+        var one = ScenarioLoadSequence.UnloadIntent();
+        one.TransactionId = sent.TransactionId;
+        Assert.Equal(one, sent);
+        Assert.Equal(ClusterState.Idle, sent.TargetState);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1440</c> / R-4001 — <c>WaitAsync</c> (HTTP's wait) has NO deadline: a round that takes 150 ms is still answered (polled every 5 ms through the caller's queue), and it
+    /// returns null only when the caller's token cancels. 🔴 Mutation: a 40 ms give-up inside <c>WaitAsync</c> ⇒ the slow round reads null ⇒ red.
+    /// </summary>
+    [Fact]
+    public async System.Threading.Tasks.Task CE1440_TheAskersWait_HasNoDeadline_OnlyTheCallersToken()
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = new UnsavedCheckOutcome(UnsavedCheckResult.Unchanged, null);
+        var asker = new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => clock.ElapsedMilliseconds >= 150 ? outcome : null));
+        Assert.Same(outcome, await asker.WaitAsync(Guid.NewGuid(), job => System.Threading.Tasks.Task.FromResult(job()), default, pollMs: 5));
+
+        using var cts = new System.Threading.CancellationTokenSource();
+        var never = new UnsavedCheckAsker(() => null, new UnsavedCheckReads(() => true, _ => null));
+        var waiting = never.WaitAsync(Guid.NewGuid(), job => System.Threading.Tasks.Task.FromResult(job()), cts.Token, pollMs: 5);
+        await System.Threading.Tasks.Task.Delay(60);
+        Assert.False(waiting.IsCompleted);
+        cts.Cancel();
+        Assert.Null(await waiting);
     }
 }

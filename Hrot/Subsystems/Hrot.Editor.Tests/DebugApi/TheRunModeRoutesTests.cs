@@ -54,18 +54,19 @@ public sealed class TheRunModeRoutesTests : IDisposable
                                                                                        UnsavedCheckReads? reads = null)
     {
         var bus = new FdpEventBus();
-        var facade = new ClusterTimeTransportAdapter(bus, () => 0);
+        var view = new ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
         var control = new Control();
         if (withChoice) facade.AttachRunChoice(armed, control, reads is null ? new Unchanged() : null, reads);
         bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack") } });
-        Hear(facade, bus, state);
+        Hear(facade, bus, state, view);
         return (facade, bus, control);
     }
 
-    private static void Hear(ClusterTimeTransportAdapter f, FdpEventBus bus, ClusterState state)
+    private static void Hear(ClusterTimeTransportAdapter f, FdpEventBus bus, ClusterState state, ClusterView view)
     {
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
-        bus.SwapBuffers(); f.Update(); bus.SwapBuffers();
+        bus.SwapBuffers(); view.Update(); f.Update(); bus.SwapBuffers();
     }
 
     private static List<T> Sent<T>(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<T>().ToList(); }
@@ -178,11 +179,17 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("live", body["data"]!["armedMode"]!.GetValue<string>());
         Assert.Equal(RunArmed.Live, edit.F.RunChoice!.Armed);
+        Assert.Equal(ClusterArmedMode.Live, Assert.Single(Sent<SetRunSettingsIntent>(edit.Bus)).Armed);   // ⭐ CE-3341 S7 — the route's arm IS the cluster op (one)
         (status, body) = await Send(queue, _client.GetAsync(url + "/status"));
         Assert.Equal("live", body["data"]!["armedMode"]!.GetValue<string>());
+        Assert.Empty(Sent<SetRunSettingsIntent>(edit.Bus));                  // reading status sends nothing
+        (status, _) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"preview"}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(ClusterArmedMode.Preview, Assert.Single(Sent<SetRunSettingsIntent>(edit.Bus)).Armed);   // S7 — Preview, one op
 
         (status, body) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"nonsense"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(Sent<SetRunSettingsIntent>(edit.Bus));                  // a refused word arms nothing
 
         var live = Adapter(ClusterState.OperatingLive, RunArmed.Live);
         var (host2, queue2, url2) = Start(live.F, ClusterState.OperatingLive);
@@ -194,11 +201,13 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Empty(live.C.Calls);                                          // nothing was done …
         Assert.Null(live.F.RunChoice!.Pending);                              // … and no question is left standing for the next click
         Assert.Equal(RunArmed.Live, live.F.RunChoice.Armed);
+        Assert.Empty(Sent<SetRunSettingsIntent>(live.Bus));                  // … and the unconfirmed 409 sent no armed mode
 
         (status, body) = await Send(queue2, _client.PostAsync(url2 + "/run-mode", Json("""{"armed":"preview","confirm":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);     // the confirmed move: the live run ended, the scenario reopens
         Assert.Equal(RunArmed.Preview, live.F.RunChoice.Armed);
+        Assert.Equal(ClusterArmedMode.Preview, Assert.Single(Sent<SetRunSettingsIntent>(live.Bus)).Armed);   // the confirmed move arms through the same op
     }
 
     /// <summary>⭐ A host with no run choice on its facade answers <c>armedMode: null</c> in <c>/status</c> and 503 to <c>/run-mode</c> — absent and explained, never a made-up default.</summary>
@@ -244,6 +253,38 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Single(master.Sent.OfType<CheckUnsavedIntent>());             // one round for the move, the same intent type the menu published
+    }
+
+    private static string Shape(TransitionStateIntent i)
+        => string.Join("|", typeof(TransitionStateIntent).GetFields().Where(f => f.Name != nameof(TransitionStateIntent.TransactionId))
+                                                           .Select(f => f.Name + "=" + f.GetValue(i)));
+
+    private static DebugApiService ServiceOver(RecordingMasterControl master, ClusterState state)
+        => new(new PerspectiveScopedDispatcher(
+                   new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", master: () => master) },
+                   currentPerspective: () => "CGF", acksPending: null),
+               clusterState: () => state);
+
+    /// <summary>
+    /// ⭐⭐ CE-1440 (R-3066 audit #11) — <c>POST /preview/enter</c> publishes the SAME intent as the toolbar's ▶ (and Step) from Edit, running and start-paused, field by field
+    /// (<c>DryRunIntents.Enter</c>). 🔴 Mutation: <c>EnterPreview</c> back to <c>TimeMode = startPaused ? "Deterministic" : null</c> ⇒ the running cell differs (Continuous vs null) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1440_PostPreviewEnter_IsTheToolbarsDryRunIntent()
+    {
+        foreach (bool startPaused in new[] { false, true })
+        {
+            var toolbar = Adapter(ClusterState.OperatingEdit, RunArmed.Preview, withChoice: false);
+            if (startPaused) toolbar.F.Step(); else toolbar.F.TogglePlayPause();
+            var fromToolbar = Assert.Single(Sent<TransitionStateIntent>(toolbar.Bus));
+
+            var master = new RecordingMasterControl();
+            Assert.Null(ServiceOver(master, ClusterState.OperatingEdit).EnterPreview(startPaused).Error);
+            var fromHttp = Assert.Single(master.Transitions);
+
+            Assert.Equal(Shape(fromToolbar), Shape(fromHttp));
+            Assert.Equal(startPaused ? "Deterministic" : "Continuous", fromHttp.TimeMode);
+        }
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using Fdp.Presentation.WindowManager;
+using NodeEditor.Core.IO;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.UI.Common.Audio
@@ -17,7 +18,7 @@ namespace Hrot.UI.Common.Audio
         public const string FileName = "audio.json";
 
         /// <summary>The per-user folder's name for this repo's apps (as <c>RaylibPresentationShell.AppFolderName</c>).</summary>
-        public const string AppFolderName = "HROT";
+        public const string AppFolderName = UserFiles.AppFolderName;
 
         public float Master { get; set; } = 0.8f;
         public bool Muted { get; set; }
@@ -39,7 +40,7 @@ namespace Hrot.UI.Common.Audio
         }
 
         /// <summary>Where this user's file is (the folder is created).</summary>
-        public static string DefaultPath() => Path.Combine(LayoutPaths.UserDirectory(AppFolderName), FileName);
+        public static string DefaultPath() => UserFiles.PathOf(FileName);
 
         /// <summary>The settings in <paramref name="path"/>, else the defaults; null path ⇒ the defaults.</summary>
         public static AudioSettings Load(string? path)
@@ -47,7 +48,8 @@ namespace Hrot.UI.Common.Audio
             var s = new AudioSettings();
             try
             {
-                if (path != null && File.Exists(path) && JsonSerializer.Deserialize<AudioSettings>(File.ReadAllText(path), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) is { } read) s = read;
+                if (SafeTextFile.TryRead(path) is { } text
+                    && JsonSerializer.Deserialize<AudioSettings>(text, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) is { } read) s = read;
             }
             catch (Exception) { s = new AudioSettings(); }
             return s.Normalised();
@@ -57,11 +59,7 @@ namespace Hrot.UI.Common.Audio
         public bool Save(string? path)
         {
             if (path == null) return false;
-            try
-            {
-                File.WriteAllText(path, JsonSerializer.Serialize(this, Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented));
-                return true;
-            }
+            try { return SafeTextFile.TryWrite(path, JsonSerializer.Serialize(this, Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented)); }
             catch (Exception) { return false; }
         }
 

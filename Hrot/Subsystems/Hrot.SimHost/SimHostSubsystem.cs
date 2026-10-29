@@ -37,7 +37,8 @@ namespace Hrot.SimHost
     /// </summary>
     public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Hrot.Presentation.DebugApi.IProvidesDebugSurface
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
@@ -84,6 +85,22 @@ namespace Hrot.SimHost
         private ClusterTimeTransportAdapter? _clusterTimeAdapter;
         /// <summary>⭐ CE-4097 — this host's one run choice (no scenario session; default Live), for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — SimHost OFFERS its transport + choice; the window composer registers the ONE toolbar time control (alone, SimHost's wins).
+        /// <summary>
+        /// ⭐ CE-1437 — SimHost's ONE adapter + run choice (the single <c>AttachRunChoice</c> site of this host), a static so a rail can build it without the graphics window
+        /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (D12, <see cref="Hrot.UI.Common.RunMode.RunArmedDefaults"/>) and ▶ from Edit is disabled with its reason.
+        /// </summary>
+        internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime)
+        {
+            var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
+            adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), control: null);
+            return adapter;
+        }
+
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.SimHost;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -336,14 +353,11 @@ namespace Hrot.SimHost
             // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
             Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
 
-            // ── Time transport controls in status bar ─────────────────────────
+            // ── Time transport (toolbar) ─────────────────────────
             var bus = _app?.OrchestrationEventBus;
             if (bus != null)
             {
-                _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
-                // ⭐ CE-4097 (AQ108 §2.8 ⑥) — SimHost has NO scenario session: Live is armed (D12) and ▶ from Edit is disabled with its reason
-                //   (the shared toolbar section is not registered on this host; its status-bar transport reads the same facade).
-                _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, control: null);
+                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime);   // ⭐ CE-1436 — the node's ONE cluster view
 
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
                 // It had its own private pause flag that nothing read, so its Play/Pause/Step did
@@ -352,12 +366,8 @@ namespace Hrot.SimHost
                 if (vis.UI != null)
                     vis.UI.TimeFacade = _clusterTimeAdapter;
 
-                var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "simhost_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeSection.Render,
-                    perspective:    "SimHost");
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process (⛔ was CE-4083's RegisterTimeTransport).
             }
         }
 

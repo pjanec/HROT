@@ -73,7 +73,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     {
         var fileService = EditorBootstrap.CreateFileService();
         var bus         = new FdpEventBus();
-        return new EditorApplication(fileService, bus, new FdpEventBus(), repo);
+        return new EditorApplication(fileService, bus, new FdpEventBus(), () => null, repo);
     }
 
     // ── PACK2-F002: New Scenario ─────────────────────────────────────────────

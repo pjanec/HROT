@@ -52,7 +52,7 @@ public sealed class DebugApiBatch09Tests
         // SimTransform struct in Components; DumpToJsonNode serializes it via
         // DebugApiDumpOptions which has the NaN-safe Vector3 converter.
         var extractionNoSerializer = new EntityStateExtractionService(h.Repo, h.EntityMap);
-        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.TimeController.GetCurrentState().TotalTime);
+        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.ClusterView, () => h.TimeController.GetCurrentState().TotalTime);
         var svc = new DebugApiService(
             h.Repo,
             h.EntityMap,
@@ -111,7 +111,7 @@ public sealed class DebugApiBatch09Tests
         using var h = new EditorHarness();
 
         var extractionNoSerializer = new EntityStateExtractionService(h.Repo, h.EntityMap);
-        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.TimeController.GetCurrentState().TotalTime);
+        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.ClusterView, () => h.TimeController.GetCurrentState().TotalTime);
         var svc = new DebugApiService(
             h.Repo,
             h.EntityMap,
@@ -156,7 +156,7 @@ public sealed class DebugApiBatch09Tests
         using var h = new EditorHarness();
 
         var extractionNoSerializer = new EntityStateExtractionService(h.Repo, h.EntityMap);
-        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.TimeController.GetCurrentState().TotalTime);
+        var timeFacade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(h.OrchBus, () => h.ClusterView, () => h.TimeController.GetCurrentState().TotalTime);
         var svc = new DebugApiService(
             h.Repo,
             h.EntityMap,
