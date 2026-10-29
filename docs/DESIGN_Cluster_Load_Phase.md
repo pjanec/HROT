@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -23,6 +23,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - blueprints/Architect_Question_110_Readiness_Protocol.md — owns the readiness PROTOCOL decisions (A–E) and the slice ids that §11 builds
   - docs/DESIGN_Cgf_Scenario_Session_Slice.md — OWNS the shared scenario session and the File menu's items (§3a) that §9.1 guards
   - docs/UX/UX_Feature_Modal_Surfaces.md — OWNS ruling 53 (the confirm sits at the origin; headless never pre-flights)
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — a checkpoint restore is a load: CheckpointLoadPart applies the keyframe in place of the scenario step (CE-3299).
@@ -1405,11 +1406,79 @@ graph TD
 ```
 *Red: the Replay Browser has no cluster at all — the gate does not apply there (it is offline by design).*
 
-| slice | what | lane |
-|---|---|---|
-| **R1** | latch = names AND roles; role loss ⇒ Degraded; `WaitingFor` on the cluster state; `ClusterView.CanOperate` (state followed ∧ not Degraded ∧ own node in sync ∧ master present); HTTP cluster routes 409 + `WaitingFor` (status/diagnostics stay open); `ClusterSlave.HoldReady/MarkReady` opt-in (no host needs it today — measured) | backend |
-| **R2** | `InProgress` acks carry the step name, re-sent when the step changes; `ClusterView.LoadProgress` + `IsPlayReady`; `ClusterSlave.CancelLoad` → real token, `AbortLoad`, Failure ack WITH a reason; the ack reason reaches the op status; a failed load round ⇒ round to Idle | backend |
-| **R3** | the 3-D map rebuild as a load-chain step on map hosts, so play-ready includes it (folds into CE-4078) | backend + ui |
-| **U1** | greyed controls + "waiting for …"; the loading screen with progress and Cancel; pickers "waiting for the cluster's list…" (`HasInventory`) | ui |
+⭐ **The slices, with their ids, live in [`Architect_Question_110_Readiness_Protocol.md`](blueprints/Architect_Question_110_Readiness_Protocol.md) §4** (R1 cluster ready · R2 the readiness report + play ready + cancel · R3 the 3-D map step · R4 the admission policy · U1 ui) — ⛔ not restated here.
 
 ⛔ **Rejected:** a new `Starting` cluster state on the wire (the advert already is the explicit report, and it already gates roles) · a master-side cancel op for the user (the node's own failure already reaches the master through the round) · waiting on the TKB join sync (the per-load sync already makes R-3071 hold).
+
+### 11.3 ⭐⭐ THE READINESS PROTOCOL — **each node reports, the master combines the participants, policies decide who waits** *(R-3072, AQ110 — approved `2026-10-29`)*
+
+```mermaid
+classDiagram
+  class NodeHeartbeat {
+    +NodeId
+    +LocalStateId
+    +Phase NEW
+    +Step NEW
+    +Reason NEW
+  }
+  class NodePhase {
+    <<enumeration>>
+    Booting
+    Ready
+    Loading
+    CatchingUp
+    PlayReady
+    Failed
+  }
+  class ClusterMaster {
+    -participants() in sync and not observer (K6)
+    -CheckBootstrapLatch() names AND roles
+    +AdmissionPolicy JoinTheLoad / Lobby / RefuseUntilLoaded
+  }
+  class ClusterStateTopic {
+    +State
+    +WaitingFor NEW
+    +ClusterPlayReady NEW
+  }
+  class ClusterView {
+    +CanOperate
+    +LocalPhase
+    +ClusterPlayReady
+    +WaitingFor
+    +LoadProgress
+  }
+  class HostGatePolicy {
+    <<bootstrap parameter, per host kind>>
+    Operator: local and cluster ready and cluster play-ready
+    Player: local only
+    +IsOpen(ClusterView) bool
+  }
+  NodeHeartbeat --> NodePhase
+  NodeHeartbeat ..> ClusterMaster : every node, 1 Hz
+  ClusterMaster ..> ClusterStateTopic : combines participants only
+  ClusterStateTopic ..> ClusterView
+  NodeHeartbeat ..> ClusterView : own node's phase
+  HostGatePolicy --> ClusterView : reads
+```
+*What the picture shows that prose hid: the node's report carries NO rule — both levels and every policy are derived from it, so a new situation is a new policy value, never a new message.*
+
+```mermaid
+sequenceDiagram
+  participant P as Player node (joining)
+  participant M as ClusterMaster
+  participant O as Operator host
+  Note over M,O: cluster is loading a scenario
+  P->>M: heartbeat Phase=Booting, then Ready
+  alt AdmissionPolicy = Lobby
+    M-->>P: not in sync (lobby) - P's own gate shows "waiting for the scenario"
+    M->>O: participants finish - ClusterPlayReady
+    M->>P: C7 catch-up
+    P->>M: heartbeat Phase=CatchingUp, then PlayReady
+  else JoinTheLoad (load still parked)
+    M->>P: admitted, takes part in the load
+  else RefuseUntilLoaded
+    M-->>P: not admitted until ClusterPlayReady
+  end
+  Note over O: never waits on P (K6)
+```
+*The three admission values differ only in WHEN the master puts the joiner into the in-sync set; the joiner's own gate is the same in all three.*
