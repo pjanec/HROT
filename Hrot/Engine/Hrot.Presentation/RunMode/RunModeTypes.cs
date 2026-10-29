@@ -358,9 +358,6 @@ public sealed record RunModeIndicator(string Glyph, Vector4 Color, string Word, 
 /// <summary>One entry of the indicator's mode menu: the mode it arms, whether it can be chosen now (and why not), and the confirmation it asks first.</summary>
 public sealed record RunModeMove(RunArmed Target, string Label, string? ConfirmText, bool Enabled, string? DisabledReason, bool IsArmed);
 
-/// <summary>A short note the toolbar shows after ■ in Live (AQ108 §3): <c>"Exercise recorded (12:31) — Replay it"</c> or <c>"Live run ended"</c>.</summary>
-public sealed record RunModeToast(string Text, Guid? ReplayExercise, DateTime ExpiresAt);
-
 /// <summary>
 /// ⭐⭐ <c>CE-4097</c> (AQ108 §2.8) — the raw transport the <see cref="RunModeChoice"/> stands on: the cases that keep TODAY's behaviour (dry-run
 /// exit, review exit, seek) and the readings of the cluster it needs. Implemented by <c>ClusterTimeTransportAdapter</c>, the one facade.

@@ -347,7 +347,7 @@ public sealed class TheOneTimeFacadeTests
         Assert.Empty(Sent<TransitionStateIntent>(live));                    // ⛔ never Idle
         Assert.Equal(RunArmed.Live, live.Choice.Armed);
         Assert.Equal(RunId, live.Choice.LastExercise);
-        Assert.Equal("Exercise recorded (12:34) — open the AAR", live.Choice.Toast!.Text);
+        Assert.Equal("Exercise recorded (12:34) — open the AAR", live.Choice.Toast!.Title);
 
         var replay = With(ClusterState.OperatingReplay, RunArmed.AAR);
         replay.F.Stop();
@@ -364,8 +364,8 @@ public sealed class TheOneTimeFacadeTests
     {
         var live = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         live.F.Stop();
-        Assert.Equal("Live run ended", live.Choice.Toast!.Text);
-        Assert.Null(live.Choice.Toast!.ReplayExercise);
+        Assert.Equal("Live run ended", live.Choice.Toast!.Title);
+        Assert.Null(live.Choice.Toast!.Actions);
     }
 
     /// <summary>⭐ A host with NO scenario session keeps today's ■ in a live run (to Idle) — hosts without a session are unchanged.</summary>
@@ -760,7 +760,7 @@ public sealed class TheOneTimeFacadeTests
         var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         Assert.Equal("this run was not recorded", unrecorded.Choice.DarDisabledReason);
         unrecorded.F.Stop();
-        Assert.Null(unrecorded.Choice.Toast!.ReplayExercise);               // "Live run ended" — no AAR button
+        Assert.Null(unrecorded.Choice.Toast!.Actions);               // "Live run ended" — no AAR button
         Hear(unrecorded, ClusterState.OperatingEdit);
         unrecorded.Choice.Choose(RunArmed.AAR);
         Assert.Equal("this run was not recorded", unrecorded.Choice.PlayDisabledReason);
@@ -773,9 +773,9 @@ public sealed class TheOneTimeFacadeTests
         Assert.Null(recorded.Choice.DarDisabledReason);
         recorded.F.Stop();
         var toast = recorded.Choice.Toast!;
-        Assert.Equal(RunId, toast.ReplayExercise);
-        Assert.StartsWith("Exercise recorded (0:00)", toast.Text);
-        Assert.DoesNotContain("Replay", toast.Text);                        // the user's word is AAR (D17)
+        Assert.Equal(RunModeChoice.ReplayActionId, Assert.Single(toast.Actions!).CommandId);
+        Assert.StartsWith("Exercise recorded (0:00)", toast.Title);
+        Assert.DoesNotContain("Replay", toast.Title);                        // the user's word is AAR (D17)
         Hear(recorded, ClusterState.OperatingEdit);
         recorded.C.Calls.Clear();
         recorded.Choice.ReplayLastExercise();                               // the toast's button
@@ -795,21 +795,43 @@ public sealed class TheOneTimeFacadeTests
             var run = With(state, RunArmed.Live);
             Assert.True(SaveRoute(run.Choice, run.C));
             Assert.Equal(new[] { "TakeCheckpoint" }, run.C.Calls);
-            Assert.Equal("Checkpoint taken", run.Choice.Toast!.Text);
+            Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);
         }
 
         var aar = With(ClusterState.OperatingReplay, RunArmed.Live);
         Assert.True(SaveRoute(aar.Choice, aar.C));
         Assert.Empty(aar.C.Calls);                                          // nothing published, nothing written
-        Assert.Contains("recording cannot take a checkpoint", aar.Choice.Toast!.Text);
+        Assert.Contains("recording cannot take a checkpoint", aar.Choice.Toast!.Title);
 
         var unrecorded = With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true);
         Assert.True(SaveRoute(unrecorded.Choice, unrecorded.C));
         Assert.Empty(unrecorded.C.Calls);
-        Assert.Contains("this run was not recorded", unrecorded.Choice.Toast!.Text);
+        Assert.Contains("this run was not recorded", unrecorded.Choice.Toast!.Title);
 
         var edit = With(ClusterState.OperatingEdit, RunArmed.Live);
         Assert.False(SaveRoute(edit.Choice, edit.C));                       // editing: the ordinary save
+    }
+
+    /// <summary>
+    /// ⭐ CE-1441 (audit #19) — the run-mode notes ride the repo's ONE toast mechanism: a checkpoint (and the note after ■) is an
+    /// <c>EditorNotification</c> on the shared <c>ToastQueue</c> (<c>Choice.Toasts</c>), and the toolbar's <c>Toast</c> is that queue's drainer — no second toast
+    /// type. 🔴 Red-proof: have <c>RunModeChoice.Notify</c> set <c>_current</c> directly instead of <c>Toasts.Enqueue</c> ⇒ the queue assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1441_TheCheckpointNote_IsOnTheSharedToastQueue_AndTheToolbarDrainsIt()
+    {
+        var run = With(ClusterState.OperatingLive, RunArmed.Live);
+        Assert.Empty(run.Choice.Toasts.Pending);
+        Assert.True(SaveRoute(run.Choice, run.C));
+
+        var queued = Assert.Single(run.Choice.Toasts.Pending);              // on the shared queue, before anyone drains it
+        Assert.Equal("Checkpoint taken", queued.Title);
+        Assert.Equal(NodeEditor.Core.Action.NotificationSeverity.Info, queued.Severity);
+        Assert.Null(queued.Actions);                                         // a plain note: no AAR button
+
+        Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);           // the toolbar's read drains it ...
+        Assert.Empty(run.Choice.Toasts.Pending);
+        Assert.Equal("Checkpoint taken", run.Choice.Toast!.Title);           // ... and it stays up for its lifetime
     }
 
     /// <summary>The route a session's <c>SaveCurrent</c> takes: the intercept the choice installed on <paramref name="control"/> (true = handled).</summary>

@@ -1539,7 +1539,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _entityQuery = _context.World.Query().With<NetworkIdentity>().Build();
 
             _canvas = new MapCanvas();
-            _canvas.Camera.Offset = _canvas.Camera.ViewCentre;   // ⭐ CE-4084 — the visible map's centre (MapCamera.Update keeps it there)
 
             // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
             //   📐 Before this, a map click moved the ring and nothing else on this host.

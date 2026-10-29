@@ -367,8 +367,8 @@ public sealed class MainToolbarTimeControlSection
         if (_choice?.Toast is { } toast)
         {
             ImGui.SameLine();
-            if (toast.ReplayExercise is not null) { if (ImGui.SmallButton(toast.Text + "##mt_toast")) _choice.ReplayLastExercise(); }
-            else ImGui.TextDisabled(toast.Text);
+            if (toast.Actions is { Count: > 0 }) { if (ImGui.SmallButton(toast.Title + "##mt_toast")) _choice.ReplayLastExercise(); }
+            else ImGui.TextDisabled(toast.Title);
         }
         // ⭐ R-4001 — the unsaved round has no timeout: it is shown while it runs, and the operator may cancel it
         if (_choice?.IsCheckingUnsaved == true)

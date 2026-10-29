@@ -1,4 +1,5 @@
 using System.Text.Json;
+using NodeEditor.Core.IO;
 
 namespace NodeEditor.UI.Picker;
 
@@ -74,8 +75,8 @@ public sealed class RecentStore
         var store = new RecentStore { PersistPath = path };
         try
         {
-            if (File.Exists(path))
-                store.ReadJson(File.ReadAllText(path));
+            if (SafeTextFile.TryRead(path) is { } json)
+                store.ReadJson(json);
         }
         catch (Exception) { /* unreadable ⇒ empty */ }
         return store;
@@ -84,17 +85,7 @@ public sealed class RecentStore
     /// <summary>Writes the lists to <see cref="PersistPath"/> (temp file + move); false when unbound or it failed. Never throws.</summary>
     public bool Save()
     {
-        if (string.IsNullOrEmpty(PersistPath)) return false;
-        try
-        {
-            var dir = Path.GetDirectoryName(PersistPath);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            var tmp = PersistPath + ".tmp";
-            File.WriteAllText(tmp, ToJson());
-            File.Move(tmp, PersistPath, overwrite: true);
-            return true;
-        }
-        catch (Exception) { return false; }
+        return SafeTextFile.TryWrite(PersistPath, ToJson());
     }
 
     /// <summary>The lists as JSON (<c>{"version":1,"lists":{"context":["newest", …]}}</c>).</summary>

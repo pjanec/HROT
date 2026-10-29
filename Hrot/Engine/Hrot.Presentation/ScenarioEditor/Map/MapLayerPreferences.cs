@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Fdp.Presentation.WindowManager;
+using NodeEditor.Core.IO;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 
 namespace Hrot.ScenarioEditor.Map
@@ -21,15 +21,14 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>Where this user's file is (the folder is created); null when there is no user folder.</summary>
         public static string? DefaultPath()
         {
-            try { return Path.Combine(LayoutPaths.UserDirectory(Hrot.UI.Common.Audio.AudioSettings.AppFolderName), FileName); }
-            catch (Exception) { return null; }
+            return Hrot.UI.Common.UserFiles.TryPathOf(FileName);
         }
 
         /// <summary>The file's settings into <paramref name="settings"/>; nothing when the path is null or empty, or the file is missing or bad.</summary>
         public static void Load(GizmoSettingsRegistry settings, string? path)
         {
             if (string.IsNullOrEmpty(path)) return;
-            try { settings.LoadFromDisk(path, SettingScope.Global); }
+            try { if (SafeTextFile.TryRead(path) is { } json) settings.LoadFromJson(json, SettingScope.Global); }
             catch (Exception) { }
         }
 
@@ -37,7 +36,7 @@ namespace Hrot.ScenarioEditor.Map
         public static bool Save(GizmoSettingsRegistry settings, string? path)
         {
             if (string.IsNullOrEmpty(path)) return false;
-            try { settings.SaveToDisk(path, SettingScope.Global); return true; }
+            try { return SafeTextFile.TryWrite(path, settings.ToJson(SettingScope.Global)); }
             catch (Exception) { return false; }
         }
     }
