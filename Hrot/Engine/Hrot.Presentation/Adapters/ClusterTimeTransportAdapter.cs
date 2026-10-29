@@ -36,6 +36,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     private ClusterView? View => _view();
     private ClusterState _currentState => View?.State ?? ClusterState.Idle;
     private readonly ClusterReplayControls _replay;       // ⭐ CE-3329 row 21 — the review / replay members, written once
+    private HostGatePolicy _gatePolicy = HostGatePolicy.Operator;   // ⭐ CE-1442 — set by AttachRunChoice from the host's declared kind (HostGatePolicies.For)
+    private Action<string?>? _cancelLoad;                          // ⭐ CE-1442 — the host's ClusterSlave.CancelLoad
     private RunModeChoice? _run;                           // ⭐ CE-4097 — null on a host that attached none: today's behaviour, unchanged
 
     /// <summary>
@@ -240,8 +242,13 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     /// <param name="unsaved">The unsaved-changes seam; a rail passes a fake. Default: <see cref="ClusterUnsavedChangesQuery"/> — the master's ONE check round (CE-4093), asked on
     /// this adapter's bus (<c>CheckUnsavedIntent</c> through <c>IClusterMasterControl</c>) and read through <paramref name="unsavedReads"/>.</param>
     /// <param name="unsavedReads">⭐ How this host reads the round's answer (its node's provider / the editor's in-process core); <see langword="null"/> ⇒ it observes nothing and a named scenario counts as unchanged.</param>
-    public RunModeChoice AttachRunChoice(RunArmed hostDefault, IRunScenarioControl? control, IUnsavedChangesQuery? unsaved = null, UnsavedCheckReads? unsavedReads = null)
+    /// <param name="gatePolicy">⭐ CE-1442 — what this host's controls wait on: <c>HostGatePolicies.For(kind)</c> of the host's declared <see cref="RunHostKind"/> (⛔ never a literal at a host). Default <see cref="HostGatePolicy.Operator"/> — the table's value for every kind but the IG.</param>
+    /// <param name="cancelLoad">⭐ CE-1442 — the host's way to cancel a load in progress (<c>ClusterSlave.CancelLoad</c> of its node); <see langword="null"/> ⇒ Cancel does nothing here.</param>
+    public RunModeChoice AttachRunChoice(RunArmed hostDefault, IRunScenarioControl? control, IUnsavedChangesQuery? unsaved = null, UnsavedCheckReads? unsavedReads = null,
+                                         HostGatePolicy gatePolicy = HostGatePolicy.Operator, Action<string?>? cancelLoad = null)
     {
+        _gatePolicy = gatePolicy;
+        _cancelLoad = cancelLoad;
         unsaved ??= new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName,
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
         _run = new RunModeChoice(this, hostDefault, control, unsaved);
@@ -284,6 +291,11 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     /// <inheritdoc/>
     public long? ReplayZeroWallTicks => Session is { Active: true } s ? s.ZeroWallTicks : null;
+
+    /// <summary>⭐⭐⭐ CE-1442 — the ONE run gate of this host, from the node's view and the policy <see cref="AttachRunChoice"/> received. No view ⇒ open (a bare rig).</summary>
+    public RunGate Gate => RunGate.From(View, _gatePolicy);
+
+    void IRunTransport.CancelLoad(string? reason) => _cancelLoad?.Invoke(reason);
 
     void IRunTransport.StopRaw() => StopRaw();
 

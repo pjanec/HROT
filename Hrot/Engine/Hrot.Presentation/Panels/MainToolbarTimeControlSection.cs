@@ -307,7 +307,7 @@ public sealed class MainToolbarTimeControlSection
         {
             OnPlayPause();
         }
-        if (_choice?.PlayDisabledReason is { } playWhy && _facade.Mode == TransportMode.Edit && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        if (_choice?.PlayDisabledReason is { } playWhy && (_facade.Mode == TransportMode.Edit || _choice.ClosedReason is not null) && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
             ImGui.SetTooltip(playWhy);   // ⭐ CE-4097 §2.8 ⑥ — Live armed with no scenario session
 
         ImGui.SameLine();

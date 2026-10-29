@@ -272,6 +272,32 @@ public class TheStartGateIsComposedOnceTests
         Assert.Same(editor, Composed(editor, cgf).Ctrl.RunControlsOwner);
     }
 
+    /// <summary>
+    /// ⭐ CE-1442 (U1, S5) — the loading screen and the cluster-error section are composed EXACTLY ONCE per process, by <c>ComposeRunControls</c>, over the PICKED owner's run choice (the editor's among editor + CGF + SimHost,
+    /// whatever the subsystem order); a process with no run-controls owner has neither. 🔴 Mutations: <c>ComposeRunControls</c> registering them per host ⇒ the choice is not the owner's;
+    /// not composing them ⇒ the properties are null.
+    /// </summary>
+    [Fact]
+    public void CE1442_TheLoadingScreenAndTheErrorSection_AreComposedOnce_OverTheOwnersChoice()
+    {
+        foreach (var editorFirst in new[] { true, false })
+        {
+            var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+            var cgf = new RunHost("CGF", RunHostKind.Cgf, operatorHost: true);
+            var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
+            var (ctrl, wm) = Composed(editorFirst ? new ISubsystem[] { editor, cgf, sim } : new ISubsystem[] { sim, cgf, editor });
+            Assert.Same(editor.RunChoice, ctrl.LoadingScreen!.Choice);
+            Assert.Same(editor.RunChoice, ctrl.ErrorSection!.Choice);
+            Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.LoadingScreen.SectionId));
+            Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.SectionId));
+        }
+
+        var (none, bare) = Composed(new MockSubsystem("IG"));
+        Assert.Null(none.LoadingScreen);
+        Assert.Null(none.ErrorSection);
+        Assert.DoesNotContain(Hrot.UI.Common.Panels.LoadingScreen.SectionId, bare.StatusBar.SectionIds);
+    }
+
     [Fact]
     public void SimHostAlone_KeepsItsOwn()
     {
@@ -359,6 +385,7 @@ public class TheStartGateIsComposedOnceTests
             // the master's inventory reaches the host's cache (and so the pickers' lists) the way it does in a run: on the host's bus, folded by its frame
             var exercise = new ExerciseInventoryItem(Guid.Parse("00000000-0000-0000-0000-0000000000c1"), DateTime.UtcNow, TimeSpan.FromMinutes(3), "harbour");
             orch.TimeBusForTest!.PublishManaged(new AssetInventoryUpdateEvent { LocalScenarios = new[] { "harbour" }, LocalExercises = new[] { exercise } });
+            orch.TimeBusForTest!.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });   // ⭐ CE-1442 — the run gate is closed until the master's state has reached the host (its Start actions read it)
             orch.Update(0.016f);
 
             ctrl.ClusterRestOverride = () => new ClusterRest(ClusterState.Idle, false, true);
