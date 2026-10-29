@@ -1238,47 +1238,6 @@ public sealed class ClusterMasterBootstrapTests
         Assert.Equal(master.ErrorReason, transitioned.ErrorReason);
     }
 
-    // -- A: LOAD FOLLOWS THE ARMED MODE (CE-3345 part A, AQ108 §2.15) -----------------------------------------------------------------------------
-
-    private static ClusterState ParkedTarget(ClusterMaster m)
-    {
-        var parked = typeof(ClusterMaster).GetField("_parked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(m)
-                     ?? throw new InvalidOperationException("no transition is parked");
-        return (ClusterState)parked.GetType().GetProperty("ResolvedTarget")!.GetValue(parked)!;
-    }
-
-    private static ClusterState LoadTargetFor(ClusterArmedMode? armed, string payloadJson)
-    {
-        var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus, new ClusterConfiguration
-            { Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10, MandatoryRoles = NodeRole.None });
-        if (armed is { } a)
-        {
-            bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), Armed = a });
-            Step(bus, master);
-        }
-        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState, PayloadJson = payloadJson });
-        Step(bus, master);
-        return ParkedTarget(master);
-    }
-
-    /// <summary>
-    /// CE-3345 success 8 - a scenario load that names no mode (<c>FollowArmedMode</c>) takes the cluster's ARMED mode: Live (the default) loads live, Preview loads for editing; a request that names its
-    /// mode (HTTP's explicit routes never set the flag) keeps it whatever is armed.
-    /// 🔴 Mutation: <c>ResolveArmedTarget</c> returning the intent unchanged => the first two rows keep the placeholder target.
-    /// </summary>
-    [Fact(Timeout = 10_000)]
-    public void A1_A_load_that_names_no_mode_follows_the_armed_mode_and_an_explicit_one_does_not()
-    {
-        const string followPlaceholderEdit = "{\"TargetState\":\"OperatingEdit\",\"ScenarioId\":\"s1\",\"FollowArmedMode\":true}";
-        const string followPlaceholderLive = "{\"TargetState\":\"OperatingLive\",\"ScenarioId\":\"s1\",\"FollowArmedMode\":true}";
-        Assert.Equal(ClusterState.OperatingLive, LoadTargetFor(armed: null, followPlaceholderEdit));                       // Live is the default armed mode
-        Assert.Equal(ClusterState.OperatingLive, LoadTargetFor(ClusterArmedMode.Live, followPlaceholderEdit));
-        Assert.Equal(ClusterState.OperatingEdit, LoadTargetFor(ClusterArmedMode.Preview, followPlaceholderLive));
-        // explicit: the request's own mode stands, whatever is armed (AQ108 D22 — HTTP)
-        Assert.Equal(ClusterState.OperatingEdit, LoadTargetFor(ClusterArmedMode.Live, "{\"TargetState\":\"OperatingEdit\",\"ScenarioId\":\"s1\"}"));
-        Assert.Equal(ClusterState.OperatingLive, LoadTargetFor(ClusterArmedMode.Preview, "{\"TargetState\":\"OperatingLive\",\"ScenarioId\":\"s1\"}"));
-    }
 
     // -- P: THE READINESS PROTOCOL (CE-3345 part B, R-3070 / R-3072, AQ110 A-C) — each node reports its phase, the master combines the participants, a failed load ends in Idle ------------
 

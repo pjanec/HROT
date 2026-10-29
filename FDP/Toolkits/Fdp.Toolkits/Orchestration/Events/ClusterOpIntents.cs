@@ -26,9 +26,6 @@ namespace Fdp.Toolkit.Orchestration
         /// scenario verifier compares the run's recording against a golden, so a verify run with recording off would fail for no reason.
         /// Default false = follow the setting.</summary>
         public bool ForceRecording;
-        /// <summary>⭐ CE-3345 (R-3073, AQ108 §2.15) — a scenario LOAD that names no mode: the MASTER picks it from the cluster's armed run mode (<c>Live</c> ⇒ <c>OperatingLive</c>, <c>Preview</c> ⇒ <c>OperatingEdit</c>;
-        /// <c>AAR</c> leaves <see cref="TargetState"/> as sent). <see cref="TargetState"/> then carries only a placeholder load target. Default false = the request names its mode (HTTP stays explicit, D22).</summary>
-        public bool FollowArmedMode;
     }
 
     /// <summary>

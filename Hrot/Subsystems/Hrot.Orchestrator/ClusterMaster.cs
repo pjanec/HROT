@@ -1341,9 +1341,6 @@ public sealed partial class ClusterMaster : IDisposable
     {
         var requestId = intent.TransactionId;
 
-        // ⭐ CE-3345 (R-3073) — a scenario load that names no mode follows the cluster's ARMED run mode (Live ⇒ live, Preview ⇒ editing). Resolved FIRST, so the held load, the planner and every
-        //   later step see one concrete target. ⛔ HTTP's load routes stay explicit (they never set the flag, AQ108 D22).
-        intent = ResolveArmedTarget(intent);
 
         // ⭐ CE-4087 — a newer request replaces a load that waits on the mandatory set (as ScenarioLoadSequence does caller-side) …
         SupersedeHeldLoad(requestId);
