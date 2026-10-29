@@ -1,5 +1,7 @@
 # Hrot.Network.Orchestration
 
+> ⭐ **Related design:** [`DESIGN_Cluster_View.md`](../../../DESIGN_Cluster_View.md) (CE-1436) — one cluster-facts ingress and one `ClusterView` on every node; this project's observer keeps only the monitoring topics (V2).
+
 | Field        | Value                                                                 |
 |--------------|-----------------------------------------------------------------------|
 | Project      | `Hrot.Network.Orchestration`                                          |
