@@ -4694,4 +4694,247 @@ public sealed class Map3DTests
         repo.SetSingletonManaged(terrain);
         return repo;
     }
+
+    // ══ ⭐⭐⭐ CE-1446 (R-1046, DESIGN_Cluster_Load_Phase §11.9) — the 3-D map built in the BACKGROUND, with a status the load waits on ═══════════════════════
+
+    /// <summary>What a fake layer's worker "builds": it names the identity it was built for, so an upload shows which build it came from.</summary>
+    private sealed record FakeStreams(object Identity);
+
+    /// <summary>A background-built layer with no GPU: the REAL <see cref="BackgroundMeshBuild{TStreams}"/>, the upload recorded; its build can be held (<see cref="Hold"/>) or made to throw.</summary>
+    private sealed class FakeMeshLayer : IMeshLayer3D
+    {
+        public object? Source;
+        public readonly BackgroundMeshBuild<FakeStreams> Build = new();
+        public readonly System.Collections.Generic.List<object> Uploaded = new();
+        public readonly System.Collections.Generic.List<int> BuildThreads = new();
+        public int Builds;
+        public System.Threading.ManualResetEventSlim Hold = new(true);   // a build waits here until set
+        public string? Throws;
+        public string BuildName => "fake";
+        public bool HasSource => Source != null;
+        public bool IsBuilt => Source != null && Build.IsBuiltFor(Source);
+        public string? BuildFailure => Build.Failure;
+        public void RequestBuild()
+        {
+            var id = Source!;
+            var hold = Hold;
+            Build.Request(id, () =>
+            {
+                lock (BuildThreads) { Builds++; BuildThreads.Add(System.Environment.CurrentManagedThreadId); }
+                hold.Wait();
+                if (Throws != null) throw new System.InvalidOperationException(Throws);
+                return new FakeStreams(id);
+            });
+        }
+        public void PumpBuild() => Build.Pump(streams => Uploaded.Add(streams.Identity));
+    }
+
+    private static void FrameUntil(System.Func<bool> done, string what, System.Action? perFrame = null)
+    {
+        var end = System.DateTime.UtcNow.AddSeconds(15);
+        while (!done())
+        {
+            Assert.True(System.DateTime.UtcNow < end, "timed out waiting for: " + what);
+            perFrame?.Invoke();
+            System.Threading.Thread.Sleep(2);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ S1 — <b>the one background build</b>: the CPU build runs OFF the calling (frame) thread and returns at once; the finished result is uploaded ON the frame thread by <c>Pump</c>; it is "built" for ITS identity only.
+    /// 🔴 Mutation: <c>Request</c> building synchronously ⇒ the thread and the "still building" cells red.
+    /// </summary>
+    [Fact]
+    public void CE1446_TheMeshBuild_RunsOffTheFrameThread_AndIsUploadedOnIt()
+    {
+        var frame = System.Environment.CurrentManagedThreadId;
+        var layer = new FakeMeshLayer { Source = "A", Hold = new System.Threading.ManualResetEventSlim(false) };
+        layer.RequestBuild();                                                        // returns at once although the build is held
+        Assert.Equal(MeshBuildState.Building, layer.Build.State);
+        Assert.False(layer.IsBuilt);
+        Assert.False(layer.Build.Pump(_ => { }));                                    // nothing finished: nothing to upload
+
+        layer.Hold.Set();
+        int uploadThread = -1;
+        FrameUntil(() => layer.Build.State == MeshBuildState.Built, "A uploaded", () => layer.Build.Pump(_ => { uploadThread = System.Environment.CurrentManagedThreadId; layer.Uploaded.Add("A"); }));
+        Assert.NotEqual(frame, layer.BuildThreads.Single());                         // built on a worker …
+        Assert.Equal(frame, uploadThread);                                           // … uploaded on the frame thread
+        Assert.True(layer.Build.IsBuiltFor("A"));
+        Assert.False(layer.Build.IsBuiltFor("B"));                                   // built for A is not built for B
+        Assert.True(layer.Build.HasRequested("A"));
+    }
+
+    /// <summary>
+    /// ⭐ S1 — a newer identity SUPERSEDES a pending one: the older build, finishing LAST, is never uploaded. A throwing build reports failed with its message (and is not retried for the same identity; a new identity builds).
+    /// 🔴 Mutation: the worker keeping a superseded result (the generation check removed) ⇒ the uploads read A.
+    /// </summary>
+    [Fact]
+    public void CE1446_ASupersededBuild_IsNeverUploaded_AndAThrowingBuildReportsFailed()
+    {
+        var layer = new FakeMeshLayer { Source = "A", Hold = new System.Threading.ManualResetEventSlim(false) };
+        var holdA = layer.Hold;
+        layer.RequestBuild();                                                        // A: running, held
+        layer.Source = "B";
+        layer.Hold = new System.Threading.ManualResetEventSlim(true);
+        layer.RequestBuild();                                                        // B supersedes it and finishes at once
+        FrameUntil(() => layer.Uploaded.Count == 1, "B uploaded", () => layer.PumpBuild());
+        Assert.Equal(new object[] { "B" }, layer.Uploaded);
+
+        holdA.Set();                                                                 // A finishes LAST
+        FrameUntil(() => layer.Builds == 2, "A's worker started");
+        System.Threading.Thread.Sleep(150);                                          // A's worker has had its time to deliver
+        for (int i = 0; i < 20; i++) layer.PumpBuild();
+        Assert.Equal(new object[] { "B" }, layer.Uploaded);                          // A was discarded
+        Assert.True(layer.Build.IsBuiltFor("B"));
+
+        // a throwing build: failed with the message; the same identity is not retried; a new identity builds
+        var bad = new FakeMeshLayer { Source = "X", Throws = "boom" };
+        bad.RequestBuild();
+        FrameUntil(() => bad.Build.State == MeshBuildState.Failed, "X failed");
+        Assert.Equal("boom", bad.Build.Failure);
+        Assert.Equal("boom", bad.BuildFailure);
+        Assert.False(bad.IsBuilt);
+        bad.RequestBuild();
+        Assert.Equal(1, bad.Builds);                                                 // no retry for X
+        bad.Throws = null;
+        bad.Source = "Y";
+        bad.RequestBuild();
+        FrameUntil(() => bad.IsBuilt, "Y built", () => bad.PumpBuild());
+        Assert.Null(bad.BuildFailure);
+    }
+
+    /// <summary>
+    /// ⭐ S2 — <c>Map3DBuild</c>: with <c>OnFirst3DRequest</c> NOTHING builds until the request; <c>Eager</c> builds with no request; <b>per load</b>: built for geometry A, a new identity B is NOT built until B is done (the status is for the
+    /// terrain this load committed); a window-less host or a map with no source has nothing to build (built); the step names what builds and a failure surfaces.
+    /// 🔴 Mutation: <c>BackgroundMeshBuild.IsBuiltFor</c> ignoring the identity ⇒ the per-load cell reads built for B at once.
+    /// </summary>
+    [Fact]
+    public void CE1446_Map3DBuild_IsPerLoad_AndFollowsItsPolicy()
+    {
+        // OnFirst3DRequest: nothing until the first request
+        var lazyLayer = new FakeMeshLayer { Source = "A" };
+        var lazy = new Map3DBuild(new IMeshLayer3D[] { lazyLayer }, Map3DBuildPolicy.OnFirst3DRequest, available: () => true);
+        for (int i = 0; i < 10; i++) lazy.Update(0.016f);
+        System.Threading.Thread.Sleep(50);
+        Assert.Equal(0, lazyLayer.Builds);
+        Assert.False(lazy.IsBuilt);
+        Assert.Equal("3-D map: fake", lazy.Step);
+        lazy.Request3D();
+        FrameUntil(() => lazy.IsBuilt, "lazy built", () => lazy.Update(0.016f));
+        Assert.Equal(1, lazyLayer.Builds);
+        Assert.Equal(string.Empty, lazy.Step);
+
+        // Eager: builds with no request; per load: a new identity is not built until it is done
+        var layer = new FakeMeshLayer { Source = "A" };
+        var eager = new Map3DBuild(new IMeshLayer3D[] { layer }, Map3DBuildPolicy.Eager, available: () => true);
+        Assert.False(eager.Requested);
+        FrameUntil(() => eager.IsBuilt, "A built with no request", () => eager.Update(0.016f));
+        Assert.False(eager.Requested);
+        layer.Source = "B";                                                          // a new terrain is committed
+        layer.Hold = new System.Threading.ManualResetEventSlim(false);
+        Assert.False(eager.IsBuilt);                                                 // ⭐ per load: B is not built, whatever A was
+        eager.Update(0.016f);                                                        // the Eager policy starts B
+        FrameUntil(() => layer.Builds == 2, "B started");
+        Assert.False(eager.IsBuilt);
+        layer.Hold.Set();
+        FrameUntil(() => eager.IsBuilt, "B built", () => eager.Update(0.016f));
+        Assert.Equal(new object[] { "A", "B" }, layer.Uploaded);
+
+        // nothing to build: no source, or no window
+        Assert.True(new Map3DBuild(new IMeshLayer3D[] { new FakeMeshLayer() }, Map3DBuildPolicy.Eager, available: () => true).IsBuilt);
+        var headless = new FakeMeshLayer { Source = "A" };
+        var none = new Map3DBuild(new IMeshLayer3D[] { headless }, Map3DBuildPolicy.Eager, available: () => false);
+        none.Request3D(); none.Update(0.016f);
+        System.Threading.Thread.Sleep(30);
+        Assert.True(none.IsBuilt);
+        Assert.Equal(0, headless.Builds);
+
+        // a failure surfaces
+        var broken = new FakeMeshLayer { Source = "A", Throws = "no GPU memory" };
+        var failing = new Map3DBuild(new IMeshLayer3D[] { broken }, Map3DBuildPolicy.Eager, available: () => true);
+        FrameUntil(() => failing.Failure != null, "failure", () => failing.Update(0.016f));
+        Assert.Equal("no GPU memory", failing.Failure);
+        Assert.False(failing.IsBuilt);
+    }
+
+    /// <summary>
+    /// ⭐ S3 — <c>MapViewSwitch</c>: a request for 3-D on an UNBUILT map starts the build, stays in 2-D (the camera is not swapped), is pending, and goes to 3-D the frame the build completes; on a built map the switch is immediate
+    /// (as before); going back to 2-D cancels a pending request; a failed build drops it with the message.
+    /// 🔴 Mutation: the switch swapping at once (the gate removed) ⇒ the first cells red.
+    /// </summary>
+    [Fact]
+    public void CE1446_TheSwitch_StaysIn2D_WhileTheMapBuilds_AndGoes3DWhenItIsBuilt()
+    {
+        MapViewSwitch Switch(FakeMeshLayer layer, out Map3DBuild build, out Fdp.Toolkit.Vis2D.MapCanvas canvas, out MapCamera two)
+        {
+            two = new MapCamera();
+            canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = two };
+            build = new Map3DBuild(new IMeshLayer3D[] { layer }, Map3DBuildPolicy.OnFirst3DRequest, available: () => true);
+            return new MapViewSwitch(canvas, two) { Build = build };
+        }
+
+        var layer = new FakeMeshLayer { Source = "A", Hold = new System.Threading.ManualResetEventSlim(false) };
+        var sw = Switch(layer, out var build, out var canvas, out var two);
+        sw.Set(true, animate: false);
+        Assert.False(sw.Is3D);
+        Assert.True(sw.Pending3D);
+        Assert.Same(two, canvas.Camera);                                             // the camera was NOT swapped
+        Assert.True(build.Requested);                                                // the request started the build
+        sw.Update();
+        Assert.False(sw.Is3D);                                                       // still building
+
+        layer.Hold.Set();
+        FrameUntil(() => sw.Is3D, "the switch into 3-D", () => { build.Update(0.016f); sw.Update(); });
+        Assert.False(sw.Pending3D);
+        Assert.Same(sw.Camera3D, canvas.Camera);
+
+        // a built map: immediate, nothing pending
+        var built = new FakeMeshLayer { Source = "A" };
+        var sw2 = Switch(built, out var build2, out _, out _);
+        build2.Request3D();
+        FrameUntil(() => build2.IsBuilt, "built", () => build2.Update(0.016f));
+        sw2.Set(true, animate: false);
+        Assert.True(sw2.Is3D);
+        Assert.False(sw2.Pending3D);
+
+        // going back to 2-D cancels a waiting request; a failed build drops it with the message
+        var held = new FakeMeshLayer { Source = "A", Hold = new System.Threading.ManualResetEventSlim(false) };
+        var sw3 = Switch(held, out _, out _, out _);
+        sw3.Set(true, animate: false);
+        Assert.True(sw3.Pending3D);
+        sw3.Set(false);
+        Assert.False(sw3.Pending3D);
+        var broken = new FakeMeshLayer { Source = "A", Throws = "boom" };
+        var sw4 = Switch(broken, out var build4, out _, out _);
+        sw4.Set(true, animate: false);
+        FrameUntil(() => sw4.Pending3DFailure != null, "the failure", () => { build4.Update(0.016f); sw4.Update(); });
+        Assert.Equal("boom", sw4.Pending3DFailure);
+        Assert.False(sw4.Pending3D);
+        Assert.False(sw4.Is3D);
+    }
+
+    /// <summary>
+    /// ⭐ S4 (the shared attach) — the map the shared attach builds is <c>OnFirst3DRequest</c> by default (CGF, SimHost, the editor, the Replay Browser pass nothing), <c>Eager</c> only when the host says so (the IG, from its profile's
+    /// <c>MapInLoad</c> — rail in <c>TheRunChoiceIsOnEveryHostTests</c>); the window-less test host has nothing to build, so its switch stays immediate; and the profile states the policy ONCE.
+    /// 🔴 Mutation: <c>MapInLoad ? Eager : OnFirst3DRequest</c> inverted ⇒ the profile cells red.
+    /// </summary>
+    [Fact]
+    public void CE1446_TheSharedAttach_DefaultsToTheFirstRequest_AndTheProfileDecidesEager()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = new MapCamera() };
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, mi.Buffer, mi.InteractionBus, () => world);
+        Assert.NotNull(layers.Map3D);
+        Assert.Equal(Map3DBuildPolicy.OnFirst3DRequest, layers.Map3D!.Policy);
+        Assert.Same(layers.Map3D, layers.ViewSwitch.Build);
+        Assert.True(layers.Map3D.IsBuilt);                                           // no window here: nothing to build …
+        layers.ViewSwitch.Set(true, animate: false);
+        Assert.True(layers.ViewSwitch.Is3D);                                         // … so the switch is immediate, as every existing rail relies on
+
+        foreach (var kind in new[] { Hrot.UI.Common.RunMode.RunHostKind.Editor, Hrot.UI.Common.RunMode.RunHostKind.Cgf, Hrot.UI.Common.RunMode.RunHostKind.SimHost, Hrot.UI.Common.RunMode.RunHostKind.Orchestrator })
+            Assert.Equal(Map3DBuildPolicy.OnFirst3DRequest, new Hrot.UI.Common.RunMode.NodeRunProfile(kind).MapBuildPolicy);
+        var player = new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Ig, MapInLoad: true);
+        Assert.Equal(Map3DBuildPolicy.Eager, player.MapBuildPolicy);
+    }
 }

@@ -54,7 +54,8 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Audio.AudioLayer? Audio = null,
         Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null,
         Fdp.Toolkit.Vis2D.Layers.GridMapLayer? Grid = null,
-        MapCursorReadout? Cursor = null);
+        MapCursorReadout? Cursor = null,
+        Fdp.Toolkit.Vis3D.Map3DBuild? Map3D = null);
 
     public static class MapInteractionPack
     {
@@ -479,7 +480,8 @@ namespace Hrot.ScenarioEditor.Map
             Func<EntityRepository?> worldProvider,
             Func<Fdp.Interfaces.ITkbDatabase?>? tkbProvider = null,
             int layerBitIndex = 31,
-            Func<bool>? gridAlsoWhen = null)
+            Func<bool>? gridAlsoWhen = null,
+            Fdp.Toolkit.Vis3D.Map3DBuildPolicy map3DBuildPolicy = Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest)
         {
             if (canvas is null) throw new ArgumentNullException(nameof(canvas));
             // ⭐⭐ CE-1227 (docs/DESIGN_Terrain_World.md §10) — the 2-D terrain FIRST, under every gizmo, as a retained layer: it takes no
@@ -537,7 +539,13 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(new MapCursorLayer(canvas, cursor, worldProvider, viewSwitch.Camera3D.GroundHeight));   // ⭐ CE-1289
             // ⭐ AQ93 R-4024 / V7 — the SUMO roads and lights, TerrainLayer3D's sibling (idle when the terrain has no SUMO net); its far
             //   people and cars are bodies (CE-4031).
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider));
+            var traffic = new Hrot.UI.Common.Map3D.TrafficLayer3D(worldProvider);
+            canvas.AddLayer(traffic);
+            // ⭐⭐⭐ CE-1446 (R-1046, DESIGN_Cluster_Load_Phase §11.9) — the 3-D map's build, ONE per map over both background-built layers: the map's `IMapBuildStatus` (the load step's poll), the policy (the player's `Eager`, every
+            //   other host on the first 3-D request) and what the view switch asks before going to 3-D. A layer itself, so the canvas pumps it every frame — in 2-D too.
+            var map3D = new Fdp.Toolkit.Vis3D.Map3DBuild(new Fdp.Toolkit.Vis3D.IMeshLayer3D[] { terrain, traffic }, map3DBuildPolicy);
+            viewSwitch.Build = map3D;
+            canvas.AddLayer(map3D);
             canvas.AddLayer(bodies);
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
@@ -585,7 +593,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3289 (§6ab, R-3032) — the film: a director camera and a clean capture of the scene, on every map host; LAST, so its
             //   update runs after every other layer's (the frame it captures is complete) and its director wins the camera.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.FilmCaptureLayer(canvas, viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D, grid, cursor);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D, grid, cursor, map3D);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

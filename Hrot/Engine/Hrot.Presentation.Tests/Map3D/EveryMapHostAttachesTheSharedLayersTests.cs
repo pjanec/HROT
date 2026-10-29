@@ -73,6 +73,22 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         Assert.True(missing.Count == 0, "map hosts with no cursor readout in the status bar: " + string.Join(", ", missing));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1446</c> (R-1046) S4 — <b>only the Player's map is eager, and it says so through its profile</b>: no host passes the map's build policy to the shared attach except the IG, which passes its profile's
+    /// <c>MapBuildPolicy</c> (never a literal), and nothing outside the pack / the profile names <c>Map3DBuildPolicy.Eager</c> — so CGF, SimHost, the editor and the Replay Browser start in 2-D and build on the first request.
+    /// 🔴 Mutation: a host passing <c>map3DBuildPolicy: Eager</c> (or the IG a literal) ⇒ this names it.
+    /// </summary>
+    [Fact]
+    public void CE1446_OnlyThePlayersMapIsEager_AndItReadsItsProfile()
+    {
+        var files = ProductionFiles().ToList();
+        var passers = files.Where(f => f.Text.Contains("map3DBuildPolicy:") && !f.Rel.EndsWith("MapInteractionPack.cs")).ToList();
+        Assert.Equal(new[] { "Hrot/Subsystems/Hrot.IG" }, passers.Select(f => HostOf(f.Rel)).Distinct().ToArray());
+        Assert.Contains("map3DBuildPolicy: RunProfile.MapBuildPolicy", passers.Single().Text);
+        var eager = files.Where(f => f.Text.Contains("Map3DBuildPolicy.Eager")).Select(f => f.Rel).OrderBy(r => r).ToArray();
+        Assert.Equal(new[] { "Hrot/Engine/Hrot.Presentation/RunMode/NodeRunControls.cs" }, eager);
+    }
+
     [Theory]
     [InlineData(@"MapInteractionPack\.BuildRenderLayer\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?TerrainLayer3D\(")]
