@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
 
         public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true); }
 
-        private void Record(Guid exercise, int node, Guid parent, long branchTicks)
+        private void Record(Guid exercise, int node, Guid parent, long branchTicks, string? scenario = null)
         {
             var dir = Path.Combine(_root, "nodes", $"node-{node}", "exercises", exercise.ToString());
             Directory.CreateDirectory(dir);
@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             File.WriteAllText(fdp + ".meta.json", MetadataSerializer.Serialize(new RecordingMetadata
             {
                 ExerciseId = exercise, NodeId = node, ParentExerciseId = parent, BranchWallTicks = branchTicks, Duration = TimeSpan.FromSeconds(10),
+                ScenarioName = scenario ?? "",
             }));
         }
 
@@ -45,6 +46,24 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation.Tests
             Assert.Equal((parent, 850L), (b.ParentExerciseId, b.BranchWallTicks));
             var l = Assert.Single(groups, g => g.ExerciseId == loaded);
             Assert.Equal((Guid.Empty, 0L), (l.ParentExerciseId, l.BranchWallTicks));
+        }
+
+        /// <summary>
+        /// ⭐ CE-4102 — a run recorded in the editor is listed by the Replay Browser WITH the scenario it loaded (the sidecars' <c>ScenarioName</c>);
+        /// one node that did not say does not blank it. 🔴 Mutation: the group built without <c>scenario</c> ⇒ null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4102_The_exercise_groups_carry_the_scenario_the_run_loaded()
+        {
+            Guid run = Guid.NewGuid(), unnamed = Guid.NewGuid();
+            Record(run, 1, Guid.Empty, 0, scenario: "");
+            Record(run, 2, Guid.Empty, 0, scenario: "hill-attack");
+            Record(unnamed, 1, Guid.Empty, 0);
+
+            var groups = RecordingGroupInventory.Scan(_root);
+
+            Assert.Equal("hill-attack", Assert.Single(groups, g => g.ExerciseId == run).ScenarioName);
+            Assert.Null(Assert.Single(groups, g => g.ExerciseId == unnamed).ScenarioName);
         }
 
         [Fact]
