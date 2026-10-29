@@ -3,7 +3,7 @@ state: LIVE — ui → coordinator: the armed-mode MVP report (your HANDOFF_Coor
 updated: 2026-10-29
 current-answer: the whole note
 stale-below: nothing
-known-rot: task 3's AUTOMATED rail is still being written when this note is pushed — its row says PENDING; a follow-up commit fills it
+known-rot: none
 related-designs:
   - HANDOFF_Coordinator_To_Ui_Armed_Mode_MVP.md — the ask (scope frozen at 27acb9b6e)
   - ../Architect_Question_108_Run_Mode_Picker.md — §2.14 CE-3341 ui half (design + as-built)
@@ -21,7 +21,7 @@ related-designs:
 |---|---|---|---|
 | 1 | **CE-1441** (small unification leftovers) | ✅ done, row closed | `93a8fc7e0` — one Recent store · `SafeTextFile` + `UserFiles` for the 5 user-file writers (old files still load) · `SettingsMenuPath` everywhere · `MapCamera` centres a never-placed offset (3 host seeds deleted) · `RunModeToast` → `EditorNotification` on a `ToastQueue` (⚠ the choice's OWN queue — joining the editor's waits for the toolbar to draw it) · one `IsAllowedInIdle` |
 | 2 | **CE-3341 ui half** (R-3068: the armed mode is one cluster fact) | ✅ done | design + as-built [AQ108 §2.14](../Architect_Question_108_Run_Mode_Picker.md); `4f286cd08` |
-| 3 | **CE-4102** (record in the editor → film in the Replay Browser) | ✅ **proven LIVE** · ⏳ automated rail PENDING (Sonnet, in progress) | below; [RUNBOOK_Filming §0b](../../RUNBOOK_Filming.md) |
+| 3 | **CE-4102** (record in the editor → film in the Replay Browser) | ✅ **proven LIVE** · ✅ automated rail (`d23e51f1a`) | below; [RUNBOOK_Filming §0b](../../RUNBOOK_Filming.md) |
 
 ## CE-3341 ui half — decision
 
@@ -60,8 +60,15 @@ NOTE to backend was needed.
 | CE-3341 (Sonnet's run) | Presentation.Tests · Editor.Tests · Orchestrator.Tests · ClusterRunner.Tests | 1140/0/59 · 674/3/3 · 377/0 · 383/2/0 | Editor's 3 reds (`TheUnsavedCheckRoutesTests.CheckUnsaved_…`, `TheRunRecordingGatesAnswer409Tests…`, `CE4059_P3_*`) pass alone (18/18) — load-flaky |
 | CE-3341 integration (`TheRunChoiceIsOnEveryHostTests`) | run as a class: 4/9 red `DdsException: Failed to create participant` | ⭐ **re-run each alone (me): 4/4 green** ⇒ DDS participant contention, not the change | — |
 | CE-4102 scenario name | `Fdp.Toolkits.Tests --filter RecordingGroupInventory` · `Hrot.ReplayBrowser.Tests` | 3/0 (red-proved: the group built without `scenario` ⇒ the new rail fails) · 67/0/5 | — |
-| CE-4102 rail | ⏳ PENDING | | |
+| CE-4102 rail | `Hrot.ClusterRunner.Integration.Tests --filter TheEditorsRecordingIsFilmedInTheReplayBrowserTests` — headless `EditorSubsystem` + `ReplayBrowserSubsystem` over one seeded staging root: open → `Choose(Live)` → `Play()` (the UI ▶) → `Stop()` → recording + sidecar on disk → RB lists it with its scenario → opens it → the director plays a 2-shot take to `Done`, 2 cuts | 1/0 · red-proved twice: RB over another root lists nothing; Record live runs OFF before ▶ ⇒ no second recording | — |
+| integration neighbours | `--filter Eqs` | 140/4 — the 4 are `TheRunChoiceIsOnEveryHostTests`' DDS-participant reds, green alone (row above) | — |
 | mermaid | `scripts/mermaid-check.mjs` AQ108 · RUNBOOK_Filming | 26/26 · 2/2 | — |
+
+**Findings from the rail (Sonnet's, measured in-process, ⚠ not yet verified by me — FYI backend):** ① an open in the editor's FIRST second
+leaves the host's view at Idle while the master is at `OperatingEdit` — the editor's own state is broadcast only once the master's roster has
+heard the slave's 1 Hz heartbeat (the rail pumps 2.5 s first) · ② an UNSEEDED staging root parks a scenario load on the prefetch saga forever
+(seed as the host start does) · ③ a SECOND `EditorSubsystem` in one process never leaves Idle (cause not pinned) — so the rail is one test.
+Seams added: `EditorSubsystem.TimeTransportForTest` (internal), `InternalsVisibleTo` the integration tests on `Hrot.ReplayBrowser`.
 
 **Ids allocated:** none (CE-4102's rail lands under its own row). **Tracker:** CE-1441 closed; CE-3341 / CE-4102 rows are yours/backend's —
 not ticked here.
