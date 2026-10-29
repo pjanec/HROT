@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — OPEN (backend, 2026-10-29): retire the ExCon node completely, unless a good reason to keep it is found
 updated: 2026-10-29
-build-state: DESIGN — the measurements in §3 come first; leans in §4 await the user
+build-state: DESIGN — §3 MEASURED 2026-10-29 (nothing unique to ExCon); leans in §4 await the user
 current-answer: §1 the user's account · §3 what ExCon carries and where each would go · §4 sub-questions with leans
 stale-below: nothing
 known-rot: docs/projects/Hrot/Subsystems/Hrot.ExCon.md (2026-05-23) describes ExCon as a live role — superseded by §1 once decided
@@ -36,34 +36,39 @@ The world-less design is what made ExCon special, and each special case is a sec
 CE-259t), unowned requests (Node Roles §5), the IG-side remote-map machinery (`MapCommandController`, `ContextMenuSystem`, `MiniExConPanel`,
 the `MapCommandRequest` / `MapCommandAck` / `ContextActionsUpdate` topics), and a perspective with 7 windows.
 
-## 3. INVENTORY — what ExCon carries, and where each would go (⏳ the "elsewhere?" column is to MEASURE before any lean is final)
+## 3. INVENTORY — what ExCon carries, and where each already is (📐 MEASURED `2026-10-29`)
 
-📐 Graph: `search_graph name_pattern=".*ExCon.*" label=Class` → 34 production classes; grep: **138** production `.cs` files outside the project
-mention `ExCon` (230 with tests). Folders: `Adapters/` `Logic/` `Observer/` `Panels/` `Services/` `Windows/`.
+📐 Graph: `search_graph name_pattern=".*ExCon.*" label=Class` → 34 production classes; `.*Orbat.*(Panel|Window|Adapter|Seam|Source)$` and
+`.*Mission(Editor|Plan.*Editor|Authoring|Window|Panel).*` for rows 3; grep for every user of each shared class (production, tests excluded).
+**138** production `.cs` files outside the project mention `ExCon` (230 with tests). ⚠ `check_index_coverage` is unavailable through the CLI.
 
-| ExCon capability | its classes | already elsewhere? (to measure) | if retired |
+| ExCon capability | ExCon's classes | 📐 measured: already elsewhere? | if retired |
 |---|---|---|---|
-| exercise control: pause / resume / step / time scale | ExConLogic, cluster-control window | the shared toolbar time control on every host (CE-4097 mode picker, `/sim/*`) | nothing to move |
-| cluster monitoring: node status, 2PC history, diagnostics | `ClusterUiCache` (observer bus), DiagnosticsPanel, ExConDiagnosticsWindow | the Orchestrator's `ClusterControlWindow` / `DiagnosticsWindow` read the master's own `ClusterUiCache` | stays on the master host |
-| ORBAT with mission-plan editing (the richest one) | OrbatPanel, ExConOrbatAdapter, MissionEditorService, ExConMissionWindow | the shared ORBAT seam (UXI-04) — but WITHOUT mission editing | ⚠ the one capability with no twin: mission-plan editing moves onto the shared ORBAT (UXI-25's job, now a move, not a retirement of a fork) |
-| entity placement (spawner) | ExConSpawnerWindow, ExConSpawnShim | the shared Add Entity / placement on the map hosts | nothing to move (measure) |
-| entity inspector (DER) | ExConDerEntityInspectorWindow | the shared inspector | nothing to move (measure) |
-| IG context-menu computation | ContextMenuLogic, JsonContextMenuBuilder, IG `ContextMenuSystem` | the shared map entity menu (R-1019, `MapEntityMenuHandler`) | delete with the remote-map path |
-| remote 2-D map driving of IG | IgMiniExConPanel / MiniExConPanel, `MapCommandController`, the map-command topics | — (the role is gone) | delete |
-| request transactions + timeouts | RequestTransactionManager, PendingRequest | the shared request path (HTTP, MCP) — ⚠ check its timeouts against R-4001 | delete |
-| data monitor (DDS events/s) | ExConDataMonitorWindow | ddsmonitor, `/diagnostics/architecture` | delete (measure) |
-| scenario save / load slice | ExConScenarioSaveHandler / LoadHandler (`ExCon.Observer` foreign doc) | — | the foreign slice disappears; old scenarios carrying `foreign/node_<excon>.json` load without it (measure) |
-| ⏳ **contracts** — JSON entity-state requests, high-level entity creation | (used by ExCon) | ⏳ which other clients use them (HTTP routes, MCP, other hosts)? | keep the contracts; retire only the node |
+| exercise control (pause / resume / step / time scale) | ExConLogic (reads the cluster's time via `ClusterTimeObservation`) | ✅ the shared `ShellTimeControlToolbar` (registered by CGF and the editor) and the Orchestrator-owned **Cluster Control** window — whose id is still `"excon_cluster_control"` (`ClusterControlWindow.cs:17`) | nothing to move; rename the window id |
+| cluster monitoring, 2PC history | `ClusterUiCache` on ExCon's observer bus | ✅ the Orchestrator's `ClusterControlWindow` / `DiagnosticsWindow` read the master's own `ClusterUiCache` | stays on the master host |
+| ORBAT | its own `OrbatPanel` + `ExConOrbatAdapter` | ✅ `SharedOrbatPanel` (Presentation) via `ScenarioOrbatAdapter`, on CGF + editor; plus `EditorOrbatPanel` | ⚠ ExCon's OrbatPanel is the private fork (UXI-25) — deleted, not moved |
+| **mission-plan editing** | `ExConMissionWindow` → the SHARED `MissionPanel` (Presentation) + ExCon's own `MissionEditorService` | ✅ **NOT unique**: `MissionPanel` / `MissionPanelWindow` already run on CGF and the editor, committing through `Hrot.UI.Common.Facades.IMissionEditorService` (the editor's Mission panel, `ScenarioMissionView`, `/missions` HTTP) | 🔴 found: ExCon carries a SECOND `IMissionEditorService` (`Hrot.ExCon.Services`) beside the shared facade — a duplicate that goes with it |
+| entity placement | `ExConSpawnerWindow` → the SHARED `SpawnerPanel` | ✅ `SpawnerPanel` on CGF + editor | nothing to move |
+| entity inspector | `ExConDerEntityInspectorWindow` → `DerEntityInspectorPanel` (Fdp.Presentation, reads the world-less DER mirror) | ⚠ used ONLY by ExCon (`ExConMock`); ECS hosts inspect their world (`EntityInspectorPanel`, the editor's inspector) | the DER inspector has no other user ⇒ retire it with ExCon (measure: any other DER consumer before deleting the DER panel itself) |
+| IG context menus | `ContextMenuLogic`, `JsonContextMenuBuilder` → `ContextActionsUpdate` → IG `ContextMenuSystem` | ✅ the shared `MapEntityMenuHandler` runs on CGF, editor, IG (`IgApplication`), SimHost visualization and the shared ORBAT (R-1019) | delete the remote path (ExCon + IG halves + `ContextActionsUpdateTranslator`) |
+| remote 2-D map driving of IG | `MapCommandRequest/Ack` via `NedExConEgressWriters` → IG `MapCommandController`, `NedIgNetworkAdapter`; `MiniExConPanel` on IG | — the role is gone (§1 ③) | delete both halves + the map-command topics (wire values reserved, R-42) |
+| event log / data monitor, ExCon diagnostics | `InteractionPanel`, `DiagnosticsPanel` | ✅ ddsmonitor; `/diagnostics/architecture`; the Orchestrator's DiagnosticsWindow | delete |
+| scenario save / load slice | `ExConScenarioSaveHandler` / `LoadHandler` (`ExCon.Observer` foreign doc) | — | 📐 **0** scenarios / recipes carry an `ExCon.Observer` slice (`grep -rl` over `scenarios/`, `recipes/`, the old recipes) ⇒ nothing to migrate |
+| ⭐ the CONTRACTS (§1 ②) — JSON entity-state requests, high-level creation | ExCon's egress writers | ✅ **they survive without ExCon**: `UpdateEntityAttributeRequest` is produced by the HTTP surface (`DebugApiService`) and `NedCommandGateway`, applied by `UpdateEntityAttributeRequestSystem`; `EntityCreationRequest` appears in 36 production files outside ExCon | keep the contracts; retire only the node |
+
+⭐ **Result: no capability in this table is unique to ExCon.** The only things that exist nowhere else are the world-less mirrors of things
+the ECS hosts have (the DER inspector, its ORBAT fork, its second mission-service interface, its observer read model) and the remote-map path
+whose purpose is gone.
 
 ## 4. Sub-questions — ⏳ leans
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
 | **A** | retire ExCon completely? | ⭐ **yes** — its load-bearing reason (③) is gone, ① is proven, ② lives in the contracts, and §2 lists the duplication it keeps alive | a capability in §3 with no home after measurement, or a deployment that needs a world-less console (e.g. a thin client) |
-| **B** | where does mission-plan editing go? | ⭐ onto the shared ORBAT, on every host that shows it (the editor and the master host at least) | the ORBAT unification (UXI-04) not ready ⇒ do it first |
+| **B** | where does mission-plan editing go? | ⭐ nowhere new — §3 measured it already runs on the shared `MissionPanel` (CGF, editor); delete ExCon's second `IMissionEditorService` | — |
 | **C** | what happens to the IG remote-map machinery? | ⭐ delete it with ExCon (`MapCommandController`, `ContextMenuSystem`'s ExCon arm, `MiniExConPanel`, the three map-command topics — a wire change, retired values kept reserved per R-42) | a Player-node use for any of it (Q91) |
 | **D** | what replaces the "exercise director's console"? | ⭐ the master host (the Orchestrator's windows + the shared map/ORBAT/time control) — or the editor — no new host | the user wanting a separate operator station ⇒ then an ECS-node role on the shared frame, never a world-less fork |
 | **E** | `ClusterView` V2 (monitoring topics observer-only) | ⭐ with ExCon gone, only the master keeps monitoring, and it reads its own in-process bus ⇒ the observer translator retires too; V2's difference disappears | — |
 | **F** | order | ⭐ after CE-1436 lands (it moves ExCon onto the shared ingress first, so the retirement is a deletion, not a rewrite) and before CE-3340's rails (so the rails do not pin ExCon's copies) | — |
 
-⏳ **Next step (design only — development is paused, R-3066):** measure the "elsewhere?" column of §3 (graph + grep per row), then put the leans to the user.
+⏳ **Next step:** the user decides A–F (§3 is measured). Development stays paused (R-3066); the retirement itself would be one task after CE-1436.
