@@ -59,8 +59,8 @@ public interface ITimeTransportFacade
     /// <summary>Switches the whole session's axis (no seek: the frame on screen stays).</summary>
     void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis);
 
-    /// <summary>Reviews the live run in place, at <paramref name="at"/> on the active axis — <see langword="null"/> = the live point.</summary>
-    void EnterReview(double? at = null);
+    /// <summary>Reviews the live run in place, at <paramref name="at"/> on the active axis. ⭐ CE-4100 ③ (AQ108 D9): a DAR always has an explicit start — never "the live end", so there is no default.</summary>
+    void EnterReview(double at);
 
     /// <summary>Back to the live run, exactly where it paused (R-3060: <see cref="Stop"/> in a review does the same).</summary>
     void ExitReview();

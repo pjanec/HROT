@@ -464,7 +464,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public TransportMode Mode => Open ? TransportMode.Replay : TransportMode.Idle;
         public Fdp.Toolkit.Orchestration.ReplayAxis Axis => _host.Axis;
         public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => _host.MasterControl.SetReplayAxis(ReplaySessionIntents.SetAxis(axis));
-        public void EnterReview(double? at = null) { }   // offline: no live run
+        public void EnterReview(double at) { }   // offline: no live run
         public void ExitReview() { }
         public void EnterReviewAtSim(double simSeconds) { }   // offline: no live run
         public Fdp.Toolkit.Orchestration.ReplaySession? Session => null;

@@ -203,7 +203,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     public void SetAxis(ReplayAxis axis) => _replay.SetAxis(axis);
 
     /// <inheritdoc/>
-    public void EnterReview(double? at = null) => _replay.EnterReview(at);
+    public void EnterReview(double at) => _replay.EnterReview(at);
 
     /// <inheritdoc/>
     public void EnterReviewAtSim(double simSeconds) => _replay.EnterReviewAtSim(simSeconds);
