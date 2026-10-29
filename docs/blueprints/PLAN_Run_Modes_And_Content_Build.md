@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — the dispatch record (coordinator, 2026-10-28)
-updated: 2026-10-29 (§4 the readiness protocol; §6 NEW — its build order, backend)
+updated: 2026-10-29 (§6 CE-3344 built, CE-3345 widened by R-3073, U2 the File menu) · 2026-10-29 (§4 the readiness protocol; §6 NEW — its build order, backend)
 current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked · §4 decisions taken after dispatch · §5 the order after the mode switch · §6 the readiness build (cluster ready, play ready, cancel, admission)es
 stale-below: nothing
 related-designs:
@@ -116,15 +116,16 @@ Then, in this order — each parked until the one before it is done or the user 
 
 Out of this effort: CE-3342 (`bt-window-duel`, user).
 
-## 6. The readiness build *(R-3069–R-3072, `2026-10-29`)* — backend, one Sonnet agent at a time
+## 6. The readiness build *(R-3069–R-3073, `2026-10-29`)* — backend, one Sonnet agent at a time
 
 ⭐ Before the mode switches' next round needs it: it is what CE-4103 ① actually is, and ui's CE-4104 rails start hosts and open at once.
 
 | # | id | what | lane | state |
 |---|---|---|---|---|
-| 1 | CE-3344 | **R1 cluster ready** — latch over names AND roles, role loss ⇒ Degraded, `WaitingFor`, `ClusterView.CanOperate`, HTTP 409 | backend | next |
-| 2 | CE-3345 | **R2** the readiness report on the heartbeat, local + cluster play-ready, load progress, `CancelLoad` with a reason, a failed load ⇒ Idle, the gate-policy parameter | backend | after #1 |
-| 3 | — | **U1** greyed controls + "waiting for …", the loading screen (progress + Cancel), the lobby screen, pickers waiting for their list | ui | after #1 (needs `CanOperate`); progress/Cancel after #2 |
-| 4 | CE-3343 | the test repo-root walk-ups (unification) | backend | after #2, or between if a slot frees |
-| 5 | CE-4078 | **R3** the 3-D map rebuild as a load step | backend + ui | with CE-4078 |
-| 6 | CE-3346 | **R4** the admission policy as a parameter (today's two values) | backend | after #2 |
+| 1 | CE-3344 | **R1 cluster ready** — latch over names AND roles, role loss ⇒ Degraded, `WaitingFor`, `ClusterView.CanOperate`, HTTP 409 | backend | ✅ built `effbceed1` |
+| 2 | CE-3345 | **R2** the readiness report on the heartbeat, local + cluster play-ready, load progress, `CancelLoad` with a reason, a failed load ⇒ Idle, the gate-policy parameter · **+ R-3073** the cluster ERROR state (Degraded + reason, clock paused, no teardown, sticky, cleared at Idle), `LeaveReason.Close` and every way back to Idle exempt from the gate, Load follows the armed mode on the master | backend | next — 2 measurements first (the recorder under the error pause; does the master's load already follow the armed mode) |
+| 3 | — | **U1** greyed controls + "waiting for …" (`CanOperate`, built), the loading screen (progress + Cancel), the lobby screen, the red error indicator, pickers waiting for their list | ui | greyed controls now; the rest after #2 |
+| 4 | — | **U2** the ONE File menu (AQ108 §2.15): Load / New / Load Checkpoint / Open Exercise Recording / Save Checkpoint / named saves + Save as Recipe / Close / Exit; Terrain… removed | ui | now ([NOTE](batches/NOTE_Backend_To_Ui_File_Menu_And_Error_State.md)) |
+| 5 | CE-3343 | the test repo-root walk-ups (unification) | backend | after #2 |
+| 6 | CE-4078 | **R3** the 3-D map rebuild as a load step | backend + ui | with CE-4078 |
+| 7 | CE-3346 | **R4** the admission policy as a parameter (today's two values) | backend | after #2 |
