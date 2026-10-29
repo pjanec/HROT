@@ -60,6 +60,7 @@ public sealed class RunModeChoice
         if (control is ISaveInterception saves) saves.SaveIntercept = TryCheckpointInsteadOfSave;
     }
 
+    private long? _pendingBranchSeekWall;   // ⭐ D5: ■ in a branched run — seek the parent's AAR here once its session is known
     private int _branchInFrames;   // ⭐ D21 "Go live from here": the branch intent goes out this many frames AFTER the seek's (see GoLiveFromHere)
 
     /// <summary>
@@ -69,6 +70,11 @@ public sealed class RunModeChoice
     public void Update()
     {
         _unsaved.Poll();
+        if (_pendingBranchSeekWall is { } wall && _transport.Mode == TransportMode.Replay && _transport.ReplayZeroWallTicks is not null)
+        {
+            _pendingBranchSeekWall = null;
+            _transport.SeekWall(wall);
+        }
         if (_branchInFrames > 0 && --_branchInFrames == 0 && _transport.Mode == TransportMode.Replay) _transport.BranchLive();
     }
 
@@ -321,15 +327,26 @@ public sealed class RunModeChoice
 
     private void StopLive()
     {
+        var branch = _transport.ActiveExerciseBranch;   // ⭐ D5: a run branched from a recording returns THERE, not to the scenario's start
         var scenario = ScenarioOfRun();
-        if (string.IsNullOrWhiteSpace(scenario)) return;   // nothing names the scenario to return to: ⛔ not Idle either
+        if (branch is null && string.IsNullOrWhiteSpace(scenario)) return;   // nothing names where to return to: ⛔ not Idle either
 
         var exercise = _transport.ActiveExercise;
         var recorded = _transport.RecordsLiveRuns;
         var length = _transport.TotalTime;
         if (exercise != Guid.Empty) { LastExercise = exercise; _lastExerciseRecorded = recorded; }
-        _keepArmedOnEdit = true;                       // R2: the armed mode stays (D12's reset is for a FRESH open)
-        _control!.OpenForEdit(scenario!);
+        if (branch is { } b)
+        {
+            // R2, branch case: back to the parent's AAR at the branch point, Live stays armed. The parent opens at its start; once its session (the wall zero) is
+            // known, Update seeks to the branch wall ticks (the inventory's unit — no sim twin).
+            _pendingBranchSeekWall = b.BranchWallTicks;
+            _control!.OpenRecording(b.Parent);
+        }
+        else
+        {
+            _keepArmedOnEdit = true;                   // R2: the armed mode stays (D12's reset is for a FRESH open)
+            _control!.OpenForEdit(scenario!);
+        }
         // §1a: the user's words are DAR / AAR — "Replay" is gone from the vocabulary (D17). A run that was not recorded offers NO AAR button (D14).
         _toast = recorded && exercise != Guid.Empty
             ? new($"Exercise recorded ({MainToolbarTimeControlSection.FormatSpan(length)}) — open the AAR", exercise, _now() + ToastLifetime)
@@ -394,10 +411,19 @@ public sealed class RunModeChoice
         var plan = Plan(target);
         if (!plan.Enabled) return;
         if (plan.ConfirmText is null) { plan.Execute(); return; }
-        Ask(plan.ConfirmText, new RunModeConfirmation.Button(plan.ConfirmButton, plan.Execute));
+        if (plan.AltButton is not null) Ask(plan.ConfirmText, new RunModeConfirmation.Button(plan.ConfirmButton, plan.Execute), new RunModeConfirmation.Button(plan.AltButton, plan.AltExecute));
+        else Ask(plan.ConfirmText, new RunModeConfirmation.Button(plan.ConfirmButton, plan.Execute));
     }
 
-    private readonly record struct MovePlan(string? ConfirmText, string ConfirmButton, bool Enabled, string? DisabledReason, Action Execute);
+    private readonly record struct MovePlan(string? ConfirmText, string ConfirmButton, bool Enabled, string? DisabledReason, Action Execute,
+                                             string? AltButton = null, Action? AltExecute = null);
+
+    /// <summary>
+    /// ⭐ CE-4091 host seam (AQ108 §3 "AAR → Preview"): <c>(exerciseId, scenarioName)</c> → whether the SAVED scenario's hash differs from the one the recording ran
+    /// (<c>RecordedScenarioStamp</c> in the recording's copy). <see langword="null"/> = this host cannot tell ⇒ the plain confirmation. ⚠ The inventory carries no hash and the copy
+    /// lives in the master's staging, so no host supplies it yet.
+    /// </summary>
+    public Func<Guid, string, bool>? RecordedVersionDiffers { get; set; }
 
     private MovePlan Plan(RunArmed target)
     {
@@ -451,12 +477,17 @@ public sealed class RunModeChoice
                 if (_control is null) return Disabled("This host has no scenario session");
                 var recorded = ScenarioOfRun();
                 if (string.IsNullOrWhiteSpace(recorded)) return Disabled("the scenario of this recording is not known");
-                return new($"Ends the AAR; you return to editing {recorded} at its start", "End AAR, edit scenario", true, null, () =>
-                {
-                    Armed = RunArmed.Preview;
-                    _keepArmedOnEdit = true;
-                    _control.OpenForEdit(recorded!);
-                });
+                var replayed = _transport.ActiveExercise;
+                void OpenCurrent() { Armed = RunArmed.Preview; _keepArmedOnEdit = true; _control!.OpenForEdit(recorded!); }
+                if (replayed != Guid.Empty && RecordedVersionDiffers?.Invoke(replayed, recorded!) == true)
+                    // ⭐ CE-4091: the saved scenario is not the one this recording ran — say so and offer both
+                    return new($"Ends the AAR. The saved {recorded} has changed since this recording was made: edit the version the recording ran (as a copy), or the current scenario?",
+                               "Open the recorded version (as a copy)", true, null, () =>
+                    {
+                        Armed = RunArmed.Preview; _keepArmedOnEdit = true;
+                        _control!.OpenForEdit(RecordedScenarioNames.ForExercise(replayed));
+                    }, "Open the current scenario", OpenCurrent);
+                return new($"Ends the AAR; you return to editing {recorded} at its start", "End AAR, edit scenario", true, null, OpenCurrent);
 
             default:
                 // Edit / Idle — nothing running: arming loses nothing (R3: no confirmation)

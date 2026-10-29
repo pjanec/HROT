@@ -776,6 +776,71 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal("Only an AAR can go live from a moment", edit.Choice.GoLiveFromHereDisabledReason);
     }
 
+    /// <summary>
+    /// ⭐ AQ108 D5 / R2, branch case (backend's <c>ExerciseInventoryItem.ParentExerciseId</c> + <c>BranchWallTicks</c>) — ■ on a run that branched from a recording returns to the PARENT's AAR (not
+    /// the scenario's start), Live stays armed, nothing is sent to Edit/Idle; and once the parent's session (its wall zero) is known the choice seeks to the branch point
+    /// (wall ticks → the session's axis: seconds after the zero). A run that began at a load still returns to its scenario.
+    /// 🔴 Red-proof: StopLive ignoring <c>ActiveExerciseBranch</c> ⇒ <c>OpenForEdit</c>; the seek line dropped ⇒ no <c>SeekReplayIntent</c>.
+    /// </summary>
+    [Fact]
+    public void CE4097_D5_StopOnABranchedRun_ReturnsToTheParentsAarAtTheBranchPoint()
+    {
+        var parent = Guid.Parse("00000000-0000-0000-0000-0000000000b9");
+        const long zero = 5_000_000_000, branch = zero + 70_000_000;     // 7 s into the parent
+        var rig = With(ClusterState.OperatingLive, RunArmed.Live, inventoryScenario: null);
+        rig.Bus.PublishManaged(new AssetInventoryUpdateEvent { LocalExercises = new[] { new ExerciseInventoryItem(RunId, DateTime.UtcNow, TimeSpan.Zero, "hill-attack", parent, branch) } });
+        Hear(rig, ClusterState.OperatingLive);
+
+        rig.F.Stop();
+        Assert.Equal(new[] { $"OpenRecording:{parent}" }, rig.C.Calls);   // the parent, at its start …
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                      // … Live stays armed (R2)
+        Assert.Empty(Sent<TransitionStateIntent>(rig));
+        Assert.Equal(RunId, rig.Choice.LastExercise);
+
+        Hear(rig, ClusterState.OperatingReplay);                            // the replay is up but its session is not known yet: no seek
+        Assert.Empty(rig.Bus.ReadManaged<SeekReplayIntent>());
+        rig.Bus.PublishManaged(new ReplaySessionUpdateEvent { Session = new ReplaySession { Active = true, ZeroWallTicks = zero, LengthSeconds = 30 } });
+        Hear(rig, ClusterState.OperatingReplay);
+        var seek = rig.Bus.ReadManaged<SeekReplayIntent>().Single();
+        Assert.Equal(7.0, seek.TargetSimSeconds);                           // (branch - zero) = 7 s after the zero (a map-less session: the cursor's own conversion, carried on the Sim axis)
+
+        var plain = With(ClusterState.OperatingLive, RunArmed.Live);
+        plain.F.Stop();
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, plain.C.Calls);   // no branch: the scenario's start
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 / AQ108 §3 — AAR → Preview from the indicator: when the host says the saved scenario differs from the one the recording ran, the confirmation offers
+    /// <i>Open the recorded version (as a copy)</i> (→ <c>OpenForEdit(Recipes/Recorded/&lt;exercise&gt;)</c>) and <i>Open the current scenario</i>; when it does not (or cannot tell) it is the plain one.
+    /// 🔴 Red-proof: the recorded button opening the current scenario's name ⇒ the name assertion; <c>RecordedVersionDiffers</c> ignored ⇒ the plain row grows two buttons.
+    /// </summary>
+    [Fact]
+    public void CE4091_AarToPreview_WhenTheSavedHashDiffers_OffersTheRecordedCopyAndTheCurrentScenario()
+    {
+        var differs = With(ClusterState.OperatingReplay, RunArmed.Live);
+        differs.Choice.RecordedVersionDiffers = (id, name) => id == RunId && name == "hill-attack";
+        differs.Choice.Choose(RunArmed.Preview);
+        var ask = differs.Choice.Pending!;
+        Assert.Equal(new[] { "Open the recorded version (as a copy)", "Open the current scenario", "Cancel" }, ask.Buttons.Select(b => b.Label));
+        ask.Resolve(ask.Buttons[0]);
+        Assert.Equal(new[] { $"OpenForEdit:{RecordedScenarioNames.ForExercise(RunId)}" }, differs.C.Calls);
+        Assert.Equal(RunArmed.Preview, differs.Choice.Armed);
+
+        var current = With(ClusterState.OperatingReplay, RunArmed.Live);
+        current.Choice.RecordedVersionDiffers = (_, _) => true;
+        current.Choice.Choose(RunArmed.Preview);
+        current.Choice.Pending!.Resolve(current.Choice.Pending.Buttons[1]);
+        Assert.Equal(new[] { "OpenForEdit:hill-attack" }, current.C.Calls);
+
+        foreach (var seam in new Func<Guid, string, bool>?[] { null, (_, _) => false })
+        {
+            var same = With(ClusterState.OperatingReplay, RunArmed.Live);
+            same.Choice.RecordedVersionDiffers = seam;
+            same.Choice.Choose(RunArmed.Preview);
+            Assert.Equal(new[] { "End AAR, edit scenario", "Cancel" }, same.Choice.Pending!.Buttons.Select(b => b.Label));
+        }
+    }
+
     /// <summary>⭐ D21 — "AAR from here" (Live): ends the live run into its recording AT the moment (sim seconds), arms AAR, no confirmation; refused (with the reason) outside a recorded live run.</summary>
     [Fact]
     public void CE4097_AarFromHere_OpensTheRunsRecordingAtTheMoment()

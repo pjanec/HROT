@@ -261,6 +261,12 @@ public interface IRunTransport
     Guid ActiveExercise { get; }
     /// <summary>⭐ The scenario of <see cref="ActiveExercise"/>, from the inventory (<c>ExerciseInventoryItem.ScenarioId</c>); <see langword="null"/> when unknown.</summary>
     string? ActiveExerciseScenario { get; }
+    /// <summary>⭐ CE-4097 D5 — where the active run branched from (the inventory's <c>ParentExerciseId</c> + <c>BranchWallTicks</c>, the parent's WALL ticks at the branch frame); <see langword="null"/> when it began at a load.</summary>
+    (Guid Parent, long BranchWallTicks)? ActiveExerciseBranch { get; }
+    /// <summary>⭐ The open replay's wall zero (<c>ReplaySession.ZeroWallTicks</c>); <see langword="null"/> while no session is active — the moment a wall-tick target can be seeked.</summary>
+    long? ReplayZeroWallTicks { get; }
+    /// <summary>⭐ Seek the open replay to a WALL-ticks moment (converted to the session's axis, the timeline's own conversion).</summary>
+    void SeekWall(long wallTicks);
     /// <summary>■ exactly as before the choice existed: a review back to live, a dry run back to edit, anything else to Idle.</summary>
     void StopRaw();
     /// <summary>The dry run (Preview), running or paused at its first frame.</summary>

@@ -38,7 +38,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     private Guid _exerciseId;                              // ClusterStateUpdateEvent.ExerciseId
     private bool _runNotRecorded;                          // ⭐ CE-4090 D14 — the last live run was not recorded (sticky)
     private bool _recordLiveRunsOff;                       // ⭐ CE-4090 — the "Record live runs" setting is OFF
-    private readonly Dictionary<Guid, string?> _exerciseScenarios = new();   // AssetInventoryUpdateEvent items: ExerciseId → ScenarioId
+    private readonly Dictionary<Guid, ExerciseInventoryItem> _exerciseItems = new();   // AssetInventoryUpdateEvent items by ExerciseId (scenario, ⭐ CE-4097 D5: parent + branch point)
     private RunModeChoice? _run;                           // ⭐ CE-4097 — null on a host that attached none: today's behaviour, unchanged
 
     /// <summary>
@@ -92,10 +92,10 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         // ⭐ CE-4097 — the live run's scenario, from the inventory (the run in progress is listed since CE-4054): no wire change
         foreach (var inv in _bus.ReadManaged<AssetInventoryUpdateEvent>())
         {
-            _exerciseScenarios.Clear();
+            _exerciseItems.Clear();
             foreach (var list in new[] { inv.LocalExercises, inv.ArchivedExercises, inv.UnarchivedLocalExercises })
                 if (list != null)
-                    foreach (var item in list) _exerciseScenarios[item.ExerciseId] = item.ScenarioId;
+                    foreach (var item in list) _exerciseItems[item.ExerciseId] = item;
         }
 
         foreach (var ev in _bus.ReadManaged<ReplaySessionUpdateEvent>())
@@ -275,7 +275,20 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
 
     /// <summary>⭐ The scenario of <see cref="ActiveExercise"/>, from the inventory's <c>ExerciseInventoryItem.ScenarioId</c>; <see langword="null"/> when the inventory has not listed it yet.</summary>
     public string? ActiveExerciseScenario =>
-        _exerciseId != Guid.Empty && _exerciseScenarios.TryGetValue(_exerciseId, out var scenario) ? scenario : null;
+        _exerciseId != Guid.Empty && _exerciseItems.TryGetValue(_exerciseId, out var item) ? item.ScenarioId : null;
+
+    /// <inheritdoc/>
+    public (Guid Parent, long BranchWallTicks)? ActiveExerciseBranch =>
+        _exerciseId != Guid.Empty && _exerciseItems.TryGetValue(_exerciseId, out var run) && run.ParentExerciseId != Guid.Empty ? (run.ParentExerciseId, run.BranchWallTicks) : null;
+
+    /// <inheritdoc/>
+    public void SeekWall(long wallTicks)
+    {
+        if (_session is { Active: true } s) Seek(ClusterTimelineCursor.ToFacadeAxis(this, s, wallTicks));
+    }
+
+    /// <inheritdoc/>
+    public long? ReplayZeroWallTicks => _session is { Active: true } s ? s.ZeroWallTicks : null;
 
     void IRunTransport.StopRaw() => StopRaw();
 

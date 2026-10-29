@@ -87,7 +87,7 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
 
     /// <summary>⭐ The ONE wall → facade conversion (Seek and SetLoop share it): Sim = sim seconds through the session's map; Wall (or a map-less
     /// v6 session) = seconds after the session's zero.</summary>
-    private static double ToFacadeAxis(ITimeTransportFacade f, ReplaySession s, long wallTicks)
+    internal static double ToFacadeAxis(ITimeTransportFacade f, ReplaySession s, long wallTicks)
         => f.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
             ? map.SimAt(wallTicks)
             : (wallTicks - s.ZeroWallTicks) / (double)Tps;
