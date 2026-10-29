@@ -403,10 +403,12 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
                                    ScenarioMenuCommands.SaveAsId })
         {
             Assert.True(editor.C.Get(id)!.IsEnabled(), $"{id} must be live on the interactive host.");
-            Assert.Null(editor.C.Get(id)!.DynamicDisplayName);
+            if (id == ScenarioMenuCommands.SaveAsId) Assert.StartsWith("Save Scenario", editor.C.Get(id)!.DynamicDisplayName!());   // ⭐ CE-1443 part B: a save names what it saves
+            else Assert.Null(editor.C.Get(id)!.DynamicDisplayName);
 
             Assert.True(cgf.C.Get(id)!.IsEnabled(), $"{id} must be live on CGF now that E2 composed a picker.");
-            Assert.Null(cgf.C.Get(id)!.DynamicDisplayName);
+            if (id == ScenarioMenuCommands.SaveAsId) Assert.Equal(editor.C.Get(id)!.DynamicDisplayName!(), cgf.C.Get(id)!.DynamicDisplayName!());   // the two hosts say the same
+            else Assert.Null(cgf.C.Get(id)!.DynamicDisplayName);
         }
     }
 

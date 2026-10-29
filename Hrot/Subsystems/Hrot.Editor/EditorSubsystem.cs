@@ -4221,19 +4221,7 @@ namespace Hrot.Editor
                 hasLoadedScenario:    () => !string.IsNullOrEmpty(_editorLogic?.LoadedScenarioName),
                 saveScenarioAction:   () => { _editorLogic?.SaveCurrentScenario(); _saveAllStatus = $"[OK] Saved scenario '{_editorLogic?.LoadedScenarioName}'."; },
                 requestScenarioSaveAs: openScenarioSaveAs,
-                describeActiveTarget: () =>
-                {
-                    if (windowManager.CurrentPerspective == "Scenario")
-                    {
-                        var n = _editorLogic?.LoadedScenarioName;
-                        return string.IsNullOrEmpty(n) ? "Save Scenario" : $"Save [scenario: {n}]";
-                    }
-                    // BUG-A12: resolve from the current perspective, not docManager.Active.
-                    var act = ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager);
-                    return act != null
-                        ? $"Save [{act.Kind.ToString().ToLowerInvariant()}: {act.Asset.Name}]"
-                        : "Save";
-                },
+                scenarioName:         () => _editorLogic?.LoadedScenarioName,   // ⭐ CE-1443 part B — the shared label rule (SaveLabels) names it
                 resolveActiveDocument: () =>
                     ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager));
             // ───────────────────────────────────────────────────────────────────────────────────
@@ -4496,7 +4484,10 @@ namespace Hrot.Editor
                 openRecordingPicker: recordingPickerLauncher is null ? null : recordingPickerLauncher.Open,   // ⭐ CE-4098 (File › Load Scenario / Open Recording end in the session's guarded door — CE-4101)
                 // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
                 takeCheckpoint:      () => _timeTransport?.RunChoice?.TakeCheckpoint(),
-                checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason);
+                checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason,
+                // ⭐ CE-1443 part B — File/Save and File/Save As… are drawn only while a DOCUMENT is the target (the scenario has its own items)
+                documentToSave: () => wm.CurrentPerspective != "Scenario"
+                                   && ResolveDocumentForCurrentPerspective(wm, _aiDocumentManager) != null);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

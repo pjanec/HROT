@@ -377,6 +377,43 @@ public sealed class ScenarioMenuTests
     /// before Close only when a context group above it is drawn. The published model (<c>BuildViewModel</c>) says the same, and on Start (the Idle-only bar) the surface offers exactly the first four + Close + Exit, in draw order.
     /// 🔴 Red-proofs: the editing rule dropped from <c>FileMenuLayout.Apply</c> ⇒ the Idle / Live rows draw the group; <c>SaveCheckpoint</c>'s rule dropped ⇒ the Edit row draws it; the separator's rule dropped ⇒ the Idle row draws a lone separator.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-1443</c> part B (AQ108 §2.15 "Save names what it saves") — <c>File/Save</c> and <c>File/Save As…</c> (the shell's: a DOCUMENT's) are drawn only while a document is the save target; the scenario's own
+    /// <i>Save Scenario 'x'</i> / <i>… As…</i> stay — so the menu never shows two items saving the scenario. A host with no document saver (the Orchestrator: null) never draws them. The scenario items NAME the scenario.
+    /// 🔴 Mutation: the <c>Save or SaveAs</c> rule dropped from <c>FileMenuLayout.Apply</c> ⇒ File/Save drawn with no document ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1443_TheShellSave_IsDrawnOnlyForADocument_AndTheScenarioItemsNameTheScenario()
+    {
+        var session = new FakeScenarioSession { State = ClusterState.OperatingEdit };
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        menu.RegisterItem(FileMenuLayout.Save, () => { });
+        menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
+        bool document = false;
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => document);
+
+        MenuItemNode Node(string path) => menu.Root.Children["File"].Children[path["File/".Length..]];
+        bool Drawn(string path) => menu.Offers(Node(path), null);
+
+        Assert.False(Drawn(FileMenuLayout.Save));
+        Assert.False(Drawn(FileMenuLayout.SaveAs));
+        Assert.True(Drawn(FileMenuLayout.SaveScenario));
+        document = true;
+        Assert.True(Drawn(FileMenuLayout.Save));
+        Assert.True(Drawn(FileMenuLayout.SaveAs));
+
+        session.LoadedScenarioNameValue = "hill-attack";
+        Assert.Equal("Save Scenario 'hill-attack'", commands.Get(ScenarioMenuCommands.SaveId)!.DynamicDisplayName!());
+        Assert.Equal("Save Scenario 'hill-attack' As…", commands.Get(ScenarioMenuCommands.SaveAsId)!.DynamicDisplayName!());
+
+        // the Orchestrator: no document saver ⇒ the shell's items are never drawn
+        var orchestratorMenu = new GlobalMenuRegistry();
+        orchestratorMenu.RegisterItem(FileMenuLayout.Save, () => { });
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), orchestratorMenu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { });
+        Assert.False(orchestratorMenu.Offers(orchestratorMenu.Root.Children["File"].Children["Save"], null));
+    }
+
     [Fact]
     public void CE1443_S2_TheEditingGroup_And_SaveCheckpoint_AreDrawnOnlyInTheirState_AndStartShowsTheFirstFourPlusCloseAndExit()
     {
@@ -387,7 +424,7 @@ public sealed class ScenarioMenuTests
         // other registrars' items, BEFORE the scenario registrar (the shell toolbar) …
         foreach (var path in new[] { FileMenuLayout.NewAsset, FileMenuLayout.OpenAsset, FileMenuLayout.NewBehavior, FileMenuLayout.NewAction, FileMenuLayout.NewCondition, FileMenuLayout.Save })
             menu.RegisterItem(path, () => { });
-        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { });
+        ScenarioMenuCommands.Register((d, h) => commands.Register(d, h), menu, commands, session, (k, cb) => { }, cb => { }, openRecordingPicker: () => { }, documentToSave: () => true);
         // … and AFTER it (the editor's Save As / Save All, the window controller's Exit)
         menu.RegisterItem(FileMenuLayout.SaveAs, () => { });
         menu.RegisterItem(FileMenuLayout.SaveAll, () => { });
@@ -509,7 +546,8 @@ public sealed class ScenarioMenuTests
             openSaveAsDialog: cb => { });
 
         Assert.Null(commands.Get(ScenarioMenuCommands.LoadId)!.DynamicDisplayName);
-        Assert.Null(commands.Get(ScenarioMenuCommands.SaveAsId)!.DynamicDisplayName);
+        // ⭐ CE-1443 part B (AQ108 §2.15): a SAVE item always names what it saves — its label is the naming rule, not an "unavailable" override
+        Assert.Equal("Save Scenario As…", commands.Get(ScenarioMenuCommands.SaveAsId)!.DynamicDisplayName!());
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Browser;
+using Hrot.Editor.AiShared.Documents;
 using NodeEditor.Core.Action;
 
 namespace Hrot.Editor.AiShared.Scenarios;
@@ -132,6 +133,7 @@ public static class ScenarioMenuCommands
     /// <param name="takeCheckpoint">⭐ <c>CE-1443</c> — what <i>Save Checkpoint</i> does: the host's run choice (<c>RunModeChoice.TakeCheckpoint</c>: the session's checkpoint + the toast). Null ⇒ the session's own. ⭐ A production caller that HAS a run choice must pass it.</param>
     /// <param name="checkpointDisabledReason">⭐ <c>CE-1443</c> — why a checkpoint cannot be taken now (<c>RunModeChoice.CheckpointDisabledReason</c>), <see langword="null"/> when it can (and for a host with no choice).</param>
     /// <param name="openCheckpointPicker">⭐ <c>CE-1443</c> — opens the host's list of the run's checkpoints and calls back with the chosen LABEL (the item then calls <see cref="IScenarioSession.RestoreCheckpoint"/>). Null ⇒ the item is registered but DISABLED with the reason (ruling 49) — ⚠ no host supplies one yet (the live run's marks are not on the cluster view).</param>
+    /// <param name="documentToSave">⭐ CE-1443 part B — a document (not the scenario) is the focused save target: <c>File/Save</c> and <c>File/Save As…</c> are drawn only then (<see cref="FileMenuLayout.Apply"/>). A host that registers the shell saves must pass it.</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -148,7 +150,8 @@ public static class ScenarioMenuCommands
         Func<string?>?                                            closedReason         = null,
         Action?                                                   takeCheckpoint       = null,
         Func<string?>?                                            checkpointDisabledReason = null,
-        Action<Action<string>>?                                    openCheckpointPicker = null)
+        Action<Action<string>>?                                    openCheckpointPicker = null,
+        Func<bool>?                                               documentToSave       = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -157,7 +160,7 @@ public static class ScenarioMenuCommands
 
         // ⭐⭐⭐ CE-1443 (AQ108 §2.15a) — the ONE layout of the File menu (rank, hide rule, separators), declared here and applied to the registry whoever registers an item and whenever (the asset items, Save As / Save All and Exit are
         //   other registrars'). ⛔ No submenus: File/Live, File/Edit, File/Checkpoint and New Exercise are gone (user, 2026-10-29: "Nothing like 'New exercise' makes clear sense to the user.").
-        FileMenuLayout.Apply(menu, () => session.CurrentClusterState);
+        FileMenuLayout.Apply(menu, () => session.CurrentClusterState, documentToSave);
 
         // ══ the first four — what Start offers ══════════════════════════════════
 
@@ -227,7 +230,9 @@ public static class ScenarioMenuCommands
                     openSaveAsDialog?.Invoke(session.SaveAs);
                 else
                     session.SaveCurrent();
-            });
+            },
+            // ⭐ CE-1443 part B (AQ108 §2.15, user: "the save menu item should never be just plain save") — the label names what it saves
+            dynamicDisplayName: () => SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName));
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
@@ -235,7 +240,9 @@ public static class ScenarioMenuCommands
             "Save the scenario under a new name",
             isEnabled: () => openSaveAsDialog != null,
             handler: _ => openSaveAsDialog?.Invoke(session.SaveAs),
-            dynamicDisplayName: Unavailable("Save Scenario As", openSaveAsDialog != null, NoSaveAsReason));
+            dynamicDisplayName: openSaveAsDialog != null
+                ? () => string.IsNullOrWhiteSpace(session.LoadedScenarioName) ? "Save Scenario As…" : SaveLabels.Named("Save", "Scenario", session.LoadedScenarioName) + " As…"
+                : Unavailable("Save Scenario As", false, NoSaveAsReason));
 
         RegisterCommand(
             registerCommand, menu, commands, closedReason,

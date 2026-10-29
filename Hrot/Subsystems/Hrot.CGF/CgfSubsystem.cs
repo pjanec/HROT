@@ -2767,6 +2767,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             isScenarioContext:     () => _aiDocumentManager?.Active == null,
             hasLoadedScenario:     () => !string.IsNullOrEmpty(_scenarioSession?.LoadedScenarioName),
             saveScenarioAction:    () => _scenarioSession?.SaveCurrent(),
+            scenarioName:          () => _scenarioSession?.LoadedScenarioName,   // ⭐ CE-1443 part B — the label names it
             // ⛔ requestScenarioSaveAs stays UNSUPPLIED: Save-As needs a name, and this host composes no
             //   modal browser to ask for one. ⇒ `scenario.saveAs` is not registered here, and `File/Save`
             //   with nothing loaded is a no-op rather than a lie. Ruling 49 — the absence is real.
@@ -2930,7 +2931,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     hasInventory:  () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true).Open,   // ⭐ CE-1442
                 // ⭐ CE-1443 — Save Checkpoint is the run choice's (the session's checkpoint + the toast, and ITS reason when it cannot); the host HAS the choice, so it passes it
                 takeCheckpoint:      () => _clusterTimeAdapter?.RunChoice?.TakeCheckpoint(),
-                checkpointDisabledReason: () => _clusterTimeAdapter?.RunChoice?.CheckpointDisabledReason);
+                checkpointDisabledReason: () => _clusterTimeAdapter?.RunChoice?.CheckpointDisabledReason,
+                documentToSave: () => _aiDocumentManager?.Active != null);   // ⭐ CE-1443 part B — the same rule as this host's isScenarioContext, inverted
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two

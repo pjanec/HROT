@@ -32,10 +32,10 @@ public static class FileMenuLayout
     /// <summary>Save Checkpoint — only during a live run.</summary>
     public const string SaveCheckpoint = "File/Save Checkpoint";
 
-    // ── the editing group (names UNCHANGED in this part — part B renames the saves) ──
+    // ── the editing group ──
     /// <summary>The asset items, registered by the shell toolbar.</summary>
     public const string OpenAsset = "File/Open Asset…", NewAsset = "File/New Asset…", NewBehavior = "File/New Behavior…", NewAction = "File/New Action…", NewCondition = "File/New Condition…";
-    /// <summary>The shell's saves (<c>shell.save</c> / <c>shell.saveAs</c> / <c>shell.saveAll</c>).</summary>
+    /// <summary>The shell's saves (<c>shell.save</c> / <c>shell.saveAs</c> / <c>shell.saveAll</c>). ⭐ CE-1443 part B — <c>Save</c> / <c>Save As…</c> are drawn only while a DOCUMENT is the save target (the scenario has its own two items), and their labels name it.</summary>
     public const string Save = "File/Save", SaveAs = "File/Save As…", SaveAll = "File/Save All";
     /// <summary>The scenario's own items (<c>scenario.save</c> / <c>scenario.saveAs</c> / migration history / the curated git copy).</summary>
     public const string SaveScenario = "File/Save Scenario", SaveScenarioAs = "File/Save Scenario As", MigrationHistory = "File/Migration History", SaveCuratedToGit = "File/Save Curated Scenarios to Git";
@@ -72,7 +72,9 @@ public static class FileMenuLayout
     /// Declares every rank and every visibility on <paramref name="menu"/>. <paramref name="state"/> answers the cluster's state NOW (the session's <c>CurrentClusterState</c>): the editing group is drawn in <see cref="ClusterState.OperatingEdit"/>,
     /// Save Checkpoint in <see cref="ClusterState.OperatingLive"/>; everything else always. ⛔ Idempotent — a host composed twice (a rail) writes the same rules.
     /// </summary>
-    public static void Apply(GlobalMenuRegistry menu, Func<ClusterState> state)
+    /// <param name="documentToSave">⭐ CE-1443 part B (AQ108 §2.15 "Save names what it saves") — a DOCUMENT (BTree / HSM / Blueprint) is the focused save target. <c>Save</c> / <c>Save As…</c> are drawn only then, so the menu never shows a
+    /// second item saving the scenario (that is <c>Save Scenario 'x'</c>'s). Null ⇒ no document saver on this host (the Orchestrator) ⇒ never drawn. ⭐ A host that registers the shell saves must pass it (the silent-default rule).</param>
+    public static void Apply(GlobalMenuRegistry menu, Func<ClusterState> state, Func<bool>? documentToSave = null)
     {
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(state);
@@ -86,6 +88,7 @@ public static class FileMenuLayout
             Func<bool>? visible = path switch
             {
                 SaveCheckpoint       => LiveRun,
+                Save or SaveAs       => () => Editing() && documentToSave?.Invoke() == true,
                 SeparatorBeforeClose => () => Editing() || LiveRun(),
                 _ when System.Linq.Enumerable.Contains(EditingGroup, path) => Editing,
                 _                    => null,
