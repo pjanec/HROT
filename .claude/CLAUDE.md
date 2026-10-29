@@ -656,7 +656,7 @@ ever considered, which is what obligation ① exists to prevent.
 
   | ⭐ rule | |
   |---|---|
-  | ⭐⭐⭐ **Do it directly when writing the change ≈ writing the brief** — design, small fixes, test follow-ups, merges | Sonnet only for large self-contained builds |
+  | ⭐⭐⭐ **Keep a Sonnet worker warm and give it every build task, small ones too** — Opus keeps design, reviews, merges | a COLD start is the cost; a warm resume is cheap. With no warm worker, a one-file fix is still faster done directly |
   | ⭐⭐⭐ **Keep ONE Sonnet worker per topic and resume it with `SendMessage`** (send only the delta); record its id in the resume doc | new worker only on a topic change, a container restart, or an over-full context |
   | ⭐⭐⭐ **No worktree** — work in the main checkout (warm `bin/obj`); while it works Opus commits only its own files, by path | a worktree means cold restores + builds |
   | ⭐⭐ **Hand over what you measured** (file:line, the seam, the test class); **Opus writes the design** first | never ask it to re-discover |
