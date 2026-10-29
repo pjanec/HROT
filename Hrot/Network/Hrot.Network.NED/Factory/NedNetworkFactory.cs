@@ -70,8 +70,10 @@ public sealed class NedNetworkFactory : INetworkFactory
         ITkbDatabase?         tkbDb            = null,
         EntityLifecycleModule? lifecycleModule  = null,
         BehaviorRegistry?     behaviorRegistry = null,
-        FdpEventBus?          worldBus          = null)
+        FdpEventBus?          worldBus          = null,
+        Hrot.Network.Routing.SimpleClusterStateCache? sharedClusterCache = null)
     {
+        _sharedClusterCache = sharedClusterCache;
         _participant      = participant;
         _entityMap        = entityMap;
         _geoTransform     = geoTransform;
@@ -238,7 +240,10 @@ public sealed class NedNetworkFactory : INetworkFactory
             tkbDb:            context.TkbDb,
             lifecycleModule:  elm,
             behaviorRegistry: behaviorRegistry ?? _behaviorRegistry,
-            worldBus:         context.World.Bus);
+            worldBus:         context.World.Bus,
+            // ⭐ CE-1446 B1 — ONE cluster cache per node: the replication module the node builder made already holds the cache that membership/capability ingest fills; the
+            //   adapters and the self-heal callback this factory makes must read/write THAT one (a second cache stayed empty: no Brain→Muscle delegation, nothing moved).
+            sharedClusterCache: (context.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache);
     }
 
     /// <inheritdoc/>

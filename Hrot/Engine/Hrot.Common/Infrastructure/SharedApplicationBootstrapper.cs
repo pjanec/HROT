@@ -245,6 +245,7 @@ public abstract class SharedApplicationBootstrapper
             _walk!.PopulateSystems(context, inputSystems, simSystems, postSimSystems);
 
             var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);
+            InputGroup     = inputGroup;
             simGroup       = new TogglableSimulationGroup($"{config.SubsystemName}Sim", simSystems);
             // ⭐ CE-1446 B0 — a host that builds no post-simulation group (CGF) refuses a capability that would put systems in it, rather than drop them silently.
             if (!BuildsPostSimGroup && postSimSystems.Count > 0)
@@ -543,6 +544,9 @@ public abstract class SharedApplicationBootstrapper
         INetworkFactory? configuredFactory);
 
     // ── Virtual hooks (subclasses may override) ──────────────────────────────
+
+    /// <summary>⭐ CE-1446 B1 — the node's togglable INPUT group (built in phase 4a, so readable from <c>BuildOrchestration</c> on): a host's replay load disables network input through it.</summary>
+    protected TogglableInputGroup? InputGroup { get; private set; }
 
     /// <summary>⭐ CE-1446 B0 — the node's TIME role (default <see cref="TimeRole.Slave"/>: the Orchestrator owns the cluster clock). A subclass that owns its clock (the editor: Standalone)
     /// overrides it AND passes it to <c>BuildReplicatedNode(…, timeRole)</c>; the base verifies the built context carries it.</summary>
