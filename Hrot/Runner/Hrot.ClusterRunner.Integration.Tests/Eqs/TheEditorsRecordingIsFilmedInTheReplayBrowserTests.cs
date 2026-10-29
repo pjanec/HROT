@@ -317,6 +317,111 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         }
     }
 
+    /// <summary>The parent's wall ticks at <paramref name="t"/> on the facade's axis (the inverse of the cursor's conversion): what a branch taken there should record as its branch point.</summary>
+    private static long WallAt(ClusterTimeTransportAdapter transport, double t)
+    {
+        var s = transport.Session!;
+        return transport.Axis == ReplayAxis.Sim && s.TimeMap is { HasSimTime: true } map
+            ? map.WallAt(t)
+            : s.ZeroWallTicks + (long)Math.Round(t * TimeSpan.TicksPerSecond);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4104</c> switch 2 (AQ108 §3 / D18 / D21 / D5, handoff row 2) — <b>AAR → Live (the branch)</b>, through the real headless editor, ONE editor, both entries in sequence:
+    /// A — the indicator (<c>Choose(Live)</c> asks, names the time, the button branches); ■ in the branched run ⇒ the PARENT's AAR at the branch point, Live still armed (D5);
+    /// B — the timeline's <i>Go live from here</i> (no ask, branched at the seeked 3 s). The parent's recording stays byte-identical; a branch's recording opens in the Replay Browser.
+    /// 🔴 Red-proofs: <c>Plan</c>'s Replay→Live not calling <c>BranchLive</c> ⇒ the new-exercise row; <c>GoLiveFromHere</c> without its seek ⇒ the branch-point row; StopLive ignoring the branch ⇒ the parent-AAR row.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE4104_AarToLive_BothEntries_BranchANewExercise_StopReturnsToTheParent_ParentUntouched()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
+        try
+        {
+            // ── the parent: a >= 6 s recorded live run, opened as an AAR (switch 1's path) ──
+            var parentRun = RecordALiveRun(editor, recordOn: true, liveSeconds: 7, stop: false);
+            var choice = parentRun.Choice; var transport = parentRun.Transport; var parent = parentRun.Exercise;
+            choice.Choose(RunArmed.AAR);
+            choice.Pending!.Resolve(choice.Pending.Buttons[0]);
+            Pump(editor, () => transport.Mode == TransportMode.Replay && transport.Session is { Active: true }, 60, "OperatingReplay on the parent");
+            Assert.Equal(parent, transport.ActiveExercise);
+            PumpFor(editor, 2);                                                          // the parent's recorder has closed
+            var parentFile = Assert.Single(RecordingsOnDisk());
+            var parentSize = new FileInfo(parentFile).Length;
+            Assert.True(parentSize > 0);
+
+            // ── Entry A — the indicator: Choose(Live) asks and names the time ──
+            transport.Seek(4.0);
+            PumpFor(editor, 2);                                                          // the seek lands (on a frame boundary: 4.27 s measured for a 4 s seek)
+            Pump(editor, () => Math.Abs(transport.TotalTime - 4.0) < 0.5, 30, "the AAR at ~4 s");
+            var atA = transport.TotalTime;
+            var expectedWallA = WallAt(transport, 4.0);                                  // the seek target: the master branches where IT stands (the display leads it, see the report)
+            choice.Choose(RunArmed.Live);
+            Assert.NotNull(choice.Pending);
+            Assert.Equal($"A new exercise starts from {Hrot.UI.Common.Panels.MainToolbarTimeControlSection.FormatSpan(atA)}; this recording stays unchanged", choice.Pending!.Text);
+            Assert.Equal(TransportMode.Replay, transport.Mode);                          // asking changes nothing
+            choice.Pending.Resolve(choice.Pending.Buttons[0]);                           // "Go live from here"
+            Pump(editor, () => transport.Mode == TransportMode.Live && transport.ActiveExercise != parent, 90, "OperatingLive on a NEW exercise");
+            var branchA = transport.ActiveExercise;
+            Assert.NotEqual(parent, branchA);
+            Assert.Equal(RunArmed.Live, choice.Armed);
+            Pump(editor, () => transport.ActiveExerciseBranch is not null, 30, "the inventory names the branch's parent");
+            var (pA, wallA) = transport.ActiveExerciseBranch!.Value;
+            Assert.Equal(parent, pA);
+            Assert.InRange(Math.Abs(wallA - expectedWallA), 0, TimeSpan.TicksPerSecond / 5);   // the branch point = the parent's moment (a few frames)
+            PumpFor(editor, 4);                                                          // the branch records
+
+            // ── ■ in the branched run ⇒ the PARENT's AAR at the branch point (D5), Live still armed ──
+            choice.Stop();
+            Pump(editor, () => transport.Mode == TransportMode.Replay && transport.ActiveExercise == parent && transport.Session is { Active: true }, 60, "the parent's AAR after ■ (D5)");
+            Assert.Equal(RunArmed.Live, choice.Armed);
+            Pump(editor, () => Math.Abs(transport.TotalTime - atA) < 0.3, 30, "the parent's AAR at the branch point");
+            Assert.Equal(branchA, choice.LastExercise);
+
+            // ── Entry B — the timeline's Go live from here, seek to ~3 s, no confirmation ──
+            PumpFor(editor, 1);
+            var expectedWallB = WallAt(transport, 3.0);
+            Assert.Null(choice.GoLiveFromHereDisabledReason);
+            choice.GoLiveFromHere(() => transport.Seek(3.0));
+            Assert.Null(choice.Pending);
+            Pump(editor, () => transport.Mode == TransportMode.Live && transport.ActiveExercise != parent && transport.ActiveExercise != branchA, 90, "OperatingLive on the second branch");
+            var branchB = transport.ActiveExercise;
+            Assert.Equal(RunArmed.Live, choice.Armed);
+            Pump(editor, () => transport.ActiveExerciseBranch is not null, 30, "the inventory names the second branch's parent");
+            var (pB, wallB) = transport.ActiveExerciseBranch!.Value;
+            Assert.Equal(parent, pB);
+            Assert.InRange(Math.Abs(wallB - expectedWallB), 0, TimeSpan.TicksPerSecond / 5);   // branched at the seeked 3 s, not where the replay stood (≈ 4 s)
+            Assert.True(Math.Abs(wallB - expectedWallA) > TimeSpan.TicksPerSecond / 2, "branch B is not at A's point");
+            PumpFor(editor, 3);
+            choice.Stop();
+            Pump(editor, () => transport.Mode == TransportMode.Replay && transport.ActiveExercise == parent, 60, "the parent's AAR after ■ of branch B");
+            PumpFor(editor, 2);
+
+            // ── the parent's recording is untouched; each branch has its own ──
+            Assert.Equal(parentSize, new FileInfo(parentFile).Length);
+            var files = RecordingsOnDisk();
+            Assert.Equal(3, files.Length);
+            Assert.Contains(files, f => Path.GetFileName(Path.GetDirectoryName(f)) == branchA.ToString());
+            Assert.Contains(files, f => Path.GetFileName(Path.GetDirectoryName(f)) == branchB.ToString());
+
+            // ── a branch's recording is listed (with its parent) and opens in the Replay Browser ──
+            using var rb = new BrowserRig(_root, _http, 240 + Interlocked.Increment(ref _domain));
+            var (status, body) = await rb.Call(HttpMethod.Get, "/exercises");
+            Assert.Equal(HttpStatusCode.OK, status);
+            var listed = body["data"]!["exercises"]!.AsArray().Select(e => e!).Single(e => Guid.Parse(e["exerciseId"]!.ToString()) == branchA);
+            Assert.Equal(parent.ToString(), listed["parentExerciseId"]?.ToString());
+            (status, body) = await rb.Call(HttpMethod.Post, "/replay", $$"""{"exerciseId":"{{branchA}}"}""");
+            Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
+            Assert.True(rb.Browser.ActiveRepo is { EntityCount: > 0 }, "the Replay Browser opened an empty branch recording");
+            Console.WriteLine($"CE4104-2 exercises: parent={parent} A={branchA} B={branchB}");
+        }
+        finally
+        {
+            editor.Shutdown();
+        }
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-4103</c> — a SECOND <see cref="EditorSubsystem"/> in one process (this class's tests each build their own staging root, so the second one's root is NOT
     /// the first's) opens its scenario and reaches <c>OperatingEdit</c>. 📐 It used to prepare its load against the FIRST root's NAS (<c>ClusterConfiguration.Default</c>
