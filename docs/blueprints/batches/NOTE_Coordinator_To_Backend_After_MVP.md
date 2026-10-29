@@ -26,8 +26,8 @@ Rails in each feature's own suite; fold what you learn into the owning design (o
 
 ## 2. Then on call for CE-4104
 
-ui proves each switch end to end — Live → AAR, AAR → Live (the branch), Live → DAR, DAR → Live at the live pause point, and the new DAR → Live from
-the DAR moment (CE-4105, a branch from inside a DAR; its design goes to the user first). The likely backend pieces: `FinalizeLive` → AAR, the
+ui proves each switch end to end — Live → AAR, AAR → Live (the branch), Live → DAR, DAR → Live at the live pause point. ⛔ DAR → Live from the DAR moment is DEFERRED (CE-4105 — the user wants it to truncate and re-record the
+same exercise, later, if required). The likely backend pieces: `FinalizeLive` → AAR, the
 branch (`BranchLive`, the parent's scenario copy, the branch fields on the inventory), `ReviewProcessManager` (enter / exit a DAR, the recording
 continuous across it). A break ⇒ ui's NOTE with the measurement; fix it first.
 
