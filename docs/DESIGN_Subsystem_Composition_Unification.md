@@ -5508,6 +5508,12 @@ grew a fourth copy.
 
 ⭐⭐ **All three cluster hosts are now on the capability axis:** SimHost (§4.1s), IG (§4.1t), CGF (here).
 
+⛔⛔ **SUPERSEDED `2026-10-29` by R-1045 (user):** *"It must use the same bootstrapper as the other ECS node. That's the point of unification and sharing."* ⇒ the "optional, LAST" deferral below (and §4.1ae W3's *"keeps CGF off it
+deliberately"*) no longer stands: CGF — and the editor, which builds on CGF's node — derive from `SharedApplicationBootstrapper` like SimHost,
+IG, Stride and the traffic node. Tracked as [CE-1446](blueprints/Blueprint_Issues_Tracker.md) (backend). The orchestration/time-authority
+caution survives as a BUILD caution (measure what CGF's and the editor's orchestration phase does differently before moving it), not as a reason
+to stay off the base.
+
 ### ⛔⛔ WHAT THIS IS NOT — **and the distinction is the design's own**
 
 🔒 §4.1j's phase table marks **node-bootstrap adoption** *"optional, LAST"* — *"the only phase touching
