@@ -57,6 +57,13 @@ public sealed class AssetPrefetchProcessManager
     /// ⚠ Written on the frame thread, removed by the copy's continuation on a worker.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, System.Threading.CancellationTokenSource> _copies = new();
 
+    /// <summary>
+    /// ⭐ <c>CE-4091</c> (AQ108 D7) — runs on a worker BEFORE a scenario name is staged to the nodes: puts a name that is not a file of the NAS yet there
+    /// (<see cref="AssetInventoryProcessManager.StageRecordedScenario"/>: a recording's scenario copy, opened for editing). Set by
+    /// <c>OrchestratorCore</c>, the host that owns the inventory (silent-default rule: every host builds its prefetch there). Null: none.
+    /// </summary>
+    public Func<string, bool>? SourceStager { get; set; }
+
     /// <summary>The prefetch copies in flight — for rails.</summary>
     internal int CopiesInFlight => _copies.Count;
 
@@ -134,7 +141,19 @@ public sealed class AssetPrefetchProcessManager
             var capturedIntent = intent;
             var copy = new System.Threading.CancellationTokenSource();
             _copies[intent.RequestId] = copy;
-            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath, _tkbName, copy.Token)
+            // ⭐ CE-4091 — a name that is not a file of the NAS (a recording's copy opened for editing) is put there first, on the worker, so the
+            //   gateway below finds it; a stager that throws fails the load like any scenario that is not there.
+            var scenarioId = intent.ScenarioId;
+            var stager     = SourceStager;
+            var copying = stager == null
+                ? _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath, _tkbName, copy.Token)
+                : System.Threading.Tasks.Task.Run(() => stager(scenarioId))
+                    .ContinueWith(staged => staged.IsFaulted
+                            ? System.Threading.Tasks.Task.FromException<GatewayResult>(staged.Exception!.GetBaseException())
+                            : _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath, _tkbName, copy.Token),
+                        System.Threading.Tasks.TaskScheduler.Default)
+                    .Unwrap();
+            _ = copying
                 .ContinueWith(task =>
                 {
                     _copies.TryRemove(capturedIntent.RequestId, out _);

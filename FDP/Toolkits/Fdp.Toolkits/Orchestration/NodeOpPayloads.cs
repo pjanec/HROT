@@ -58,7 +58,12 @@ namespace Fdp.Toolkit.Orchestration
     /// <param name="FromRecording">⭐ CE-3337 — the node restored this frame from its OWN recording, so
     /// <see cref="GlobalTime.FrameNumber"/> is the recorded step count at it (what the live run resumes counting from); a listening node's
     /// world clock is not that, and the aggregator prefers a recording node's answer.</param>
-    public readonly record struct LiveBranchResult(GlobalTime HistoricalTime, bool FromRecording = false);
+    /// <param name="ParentExerciseId">⭐ CE-4097 (AQ108 D5) — the exercise the node's new recording branches from: the very
+    /// <c>RecordingBranch.ParentExerciseId</c> it writes into its sidecar (<c>Guid.Empty</c> on a listener, which records no history). The master's
+    /// inventory carries it for the live run — no second record of the branch.</param>
+    /// <param name="BranchWallTicks">⭐ the same <c>RecordingBranch.BranchWallTicks</c> (the sidecar's <c>BranchWallTicks</c>); 0 when none.</param>
+    public readonly record struct LiveBranchResult(GlobalTime HistoricalTime, bool FromRecording = false,
+                                                   Guid ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Payload for <see cref="NodeOpType.AbortTransaction"/> intents.

@@ -9,6 +9,7 @@ using Fdp.Core.Logging;
 using Fdp.Core.Serialization;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Scenario;
 using Hrot.Common.Scenario;
 
 namespace Hrot.Orchestrator;
@@ -28,9 +29,12 @@ public sealed class AssetInventoryProcessManager
     private readonly string _ledgerDirectory;
     private readonly string _stagingRoot;
     private DateTime _lastInventoryScan = DateTime.MinValue;
+    private readonly TimeSpan _scanInterval;
     private ClusterState _lastState = ClusterState.Idle;
     private string? _pendingScenarioId;
     private RecordingLedgerEntry? _currentRecording;
+    // ⭐ CE-4097 (AQ108 D5) — the branch the nodes reported (LiveBranchResult) before the live run's ledger entry exists; consumed by it.
+    private (Guid Parent, long Ticks)? _pendingBranch;
     private readonly Dictionary<Guid, Guid> _pendingExports = new();
     private readonly Dictionary<Guid, RecordingLedgerEntry> _unarchivedLedger = new();
 
@@ -39,8 +43,10 @@ public sealed class AssetInventoryProcessManager
         StorageGatewayModule gateway,
         string nasBasePath,
         string localStagingRoot,
-        int nodeId)
+        int nodeId,
+        TimeSpan? scanInterval = null)   // default 5 s; a test passes TimeSpan.Zero to scan on every tick
     {
+        _scanInterval    = scanInterval ?? TimeSpan.FromSeconds(5);
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
@@ -73,11 +79,15 @@ public sealed class AssetInventoryProcessManager
                 //   that does not exist (and no empty archive is written). ⛔ Not gated again downstream: every consumer reads this ledger.
                 FdpLog<AssetInventoryProcessManager>.Info("[AssetInventory] CE-4090: live run {0} is not recorded — no ledger entry.", ev.ExerciseId);
                 _currentRecording = null;
+                _pendingBranch = null;
             }
             else if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive)
             {
-                _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero);
-                SnapshotScenario(ev.ExerciseId, _pendingScenarioId);
+                var parent = _pendingBranch?.Parent ?? Guid.Empty;
+                _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero,
+                    parent, _pendingBranch?.Ticks ?? 0);
+                _pendingBranch = null;
+                SnapshotScenario(ev.ExerciseId, _pendingScenarioId, parent, _currentRecording.StartTimeUtc);
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
             {
@@ -93,7 +103,27 @@ public sealed class AssetInventoryProcessManager
                 _pendingScenarioId = null;
             }
 
+            // ⭐ CE-4097 — a branch that never reached OperatingLive (back to a replay / Idle) must not label the next load
+            if (ev.CurrentState is ClusterState.Idle or ClusterState.OperatingReplay) _pendingBranch = null;
+
             _lastState = ev.CurrentState;
+        }
+
+        // ⭐ CE-4097 (AQ108 D5) — a replay → live branch: the nodes answer PrepareLive with the parent and branch point of the recording they
+        //   start (the SAME RecordingBranch their sidecar is written from); the master's aggregator hands the earliest on ClusterOpCompletedEvent.
+        //   The result may land before or after the cluster state reaches OperatingLive, so it labels the run's entry if that exists, else waits.
+        foreach (var done in _bus.ReadManaged<ClusterOpCompletedEvent>())
+        {
+            if (done.StatusCode != OrchestrationStatusCode.Success
+                || done.ResultPayload is not LiveBranchResult { ParentExerciseId: var parent } branch || parent == Guid.Empty) continue;
+            if (_currentRecording is { } run)
+            {
+                _currentRecording = run with { ParentExerciseId = parent, BranchWallTicks = branch.BranchWallTicks };
+                // ⭐ CE-4091 (D7) — the result landed AFTER the entry: the copy made at go-live was of the scenario file; a branch keeps its parent's.
+                InheritParentCopy(run.ExerciseId, parent);
+            }
+            else
+                _pendingBranch = (parent, branch.BranchWallTicks);
         }
 
         foreach (var intent in _bus.ReadManaged<ExecuteStorageOpIntent>())
@@ -127,13 +157,13 @@ public sealed class AssetInventoryProcessManager
             }
         }
 
-        if ((DateTime.UtcNow - _lastInventoryScan).TotalSeconds >= 5.0)
+        if (DateTime.UtcNow - _lastInventoryScan >= _scanInterval)
         {
             var scenariosNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName);
             var exercisesNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName);
             var localScenarios    = _gateway.ScanLocalScenarios(scenariosNasPath);
             var localExercises = _unarchivedLedger.Values
-                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId))
+                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId, e.ParentExerciseId, e.BranchWallTicks))
                 .OrderByDescending(e => e.StartTimeUtc)
                 .ToArray();
             var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath)
@@ -147,7 +177,7 @@ public sealed class AssetInventoryProcessManager
             //   POST /replay found "the run in progress". ⛔ Not among the UNARCHIVED: a run still recording is not offered for export.
             var replayable = _currentRecording is { } live && live.ExerciseId != Guid.Empty
                 ? localExercises.Where(e => e.ExerciseId != live.ExerciseId)
-                      .Prepend(new ExerciseInventoryItem(live.ExerciseId, live.StartTimeUtc, DateTime.UtcNow - live.StartTimeUtc, live.ScenarioId))
+                      .Prepend(new ExerciseInventoryItem(live.ExerciseId, live.StartTimeUtc, DateTime.UtcNow - live.StartTimeUtc, live.ScenarioId, live.ParentExerciseId, live.BranchWallTicks))
                       .ToArray()
                 : localExercises;
 
@@ -242,12 +272,19 @@ public sealed class AssetInventoryProcessManager
     /// ⭐ CE-3119 — copies the scenario the exercise starts from into the ledger, once per exercise, so the archive
     /// files what RAN even if the scenario is saved over later (<c>docs/designs/mgmt-1/DESIGN.md</c> §13.3a).
     /// Best-effort, like the sidecar: a failure must not stop the exercise.
+    /// <para>⭐ <c>CE-4091</c> (AQ108 D7): the copy is the WHOLE folder (<c>foreign/</c>, <c>takes/</c>, …) and is STAMPED at this go-live — the
+    /// name, the hash of the SAVED <c>scenario.json</c> just copied, and <paramref name="recordedAtUtc"/> (<see cref="RecordedScenarioStamp"/>,
+    /// the one source for "which version ran"). A BRANCH (<paramref name="parentExerciseId"/> set) inherits its parent's copy, stamp included,
+    /// whatever scenario the load names.</para>
     /// </summary>
-    private void SnapshotScenario(Guid exerciseId, string? scenarioId)
+    private void SnapshotScenario(Guid exerciseId, string? scenarioId, Guid parentExerciseId, DateTime recordedAtUtc)
     {
-        if (exerciseId == Guid.Empty || string.IsNullOrWhiteSpace(scenarioId)) return;
+        if (exerciseId == Guid.Empty) return;
         var snapshot = SnapshotDirectory(exerciseId);
         if (Directory.Exists(snapshot)) return; // a resumed exercise keeps the copy it started with
+
+        if (parentExerciseId != Guid.Empty && InheritParentCopy(exerciseId, parentExerciseId)) return;
+        if (string.IsNullOrWhiteSpace(scenarioId)) return;
 
         try
         {
@@ -257,12 +294,69 @@ public sealed class AssetInventoryProcessManager
                 FdpLog<AssetInventoryProcessManager>.Warn(
                     "[AssetInventory] scenario '{0}' has no files on the NAS; exercise {1} archives without a scenario copy.",
                     scenarioId, exerciseId);
+            else
+                RecordedScenarioStamp.Write(snapshot, scenarioId!, recordedAtUtc);
         }
         catch (Exception ex)
         {
             FdpLog<AssetInventoryProcessManager>.Warn(
                 "[AssetInventory] could not snapshot scenario '{0}' for exercise {1}: {2}", scenarioId, exerciseId, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 (D7) — the scenario copy of a recording, wherever it is now: the ledger's snapshot while the recording is unarchived, else the
+    /// archive's <c>exercises/&lt;id&gt;/scenario/</c> on the NAS; null when it has none.
+    /// </summary>
+    private string? FindRecordedCopy(Guid exerciseId)
+    {
+        var snapshot = SnapshotDirectory(exerciseId);
+        if (Directory.Exists(snapshot)) return snapshot;
+        var archived = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+        return Directory.Exists(archived) ? archived : null;
+    }
+
+    /// <summary>
+    /// ⭐ CE-4091 (D7) — makes <paramref name="exerciseId"/>'s scenario copy EQUAL its parent's (files, subfolders and the stamp): a branch ran the
+    /// parent's scenario, not whatever the file says now. Replaces a copy already made from the file; false (nothing touched) when the parent has none.
+    /// </summary>
+    private bool InheritParentCopy(Guid exerciseId, Guid parentExerciseId)
+    {
+        try
+        {
+            if (FindRecordedCopy(parentExerciseId) is not { } parentCopy) return false;
+            var snapshot = SnapshotDirectory(exerciseId);
+            if (Directory.Exists(snapshot)) Directory.Delete(snapshot, recursive: true);
+            return StorageGatewayModule.CopyScenarioFiles(parentCopy, snapshot) > 0;
+        }
+        catch (Exception ex)
+        {
+            FdpLog<AssetInventoryProcessManager>.Warn(
+                "[AssetInventory] could not inherit the scenario copy of {0} for branch {1}: {2}", parentExerciseId, exerciseId, ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4091 (AQ108 D7, D22) — OPENS A RECORDED COPY AS A NEW SCENARIO: when <paramref name="scenarioName"/> is
+    /// <see cref="RecordedScenarioNames.ForExercise"/>'s name, puts the recording's scenario copy (without its stamp) at
+    /// <c>&lt;nas&gt;/scenarios/Recipes/Recorded/&lt;id&gt;/</c> — the place every node's load of that name resolves — and returns true; false for any
+    /// other name. ⛔ It reads the copy and writes ONLY that new folder: never the original scenario's folder, never the recording or its copy.
+    /// Run by the prefetch BEFORE it stages the name to the nodes (so it may run off the frame thread: it touches only the file system).
+    /// A recording with no copy throws — the load is then refused like any scenario that is not there.
+    /// </summary>
+    public bool StageRecordedScenario(string scenarioName)
+    {
+        if (!RecordedScenarioNames.TryParse(scenarioName, out var exerciseId)) return false;
+        var source = FindRecordedCopy(exerciseId)
+            ?? throw new DirectoryNotFoundException($"[AssetInventory] exercise {exerciseId} has no scenario copy to open (recorded before CE-3119, recording off, or discarded).");
+        var dest = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName,
+            RecordedScenarioNames.RecipesFolder, RecordedScenarioNames.RecordedFolder, exerciseId.ToString());
+        if (Directory.Exists(dest)) Directory.Delete(dest, recursive: true);   // always the recording's copy as it is, never a half-edited earlier open
+        if (StorageGatewayModule.CopyScenarioFiles(source, dest, exceptFileName: RecordedScenarioStamp.FileName) == 0)
+            throw new InvalidOperationException($"[AssetInventory] the scenario copy of exercise {exerciseId} is empty.");
+        FdpLog<AssetInventoryProcessManager>.Info("[AssetInventory] CE-4091: exercise {0}'s scenario copy staged as '{1}' for editing.", exerciseId, scenarioName);
+        return true;
     }
 
     /// <summary>

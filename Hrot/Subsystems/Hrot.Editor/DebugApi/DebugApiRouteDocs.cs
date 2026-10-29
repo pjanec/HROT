@@ -1387,10 +1387,11 @@ namespace Hrot.Editor.DebugApi
             Group:   "E — Scenario",
             Summary: "Load a scenario for AUTHORING (Edit state), cluster-wide.",
             Returns: "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
-            Hint:    "Req: name (string). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
+            Hint:    "Req: name (string) OR recorded (an exercise id from list_exercises). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
             Params: new RouteParam[]
             {
-                new("name", "string", true, "Scenario name (relative path)"),
+                new("name", "string", false, "Scenario name (relative path). Required unless recorded is sent; not with it."),
+                new("recorded", "string", false, "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named Recipes/Recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."),
                 new("waitForReady", "boolean", false, "Wait for the cluster to reach OperatingEdit before returning",
                     DefaultJson: "false"),
                 new("discardUnsaved", "boolean", false, "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
@@ -2013,7 +2014,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "list_exercises",
             Group:   "I — Replay",
             Summary: "The exercises the cluster master can replay (its inventory) — every live run is one, recorded on every node (R-3053).",
-            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+            Returns: "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds, parentExerciseId (null = began at a load), branchWallTicks (the parent's wall ticks at the branch; 0 = none)}] } newest first.",
             Hint:    "No params. Example: list_exercises({})",
             Notes: new[] { "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus." },
             ExampleArgsJson: "{}",

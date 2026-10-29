@@ -11,7 +11,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// One exercise as the Replay Browser can open it: one recording file per node, every one carrying the same exercise id in its
     /// sidecar — exactly what <see cref="FederatedReplayManager.LoadGroup"/> accepts.
     /// </summary>
-    public sealed record RecordingGroup(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, IReadOnlyList<string> Paths);
+    /// <param name="ParentExerciseId">⭐ CE-4097 — the exercise this one branched from (<see cref="ExerciseBranch"/>); <c>Guid.Empty</c> = not a branch.</param>
+    /// <param name="BranchWallTicks">⭐ the branch point, in the sidecar's own unit; 0 when not a branch.</param>
+    public sealed record RecordingGroup(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, IReadOnlyList<string> Paths,
+                                        Guid ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// ⭐ RB-1 (<c>docs/DESIGN_Replay_Browser_Debug_Http.md</c>) — <b>the exercises a standalone Replay Browser can open</b>: every
@@ -31,6 +34,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         public static IReadOnlyList<RecordingGroup> Scan(string stagingRoot)
         {
             var groups = new Dictionary<Guid, (DateTime Start, TimeSpan Duration, SortedDictionary<int, string> Nodes)>();
+            var sidecars = new Dictionary<Guid, List<RecordingMetadata>>();
             foreach (var exercisesRoot in ExerciseRoots(stagingRoot))
             foreach (var dir in SafeDirectories(exercisesRoot))
             foreach (var fdp in SafeFiles(dir, "*.fdp"))
@@ -41,11 +45,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
                     g = (meta.Timestamp, meta.Duration, new SortedDictionary<int, string>());
                 if (g.Nodes.ContainsKey(meta.NodeId)) continue;   // the local copy wins over the archived one
                 g.Nodes[meta.NodeId] = fdp;
+                if (!sidecars.TryGetValue(meta.ExerciseId, out var metas)) sidecars[meta.ExerciseId] = metas = new List<RecordingMetadata>();
+                metas.Add(meta);
                 g = (meta.Timestamp < g.Start ? meta.Timestamp : g.Start, meta.Duration > g.Duration ? meta.Duration : g.Duration, g.Nodes);
                 groups[meta.ExerciseId] = g;
             }
             return groups
-                .Select(kv => new RecordingGroup(kv.Key, kv.Value.Start, kv.Value.Duration, kv.Value.Nodes.Values.ToList()))
+                .Select(kv =>
+                {
+                    var (parent, branchTicks) = ExerciseBranch.Of(sidecars[kv.Key]);   // ⭐ CE-4097 — the sidecars' own record
+                    return new RecordingGroup(kv.Key, kv.Value.Start, kv.Value.Duration, kv.Value.Nodes.Values.ToList(), parent, branchTicks);
+                })
                 .OrderByDescending(g => g.StartTimeUtc)
                 .ToList();
         }

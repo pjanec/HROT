@@ -431,6 +431,8 @@ single-file scenario the brain (or a fresh editor) loads with **zero** new load 
 already proven in the editor test. The distribution boundary is the **format tag**, exactly §6b: our hosts
 unify into one file; a foreign host keeps its own.
 
+> ⭐ **What the folder is copied FOR — a recording keeps its scenario** *(CE-4091, `2026-10-28`; owning design [`blueprints/Architect_Question_108_Run_Mode_Picker.md`](blueprints/Architect_Question_108_Run_Mode_Picker.md) D7 and its as-built)*: at go-live the master copies the WHOLE folder this section leaves — `scenario.json`, `foreign/`, `takes/`, `checks.json`, any nested file; not the dot-folders `.slices` / `.autosave` — into the recording's ledger (later `exercises/<id>/scenario/`) and stamps it (`recorded.stamp`: name, hash of that `scenario.json`, time). A recording opens for editing as a NEW scenario named `Recipes/Recorded/<id>` (`POST /scenario/load/edit {recorded}`); a branch inherits its parent's copy.
+
 ### 4b. ⭐⭐⭐ THE MERGE — detailed design *(why it is trivial, proven — `2026-09-14`)*
 
 📐 **The scenario DOM, measured** *(`ScenarioSerializer.Serialize:120-202`, `ScenarioSaveCore.BuildDom:33-45`)*:

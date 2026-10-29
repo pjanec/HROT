@@ -193,7 +193,11 @@ public sealed class OrchestratorCore : IDisposable
         _previewClock = new PreviewClockProcessManager(bus, timeReads, time);
 
         // TASK-P002 — the prefetch. Must tick BEFORE ClusterMaster so PrefetchStagingCompletedEvent is ready.
-        _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas, tkbName: config.TkbName);   // ⭐ R-4018
+        _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas, tkbName: config.TkbName)   // ⭐ R-4018
+        {
+            // ⭐ CE-4091 (AQ108 D7) — a recording's scenario copy opens for editing by a name the prefetch resolves through the inventory that holds the copy
+            SourceStager = _inventory.StageRecordedScenario,
+        };
 
         // ⭐ CE-3021 — explicit publish / refresh over the SAME gateway and NAS (silent-default rule).
         _master.AssetSync = new AssetSyncService(storageGateway, nas, _master.ActiveNodeCapabilitySnapshot);
