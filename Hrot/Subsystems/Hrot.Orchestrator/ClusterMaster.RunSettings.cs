@@ -45,6 +45,26 @@ public sealed partial class ClusterMaster
 
     private bool _runNotRecorded;
 
+    /// <summary>
+    /// ⭐ CE-3345 (AQ108 §2.15) — <b>LOAD FOLLOWS THE ARMED MODE</b>: a scenario load with <see cref="TransitionStateIntent.FollowArmedMode"/> takes its target from <see cref="ArmedMode"/> —
+    /// <c>Live</c> ⇒ <c>OperatingLive</c> (live, paused at the start), <c>Preview</c> ⇒ <c>OperatingEdit</c> (editing). <c>AAR</c> is no scenario load: the request's own target stands. A request that
+    /// names its mode (the flag unset — HTTP) is returned unchanged.
+    /// </summary>
+    internal TransitionStateIntent ResolveArmedTarget(TransitionStateIntent intent)
+    {
+        if (!intent.FollowArmedMode || string.IsNullOrEmpty(intent.ScenarioId)) return intent;
+        var target = ArmedMode switch
+        {
+            ClusterArmedMode.Live    => FdpClusterState.OperatingLive,
+            ClusterArmedMode.Preview => FdpClusterState.OperatingEdit,
+            _                        => intent.TargetState,
+        };
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-3345: load {0} of '{1}' names no mode — the armed mode {2} picks {3}.", intent.TransactionId, intent.ScenarioId, ArmedMode, target);
+        intent.TargetState = target;
+        intent.FollowArmedMode = false;
+        return intent;
+    }
+
     /// <summary>⭐ CE-4090 — the last live run was started with recording OFF (see the remarks). Announced on every cluster-state publication.</summary>
     public bool RunNotRecorded => _runNotRecorded;
 

@@ -286,6 +286,19 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(string.Empty, Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent()).WaitingFor);
     }
 
+    /// <summary>⭐ CE-3345 (R-3073) — the cluster ERROR crosses the cluster-state topic both ways through the ONE encoder / decoder pair; an older sender's omission reads as "no error".
+    /// 🔴 Mutation: <c>StateTopicOf</c> or <c>StateOf</c> not mapping <c>ErrorReason</c> ⇒ red.</summary>
+    [Fact]
+    public void CE3345_TheClusterStateBroadcast_CarriesTheClusterError_BothWays()
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent
+            { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Degraded, ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
+        Assert.Equal("Brain (CGF, node 3) lost at sim 00:12:31", topic.ErrorReason);
+        Assert.Equal("Brain (CGF, node 3) lost at sim 00:12:31", ClusterFactsIngress.StateOf(topic).ErrorReason);
+        Assert.Equal(string.Empty, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).ErrorReason);   // an older sender's sample
+        Assert.Equal(string.Empty, Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent()).ErrorReason);
+    }
+
     /// <summary>
     /// ⭐⭐ CE-3344 (R-3069, R-4006) — the master's IN-SYNC set (carried by the durable context topic) reaches a node's bus as <c>InSyncSetChangedEvent</c> through the ONE facts ingress, so the node's
     /// <c>ClusterView</c> knows whether THIS node is in sync; an unchanged or blank value publishes nothing (the echo of the master's own write on a shared bus ends after one round).

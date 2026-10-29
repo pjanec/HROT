@@ -35,6 +35,7 @@ public sealed class ClusterOpMasterTranslator
         RecordLiveRunsOff = ev.RecordLiveRunsOff ? 1 : 0,
         ArmedMode        = (int)ev.ArmedMode,   // ⭐ CE-3341 R-3068
         WaitingFor       = ev.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
+        ErrorReason      = ev.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
     };
 
     private readonly DdsReader<ClusterOpRequest>    _requestReader;

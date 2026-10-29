@@ -308,7 +308,7 @@ public sealed class TheClusterControlRoutesTests
         foreach (var (method, path, body) in new[]
                  {
                      ("POST", "/scenario/load/live", """{"scenario":"s1"}"""), ("POST", "/sim/play", "{}"), ("POST", "/run-mode", """{"armed":"preview"}"""),
-                     ("POST", "/cluster/transition", """{"target":"Idle"}"""), ("POST", "/checkpoint", "{}"), ("POST", "/run-settings", """{"recordLiveRuns":true}"""),
+                     ("POST", "/cluster/transition", """{"target":"OperatingEdit","scenario":"s1"}"""), ("POST", "/checkpoint", "{}"),   // ⭐ CE-3345: a transition to Idle is a way OUT and is no longer gated (its own test below) ("POST", "/run-settings", """{"recordLiveRuns":true}"""),
                  })
         {
             var (status, json) = await Send(client.PostAsync(url + path, Json(body)));
@@ -337,6 +337,115 @@ public sealed class TheClusterControlRoutesTests
         (st, status0) = await Send(client.GetAsync(url + "/status"));
         Assert.True(status0["data"]!["canOperate"]!.GetValue<bool>());
         Assert.Null(status0["data"]!["notOperable"]);
+    }
+
+    /// <summary>⭐⭐ CE-3345 — every way back to Idle is a real route, and none of them is in the gated set (the rule: a way out is never gated).</summary>
+    [Fact]
+    public void CE3345_Every_way_back_to_Idle_exists_and_is_not_gated()
+    {
+        foreach (var route in DebugApiHost.ClusterExitRoutes)
+        {
+            Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is an exit but is not a route");
+            Assert.DoesNotContain(route, DebugApiHost.ClusterGatedRoutes);
+        }
+        Assert.Contains(("POST", "/replay/stop"), DebugApiHost.ClusterExitRoutes);   // the CE-3344 gap: it was gated and HTTP had no way back to Idle
+        Assert.Contains(("POST", "/cluster/cancel"), DebugApiHost.ClusterExitRoutes);
+        Assert.True(DebugApiHost.IsWayBackToIdle("POST", "/cluster/transition", JsonNode.Parse("""{"target":"Idle"}""")));
+        Assert.False(DebugApiHost.IsWayBackToIdle("POST", "/cluster/transition", JsonNode.Parse("""{"target":"OperatingLive"}""")));
+        Assert.False(DebugApiHost.IsWayBackToIdle("POST", "/scenario/load/live", JsonNode.Parse("""{"target":"Idle"}""")));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3345</c> (R-3073, success 5) — on a REAL <see cref="DebugApiHost"/>, while the cluster is in its ERROR state — and, as a control, while it is merely not ready — the ways back to Idle
+    /// (<c>POST /replay/stop</c>, <c>/cluster/cancel</c>, <c>/sim/stop</c>, <c>/cluster/transition {target: Idle}</c>) are NOT refused by the gate, while a gated route still answers 409 naming the error and a scenario
+    /// SAVE is refused with it. 🔴 Mutations (each compiles): <c>/replay/stop</c> put back in <c>ClusterGatedRoutes</c> ⇒ its cell red; <c>IsWayBackToIdle</c> without the transition arm ⇒ the Idle-transition cell red;
+    /// <c>ClusterView.NotOperableReason</c> without the error line ⇒ the 409 cells' reason red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE3345_WhileTheClusterIsInError_TheWaysBackToIdleAreNotGated_AGatedRouteAnswers409WithTheError_AndSaveIsRefused()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId: 5);
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+        Hear(new InSyncSetChangedEvent { NodeIds = new[] { 5 } });
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Degraded, WaitingFor = "Brain (CGF)", ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
+        Assert.True(view.IsInError);
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterView: () => view),
+            },
+            currentPerspective: () => "CGF", acksPending: null);
+        var service = new DebugApiService(dispatcher, clusterState: () => _state);
+
+        var l = new TcpListener(IPAddress.Loopback, 0); l.Start(); int port = ((IPEndPoint)l.LocalEndpoint).Port; l.Stop();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDispatcher(dispatcher);
+        host.AttachService(service);
+        host.Start();
+        string url = $"http://localhost:{port}";
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        StringContent Json(string t) => new(t, Encoding.UTF8, "application/json");
+        async Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request)
+        {
+            for (int i = 0; i < 2000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
+            var response = await request;
+            return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
+        }
+        static bool RefusedByTheGate(JsonNode body) => body["data"]?["notOperable"] is not null;
+
+        async Task AssertTheGateRefusesAndTheExitsWork(string phase)
+        {
+            _master.Sent.Clear(); _master.Transitions.Clear();   // each phase starts from nothing published
+            // a gated route: 409 naming the reason, nothing published
+            foreach (var (path, body) in new[]
+                     {
+                         ("/scenario/load/live", """{"scenario":"s1"}"""), ("/sim/play", "{}"), ("/checkpoint", "{}"),
+                         ("/cluster/transition", """{"target":"OperatingEdit","scenario":"s1"}"""), ("/scenario/save", """{"name":"x"}"""),
+                     })
+            {
+                var (status, json) = await Send(client.PostAsync(url + path, Json(body)));
+                Assert.True(status == HttpStatusCode.Conflict, $"[{phase}] POST {path} answered {(int)status}, expected 409");
+                Assert.Contains(view.NotOperableReason!, json["data"]!["notOperable"]!.GetValue<string>());
+            }
+            Assert.Empty(_master.Sent);
+            Assert.Empty(_master.Transitions);
+
+            // the ways back to Idle: NOT refused by the gate
+            var (st, json2) = await Send(client.PostAsync(url + "/replay/stop", Json("{}")));
+            Assert.False(RefusedByTheGate(json2), $"[{phase}] POST /replay/stop was refused by the cluster gate");
+            Assert.Equal(HttpStatusCode.OK, st);
+            Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+            _master.Transitions.Clear();
+
+            (st, json2) = await Send(client.PostAsync(url + "/cluster/transition", Json("""{"target":"Idle"}""")));
+            Assert.False(RefusedByTheGate(json2), $"[{phase}] POST /cluster/transition {{target: Idle}} was refused by the cluster gate");
+            Assert.Equal(HttpStatusCode.OK, st);
+            Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+            _master.Transitions.Clear();
+
+            (st, json2) = await Send(client.PostAsync(url + "/sim/stop", Json("{}")));
+            Assert.False(RefusedByTheGate(json2), $"[{phase}] POST /sim/stop was refused by the cluster gate");
+
+            int cancels = _master.Cancels.Count;
+            (st, _) = await Send(client.PostAsync(url + "/cluster/cancel", Json($"{{\"targetId\":\"{Guid.NewGuid()}\"}}")));
+            Assert.Equal(HttpStatusCode.OK, st);
+            Assert.Equal(cancels + 1, _master.Cancels.Count);
+        }
+
+        // ── in ERROR: the reason is the error ────────────────────────────────────────────────────────────────────────────
+        Assert.Contains("the cluster is in error", view.NotOperableReason);
+        await AssertTheGateRefusesAndTheExitsWork("error");
+
+        // ── merely NOT READY (no error): the same ───────────────────────────────────────────────────────────────────────
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "Brain (CGF)", ErrorReason = "" });
+        Assert.False(view.IsInError);
+        Assert.Contains("waiting for: Brain (CGF)", view.NotOperableReason);
+        await AssertTheGateRefusesAndTheExitsWork("not ready");
     }
 
     [Fact]

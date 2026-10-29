@@ -1182,6 +1182,7 @@ public sealed class TheOneTimeFacadeTests
             ("LoadLive",      d => () => d.LoadLive("x"),           "LoadForLive:x"),
             ("OpenRecording", d => () => d.OpenRecording(RunId),    $"OpenRecording:{RunId}"),
             ("Leave",         d => () => d.Leave(LeaveReason.NewExercise), "Leave:NewExercise"),
+            ("Close",         d => () => d.Leave(LeaveReason.Close),       "Leave:Close"),   // ⭐ CE-3345 — File › Close is the same OUT door
         };
         foreach (var m in moves)
         {

@@ -67,14 +67,18 @@ public record TransitionPayloadDto(
     // ⭐ CE-4090 (AQ108 D14) — a live load that records whatever the cluster's "Record live runs" setting says (the scenario verifier).
     //   Additive on the wire; omitted ⇒ false ⇒ follow the setting.
     [property: JsonPropertyName("ForceRecording")]
-    bool           ForceRecording = false
+    bool           ForceRecording = false,
+
+    // ⭐ CE-3345 (R-3073, AQ108 §2.15) — a scenario load that names no mode: the master picks it from the cluster's armed run mode. Additive on the wire; omitted ⇒ false ⇒ the request's own mode.
+    [property: JsonPropertyName("FollowArmedMode")]
+    bool           FollowArmedMode = false
 )
 {
     /// <summary>⭐ R-3055 — the ONE encoding of a transition on the wire (every node's egress).</summary>
     public static TransitionPayloadDto From(Fdp.Toolkit.Orchestration.TransitionStateIntent intent) => new(
         TargetState: (ClusterState)(int)intent.TargetState, ScenarioId: intent.ScenarioId, ExerciseId: intent.ExerciseId,
         TimeMode: intent.TimeMode, CheckpointingSeconds: intent.CheckpointingSeconds, TargetWallTicks: intent.TargetWallTicks,
-        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording);
+        TargetSimSeconds: intent.TargetSimSeconds, ForceRecording: intent.ForceRecording, FollowArmedMode: intent.FollowArmedMode);
 
     /// <summary>⭐ R-3055 — the ONE decoding (the master's translator and its request adapter): nothing on the wire is dropped.</summary>
     public Fdp.Toolkit.Orchestration.TransitionStateIntent ToIntent(Guid requestId) => new()
@@ -88,6 +92,7 @@ public record TransitionPayloadDto(
         TargetWallTicks      = TargetWallTicks,
         TargetSimSeconds     = TargetSimSeconds,   // CE-3329 R11
         ForceRecording       = ForceRecording,     // CE-4090 D14
+        FollowArmedMode      = FollowArmedMode,    // CE-3345
     };
 }
 

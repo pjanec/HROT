@@ -159,14 +159,32 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         internal static readonly HashSet<(string Method, string Template)> ClusterGatedRoutes = new(WorldChangingRoutes)
         {
-            ("POST", "/sim/play"), ("POST", "/sim/stop"), ("POST", "/sim/pause"), ("POST", "/sim/step"), ("POST", "/sim/timescale"),
+            ("POST", "/sim/play"), ("POST", "/sim/pause"), ("POST", "/sim/step"), ("POST", "/sim/timescale"),
             ("POST", "/run-mode"), ("POST", "/run-settings"), ("POST", "/preview/enter"), ("POST", "/preview/exit"),
             ("POST", "/scenario/load/edit"), ("POST", "/scenario/load/live"), ("POST", "/scenario/check-unsaved"),
             ("POST", "/exercises/keep"), ("DELETE", "/exercises/{id}"),
-            ("POST", "/replay"), ("POST", "/replay/seek"), ("POST", "/review/seek"), ("POST", "/replay/stop"), ("POST", "/review"), ("POST", "/review/exit"),
+            ("POST", "/replay"), ("POST", "/replay/seek"), ("POST", "/review/seek"), ("POST", "/review"), ("POST", "/review/exit"),
             ("POST", "/replay/axis"), ("POST", "/replay/loop"),
             ("POST", "/cluster/transition"),
         };
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3345</c> (R-3073, <c>DESIGN_Cluster_Load_Phase.md</c> §11.5) — <b>the ways back to Idle are NEVER gated</b>: a cluster that is not ready, or is in its ERROR state, must still be leavable
+        /// (CE-3344 gated <c>POST /replay/stop</c> and left HTTP no way out). The routes that LEAVE to Idle: <c>POST /replay/stop</c> (the explicit stop → Idle), <c>POST /sim/stop</c> (■ ends a run → Idle)
+        /// and <c>POST /cluster/cancel</c> (a cancel always works); plus <c>POST /cluster/transition</c> when its body targets <c>Idle</c> — <see cref="IsWayBackToIdle"/>. ⛔ Not in <see cref="ClusterGatedRoutes"/>;
+        /// a rail asserts every one exists. ⚠ The master stays the authority: a cluster in error accepts only a transition to Idle there too.
+        /// </summary>
+        internal static readonly HashSet<(string Method, string Template)> ClusterExitRoutes = new()
+        {
+            ("POST", "/replay/stop"), ("POST", "/sim/stop"), ("POST", "/cluster/cancel"),
+        };
+
+        /// <summary>⭐ CE-3345 — is this request a way back to Idle? A route of <see cref="ClusterExitRoutes"/>, or <c>POST /cluster/transition {target: Idle}</c> — the one body-dependent exit.</summary>
+        internal static bool IsWayBackToIdle(string method, string template, JsonNode? body)
+            => ClusterExitRoutes.Contains((method, template))
+               || (method == "POST" && template == "/cluster/transition"
+                   && Enum.TryParse<Fdp.Toolkit.Orchestration.ClusterState>(body?["target"]?.ToString(), ignoreCase: true, out var target)
+                   && target == Fdp.Toolkit.Orchestration.ClusterState.Idle);
 
         private sealed record RouteEntry(
             string Method,
@@ -2493,7 +2511,9 @@ namespace Hrot.Editor.DebugApi
                 // ⭐⭐⭐ CE-3344 (R-3069) — a cluster that is not READY (a mandatory subsystem / role has not reported, Degraded, no master, this node not in sync) cannot be driven:
                 //   the cluster routes answer 409 with the ONE reason ClusterView carries (the same text the controls grey out with). ⛔ One gate here, before the handler — and BEFORE the
                 //   recording gate below, whose refusal presumes a working cluster. ⭐ cancel and every GET are not in the set.
-                if (ClusterGatedRoutes.Contains((method, entry.Template)) && _service?.ClusterNotOperableReason is { } notOperable)
+                JsonNode? body = await ReadBodyAsync(ctx).ConfigureAwait(false);   // ⭐ CE-3345 — read BEFORE the gate: a transition's target decides whether it is a way out
+                if (ClusterGatedRoutes.Contains((method, entry.Template)) && !IsWayBackToIdle(method, entry.Template, body)
+                    && _service?.ClusterNotOperableReason is { } notOperable)
                 {
                     await WriteResponseAsync(ctx, 409, new ApiResponse(false,
                         Data: new JsonObject { ["notOperable"] = notOperable },
@@ -2520,7 +2540,6 @@ namespace Hrot.Editor.DebugApi
                     return;
                 }
 
-                JsonNode? body = await ReadBodyAsync(ctx).ConfigureAwait(false);
                 var reqCtx = new RequestContext(ctx.Request, routeValues, body);
 
                 RouteResult result;

@@ -237,6 +237,27 @@ public sealed class EditorScenarioSessionLoadTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3073, AQ108 §2.15) — <i>File › Close</i>: the REAL session's <c>Door.Leave(Close)</c> reaches Idle with the ONE Idle intent (the way out of a cluster in its error state), and keeps the
+    /// scenario name like Exit (the unload to Idle clears the world; Close is not New Exercise).
+    /// 🔴 Mutation: <c>DoorMove.Leaving</c> / <c>RawLeave</c> ignoring <c>Close</c> (the reason not leaving) ⇒ no Idle intent; <c>RawLeave</c> wiping the world for Close ⇒ the name row fails.
+    /// </summary>
+    [Fact]
+    public void CE3345_CloseThroughTheDoor_SendsTheOneIdleIntent_AndIsNotNewExercise()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+        session.OpenForEdit("kept");
+        session.Update();
+        Drain(bus);
+        ClusterIs(bus, session, ClusterState.OperatingLive);
+        session.Door.Leave(LeaveReason.Close);
+        var sent = Assert.Single(Drain(bus));
+        Assert.Equal(ClusterState.Idle, sent.TargetState);
+        Assert.Equal("kept", session.LoadedScenarioName);
+        Assert.Equal("Closing", DoorMove.Leaving(LeaveReason.Close).What);
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4101</c> — <c>then</c> of a guarded open (New-from-a-recipe saves the seed as the new name AFTER the open) runs only once the open WENT OUT: not while the question is open, never after Cancel.
     /// 🔴 Red-proof: the door running <c>then</c> before <c>Admit</c> ⇒ the first assertion fails.
     /// </summary>

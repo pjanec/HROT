@@ -67,6 +67,13 @@ namespace Fdp.Toolkit.Orchestration
         /// (<i>"SimHost, Brain (CGF)"</i>: mandatory names and roles no node has reported); empty = nothing is missing.</summary>
         public string WaitingFor { get; private set; } = string.Empty;
 
+        /// <summary>⭐⭐ <c>CE-3345</c> (R-3073, <c>DESIGN_Cluster_Load_Phase.md</c> §11.5) — the cluster ERROR the master last announced (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>); empty = no error.
+        /// Sticky on the master: only the cluster reaching Idle clears it (a returning node does not).</summary>
+        public string ErrorReason { get; private set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3345</c> — the cluster is in its ERROR state: a required node / role was lost with a world loaded. Every operation is refused except the ways back to Idle.</summary>
+        public bool IsInError => ErrorReason.Length > 0;
+
         /// <summary>⭐ <c>CE-3344</c> — the master's in-sync set (R-4006) has reached this node; until it has, no node is known to be in sync.</summary>
         public bool HasInSyncSet { get; private set; }
 
@@ -88,6 +95,7 @@ namespace Fdp.Toolkit.Orchestration
             {
                 if (MasterGone) return "the cluster's master is gone";
                 if (!HasFollowedState) return "no cluster state has reached this node yet";
+                if (IsInError) return $"the cluster is in error — {ErrorReason}";   // ⭐ CE-3345 — the error first: it says WHY, and it is what the user must act on
                 if (State == ClusterState.Degraded) return WaitingFor.Length > 0 ? $"the cluster is Degraded — waiting for: {WaitingFor}" : "the cluster is Degraded";
                 if (WaitingFor.Length > 0) return $"the cluster is not ready — waiting for: {WaitingFor}";
                 if (!IsInSync) return $"this node ({NodeId}) is not in the master's in-sync set";
@@ -172,6 +180,7 @@ namespace Fdp.Toolkit.Orchestration
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     WaitingFor = ev.WaitingFor ?? string.Empty; // ⭐ CE-3344 R-3069
+                    ErrorReason = ev.ErrorReason ?? string.Empty; // ⭐ CE-3345 R-3073
                 }
                 if (State != ClusterState.OperatingEdit) LastUnsavedCheck = null;   // ⭐ CE-4093 — the answer described an open scenario
             }

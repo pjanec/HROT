@@ -249,4 +249,34 @@ public sealed class ClusterViewTests
         HearStruct(observerBus, observer, new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });
         Assert.True(observer.CanOperate);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3073, success 4) — the master's ERROR (a required node / role lost with a world loaded) folds into the view: <c>IsInError</c>, <c>CanOperate</c> false, <c>NotOperableReason</c> = the error
+    /// BEFORE the Degraded / waiting texts (it says why and what to do); a state without it clears it (the cluster reached Idle).
+    /// 🔴 Mutations (each compiles): <c>NotOperableReason</c> without the error arm ⇒ the reason reads "Degraded — waiting for…"; <c>DrainClusterState</c> not folding <c>ErrorReason</c> ⇒ <c>IsInError</c> false.
+    /// </summary>
+    [Fact]
+    public void CE3345_TheClusterError_IsFolded_ClosesCanOperate_AndIsTheFirstReason()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId: 5);
+        HearStruct(bus, view, new InSyncSetChangedEvent { NodeIds = new[] { 5 } });
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });
+        Assert.True(view.CanOperate, view.NotOperableReason);
+        Assert.False(view.IsInError);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent
+            { CurrentState = ClusterState.Degraded, WaitingFor = "Brain (CGF)", ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
+        Assert.True(view.IsInError);
+        Assert.False(view.CanOperate);
+        Assert.Equal("Brain (CGF, node 3) lost at sim 00:12:31", view.ErrorReason);
+        Assert.StartsWith("the cluster is in error — Brain (CGF, node 3) lost", view.NotOperableReason);   // before "Degraded" / "waiting for"
+        Assert.DoesNotContain("waiting for", view.NotOperableReason);
+
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "Brain (CGF)" });   // Close reached Idle: the error is gone, the latch waits as CE-3344
+        Assert.False(view.IsInError);
+        Assert.Equal(string.Empty, view.ErrorReason);
+        Assert.Contains("waiting for: Brain (CGF)", view.NotOperableReason);
+    }
 }

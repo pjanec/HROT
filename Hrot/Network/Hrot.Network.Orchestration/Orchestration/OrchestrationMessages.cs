@@ -171,6 +171,9 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// <summary>⭐⭐ CE-3344 (R-3069) — what the cluster is still WAITING FOR before it is ready (<i>"SimHost, Brain (CGF)"</i>: the mandatory names and roles no node has reported);
         /// empty = nothing is missing. Held by the master, the same on every node. Additive on the wire: an older sender omits it, which reads as "nothing missing".</summary>
         [DdsManaged] public string WaitingFor;
+        /// <summary>⭐⭐ CE-3345 (R-3073) — the cluster ERROR reason (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>); empty = no error. Set by the master while a mandatory node / role was lost with a world loaded,
+        /// cleared when the cluster reaches Idle; the same on every node. Additive on the wire: an older sender omits it, which reads as "no error".</summary>
+        [DdsManaged] public string ErrorReason;
     }
 
     /// <summary>

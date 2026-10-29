@@ -26,7 +26,7 @@ namespace Hrot.Orchestrator;
 /// a time command, a replay or a storage op").</para>
 /// <para>⭐⭐ <c>CE-3344</c> (R-3069, user <c>2026-10-29</c>: <i>"role loss means Degraded too"</i>) — the latch is now over names AND roles
 /// (<c>CheckBootstrapLatch</c> releases when <see cref="MissingMandatoryNames"/> and <see cref="MissingMandatoryRoles"/> are both empty), and
-/// <c>EjectNode</c> degrades for a lost mandatory ROLE exactly as for a lost name (Degraded, abort + Idle to the survivors, latch re-engaged); the
+/// <c>EjectNode</c> degrades for a lost mandatory ROLE exactly as for a lost name (Degraded, abort + Idle to the survivors, latch re-engaged — ⭐ CE-3345: that is the IDLE case; with a world loaded it is the cluster ERROR state instead, <c>ClusterMaster.ErrorState.cs</c>); the
 /// role's return re-releases it through the same <c>CheckBootstrapLatch</c>. <i>(⛔ SUPERSEDED: the earlier "deliberately NOT built — a 5 s CGF blip would tear down
 /// every running scenario" — the user ruled it the other way.)</i> The text the cluster is waiting on is published with the cluster state (<c>WaitingFor</c>).</para>
 /// <para>📄 <c>docs/designs/cgf-1/CGF-1-DESIGN.md</c> §3.5, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §9.2,
@@ -73,6 +73,8 @@ public sealed partial class ClusterMaster
     /// </summary>
     private List<string> MissingMandatoryNames()
     {
+        // ⭐ CE-3345 — in ERROR the surviving nodes still hold the world (they are NOT in Idle), so a name is missing only when no node of it is on the roster at all
+        bool requireIdle = !IsInError;
         var missing = new List<string>();
         foreach (var name in _config.Mandatory)
         {
@@ -80,7 +82,7 @@ public sealed partial class ClusterMaster
             foreach (var kv in _roster.ActiveNodes)
             {
                 if (string.Equals(kv.Value.SubsystemName, name, StringComparison.OrdinalIgnoreCase)
-                    && kv.Value.LocalClusterState == ClusterState.Idle)
+                    && (!requireIdle || kv.Value.LocalClusterState == ClusterState.Idle))
                 {
                     found = true;
                     break;

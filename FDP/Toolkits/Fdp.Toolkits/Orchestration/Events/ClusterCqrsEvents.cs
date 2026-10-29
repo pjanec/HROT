@@ -145,6 +145,9 @@ namespace Fdp.Toolkit.Orchestration
         /// no node has reported yet. <see langword="null"/> / empty = nothing is missing. Rides every cluster-state publication; ⭐ the ONE text — the load wait's
         /// "waiting for" reads the same master function.</summary>
         public string? WaitingFor;
+        /// <summary>⭐⭐ <c>CE-3345</c> (R-3073, <c>DESIGN_Cluster_Load_Phase.md</c> §11.5) — the cluster ERROR: why it is broken (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>), set while a mandatory
+        /// node / role was lost with a world loaded and cleared only when the cluster reaches Idle. <see langword="null"/> / empty = no error. ⭐ Beside <see cref="WaitingFor"/>, never instead of it.</summary>
+        public string? ErrorReason;
     }
 
     /// <summary>
@@ -223,6 +226,8 @@ namespace Fdp.Toolkit.Orchestration
         public ClusterArmedMode ArmedMode;
         /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — as <see cref="ClusterStateTransitionedEvent.WaitingFor"/> (what <see cref="ClusterView.WaitingFor"/> folds).</summary>
         public string? WaitingFor;
+        /// <summary>⭐⭐ <c>CE-3345</c> (R-3073) — as <see cref="ClusterStateTransitionedEvent.ErrorReason"/> (what <see cref="ClusterView.ErrorReason"/> folds).</summary>
+        public string? ErrorReason;
     }
 
     /// <summary>

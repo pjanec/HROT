@@ -432,12 +432,18 @@ public sealed partial class ClusterMaster : IDisposable
             // ⭐ CE-4087 — a scenario LOAD against a cluster that is not ready WAITS (and is refused with the reason after the wait);
             //   every other request keeps today's rejection.
             if (req.OperationType == ClusterOpType.TransitionState
-                && ClusterOpRequestAdapter.ToTransitionStateIntent(req) is var load && IsScenarioLoad(load))
+                && ClusterOpRequestAdapter.ToTransitionStateIntent(req) is var load && !LatchRefuses(load))   // a scenario load (waits) — or, in ERROR, the way back to Idle (CE-3345)
             {
                 ProcessTransitionStateIntent(load);
                 return;
             }
-            PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected);
+            // ⭐ CE-3345 — a cancel always works (CE-3344's HTTP cancel was never gated; this path rejected it while the latch was closed)
+            if (req.OperationType == ClusterOpType.CancelOperation)
+            {
+                ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
+                return;
+            }
+            PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null);
             return;
         }
 
@@ -684,6 +690,7 @@ public sealed partial class ClusterMaster : IDisposable
     private void CheckBootstrapLatch()
     {
         if (_bootstrapLatch) return;
+        if (IsInError) return;   // ⭐ CE-3345 — a cluster in ERROR stays "not ready" until it reaches Idle, whatever returns meanwhile (sticky)
 
         // ⭐⭐ CE-3344 (R-3069) — CLUSTER READY = every mandatory NAME and ROLE has a node that reported. ⭐ CE-4087 — each test lives in ONE place
         //   (ClusterMaster.Bootstrap.cs), shared with the load wait's "waiting for" text: names = a roster entry in Idle, roles = a node whose capability advert
@@ -750,6 +757,15 @@ public sealed partial class ClusterMaster : IDisposable
         //   that is not this ejection (a booting cluster).
         bool isMandatory = Array.IndexOf(_config.Mandatory, profile.SubsystemName) >= 0;
         bool lostRole    = _bootstrapLatch && MissingMandatoryRoles().Count > 0;
+        // ⭐⭐ CE-3345 (R-3073) — a mandatory node / role lost while a scenario is LOADED or RUNNING is the cluster ERROR state, not a teardown: Degraded + the reason, the clock paused, the
+        //   world kept on every node, the live recording closed and kept — and no abort, no Idle to the survivors. ⭐ A second loss while already in error is also handled there. In Idle there is
+        //   no world to lose: the old behaviour below stays (only "not ready", the latch re-engaged, no error).
+        lostRole = lostRole || (IsInError && MissingMandatoryRoles().Count > 0);
+        if (IsInError || ((isMandatory || lostRole) && HasWorldLoaded))
+        {
+            EnterClusterError(nodeId, profile.SubsystemName, isMandatory);
+            return;
+        }
         if (!isMandatory && !lostRole) return;
 
         // Abort any in-flight transaction.
@@ -783,7 +799,8 @@ public sealed partial class ClusterMaster : IDisposable
         foreach (var intent in _eventBus.ReadManaged<TransitionStateIntent>())
         {
             // ⭐ CE-4087 — a scenario load WAITS on a closed latch (ProcessTransitionStateIntent holds it); anything else is rejected as before.
-            if (!_bootstrapLatch && !IsScenarioLoad(intent)) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
+            //   ⭐ CE-3345 — and, while the cluster is in ERROR, a way back to Idle (Close): a way out is never gated.
+            if (LatchRefuses(intent)) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null); continue; }
             try   { ProcessTransitionStateIntent(intent); }
             catch (InvalidOperationException ex)
             {
@@ -1317,6 +1334,10 @@ public sealed partial class ClusterMaster : IDisposable
     {
         var requestId = intent.TransactionId;
 
+        // ⭐ CE-3345 (R-3073) — a scenario load that names no mode follows the cluster's ARMED run mode (Live ⇒ live, Preview ⇒ editing). Resolved FIRST, so the held load, the planner and every
+        //   later step see one concrete target. ⛔ HTTP's load routes stay explicit (they never set the flag, AQ108 D22).
+        intent = ResolveArmedTarget(intent);
+
         // ⭐ CE-4087 — a newer request replaces a load that waits on the mandatory set (as ScenarioLoadSequence does caller-side) …
         SupersedeHeldLoad(requestId);
         // … and a scenario load WAITS on the mandatory set — subsystem names (the bootstrap latch) and roles — instead of being rejected
@@ -1702,6 +1723,7 @@ public sealed partial class ClusterMaster : IDisposable
             else
             {
                 // No nodes registered or no prepare steps — complete immediately.
+                if (resolvedTarget == ClusterState.Idle && ClearClusterError()) PublishClusterState(ClusterState.Idle);   // ⭐ CE-3345 — Idle reached with no node to ask
                 PublishOpStatus(requestId, OrchestrationStatusCode.Success);
             }
         }
@@ -1900,6 +1922,13 @@ public sealed partial class ClusterMaster : IDisposable
 
     private void ProcessStorageOpIntent(ExecuteStorageOpIntent intent)
     {
+        // ⭐ CE-3345 (R-3073) — a cluster in ERROR cannot save the scenario: the world may be inconsistent (a node of it is gone). Refused with the error text.
+        if (intent.Operation == StorageOpType.SaveScenario && IsInError)
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] save {0} REJECTED — the cluster is in error: {1}.", intent.RequestId, ErrorReason);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected, $"the cluster is in error — {ErrorReason}");
+            return;
+        }
         // ⭐ CE-3329 P3 (D-E, F7) — a scenario save while the cluster shows a RECORDING would save the replayed world as the scenario
         if (intent.Operation == StorageOpType.SaveScenario && ClusterStates.IsReplaying((FdpClusterState)(int)_currentDsmState))
         {
@@ -2219,6 +2248,7 @@ public sealed partial class ClusterMaster : IDisposable
     /// <summary>Publishes a cluster state transition to the bus.</summary>
     private void PublishClusterState(ClusterState state)
     {
+        if (IsInError) state = ClusterState.Degraded;   // ⭐ CE-3345 — what the master announces while in error; _currentDsmState keeps the state the world is really in
         var waitingFor = WaitingFor() ?? string.Empty;   // ⭐ CE-3344 — empty when nothing mandatory is missing
         _lastPublishedState = state;
         _publishedWaitingFor = waitingFor;
@@ -2234,6 +2264,7 @@ public sealed partial class ClusterMaster : IDisposable
             RecordLiveRunsOff = !RecordLiveRuns,
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
+            ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2245,6 +2276,7 @@ public sealed partial class ClusterMaster : IDisposable
             RecordLiveRunsOff = !RecordLiveRuns,
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
+            ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
         });
     }
 
@@ -2452,6 +2484,7 @@ public sealed partial class ClusterMaster : IDisposable
         else
         {
             _transactionEpoch++;   // ⭐ C4 — telemetry: one more round completed successfully
+            if (_currentDsmState == ClusterState.Idle) ClearClusterError();   // ⭐ CE-3345 — the cluster reached Idle: the error ends (the broadcast below says so)
             if (tracker.ResyncsOnSuccess && tracker.Targets != null)
             {
                 // ⭐ C3 — everyone who answered a trajectory through Idle is in sync with what it reached.

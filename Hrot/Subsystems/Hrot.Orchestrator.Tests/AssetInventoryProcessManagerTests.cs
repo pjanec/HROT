@@ -147,6 +147,46 @@ public sealed class AssetInventoryProcessManagerTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-3345 (R-3073, success 7) — a run that ends in the cluster ERROR is KEPT: the master announces <c>Degraded</c> (never leaving through Idle), which ends the live run for the ledger exactly as
+    /// any other exit — its entry is written to disk (the ledger file) and the exercise is listed among the unarchived, ready for AAR / keep. (The nodes' recording files are closed by the
+    /// <c>FinalizeLive</c> the master fans out at the same moment — pinned in the master's E1.)
+    /// 🔴 Mutation: the ledger's live-exit arm keyed on <c>Idle</c> only (not "any non-live state") ⇒ the errored run is never listed.
+    /// </summary>
+    [Fact]
+    public void CE3345_ARunThatEndsInTheClusterError_IsKeptInTheLedgerAndListed()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3345_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3345_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var bus     = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, 400, TimeSpan.Zero);
+
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = "town-raid", ExerciseId = exerciseId });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exerciseId });
+            bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers();
+
+            // the Brain is lost: the master announces Degraded WITH the error (the run's world stays, nothing goes to Idle)
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Degraded, ExerciseId = exerciseId, ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
+            bus.SwapBuffers(); manager.Tick(); bus.SwapBuffers();
+
+            AssetInventoryUpdateEvent? inventory = null;
+            foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) inventory = ev;
+            Assert.NotNull(inventory);
+            Assert.Contains(inventory!.Value.UnarchivedLocalExercises!, e => e.ExerciseId == exerciseId && e.ScenarioId == "town-raid");
+            Assert.Contains(inventory.Value.LocalExercises!, e => e.ExerciseId == exerciseId);
+            Assert.True(Directory.Exists(staging) && Directory.GetFiles(staging, "*", SearchOption.AllDirectories).Any(f => f.Contains(exerciseId.ToString())),
+                "the ledger entry of the errored run is on disk");
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
     [Fact]
     public void CE3119_TheArchive_CarriesTheScenarioAsItWasWhenTheExerciseStarted()
     {
