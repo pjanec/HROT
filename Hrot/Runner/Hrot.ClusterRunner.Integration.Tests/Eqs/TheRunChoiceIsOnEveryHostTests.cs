@@ -289,6 +289,43 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         AssertTheTransportIsOnTheToolbarAndNotTheStatusBar(windows, "SimHost");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1445</c> (R-1044, DESIGN_Cluster_Load_Phase §11.8 ①②) S1 — on the CONSTRUCTED IG (headless, no DDS: <c>new IgSubsystem()</c>, <c>Initialize</c> as <c>IgSubsystemTests</c> does): it OFFERS run controls
+    /// (before this item it offered none, so a player-only process drew no waiting screen), built by the shared factory with the PLAYER policy, no scenario session (not an operator), and the role's EXPLICIT suppression of the
+    /// toolbar time control. Composed by the runner's <c>LocalWindowController</c> alone in its process: the loading / waiting screen and the error section are drawn over its choice (Player: no Cancel), and the toolbar carries no time control.
+    /// 🔴 Mutation: the IG not offering run controls (<c>Transport</c> null) ⇒ the offer cells red; <c>SuppressTimeControl</c> false ⇒ the toolbar cell reds.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1445_TheConstructedIg_OffersPlayerRunControls_AndTheWaitingScreenIsComposedOverThem()
+    {
+        var ig = new Hrot.IG.IgSubsystem();
+        try
+        {
+            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = 90 + Interlocked.Increment(ref _domain) });   // (a domain below CycloneDDS's default-port limit: 230+ cannot create a participant here, as the CGF rails above show)
+            var offer = Assert.IsAssignableFrom<IProvidesRunControls>(ig);
+            Assert.Equal(RunHostKind.Ig, offer.HostKind);
+            Assert.NotNull(offer.Transport);
+            var choice = Assert.IsType<RunModeChoice>(offer.RunChoice);
+            Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Player, offer.GatePolicy);
+            Assert.False(choice.HasScenarioControl);                 // a player is not an operator
+            Assert.True(offer.SuppressTimeControl);                  // the role's explicit suppression
+            choice.CancelLoad("x");                                  // a player owns no load: nothing to cancel, nothing throws
+
+            var windows = MakeWindowManager();
+            var controller = ComposeLikeTheRunner(windows, ig);
+            Assert.Same(ig, controller.RunControlsOwner);
+            Assert.Same(choice, controller.LoadingScreen!.Choice);
+            Assert.True(controller.LoadingScreen.IsPlayer);
+            Assert.False(controller.LoadingScreen.CanCancel);
+            Assert.Same(choice, controller.ErrorSection!.Choice);
+            Assert.Empty(windows.MainToolbar.BuildViewModel(currentPerspective: "IG").Entries.Where(e => e.Id == ShellTimeControlToolbar.EntryId));
+        }
+        finally
+        {
+            ig.Shutdown();
+        }
+    }
+
     /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>
     private static readonly string[] ScenarioMenuPaths =
     {

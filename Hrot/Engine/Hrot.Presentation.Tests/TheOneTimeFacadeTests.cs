@@ -1473,4 +1473,50 @@ public sealed class TheOneTimeFacadeTests
         var none = With(ClusterState.OperatingLive);
         new Hrot.UI.Common.Panels.LoadingScreen(none.Choice).Cancel();               // a host with no slave: nothing happens, nothing throws
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1445</c> (R-1044, DESIGN_Cluster_Load_Phase §11.8 ③) S3 — <b>the player's waiting screen</b>: with the Player policy it is up whenever the gate is closed (the lobby: closed and NOT loading, with the gate's reason in its text;
+    /// loading: <i>Loading — progress</i>), hidden once the node is play-ready, and it offers NO Cancel (a player does not own the load — <see cref="Hrot.UI.Common.Panels.LoadingScreen.CanCancel"/>, and <c>Cancel()</c> reaches no slave).
+    /// An operator's screen is unchanged: up only while loading, with Cancel.
+    /// 🔴 Mutation: <c>LoadingScreen.Visible</c> ignoring the policy (always <c>Gate.Loading</c>) ⇒ the lobby cell reds; <c>CanCancel</c> always true ⇒ the Cancel cells red.
+    /// </summary>
+    [Fact]
+    public void CE1445_ThePlayersWaitingScreen_ShowsWhileTheGateIsClosed_WithTheReason_AndOffersNoCancel()
+    {
+        var calls = new List<string?>();
+        var player = With(ClusterState.Idle, gatePolicy: HostGatePolicy.Player, cancelLoad: r => calls.Add(r));
+        var screen = new Hrot.UI.Common.Panels.LoadingScreen(player.Choice, HostGatePolicy.Player);
+
+        HearGate(player, ClusterState.Idle, waitingFor: "Brain (CGF)");               // the lobby: closed, not loading
+        Assert.False(player.Choice.Gate.Open);
+        Assert.False(player.Choice.Gate.Loading);
+        Assert.True(screen.Visible);
+        Assert.StartsWith("Waiting for the scenario…", screen.Text);
+        Assert.Contains(player.Choice.Gate.Reason!, screen.Text.Split('\n')[1]);      // the reason on the second line
+
+        player.View.NoteLocalPhase(NodePhase.Loading, "Terrain", null);               // loading: the progress, the same screen
+        HearGate(player, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.True(screen.Visible);
+        Assert.Equal("Loading — CGF (node 2): Terrain", screen.Text);
+
+        Assert.False(screen.CanCancel);                                               // no Cancel on a player's screen …
+        screen.Cancel();
+        Assert.Empty(calls);                                                          // … and nothing reaches the slave
+
+        player.View.NoteLocalPhase(NodePhase.PlayReady, null, null);                  // play-ready: hidden
+        HearGate(player, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.True(player.Choice.Gate.Open);
+        Assert.False(screen.Visible);
+
+        // an operator's screen is what it was: the lobby shows nothing, a load shows Cancel
+        var op = With(ClusterState.Idle, cancelLoad: r => calls.Add(r));
+        var opScreen = new Hrot.UI.Common.Panels.LoadingScreen(op.Choice);
+        HearGate(op, ClusterState.Idle, waitingFor: "Brain (CGF)");
+        Assert.False(opScreen.Visible);
+        Assert.True(opScreen.CanCancel);
+        HearGate(op, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.True(opScreen.Visible);
+        opScreen.Cancel();
+        Assert.Equal(new[] { "cancelled by the user" }, calls);
+    }
 }

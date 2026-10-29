@@ -1,6 +1,7 @@
 using System;
 using Fdp.Presentation.WindowManager;
 using Hrot.UI.Common.RunMode;
+using Fdp.Toolkit.Orchestration;
 using ImGuiNET;
 
 namespace Hrot.UI.Common.Panels;
@@ -21,15 +22,22 @@ public sealed class LoadingScreen
     private const string PopupId = "Loading###mt_loading_screen";
 
     private readonly RunModeChoice _choice;
+    private readonly HostGatePolicy _policy;
     private bool _popupOpen;
 
     /// <param name="choice">The owner host's run choice.</param>
-    public LoadingScreen(RunModeChoice choice) => _choice = choice ?? throw new ArgumentNullException(nameof(choice));
+    /// <param name="policy">⭐ <c>CE-1445</c> (R-1044) — the owner's gate policy. <see cref="HostGatePolicy.Operator"/> (default): up only while a load is in progress, with Cancel.
+    /// <see cref="HostGatePolicy.Player"/>: the player's WAITING screen — up whenever its gate is closed (lobby, catching up, loading, not in sync, error), no Cancel (it does not own the load).</param>
+    public LoadingScreen(RunModeChoice choice, HostGatePolicy policy = HostGatePolicy.Operator)
+    {
+        _choice = choice ?? throw new ArgumentNullException(nameof(choice));
+        _policy = policy;
+    }
 
     /// <summary>Registers it on <paramref name="bar"/> (every perspective); the status bar is drawn every frame, which is where the modal is driven from.</summary>
-    public static LoadingScreen Register(StatusBarManager bar, RunModeChoice choice)
+    public static LoadingScreen Register(StatusBarManager bar, RunModeChoice choice, HostGatePolicy policy = HostGatePolicy.Operator)
     {
-        var screen = new LoadingScreen(choice);
+        var screen = new LoadingScreen(choice, policy);
         bar.RegisterSection(SectionId, 1, screen.Render);
         return screen;
     }
@@ -37,14 +45,33 @@ public sealed class LoadingScreen
     /// <summary>The run choice it reads (the picked owner's).</summary>
     public RunModeChoice Choice => _choice;
 
-    /// <summary>A load is in progress: the screen is up.</summary>
-    public bool Visible => _choice.Gate.Loading;
+    /// <summary>The player's waiting screen (the owner's policy is <see cref="HostGatePolicy.Player"/>).</summary>
+    public bool IsPlayer => _policy == HostGatePolicy.Player;
 
-    /// <summary>What the screen says: the load's progress (the cluster's, else this node's step).</summary>
-    public string Text => _choice.Gate.Progress.Length > 0 ? $"Loading — {_choice.Gate.Progress}" : "Loading…";
+    /// <summary>Operator: a load is in progress. Player: the gate is closed for any reason (⭐ CE-1445) — a player parked in the lobby sees it too.</summary>
+    public bool Visible => IsPlayer ? !_choice.Gate.Open : _choice.Gate.Loading;
 
-    /// <summary>The Cancel button: the host's slave cancels the load.</summary>
-    public void Cancel() => _choice.CancelLoad(CancelReason);
+    /// <summary>
+    /// What the screen says: the load's progress (the cluster's, else this node's step). The player's, while not loading, is <i>Waiting for the scenario…</i> with the gate's reason on a second line.
+    /// </summary>
+    public string Text
+    {
+        get
+        {
+            var gate = _choice.Gate;
+            if (gate.Loading || !IsPlayer) return gate.Progress.Length > 0 ? $"Loading — {gate.Progress}" : "Loading…";
+            return gate.Reason is { Length: > 0 } reason ? $"Waiting for the scenario…\n{reason}" : "Waiting for the scenario…";
+        }
+    }
+
+    /// <summary>⭐ CE-1445 — whether the screen offers Cancel: an operator's does (it owns the load); a player's never.</summary>
+    public bool CanCancel => !IsPlayer;
+
+    /// <summary>The Cancel button: the host's slave cancels the load. A player's screen has none — this does nothing there.</summary>
+    public void Cancel()
+    {
+        if (CanCancel) _choice.CancelLoad(CancelReason);
+    }
 
     /// <summary>Called each frame inside an active ImGui frame.</summary>
     public void Render()
@@ -54,8 +81,11 @@ public sealed class LoadingScreen
         ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
         if (!ImGui.BeginPopupModal(PopupId, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings)) return;
         ImGui.TextWrapped(Text);
-        ImGui.Separator();
-        if (ImGui.Button("Cancel")) Cancel();
+        if (CanCancel)
+        {
+            ImGui.Separator();
+            if (ImGui.Button("Cancel")) Cancel();
+        }
         ImGui.EndPopup();
     }
 }

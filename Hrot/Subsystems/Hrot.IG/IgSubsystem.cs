@@ -29,7 +29,8 @@ namespace Hrot.IG
     /// </summary>
     public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Hrot.Presentation.DebugApi.IProvidesDebugSurface
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         /// <inheritdoc/>
         public string Name => "IG";
@@ -48,6 +49,9 @@ namespace Hrot.IG
         /// there answers <c>NOT_SUPPORTED_HERE</c>, which is exactly what <c>D4</c> asks for: absence that is
         /// declared and assertable. ⛔ Fabricating an adapter here would invent a control path the operator's
         /// UI does not have.</para>
+        ///
+        /// <para>📐 <b>CE-1445 (R-1044) update:</b> IG now holds a <c>ClusterTimeTransportAdapter</c> too — built by <c>NodeRunControls.For</c> with the Player profile for the GATE / waiting screen only
+        /// (<c>IProvidesRunControls</c>, below). ⛔ It is still NOT offered as a drive: this debug surface keeps <c>drive: null</c>, and the profile suppresses the toolbar time control.</para>
         ///
         /// <para>⭐ IG is still a full ACK participant in the roster — 📌 <c>PARTICIPATE ≠ OBSERVE</c>: it
         /// executes the master's ticks, it just does not ISSUE them.</para>
@@ -109,6 +113,16 @@ namespace Hrot.IG
 
         // GZH-014: expose the gizmo controller for perspective-aware listener switching.
         public Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? GizmoController => _app?.GizmoController;
+
+        // ⭐⭐⭐ CE-1445 (R-1044, DESIGN_Cluster_Load_Phase §11.8) — the IG OFFERS its run controls like every ECS host: the Player gate + the waiting screen (the composer draws it over this choice).
+        //   ⛔ Not a drive: `CreateDebugProvider` above still has none (Q54/D4 — the IG issues no ticks); the toolbar time control is suppressed by the role's profile.
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Ig;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _app?.RunControls;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
+        bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
+
+        /// <summary>⭐ CE-1445 — the IG's run choice, for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _app?.RunControls?.RunChoice;
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)

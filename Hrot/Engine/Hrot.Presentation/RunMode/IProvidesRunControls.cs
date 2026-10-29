@@ -21,6 +21,12 @@ public interface IProvidesRunControls
     /// <summary>The host's transport; <see langword="null"/> while it has none (before its bus exists / headless) — the host then offers nothing.</summary>
     ITimeTransportFacade? Transport { get; }
 
+    /// <summary>
+    /// ⭐ <c>CE-1445</c> (R-1044) — the host's role EXPLICITLY suppresses the toolbar time control (the Player issues no ticks, Q54/D4): the composer registers none over its transport. Default <see langword="false"/> — an ECS host has it
+    /// by construction. It is <see cref="NodeRunProfile.SuppressTimeControl"/> of the profile the host built its controls from.
+    /// </summary>
+    bool SuppressTimeControl => false;
+
     /// <summary>The host's run choice; <see langword="null"/> until built. An <i>operator</i> host is one whose choice <see cref="RunModeChoice.HasScenarioControl"/>.</summary>
     RunModeChoice? RunChoice { get; }
 

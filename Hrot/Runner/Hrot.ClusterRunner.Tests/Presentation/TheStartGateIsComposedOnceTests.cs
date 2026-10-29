@@ -214,12 +214,17 @@ public class TheStartGateIsComposedOnceTests
         /// <summary>⭐ CE-1439 — how many times the composer asked this host to register its scenario menu (it asks the PICKED owner only).</summary>
         public int ScenarioActionsComposed;
         public void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => ScenarioActionsComposed++;
-        public RunHost(string name, RunHostKind kind, bool operatorHost, bool offers = true) : base(name)
+        /// <summary>⭐ CE-1445 — the role's explicit suppression of the toolbar time control (the Player's).</summary>
+        public bool SuppressTimeControl { get; }
+        public RunHost(string name, RunHostKind kind, bool operatorHost, bool offers = true, bool suppressTimeControl = false) : base(name)
         {
             HostKind = kind;
+            SuppressTimeControl = suppressTimeControl;
             if (!offers) return;
-            var adapter = new ClusterTimeTransportAdapter(new Fdp.Core.FdpEventBus(), () => null, () => 0.0);
-            RunChoice = adapter.AttachRunChoice(operatorHost ? new FakeControl() : null);
+            // ⭐ CE-1445 — built through the ONE factory, as the real hosts are: the gate policy comes from the kind (the Player's for the IG)
+            var adapter = NodeRunControls.For(new Fdp.Core.FdpEventBus(), () => null, () => 0.0, null,
+                new NodeRunProfile(kind, operatorHost ? new FakeControl() : null, SuppressTimeControl: suppressTimeControl));
+            RunChoice = adapter.RunChoice;
             Transport = adapter;
         }
     }
@@ -295,6 +300,51 @@ public class TheStartGateIsComposedOnceTests
         Assert.Null(none.LoadingScreen);
         Assert.Null(none.ErrorSection);
         Assert.DoesNotContain(Hrot.UI.Common.Panels.LoadingScreen.SectionId, bare.StatusBar.SectionIds);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1445</c> (R-1044, §11.8 ③) S2 — a process whose ONLY run-controls host is a Player (the IG) composes the loading / waiting screen (Player policy) and the error section ONCE over its choice, and
+    /// registers NO toolbar time control (the role's explicit suppression: it issues no ticks).
+    /// 🔴 Mutation: <c>ComposeRunControls</c> ignoring <c>SuppressTimeControl</c> ⇒ the toolbar-entries cell reds; passing no policy to <c>LoadingScreen.Register</c> ⇒ the <c>IsPlayer</c> cell reds.
+    /// </summary>
+    [Fact]
+    public void CE1445_APlayerOnlyProcess_ComposesTheWaitingScreenAndTheErrorSectionOnce_AndNoToolbarTimeControl()
+    {
+        var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);
+        var (ctrl, wm) = Composed(ig);
+
+        Assert.Same(ig, ctrl.RunControlsOwner);
+        Assert.Equal(0, TimeControlEntries(wm));                                       // suppressed by the role, explicitly
+        Assert.Same(ig.RunChoice, ctrl.LoadingScreen!.Choice);
+        Assert.True(ctrl.LoadingScreen.IsPlayer);                                      // the owner's Player policy reached the screen
+        Assert.False(ctrl.LoadingScreen.CanCancel);
+        Assert.Same(ig.RunChoice, ctrl.ErrorSection!.Choice);
+        Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.LoadingScreen.SectionId));
+        Assert.Equal(1, wm.StatusBar.SectionIds.Count(id => id == Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.SectionId));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1445</c> — the pick keeps its owners: an operator (with a Player in the process) wins whatever the order and keeps its toolbar and Operator screen; with no operator a non-Player host (SimHost) comes before the Player.
+    /// 🔴 Mutation: <c>PickRunControls</c> returning <c>offered.Last()</c> / dropping the non-Player preference ⇒ the Player owns a process it must not.
+    /// </summary>
+    [Fact]
+    public void CE1445_APlayerNeverTakesTheOwnership_FromAnOperatorOrASimHost()
+    {
+        foreach (var igFirst in new[] { true, false })
+        {
+            var editor = new RunHost("Editor", RunHostKind.Editor, operatorHost: true);
+            var ig = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);
+            var (ctrl, wm) = Composed(igFirst ? new ISubsystem[] { ig, editor } : new ISubsystem[] { editor, ig });
+            Assert.Same(editor, ctrl.RunControlsOwner);
+            Assert.Equal(1, TimeControlEntries(wm));
+            Assert.False(ctrl.LoadingScreen!.IsPlayer);
+
+            var sim = new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false);
+            var ig2 = new RunHost("IG", RunHostKind.Ig, operatorHost: false, suppressTimeControl: true);
+            var (ctrl2, wm2) = Composed(igFirst ? new ISubsystem[] { ig2, sim } : new ISubsystem[] { sim, ig2 });
+            Assert.Same(sim, ctrl2.RunControlsOwner);
+            Assert.Equal(1, TimeControlEntries(wm2));
+        }
     }
 
     [Fact]

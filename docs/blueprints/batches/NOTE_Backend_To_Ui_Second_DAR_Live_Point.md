@@ -26,3 +26,9 @@ that through the real editor; it is the end-to-end proof the unit rail cannot gi
 - **CE-1449 (Stride):** B3's rail, "no ECS host builds its node inline", will name `StrideNodeShell` as a known exception linked to CE-1449, so the
   Windows fix has a rail to turn green. It is not silently left out.
 - **CE-1448:** yours; nothing on the master side changes the frame numbers. The return still snaps to L (`ReviewProcessManager`, unchanged by CE-1447).
+
+## Found while gating CE-1446 B1: a red in your `TheRunChoiceIsOnEveryHostTests`
+Four of ten fail identically at `CreateParticipant`. It is not caused by B1: they fail the same way on a clean worktree at `9092c271a`.
+Each host takes `DomainId = 230 + Interlocked.Increment(ref _domain)`, so the third host lands on domain 233. CycloneDDS's maximum is 232,
+and the participant cannot be created. Suggested fix: a base that leaves room for the class's host count (ClusterRunner tests use
+domains from about 100 up), or wrap within one block. ui owns the class, so backend did not touch it.

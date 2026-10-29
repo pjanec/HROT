@@ -1016,6 +1016,10 @@ public class IgApplication : IDisposable
         };
 
         _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.Map2D, _networkFactory);
+        // ⭐⭐⭐ CE-1445 (R-1044, §11.8) — the player's run controls come from the SAME factory as every ECS host's: the Player gate (waits only on ITS OWN readiness), a loading / waiting screen over it, no Cancel.
+        //   ⭐ SuppressTimeControl is the role's EXPLICIT suppression: the IG issues no ticks (Q54/D4), so the composer registers no toolbar time control over it.
+        RunControls = Hrot.UI.Common.RunMode.NodeRunControls.For(_context, new Hrot.UI.Common.RunMode.NodeRunProfile(
+            Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true));
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;
@@ -1144,7 +1148,11 @@ public class IgApplication : IDisposable
         //   the reset read while this frame's events are readable, and the one swap.
         if (_context is null || _clusterSlave is null) return;   // not yet up, or shut down (the slave is disposed and nulled first)
         _context.Tick(
-            beforeKernel: () => FrameInput(dt),
+            beforeKernel: () =>
+            {
+                RunControls?.Update();   // ⭐ CE-1445 — the run choice hears this frame's cluster state (before the swap, as every host's adapter does)
+                FrameInput(dt);
+            },
             afterKernel: () =>
             {
                 // Clear gizmo undo stack on world/scenario reset.
@@ -1740,6 +1748,7 @@ public class IgApplication : IDisposable
             ReleaseBehaviorFaultLogging();
         }
 
+        RunControls = null;
         _clusterSlave?.Dispose();
         _clusterSlave = null;
 
@@ -1801,6 +1810,9 @@ public class IgApplication : IDisposable
     /// genuinely independent.</para>
     /// </summary>
     internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
+
+    /// <summary>⭐ CE-1445 — this node's run controls (transport + choice, Player policy), from <c>NodeRunControls.For</c>; <see langword="null"/> before <c>InitializeEmbedded</c> built the context and after <c>Shutdown</c>.</summary>
+    internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? RunControls { get; private set; }
 
     /// <summary>⭐ The node's context — what the ONE ECS-node debug surface (<c>EcsNodeDebugProvider</c>) derives from.</summary>
     internal Hrot.Common.Infrastructure.HrotNodeContext? NodeContext => _context;

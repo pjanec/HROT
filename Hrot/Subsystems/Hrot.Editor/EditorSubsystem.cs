@@ -2435,18 +2435,17 @@ namespace Hrot.Editor
             _previewController = new EditorPreviewController(_clusterHandlers!.DryRun, () => _orchestrationBus,
                 () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle, _timeCommands!);
             // ⭐⭐⭐ the ONE time facade (the cluster nodes' own), its readout on this node's clock (the master's — the editor hosts it)
-            _timeTransport = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(_orchestrationBus!,
-                () => _node?.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view (its in-process core's cache shares it)
-                localSimTimeGetter: () => _timeController!.GetCurrentState().TotalTime);
+            // ⭐⭐⭐ CE-1445 (R-1044) — the ONE factory builds the adapter + attaches the choice over the node frame (`_orchestrationBus` IS `_node.EventBus`); only the readout clock and the profile are the editor's.
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice: ▶ / ■ from here follow its armed mode (the editor's default is Preview);
             //   it drives the SAME session the File menu uses (IScenarioSession : IRunScenarioControl) — ⛔ no second implementation of the actions.
             //   ⭐ part two (D20): the unsaved check is the in-process master's ONE round (CE-4093), its answer read off the core's ClusterUiCache — the same reads /scenario/load/live's gate uses.
-            _timeTransport.AttachRunChoice(_editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
-                unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
-                    () => _orchestratorCore != null,
-                    id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)),
-                gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Editor),   // ⭐ CE-1442 — from the table, never a literal
-                cancelLoad: reason => _node?.ClusterSlave.CancelLoad(reason));
+            _timeTransport = Hrot.UI.Common.RunMode.NodeRunControls.For(_node!, new Hrot.UI.Common.RunMode.NodeRunProfile(
+                    Hrot.UI.Common.RunMode.RunHostKind.Editor,
+                    Control: _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+                    UnsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
+                        () => _orchestratorCore != null,
+                        id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id))),
+                simTime: () => _timeController!.GetCurrentState().TotalTime);   // the editor's readout is on the master's clock (it hosts it)
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)

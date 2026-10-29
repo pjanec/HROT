@@ -1661,7 +1661,7 @@ choice; a later slice with the admission policy (R4).
 
 *Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.
 
-### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: READY-TO-BUILD`; CE-1445; R-1044)*
+### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: BUILT` — §11.8a; CE-1445; R-1044)*
 
 🔒 **R-1044 (user, `2026-10-29`):** *"The ECS host should be unified, but they should be configurable. So without explicit suppressing some controls, they need to have all of them, because by construction they cannot avoid them, because they are using shared code for Bootstrap. The player node might look differently But just because it is parameterizing its bootstrap code to honor its player role, like for example showing the waiting in the lobby screen."* · ExCon is to be retired and is not an ECS host — ⛔ not touched.
 
@@ -1736,6 +1736,19 @@ the source · S2 a player-only process composes the screen + error section once,
 loading) with the reason; hidden when play-ready; no Cancel · S4 operator behaviour unchanged (`CE1442_*` rails) · S5 no `new
 ClusterTimeTransportAdapter` outside the factory and the Orchestrator.
 
+#### 11.8a ✅ AS-BUILT `2026-10-29` (ui, `0df1b7d11`) — CE-1445
+
+| §11.8 said | built | why |
+|---|---|---|
+| `NodeRunControls.For(HrotNodeContext, NodeRunProfile)` | ✅ `Hrot.Presentation/RunMode/NodeRunControls.cs` + a second overload `For(bus, view, simTime, cancelLoad, profile)` that the node overload delegates to (ONE place builds the adapter) | SimHost's static rail builder has a bus, no node context |
+| the profile | ✅ `NodeRunProfile(Kind, Control, UnsavedReads, SuppressTimeControl)`; a Player profile drops `cancelLoad` | — |
+| CGF, SimHost, editor use it | ✅ no `new ClusterTimeTransportAdapter` left in them; ⚠ **a FIFTH copy found: `StrideNodeShell.cs:740`** (no run choice at all) — CE-1449, needs a Windows build | — |
+| the IG offers run controls | ✅ `IgSubsystem : IProvidesRunControls`, built in `IgApplication` after `BootstrapNode`; the IG pumps the adapter each frame; its debug provider still has no drive (Q54/D4) | — |
+| the composer | ✅ toolbar only when `!SuppressTimeControl`; `LoadingScreen` gets the owner's policy; with no operator a non-Player host is preferred (every existing process keeps its owner) | — |
+| the player's screen | ✅ visible whenever the gate is closed — including cluster ERROR (then it shows the reason beside the red error section); `CanCancel` false | kept on purpose: a player in an erroring cluster can do nothing either |
+
+📌 Rails: `TheRunChoiceIsOnEveryHostTests.CE1445_TheConstructedIg_*` (S1) · `TheStartGateIsComposedOnceTests.CE1445_*` (S2, two) · `TheOneTimeFacadeTests.CE1445_ThePlayersWaitingScreen_*` (S3) — each red-proved by a compiling mutation.
+
 ### 11.9 ⭐⭐ R3 — the 3-D map in the load: the PLAYER only; everyone else builds it in the background on the first switch *(ui, `2026-10-29`; R-1046; `build-state: DESIGN`)*
 
 🔒 **R-1046 (user, `2026-10-29`):** *"I think it is just the player node who needs to include the 3D map into the load chain. The other nodes like CGF and SimHost do not need to load 3D map. Actually, they should start in 2D map as now and load the map on the background when first request for map switching is received. that player-specific behavior needs to be just a parameter of a unified shared code as usual."*
@@ -1775,3 +1788,14 @@ sequenceDiagram
 *Rejected:* **every map host waits for the 3-D map in its load** (R3 as first written) — CGF / SimHost / editor would hold the cluster's
 play-ready on a map nobody looked at · **build on the frame thread** — CE-4078's ejection.
 **Split:** ui — the builder, the switch's background build, the profile flag; backend — the chain step that waits on it (AQ110 R3).
+
+⭐ **The seam — agreed with backend (`NOTE_Backend_To_Ui_Bootstrapper_And_Map_Step.md` §2, `2026-10-29`):** a status the step POLLS, the
+chain's existing shape (`ILoadPhaseStep.IsResolved`, `LoadPhaseContracts.cs:151`, polled each frame). ui's builder exposes
+`IMapBuildStatus { bool IsBuilt; string? Failure; string Step; }` beside `ILoadProgressSource` in `Fdp.Toolkits/Orchestration` (both
+presentation projects already reference it); backend's `MapBuildLoadStep` resolves on `IsBuilt`, fails the prepare with `Failure`, feeds `Step`
+to the heartbeat. *Rejected:* an awaited completion (a second step shape).
+Two points the step relies on, owned by ui's builder:
+① **the status is PER LOAD** — `IsBuilt` refers to the terrain this load committed (a generation the builder resets when the terrain changes),
+never to a map built for the previous scenario; ② **on a `MapInLoad` node the builder STARTS on the terrain commit** (not on a view switch), so the
+step has something to wait for; on every other node it starts on the first 2-D → 3-D request.
+

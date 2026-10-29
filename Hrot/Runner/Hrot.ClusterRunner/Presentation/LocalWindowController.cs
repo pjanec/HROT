@@ -121,12 +121,12 @@ internal sealed class LocalWindowController
     {
         var owner = PickRunControls(_subsystems.OfType<IProvidesRunControls>());
         RunControlsOwner = owner;
-        if (owner?.Transport is { } transport)
+        if (owner?.Transport is { } transport && !owner.SuppressTimeControl)   // ⭐ CE-1445 — a role suppresses EXPLICITLY (the Player issues no ticks), never by lacking the control
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice);
         // ⭐⭐ CE-1442 (U1, §11.7 ④) — the loading screen and the cluster-error indicator are composed HERE, once, over the same owner's choice: a host cannot lack them or draw a second one
         if (owner?.RunChoice is { } ownerChoice)
         {
-            LoadingScreen = Hrot.UI.Common.Panels.LoadingScreen.Register(wm.StatusBar, ownerChoice);
+            LoadingScreen = Hrot.UI.Common.Panels.LoadingScreen.Register(wm.StatusBar, ownerChoice, owner!.GatePolicy);   // ⭐ CE-1445 — the Player's policy makes it the waiting screen
             ErrorSection  = Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.Register(wm.StatusBar, ownerChoice);
         }
         ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
@@ -144,7 +144,8 @@ internal sealed class LocalWindowController
         var operators = offered.Where(h => h.RunChoice is { HasScenarioControl: true }).ToList();
         if (operators.Count > 0)
             return operators.OrderBy(h => OperatorRank(h.HostKind)).First();   // OrderBy is stable: equal ranks keep the subsystem order
-        return offered.FirstOrDefault();
+        // ⭐ CE-1445 — with no operator a non-Player host comes before a Player (the IG now offers controls too): every existing process keeps its owner
+        return offered.FirstOrDefault(h => h.GatePolicy != Fdp.Toolkit.Orchestration.HostGatePolicy.Player) ?? offered.FirstOrDefault();
     }
 
     /// <summary>⭐ CE-1439 — among operator hosts the one with a local world to author in wins; the Orchestrator (the master's window, no world) is the fallback owner.</summary>
