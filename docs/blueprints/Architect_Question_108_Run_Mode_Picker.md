@@ -1038,6 +1038,80 @@ classDiagram
 
 📌 Rails: `TheOneTimeFacadeTests.CE1440_*` (asker publish+read id, no-deadline wait), `TheRunModeRoutesTests.CE1440_*` (`/preview/enter` = toolbar ▶/Step), `TheUnsavedCheckRoutesTests.CE1440_*` (one request id from publish to read).
 
+### 2.14 CE-3341 (ui half) — the armed mode is READ from the cluster and SENT by the operator's open (R-3068, D12a) — 📐 **DESIGN `2026-10-29` (ui)**
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the master holds the armed mode and NEVER resets it on a load | ✅ `ClusterMaster.RunSettings.cs:44,62` (only `SetRunSettings{Armed}` changes it) | ✅ D12a as-built (backend) |
+| every node reads it | ✅ `ClusterView.ArmedMode` (`ClusterView.cs:55`); the adapter already reads its `ClusterView` (`ClusterTimeTransportAdapter.cs:35`) | ✅ D12a |
+| ⇒ the ORDER of the arm op vs the load does not matter | ✅ the egress reads `TransitionStateIntent` before `SetRunSettingsIntent` in one frame (`ClusterOpEgressTranslator.cs:91,187`), yet the end state is the same because a load never resets the mode | ⚠ D12a says "same topic, same writer ⇒ ordered" — ⭐ true of the wire, but NOT needed: corrected here |
+| HTTP opens go through the SAME door, with their own asker | ✅ `DebugApiService.cs:1217,1279` pass `HttpAsker(…)`; the operator's opens pass none (the bound `ConfirmingAsker`) | ✅ D22 (HTTP sends no armed mode) |
+| today every host resets `Armed` to its OWN default on `OperatingEdit` | ✅ `RunModeChoice.OnClusterState` (`RunModeChoice.cs:515-520`) | ⛔ D12a: two hosts would disagree — this hook is what the op replaces |
+
+```mermaid
+classDiagram
+  class IRunTransport { <<existing>> +ClusterArmed : RunArmed? NEW — ClusterView.ArmedMode by name · +SendArmed(RunArmed) NEW — SetRunSettingsIntent with Armed }
+  class ClusterTimeTransportAdapter { <<existing>> implements both NEW members over its bus and its ClusterView }
+  class RunModeChoice { <<existing>> Armed — READ: the cluster's, a local value only until the next change is heard · Arm(target) NEW — the ONE writer: local + SendArmed · OnClusterState — D12 reset REMOVED }
+  class ScenarioDoor { <<existing>> +OperatorOpening : Action of DoorOpen NEW — raised when a move answered by the BOUND asker goes out }
+  class DoorOpen { <<NEW enum>> Scenario · Live · Recording }
+  class ClusterView { <<existing, backend>> ArmedMode }
+  RunModeChoice --> IRunTransport
+  ClusterTimeTransportAdapter ..|> IRunTransport
+  ClusterTimeTransportAdapter --> ClusterView : reads
+  RunModeChoice --> ScenarioDoor : sets OperatorOpening
+  ScenarioDoor ..> DoorOpen
+```
+
+*What the picture shows that prose hid:* there is still ONE writer of the armed mode in ui (`Arm`), and it now writes to the CLUSTER; the door only says WHICH
+open the operator made — the mapping to a mode (Scenario → `HostDefault`, Live → Live, Recording → AAR) stays in the choice.
+
+```mermaid
+sequenceDiagram
+  participant U as operator (File › Open / Start / Recent)
+  participant D as ScenarioDoor
+  participant C as RunModeChoice
+  participant T as adapter (IRunTransport)
+  participant M as master
+  participant V as every node's ClusterView
+  U->>D: Open(name)  (no asker ⇒ the bound one)
+  D->>D: Admit (run? unsaved?)
+  D->>C: OperatorOpening(Scenario)
+  C->>T: SendArmed(HostDefault)  (Arm)
+  D->>M: raw OpenForEdit(name)
+  T->>M: SetRunSettings{Armed}
+  M-->>V: cluster state (ArmedMode)
+  V-->>C: Armed = the cluster's (every host the same)
+  Note over D,M: HTTP: Open(name, HttpAsker) ⇒ no OperatorOpening ⇒ no op (D22)
+```
+
+```mermaid
+graph TD
+  subgraph every host with a time control
+    A[ClusterTimeTransportAdapter] -->|ClusterArmed| C[RunModeChoice]
+    C -->|Arm → SendArmed| A
+    I[indicator menu / POST /run-mode] -->|Choose| C
+    D[ScenarioDoor of the session] -->|OperatorOpening| C
+  end
+  A -->|bus: SetRunSettingsIntent| E[ClusterOpEgressTranslator / in-process master]
+  E --> M[ClusterMaster.ArmedMode]
+  M -->|ClusterStateTopic.ArmedMode| F[ClusterFactsIngress → ClusterView on EVERY node]
+  F --> A
+  H[HTTP load routes] -.->|no armed mode, D22| D
+```
+
+*Caption:* who ticks what — the adapter is updated by every host's frame (it already is, for the toolbar); the egress / in-process master is the path
+`/run-settings` already uses; the dotted edge is the one that deliberately sends nothing.
+
+⭐ **Decisions:** ① `Armed` = the cluster's, with the choice's own value shown only until the next CHANGE of the cluster's value is heard (an optimistic
+local — the operator sees the click at once; a later arm from another host wins). ② every `Armed = X` in the choice becomes `Arm(X)`; ■ in Live keeps
+using the RAW `OpenForEdit` and so sends nothing (R2: the armed mode stays). ③ the operator's open sends its arm — the door raises `OperatorOpening`
+only when the move was answered by the bound asker; ⛔ HTTP / agent opens pass their own asker and send none (D22). ④ `OnClusterState`'s D12 reset is
+deleted, with `_keepArmedOnEdit` (its only reason). ⑤ a host with no time control (IG, Replay Browser) sends nothing — it has no choice.
+*Rejected:* **send from `ScenarioLoadSequence`** — HTTP uses it too, so it would arm on every agent load (D22) · **keep the per-host reset AND send** —
+two writers, hosts disagree for a frame and forever on a host that missed the op · **the door maps opens to modes** — it would need the host default; the
+choice already owns it.
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |
