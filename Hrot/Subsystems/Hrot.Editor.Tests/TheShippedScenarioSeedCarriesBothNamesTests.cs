@@ -39,20 +39,22 @@ public sealed class TheShippedScenarioSeedCarriesBothNamesTests
 {
     private const string SeedName = "basic-desert";
 
-    private static string SeedFile =>
-        Path.Combine(AssetRoots.ScenariosRecipesRoot, SeedName, "scenario.json");
+    /// <summary>⭐ CE-4089 — the seeds live in the repository's <c>recipes/scenarios</c> (what a dev start copies into the NAS).</summary>
+    private static string SeedRoot => Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(
+        Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!);
+
+    private static string SeedFile => Path.Combine(SeedRoot, SeedName, "scenario.json");
 
     /// <summary>
-    /// ⭐ The seed is DEPLOYED — the csproj <c>Content</c> item reaches the output tree at the path
-    /// <see cref="AssetRoots.ScenariosRecipesRoot"/> resolves. ⛔ Without this, every other rail here
-    /// would pass vacuously on a file the product never sees.
+    /// ⭐ The seed EXISTS where the dev seed copies it from (<c>recipes/scenarios</c> at the repository root; CE-4089 — it used to ship as a csproj
+    /// <c>Content</c> item). ⛔ Without this, every other rail here would pass vacuously on a file the product never sees.
     /// </summary>
     [Fact]
     public void TheSeedIsDeployedWhereTheRecipesRootLooks()
     {
         Assert.True(File.Exists(SeedFile),
-            $"The shipped scenario seed is missing at '{SeedFile}'. It ships as a csproj Content item "
-          + "from Hrot.AI.Behaviors/Recipes/Scenarios/, mirroring the blueprint recipes.");
+            $"The scenario seed is missing at '{SeedFile}'. Seeds live in recipes/scenarios at the repository root, "
+          + "and a dev start copies them into the NAS.");
     }
 
     /// <summary>
@@ -90,23 +92,22 @@ public sealed class TheShippedScenarioSeedCarriesBothNamesTests
     [Fact]
     public void TheSeedIsDiscoveredAsARecipe_ByTheEnumeratorProductionUses()
     {
-        var discovered = Hrot.ScenarioEditor.Services.CuratedScenarios.CuratedRelPaths(
-            AssetRoots.ScenariosRecipesRoot);
+        var discovered = Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(
+            SeedRoot);
 
         Assert.Contains(SeedName, discovered);
 
         var svc = new ScenarioNewAssetService(
             new FakeScenarioCreationSession(),
-            () => Hrot.ScenarioEditor.Services.CuratedScenarios.CuratedRelPaths(
-                      AssetRoots.ScenariosRecipesRoot));
+            () => Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(
+                      SeedRoot));
 
         Assert.Contains(svc.AvailableRecipes(), r => r.Name == SeedName);
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>H2</c> against the real seed: creating from it loads <c>Recipes/basic-desert</c> — the
-    /// name the cluster can resolve — and saves under the requested name. 📄 See
-    /// <c>ScenarioNewAssetService.SeedSubfolder</c> for why the prefix and not a path.
+    /// ⭐⭐⭐ <c>H2</c> against the real seed: creating from it loads <c>recipes/scenarios/basic-desert</c> — the
+    /// name the cluster can resolve (L6: a recipe is named by its root) — and saves under the requested name.
     /// </summary>
     [Fact]
     public void CreatingFromTheSeed_LoadsItByItsStagedName()
@@ -114,13 +115,13 @@ public sealed class TheShippedScenarioSeedCarriesBothNamesTests
         var session = new FakeScenarioCreationSession();
         var svc = new ScenarioNewAssetService(
             session,
-            () => Hrot.ScenarioEditor.Services.CuratedScenarios.CuratedRelPaths(
-                      AssetRoots.ScenariosRecipesRoot));
+            () => Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(
+                      SeedRoot));
 
         var seed = svc.AvailableRecipes().First(r => r.Name == SeedName);
         svc.CreateNew(seed, "MyNewScenario", "Combat");
 
-        Assert.Equal($"Recipes/{SeedName}", Assert.Single(session.LoadScenarioByNameCalls));
+        Assert.Equal($"recipes/scenarios/{SeedName}", Assert.Single(session.LoadScenarioByNameCalls));
         Assert.Equal("Combat/MyNewScenario", Assert.Single(session.SaveScenarioAsCalls));
     }
 

@@ -259,8 +259,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     public void PlainJsonDeserialization_FailsOrProducesDifferentAsset_ThanBlueprintJsonServices()
     {
         var repoRoot = ResolveRepoRoot();
-        var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Tests", "Count4.bp.json");
+        var assetPath = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "Tests", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
 
         // Production-correct path:
@@ -313,8 +312,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     public void CallbackAssetLoading_Uses_BlueprintJsonServices_ProducesCompilableAsset()
     {
         var repoRoot = ResolveRepoRoot();
-        var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Tests", "Count4.bp.json");
+        var assetPath = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "Tests", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
 
         // THIS is the production callback's loading code — must use BlueprintJsonServices.

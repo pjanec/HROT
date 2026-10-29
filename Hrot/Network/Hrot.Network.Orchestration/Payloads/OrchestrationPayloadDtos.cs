@@ -91,27 +91,36 @@ public record TransitionPayloadDto(
     };
 }
 
-/// <summary>⭐ CE-4090 (AQ108 D14) — payload of <c>ClusterOpType.SetRunSettings</c>: the cluster-wide run settings.</summary>
+/// <summary>
+/// ⭐ CE-4090 (AQ108 D14) + ⭐ CE-3341 (D12a) — payload of <c>ClusterOpType.SetRunSettings</c>: the cluster-wide run settings. ⭐ EVERY field is optional:
+/// absent ⇒ "no change", so one op sets either (an older sender that only knows <c>RecordLiveRuns</c>, or one that only sends <c>Armed</c>, both work).
+/// </summary>
 public record SetRunSettingsPayloadDto(
     [property: JsonPropertyName("RecordLiveRuns")]
-    bool RecordLiveRuns = true)
+    bool? RecordLiveRuns = null,
+    [property: JsonPropertyName("Armed")]
+    Fdp.Toolkit.Orchestration.ClusterArmedMode? Armed = null)
 {
-    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns);
+    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed);
 
-    /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload keeps the default — recording ON.</summary>
+    /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
+    /// ⚠ CE-3341 changed this: before it, an unreadable payload meant "recording ON"; a no-op is the safer answer now that the op also carries the armed mode.</summary>
     public static Fdp.Toolkit.Orchestration.SetRunSettingsIntent Decode(Guid requestId, string? json)
     {
-        bool record = true;
+        var intent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = requestId };
         if (!string.IsNullOrWhiteSpace(json))
         {
             try
             {
                 if (System.Text.Json.JsonSerializer.Deserialize<SetRunSettingsPayloadDto>(json, OrchestrationJsonOptions.Default) is { } dto)
-                    record = dto.RecordLiveRuns;
+                {
+                    intent.RecordLiveRuns = dto.RecordLiveRuns;
+                    intent.Armed = dto.Armed;
+                }
             }
             catch (System.Text.Json.JsonException) { }
         }
-        return new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = requestId, RecordLiveRuns = record };
+        return intent;
     }
 }
 

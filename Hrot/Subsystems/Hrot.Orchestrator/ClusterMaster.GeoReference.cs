@@ -47,7 +47,7 @@ public sealed partial class ClusterMaster
 
         try
         {
-            var definition = TerrainCatalog.ForNode(localStagingRoot: null, sharedRoot: _config.NasBasePath).ReadDefinition(terrainName!);
+            var definition = TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _config.NasBasePath).ReadDefinition(terrainName!);
             if (definition == null)
             {
                 FdpLog<ClusterMaster>.Warn(

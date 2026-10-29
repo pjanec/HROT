@@ -668,10 +668,7 @@ namespace Fdp.Toolkit.Combat.Tests
         /// muzzle was: (−0.64, −0.73, +0.86) from the man, facing north (identity).</summary>
         private Entity RpgManOnBtRange(Vector3 at)
         {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
             var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
                 "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
             _world.SetSingletonManaged(terrain);

@@ -48,6 +48,13 @@ public sealed class ClusterViewTests
         Assert.Equal((ClusterState.OperatingLive, exercise, ReplayAxis.Wall, true, true),
             (view.State, view.ExerciseId, view.ReplayAxis, view.RunNotRecorded, view.RecordLiveRunsOff));
 
+        // CE-3341 - the armed mode is one more field of the same fold: Live before any broadcast, the master's word after, replaced by the next real one
+        Assert.Equal(ClusterArmedMode.Live, view.ArmedMode);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, ArmedMode = ClusterArmedMode.Preview });
+        Assert.Equal(ClusterArmedMode.Preview, view.ArmedMode);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exercise, ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true });   // a sender that does not set it
+        Assert.Equal(ClusterArmedMode.Live, view.ArmedMode);
+
         HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
         Assert.True(view.MasterGone);
         Assert.True(view.HasFollowedState);                       // a master WAS heard

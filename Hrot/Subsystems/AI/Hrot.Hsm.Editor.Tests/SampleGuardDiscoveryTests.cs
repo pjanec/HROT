@@ -71,12 +71,9 @@ public sealed class SampleGuardDiscoveryTests
         // Hrot/Subsystems/Hrot.AI.Behaviors/ relative to the repo root.
         // Walk up from test assembly output dir (net8.0 → Debug → bin →
         // Hrot.Hsm.Editor.Tests → AI → Subsystems → Hrot → repo root).
-        var asmDir = Path.GetDirectoryName(typeof(SampleGuardDiscoveryTests).Assembly.Location)!;
-        var repoRoot = asmDir;
-        for (int i = 0; i < 7; i++)
-            repoRoot = Path.GetDirectoryName(repoRoot)!;
-        var jsonPath = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "HSMs", "Samples", "SampleGuard.hsm.json");
+        // ⭐ CE-4089 — assets/behaviors/HSMs at the repository root, found through the one walk-up (ContentLayout).
+        var jsonPath = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.HsmsFolder),
+            "Samples", "SampleGuard.hsm.json");
 
         jsonPath.Should().NotBeNullOrEmpty();
         File.Exists(jsonPath).Should().BeTrue(

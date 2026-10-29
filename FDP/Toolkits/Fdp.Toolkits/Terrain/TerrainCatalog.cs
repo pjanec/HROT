@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Fdp.Toolkit.Orchestration;
 
 namespace Fdp.Toolkit.Terrain
 {
@@ -12,9 +13,10 @@ namespace Fdp.Toolkit.Terrain
     /// definition wins:
     /// <list type="number">
     ///   <item><b>node staging</b> <c>{node}/Terrain/</c> — what the cluster's prefetch copied here</item>
-    ///   <item><b>the NAS stand-in</b> <c>{shared}/terrain/</c> — what operators publish</item>
-    ///   <item><b>the shipped terrains</b> <c>{app}/Recipes/Terrain/</c> — the test terrains built with the product</item>
+    ///   <item><b>the NAS</b> <c>{nas}/assets/terrain/</c> (<see cref="ContentLayout.TerrainAssets"/>) — what operators publish, and what a
+    ///     dev start seeds from the repository's <c>assets/terrain/</c></item>
     /// </list>
+    /// <para>⭐ <c>CE-4089</c>: there is NO shipped arm any more — no terrain is read from the exe folder (docs/DESIGN_Content_Layout.md L4).</para>
     /// <para>⭐ The gateway (to stage), the load step (to load) and the editor's picker (to list) all use this,
     /// so "which terrains exist" has one answer. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.</para>
     /// </summary>
@@ -22,9 +24,6 @@ namespace Fdp.Toolkit.Terrain
     {
         /// <summary>The definition file inside a terrain folder.</summary>
         public const string DefinitionFileName = "terrain.json";
-
-        /// <summary>The NAS / shared directory terrains are published under.</summary>
-        public const string SharedDirectoryName = "terrain";
 
         /// <summary>The node staging directory a prefetched terrain lands in.</summary>
         public const string StagingDirectoryName = "Terrain";
@@ -40,19 +39,15 @@ namespace Fdp.Toolkit.Terrain
         public IReadOnlyList<string> Roots => _roots;
 
         /// <summary>
-        /// The standard search list for a node: its staging root, the shared root, then the shipped terrains.
-        /// Any argument may be null (a host without staging, a test with no shipped content).
+        /// The standard search list for a node: its staging root, then the NAS's <c>assets/terrain</c>. Either argument may be null
+        /// (a host without staging, a test with no NAS). ⭐ <paramref name="nasRoot"/> is the NAS ROOT, not a terrain folder.
         /// </summary>
-        public static TerrainCatalog ForNode(string? localStagingRoot, string? sharedRoot, string? shippedRoot = null)
+        public static TerrainCatalog ForNode(string? localStagingRoot, string? nasRoot)
             => new(new[]
             {
                 localStagingRoot == null ? null : Path.Combine(localStagingRoot, StagingDirectoryName),
-                sharedRoot == null ? null : Path.Combine(sharedRoot, SharedDirectoryName),
-                shippedRoot ?? DefaultShippedRoot,
+                nasRoot == null ? null : ContentLayout.TerrainAssets(nasRoot),
             });
-
-        /// <summary>Where the build ships its terrains: <c>{AppContext.BaseDirectory}/Recipes/Terrain</c>.</summary>
-        public static string DefaultShippedRoot => Path.Combine(AppContext.BaseDirectory, "Recipes", "Terrain");
 
         /// <summary>
         /// The definition file for <paramref name="terrainName"/> (which may carry a subfolder, e.g.

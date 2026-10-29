@@ -137,22 +137,8 @@ public sealed class WhenNodeEditorSmokeTest
     {
         var recipes = new List<BlueprintAsset>();
 
-        // Try production location first (validates WHEN-M11-T4 deployment)
-        var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-
-        string recipesPath;
-        if (aiBehaviorsAssembly != null)
-        {
-            var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)!;
-            recipesPath = Path.Combine(assemblyLocation, "Recipes", "Blueprints");
-        }
-        else
-        {
-            // Fallback: test assets location
-            var testAssetsDir = TestData.ResolveTestAssetsDir();
-            recipesPath = Path.Combine(testAssetsDir, "Recipes");
-        }
+        // ⭐ CE-4089 — the recipes live at the repository root (recipes/behaviors/Blueprints).
+        var recipesPath = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
 
         if (!Directory.Exists(recipesPath))
             return recipes;

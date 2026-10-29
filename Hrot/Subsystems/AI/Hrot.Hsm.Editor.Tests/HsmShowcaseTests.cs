@@ -24,17 +24,14 @@ public sealed class HsmShowcaseTests
     {
         get
         {
-            var asmDir = Path.GetDirectoryName(typeof(HsmShowcaseTests).Assembly.Location)!;
-            var dir = asmDir;
-            for (int i = 0; i < 7; i++)
-                dir = Path.GetDirectoryName(dir)!;
-            return dir;
+            // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not "walk up 7 levels".
+            return Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!;
         }
     }
 
     private static string ShowcaseJsonPath =>
-        Path.Combine(RepoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "HSMs", "Samples", "HsmShowcase.hsm.json");
+        Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(RepoRoot, Fdp.Toolkit.Orchestration.ContentLayout.HsmsFolder),
+            "Samples", "HsmShowcase.hsm.json");
 
     private static string ReadShowcaseJson()
     {

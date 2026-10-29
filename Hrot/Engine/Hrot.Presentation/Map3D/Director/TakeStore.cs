@@ -77,12 +77,15 @@ public sealed class TakeStore
         return null;
     }
 
-    public string TakePath(string scenario, string take) => Path.Combine(ScenariosRoot, scenario, TakesFolder, take + TakeSuffix);
+    /// <summary>⭐ L6 — the folder of scenario <paramref name="scenario"/>: a saved name under the scenarios root, a recipe / opened-copy name under its own root (<c>ContentLayout</c>, the one resolver).</summary>
+    public string ScenarioDirectory(string scenario) => Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(ScenariosRoot, scenario);
+
+    public string TakePath(string scenario, string take) => Path.Combine(ScenarioDirectory(scenario), TakesFolder, take + TakeSuffix);
 
     /// <summary>The takes of <paramref name="scenario"/> (names, sorted, <c>main</c> first).</summary>
     public IReadOnlyList<string> TakesOf(string scenario)
     {
-        var dir = Path.Combine(ScenariosRoot, scenario, TakesFolder);
+        var dir = Path.Combine(ScenarioDirectory(scenario), TakesFolder);
         var own = Directory.Exists(dir)
             ? Directory.EnumerateFiles(dir, "*" + TakeSuffix).Select(f => Path.GetFileName(f)[..^TakeSuffix.Length])
             : Enumerable.Empty<string>();
@@ -180,7 +183,7 @@ public sealed class TakeStore
     }
 
     /// <summary>⭐ <c>CE-4042</c> (docs/DESIGN_Scenario_Regression.md §4) — a scenario's own JSON beside it (<c>checks.json</c>, <c>golden.json</c>).</summary>
-    public string ScenarioFilePath(string scenario, string file) => Path.Combine(ScenariosRoot, scenario, file);
+    public string ScenarioFilePath(string scenario, string file) => Path.Combine(ScenarioDirectory(scenario), file);
 
     /// <summary>The scenarios that carry <paramref name="file"/> beside them (<c>checks.json</c> — the ones that can be verified).</summary>
     public IReadOnlyList<string> ScenariosWith(string file)
@@ -238,7 +241,7 @@ public sealed class TakeStore
     public string ScenarioHash(string scenario)
     {
         if (_scenarioHash?.Invoke(scenario) is { Length: > 0 } known) return known;   // ⭐ CE-1303 D8 — a recording's
-        var path = Path.Combine(ScenariosRoot, scenario, "scenario.json");
+        var path = Path.Combine(ScenarioDirectory(scenario), "scenario.json");
         if (!File.Exists(path)) return "";
         return Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(path));   // ⭐ CE-4058 ② — the ONE rule, a recording's meta too
     }
@@ -250,7 +253,7 @@ public sealed class TakeStore
     public static int CopyTakes(string scenariosRoot, string? from, string to)
     {
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to) || string.Equals(from, to, StringComparison.Ordinal)) return 0;
-        var src = Path.Combine(scenariosRoot, from, TakesFolder);
+        var src = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(scenariosRoot, from), TakesFolder);
         var dst = Path.Combine(scenariosRoot, to, TakesFolder);
         if (!Directory.Exists(src) || (Directory.Exists(dst) && Directory.EnumerateFiles(dst).Any())) return 0;
         Directory.CreateDirectory(dst);

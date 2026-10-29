@@ -18,12 +18,10 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 internal static class ScenarioTwin
 {
+    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
     public static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
+        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()
+           ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
 
     public static Entity ByName(EntityRepository world, string name)
     {

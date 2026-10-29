@@ -22,17 +22,9 @@ namespace Fdp.Toolkit.Terrain.Tests
         private readonly ITestOutputHelper _out;
         public BepuTerrainIndexTests(ITestOutputHelper output) => _out = output;
 
-        private static string RepoRoot()
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            return dir!.FullName;
-        }
-
         private static TerrainWorld Shipped(string name)
         {
-            var folder = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+            var folder = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), name);
             return TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, name + ".world.geojson")), name,
                 TerrainAssets.ForFolder(folder));
         }

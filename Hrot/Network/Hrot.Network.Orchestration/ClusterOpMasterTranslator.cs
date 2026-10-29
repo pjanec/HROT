@@ -22,6 +22,20 @@ namespace Hrot.Network.Orchestration;
 /// </summary>
 public sealed class ClusterOpMasterTranslator
 {
+    /// <summary>⭐ CE-3341 — the ONE encoding of the master's cluster-state broadcast onto the wire (the twin of <c>ClusterFactsIngress.StateOf</c>): a field added
+    /// to the broadcast is added here once, and a round-trip test can pin both halves.</summary>
+    internal static ClusterStateTopic StateTopicOf(in ClusterStateTransitionedEvent ev) => new()
+    {
+        CurrentState     = (NedClusterState)(int)ev.NewStateId,
+        ExerciseId       = ev.ExerciseId,
+        SessionId        = ev.SessionId,          // ⭐ C2
+        TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
+        ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
+        RunNotRecorded   = ev.RunNotRecorded ? 1 : 0,   // ⭐ CE-4090 D14
+        RecordLiveRunsOff = ev.RecordLiveRunsOff ? 1 : 0,
+        ArmedMode        = (int)ev.ArmedMode,   // ⭐ CE-3341 R-3068
+    };
+
     private readonly DdsReader<ClusterOpRequest>    _requestReader;
     private readonly DdsWriter<ClusterOpStatus>     _statusWriter;
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
@@ -92,16 +106,7 @@ public sealed class ClusterOpMasterTranslator
         {
             foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
             {
-                _clusterStateWriter.Write(new ClusterStateTopic
-                {
-                    CurrentState     = (NedClusterState)(int)ev.NewStateId,
-                    ExerciseId       = ev.ExerciseId,
-                    SessionId        = ev.SessionId,          // ⭐ C2
-                    TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
-                    ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
-                    RunNotRecorded   = ev.RunNotRecorded ? 1 : 0,   // ⭐ CE-4090 D14
-                    RecordLiveRunsOff = ev.RecordLiveRunsOff ? 1 : 0,
-                });
+                _clusterStateWriter.Write(StateTopicOf(ev));
             }
         }
 

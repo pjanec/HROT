@@ -320,6 +320,9 @@ class Program
         //    ⚠ A configured-but-missing directory THROWS here, at startup, by design.
         Hrot.Editor.AiShared.AssetRoots.Configure(config.AssetRoot);
 
+        // ⭐⭐⭐ THE CONTENT SEED is NOT here (CE-4089 → CE-3340 ③): it runs inside SubsystemOrchestrator.Initialize — the ONE place every host's start
+        //    passes through (this runner, the editor inside it, the in-process harnesses) — before any subsystem initialises.
+
         // Propagate configurable AI project path to the editor subsystem before Initialize().
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
             sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
@@ -433,28 +436,6 @@ class Program
             {
                 // ① Capture must be ON before any panel draws, or every dump is empty.
                 Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
-
-                // ⭐⭐⭐ ①b SEED THE CURATED SCENARIOS INTO THE WORKING NAS (HN-029).
-                //
-                // 📐 Measured: `POST /scenario/load/live hill-attack` in `--mode all` published its intent, the
-                //    master accepted it and fanned out to 5 nodes — then AssetPrefetchProcessManager failed with
-                //    "NAS source directory '<staging>/shared/scenarios/hill-attack' does not exist". ⇒ the load
-                //    machinery was fine; the scenario simply was not on the NAS.
-                //
-                // ⭐⭐ REUSE, not a new mechanism: CuratedScenarios is the editor's own start-up seed, and its
-                //    own doc already says "the logic is host-agnostic (the working root is a parameter), so CGF
-                //    or any other host can call the same helper." 📌 A textbook under-adopted seam.
-                //
-                // ⛔⛔ GATED ON THE DEBUG PORT ON PURPOSE — not done in a normal cluster run. The seed
-                //    force-overwrites the curated NAMES in the operator's working NAS folder, and a developer
-                //    running the cluster alongside their own edited scenarios must not have them replaced
-                //    underneath. ⚠ A no-op in a deployed build anyway (no source tree to copy from).
-                var seeded = Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoWorking(
-                    System.IO.Path.Combine(
-                        Hrot.Orchestrator.ClusterConfiguration.Default.NasBasePath,
-                        Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName));
-                FdpLog<Program>.Info("[Runner] Curated scenarios seeded to the working NAS: [{0}].",
-                    string.Join(", ", seeded));
 
                 // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Fdp.Toolkit.Orchestration;
 
 namespace Fdp.Toolkit.Terrain
 {
@@ -9,8 +10,8 @@ namespace Fdp.Toolkit.Terrain
     /// ⭐ Buildings programme Stage 1 — the side files a terrain world may reference (📄 docs/DESIGN_Building_Interiors.md
     /// §3a, §3c M2): building TEMPLATES (<c>&lt;name&gt;.building.json</c>) and the MATERIAL library.
     /// <para>Lookup, as designed: the terrain's own <c>buildings/</c> folder first, then the shared
-    /// <c>Recipes/Buildings/</c> — ⭐ UI-1: the one beside the terrain's <c>Recipes/Terrain</c> (<see cref="RecipesSibling"/>), then
-    /// <c>{app}/Recipes/Buildings/</c>; materials = the shared library (embedded data) overlaid by the terrain folder's own
+    /// <c>assets/buildings/</c> — ⭐ UI-1: the one beside the terrain's <c>assets/terrain</c> (<see cref="RecipesSibling"/>), then
+    /// the NAS's <c>assets/buildings/</c> (<c>CE-4089</c>, <see cref="ContentLayout.BuildingAssets"/>); materials = the shared library (embedded data) overlaid by the terrain folder's own
     /// <c>materials.json</c>.</para>
     /// </summary>
     public sealed class TerrainAssets
@@ -22,8 +23,8 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>No side files: the shared materials, no templates.</summary>
         public static TerrainAssets None { get; } = new();
 
-        /// <summary>Where the build ships its shared building templates: <c>{AppContext.BaseDirectory}/Recipes/Buildings</c>.</summary>
-        public static string DefaultSharedBuildingsRoot => Path.Combine(AppContext.BaseDirectory, "Recipes", "Buildings");
+        /// <summary>⭐ <c>CE-4089</c> — where the shared building templates live: the NAS's <c>assets/buildings</c> (nothing under the exe folder).</summary>
+        public static string DefaultSharedBuildingsRoot => ContentLayout.BuildingAssets(ContentLayout.NasRoot);
 
         public TerrainMaterialLibrary Materials { get; init; } = TerrainMaterialLibrary.Shared;
 
@@ -66,16 +67,16 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
-        /// ⭐ UI-1 (platoon demos hand-off) — the shared <c>Buildings</c> folder of the <c>Recipes</c> tree a terrain lives in:
-        /// <c>Recipes/Terrain/&lt;name&gt;/</c> → <c>Recipes/Buildings/</c>. In the build output it IS
-        /// <see cref="DefaultSharedBuildingsRoot"/>; in the SOURCE tree (the editor and the unit suites read it) it is the folder the
-        /// build copies from, so a shipped terrain finds the shared templates wherever it is read from.
+        /// ⭐ UI-1 (platoon demos hand-off) — the shared <c>buildings</c> folder of the <c>assets</c> tree a terrain lives in:
+        /// <c>assets/terrain/&lt;name&gt;/</c> → <c>assets/buildings/</c> (<c>CE-4089</c>: was <c>Recipes/Terrain</c> → <c>Recipes/Buildings</c>).
+        /// On the NAS it IS <see cref="DefaultSharedBuildingsRoot"/>; in the SOURCE tree (the unit suites read it) it is the folder the dev seed
+        /// copies from, so a terrain finds the shared templates wherever it is read from. ⚠ The name is historical (it was the Recipes sibling).
         /// </summary>
         public static string RecipesSibling(string terrainFolder)
         {
             var terrains = Path.GetDirectoryName(Path.GetFullPath(terrainFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             var recipes = terrains == null ? null : Path.GetDirectoryName(terrains);
-            return recipes == null ? Path.Combine(terrainFolder, BuildingsFolderName) : Path.Combine(recipes, "Buildings");
+            return recipes == null ? Path.Combine(terrainFolder, BuildingsFolderName) : Path.Combine(recipes, ContentLayout.BuildingsDirectoryName);
         }
 
         /// <summary>The template <paramref name="name"/> as JSON; throws naming <paramref name="where"/> when absent or invalid.</summary>
@@ -84,7 +85,7 @@ namespace Fdp.Toolkit.Terrain
             string? text = Templates?.Invoke(name);
             if (text == null)
                 throw new ArgumentException($"Terrain world {where}: building template '{name}' was not found " +
-                    $"('{BuildingsFolderName}/{name}{TemplateSuffix}' in the terrain folder, then the shared Recipes/Buildings).");
+                    $"('{BuildingsFolderName}/{name}{TemplateSuffix}' in the terrain folder, then the shared assets/buildings).");
             try
             {
                 return JsonNode.Parse(text) as JsonObject

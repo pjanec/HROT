@@ -79,7 +79,7 @@ public static class DebugSessionPaths
     /// <summary>
     /// The pure copy behind <see cref="TryResetUserSession"/> — exposed so the behaviour is testable
     /// without depending on what the build happened to place in the output directory
-    /// *(the precedent: <c>CuratedScenarios.SeedFrom</c>)*.
+    /// *(the precedent: <c>ContentSeed.SeedFrom</c>)*.
     /// </summary>
     public static bool TryResetUserSessionFrom(string curatedDirectory, string userDirectory)
     {

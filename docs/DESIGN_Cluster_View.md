@@ -44,7 +44,7 @@ classDiagram
   class ClusterFactsIngress { <<NEW, Hrot.Network.Orchestration>> reads ClusterStateTopic · AssetInventoryTopic · ReplaySessionTopic · ClusterOpStatus → publishes the existing events (one decoder each) }
   class NodeOpSlaveTranslator { <<existing>> own commands · own heartbeat/capabilities/status egress · HAS-A ClusterFactsIngress }
   class OrchestrationObserverTranslator { <<existing>> HAS-A ClusterFactsIngress · + monitoring topics (heartbeat, capabilities, node-op mirror) }
-  class ClusterView { <<NEW, Fdp.Toolkits.Orchestration>> State · MasterGone · ExerciseId · RunNotRecorded · RecordLiveRunsOff · Inventory · Session · ReplayAxis · OutcomeFor(requestId) · LastUnsavedCheck · Update() }
+  class ClusterView { <<NEW, Fdp.Toolkits.Orchestration>> State · MasterGone · ExerciseId · RunNotRecorded · RecordLiveRunsOff · ArmedMode (CE-3341) · Inventory · Session · ReplayAxis · OutcomeFor(requestId) · LastUnsavedCheck · Update() }
   class ClusterUiCache { <<existing>> HAS-A ClusterView (facts delegate) · keeps heartbeats, tx history, reachable targets }
   class ClusterSlave { <<existing>> follow-fields DELEGATE to ClusterView }
   class EcsHostClusterHandlers { <<existing>> Compose(): builds the node's ClusterView }

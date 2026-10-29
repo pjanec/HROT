@@ -410,10 +410,7 @@ public sealed class EqsDistributedTests
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         var sim = harness.SimHost.World!;
 
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "test-town.world.geojson")), "test-town");
+        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town", "test-town.world.geojson")), "test-town");
         sim.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent (TerrainResidency does the same)
         sim.SetSingletonManaged(town);
         sim.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(town));
@@ -471,10 +468,7 @@ public sealed class EqsDistributedTests
         var sim = harness.SimHost.World!;
         var cgf = harness.Cgf!.World!;
 
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(dir!.FullName,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "test-town.world.geojson")), "test-town");
+        var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town", "test-town.world.geojson")), "test-town");
         foreach (var w in new[] { sim, cgf })
         {
             w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();   // idempotent
@@ -482,8 +476,7 @@ public sealed class EqsDistributedTests
         }
         // ⭐ CE-1036 — since CE-3128 the danger classifier plans on the road GRAPH (the world's RoadNetworkHolder), not on
         //   terrain polygons: without test-town's roads.json the solver answered 0 areas. Loaded the way TerrainResidency does.
-        var roads = CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(dir.FullName,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "roads.json"));
+        var roads = CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town", "roads.json"));
         sim.RegisterManagedComponent<CarKinem.Road.RoadNetworkHolder>();   // idempotent
         if (sim.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) sim.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Publish(roads);
         else sim.SetSingletonManaged(new CarKinem.Road.RoadNetworkHolder(roads, takeOwnership: true));
@@ -544,9 +537,7 @@ public sealed class EqsDistributedTests
         var sim = harness.SimHost.World!;
         var cgf = harness.Cgf!.World!;
 
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
         var range = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
             "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
         foreach (var w in new[] { sim, cgf })
@@ -605,9 +596,7 @@ public sealed class EqsDistributedTests
         var sim = harness.SimHost.World!;
         var cgf = harness.Cgf!.World!;
 
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
         var town = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town");
         foreach (var w in new[] { sim, cgf })
         {

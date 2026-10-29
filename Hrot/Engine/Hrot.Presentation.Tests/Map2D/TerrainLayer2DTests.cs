@@ -23,9 +23,7 @@ public sealed class TerrainLayer2DTests
 {
     internal static EntityRepository DemoCity()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !Directory.Exists(Path.Combine(dir, "Hrot", "Subsystems"))) dir = Path.GetDirectoryName(dir)!;
-        var root = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain");
+        var root = Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!);
         var world = new EntityRepository();
         var residency = new TerrainResidency(new TerrainCatalog(new[] { root }), new CarKinem.Road.RoadNetworkHolder());
         residency.AttachContent(new SumoNetTerrainLoader());

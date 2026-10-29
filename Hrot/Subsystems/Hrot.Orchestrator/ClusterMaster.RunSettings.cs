@@ -36,6 +36,13 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ CE-4090 D14 — the cluster-wide <i>Record live runs</i> setting. Default ON. Read at the next live load.</summary>
     public bool RecordLiveRuns { get; set; } = true;
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode: what ▶ runs next, ONE fact held HERE and broadcast with every cluster-state
+    /// publication (every node reads it through its <c>ClusterView</c>). Default <see cref="ClusterArmedMode.Live"/> — D12's host default for every host but the
+    /// editor, and the editor sends its own (Preview) with the load that opens a scenario. ⛔ <b>Never reset by a load</b>: only a <c>SetRunSettings{Armed}</c> changes it.
+    /// </summary>
+    public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
+
     private bool _runNotRecorded;
 
     /// <summary>⭐ CE-4090 — the last live run was started with recording OFF (see the remarks). Announced on every cluster-state publication.</summary>
@@ -50,9 +57,11 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ CE-4090 D14 — any host sets the cluster's run settings. Takes effect at the NEXT live load; the run on screen is not touched.</summary>
     private void ProcessSetRunSettingsIntent(SetRunSettingsIntent intent)
     {
-        RecordLiveRuns = intent.RecordLiveRuns;
-        PublishClusterState(_currentDsmState);   // every host reads the setting off the broadcast, so tell them now
-        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090: Record live runs is now {0} (from the next live load).", intent.RecordLiveRuns);
+        // ⭐ CE-3341: a field the op does not carry (null) is "no change" — an older sender, or one that sets only the other setting.
+        if (intent.RecordLiveRuns is { } record) RecordLiveRuns = record;
+        if (intent.Armed is { } armed) ArmedMode = armed;
+        PublishClusterState(_currentDsmState);   // every host reads the settings off the broadcast, so tell them now
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}.", RecordLiveRuns, ArmedMode);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
     }
 

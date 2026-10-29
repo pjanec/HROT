@@ -73,12 +73,8 @@ public sealed class BTreeCallShapeTests
 
     private static string CorpusDir()
     {
-        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
-        {
-            var c = Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees");
-            if (Directory.Exists(c)) return c;
-        }
-        throw new DirectoryNotFoundException("BTree corpus not found above " + AppContext.BaseDirectory);
+        var c = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder);
+        return Directory.Exists(c) ? c : throw new DirectoryNotFoundException("BTree corpus not found: " + c);
     }
 
     // ⭐ CE-504 slice 3 — the seven `CgfNodes.Action_Wander` rows were recorded `FourParamFull`; C-3 moved Wander to the

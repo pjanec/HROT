@@ -4,80 +4,115 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Terrain;
+using Hrot.ScenarioEditor.Services;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Tests;
 
 /// <summary>
-/// ⭐ Every file a SHIPPED terrain's <c>terrain.json</c> names must be in the build output beside it.
+/// ⭐ Every file a terrain's <c>terrain.json</c> names must be in the NAS a dev start SEEDS from the repository.
 ///
 /// <para>📌 Measured <c>2026-10-17</c> on a five-process cluster: <c>demo-city</c>'s <c>terrain.json</c> names
-/// <c>demo-city.net.xml</c> (AQ93 §11.3), but the <c>Recipes/Terrain</c> content glob in
-/// <c>Hrot.AI.Behaviors.csproj</c> copied only <c>*.json</c>/<c>*.geojson</c>/<c>*.asc</c> ⇒ every node's PrepareLive
-/// threw <c>FileNotFoundException</c> and the load never reached <c>OperatingLive</c>. ⛔ The editor and the unit
-/// suites read the source tree, so nothing caught it.</para>
-///
-/// <para>⭐ This test project's output carries the shipped terrains (Content flows from <c>Hrot.AI.Behaviors</c>
-/// through <c>Hrot.ClusterRunner</c>), so the rail reads exactly what a cluster node reads. A file reference is
+/// <c>demo-city.net.xml</c> (AQ93 §11.3), but a <c>Content</c> glob in <c>Hrot.AI.Behaviors.csproj</c> copied only
+/// <c>*.json</c>/<c>*.geojson</c>/<c>*.asc</c> ⇒ every node's PrepareLive threw <c>FileNotFoundException</c> and the load never reached
+/// <c>OperatingLive</c>. ⭐ <c>CE-4089</c> (R-4097) REWROTE this rail for the new pattern: there is no exe-folder copy and no csproj glob any more —
+/// <c>assets/terrain</c> at the repository root is copied WHOLE into the NAS by <c>ContentSeed.SeedTreeFrom</c> — so the rail seeds a temp NAS from
+/// the source tree and reads it exactly as a node does (<c>TerrainCatalog.ForNode</c>, the NAS's <c>assets/buildings</c>). A file reference is
 /// any string value shaped like a relative file name (<c>name.ext</c>), outside <c>$</c>-prefixed keys.</para>
 /// </summary>
-public sealed class ShippedTerrainFilesAreDeployedTests
+public sealed class ShippedTerrainFilesAreDeployedTests : IDisposable
 {
     private static readonly Regex FileName = new(@"^[\w.\-/]+\.[A-Za-z][A-Za-z0-9]{1,7}$", RegexOptions.Compiled);
 
-    private static string ShippedRoot => Path.Combine(AppContext.BaseDirectory, "Recipes", "Terrain");
+    private readonly string _nas = Path.Combine(Path.GetTempPath(), "ce4089-seed-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_nas, recursive: true); } catch (IOException) { /* best effort */ }
+    }
+
+    /// <summary>⭐ The NAS after a dev start: the repository's scenarios/, assets/ and recipes/ copied in.</summary>
+    private string SeededNas()
+    {
+        var tree = ContentLayout.TryFindSourceTree();
+        Assert.NotNull(tree);
+        ContentSeed.SeedTreeFrom(tree!, _nas);
+        return _nas;
+    }
 
     [Fact]
-    public void EveryShippedTerrain_HasEveryFileItNames_InTheBuildOutput()
+    public void EveryTerrain_HasEveryFileItNames_InTheSeededNas()
     {
-        Assert.True(Directory.Exists(ShippedRoot), $"no shipped terrains under '{ShippedRoot}' — the rail would prove nothing.");
-
-        var definitions = Directory.GetFiles(ShippedRoot, "terrain.json", SearchOption.AllDirectories);
-        Assert.NotEmpty(definitions);
+        var catalog = TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: SeededNas());
+        var names = catalog.List();
+        Assert.NotEmpty(names);   // the rail would prove nothing on an empty NAS
 
         var missing = new List<string>();
-        foreach (var definition in definitions)
+        foreach (var name in names)
         {
-            var folder = Path.GetDirectoryName(definition)!;
-            using var doc = JsonDocument.Parse(File.ReadAllText(definition));
-            foreach (var name in FileReferences(doc.RootElement))
-                if (!File.Exists(Path.Combine(folder, name)))
-                    missing.Add($"{Path.GetFileName(folder)}/{name}");
+            var folder = catalog.ResolveFolder(name)!;
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName)));
+            foreach (var file in FileReferences(doc.RootElement))
+                if (!File.Exists(Path.Combine(folder, file)))
+                    missing.Add($"{name}/{file}");
         }
 
         Assert.True(missing.Count == 0,
-            "shipped terrain files named in terrain.json but not deployed (add the extension to the Recipes/Terrain "
-          + "content glob in Hrot.AI.Behaviors.csproj): " + string.Join(", ", missing));
+            "terrain files named in terrain.json but not in the seeded NAS (is the file outside assets/terrain, or skipped by the seed?): "
+          + string.Join(", ", missing));
     }
 
     /// <summary>
-    /// ⭐ UI-1 (HANDOFF_Behaviors_To_Ui_Platoon_Demos) — every shipped terrain's WORLD parses from the build output, so every building
-    /// template it places is deployed: its own <c>buildings/</c> or the shared <c>Recipes/Buildings/</c>
-    /// (<c>TerrainAssets.DefaultSharedBuildingsRoot</c>). ⛔ The source-tree suites find a template the build forgot to copy.
+    /// ⭐ UI-1 (HANDOFF_Behaviors_To_Ui_Platoon_Demos) — every terrain's WORLD parses from the seeded NAS, so every building
+    /// template it places is there: its own <c>buildings/</c> or the shared <c>assets/buildings/</c> of the NAS
+    /// (<c>ContentLayout.BuildingAssets</c> = <c>TerrainAssets.DefaultSharedBuildingsRoot</c>'s tree).
     /// </summary>
     [Fact]
-    public void EveryShippedTerrainWorld_LoadsWithItsBuildingTemplates_FromTheBuildOutput()
+    public void EveryTerrainWorld_LoadsWithItsBuildingTemplates_FromTheSeededNas()
     {
-        var shared = Fdp.Toolkit.Terrain.TerrainAssets.DefaultSharedBuildingsRoot;
-        Assert.True(File.Exists(Path.Combine(shared, "house-2f.building.json")), $"the shared house-2f is not deployed to '{shared}'.");
+        var nas = SeededNas();
+        var shared = ContentLayout.BuildingAssets(nas);
+        Assert.True(File.Exists(Path.Combine(shared, "house-2f.building.json")), $"the shared house-2f is not in the seeded NAS at '{shared}'.");
 
+        var catalog = TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: nas);
         var failures = new List<string>();
         int buildings = 0;
-        foreach (var definition in Directory.GetFiles(ShippedRoot, "terrain.json", SearchOption.AllDirectories))
+        foreach (var name in catalog.List())
         {
-            var folder = Path.GetDirectoryName(definition)!;
-            using var doc = JsonDocument.Parse(File.ReadAllText(definition));
+            var folder = catalog.ResolveFolder(name)!;
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName)));
             if (!doc.RootElement.TryGetProperty("world", out var w) || w.GetString() is not string world) continue;
             try
             {
-                var parsed = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, world)), Path.GetFileName(folder),
-                    Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder, shared));
+                var parsed = TerrainWorldParser.Parse(File.ReadAllText(Path.Combine(folder, world)), Path.GetFileName(folder),
+                    TerrainAssets.ForFolder(folder, shared));
                 buildings += parsed.Buildings.Count;
             }
-            catch (Exception ex) { failures.Add($"{Path.GetFileName(folder)}: {ex.Message}"); }
+            catch (Exception ex) { failures.Add($"{name}: {ex.Message}"); }
         }
-        Assert.True(failures.Count == 0, "shipped terrain worlds that do not load from the build output: " + string.Join(" | ", failures));
-        Assert.True(buildings > 0, "no shipped terrain placed a building — the rail would prove nothing.");
+        Assert.True(failures.Count == 0, "terrain worlds that do not load from the seeded NAS: " + string.Join(" | ", failures));
+        Assert.True(buildings > 0, "no terrain placed a building — the rail would prove nothing.");
+    }
+
+    /// <summary>
+    /// ⭐ The seed is the ONLY delivery (L4): a second seed with the same bytes writes nothing, and the seeded NAS holds the same terrain
+    /// files as the repository (so a file a future glob would have missed is carried too).
+    /// </summary>
+    [Fact]
+    public void TheSeedCarriesEveryTerrainFileOfTheRepository()
+    {
+        var nas = SeededNas();
+        var tree = ContentLayout.TryFindSourceTree()!;
+
+        var inRepo = Directory.GetFiles(ContentLayout.TerrainAssets(tree), "*", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(ContentLayout.TerrainAssets(tree), f)).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        var inNas = Directory.GetFiles(ContentLayout.TerrainAssets(nas), "*", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(ContentLayout.TerrainAssets(nas), f)).OrderBy(x => x, StringComparer.Ordinal).ToList();
+
+        Assert.NotEmpty(inRepo);
+        Assert.Equal(inRepo, inNas);
     }
 
     /// <summary>⭐ The rail can fail: the known SUMO net reference is found by the walk.</summary>

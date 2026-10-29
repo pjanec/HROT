@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """CE-1017 S5 - rasterize the Add Entity picker's entity icons from their SVG sources.
 
-Source of truth: Hrot/Engine/Hrot.Presentation/Assets/EntityIcons/src/<name>.svg (hand-drawn, 128x128 viewBox,
-side profile facing right; edit them in any SVG editor). Output: ../<name>.png at 128 px, embedded into
-Hrot.Presentation and served by EntityIconLibrary as entity/<name> (the picker draws rows at 16 px and the
+Source of truth: assets/icons/src/<name>.svg (hand-drawn, 128x128 viewBox,
+side profile facing right; edit them in any SVG editor). Output: ../<name>.png at 128 px (assets/icons, seeded into the NAS) and
+served by EntityIconLibrary as entity/<name> (the picker draws rows at 16 px and the
 preview pane at 64 px, so 128 stays crisp on HiDPI too).
 
 Usage:  pip install cairosvg   (needs libcairo)
@@ -17,7 +17,7 @@ import sys
 import cairosvg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ICONS = os.path.normpath(os.path.join(HERE, "..", "Hrot", "Engine", "Hrot.Presentation", "Assets", "EntityIcons"))
+ICONS = os.path.normpath(os.path.join(HERE, "..", "assets", "icons"))
 SIZE = 128
 
 

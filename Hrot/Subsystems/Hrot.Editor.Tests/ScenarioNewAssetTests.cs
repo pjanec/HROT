@@ -51,7 +51,7 @@ public sealed class ScenarioNewAssetTests
         var ex = Assert.Throws<InvalidOperationException>(
             () => svc.CreateNew(null, "MyScenario", ""));
 
-        Assert.Contains("Recipes/Scenarios", ex.Message);
+        Assert.Contains("recipes/scenarios", ex.Message);
     }
 
     /// <summary>
@@ -68,8 +68,8 @@ public sealed class ScenarioNewAssetTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>H2</c> / <c>U9</c> — the seed is loaded by the name the CLUSTER can resolve: the
-    /// reserved <c>Recipes/</c> subfolder of the NAS scenarios root the seeds are staged into.
+    /// ⭐⭐⭐ <c>H2</c> / <c>U9</c> — the seed is loaded by the name the CLUSTER can resolve: a recipe is
+    /// named by its root, <c>recipes/scenarios/&lt;seed&gt;</c> (L6, CE-4089 — was the reserved <c>Recipes/</c> prefix under the scenarios root).
     ///
     /// <para>🔴 <b>This assertion is the whole of <c>U9</c>.</b> 📐 Measured: a scenario load is a CLUSTER
     /// transition keyed on a NAME every node resolves against its own NAS scenarios root
@@ -89,8 +89,8 @@ public sealed class ScenarioNewAssetTests
         var result = svc.CreateNew(seedRecipe, "NewName", "Sub");
 
         var loadCall = Assert.Single(session.LoadScenarioByNameCalls);
-        Assert.Equal("Recipes/SeedScenario", loadCall);
-        Assert.Equal(ScenarioNewAssetService.SeedSubfolder + "/SeedScenario", loadCall);
+        Assert.Equal("recipes/scenarios/SeedScenario", loadCall);
+        Assert.Equal(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName("SeedScenario"), loadCall);
 
         var saveCall3 = Assert.Single(session.SaveScenarioAsCalls);
         Assert.Equal("Sub/NewName", saveCall3);

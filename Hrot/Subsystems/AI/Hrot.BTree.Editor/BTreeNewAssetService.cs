@@ -92,7 +92,7 @@ public sealed class BTreeNewAssetService : INewAssetService
         // Synthetic "Empty" and "Starter" entries.
         var recipes = new List<IEditableAsset> { _emptyRecipe, _starterRecipe };
 
-        // Discover on-disk BTree recipes (if any exist under Recipes/BTrees).
+        // Discover on-disk BTree recipes (if any exist under recipes/behaviors/BTrees).
         // TODO: wire IRecipeDiscovery when a recipe-discovery service exists.
         // For now, only the in-code recipes are offered.
 

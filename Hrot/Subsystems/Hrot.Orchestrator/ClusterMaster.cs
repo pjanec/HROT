@@ -1764,10 +1764,7 @@ public sealed partial class ClusterMaster : IDisposable
         try
         {
             return StorageGatewayModule.ReadScenarioContentNames(
-                Path.Combine(
-                    _config.NasBasePath,
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
-                    scenarioId!));
+                Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(_config.NasBasePath, scenarioId!));
         }
         catch (Exception ex)
         {
@@ -2221,6 +2218,7 @@ public sealed partial class ClusterMaster : IDisposable
             ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
+            ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2230,6 +2228,7 @@ public sealed partial class ClusterMaster : IDisposable
             ReplayAxis   = _replayAxis,
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
+            ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
         });
     }
 

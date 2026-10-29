@@ -3792,9 +3792,7 @@ public sealed class Map3DTests
 
     internal static TerrainWorld BtRange()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir)!;
-        var file = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range", "bt-range.world.geojson");
+        var file = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range", "bt-range.world.geojson");
         return TerrainWorldParser.Parse(File.ReadAllText(file), "bt-range", TerrainAssets.ForFolder(Path.GetDirectoryName(file)!));
     }
 
@@ -4660,17 +4658,13 @@ public sealed class Map3DTests
     /// <summary>⭐ CE-1034 H5d — the highway-rest terrain: a height grid, a highway under an overpass to a drivers' rest area.</summary>
     internal static TerrainWorld HighwayRest()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir)!;
-        var file = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "highway-rest", "highway-rest.world.geojson");
+        var file = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "highway-rest", "highway-rest.world.geojson");
         return TerrainWorldParser.Parse(File.ReadAllText(file), "highway-rest", TerrainAssets.ForFolder(Path.GetDirectoryName(file)!));
     }
 
     internal static TerrainWorld TestTown()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir)!;
-        var file = Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "test-town.world.geojson");
+        var file = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town", "test-town.world.geojson");
         return TerrainWorldParser.Parse(File.ReadAllText(file), "test-town", TerrainAssets.ForFolder(Path.GetDirectoryName(file)!));
     }
 

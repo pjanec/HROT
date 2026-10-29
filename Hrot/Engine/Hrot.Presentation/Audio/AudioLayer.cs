@@ -34,8 +34,9 @@ namespace Hrot.UI.Common.Audio
     /// </summary>
     public sealed class AudioLayer : IMapLayer, IDisposable
     {
-        /// <summary>Where sound files named by a <c>SoundDto</c> are looked up (beside the executable).</summary>
-        public const string AssetFolder = "assets/audio";
+        /// <summary>⭐ <c>CE-4089</c> — where sound files named by a <c>SoundDto</c> are looked up: the NAS's <c>assets/audio</c>
+        /// (<see cref="Fdp.Toolkit.Orchestration.ContentLayout.AudioAssets"/>; a dev start seeds it from the repository). ⛔ Not beside the executable.</summary>
+        public static string AssetFolder => Fdp.Toolkit.Orchestration.ContentLayout.AudioAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
 
         private readonly Func<EntityRepository?> _world;
         private readonly Func<ITkbDatabase?> _tkb;
@@ -208,7 +209,7 @@ namespace Hrot.UI.Common.Audio
                 bool loaded = false;
                 foreach (var file in s.Files)
                 {
-                    var path = System.IO.Path.Combine(AppContext.BaseDirectory, AssetFolder, file);
+                    var path = System.IO.Path.Combine(AssetFolder, file);
                     if (_output.DefineFile(type, path)) { loaded = true; break; }
                 }
                 if (!loaded && s.Synth != SoundSynth.None)
@@ -223,7 +224,7 @@ namespace Hrot.UI.Common.Audio
                 bool loaded = false;
                 foreach (var file in s.Files)
                 {
-                    var path = System.IO.Path.Combine(AppContext.BaseDirectory, AssetFolder, file);
+                    var path = System.IO.Path.Combine(AssetFolder, file);
                     if (_output.DefineFile(type, path)) { loaded = true; break; }
                 }
                 var voice = VoiceTkbCatalog.Voices[line.Voice];

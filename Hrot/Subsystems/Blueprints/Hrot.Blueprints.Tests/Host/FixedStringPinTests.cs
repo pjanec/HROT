@@ -158,23 +158,9 @@ public sealed class FixedStringPinTests
 
     private static BlueprintAsset LoadEditorTypesDemo()
     {
-        // Try production location first (Hrot.AI.Behaviors assembly output).
-        var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-
-        string path;
-        if (aiBehaviorsAssembly != null)
-        {
-            var dir = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
-                ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors location.");
-            path = Path.Combine(dir, "Recipes", "Blueprints", "EditorTypesDemo.bp.json");
-        }
-        else
-        {
-            // Fallback: TestAssets location.
-            var dir = TestData.ResolveTestAssetsDir();
-            path = Path.Combine(dir, "Recipes", "EditorTypesDemo.bp.json");
-        }
+        // ⭐ CE-4089 — the recipe lives at the repository root (recipes/behaviors/Blueprints).
+        var path = Path.Combine(
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "EditorTypesDemo.bp.json");
 
         if (!File.Exists(path))
             throw new FileNotFoundException($"EditorTypesDemo.bp.json not found at: {path}");

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Toolkit.Orchestration;
 using NodeEditor.Core.Interfaces;
 
 namespace Hrot.UI.Common.AddEntity;
@@ -7,9 +8,10 @@ namespace Hrot.UI.Common.AddEntity;
 /// ⭐ <c>CE-1017</c> S5 — the entity icon library: serves <c>entity/&lt;name&gt;</c> icon keys as textures, for the Add
 /// Entity picker's rows and preview pane. 📄 docs/DESIGN_Add_Entity_Picker.md D3c, S5.
 ///
-/// <para>⭐ Where an icon comes from, in order: <c>&lt;overrideDirectory&gt;/&lt;name&gt;.png</c> (so a TKB author adds art
-/// without a rebuild — the <c>Assets/EntityIcons/</c> folder <c>IgVisualDef.IconName</c> names), then the PNGs embedded
-/// in this assembly (<c>Assets/EntityIcons/*.png</c>, rasterized by <c>scripts/render-entity-icons.py</c> from the hand-drawn SVG sources in <c>Assets/EntityIcons/src</c>). A name with no art
+/// <para>⭐ Where an icon comes from: <c>&lt;icons folder&gt;/&lt;name&gt;.png</c> — ⭐ <c>CE-4089</c>: the NAS's <c>assets/icons/</c>
+/// (<see cref="ContentLayout.IconAssets"/>; a dev start seeds it from the repository's <c>assets/icons/</c>, rasterized by
+/// <c>scripts/render-entity-icons.py</c> from the hand-drawn SVG sources in <c>assets/icons/src</c>) — the folder <c>IgVisualDef.IconName</c> names, so a
+/// TKB author adds art without a rebuild. ⛔ Nothing is embedded in the assembly any more and nothing is read from the exe folder. A name with no art
 /// falls back to <c>_point</c>, so a TKB that names a missing icon still shows a marker, not a gap.</para>
 ///
 /// <para>⭐ Every other key goes to <paramref name="fallback"/> — the host's existing provider (silk atlas: folder icons,
@@ -30,25 +32,24 @@ public sealed class EntityIconLibrary : IIconProvider
 
     /// <summary>Creates the library.</summary>
     /// <param name="fallback">Serves every non-<c>entity/</c> key (the host's icon provider), or null.</param>
-    /// <param name="overrideDirectory">A folder searched before the embedded art; null ⇒
-    /// <c>&lt;app&gt;/Assets/EntityIcons</c>.</param>
+    /// <param name="overrideDirectory">The folder the PNGs are read from; null ⇒ the NAS's <c>assets/icons</c>.</param>
     /// <param name="upload">Turns PNG bytes into a texture; null ⇒ raylib. Tests inject a fake.</param>
     public EntityIconLibrary(IIconProvider? fallback = null, string? overrideDirectory = null,
                              Func<byte[], (nint TextureId, int Width, int Height)?>? upload = null)
     {
         _fallback = fallback;
-        string dir = overrideDirectory ?? Path.Combine(AppContext.BaseDirectory, "Assets", "EntityIcons");
+        string dir = overrideDirectory ?? ContentLayout.IconAssets(ContentLayout.NasRoot);
         _png = name => ReadPng(dir, name);
         _upload = upload ?? RaylibUpload;
     }
 
-    /// <summary>The icon names embedded in this assembly.</summary>
-    public static IReadOnlyList<string> EmbeddedNames { get; } = typeof(EntityIconLibrary).Assembly
-        .GetManifestResourceNames()
-        .Where(n => n.StartsWith("EntityIcons/", StringComparison.Ordinal) && n.EndsWith(".png", StringComparison.Ordinal))
-        .Select(n => n["EntityIcons/".Length..^".png".Length])
-        .OrderBy(n => n, StringComparer.Ordinal)
-        .ToArray();
+    /// <summary>The icon names (<c>*.png</c> without the extension, ordinal order) in <paramref name="iconsFolder"/>.</summary>
+    public static IReadOnlyList<string> NamesIn(string iconsFolder) => !Directory.Exists(iconsFolder)
+        ? Array.Empty<string>()
+        : Directory.EnumerateFiles(iconsFolder, "*.png", SearchOption.TopDirectoryOnly)
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
 
     /// <inheritdoc/>
     public bool TryGet(string key, out IconHandle handle)
@@ -89,12 +90,7 @@ public sealed class EntityIconLibrary : IIconProvider
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
-
-        using var s = typeof(EntityIconLibrary).Assembly.GetManifestResourceStream("EntityIcons/" + name + ".png");
-        if (s is null) return null;
-        using var ms = new MemoryStream();
-        s.CopyTo(ms);
-        return ms.ToArray();
+        return null;
     }
 
     private static (nint, int, int)? RaylibUpload(byte[] png)

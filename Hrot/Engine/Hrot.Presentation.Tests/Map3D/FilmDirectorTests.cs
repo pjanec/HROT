@@ -91,7 +91,7 @@ public sealed class FilmDirectorTests
     public void CE4038_TheSeededTakes_AllRead_AndTheFeaturesReelNamesOnlyThem()
     {
         var repo = RepoRoot();
-        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         var found = new HashSet<string>();
         foreach (var root in roots)
         {
@@ -639,6 +639,30 @@ public sealed class FilmDirectorTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
+    /// <summary>
+    /// ⭐ L6 — "new from a recipe" loads the recipe by its root-spelled name (<c>recipes/scenarios/&lt;seed&gt;</c>), so its takes are read from the RECIPES root, not
+    /// from a <c>scenarios/recipes/scenarios/&lt;seed&gt;</c> folder that does not exist: a store over the scenarios root lists the recipe's takes and <c>CopyTakes</c> carries them to the
+    /// new scenario. 🔴 Mutation: <c>ScenarioDirectory</c> / <c>CopyTakes</c> composing <c>Path.Combine(scenariosRoot, name)</c> by hand ⇒ no takes, 0 copied.
+    /// </summary>
+    [Fact]
+    public void L6_ARecipesTakes_AreReadFromTheRecipesRoot_AndCarriedToTheNewScenario()
+    {
+        var nas = Path.Combine(Path.GetTempPath(), $"l6-takes-{Guid.NewGuid():N}");
+        try
+        {
+            var scenarios = Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas);
+            new TakeStore(() => Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(nas), () => null)
+                .Save(new Take { Scenario = "demo", Name = "main", Shots = new[] { Shot("""{"at":1,"seconds":2,"follow":"X"}""") } });
+            var recipeName = Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName("demo");
+            var store = new TakeStore(() => scenarios, () => null);
+
+            Assert.Equal(new[] { "main" }, store.TakesOf(recipeName));
+            Assert.Equal(1, TakeStore.CopyTakes(scenarios, recipeName, "mine"));
+            Assert.True(store.Load("mine", "main").Ok);
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, true); }
+    }
+
     // ── TE-2 / T1 — take format v2: keys, segments, shots read as keys, ProgramAt ─────────────────────────────
 
     private const string V2Take = """
@@ -754,7 +778,7 @@ public sealed class FilmDirectorTests
     public void TE2_TheSeededTakes_StillRead_GiveKeys_AndWriteBackAsV1()
     {
         var repo = RepoRoot();
-        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         int count = 0, withTo = 0;
         foreach (var root in roots)
         {
@@ -903,7 +927,7 @@ public sealed class FilmDirectorTests
     public void CE1364_T4_AV1Take_PlaysTheSameShots_AsTheOldShotPath()
     {
         var repo = RepoRoot();
-        var roots = new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") };
+        var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         var takes = new List<(string Name, Take Take)>();
         foreach (var root in roots)
         {
@@ -1055,7 +1079,7 @@ public sealed class FilmDirectorTests
 
         var repo = RepoRoot();
         int count = 0;
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1107,7 +1131,7 @@ public sealed class FilmDirectorTests
 
         var repo = RepoRoot();
         int count = 0;
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1136,7 +1160,7 @@ public sealed class FilmDirectorTests
     {
         var repo = RepoRoot();
         int compared = 0, withText = 0;
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1371,7 +1395,7 @@ public sealed class FilmDirectorTests
     private static IEnumerable<(TakeStore Store, string Scenario, string Name)> SeededTakes()
     {
         var repo = RepoRoot();
-        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Path.Combine(repo, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Scenarios") })
+        foreach (var root in new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) })
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
@@ -1379,10 +1403,7 @@ public sealed class FilmDirectorTests
         }
     }
 
+    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
     private static string RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Directory.GetParent(dir)?.FullName;
-        return dir ?? throw new InvalidOperationException("no repo root above " + AppContext.BaseDirectory);
-    }
+        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new InvalidOperationException("no repo root above " + AppContext.BaseDirectory);
 }

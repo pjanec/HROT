@@ -71,18 +71,18 @@ namespace Hrot.ClusterRunner.Configuration
         ///
         /// <para>🔒 <b>User, <c>2026-08-14</c>:</b> *"we need a <b>config file provided asset path</b> for
         /// the CGF as well as the Editor (<b>same shared code</b>), with <b>fallback to the repo source</b>
-        /// as of now."* ⇒ empty means *"unset"*, and resolution falls through to
-        /// <see cref="AiBehaviorsProjectPath"/>'s walk-up and then the output directory — ⭐ so a dev box
-        /// behaves exactly as before.</para>
+        /// as of now."* ⇒ empty means *"unset"*; ⭐ CE-4089 (R-4097): resolution then falls
+        /// through to the NAS root (<c>ContentLayout.NasRoot</c>), which a dev start seeds from the repository — no source walk-up, no exe folder.
+        /// <see cref="AiBehaviorsProjectPath"/> remains only to find the project a hot-reload rebuild builds.</para>
         ///
         /// <para>⚠ <b>A value that names a missing directory THROWS at startup</b>
         /// *(<c>AssetRoots.Configure</c>)* — the ruling's own call: silently falling through *"would
         /// reintroduce 'it worked on the dev box'."*</para>
         /// </summary>
         [Option("asset-root", Required = false,
-                HelpText = "Absolute path to the authoring asset root (Assets/ and Recipes/ live under "
-                         + "it). Ruling 67: required on a deployed node, where there is no source tree "
-                         + "to discover. Unset = fall back to the source walk-up, then the output dir.")]
+                HelpText = "Absolute path to the content root (assets/ and recipes/ live under "
+                         + "it). Ruling 67. Unset = the NAS root (a dev start seeds it from the repository's "
+                         + "scenarios/, assets/ and recipes/).")]
         public string AssetRoot { get; set; } = string.Empty;
 
         /// <summary>Target schema version for --mode migrate. -1 means current registered version.</summary>

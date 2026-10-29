@@ -166,6 +166,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         public int RunNotRecorded;
         /// <summary>⭐ CE-4090 — 1 = the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load does); 0 = ON, or an older sender. Additive.</summary>
         public int RecordLiveRunsOff;
+        /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode: 0 = Live (also an older sender), 1 = Preview, 2 = AAR (<c>ClusterArmedMode</c>; ⛔ permanent, R-42). Held by the master, the same on every node. Additive on the wire.</summary>
+        public int ArmedMode;
     }
 
     /// <summary>

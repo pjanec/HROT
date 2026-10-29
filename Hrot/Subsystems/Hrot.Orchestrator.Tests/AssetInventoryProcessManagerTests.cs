@@ -732,7 +732,7 @@ public sealed class AssetInventoryProcessManagerTests
 
     /// <summary>
     /// ⭐⭐ CE-4091 success 3 (D7, D22) — OPENING A RECORDED COPY AS A NEW SCENARIO: the copy appears under the reserved new name
-    /// <c>Recipes/Recorded/&lt;id&gt;</c> with every file and subfolder but WITHOUT its stamp (it is a new scenario, not a recording), and the original
+    /// <c>opened/recorded/&lt;id&gt;</c> with every file and subfolder but WITHOUT its stamp (it is a new scenario, not a recording), and the original
     /// scenario folder, the recording's ledger copy and the NAS exercise are byte- and mtime-identical afterwards. Any other name is not this op's;
     /// an exercise with no copy fails loudly. 🔴 Mutations: staging into the original scenario's folder, or writing the stamp along ⇒ red.
     /// </summary>
@@ -760,7 +760,7 @@ public sealed class AssetInventoryProcessManagerTests
             var name = RecordedScenarioNames.ForExercise(exercise);
             Assert.True(manager.StageRecordedScenario(name));
 
-            var staged = Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName, "Recipes", "Recorded", exercise.ToString());
+            var staged = Path.Combine(nasRoot, ContentLayout.OpenedDirectoryName, "recorded", exercise.ToString());   // CE-3340 ① — the "opened, not saved" area
             var expected = Contents(ledgerCopy);
             Assert.True(expected.Remove("recorded.stamp"));
             Assert.Equal(expected, Contents(staged));
@@ -778,7 +778,7 @@ public sealed class AssetInventoryProcessManagerTests
     }
 
     /// <summary>
-    /// ⭐ CE-4091 — the PREFETCH runs the stager before it stages a name to the nodes: a load of <c>Recipes/Recorded/&lt;id&gt;</c> that exists nowhere on
+    /// ⭐ CE-4091 — the PREFETCH runs the stager before it stages a name to the nodes: a load of <c>opened/recorded/&lt;id&gt;</c> that exists nowhere on
     /// the NAS succeeds and lands the copy in the node's staging folder; with no copy it FAILS (PrefetchStagingCompletedEvent.IsSuccess false).
     /// 🔴 Mutation: the prefetch not calling <c>SourceStager</c> ⇒ the first half fails.
     /// </summary>
@@ -812,10 +812,54 @@ public sealed class AssetInventoryProcessManagerTests
 
             Assert.True(Prefetch(RecordedScenarioNames.ForExercise(exercise)).IsSuccess);
             var node = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, 1), OrchestrationConstants.ScenariosDirectoryName,
-                "Recipes", "Recorded", exercise.ToString());
+                "opened", "recorded", exercise.ToString());   // node staging keeps the name as a relative path under scenarios/
             Assert.Equal("{\"v\":\"ran\"}", File.ReadAllText(Path.Combine(node, "scenario.json")));
 
             Assert.False(Prefetch(RecordedScenarioNames.ForExercise(Guid.NewGuid())).IsSuccess, "a recording with no copy fails the load like a scenario that is not there");
+        }
+        finally { Cleanup(nasRoot, staging); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ L6 (CE-4089 part two) — a RECIPE is loaded by its root-spelled name, <c>recipes/scenarios/&lt;seed&gt;</c>: the master's prefetch resolves it against the NAS
+    /// RECIPES root (the ONE resolver, <c>ContentLayout.ResolveScenarioDirectory</c>) with nothing staged by hand under <c>scenarios/</c>, and lands it in the node's staging
+    /// under the same name. The old reserved <c>Recipes/&lt;seed&gt;</c> prefix is not a recipe name any more (it looks under <c>scenarios/</c>, finds nothing, fails).
+    /// 🔴 Mutation: <c>StorageGatewayModule</c>'s source folder composed by hand as <c>{nas}/scenarios/{name}</c> ⇒ the first prefetch fails.
+    /// </summary>
+    [Fact]
+    public void L6_ThePrefetchOfARecipeName_ReadsTheNasRecipesRoot_WithNothingStagedByHand()
+    {
+        var nasRoot = Scratch("nas"); var staging = Scratch("stg");
+        try
+        {
+            var bus = new FdpEventBus();
+            var seed = Path.Combine(ContentLayout.ScenarioRecipes(nasRoot), "demo-city");
+            Directory.CreateDirectory(seed);
+            File.WriteAllText(Path.Combine(seed, "scenario.json"), "{\"v\":\"recipe\"}");
+            var prefetch = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(), nasRoot, staging);
+
+            PrefetchStagingCompletedEvent Prefetch(string scenarioName)
+            {
+                bus.PublishManaged(new ExecutePrefetchIntent { RequestId = Guid.NewGuid(), ScenarioId = scenarioName, ActiveNodeIds = new List<int> { 1 } });
+                bus.SwapBuffers();
+                prefetch.Tick();
+                var deadline = DateTime.UtcNow.AddSeconds(10);
+                while (DateTime.UtcNow < deadline)
+                {
+                    bus.SwapBuffers();
+                    foreach (var done in bus.ReadManaged<PrefetchStagingCompletedEvent>()) return done;
+                    System.Threading.Thread.Sleep(20);
+                }
+                throw new TimeoutException("the prefetch did not complete");
+            }
+
+            Assert.True(Prefetch(ContentLayout.ScenarioRecipeName("demo-city")).IsSuccess);
+            var node = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, 1), OrchestrationConstants.ScenariosDirectoryName,
+                "recipes", "scenarios", "demo-city");
+            Assert.Equal("{\"v\":\"recipe\"}", File.ReadAllText(Path.Combine(node, "scenario.json")));
+            Assert.False(Directory.Exists(Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName)), "nothing was staged under scenarios/");
+
+            Assert.False(Prefetch("Recipes/demo-city").IsSuccess, "the old reserved prefix is not a recipe name any more");
         }
         finally { Cleanup(nasRoot, staging); }
     }

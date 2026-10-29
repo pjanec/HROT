@@ -23,30 +23,11 @@ namespace Hrot.Editor;
 /// </remarks>
 public sealed class ScenarioNewAssetService : INewAssetService
 {
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>H2</c> / <c>U9</c> — the reserved subfolder of the NAS scenarios root that seed
-    /// scenarios are staged into, and therefore the prefix a seed is LOADED by.</b>
-    ///
-    /// <para>🔴 <b>Why a prefix and not a root-aware load — U9 answered by measurement, and BOTH of the
-    /// plan's proposed options are wrong.</b> 📐 <c>IScenarioCreationSession.LoadScenarioByName</c> →
-    /// <c>EditorApplication.cs:138</c> → <c>EditorScenarioSession.OpenForEdit</c> (<c>:147</c>) takes a
-    /// NAME, stashes it and publishes a <c>TransitionStateIntent</c>: the name crosses the cluster as
-    /// <c>ScenarioId</c> and <b>every node resolves it against its own NAS scenarios root</b>
-    /// (<c>EditorBootstrap.cs:23</c> — <c>{NasBasePath}/scenarios/{name}/scenario.json</c>;
-    /// <c>OrchestrationConstants.GetSharedScenariosRoot()</c> for the shared one, which CGF uses too).
-    /// ⇒ ⛔ <b>nothing anywhere accepts a path</b>, so "have <c>AvailableRecipes()</c> hand back full
-    /// paths" cannot work; and ⛔ a root-aware load would have to carry "which root" across the wire to
-    /// every node, where <c>Recipes/Scenarios</c> — a LOCAL authoring/output path
-    /// (<c>AssetRoots.cs:294</c>) — does not exist at all.</para>
-    ///
-    /// <para>⭐⭐ <b>The third option, which changes no seam:</b> <c>OpenForEdit</c>'s own contract already
-    /// says <i>"the name may be a relative path (e.g. <c>Combat/Patrol</c>)"</i>. ⇒ stage the seeds into
-    /// <c>{scenarios root}/Recipes/</c> and load them by the name <c>Recipes/&lt;seed&gt;</c>. The name
-    /// stays a name, the cluster resolves it exactly as always, and the staging reuses
-    /// <c>CuratedScenarios.SeedFrom</c> — the shipped mechanism that already copies committed scenarios
-    /// into the working root. 📄 design §10.8.</para>
-    /// </summary>
-    public const string SeedSubfolder = Fdp.Toolkit.Orchestration.RecordedScenarioNames.RecipesFolder;   // ⭐ CE-4091 — ONE definition: a recorded copy opens under the same reserved folder
+    // ⭐⭐⭐ H2 / U9 + L6 (CE-4089) — HOW A SEED IS LOADED. 🔴 U9 (measured): a scenario load is a cluster transition keyed on a NAME that the master resolves
+    //   against the NAS (nothing accepts a path), so "root-aware loads" are out and the seed's NAME must say where it lives. ⭐ L6: a recipe is named by
+    //   its ROOT, `recipes/scenarios/<seed>` (ContentLayout.ScenarioRecipeName); the master's prefetch resolves it against the NAS recipes root through the ONE
+    //   resolver (ContentLayout.ResolveScenarioDirectory). ⛔ The earlier design (H2) staged the seeds under `{scenarios root}/Recipes/` and loaded them as
+    //   `Recipes/<seed>` — SUPERSEDED: that folder was inside the list "Open" shows, and the staging was a second copy of what the dev seed already puts in the NAS.
 
     private readonly IScenarioCreationSession _session;
 
@@ -75,7 +56,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
     /// (a static property) and did not pass it. 📄 design §2.1e ⑤c <c>G1</c>.</para>
     /// </summary>
     /// <param name="seedScenarioNames">
-    /// The seed names, RELATIVE to the recipes root and WITHOUT <see cref="SeedSubfolder"/> — this
+    /// The seed names, RELATIVE to the recipes root (<c>recipes/scenarios</c>) and WITHOUT the name prefix — this
     /// service owns that convention, so a caller enumerating the recipes directory passes what it finds.
     /// </param>
     public ScenarioNewAssetService(
@@ -124,7 +105,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
         {
             var available = AvailableRecipes();
             var offered = available.Count == 0
-                ? "(none — no seed scenarios are deployed under Recipes/Scenarios)"
+                ? "(none — no seed scenarios are present under recipes/scenarios)"
                 : string.Join(", ", available.Select(r => $"'{r.Name}'"));
             throw new InvalidOperationException(
                 "[ERROR] Scenario offers no blank template: a scenario minted with no terrain cannot acquire "
@@ -133,8 +114,8 @@ public sealed class ScenarioNewAssetService : INewAssetService
               + offered + ". List them with GET /assets/recipes.");
         }
 
-        // FromSeed: load the seed by the name the CLUSTER can resolve — the reserved subfolder of the
-        // scenarios root the seeds are staged into (see SeedSubfolder) — then save under the new name.
+        // FromSeed: load the seed by the name the CLUSTER can resolve — the recipe's own name
+        // (recipes/scenarios/<seed>, resolved by the master against the NAS recipes root) — then save under the new name.
         // ⭐ CE-4101 — the load is GUARDED (a run ⇒ Stop & Load, unsaved edits ⇒ Save / Discard / Cancel): the save-as follows the open that WENT OUT, ⛔ never a cancelled one (it would
         //   save whatever the world holds under the new name).
         _session.LoadScenarioByName(SeedNameToScenarioName(recipe.Name), () => _session.SaveScenarioAs(fullName));
@@ -173,10 +154,10 @@ public sealed class ScenarioNewAssetService : INewAssetService
 
     /// <summary>
     /// ⭐ The seed's display name → the scenario name the CLUSTER resolves. See
-    /// <see cref="SeedSubfolder"/> for why this is a name and not a path.
+    /// <see cref="Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName"/> (L6) for the spelling.
     /// </summary>
     public static string SeedNameToScenarioName(string seedName)
-        => SeedSubfolder + "/" + seedName;
+        => Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(seedName);
 
     private static bool IsEmptyRecipe(IEditableAsset recipe)
         => string.Equals(recipe.Name, "Empty", StringComparison.OrdinalIgnoreCase);

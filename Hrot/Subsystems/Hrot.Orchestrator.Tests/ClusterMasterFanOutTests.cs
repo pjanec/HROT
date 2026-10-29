@@ -261,7 +261,7 @@ public sealed class ClusterMasterFanOutTests
             "{\"header\":{\"terrainName\":\"" + terrainName + "\"},\"entities\":[]}");
         if (terrainJson != null)
         {
-            var terrainDir = System.IO.Path.Combine(nas, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName, terrainName);
+            var terrainDir = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), terrainName);
             System.IO.Directory.CreateDirectory(terrainDir);
             System.IO.File.WriteAllText(System.IO.Path.Combine(terrainDir, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), terrainJson);
         }
@@ -368,7 +368,7 @@ public sealed class ClusterMasterFanOutTests
         System.IO.Directory.CreateDirectory(scenarioDir);
         System.IO.File.WriteAllText(System.IO.Path.Combine(scenarioDir, "Hrot.SimHost.json"),
             "{\"header\":{\"terrainName\":\"" + terrainName + "\"},\"entities\":[]}");
-        var terrainDir = System.IO.Path.Combine(nas, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName, terrainName);
+        var terrainDir = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), terrainName);
         System.IO.Directory.CreateDirectory(terrainDir);
         System.IO.File.WriteAllText(System.IO.Path.Combine(terrainDir, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), terrainJson);
     }

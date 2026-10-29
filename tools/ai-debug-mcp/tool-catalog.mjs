@@ -608,7 +608,7 @@ export const TOOLS_CATALOG = [
         "name": "recorded",
         "type": "string",
         "required": false,
-        "description": "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named Recipes/Recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."
+        "description": "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named opened/recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."
       },
       {
         "name": "waitForReady",
@@ -2339,13 +2339,13 @@ export const TOOLS_CATALOG = [
   {
     "name": "get_run_settings",
     "group": "I — Replay",
-    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does). The same answer on every host.",
+    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does) and ⭐ CE-3341 armed (preview | live | aar — the CLUSTER's armed mode, what ▶ runs next; ONE fact on every host, the default is live). The same answer on every host.",
     "http": {
       "method": "GET",
       "path": "/run-settings"
     },
     "params": [],
-    "returns": "{ recordLiveRuns }",
+    "returns": "{ recordLiveRuns, armed }",
     "notes": [
       "A set_run_settings is visible here once the master has broadcast it (a frame or two)."
     ],
@@ -2360,7 +2360,7 @@ export const TOOLS_CATALOG = [
   {
     "name": "set_run_settings",
     "group": "I — Replay",
-    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording.",
+    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording. ⭐ CE-3341 (AQ108 D12a): also the cluster's ARMED mode (armed: preview | live | aar) — the same op the operator UI sends; every host's run-mode indicator follows it.",
     "http": {
       "method": "POST",
       "path": "/run-settings"
@@ -2369,11 +2369,17 @@ export const TOOLS_CATALOG = [
       {
         "name": "recordLiveRuns",
         "type": "boolean",
-        "required": true,
-        "description": "Whether a live run starts a recording (the cluster's default is true)"
+        "required": false,
+        "description": "Whether a live run starts a recording (the cluster's default is true); absent = unchanged"
+      },
+      {
+        "name": "armed",
+        "type": "string",
+        "required": false,
+        "description": "The cluster's armed run mode: preview | live | aar (default live); absent = unchanged. ⛔ No load route sends one (D22)"
       }
     ],
-    "returns": "{ published, requestId, recordLiveRuns, note }",
+    "returns": "{ published, requestId, recordLiveRuns?, armed?, note }",
     "notes": [
       "The scenario verifier always records, whatever this says.",
       "A replay → live branch follows the setting like any live run."
@@ -2384,7 +2390,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "run live without recording"
     },
-    "hint": "Req: recordLiveRuns (bool). Applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
+    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
     "manualVerify": false
   },
 

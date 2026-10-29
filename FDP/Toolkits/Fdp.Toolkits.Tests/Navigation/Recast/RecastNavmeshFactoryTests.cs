@@ -423,9 +423,7 @@ public sealed class RecastNavmeshFactoryTests
     [Fact]
     public void Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
         var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")), "bt-range",
             TerrainAssets.ForFolder(folder));
         var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
@@ -462,16 +460,14 @@ public sealed class RecastNavmeshFactoryTests
     }
 
     /// <summary>
-    /// ⭐ UI-2 (Defend §16 DA-22, <c>CE-2285</c>) — <c>house-3f</c> (shared <c>Recipes/Buildings</c>): a path from the street through
+    /// ⭐ UI-2 (Defend §16 DA-22, <c>CE-2285</c>) — <c>house-3f</c> (shared <c>assets/buildings</c>): a path from the street through
     /// the front door, up both flights and out of the STAIR HOUSE's door reaches the roof at 6 m. Between storeys it is only on a
     /// flight; on the roof it leaves the stair house only by its door.
     /// </summary>
     [Fact]
     public void UI2_House3f_APathFromTheFrontDoor_ReachesTheRoof_ThroughTheStairHouse()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
         var world = TerrainWorldParser.Parse("""
             {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
               {"type":"Feature","properties":{"kind":"building","template":"house-3f","label":"H3"},"geometry":{"type":"Point","coordinates":[20,20]}}]}
@@ -518,9 +514,7 @@ public sealed class RecastNavmeshFactoryTests
     [InlineData("cqb-house", -6f, 5f, "hallway 7,5,0 · A 3.5,8,0 · B 10.5,8,0 · C 4.5,2,0 · D 10.4,2,0 · closet E 12.9,2,0")]   // UI-3: the front door is in the WEST wall
     public void UI9_EachQuarterTemplate_ThePathReachesEveryRoom_AndTheOfficeRoof(string template, float startX, float startY, string targets)
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
         var world = TerrainWorldParser.Parse($$$"""
             {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
               {"type":"Feature","properties":{"kind":"building","template":"{{{template}}}","label":"T"},"geometry":{"type":"Point","coordinates":[20,20]}}]}
@@ -554,9 +548,7 @@ public sealed class RecastNavmeshFactoryTests
     [Fact]
     public void UI10_DemoCity_EveryQuarterBuilding_IsEnteredFromItsStreet_ThroughItsFrontDoor()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "demo-city");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "demo-city");
         var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "demo-city.world.geojson")), "demo-city",
             TerrainAssets.ForFolder(folder));
         static bool Quarter(string label) => label.StartsWith("res-") || label.StartsWith("com-") || label.StartsWith("biz-");
@@ -597,9 +589,7 @@ public sealed class RecastNavmeshFactoryTests
     [Fact]
     public void UI4_CqbVillage_EveryHouseIsEntered_OBJsRoofIsReachedFromTheAssemblyArea_AndTheCompoundByItsGate()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "cqb-village");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "cqb-village");
         var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "cqb-village.world.geojson")), "cqb-village",
             TerrainAssets.ForFolder(folder));
         var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry, TileCache = null }.Build(world)!;
@@ -776,9 +766,7 @@ public sealed class RecastNavmeshFactoryTests
     [Fact]
     public void CE3279_PathCosts_FromOneSearch_AgreeWithAPathPerPoint_OnTestTown()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town");
         var world = TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "test-town.world.geojson")), "test-town",
             TerrainAssets.ForFolder(folder));
         var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;

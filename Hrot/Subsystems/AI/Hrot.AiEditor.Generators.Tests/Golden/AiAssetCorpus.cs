@@ -38,7 +38,7 @@ namespace Hrot.AiEditor.Generators.Tests.Golden;
 public sealed record AiAssetKind(
     /// <summary>Baseline file prefix, e.g. <c>hsm</c>.</summary>
     string Name,
-    /// <summary>Corpus directory under <c>Hrot.AI.Behaviors/Assets/</c>, e.g. <c>HSMs</c>.</summary>
+    /// <summary>Corpus directory under <c>assets/behaviors/</c> (repository root), e.g. <c>HSMs</c>.</summary>
     string CorpusSubdirectory,
     /// <summary>File suffix the production <c>AdditionalFiles</c> glob matches, e.g. <c>.hsm.json</c>.</summary>
     string FileSuffix,
@@ -151,27 +151,20 @@ public static class AiAssetCorpus
 {
     /// <summary>
     /// ⭐ <b>The corpus is the GENERATOR'S INPUTS</b> — <c>Hrot.AI.Behaviors.csproj</c> carries
-    /// <c>&lt;AdditionalFiles Include="Assets\HSMs\**\*.hsm.json" /&gt;</c>, and
+    /// <c>&lt;AdditionalFiles Include="$(AssetsBehaviorsDir)HSMs\**\*.hsm.json" /&gt;</c>, and
     /// <see cref="HsmGoldenCorpusTests.TheCsprojStillGlobsTheCorpus"/> asserts it still says so.
     /// ⛔ Taking a hardcoded file list instead would make the baseline silently stop covering a new
     /// asset — which is precisely the hole this harness exists to close.
     /// </summary>
     public static string GlobInProject(AiAssetKind kind)
-        => $@"Assets\{kind.CorpusSubdirectory}\**\*{kind.FileSuffix}";
+        => $@"$(AssetsBehaviorsDir){kind.CorpusSubdirectory}\**\*{kind.FileSuffix}";
 
     public static string ResolveCorpusDir(AiAssetKind kind)
     {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(
-                dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", kind.CorpusSubdirectory);
-            if (Directory.Exists(candidate)) return candidate;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException(
-            $"AI corpus not found — expected Hrot/Subsystems/Hrot.AI.Behaviors/Assets/"
-            + $"{kind.CorpusSubdirectory} on an ancestor of the test output directory.");
+        var candidate = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), kind.CorpusSubdirectory);
+        return Directory.Exists(candidate)
+            ? candidate
+            : throw new DirectoryNotFoundException($"AI corpus not found — expected {candidate} (assets/behaviors/{kind.CorpusSubdirectory} at the repository root).");
     }
 
     /// <summary>Every corpus file, ordered so the sweep and its baseline are deterministic.</summary>
@@ -193,7 +186,7 @@ public static class AiAssetCorpus
     /// ⭐⭐⭐ <b><c>CE-397</c> — the corpus's <c>.bp.json</c> files, as the generator's
     /// <c>AdditionalFiles</c> hand them over.</b>
     ///
-    /// <para>⚠ <c>Assets/Blueprints</c> is NOT an <see cref="AiAssetKind"/> corpus of its own here —
+    /// <para>⚠ <c>assets/behaviors/Blueprints</c> is NOT an <see cref="AiAssetKind"/> corpus of its own here —
     /// it is an INPUT to the HSM emit, the same way <c>Hrot.AI.Behaviors.csproj</c> feeds
     /// <c>*.bp.json</c> to <c>HsmJsonGenerator</c> alongside the <c>*.hsm.json</c> glob. ⛔ Promoting
     /// it to a kind would add a second, unrelated golden tier for a directory this file only needs
@@ -201,20 +194,13 @@ public static class AiAssetCorpus
     /// </summary>
     public static System.Collections.Immutable.ImmutableArray<(string Path, string Text)> BlueprintInputs()
     {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(
-                dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints");
-            if (Directory.Exists(candidate))
-                return Directory.GetFiles(candidate, "*.bp.json", SearchOption.AllDirectories)
-                                .OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal)
-                                .Select(p => (p, File.ReadAllText(p)))
-                                .ToImmutableArray();
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException(
-            "Blueprint inputs not found — expected Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints.");
+        var candidate = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
+        if (!Directory.Exists(candidate))
+            throw new DirectoryNotFoundException($"Blueprint inputs not found — expected {candidate} (assets/behaviors/Blueprints at the repository root).");
+        return Directory.GetFiles(candidate, "*.bp.json", SearchOption.AllDirectories)
+                        .OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal)
+                        .Select(p => (p, File.ReadAllText(p)))
+                        .ToImmutableArray();
     }
 
     /// <summary>

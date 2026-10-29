@@ -251,6 +251,27 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(expectedOff, seen.RecordLiveRunsOff);
     }
 
+    /// <summary>⭐ CE-3341 (R-3068) — the armed mode crosses the wire whole: the master's encoding (<c>StateTopicOf</c>) and every node's decoding (<c>StateOf</c>)
+    /// agree for each mode, the values are the permanent ones (R-42).</summary>
+    [Theory]
+    [InlineData(ClusterArmedMode.Live, 0)]
+    [InlineData(ClusterArmedMode.Preview, 1)]
+    [InlineData(ClusterArmedMode.AAR, 2)]
+    public void CE3341_TheClusterStateBroadcast_CarriesTheArmedModeBothWays(ClusterArmedMode mode, int permanentWireValue)
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ArmedMode = mode });
+        Assert.Equal(permanentWireValue, topic.ArmedMode);
+        Assert.Equal(mode, ClusterFactsIngress.StateOf(topic).ArmedMode);
+    }
+
+    /// <summary>⭐ CE-3341 — an older sender's broadcast (the field never set) and a value this build does not know both read as the default, Live.</summary>
+    [Fact]
+    public void CE3341_AnOlderSendersBroadcastAndAnUnknownValue_ReadAsLive()
+    {
+        Assert.Equal(ClusterArmedMode.Live, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).ArmedMode);
+        Assert.Equal(ClusterArmedMode.Live, ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle, ArmedMode = 99 }).ArmedMode);
+    }
+
     // ── Test 4: NodeHeartbeatEvent → NodeHeartbeat written to DDS ────────────
 
     [Fact(Timeout = 10_000)]

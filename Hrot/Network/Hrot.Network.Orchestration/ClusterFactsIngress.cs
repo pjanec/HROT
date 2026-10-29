@@ -145,7 +145,13 @@ public sealed class ClusterFactsIngress : IDisposable
         ReplayAxis   = (Fdp.Toolkit.Orchestration.ReplayAxis)topic.ReplayAxis,   // ⭐ CE-3329 R-3058
         RunNotRecorded = topic.RunNotRecorded != 0,   // ⭐ CE-4090 D14
         RecordLiveRunsOff = topic.RecordLiveRunsOff != 0,
+        ArmedMode = ArmedModeOf(topic.ArmedMode),   // ⭐ CE-3341 R-3068
     };
+
+    /// <summary>⭐ CE-3341 — an armed-mode wire int; a value this build does not know (a newer peer) reads as the default, Live.</summary>
+    private static Fdp.Toolkit.Orchestration.ClusterArmedMode ArmedModeOf(int wire)
+        => wire is >= 0 and <= (int)Fdp.Toolkit.Orchestration.ClusterArmedMode.AAR
+            ? (Fdp.Toolkit.Orchestration.ClusterArmedMode)wire : Fdp.Toolkit.Orchestration.ClusterArmedMode.Live;
 
     /// <summary>⭐ R-3055 — the ONE decoding of the master's inventory sample.</summary>
     internal static AssetInventoryUpdateEvent InventoryOf(in AssetInventoryTopic data) => new()

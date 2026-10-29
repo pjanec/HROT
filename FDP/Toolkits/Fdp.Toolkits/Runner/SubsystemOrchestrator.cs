@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Fdp.Toolkit.Orchestration;
 using System.Numerics;
 using Fdp.Toolkit.Vis2D.Components;
 
@@ -37,6 +38,8 @@ namespace Fdp.Toolkit.Runner
         private readonly float _fixedDeltaSeconds;
         private readonly Func<string, int, int>? _nodeIdResolver;
         private volatile bool _running = true;
+        private readonly bool _seedContent;
+        private readonly string? _nasRoot;
         private Stopwatch? _frameTimer;
         private readonly System.Collections.Concurrent.ConcurrentQueue<Action<SubsystemOrchestrator>>
             _pendingConsoleActions = new();
@@ -64,6 +67,8 @@ namespace Fdp.Toolkit.Runner
             _deterministic     = options.Deterministic;
             _fixedDeltaSeconds = options.FixedDeltaSeconds;
             _nodeIdResolver    = options.NodeIdResolver;
+            _seedContent       = options.SeedContent;
+            _nasRoot           = options.NasRoot;
             _subsystems        = new List<ISubsystem>(subsystems);
         }
 
@@ -74,6 +79,12 @@ namespace Fdp.Toolkit.Runner
         /// </summary>
         public void Initialize()
         {
+            // ⭐⭐⭐ CE-3340 ③ — THE ONE PLACE THE CONTENT SEED RUNS (R-4097, DESIGN_Content_Layout §2/§5): every host's start passes through here — the
+            // cluster runner, the editor inside it, every in-process test harness — so every host seeds the NAS from the repository (a dev start; a
+            // production install has no source tree and this does nothing) BEFORE any subsystem reads the NAS in its own Initialize. ⛔ No host calls the
+            // seed itself. A host that must not touch the NAS (a unit test with fakes) sets RunnerOptions.SeedContent = false.
+            if (_seedContent) ContentSeed.SeedIntoNas(_nasRoot ?? ContentLayout.NasRoot);
+
             // Default map owner: first subsystem that provides a map camera.
             _activeMapOwner = _subsystems.FirstOrDefault(s => s is IMapCameraProvider);
 

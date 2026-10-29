@@ -78,9 +78,6 @@ public sealed class TrafficRoadSceneTests
 
     internal static string TerrainRoot()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !Directory.Exists(Path.Combine(dir, "Hrot", "Subsystems")))
-            dir = Path.GetDirectoryName(dir)!;
-        return Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain");
+        return Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!);
     }
 }

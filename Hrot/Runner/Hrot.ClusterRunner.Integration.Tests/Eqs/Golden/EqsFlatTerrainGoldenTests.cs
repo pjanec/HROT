@@ -134,9 +134,7 @@ public sealed class EqsFlatTerrainGoldenTests
     /// <summary>One building of a recipe terrain's templates, alone on flat ground at <paramref name="at"/>.</summary>
     private static Fdp.Toolkit.Terrain.TerrainWorld OneHouse(string recipe, string template, Vector2 at)
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", recipe);
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), recipe);
         string geojson = "{\"type\":\"FeatureCollection\",\"features\":["
             + $"{{\"type\":\"Feature\",\"properties\":{{\"kind\":\"building\",\"template\":\"{template}\",\"label\":\"House\",\"baseZ\":0,\"rotation\":0}},"
             + $"\"geometry\":{{\"type\":\"Point\",\"coordinates\":[{at.X},{at.Y}]}}}}"
@@ -147,9 +145,7 @@ public sealed class EqsFlatTerrainGoldenTests
     /// <summary>Two bt-range <c>house-2f</c> buildings on flat ground, one 20 m north of the self, one 25 m south with its front locked.</summary>
     private static Fdp.Toolkit.Terrain.TerrainWorld TwoHouses()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
-        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
         const string geojson = "{\"type\":\"FeatureCollection\",\"features\":["
             + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"North House\",\"baseZ\":0,\"rotation\":0},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,20]}},"
             + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"South House\",\"baseZ\":0,\"rotation\":0,\"doors\":{\"front\":\"locked\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,-25]}}"

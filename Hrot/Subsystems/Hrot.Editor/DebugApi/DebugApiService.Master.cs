@@ -86,33 +86,55 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["armedMode"] = ArmedModeText(), ["mode"] = _time.Mode.ToString() }, null, null, 200);
         }
 
-        /// <summary>⭐ CE-4090 — <c>GET /run-settings</c>: <c>{recordLiveRuns}</c>, read off the master's broadcast (the same fact on every host); a host
+        /// <summary>⭐ CE-4090 + CE-3341 — <c>GET /run-settings</c>: <c>{recordLiveRuns, armed}</c>, read off the master's broadcast (the same fact on every host;
+        /// <c>armed</c> is <c>preview</c> | <c>live</c> | <c>aar</c>, ⭐ the CLUSTER's armed mode — not this host's <c>/status.armedMode</c>); a host
         /// that tracks no cluster read model answers 503-class "No subsystem…".</summary>
         public (JsonNode? Result, string? Error, string? HintCategory) GetRunSettings()
         {
             var off = _editorRecordLiveRunsOff?.Invoke() ?? _dispatcher?.RecordLiveRunsOffAnyNode;
             if (off is null)
                 return (null, "No subsystem on this host keeps the cluster's read model (a ClusterUiCache / ClusterSlave) that carries the run settings.", DebugApiHints.Panel);
-            return (new JsonObject { ["recordLiveRuns"] = !off.Value }, null, null);
+            var armed = _editorArmedMode?.Invoke() ?? _dispatcher?.ArmedModeAnyNode ?? Fdp.Toolkit.Orchestration.ClusterArmedMode.Live;   // the same View fact as `off`; Live = the master's default
+            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant() }, null, null);
         }
 
         /// <summary>
         /// ⭐ <c>CE-4090</c> (AQ108 D14) — <c>POST /run-settings {recordLiveRuns: bool}</c>: the cluster-wide <i>Record live runs</i> setting (default ON),
         /// held by the MASTER and applied from the NEXT live load; the run on screen is not touched. Any host asks.
+        /// ⭐ <b>CE-3341</b> (AQ108 D12a): the body may also carry <c>armed: preview|live|aar</c> — the cluster's armed mode, the SAME op the operator UI sends; at least one of
+        /// the two fields is required, an absent one changes nothing. ⛔ No load route sends an armed mode (D22).
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SetRunSettings(JsonNode? body)
         {
-            if (body?["recordLiveRuns"] is not JsonValue v || !v.TryGetValue(out bool record))
-                return (null, "recordLiveRuns (true | false) is required: {\"recordLiveRuns\": false}.", DebugApiHints.Scenario);
+            const string usage = "recordLiveRuns (true | false) and / or armed (preview | live | aar) is required: {\"recordLiveRuns\": false} or {\"armed\": \"live\"}.";
+            bool? record = null;
+            if (body?["recordLiveRuns"] is { } rv)
+            {
+                if (rv is not JsonValue v || !v.TryGetValue(out bool b)) return (null, usage, DebugApiHints.Scenario);
+                record = b;
+            }
+            Fdp.Toolkit.Orchestration.ClusterArmedMode? armed = null;
+            if (body?["armed"] is { } av)
+            {
+                if (av is not JsonValue s || !s.TryGetValue(out string? text)
+                    || !Enum.TryParse<Fdp.Toolkit.Orchestration.ClusterArmedMode>(text, ignoreCase: true, out var parsed)
+                    || !Enum.IsDefined(parsed))
+                    return (null, usage, DebugApiHints.Scenario);
+                armed = parsed;
+            }
+            if (record is null && armed is null) return (null, usage, DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record };
+            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed };
             master.SetRunSettings(intent);
-            return (new JsonObject
+            var result = new JsonObject
             {
-                ["published"] = true, ["requestId"] = intent.RequestId.ToString(), ["recordLiveRuns"] = record,
-                ["note"] = "Applies from the next live load; the run on screen keeps its mode (GET /status → recording).",
-            }, null, null);
+                ["published"] = true, ["requestId"] = intent.RequestId.ToString(),
+                ["note"] = "recordLiveRuns applies from the next live load; the run on screen keeps its mode (GET /status → recording). armed is the cluster's armed mode (GET /run-settings).",
+            };
+            if (record is { } r) result["recordLiveRuns"] = r;
+            if (armed is { } a) result["armed"] = a.ToString().ToLowerInvariant();
+            return (result, null, null);
         }
 
         /// <summary>

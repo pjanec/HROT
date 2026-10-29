@@ -100,20 +100,17 @@ public sealed class SmokeFixture : IDisposable
     /// </summary>
     private static BlueprintAsset LoadAsset(string name)
     {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && dir != null; i++)
-        {
-            // ⭐ CE-3164: assets live in picker folders (Tests/, Tests/Smoke/, …) — find the one file by name.
-            var root = Path.Combine(dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints");
-            var candidate = Directory.Exists(root)
-                ? Directory.GetFiles(root, $"{name}.bp.json", SearchOption.AllDirectories).SingleOrDefault() ?? ""
-                : "";
-            if (File.Exists(candidate))
-                return Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(
-                           File.ReadAllText(candidate))
-                       ?? throw new InvalidDataException($"'{candidate}' deserialized to null.");
-            dir = Directory.GetParent(dir)?.FullName;
-        }
+        // ⭐ CE-3164: assets live in picker folders (Tests/, Tests/Smoke/, …) — find the one file by name.
+        // ⭐ CE-4089 — the repository's assets/behaviors/Blueprints, found through the one walk-up (ContentLayout).
+        var root = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(
+            Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
+        var candidate = Directory.Exists(root)
+            ? Directory.GetFiles(root, $"{name}.bp.json", SearchOption.AllDirectories).SingleOrDefault() ?? ""
+            : "";
+        if (File.Exists(candidate))
+            return Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(
+                       File.ReadAllText(candidate))
+                   ?? throw new InvalidDataException($"'{candidate}' deserialized to null.");
 
         throw new FileNotFoundException(
             $"Could not find the shipped '{name}.bp.json' above {AppContext.BaseDirectory}. "

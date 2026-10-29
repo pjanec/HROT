@@ -300,6 +300,10 @@ public sealed class PerspectiveScopedDispatcher
     public bool? RecordLiveRunsOffAnyNode
         => Active()?.RecordLiveRunsOff ?? _providers.Select(p => p.RecordLiveRunsOff).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode from the active node else any node (one cluster, one fact).</summary>
+    public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedModeAnyNode
+        => Active()?.ArmedMode ?? _providers.Select(p => p.ArmedMode).FirstOrDefault(x => x is not null);
+
     public bool? RunNotRecordedAnyNode
         => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
 

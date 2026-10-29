@@ -54,6 +54,8 @@ public sealed class HrotRunnerHarness : IDisposable
 
     private static int _domainCounter = DomainIdBase - 1;
 
+    // ⭐ CE-3340 ③ — no seed here: the content seed runs inside SubsystemOrchestrator.Initialize, which this harness calls like every host.
+
     public int DomainId { get; }
     public SubsystemOrchestrator Orchestrator { get; }
     public OrchestratorSubsystem OrchestratorSvc { get; }

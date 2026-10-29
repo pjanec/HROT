@@ -139,6 +139,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool RunNotRecorded;
         /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load will do). Inverse polarity: default false = ON.</summary>
         public bool RecordLiveRunsOff;
+        /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode. Default 0 = <see cref="ClusterArmedMode.Live"/>, so a publisher that never sets it reads as the default.</summary>
+        public ClusterArmedMode ArmedMode;
     }
 
     /// <summary>
@@ -213,6 +215,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool RunNotRecorded;
         /// <summary>⭐ CE-4090 — as <see cref="ClusterStateTransitionedEvent.RecordLiveRunsOff"/>.</summary>
         public bool RecordLiveRunsOff;
+        /// <summary>⭐ CE-3341 — as <see cref="ClusterStateTransitionedEvent.ArmedMode"/>.</summary>
+        public ClusterArmedMode ArmedMode;
     }
 
     /// <summary>

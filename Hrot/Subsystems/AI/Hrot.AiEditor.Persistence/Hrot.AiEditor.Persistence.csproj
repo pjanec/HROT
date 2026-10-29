@@ -53,6 +53,10 @@
     <!-- CE-2036: the ONE asset-id hash. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlueprintIdFnv.cs"
              Link="Emit\Shared\BlueprintIdFnv.cs" />
+    <!-- ⭐ CE-3340 ④: the content tree's behaviour segment names ("assets/behaviors/BTrees/" ...), shared with ContentLayout (Fdp.Toolkits, the runtime path
+         authority) for BehaviorGroups. LINKED, not referenced - same mechanism and reason as OccurrenceSlotKey above. Constants only, `internal` on both sides. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Orchestration\Shared\ContentTreeNames.cs"
+             Link="Shared\ContentTreeNames.cs" />
     <!-- CE-2039: the ONE identifier sanitizer (Emit/Identifiers.cs is its public door for the editors). -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\IdentifierSanitizer.cs"
              Link="Emit\Shared\IdentifierSanitizer.cs" />

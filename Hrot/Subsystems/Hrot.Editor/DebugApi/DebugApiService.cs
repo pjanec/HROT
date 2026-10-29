@@ -72,6 +72,7 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
         private readonly Func<float?>? _editorReplayDuration;
         private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
+        private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _editorArmedMode;   // CE-3341 — the cluster's armed mode, from the in-process master's broadcast
         private readonly Func<bool?>? _editorRecordLiveRunsOff;   // CE-4090 — the setting, from the in-process master's broadcast
         private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
         private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _editorUnsavedCheck;   // CE-4093 — the in-process master's check round answer
@@ -576,11 +577,13 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4090 (AQ108 D14) — the in-process master's "this run was not recorded" (the core's ClusterUiCache). ⛔ The editor HOLDS it.
             Func<bool?>? runNotRecorded = null,
             Func<bool?>? recordLiveRunsOff = null,
+            Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
             // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer + last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS them.
             Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
             Func<bool?>? scenarioDirty = null)
         {
             _editorRecordLiveRunsOff = recordLiveRunsOff;
+            _editorArmedMode = armedMode;
             _editorRunNotRecorded = runNotRecorded;
             _editorUnsavedCheck = unsavedCheck;
             _editorScenarioDirty = scenarioDirty;

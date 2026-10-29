@@ -285,7 +285,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
         if (string.IsNullOrWhiteSpace(from) || string.Equals(from, to, StringComparison.Ordinal)) return;
         try
         {
-            var src = Path.Combine(_scenariosRoot(), from, "takes");
+            var src = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ResolveUnderScenariosRoot(_scenariosRoot(), from), "takes");   // ⭐ L6 — "new from a recipe": `from` is the recipe's own name
             var dst = Path.Combine(_scenariosRoot(), to, "takes");
             if (!Directory.Exists(src) || (Directory.Exists(dst) && Directory.EnumerateFiles(dst).Any())) return;
             Directory.CreateDirectory(dst);

@@ -95,7 +95,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     {
         string repoRoot = AppContext.BaseDirectory;
         while (!Directory.Exists(Path.Combine(repoRoot, "Hrot", "Subsystems")) && Directory.GetParent(repoRoot) is { } up) repoRoot = up.FullName;
-        var recipe = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
         Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets loaded, then saved over: " + recipe);
         Directory.CreateDirectory(ScenarioDir);
         File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);
@@ -168,7 +168,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     {
         string repoRoot = AppContext.BaseDirectory;
         while (!Directory.Exists(Path.Combine(repoRoot, "Hrot", "Subsystems")) && Directory.GetParent(repoRoot) is { } up) repoRoot = up.FullName;
-        var recipe = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
         Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets opened for editing: " + recipe);
         Directory.CreateDirectory(ScenarioDir);
         File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);

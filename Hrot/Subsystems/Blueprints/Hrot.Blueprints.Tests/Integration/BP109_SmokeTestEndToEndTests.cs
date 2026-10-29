@@ -10,7 +10,7 @@ namespace Hrot.Blueprints.Tests.Integration;
 /// BP-109 -- the end-to-end smoke test.
 /// <para>
 /// Three assets, loaded from the SAME <c>.bp.json</c> recipe files a designer opens in the editor
-/// (<c>Hrot.AI.Behaviors/Recipes/Blueprints/Smoke{MathLib,Patrol,Guard}.bp.json</c>):
+/// (<c>recipes/behaviors/Blueprints/Smoke{MathLib,Patrol,Guard}.bp.json</c>):
 /// </para>
 /// <list type="bullet">
 /// <item><b>SmokeMathLib</b> (Library) -- exports one function, <c>Combine(A,B) = A + B</c>.</item>
@@ -33,10 +33,8 @@ public sealed class BP109_SmokeTestEndToEndTests
     // ---- Recipe loading (mirrors RecipeIntegrityTests.LoadRecipe) ----------
 
     /// <summary>
-    /// Loads a recipe by name, preferring the production location
-    /// (<c>Hrot.AI.Behaviors</c> assembly output's <c>Recipes/Blueprints/</c>, which is where the
-    /// three BP-109 <c>.bp.json</c> files actually live) and falling back to the test-project
-    /// <c>TestAssets/Recipes/</c> copy for isolated test-filter runs that never load that assembly.
+    /// Loads a recipe by name from <c>recipes/behaviors/Blueprints/</c> at the repository root (⭐ CE-4089 — where the
+    /// three BP-109 <c>.bp.json</c> files actually live; was the <c>Hrot.AI.Behaviors</c> assembly output).
     /// </summary>
     private static BlueprintAsset LoadRecipe(string name)
     {
@@ -46,21 +44,10 @@ public sealed class BP109_SmokeTestEndToEndTests
         // project references it.
         try { System.Reflection.Assembly.Load("Hrot.AI.Behaviors"); } catch { /* best-effort */ }
 
-        var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
-            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-
-        string path;
-        if (aiBehaviorsAssembly != null)
-        {
-            var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
-                ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors assembly location.");
-            path = Path.Combine(assemblyLocation, "Recipes", "Blueprints", name + ".bp.json");
-        }
-        else
-        {
-            var dir = TestData.ResolveTestAssetsDir();
-            path = Path.Combine(dir, "Recipes", name + ".bp.json");
-        }
+        // ⭐ CE-4089 — the recipes live at the repository root (recipes/behaviors/Blueprints); read them from the source tree.
+        // (Was the Hrot.AI.Behaviors output folder, which the csproj no longer copies them into.)
+        var path = Path.Combine(
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), name + ".bp.json");
 
         if (!File.Exists(path))
             throw new FileNotFoundException($"Recipe file not found: {path}");

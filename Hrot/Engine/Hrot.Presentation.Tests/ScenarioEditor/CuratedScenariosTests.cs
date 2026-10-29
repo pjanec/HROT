@@ -1,14 +1,14 @@
 using System.IO;
 using System.Linq;
+using Fdp.Toolkit.Orchestration;
 using Hrot.ScenarioEditor.Services;
 using Xunit;
 
 namespace Hrot.Presentation.Tests;
 
 /// <summary>
-/// Rails for <see cref="CuratedScenarios"/> — the git-committed curated set copied into the working NAS
-/// folder on start, and saved back on demand. The pure (source, working) seams are driven with temp dirs;
-/// the walk-up probe is exercised separately.
+/// Rails for <see cref="CuratedScenarios"/> — the ONE content seed (⭐ CE-4089): the repository's <c>scenarios/</c>, <c>assets/</c> and <c>recipes/</c> copied into the
+/// NAS on start, and saved back on demand. The pure (source, working) seams are driven with temp dirs; the walk-up probe is exercised separately.
 /// </summary>
 public class CuratedScenariosTests
 {
@@ -23,12 +23,12 @@ public class CuratedScenariosTests
     {
         var dir = Path.Combine(root, relName.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, CuratedScenarios.MarkerFileName), body);
+        File.WriteAllText(Path.Combine(dir, ContentSeed.MarkerFileName), body);
     }
 
     private static string ReadScenario(string root, string relName)
         => File.ReadAllText(Path.Combine(root, relName.Replace('/', Path.DirectorySeparatorChar),
-                                         CuratedScenarios.MarkerFileName));
+                                         ContentSeed.MarkerFileName));
 
     [Fact]
     public void CuratedRelPaths_ListsEveryFolderWithAMarker_IncludingNested()
@@ -39,7 +39,7 @@ public class CuratedScenariosTests
         WriteScenario(src, "Combat/Ambush", "{}");   // nesting, like the runtime enumerator
         Directory.CreateDirectory(Path.Combine(src, "not-a-scenario"));   // no marker → not listed
 
-        var names = CuratedScenarios.CuratedRelPaths(src);
+        var names = ContentSeed.CuratedRelPaths(src);
 
         Assert.Equal(new[] { "Combat/Ambush", "test-fire", "test-move" }, names.ToArray());
     }
@@ -53,7 +53,7 @@ public class CuratedScenariosTests
         WriteScenario(work, "test-fire", "USER-EDIT");     // will be overwritten by the curated copy
         WriteScenario(work, "my-own", "MINE");             // NOT curated → must survive untouched
 
-        var copied = CuratedScenarios.SeedFrom(src, work);
+        var copied = ContentSeed.SeedFrom(src, work);
 
         Assert.Equal(new[] { "test-fire" }, copied.ToArray());
         Assert.Equal("GIT-v2", ReadScenario(work, "test-fire"));   // force-overwrote the user's edit
@@ -69,7 +69,7 @@ public class CuratedScenariosTests
         WriteScenario(src, "test-fire", "{}");
         File.WriteAllText(Path.Combine(src, "test-fire", "notes.txt"), "sidecar");
 
-        CuratedScenarios.SeedFrom(src, work);
+        ContentSeed.SeedFrom(src, work);
 
         Assert.Equal("sidecar", File.ReadAllText(Path.Combine(work, "test-fire", "notes.txt")));
     }
@@ -112,20 +112,20 @@ public class CuratedScenariosTests
         var work = NewTempDir();
         WriteScenario(work, "my-own", "MINE");
 
-        var copied = CuratedScenarios.SeedFrom(src, work);
+        var copied = ContentSeed.SeedFrom(src, work);
 
         Assert.Empty(copied);
         Assert.Equal("MINE", ReadScenario(work, "my-own"));
     }
 
     [Fact]
-    public void TryFindSourceScenariosDirectory_IsNull_WhenNoCuratedSetOnThePath()
+    public void TryFindSourceScenariosDirectory_IsTheSourceTreesScenarios_OrNull()
     {
-        // The test bin has no committed `scenarios/` with a marker above it, so the probe answers null —
-        // which is exactly the deployed-build behaviour: nothing to seed, menu disabled.
-        // (If a future repo layout places one on the path this asserts the shape, not a fixed verdict.)
+        // ⭐ CE-4089 — the probe is the ONE repository walk-up (ContentLayout): in a checkout it answers <repo>/scenarios, in a deployed build null
+        // (nothing to seed, menu disabled). Asserted as agreement with the walk-up, not as a fixed verdict.
         var found = CuratedScenarios.TryFindSourceScenariosDirectory();
-        Assert.True(found is null || Directory.Exists(found));
+        var tree = ContentLayout.TryFindSourceTree();
+        Assert.Equal(tree is null ? null : ContentLayout.Scenarios(tree), found);
     }
 
     /// <summary>
@@ -140,14 +140,14 @@ public class CuratedScenariosTests
         string a = "{\"v\":\"" + new string('a', 2_000_000) + "\"}", b = "{\"v\":\"" + new string('b', 1_500_000) + "\"}";
         WriteScenario(srcA, "golden", a);
         WriteScenario(srcB, "golden", b);
-        CuratedScenarios.SeedFrom(srcA, work);
+        ContentSeed.SeedFrom(srcA, work);
 
         var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
         using var stop = new System.Threading.CancellationTokenSource();
         var seeders = Enumerable.Range(0, 8).Select(i => System.Threading.Tasks.Task.Run(() =>
         {
             for (int n = 0; n < 25; n++)
-                try { CuratedScenarios.SeedFrom(i % 2 == 0 ? srcA : srcB, work); }
+                try { ContentSeed.SeedFrom(i % 2 == 0 ? srcA : srcB, work); }
                 catch (System.Exception e) { failures.Enqueue("seed: " + e.GetType().Name + " " + e.Message); }
         })).ToArray();
         var reader = System.Threading.Tasks.Task.Run(() =>
@@ -166,5 +166,118 @@ public class CuratedScenariosTests
 
         Assert.True(failures.IsEmpty, string.Join("\n", failures.Take(5)));
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(work, "golden"), "*.tmp"));   // no temp file left behind
+    }
+
+    // ══ CE-4089 — the content seed: scenarios/ + assets/ + recipes/ ══════════════════════════════════════════════
+
+    /// <summary>⭐ A source tree in miniature: the marker, one scenario, assets of three kinds, a recipe.</summary>
+    private static string NewSourceTree()
+    {
+        var tree = NewTempDir();
+        File.WriteAllText(Path.Combine(tree, ContentLayout.RepositoryMarkerFileName), "");
+        WriteScenario(ContentLayout.Scenarios(tree), "demo", "SCN-v1");
+        Write(ContentLayout.TerrainAssets(tree), "demo-city/terrain.json", "TERRAIN-v1");
+        Write(ContentLayout.BehaviorAssets(tree, ContentLayout.BTreesFolder), "Samples/A.btree.json", "BT-v1");
+        Write(ContentLayout.IconAssets(tree), "t72.png", "PNG");
+        Write(ContentLayout.ScenarioRecipes(tree), "seed/scenario.json", "SEED-v1");
+        Write(ContentLayout.BehaviorRecipes(tree, ContentLayout.BlueprintsFolder), "R.bp.json", "RECIPE-v1");
+        return tree;
+    }
+
+    private static void Write(string root, string rel, string body)
+    {
+        var path = Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, body);
+    }
+
+    private static string Read(string root, string rel) => File.ReadAllText(Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar)));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Success condition 3 — the seed.</b> <c>scenarios/</c>, <c>assets/</c> and <c>recipes/</c> are copied from a source tree into the NAS root, a
+    /// SECOND seed with identical bytes writes NOTHING (CE-1365's replace-if-different), and a changed file is rewritten alone.
+    /// </summary>
+    [Fact]
+    public void CE4089_TheSeed_CopiesTheThreeFolders_AndASecondSeedWritesNothing()
+    {
+        var tree = NewSourceTree();
+        var nas = NewTempDir();
+
+        var first = ContentSeed.SeedTreeFrom(tree, nas);
+
+        Assert.Equal("SCN-v1", Read(ContentLayout.Scenarios(nas), "demo/scenario.json"));
+        Assert.Equal("TERRAIN-v1", Read(ContentLayout.TerrainAssets(nas), "demo-city/terrain.json"));
+        Assert.Equal("BT-v1", Read(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/A.btree.json"));
+        Assert.Equal("PNG", Read(ContentLayout.IconAssets(nas), "t72.png"));
+        Assert.Equal("SEED-v1", Read(ContentLayout.ScenarioRecipes(nas), "seed/scenario.json"));
+        Assert.Equal("RECIPE-v1", Read(ContentLayout.BehaviorRecipes(nas, ContentLayout.BlueprintsFolder), "R.bp.json"));
+        Assert.Equal(6, first.Count);
+
+        Assert.Empty(ContentSeed.SeedTreeFrom(tree, nas));        // identical bytes ⇒ nothing written
+
+        Write(ContentLayout.BehaviorAssets(tree, ContentLayout.BTreesFolder), "Samples/A.btree.json", "BT-v2");
+        var again = ContentSeed.SeedTreeFrom(tree, nas);
+        Assert.Single(again);                                          // only the changed file
+        Assert.EndsWith("A.btree.json", again[0]);
+        Assert.Equal("BT-v2", Read(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/A.btree.json"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Success condition 3 — no source tree ⇒ no-op.</b> Started from outside any checkout (a production install), <c>SeedIntoNas</c> copies
+    /// nothing, and <c>CanSaveToGit</c> is false. ⭐ And it never deletes: a NAS file the repository never had is untouched by a real seed.
+    /// </summary>
+    [Fact]
+    public void CE4089_TheSeed_WithNoSourceTree_IsANoOp_AndNeverDeletes()
+    {
+        var outside = NewTempDir();                       // nothing above it holds HROT.sln beside assets/
+        var nas = NewTempDir();
+        Write(ContentLayout.IconAssets(nas), "published-only.png", "MINE");
+
+        Assert.Null(ContentLayout.TryFindSourceTree(outside));
+        Assert.Empty(ContentSeed.SeedIntoNas(nas, outside));
+        Assert.False(CuratedScenarios.CanSaveToGit(outside));
+        Assert.Empty(CuratedScenarios.SaveToGit(nas, outside));
+        Assert.Equal("MINE", Read(ContentLayout.IconAssets(nas), "published-only.png"));
+        Assert.False(Directory.Exists(ContentLayout.Scenarios(nas)));    // nothing was created either
+
+        // …while WITH a source tree (found by its marker, from a folder below it) the same call seeds, and still deletes nothing.
+        var tree = NewSourceTree();
+        var below = Directory.CreateDirectory(Path.Combine(tree, "Hrot", "Somewhere")).FullName;
+        Assert.Equal(tree, ContentLayout.TryFindSourceTree(below));
+        Assert.NotEmpty(ContentSeed.SeedIntoNas(nas, below));
+        Assert.Equal("MINE", Read(ContentLayout.IconAssets(nas), "published-only.png"));
+        Assert.Equal("PNG", Read(ContentLayout.IconAssets(nas), "t72.png"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Success condition 4 — Save to Git, per kind.</b> A NEW and a CHANGED asset in the NAS are copied back; NOTHING is deleted from the repository
+    /// (an asset the NAS no longer has stays); <b>scenarios keep the curated-names rule</b> — a changed curated scenario is refreshed, a NAS-only scenario is
+    /// never promoted.
+    /// </summary>
+    [Fact]
+    public void CE4089_SaveToGit_CopiesNewAndChangedAssets_NeverDeletes_AndScenariosStayCurated()
+    {
+        var tree = NewSourceTree();
+        var nas = NewTempDir();
+        ContentSeed.SeedTreeFrom(tree, nas);
+
+        Write(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/A.btree.json", "BT-EDITED");      // changed
+        Write(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/NEW.btree.json", "BT-NEW");        // new
+        Write(ContentLayout.ScenarioRecipes(nas), "seed2/scenario.json", "SEED2");                                        // a new recipe
+        WriteScenario(ContentLayout.Scenarios(nas), "demo", "SCN-EDITED");                                                // curated scenario, changed
+        WriteScenario(ContentLayout.Scenarios(nas), "nas-only", "MINE");                                                  // not curated
+        File.Delete(Path.Combine(ContentLayout.IconAssets(nas), "t72.png"));                                              // gone from the NAS
+
+        var written = CuratedScenarios.SaveTreeTo(tree, nas);
+
+        Assert.Equal("BT-EDITED", Read(ContentLayout.BehaviorAssets(tree, ContentLayout.BTreesFolder), "Samples/A.btree.json"));
+        Assert.Equal("BT-NEW", Read(ContentLayout.BehaviorAssets(tree, ContentLayout.BTreesFolder), "Samples/NEW.btree.json"));
+        Assert.Equal("SEED2", Read(ContentLayout.ScenarioRecipes(tree), "seed2/scenario.json"));
+        Assert.Equal("SCN-EDITED", Read(ContentLayout.Scenarios(tree), "demo/scenario.json"));
+        Assert.False(Directory.Exists(Path.Combine(ContentLayout.Scenarios(tree), "nas-only")));          // scenarios: curated names only
+        Assert.Equal("PNG", Read(ContentLayout.IconAssets(tree), "t72.png"));                              // nothing deleted
+        Assert.Equal("TERRAIN-v1", Read(ContentLayout.TerrainAssets(tree), "demo-city/terrain.json"));     // unchanged files left alone
+        Assert.DoesNotContain(written, w => w.Contains("terrain.json", System.StringComparison.Ordinal));
+        Assert.Equal(4, written.Count);
     }
 }

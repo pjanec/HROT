@@ -30,8 +30,8 @@ def screenshot(tag):
     subprocess.run(["import", "-display", disp, "-window", "root", f], capture_output=True, timeout=30, env=env)
     return f if os.path.exists(f) else None
 
-r = call("POST", "/scenario/load/live", {"name": "Recipes/demo-city", "waitForReady": True, "startPaused": False})
-check("load Recipes/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or "")
+r = call("POST", "/scenario/load/live", {"name": "recipes/scenarios/demo-city", "waitForReady": True, "startPaused": False})
+check("load recipes/scenarios/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or "")
 call("POST", "/sim/play", {}); time.sleep(15)
 
 # the 2-D road layer: a symbol, all FlatOnly, nothing dropped

@@ -41,7 +41,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         public string? MapShapeName { get; set; }
 
-        /// <summary>⭐ <c>CE-1017</c> S0 — the entity icon's name (<c>Assets/EntityIcons/&lt;IconName&gt;.png</c>); null ⇒ a generic glyph.</summary>
+        /// <summary>⭐ <c>CE-1017</c> S0 — the entity icon's name (<c>assets/icons/&lt;IconName&gt;.png</c>); null ⇒ a generic glyph.</summary>
         public string? IconName { get; set; }
     }
 }

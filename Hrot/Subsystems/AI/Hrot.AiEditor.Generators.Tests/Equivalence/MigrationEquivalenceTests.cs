@@ -458,8 +458,8 @@ public sealed class MigrationEquivalenceTests
     public void BTree_SampleScout_MigrationJson_RoundTrips_And_CarriesLayout()
     {
         // Locate the live committed JSON
-        var jsonPath = GetLiveJsonPath(Path.Combine("Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "BTrees", "Samples", "SampleScout.btree.json"));
+        var jsonPath = GetLiveJsonPath(Path.Combine("assets", "behaviors",
+            "BTrees", "Samples", "SampleScout.btree.json"));
         File.Exists(jsonPath).Should().BeTrue(
             $"live SampleScout.btree.json must exist at {jsonPath} (PU-402 decommit)");
 
@@ -505,8 +505,8 @@ public sealed class MigrationEquivalenceTests
     public void Hsm_SampleGuard_MigrationJson_RoundTrips_And_CarriesLayout()
     {
         // Locate the live committed JSON
-        var jsonPath = GetLiveJsonPath(Path.Combine("Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "HSMs", "Samples", "SampleGuard.hsm.json"));
+        var jsonPath = GetLiveJsonPath(Path.Combine("assets", "behaviors",
+            "HSMs", "Samples", "SampleGuard.hsm.json"));
         File.Exists(jsonPath).Should().BeTrue(
             $"live SampleGuard.hsm.json must exist at {jsonPath} (PU-402 decommit)");
 
@@ -537,18 +537,12 @@ public sealed class MigrationEquivalenceTests
 
     /// <summary>
     /// Returns the absolute path to the live asset at the given repo-relative path.
-    /// The test assembly lives at:
-    ///   &lt;repo&gt;/Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/bin/Debug/net8.0/
-    /// Walk up 7 levels: net8.0 → Debug → bin → Hrot.AiEditor.Generators.Tests
-    ///   → AI → Subsystems → Hrot → repo root.
+    /// The repository root is found through <c>ContentLayout.TryFindSourceTree</c> (CE-4089).
     /// </summary>
     private static string GetLiveJsonPath(string repoRelativePath)
     {
-        var asmDir = Path.GetDirectoryName(typeof(MigrationEquivalenceTests).Assembly.Location)!;
-        var repoRoot = asmDir;
-        for (int i = 0; i < 7; i++)
-            repoRoot = Path.GetDirectoryName(repoRoot)!;
-        return Path.Combine(repoRoot, repoRelativePath);
+        // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not "walk up 7 levels".
+        return Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, repoRelativePath);
     }
 
     /// <summary>

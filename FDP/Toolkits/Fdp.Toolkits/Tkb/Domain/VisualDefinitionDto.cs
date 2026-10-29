@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         public string? MapShapeName { get; init; }
 
         /// <summary>
-        /// ⭐ <c>CE-1017</c> S0 — the entity icon's name: <c>Assets/EntityIcons/&lt;IconName&gt;.png</c>, keyed
+        /// ⭐ <c>CE-1017</c> S0 — the entity icon's name: <c>assets/icons/&lt;IconName&gt;.png</c>, keyed
         /// <c>entity/&lt;IconName&gt;</c> by the entity icon library. Null ⇒ the picker falls back to a generic glyph for the
         /// DIS kind/domain. 📄 docs/DESIGN_Add_Entity_Picker.md D3.
         /// </summary>

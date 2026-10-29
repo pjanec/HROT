@@ -138,9 +138,9 @@ public sealed class ClusterMasterRunRecordingTests
     }
 
     /// <summary>⭐ D14 — a host that is not the master's process sends the setting as a ClusterOp (wire value 24): the master takes it the same way,
-    /// and an unreadable payload keeps the default (recording ON).</summary>
+    /// and an unreadable payload changes nothing (CE-3341; it used to reset to ON).</summary>
     [Fact(Timeout = 10_000)]
-    public void The_setting_arrives_as_a_cluster_op_too_and_an_unreadable_one_keeps_recording_on()
+    public void The_setting_arrives_as_a_cluster_op_too_and_an_unreadable_one_changes_nothing()
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus);
@@ -153,7 +153,7 @@ public sealed class ClusterMasterRunRecordingTests
 
         master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetRunSettings, PayloadJson = "not json" });
         bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
-        Assert.True(master.RecordLiveRuns);
+        Assert.False(master.RecordLiveRuns);   // CE-3341: an unreadable payload changes NOTHING (it used to reset to ON)
     }
 
     /// <summary>⭐ CE-4090 — every host reads the SETTING off the cluster-state broadcast: ON by default (nothing inverted announced), and a
@@ -283,5 +283,76 @@ public sealed class ClusterMasterRunRecordingTests
             Assert.Equal(OrchestrationStatusCode.Rejected, a.Status!.Value.StatusCode);
             Assert.Contains(why, (string)a.Status.Value.ResultPayload!);
         }
+    }
+
+    // ── CE-3341 (AQ108 D12a, R-3068) — the ARMED mode is one cluster-wide fact, set by the same op ──────────────
+
+    private static ClusterStateUpdateEvent? LastBroadcast(FdpEventBus bus)
+    {
+        ClusterStateUpdateEvent? last = null;
+        foreach (var e in bus.ReadManaged<ClusterStateUpdateEvent>()) last = e;
+        return last;
+    }
+
+    private static void Op(ClusterMaster master, FdpEventBus bus, string payloadJson)
+    {
+        master.HandleClusterOpRequest(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetRunSettings, PayloadJson = payloadJson });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+    }
+
+    /// <summary>⭐ SC1 — a <c>SetRunSettings{Armed}</c> (the op a remote host sends, and the intent a local one publishes) changes the master's armed mode, and
+    /// the cluster-state broadcast carries it AT ONCE (no load needed): the default is Live.</summary>
+    [Fact(Timeout = 10_000)]
+    public void The_armed_mode_is_set_by_the_run_settings_op_and_rides_the_broadcast_at_once()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus);
+        Assert.Equal(ClusterArmedMode.Live, master.ArmedMode);                        // the default
+
+        Op(master, bus, "{\"Armed\":\"Preview\"}");                                   // the wire op
+        Assert.Equal(ClusterArmedMode.Preview, master.ArmedMode);
+        Assert.Equal(ClusterArmedMode.Preview, LastBroadcast(bus)!.Value.ArmedMode);
+
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), Armed = ClusterArmedMode.AAR });   // the in-process intent
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(ClusterArmedMode.AAR, master.ArmedMode);
+        Assert.Equal(ClusterArmedMode.AAR, LastBroadcast(bus)!.Value.ArmedMode);
+    }
+
+    /// <summary>⭐ SC2 — an old-shape op (only <c>RecordLiveRuns</c>) or an unreadable one leaves the armed mode as it is; an armed-only op leaves the recording setting.
+    /// An older PEER's broadcast (no armed field) reads as the default — see <c>CE3341_…</c> in the SimHost translator tests.</summary>
+    [Fact(Timeout = 10_000)]
+    public void An_old_shape_run_settings_op_changes_no_armed_mode_and_an_armed_only_op_changes_no_recording_setting()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus);
+        Op(master, bus, "{\"Armed\":\"AAR\"}");
+        Assert.True(master.RecordLiveRuns);                                          // armed-only: the recording setting untouched
+
+        Op(master, bus, "{\"RecordLiveRuns\":false}");                                // old shape
+        Assert.False(master.RecordLiveRuns);
+        Assert.Equal(ClusterArmedMode.AAR, master.ArmedMode);                        // unchanged
+        Assert.Equal(ClusterArmedMode.AAR, LastBroadcast(bus)!.Value.ArmedMode);
+
+        Op(master, bus, "not json");
+        Assert.Equal(ClusterArmedMode.AAR, master.ArmedMode);
+        Assert.False(master.RecordLiveRuns);
+    }
+
+    /// <summary>⭐ SC3 — a scenario LOAD (edit, then live) never changes the armed mode: only <c>SetRunSettings{Armed}</c> does (D12a: the load does not carry it).</summary>
+    [Fact(Timeout = 10_000)]
+    public void A_scenario_load_edit_or_live_does_not_change_the_armed_mode()
+    {
+        var edit = GoLive(livePayloadJson: "{\"TargetState\":\"OperatingEdit\"}");
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, edit.LastState!.Value.CurrentState);   // the load really ran
+        Assert.Equal(ClusterArmedMode.Live, edit.Master.ArmedMode);
+        Op(edit.Master, edit.Bus, "{\"Armed\":\"Preview\"}");
+        Assert.Equal(ClusterArmedMode.Preview, edit.Master.ArmedMode);
+
+        var live = Load(edit.Master, edit.Bus, "{\"TargetState\":\"OperatingLive\"}");   // edit -> live, same master
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, live.LastState!.Value.CurrentState);
+        Assert.Equal(ClusterArmedMode.Preview, live.Master.ArmedMode);                // not reset by the load
+        Assert.Equal(ClusterArmedMode.Preview, live.LastState!.Value.ArmedMode);      // and the broadcast still says it
+        edit.Master.Dispose();
     }
 }

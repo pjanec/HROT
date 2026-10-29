@@ -67,13 +67,10 @@ public sealed class CgfHarness : IDisposable
             localNodeId:  0,
             role:         NodeRole.Brain);
         CgfSvc   = new CgfSubsystem(cgfFactory);
-        CgfSvc.Initialize(new SubsystemConfig
-        {
-            DomainId = domainId,
-            Headless = true,   // Run CGF headless in integration tests (no Raylib/ImGui window).
-                               // DDS is still active: CgfSubsystem.Initialize hardcodes
-                               // HrotNodeConfig.Headless = false regardless of this flag.
-        });
+        // ⭐ CE-3340 ③ — started through the ONE host start (SubsystemOrchestrator.Initialize), like every host: it seeds the NAS from the
+        // repository before CGF's Initialize reads it. Headless: no Raylib/ImGui window; DDS is still active (CgfSubsystem.Initialize
+        // hardcodes HrotNodeConfig.Headless = false regardless of this flag).
+        new SubsystemOrchestrator(new ISubsystem[] { CgfSvc }, new RunnerOptions { Headless = true, DomainId = domainId }).Initialize();
 
         Warmup();
     }

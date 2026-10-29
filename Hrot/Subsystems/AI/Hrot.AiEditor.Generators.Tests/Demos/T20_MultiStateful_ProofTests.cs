@@ -98,25 +98,10 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
     private static string LoadJsonFromCommittedFile(string assetName)
     {
-        string testDir = Path.GetDirectoryName(
-            typeof(T20_MultiStateful_ProofTests).Assembly.Location)!;
-
-        string? repoRoot = null;
-        var dir = new DirectoryInfo(testDir);
-        while (dir != null)
-        {
-            if (dir.GetFiles("*.sln").Length > 0) { repoRoot = dir.FullName; break; }
-            dir = dir.Parent;
-        }
-
-        if (repoRoot == null)
-            throw new InvalidOperationException(
-                $"Cannot locate repo root from '{testDir}'.");
-
+        // ⭐ CE-4089 — the BTree assets live at the repository root (assets/behaviors/BTrees); found through the one walk-up (ContentLayout).
         string jsonPath = Path.Combine(
-            repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Assets", "BTrees", "Tests", "Authoring",
+            Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder),
+            "Tests", "Authoring",
             $"{assetName}.btree.json");
 
         if (!File.Exists(jsonPath))

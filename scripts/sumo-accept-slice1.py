@@ -35,8 +35,8 @@ def screenshot(tag):
     return f if os.path.exists(f) else None
 
 # ── load + run ────────────────────────────────────────────────────────────────────────────
-r = call("POST", "/scenario/load/live", {"name": "Recipes/demo-city", "waitForReady": True, "startPaused": False})
-check("load Recipes/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or data(r))
+r = call("POST", "/scenario/load/live", {"name": "recipes/scenarios/demo-city", "waitForReady": True, "startPaused": False})
+check("load recipes/scenarios/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or data(r))
 call("POST", "/sim/play", {})
 time.sleep(20)
 

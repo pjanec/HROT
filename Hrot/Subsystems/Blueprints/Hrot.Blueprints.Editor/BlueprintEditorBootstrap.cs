@@ -288,7 +288,7 @@ public static class BlueprintEditorBootstrap
 
     /// <summary>
     /// Enumerates all blueprint recipe files from the production location
-    /// (Hrot.AI.Behaviors/Recipes/Blueprints/). Returns only assets with
+    /// (recipes/behaviors/Blueprints/ under the content root). Returns only assets with
     /// EditorMetadata.Recipe != null.
     /// </summary>
     /// <remarks>

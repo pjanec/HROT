@@ -118,12 +118,12 @@ public sealed class BTreeJsonGeneratorTests
             "a valid asset should produce no generator diagnostics");
     }
 
-    /// <summary>⭐ CE-3164 (R-268) — the asset's folder below <c>Assets/BTrees/</c> is its picker group, written into the
+    /// <summary>⭐ CE-3164 (R-268) — the asset's folder below <c>assets/behaviors/BTrees/</c> is its picker group, written into the
     /// generated registration; a root-level asset gets none (the picker's "Other"). 🔴 Red before: no Group was emitted.</summary>
     [Theory]
-    [InlineData("/repo/Assets/BTrees/Library/Tactics/SampleScout.btree.json", "Library/Tactics")]
-    [InlineData("/repo/Assets/BTrees/Demos/SampleScout.btree.json", "Demos")]
-    [InlineData("/repo/Assets/BTrees/SampleScout.btree.json", null)]
+    [InlineData("/repo/assets/behaviors/BTrees/Library/Tactics/SampleScout.btree.json", "Library/Tactics")]
+    [InlineData("/repo/assets/behaviors/BTrees/Demos/SampleScout.btree.json", "Demos")]
+    [InlineData("/repo/assets/behaviors/BTrees/SampleScout.btree.json", null)]
     public void CE3164_TheAssetFolder_IsTheRegisteredGroup(string path, string? group)
     {
         string json = BTreeJsonServices.Serialize(BehaviorTreeAssetMapper.ToDto(LoadSampleScout()));
@@ -135,10 +135,10 @@ public sealed class BTreeJsonGeneratorTests
 
     /// <summary>⭐ CE-3164 — the group rule itself: Windows or Unix separators, any kind root, root-level ⇒ none.</summary>
     [Theory]
-    [InlineData(@"C:\repo\Hrot\Assets\BTrees\Demos\Urban\Ambush.btree.json", "Demos/Urban")]
-    [InlineData("C:/repo/Assets/HSMs/Library/Squad/Guard.hsm.json", "Library/Squad")]
-    [InlineData("/repo/Assets/Blueprints/Samples/Count4.bp.json", "Samples")]
-    [InlineData("/repo/Assets/Blueprints/Count4.bp.json", null)]
+    [InlineData(@"C:\repo\assets\behaviors\BTrees\Demos\Urban\Ambush.btree.json", "Demos/Urban")]
+    [InlineData("C:/repo/assets/behaviors/HSMs/Library/Squad/Guard.hsm.json", "Library/Squad")]
+    [InlineData("/repo/assets/behaviors/Blueprints/Samples/Count4.bp.json", "Samples")]
+    [InlineData("/repo/assets/behaviors/Blueprints/Count4.bp.json", null)]
     [InlineData("/elsewhere/Count4.bp.json", null)]
     [InlineData(null, null)]
     public void CE3164_FromAssetPath(string? path, string? group)
@@ -269,13 +269,8 @@ public sealed class BTreeJsonGeneratorTests
     [Fact]
     public void CE2073_TheParallelPolicy_RoundTrips_AndIsEmitted()
     {
-        string path = null!;
-        for (var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory); d != null && path == null; d = d.Parent)
-        {
-            var c = System.IO.Path.Combine(d.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Tests", "Authoring", "T03_Parallel.btree.json");
-            if (System.IO.File.Exists(c)) path = c;
-        }
-        path.Should().NotBeNull("the shipped T03_Parallel asset must be found above the test output");
+        string path = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder), "Tests", "Authoring", "T03_Parallel.btree.json");
+        System.IO.File.Exists(path).Should().BeTrue("the shipped T03_Parallel asset must be found in assets/behaviors/BTrees");
 
         var dto = BTreeJsonServices.Deserialize(System.IO.File.ReadAllText(path))!;
         var par = dto.Nodes.OfType<BTreeParallelNodeDto>().Single();
