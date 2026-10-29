@@ -1735,3 +1735,43 @@ sequenceDiagram
 the source · S2 a player-only process composes the screen + error section once, Player policy · S3 Player: shown in the lobby (closed, not
 loading) with the reason; hidden when play-ready; no Cancel · S4 operator behaviour unchanged (`CE1442_*` rails) · S5 no `new
 ClusterTimeTransportAdapter` outside the factory and the Orchestrator.
+
+### 11.9 ⭐⭐ R3 — the 3-D map in the load: the PLAYER only; everyone else builds it in the background on the first switch *(ui, `2026-10-29`; R-1046; `build-state: DESIGN`)*
+
+🔒 **R-1046 (user, `2026-10-29`):** *"I think it is just the player node who needs to include the 3D map into the load chain. The other nodes like CGF and SimHost do not need to load 3D map. Actually, they should start in 2D map as now and load the map on the background when first request for map switching is received. that player-specific behavior needs to be just a parameter of a unified shared code as usual."*
+⇒ ⛔ SUPERSEDES R3's *"on map hosts"* (AQ110 §4, CE-4078 extension): only a node whose role profile says so (the Player, §11.8's `NodeRunProfile`)
+puts the 3-D map in its load; every other ECS host starts in 2-D as today.
+
+📐 **Today, measured:** the 3-D map reload is outside the load chain (§11's table: *"⛔ OUTSIDE the chain (a frame-thread rebuild)"*), so a node
+reports `PlayReady` with its map unbuilt; the rebuild is a whole-mesh build + upload inside one `Draw` (`TerrainLayer3D`, `FDP/Engine/Fdp.Presentation/Vis3D/TerrainLayer3D.cs`;
+`TrafficLayer3D.Rebuild`, `Hrot.Presentation/Map3D/TrafficLayer3D.cs:92`) — measured ~37–40 s frame stall on `demo-city` (CE-4078). The switch is
+`MapViewSwitch` (`FDP/Engine/Fdp.Presentation/Vis3D/MapViewSwitch.cs`) driven by `MapViewModeLayer`.
+
+```mermaid
+sequenceDiagram
+    participant L as load chain (node)
+    participant P as NodeRunProfile
+    participant M as 3-D map (one shared builder)
+    participant V as MapViewSwitch
+    alt profile.MapInLoad (the Player)
+        L->>M: step "3-D map": build on a worker, upload on the frame
+        M-->>L: done ⇒ the step resolves ⇒ PlayReady
+        Note over L: the player's waiting screen shows "Loading — 3-D map" meanwhile (§11.8)
+    else every other ECS host (editor, CGF, SimHost)
+        Note over L: no map step, PlayReady as today, the map stays 2-D
+        V->>M: first switch to 3-D ⇒ build on a worker (the 2-D map stays usable)
+        M-->>V: done ⇒ the switch completes into 3-D
+    end
+```
+*What it shows: ONE builder (off the frame, upload on the frame) serves both paths; the profile only decides whether the load waits for it.*
+
+| decision | why |
+|---|---|
+| ① one shared builder for the 3-D map's meshes: geometry on a worker, GPU upload on the frame (AQ91 §4-B3) | both paths need it; it removes CE-4078's frame stall everywhere |
+| ② `NodeRunProfile.MapInLoad` — true for the Player profile only; the load chain gets a "3-D map" step only then | R-1046: the player's difference is a parameter of the shared code |
+| ③ other hosts: the first 2-D → 3-D request starts the build; the view stays 2-D (with a "building 3-D map…" note) until it is done | R-1046: start in 2-D, load in the background on the first switch |
+| ④ a host with no 3-D map at all (headless) has nothing to build; the step is skipped | nothing to wait for |
+
+*Rejected:* **every map host waits for the 3-D map in its load** (R3 as first written) — CGF / SimHost / editor would hold the cluster's
+play-ready on a map nobody looked at · **build on the frame thread** — CE-4078's ejection.
+**Split:** ui — the builder, the switch's background build, the profile flag; backend — the chain step that waits on it (AQ110 R3).
