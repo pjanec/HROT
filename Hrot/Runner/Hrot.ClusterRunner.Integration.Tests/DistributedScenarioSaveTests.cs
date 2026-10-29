@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -93,8 +94,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     [Fact]
     public async Task CE4091_ARecordingAfterEditSaveGoLive_CarriesTheSavedFilesHash_AndEverySubfolder()
     {
-        string repoRoot = AppContext.BaseDirectory;
-        while (!Directory.Exists(Path.Combine(repoRoot, "Hrot", "Subsystems")) && Directory.GetParent(repoRoot) is { } up) repoRoot = up.FullName;
+        string repoRoot = TestRepo.Root;
         var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
         Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets loaded, then saved over: " + recipe);
         Directory.CreateDirectory(ScenarioDir);
@@ -166,8 +166,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     [Fact]
     public async Task CE1436_ACheckRound_IsAnsweredOnEveryEcsNode_ThroughTheirOwnClusterViews()
     {
-        string repoRoot = AppContext.BaseDirectory;
-        while (!Directory.Exists(Path.Combine(repoRoot, "Hrot", "Subsystems")) && Directory.GetParent(repoRoot) is { } up) repoRoot = up.FullName;
+        string repoRoot = TestRepo.Root;
         var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
         Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets opened for editing: " + recipe);
         Directory.CreateDirectory(ScenarioDir);

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Linq;
 using Fdp.Toolkit.Behavior;
@@ -210,9 +211,7 @@ public sealed class OwnParamResolverTests
     [Fact]
     public void TheCompilersAssetCopy_CarriesEveryPublicProperty()
     {
-        string root = AppContext.BaseDirectory;
-        while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root, "HROT.sln")))
-            root = System.IO.Path.GetDirectoryName(root)!;
+        string root = TestRepo.Root;
         var src = System.IO.File.ReadAllText(System.IO.Path.Combine(root!,
             "Hrot", "Subsystems", "Blueprints", "Hrot.Blueprints.Compiler", "Compiler", "BlueprintCompiler.cs"));
         var copied = System.Text.RegularExpressions.Regex.Matches(src, @"^\s+(\w+)\s+=\s+asset\.", System.Text.RegularExpressions.RegexOptions.Multiline)

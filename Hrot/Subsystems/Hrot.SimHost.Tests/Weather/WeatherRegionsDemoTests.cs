@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Numerics;
@@ -19,12 +20,6 @@ namespace Hrot.SimHost.Tests.Weather;
 /// </summary>
 public sealed class WeatherRegionsDemoTests
 {
-    private static string RepoRoot()
-    {
-        string? dir = AppContext.BaseDirectory;
-        while (dir != null && !Directory.Exists(Path.Combine(dir, "scenarios", "ua-weather-regions"))) dir = Path.GetDirectoryName(dir);
-        return dir ?? throw new DirectoryNotFoundException("scenarios/ua-weather-regions not found above the test binary");
-    }
 
     [Fact]
     public void CE1159_TheWeatherRegionsDemo_IsClearWest_FogInTheBank_AndBlendedBetween()
@@ -32,7 +27,7 @@ public sealed class WeatherRegionsDemoTests
         using var w = new EntityRepository();
         SimHostComponentRegistry.RegisterAll(w);
         HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry())
-            .Deserialize(w, File.ReadAllText(Path.Combine(RepoRoot(), "scenarios", "ua-weather-regions", "scenario.json")));
+            .Deserialize(w, File.ReadAllText(Path.Combine(TestRepo.Root, "scenarios", "ua-weather-regions", "scenario.json")));
 
         int regions = 0, outlined = 0;
         foreach (var e in w.Query().With<WeatherConditions>().With<SimTransform>().Build())

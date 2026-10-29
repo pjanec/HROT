@@ -41,7 +41,6 @@ public sealed class ClearingScenarioTests : IDisposable
         foreach (var id in _staged) NasScenarioStaging.Remove(id);
     }
 
-    private static string RepoRoot() => ScenarioTwin.RepoRoot();
     private static Entity ByName(EntityRepository world, string name) => ScenarioTwin.ByName(world, name);
     /// <summary>Stages <c>scenarios/&lt;name&gt;</c>, boots the four hosts and takes the cluster live (<see cref="ScenarioTwin.Live"/>).</summary>
     private Task<HrotRunnerHarness> Live(string scenario) => ScenarioTwin.Live(scenario, _staged, NextDomainId());

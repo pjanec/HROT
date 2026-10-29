@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Linq;
 using System.Collections.Generic;
 using System.Numerics;
@@ -1304,17 +1305,10 @@ public sealed class EffectTests
     [Fact]
     public void E3_AttachMapLayersAttachesTheEffectLayer_OnEveryHost()
     {
-        string pack = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        string pack = File.ReadAllText(Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         Assert.Contains("canvas.AddLayer(effects);", pack);
-        Assert.False(File.Exists(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/Gizmos/EffectPresentationGizmo.cs")),
+        Assert.False(File.Exists(Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/Gizmos/EffectPresentationGizmo.cs")),
                      "VE-F: the old effect gizmo is retired — the layer draws the effects");
-    }
-
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
-        return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
 
     /// <summary>⭐ <c>CE-1357</c> — a weapon system fired at a POINT (a door M134: no target unit, no aim posture of its own) draws its burst

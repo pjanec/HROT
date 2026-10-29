@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -84,26 +85,21 @@ public static class SystemTestEnvironment
         }
 
         // Last resort: walk up to the repo root and into the known project output.
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
+        var repoRoot = TestRepo.TryFind();
+        if (repoRoot is not null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
+            var runnerBin = Path.Combine(repoRoot, "Hrot", "Runner", "Hrot.ClusterRunner", "bin");
+            if (Directory.Exists(runnerBin))
             {
-                var runnerBin = Path.Combine(dir.FullName, "Hrot", "Runner", "Hrot.ClusterRunner", "bin");
-                if (Directory.Exists(runnerBin))
-                {
-                    // Prefer the configuration this test assembly was built in.
-                    var config = AppContext.BaseDirectory.Contains($"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}")
-                        ? "Release" : "Debug";
-                    var preferred = Path.Combine(runnerBin, config, "net8.0", dllName);
-                    if (File.Exists(preferred)) return preferred;
+                // Prefer the configuration this test assembly was built in.
+                var config = AppContext.BaseDirectory.Contains($"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}")
+                    ? "Release" : "Debug";
+                var preferred = Path.Combine(runnerBin, config, "net8.0", dllName);
+                if (File.Exists(preferred)) return preferred;
 
-                    var any = Directory.EnumerateFiles(runnerBin, dllName, SearchOption.AllDirectories).FirstOrDefault();
-                    if (any is not null) return any;
-                }
-                break;
+                var any = Directory.EnumerateFiles(runnerBin, dllName, SearchOption.AllDirectories).FirstOrDefault();
+                if (any is not null) return any;
             }
-            dir = dir.Parent;
         }
 
         return null;

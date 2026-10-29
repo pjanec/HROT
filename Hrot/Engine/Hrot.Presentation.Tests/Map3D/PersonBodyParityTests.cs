@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Globalization;
 using System.IO;
@@ -104,9 +105,7 @@ public class PersonBodyParityTests
         sb.AppendLine("        };");
         sb.AppendLine("    }");
         sb.AppendLine("}");
-        var dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir);
-        Assert.NotNull(dir);
+        var dir = TestRepo.Root;
         File.WriteAllText(Path.Combine(dir!, "FDP", "Toolkits", "Fdp.Toolkits", "Physics", "BodyParts", "PersonBody.Tables.g.cs"), sb.ToString());
     }
 }

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Linq;
 using System.IO;
@@ -40,10 +41,6 @@ public sealed class TakeCoverScenarioTests : IDisposable
     public TakeCoverScenarioTests(ITestOutputHelper output) => _out = output;
 
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
-
-    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-    private static string RepoRoot()
-        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
 
     private static string Recipe(string root)
         => Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
@@ -154,7 +151,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
     [Fact(Timeout = 300_000)]
     public async Task CE2101_ASecondLiveLoad_StartsFromTheFile_OnEveryHost()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Recipe(root), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
@@ -264,7 +261,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
     [Fact(Timeout = 300_000)] // ⭐ CE-3067's acceptance: the Stop rewind must restore the entity index whole (EntityIndex.SyncFrom)
     public async Task CE2101_PreviewFromEdit_PerceivesAndTakesCover_AndStopRewindsToTheEdit()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Recipe(root), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
@@ -361,7 +358,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
     private async Task RunOrderedAsync(string behaviour, int site, uint template, bool sideOn)
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         var staged = Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json");
         var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Recipe(root)))!;
@@ -438,7 +435,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
     private async Task RunAsync(bool holdFire, string expectedReaction)
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         var staged = Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json");
         var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Recipe(root)))!;

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -33,10 +34,6 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public EntityOrdersAcrossNodesTests(ITestOutputHelper output) => _out = output;
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
-    // ⭐ CE-4089 — the one repository walk-up (ContentLayout), not a private copy.
-    private static string RepoRoot()
-        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() ?? throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-
     private static Entity ByName(EntityRepository world, string name)
     {
         for (int i = 0; i <= world.MaxEntityIndex; i++)
@@ -52,7 +49,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE3167_AnOrderIssuedOnTheMuscleNode_RunsOnTheBrainNode()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -124,7 +121,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE3251_AnRoeSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -176,7 +173,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE2299_ReportingSetOnAnotherNode_ReachesTheBrainsOwner_AndItsGate()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -232,7 +229,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE3172_ASoldierPossessedFromAnotherNode_IsDrivenThere_AndReleaseResumesItsTask()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -311,7 +308,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task R4096_ASecondStationOnAnotherNode_IsRefused_TheFirstKeepsTheMan_UntilHeLetsGo()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -390,7 +387,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_AndTheVerdictReachesTheStationAndTheIg()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -485,7 +482,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE1158_DriveAndGetOut_FromAnIgStation_AcrossTheCluster()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-tank-ammo", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-tank-ammo", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -615,7 +612,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE3224_AGestureSetOnTheBrain_ReachesSimHostAndTheIg()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -672,7 +669,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE3219_ACloudAskedForOnSimHost_ReachesEveryNode_AndEndsEverywhere()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -731,7 +728,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -790,7 +787,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE1148_ABurstOnSimHost_ReachesTheBrainExactlyOnce()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
         using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
@@ -831,7 +828,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task M7_APossessedDrone_FollowsTheStation_AcrossNodes()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        var scenario = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json")))!;
+        var scenario = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json")))!;
         scenario["entities"]!["a4120000-0000-4000-8000-0000000000d1"] = System.Text.Json.Nodes.JsonNode.Parse("""
             {
               "SimTransform": { "Position": [120, 0, 20], "Rotation": [0, 0, 0, 1] },
@@ -914,7 +911,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     public async Task CE2171_AFollowRoute_OnASplitCluster_DrivesTheRoute()
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        var scenario = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json")))!;
+        var scenario = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(TestRepo.Root, "scenarios", "ua-grenade-or-rifle", "scenario.json")))!;
         scenario["entities"]!["a4120000-0000-4000-8000-0000000000e1"] = System.Text.Json.Nodes.JsonNode.Parse("""
             {
               "SimTransform": { "Position": [60, -60, 0], "Rotation": [0, 0, 0, 1] },

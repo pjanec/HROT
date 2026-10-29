@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,7 +52,7 @@ namespace Fdp.Tests.Serialization
         [Fact]
         public void EveryProductionOptionsConstruction_IsTheRegistryOrAnExemptionWithAReason()
         {
-            var root = RepoRoot();
+            var root = TestRepo.Root;
             Assert.NotNull(root);
 
             var found = Scan(root!);
@@ -105,7 +106,7 @@ namespace Fdp.Tests.Serialization
         [Fact]
         public void EveryProductionSerializerCall_PassesOptions_OrIsAnExemptionWithAReason()
         {
-            var root = RepoRoot();
+            var root = TestRepo.Root;
             Assert.NotNull(root);
 
             var found = new Dictionary<string, List<int>>();
@@ -223,15 +224,5 @@ namespace Fdp.Tests.Serialization
             return found;
         }
 
-        private static string? RepoRoot()
-        {
-            var dir = AppContext.BaseDirectory;
-            for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-            {
-                if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-                dir = Directory.GetParent(dir)?.FullName;
-            }
-            return null;
-        }
     }
 }

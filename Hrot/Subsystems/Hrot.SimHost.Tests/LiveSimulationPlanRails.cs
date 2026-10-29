@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -40,7 +41,7 @@ public sealed class LiveSimulationPlanRails
     [Fact]
     public void EveryProductionPlanStartsFromTheSharedHead_CE2144()
     {
-        string root = RepoRoot() ?? throw new InvalidOperationException("checkout root (HROT.sln) not found");
+        string root = TestRepo.Root ?? throw new InvalidOperationException("checkout root (HROT.sln) not found");
         var bare = new Regex(@"new\s+(Hrot\.Common\.Infrastructure\.)?NodeCompositionPlan\s*\(", RegexOptions.Compiled);
 
         var offenders = new List<string>();
@@ -118,14 +119,4 @@ public sealed class LiveSimulationPlanRails
             system.Execute(world, 0.016f);
     }
 
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

@@ -15,6 +15,7 @@
   <ItemGroup>
     <!-- ⭐ the known-flaky lane (CLAUDE.md T-tiers): [FlakyFact] skips by default; HROT_RUN_FLAKY=1 runs it -->
     <Compile Include="..\..\..\FDP\TestShared\FlakyFactAttribute.cs" Link="Shared\FlakyFactAttribute.cs" />
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />

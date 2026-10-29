@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.IO;
 using System.Linq;
 using Fdp.TestShared;
@@ -25,7 +26,7 @@ public sealed class EverySystemStateFieldIsClassifiedTests
     [Fact]
     public void EveryFieldThatCanCarryStateBetweenFrames_IsClassified()
     {
-        var doc = Path.Combine(SystemStateProbe.RepoRoot(), "docs", "DESIGN_System_State_Inventory.md");
+        var doc = Path.Combine(TestRepo.Root, "docs", "DESIGN_System_State_Inventory.md");
         var r = SystemStateProbe.Check(SystemStateProbe.ReadInventory(doc));
         Assert.True(r.Owners > 300, $"only {r.Owners} systems, modules and translators walked — the probe is not finding the tree.");
 
@@ -51,7 +52,7 @@ public sealed class EverySystemStateFieldIsClassifiedTests
     [Fact]
     public void EveryProtocolField_IsReDerivedAtAWorldReplacement()
     {
-        var root = SystemStateProbe.RepoRoot();
+        var root = TestRepo.Root;
         var row = new System.Text.RegularExpressions.Regex(
             @"^\|\s*`(?<key>[^`]+)`\s*\|\s*\*\*B\*\*\s*\|[^|]*\|\s*(?<ev>[^|:\s]+)");
         var hook = new System.Text.RegularExpressions.Regex(@"WorldEpoch\.|OnWorldBoundary|ForgetLastWorld|OnWorldReplaced");

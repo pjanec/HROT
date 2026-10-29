@@ -1,3 +1,4 @@
+using Fdp.Testing;
 namespace Hrot.Blueprints.Tests.Editor;
 
 /// <summary>
@@ -10,17 +11,12 @@ public sealed class FolderLayoutTests
 {
     // ---- helpers ---------------------------------------------------------------
 
-    /// <summary>The repository root — through the one walk-up (ContentLayout).</summary>
-    private static string ResolveRepoRoot()
-        => Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()
-           ?? throw new DirectoryNotFoundException("Could not find repo root (HROT.sln beside assets/) upward from " + AppContext.BaseDirectory);
-
     /// <summary>
     /// Resolve the Behaviors source project directory (the .csproj location).
     /// </summary>
     private static string ResolveBehaviorsSourceDir()
     {
-        var repoRoot = ResolveRepoRoot();
+        var repoRoot = TestRepo.Root;
         var dir = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors");
         if (!Directory.Exists(dir))
             throw new DirectoryNotFoundException(
@@ -33,7 +29,7 @@ public sealed class FolderLayoutTests
     [Fact]
     public void TheRepositoryRootHoldsTheAssetsAndTheRecipes()
     {
-        var repo = ResolveRepoRoot();
+        var repo = TestRepo.Root;
 
         // (a) recipes/behaviors/Blueprints exists with recipe templates (CountingDemo is the canonical one, committed since WHEN-M11-T4).
         var recipesDir = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorRecipes(repo, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);

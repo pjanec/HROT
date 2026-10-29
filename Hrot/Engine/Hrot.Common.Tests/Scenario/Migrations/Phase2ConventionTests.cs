@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -27,7 +28,7 @@ public sealed class Phase2ConventionTests
     [Fact]
     public void AllCommittedFixtures_HaveValidMetaEnvelope()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         var knownFixtures = new List<string>();
 
         foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
@@ -75,7 +76,7 @@ public sealed class Phase2ConventionTests
     [Fact]
     public void AllScenarioFixtures_HaveCorrectDocTypeAndVersion()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         var scenarioFiles = new List<string>();
 
         foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
@@ -125,7 +126,7 @@ public sealed class Phase2ConventionTests
     [Fact]
     public void AllBlueprintFixtures_HaveCorrectDocTypeAndVersion()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         var blueprintFiles = new List<string>();
 
         foreach (string path in Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories))
@@ -177,7 +178,7 @@ public sealed class Phase2ConventionTests
     [Fact]
     public async Task LoadScenario_ViaReadOnlyAdapter_DomHasValidMetaAndRoundTrips()
     {
-        string root = FindWorkspaceRoot();
+        string root = TestRepo.Root;
         string scenarioPath = Path.Combine(root, "scenarios", "hill-attack", "scenario.json");
 
         Assert.True(File.Exists(scenarioPath), $"Scenario fixture not found: {scenarioPath}");
@@ -215,18 +216,6 @@ public sealed class Phase2ConventionTests
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private static string FindWorkspaceRoot()
-    {
-        DirectoryInfo? dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
-            dir = dir.Parent;
-        if (dir == null)
-            throw new InvalidOperationException(
-                "Cannot locate workspace root (HROT.sln not found). " +
-                $"Started search from: {AppContext.BaseDirectory}");
-        return dir.FullName;
-    }
 
     private static JsonObject? TryParseJsonObject(string path)
     {

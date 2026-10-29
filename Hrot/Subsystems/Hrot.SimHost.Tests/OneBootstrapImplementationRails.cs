@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -53,7 +54,7 @@ public class OneBootstrapImplementationRails
     [Fact]
     public void NoHost_ReferencesAnotherHost_BeyondTheRecordedDebt()
     {
-        string? root = RepoRoot();
+        string? root = TestRepo.Root;
         Assert.NotNull(root);
         var hosts = new Dictionary<string, string>
         {
@@ -102,7 +103,7 @@ public class OneBootstrapImplementationRails
 
     private static List<string> Scan(Regex pattern, string allowed, string? alsoAllowed = null)
     {
-        string? root = RepoRoot();
+        string? root = TestRepo.Root;
         Assert.NotNull(root);
         var hits = new List<string>();
         foreach (string top in new[] { "Hrot", "Stride" })
@@ -126,14 +127,4 @@ public class OneBootstrapImplementationRails
         return hits;
     }
 
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

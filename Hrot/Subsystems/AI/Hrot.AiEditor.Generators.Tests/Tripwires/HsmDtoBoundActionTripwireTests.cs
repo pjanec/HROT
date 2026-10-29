@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -92,7 +93,7 @@ namespace Hrot.AiEditor.Generators.Tests.Tripwires
         [Fact]
         public void NoNewDtoBoundHsmAction_ExistsInAGeneratorBearingAssembly()
         {
-            var repoRoot = ResolveRepoRoot();
+            var repoRoot = TestRepo.Root;
             var projects = GeneratorBearingProjects(repoRoot);
 
             // If this ever finds nothing, the DERIVATION broke — not the codebase. A tripwire that
@@ -289,17 +290,5 @@ namespace Synthetic
         private static string ProjectName(string csprojPath)
             => Path.GetFileNameWithoutExtension(csprojPath);
 
-        private static string ResolveRepoRoot()
-        {
-            var dir = AppContext.BaseDirectory;
-            while (dir != null)
-            {
-                if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-                dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
-            }
-            throw new InvalidOperationException(
-                "Could not find repo root (looked for HROT.sln upward from " +
-                AppContext.BaseDirectory + ").");
-        }
     }
 }

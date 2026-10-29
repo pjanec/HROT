@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -114,7 +115,7 @@ public sealed class TheLayoutResetCanActuallyBeTurnedOffTests
     [Fact]
     public void NoProductionSourceTellsTheUserToUseTheNegatedSpelling()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         if (root is null) return;
 
         var offenders = new[] { "Hrot", "FDP" }
@@ -134,14 +135,4 @@ public sealed class TheLayoutResetCanActuallyBeTurnedOffTests
           + "\n\n  Use `--reset-layout=false`.");
     }
 
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && dir != null; i++)
-        {
-            if (Directory.Exists(Path.Combine(dir, "layout", "default"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

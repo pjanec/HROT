@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -144,7 +145,7 @@ public sealed class TheHaltCannotStopTheClockTests
     [Fact]
     public void OnlyTheThreeTimeTranslatorsDeclareThemselvesControlPlane()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var declaring = new List<string>();
@@ -195,15 +196,4 @@ public sealed class TheHaltCannotStopTheClockTests
         }, declaring);
     }
 
-    /// <summary>⭐ Walks up to the checkout root, the same probe the other structural rails use.</summary>
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (System.IO.File.Exists(System.IO.Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = System.IO.Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

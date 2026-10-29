@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -140,7 +141,7 @@ public sealed class EveryRouteIsDocumentedTests
     [Fact]
     public void EveryToolIsInTheGeneratedCatalog()
     {
-        var catalog = Path.Combine(RepoRoot(), "tools", "ai-debug-mcp", "tool-catalog.mjs");
+        var catalog = Path.Combine(TestRepo.Root, "tools", "ai-debug-mcp", "tool-catalog.mjs");
         var names = Regex.Matches(File.ReadAllText(catalog), "^    \"name\": \"([^\"]+)\"", RegexOptions.Multiline)
                          .Select(m => m.Groups[1].Value)
                          .ToHashSet(StringComparer.Ordinal);
@@ -158,10 +159,4 @@ public sealed class EveryRouteIsDocumentedTests
           + "`npm run gen:catalog && npm run gen:skill`.");
     }
 
-    private static string RepoRoot()
-    {
-        for (var dir = AppContext.BaseDirectory; dir != null; dir = Path.GetDirectoryName(dir))
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-        throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory);
-    }
 }

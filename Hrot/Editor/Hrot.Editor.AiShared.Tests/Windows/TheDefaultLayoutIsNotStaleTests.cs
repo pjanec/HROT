@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -298,7 +299,7 @@ public sealed class TheDefaultLayoutIsNotStaleTests : IDisposable
     /// ⛔ Tests and generated output excluded — a test naming an id does not make it real.</summary>
     private static string ProductionSourceText()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         if (root is null) return string.Empty;
 
         var sb = new System.Text.StringBuilder();
@@ -321,21 +322,10 @@ public sealed class TheDefaultLayoutIsNotStaleTests : IDisposable
     /// no-op rather than failing for a reason that is not about the layout.</summary>
     private static string? ShippedLayoutDirectory()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         if (root is null) return null;
         var dir = Path.Combine(root, "layout", "default");
         return Directory.Exists(dir) ? dir : null;
-    }
-
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && dir != null; i++)
-        {
-            if (Directory.Exists(Path.Combine(dir, "layout", "default"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
     }
 
     // ── the two inert services the registrar requires ───────────────────────

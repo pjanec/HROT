@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -95,7 +96,7 @@ public sealed class ThereIsOneNetworkIdResolverTests
     [Fact]
     public void NoNewInlineNetworkIdLookupAppears()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var found = new List<string>();
@@ -151,17 +152,4 @@ public sealed class ThereIsOneNetworkIdResolverTests
         //   FollowRoute's route lookup moved into the behaviour (CgfNodes.TryFindRouteTrajectory), through NetworkIdResolver.
     };
 
-    /// <summary>⭐ Walks up to the checkout root, the same probe <c>CuratedScenarios</c> and
-    /// <c>LayoutPaths</c> use. ⚠ <c>null</c> outside a checkout, and the rail says so rather than
-    /// silently passing on an empty scan.</summary>
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }
