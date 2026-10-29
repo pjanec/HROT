@@ -56,6 +56,17 @@ internal sealed class LocalWindowController
 
     internal void RequestExit() => _exitRequested = true;
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> follow-up — the frame loop's exit decision, ONCE at the top of a frame (so a rail drives the very policy the loop runs): <paramref name="requestedThisFrame"/> is the window's [X] or the Exit item
+    /// (<see cref="TakeExitRequest"/>); the request asks <see cref="ExitGuard"/> (it may open a question and DEFER), and a deferred question that was answered <i>Discard / Save &amp; Exit</i> approves the exit on a later frame.
+    /// <see langword="true"/> = leave the loop now; a Cancel anywhere keeps it <see langword="false"/>.
+    /// </summary>
+    internal bool ExitDue(bool requestedThisFrame)
+    {
+        if (requestedThisFrame && ExitGuard.OnExitRequested() != ExitDisposition.Deferred) return true;   // nothing to ask (or every question already answered in favour): exit now
+        return ExitGuard.ExitApproved;
+    }
+
     internal LocalWindowController(
         IPresentationShell shell,
         IReadOnlyList<ISubsystem> subsystems,
@@ -67,6 +78,29 @@ internal sealed class LocalWindowController
         _options     = options;
         _coordinator = coordinator;
         _titleSources = subsystems.OfType<IWindowTitleSource>().ToArray();
+        ExitGuard = new ExitGuardChain(subsystems.OfType<IAppExitGuard>().ToArray());   // until the run controls are composed: the subsystems' own guards only
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> follow-up (AQ108 §2.11a ④) — <b>the process's ONE exit guard</b> (the frame loop asks it for the window's [X] and File › Exit): the subsystems' own guards (the editor's unsaved DOCUMENTS)
+    /// first, then — when a run-controls owner with a scenario door was picked — the <see cref="ScenarioExit"/> guard over that owner's <see cref="ScenarioDoor"/>. Rebuilt by <see cref="ComposeRunControls"/>.
+    /// </summary>
+    internal IAppExitGuard ExitGuard { get; private set; }
+
+    /// <summary>⭐ <c>CE-4101</c> follow-up — the ONE guard of the open scenario's exit (null before <see cref="ComposeRunControls"/>, or when no host offers a scenario door: SimHost alone has nothing of a scenario to lose).</summary>
+    internal ScenarioExitGuard? ScenarioExit { get; private set; }
+
+    /// <summary>
+    /// The chain: documents first, the scenario door LAST — the door's approval is what stops the run / unloads the scenario, so that step runs only when nothing asked before it can still cancel the exit
+    /// (a Cancel at the document question loses nothing; a Discard of documents followed by a Cancel at the scenario question would have lost them without an exit).
+    /// </summary>
+    private void ComposeExitGuard(IProvidesRunControls? owner)
+    {
+        var door = owner?.RunChoice?.Door;
+        ScenarioExit = door is null ? null : new ScenarioExitGuard(door);
+        var guards = _subsystems.OfType<IAppExitGuard>().ToList();
+        if (ScenarioExit is not null) guards.Add(ScenarioExit);
+        ExitGuard = new ExitGuardChain(guards);
     }
 
     /// <summary>⭐ <c>CE-1437</c> — the host whose run controls the process's ONE toolbar time control shows (null before <see cref="ComposeRunControls"/>, or when no host offers any).</summary>
@@ -83,6 +117,7 @@ internal sealed class LocalWindowController
         RunControlsOwner = owner;
         if (owner?.Transport is { } transport)
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice);
+        ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
         owner?.ComposeScenarioActions(wm);   // ⭐ CE-1439 — the scenario menu (and so the Start surface's Open / New / Recording) of the host that owns ▶, by the same rule
     }
 

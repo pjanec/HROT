@@ -187,6 +187,7 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     /// </summary>
     private void RawLeave(LeaveReason reason)
     {
+        if (reason == LeaveReason.Exit && CurrentClusterState == ClusterState.Idle) return;   // ⭐ CE-4101 follow-up — exiting a cluster at rest: nothing to stop, no Idle intent to send
         _leaveRun?.Invoke();
         _loads.Unload();
         _loads.Cancel();

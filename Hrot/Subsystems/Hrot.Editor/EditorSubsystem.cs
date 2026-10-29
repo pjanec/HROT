@@ -359,6 +359,10 @@ namespace Hrot.Editor
         Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Editor;
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _timeTransport;
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _timeTransport?.RunChoice;
+
+        // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu registered ONCE, by the composer's picked ▶ owner; built in RegisterWindows.
+        private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
+        void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
         internal Hrot.UI.Common.Map3D.Director.DirectorTakeSession? DirectorTakesForTest => _directorPack?.Session;
         internal Hrot.UI.Common.Map3D.Director.DirectorPack? DirectorPackForTest => _directorPack;
         internal Fdp.Presentation.Panels.Timeline.TimelinePanel EventTimelineForTest => _eventTimeline;
@@ -4488,11 +4492,13 @@ namespace Hrot.Editor
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
+            // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — NOT registered here any more: BUILT here (the pickers, Save-As and status wiring live in this method) and handed to the composer, which asks only the
+            //   picked ▶ owner to run it (IProvidesRunControls.ComposeScenarioActions) — one owner by rule, never the last RegisterWindows.
             if (_editorApp != null)
-            Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
-                registerCommand:      windowManager.ShellCommands.Register,
-                menu:                 windowManager.GlobalMenu,
-                commands:             windowManager.ShellCommands,
+            _composeScenarioMenu = wm => Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
+                registerCommand:      wm.ShellCommands.Register,
+                menu:                 wm.GlobalMenu,
+                commands:             wm.ShellCommands,
                 // ⭐⭐ CE-046 — the registrar now binds to the SHARED session, which is what lets CGF
                 //    register the identical items. 📄 design §3 ④.
                 session:              _editorApp.ScenarioSession,

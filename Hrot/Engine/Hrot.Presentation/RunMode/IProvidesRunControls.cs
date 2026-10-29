@@ -21,7 +21,7 @@ public interface IProvidesRunControls
     /// <summary>
     /// ⭐⭐ <c>CE-1439</c> (AQ108 §2.12) — called by the composer on the PICKED owner only (after <c>ComposeRunControls</c> registered its toolbar): a host that does NOT register
     /// the scenario menu items (<c>File › Open Scenario / New Scenario / Open Recording</c>, which the Start surface draws) in its own <c>RegisterWindows</c> registers them here.
-    /// ⛔ Default: nothing — the editor and CGF register theirs themselves (a follow-up folds those two here). ⭐ The point: the process's ONE scenario menu belongs to the host that owns
+    /// ⭐ <c>CE-4101</c> follow-up: the editor and CGF register theirs here too (built in their <c>RegisterWindows</c>, where their pickers and Save-As live; run from here) — ⛔ no host calls the registrar itself. Default: nothing (SimHost has no scenario session). ⭐ The point: the process's ONE scenario menu belongs to the host that owns
     /// ▶, picked by the same rule, never to whichever host registered last.
     /// </summary>
     void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) { }

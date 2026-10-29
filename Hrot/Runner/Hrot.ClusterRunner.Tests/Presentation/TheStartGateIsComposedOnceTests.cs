@@ -382,6 +382,223 @@ public class TheStartGateIsComposedOnceTests
         }
     }
 
+    // ── CE-4101 follow-up (AQ108 §2.11a ④): the exit goes through the ONE scenario door, composed once ────────────────────────────────────
+
+    /// <summary>A scenario session with its OWN door (like the real <c>EditorScenarioSession</c>): the raw verbs and the leave are recorded in <see cref="Calls"/>.</summary>
+    private sealed class DoorControl : IRunScenarioControl, IHasScenarioDoor
+    {
+        public readonly List<string> Calls = new();
+        public string? LoadedScenarioName => "s";
+        public ScenarioDoor Door { get; }
+        public DoorControl() { Door = new ScenarioDoor(this, () => TransportMode.Idle, reason => Calls.Add($"Leave:{reason}")); }
+        public void LoadForLive(string scenarioName) => Calls.Add("LoadForLive");
+        public void OpenForEdit(string scenarioName) => Calls.Add("OpenForEdit");
+        public void OpenRecording(System.Guid exerciseId) => Calls.Add("OpenRecording");
+        public void SaveCurrent() => Calls.Add("SaveCurrent");
+        public void TakeCheckpoint() => Calls.Add("TakeCheckpoint");
+    }
+
+    private sealed class AnswerUnsaved : IUnsavedChangesQuery
+    {
+        public UnsavedAnswer Answer = UnsavedAnswer.Unchanged;
+        public void Ask(System.Action<UnsavedAnswer> reply) => reply(Answer);
+    }
+
+    /// <summary>An operator host over a REAL adapter + choice + view, on a real bus; the cluster is "heard" in the state <see cref="Hear"/> publishes.</summary>
+    private sealed class DoorHost : MockSubsystem, IProvidesRunControls
+    {
+        private readonly Fdp.Core.FdpEventBus _bus = new();
+        private readonly ClusterView _view;
+        private readonly ClusterTimeTransportAdapter _adapter;
+        public readonly DoorControl Control = new();
+        public readonly AnswerUnsaved Unsaved = new();
+        public RunHostKind HostKind { get; }
+        public ITimeTransportFacade? Transport => _adapter;
+        public RunModeChoice? RunChoice { get; }
+        public DoorHost(RunHostKind kind) : base(kind.ToString())
+        {
+            HostKind = kind;
+            _view = new ClusterView(_bus);
+            _adapter = new ClusterTimeTransportAdapter(_bus, () => _view, () => 0.0);
+            RunChoice = _adapter.AttachRunChoice(RunArmedDefaults.For(kind), Control, Unsaved);
+        }
+        public DoorHost Hear(ClusterState state)
+        {
+            _bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state });
+            _bus.SwapBuffers();
+            _view.Update();
+            _adapter.Update();
+            _bus.SwapBuffers();
+            return this;
+        }
+    }
+
+    /// <summary>The editor's DOCUMENT guard, scripted (what <c>EditorSubsystem.OnExitRequested</c> is to the chain): a dirty one defers and opens its own question.</summary>
+    private sealed class DocGuard : MockSubsystem, IAppExitGuard
+    {
+        public bool Dirty = true;
+        public bool Approved;
+        public int Asked;
+        public DocGuard() : base("Docs") { }
+        public ExitDisposition OnExitRequested() { Asked++; Approved = false; return Dirty ? ExitDisposition.Deferred : ExitDisposition.CanExit; }
+        public bool ExitApproved => Approved;
+    }
+
+    private static void Press(RunModeConfirmation? ask, string label)
+    {
+        Assert.NotNull(ask);
+        ask!.Resolve(ask.Buttons.Single(b => b.Label == label));
+    }
+
+    private static readonly RunHostKind[] OperatorKinds = { RunHostKind.Editor, RunHostKind.Cgf, RunHostKind.Orchestrator };
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Exit over unsaved scenario edits asks <i>Save / Discard / Cancel</i> through the door — on the editor, CGF and the Orchestrator alike</b>, each composed by the REAL <c>LocalWindowController</c>
+    /// (the frame loop's own decision, <c>ExitDue</c>): Cancel keeps the exit from being taken (and nothing is stopped or saved), <i>Discard</i> exits (the door's leave runs), <i>Save</i> saves then exits.
+    /// 🔴 Mutations: the composition not building <c>ScenarioExit</c> ⇒ the first <c>ExitDue(true)</c> is true (exits unasked); <c>ScenarioExitGuard</c> approving without waiting for the door's answer ⇒ Cancel's
+    /// <c>ExitDue(false)</c> is true.
+    /// </summary>
+    [Fact]
+    public void AnExit_OverUnsavedScenarioEdits_AsksSaveDiscardCancel_OnEveryOperatorHost_AndCancelDoesNotExit()
+    {
+        foreach (var kind in OperatorKinds)
+        {
+            var host = new DoorHost(kind).Hear(ClusterState.OperatingEdit);
+            host.Unsaved.Answer = UnsavedAnswer.Changed;
+            var (ctrl, _) = Composed(host);
+
+            Assert.False(ctrl.ExitDue(true), $"{kind}: exit over unsaved edits must ask first");
+            Assert.Equal(new[] { "Save", "Discard", "Cancel" }, host.RunChoice!.Pending!.Buttons.Select(b => b.Label));
+            host.RunChoice.Pending.Cancel();
+            Assert.False(ctrl.ExitDue(false), $"{kind}: Cancel must not take the exit");
+            Assert.Empty(host.Control.Calls);                                   // nothing stopped, nothing saved
+
+            Assert.False(ctrl.ExitDue(true));                                   // asked again on the next request
+            Press(host.RunChoice.Pending, "Discard");
+            Assert.True(ctrl.ExitDue(false), $"{kind}: Discard exits");
+            Assert.Equal(new[] { "Leave:Exit" }, host.Control.Calls);           // the door's decision is what ran
+
+            host.Control.Calls.Clear();
+            Assert.False(ctrl.ExitDue(true));
+            Press(host.RunChoice.Pending, "Save");
+            Assert.True(ctrl.ExitDue(false), $"{kind}: Save exits");
+            Assert.Equal(new[] { "SaveCurrent", "Leave:Exit" }, host.Control.Calls);
+        }
+    }
+
+    [Fact]
+    public void AnExit_OverAScenarioNeverSaved_AsksDiscardOrCancel_AndWithNoEditsOrOverARunOrAtRest_DoesNotAsk_ButTheDoorsLeaveRuns()
+    {
+        foreach (var kind in OperatorKinds)
+        {
+            // never saved ⇒ Discard / Cancel
+            var never = new DoorHost(kind).Hear(ClusterState.OperatingEdit);
+            never.Unsaved.Answer = UnsavedAnswer.NeverSaved;
+            var (c1, _) = Composed(never);
+            Assert.False(c1.ExitDue(true));
+            Assert.Equal(new[] { "Discard", "Cancel" }, never.RunChoice!.Pending!.Buttons.Select(b => b.Label));
+            never.RunChoice.Pending.Cancel();
+            Assert.False(c1.ExitDue(false));
+
+            // editing with nothing unsaved, a live run (the door stops it — ■ never asks), a cluster at rest ⇒ no question
+            foreach (var state in new[] { ClusterState.OperatingEdit, ClusterState.OperatingLive, ClusterState.Idle })
+            {
+                var host = new DoorHost(kind).Hear(state);   // Unsaved = Unchanged
+                var (ctrl, _) = Composed(host);
+                Assert.True(ctrl.ExitDue(true), $"{kind}/{state}: nothing to ask ⇒ the exit is taken");
+                Assert.Null(host.RunChoice!.Pending);
+                Assert.Equal(new[] { "Leave:Exit" }, host.Control.Calls);       // the door's own leave ran (the session's raw leave stops a run; at rest it sends nothing)
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>ONE scenario exit guard per process — the composition's — whatever the host combination</b>, over the PICKED owner's door (the same rule as ▶ and the scenario menu); none when no host has a scenario session
+    /// (SimHost alone). 🔴 Mutation: <c>ComposeExitGuard</c> adding a guard per offering host ⇒ the count is 2 on the multi-host rows.
+    /// </summary>
+    [Fact]
+    public void ThereIsExactlyOneScenarioExitGuard_PerProcess_OverThePickedOwnersDoor_InEveryHostCombination()
+    {
+        ISubsystem Make(RunHostKind k) => k == RunHostKind.SimHost ? new RunHost("SimHost", k, operatorHost: false) : new DoorHost(k);
+
+        void Check(params RunHostKind[] kinds)
+        {
+            var (ctrl, _) = Composed(kinds.Select(Make).ToArray());
+            var chain = Assert.IsType<ExitGuardChain>(ctrl.ExitGuard);
+            var guard = Assert.Single(chain.Guards.OfType<ScenarioExitGuard>());
+            Assert.Same(ctrl.ScenarioExit, guard);
+            Assert.Same(ctrl.RunControlsOwner!.RunChoice!.Door, guard.Door);   // the picked owner's door, not another host's
+            Assert.IsType<DoorHost>(ctrl.RunControlsOwner);
+        }
+
+        Check(RunHostKind.Editor);
+        Check(RunHostKind.Cgf);
+        Check(RunHostKind.Orchestrator);
+        Check(RunHostKind.Cgf, RunHostKind.SimHost);
+        Check(RunHostKind.SimHost, RunHostKind.Cgf);
+        Check(RunHostKind.Orchestrator, RunHostKind.Cgf);
+        Check(RunHostKind.Cgf, RunHostKind.Orchestrator);
+        Check(RunHostKind.Editor, RunHostKind.SimHost);
+        Check(RunHostKind.Orchestrator, RunHostKind.Cgf, RunHostKind.Editor);
+
+        // no host with a scenario session ⇒ nothing of a scenario to lose, no scenario guard
+        var (simOnly, _) = Composed(new RunHost("SimHost", RunHostKind.SimHost, operatorHost: false));
+        Assert.Null(simOnly.ScenarioExit);
+        Assert.Empty(((ExitGuardChain)simOnly.ExitGuard).Guards.OfType<ScenarioExitGuard>());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The order of the two questions</b> (the editor's unsaved DOCUMENTS, then the scenario door): both can appear, EITHER Cancel stops the exit, and neither's approval takes the exit while the other is
+    /// still open (the loop used to exit as soon as ANY guard approved). Documents first because the door's approval is the destructive step (it stops the run / unloads the scenario) — it runs only once nothing asked
+    /// before it can still cancel; a Cancel at the document question never reaches the scenario question.
+    /// 🔴 Mutations: the scenario guard placed FIRST ⇒ the scenario question is open before the documents are asked; the chain approving when any guard has ⇒ the document approval alone exits.
+    /// </summary>
+    [Fact]
+    public void TheDocumentQuestionComesFirst_TheScenarioQuestionSecond_AndEitherCancelStopsTheExit()
+    {
+        var docs = new DocGuard();
+        var host = new DoorHost(RunHostKind.Editor).Hear(ClusterState.OperatingEdit);
+        host.Unsaved.Answer = UnsavedAnswer.Changed;
+        var (ctrl, _) = Composed(docs, host);
+        Assert.Equal(new IAppExitGuard[] { docs, ctrl.ScenarioExit! }, ((ExitGuardChain)ctrl.ExitGuard).Guards);
+
+        // the documents are asked first; the scenario is not asked yet, and nothing exits while they are open
+        Assert.False(ctrl.ExitDue(true));
+        Assert.Equal(1, docs.Asked);
+        Assert.Null(host.RunChoice!.Pending);
+        Assert.False(ctrl.ExitDue(false));
+
+        // the documents are answered in favour ⇒ NOW the scenario question appears, and the exit is still not taken
+        docs.Approved = true;
+        Assert.False(ctrl.ExitDue(false));
+        Assert.NotNull(host.RunChoice.Pending);
+        Assert.Empty(host.Control.Calls);
+
+        // Cancel at the scenario question stops the exit; nothing was stopped
+        host.RunChoice.Pending!.Cancel();
+        Assert.False(ctrl.ExitDue(false));
+        Assert.Empty(host.Control.Calls);
+
+        // the next request starts over: documents again, then the scenario; Discard there takes the exit
+        Assert.False(ctrl.ExitDue(true));
+        Assert.Equal(2, docs.Asked);
+        docs.Approved = true;
+        Assert.False(ctrl.ExitDue(false));
+        Press(host.RunChoice.Pending, "Discard");
+        Assert.True(ctrl.ExitDue(false));
+        Assert.Equal(new[] { "Leave:Exit" }, host.Control.Calls);
+
+        // a Cancel at the DOCUMENT question never reaches the scenario question
+        var docs2 = new DocGuard();
+        var host2 = new DoorHost(RunHostKind.Editor).Hear(ClusterState.OperatingEdit);
+        host2.Unsaved.Answer = UnsavedAnswer.Changed;
+        var (ctrl2, _) = Composed(docs2, host2);
+        Assert.False(ctrl2.ExitDue(true));
+        for (int i = 0; i < 3; i++) Assert.False(ctrl2.ExitDue(false));     // the prompt is open / was cancelled: the exit is never taken
+        Assert.Null(host2.RunChoice!.Pending);
+        Assert.Empty(host2.Control.Calls);
+    }
+
     // ── the one rest read, from any node ────────────────────────────────────────
 
     private static SubsystemDebugProvider Node(ClusterState? followed, bool gone = false, bool master = false)

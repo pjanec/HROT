@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Fdp.Core;
@@ -300,14 +301,20 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.Initialize(new SubsystemConfig { Headless = false });
             var editorWindows = MakeWindowManager();
             editor.RegisterWindows(editorWindows);
+            Assert.All(ScenarioMenuShape(editorWindows), line => Assert.Contains("MISSING", line));   // ⭐ CE-4101 follow-up: RegisterWindows registers NO scenario item any more
 
             cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
             var cgfWindows = MakeWindowManager();
             cgf.RegisterWindows(cgfWindows);
+            Assert.All(ScenarioMenuShape(cgfWindows), line => Assert.Contains("MISSING", line));
 
             orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
             var orchestratorWindows = MakeWindowManager();
-            orchestrator.ComposeScenarioActions(orchestratorWindows);
+
+            // ⭐ the ONE registration: each host alone in its process, composed by the runner's composition — it asks the picked owner to register
+            ComposeLikeTheRunner(editorWindows, editor);
+            ComposeLikeTheRunner(cgfWindows, cgf);
+            ComposeLikeTheRunner(orchestratorWindows, orchestrator);
 
             var editorShape = ScenarioMenuShape(editorWindows);
             Assert.DoesNotContain(editorShape, line => line.Contains("MISSING"));
@@ -321,6 +328,101 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         {
             orchestrator.Shutdown();
             cgf.Shutdown();
+            editor.Shutdown();
+        }
+    }
+
+    private static Hrot.ClusterRunner.Presentation.LocalWindowController ComposeLikeTheRunner(WindowManager windows, params ISubsystem[] hosts)
+    {
+        var controller = new Hrot.ClusterRunner.Presentation.LocalWindowController(null!, hosts, new RunnerOptions(), null);   // the shell is not used by the composition step
+        controller.ComposeRunControls(windows);
+        return controller;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> follow-up (AQ108 §2.11a ④) — on the CONSTRUCTED hosts, composed by the runner's <c>LocalWindowController</c>: (1) in every host combination the process has ONE scenario exit guard, over the
+    /// picked owner's REAL session door; (2) an exit over a never-saved scenario (the editor and CGF, heard in Edit through their own bus and view) asks <i>Discard / Cancel</i> — Cancel does not take the exit, Discard
+    /// does; at rest (every host, the Orchestrator included) the exit is taken at once. (The menu's single registration is <c>CE1439_*</c> above.)
+    /// 🔴 Mutation: the composition not building <c>ScenarioExit</c> ⇒ the first exit row is taken unasked and the single-guard row finds none.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4101_OnTheConstructedHosts_TheExitGoesThroughTheOwnersDoor_OneGuardPerProcess() => ExitThroughTheOwnersDoor(withCgf: true);
+
+    /// <summary>⭐ The same rail without CGF (its DDS participant is what fails to create where DDS is unavailable): the editor and the Orchestrator alone.</summary>
+    [Fact(Timeout = 60_000)]
+    public void CE4101_OnTheConstructedEditorAndOrchestrator_TheExitGoesThroughTheOwnersDoor_OneGuardPerProcess() => ExitThroughTheOwnersDoor(withCgf: false);
+
+    private static void ExitThroughTheOwnersDoor(bool withCgf)
+    {
+        var editor = new EditorSubsystem();
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        var orchestrator = new Hrot.Orchestrator.OrchestratorSubsystem();
+        try
+        {
+            editor.Initialize(new SubsystemConfig { Headless = true });
+            editor.RegisterWindows(MakeWindowManager());
+            if (withCgf)
+            {
+                cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+                cgf.RegisterWindows(MakeWindowManager());
+            }
+            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+
+            // (1) every combination: ONE scenario exit guard, over the owner's session door
+            var sessions = new Dictionary<ISubsystem, Hrot.Editor.AiShared.Scenarios.IScenarioSession>
+            {
+                [editor] = editor.ScenarioSessionForTest!, [orchestrator] = orchestrator.ScenarioSessionForTest!,
+            };
+            if (withCgf) sessions[cgf] = cgf.ScenarioSessionForTest!;
+            var combos = new List<ISubsystem[]> { new ISubsystem[] { editor }, new ISubsystem[] { orchestrator }, new ISubsystem[] { editor, orchestrator } };
+            if (withCgf)
+                combos.AddRange(new[] { new ISubsystem[] { cgf }, new ISubsystem[] { orchestrator, cgf }, new ISubsystem[] { cgf, editor }, new ISubsystem[] { orchestrator, cgf, editor } });
+            foreach (var combo in combos)
+            {
+                var controller = ComposeLikeTheRunner(MakeWindowManager(), combo);
+                var owner = (ISubsystem)Assert.IsAssignableFrom<IProvidesRunControls>(controller.RunControlsOwner);
+                var guard = Assert.Single(((Hrot.ClusterRunner.Presentation.ExitGuardChain)controller.ExitGuard).Guards.OfType<Hrot.ClusterRunner.Presentation.ScenarioExitGuard>());
+                Assert.Same(((Hrot.UI.Common.RunMode.IHasScenarioDoor)sessions[owner]).Door, guard.Door);
+            }
+
+            // (2) exit over a never-saved scenario, heard in Edit, on the editor and CGF (each alone)
+            var edits = new List<(ISubsystem, HrotNodeContext?, RunModeChoice?)> { (editor, editor.NodeForTest, editor.RunChoiceForTest) };
+            if (withCgf) edits.Add((cgf, cgf.NodeForTest, cgf.RunChoiceForTest));
+            foreach (var (host, node, choice) in edits)
+            {
+                Assert.NotNull(node);
+                var controller = ComposeLikeTheRunner(MakeWindowManager(), host);
+                Assert.True(controller.ExitDue(true), $"{host.Name}: a cluster at rest — the exit is taken at once");
+
+                node!.EventBus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit });
+                node.EventBus.SwapBuffers();
+                node.ClusterSlave.View.Update();
+
+                Assert.False(controller.ExitDue(true), $"{host.Name}: exit over a never-saved scenario must ask");
+                Assert.Equal(new[] { "Discard", "Cancel" }, choice!.Pending!.Buttons.Select(b => b.Label));
+                choice.Pending.Cancel();
+                Assert.False(controller.ExitDue(false), $"{host.Name}: Cancel must not take the exit");
+
+                Assert.False(controller.ExitDue(true));
+                var ask = choice.Pending!;
+                ask.Resolve(ask.Buttons.Single(b => b.Label == "Discard"));
+                Assert.True(controller.ExitDue(false), $"{host.Name}: Discard exits");
+            }
+
+            // the Orchestrator alone, at rest: the exit is taken at once (its door has nothing to ask)
+            Assert.True(ComposeLikeTheRunner(MakeWindowManager(), orchestrator).ExitDue(true));
+        }
+        finally
+        {
+            orchestrator.Shutdown();
+            if (withCgf) cgf.Shutdown();
             editor.Shutdown();
         }
     }

@@ -213,6 +213,30 @@ public sealed class EditorScenarioSessionLoadTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4101</c> follow-up (AQ108 §2.11a ④) — the REAL session's <c>Door.Leave(Exit)</c> (what the composition's exit guard calls): a cluster at REST sends nothing (no Idle intent to stop nothing), a live run is
+    /// stopped by the ONE Idle intent, and — unlike New Exercise — the local world is NOT wiped (the process is going away, the scenario name is kept).
+    /// 🔴 Mutations: <c>RawLeave</c> without the Exit-at-Idle early return ⇒ the at-rest row publishes an intent; <c>RawLeave</c> clearing the world for any reason ⇒ the name row fails.
+    /// </summary>
+    [Fact]
+    public void CE4101_ExitThroughTheDoor_StopsALiveRunWithTheOneIdleIntent_SendsNothingAtRest_AndKeepsTheWorld()
+    {
+        var bus = new FdpEventBus();
+        var session = NewSession(bus);
+        ClusterIs(bus, session, ClusterState.Idle);
+        session.Door.Leave(LeaveReason.Exit);
+        Assert.Empty(Drain(bus));                                   // at rest: nothing to stop
+
+        session.OpenForEdit("kept");
+        session.Update();
+        Drain(bus);
+        ClusterIs(bus, session, ClusterState.OperatingLive);
+        session.Door.Leave(LeaveReason.Exit);
+        var sent = Assert.Single(Drain(bus));
+        Assert.Equal(ClusterState.Idle, sent.TargetState);          // the run is stopped
+        Assert.Equal("kept", session.LoadedScenarioName);           // Exit is not New Exercise: the world is not wiped
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4101</c> — <c>then</c> of a guarded open (New-from-a-recipe saves the seed as the new name AFTER the open) runs only once the open WENT OUT: not while the question is open, never after Cancel.
     /// 🔴 Red-proof: the door running <c>then</c> before <c>Admit</c> ⇒ the first assertion fails.
     /// </summary>

@@ -214,6 +214,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
     Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
 
+    // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — the scenario menu (File › Open / New Scenario, Open Recording, Save…) registered ONCE, by the host the composer picked as the ▶ owner; built in RegisterWindows.
+    private System.Action<Fdp.Presentation.WindowManager.WindowManager>? _composeScenarioMenu;
+    void Hrot.UI.Common.RunMode.IProvidesRunControls.ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager) => _composeScenarioMenu?.Invoke(windowManager);
+
     /// <summary>
     /// ⭐⭐ <c>BP-510</c> — this node's view of the current load's staging⇄runtime id table.
     /// <para>⭐ CGF is the SOURCE of that table *(<c>StagingEntityExtractor.OnRemap</c>)*, so unlike the
@@ -2906,11 +2910,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐ CE-4097 — "Save as… and go live": the Save-As dialog below, then the name back to the run choice (the dialog's callback is what saves)
         if (_clusterTimeAdapter?.RunChoice is { } runChoice && _saveAsBrowser != null && _scenarioSession != null)
             runChoice.SaveAsPrompt = onNamed => OpenScenarioSaveAsDialog(catalog, name => { _scenarioSession.SaveAs(name); onNamed(name); });
+        // ⭐ CE-4101 follow-up (AQ108 §2.11a ⑤) — NOT registered here any more: the registration is BUILT here (this is where the picker / Save-As composition lives) and handed to the composer,
+        //   which asks only the picked ▶ owner to run it (IProvidesRunControls.ComposeScenarioActions) — so in a multi-host process ONE host's menu wins by rule, never the last RegisterWindows.
         if (_scenarioSession != null)
-            Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
-                registerCommand: windowManager.ShellCommands.Register,
-                menu:            windowManager.GlobalMenu,
-                commands:        windowManager.ShellCommands,
+            _composeScenarioMenu = wm => Hrot.Editor.AiShared.Scenarios.ScenarioMenuCommands.Register(
+                registerCommand: wm.ShellCommands.Register,
+                menu:            wm.GlobalMenu,
+                commands:        wm.ShellCommands,
                 session:         _scenarioSession,
                 // ⭐⭐⭐ CE-049 (Axis-C E2) — THE TWO NULLS ARE GONE. 📄
                 //    docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §3 ③.

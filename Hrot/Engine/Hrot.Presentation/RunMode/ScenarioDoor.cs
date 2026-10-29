@@ -7,8 +7,7 @@ namespace Hrot.UI.Common.RunMode;
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — <b>why the user is LEAVING the open scenario for Idle</b> (the OUT door). The reason words the question ("<i>Starting a new exercise</i> leaves editing")
-/// and tells a rail which entry point it drove. ⚠ <see cref="BackToStart"/> and <see cref="Exit"/> are the callers CE-4100 ② wires (the Start-perspective switch and the app exit); the door already
-/// decides for them.
+/// and tells a rail which entry point it drove. ⚠ <see cref="Exit"/> is called by the composition's exit guard (CE-4101 follow-up); <see cref="BackToStart"/> has no caller (see its note).
 /// </summary>
 public enum LeaveReason
 {
@@ -18,9 +17,10 @@ public enum LeaveReason
     HttpStop,
     /// <summary>The film director's stop of its live run (no unsaved scenario can be in play there — it ends a run).</summary>
     DirectorStop,
-    /// <summary>Back to the Start perspective (CE-4100 ②).</summary>
+    /// <summary>Back to the Start perspective. ⚠ No caller: D16 has no such user action (Start is entered when the cluster rests in Idle, CE-4096), and every path to Idle that loses edits already goes through the door
+    /// (New Exercise, stop). Kept so a future "back to Start" action asks the door instead of inventing its own guard (AQ108 §2.11a deviation 13).</summary>
     BackToStart,
-    /// <summary>Exit the application (CE-4100 ②).</summary>
+    /// <summary>Exit the application — the <c>ScenarioExitGuard</c> the window composition builds over the picked owner's door (File › Exit, the window's [X]).</summary>
     Exit,
 }
 
@@ -252,8 +252,9 @@ public sealed class ScenarioDoor
     /// </summary>
     public void Leave(LeaveReason reason, IDoorAsker? asker = null, UnsavedAnswer? answered = null, Action? then = null)
     {
-        if (_leave is null) throw new InvalidOperationException("this door has no leave (the host's session did not give one)");
-        Admit(DoorMove.Leaving(reason), asker, answered, () => { _leave(reason); then?.Invoke(); });
+        // ⭐ CE-4101 follow-up — Exit asks the door even on a host whose session gave no raw leave (a bare choice): there is then nothing to unload, only the unsaved question to ask. Any other reason needs the leave.
+        if (_leave is null && reason != LeaveReason.Exit) throw new InvalidOperationException("this door has no leave (the host's session did not give one)");
+        Admit(DoorMove.Leaving(reason), asker, answered, () => { _leave?.Invoke(reason); then?.Invoke(); });
     }
 
     // ── the decision ───────────────────────────────────────────────────────────────────────────────────────────
