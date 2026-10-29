@@ -71,6 +71,11 @@ public sealed class ClusterConfiguration
     [JsonIgnore]
     public ClusterArmedMode InitialArmedMode { get; init; } = ClusterArmedMode.Live;
 
+    /// <summary>⭐ CE-3346 / R-3072 (AQ110 E) — what a node joining while a scenario load is PARKED gets: the default is today's behaviour (admitted into the load). A BOOTSTRAP parameter, ⛔ set by code, never read from the config file.
+    /// ⛔ <c>RefuseUntilLoaded</c> is not built — only when a deployment needs it.</summary>
+    [JsonIgnore]
+    public Fdp.Toolkit.Orchestration.AdmissionPolicy AdmissionPolicy { get; init; } = Fdp.Toolkit.Orchestration.AdmissionPolicy.JoinTheLoadWhenParked;
+
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
     /// <remarks>
     /// ⭐ <c>CE-4103</c> — a FRESH instance per read, not one cached for the process: <see cref="NasBasePath"/> is read from the environment

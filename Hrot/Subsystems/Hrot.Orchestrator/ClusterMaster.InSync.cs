@@ -98,7 +98,11 @@ public sealed partial class ClusterMaster
         // ⭐ A PARKED transition has not chosen its targets yet (they are read when it resumes) — a node joining meanwhile is
         //   admitted. 📐 Measured live: SimHost's first heartbeat landed while a load was parked for its files; it was left out
         //   of the load and caught up afterwards. Had it been the Brain, the load would have run with no scenario creator.
-        if (_currentDsmState == ClusterState.Idle && !TransitionInFlight)
+        //   ⭐ CE-3346 (AQ110 E) — that admission is the deployment's choice: under Lobby a node joining while the load is parked is NOT admitted — it waits,
+        //   not in sync, and C7 catches it up once the cluster operates. At rest in Idle (nothing parked) both policies admit.
+        //   ⛔ RefuseUntilLoaded (AQ110 E's third value) is not built — only when a deployment needs it.
+        bool parkedAndLobby = _parked != null && _config.AdmissionPolicy == Fdp.Toolkit.Orchestration.AdmissionPolicy.Lobby;
+        if (_currentDsmState == ClusterState.Idle && !TransitionInFlight && !parkedAndLobby)
             _inSync.Add(nodeId);
     }
 
