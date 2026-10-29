@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Text.Json.Nodes;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Toolkit.Orchestration;
 
 namespace Fdp.Toolkit.Scenario
 {
@@ -13,6 +15,9 @@ namespace Fdp.Toolkit.Scenario
     /// <c>Text</c> is what a Save writes back, and its name/hash are the recorder's fallback for a recording that has no copy (a run before CE-4091,
     /// or one with recording off) — but <b>for the version that ran, read this stamp</b>, never the recording meta's
     /// <c>ScenarioHash</c>.</para>
+    /// <para>⭐ <b>CE-3340 ② — and the readers go through ONE helper, <see cref="VersionOf"/></b>: the stamp of the recording's copy
+    /// (<see cref="FindCopy"/>), falling back to the recording meta's load-time hash ONLY when no copy / stamp is reachable (a recording from
+    /// before CE-4091, or a host that sees neither the master's ledger nor the archive). Nothing else reads <c>RecordingMetadata.ScenarioHash</c>.</para>
     /// <para>A plain file beside the copy's slices (<see cref="FileName"/>, not <c>.json</c>, so no per-node loader mistakes it for a slice);
     /// ⛔ never staged into a scenario that is opened for editing from the copy — that scenario is new, not a recording.</para>
     /// </summary>
@@ -41,6 +46,44 @@ namespace Fdp.Toolkit.Scenario
             };
             File.WriteAllText(Path.Combine(copyDirectory, FileName), json.ToJsonString());
             return stamp;
+        }
+
+        /// <summary>
+        /// ⭐ CE-3340 ② — the scenario copy of <paramref name="exerciseId"/> as a host that shares <paramref name="stagingRoot"/> can see it: the
+        /// master's ledger snapshot (<c>{staging}/nodes/node-N/recording_ledger/&lt;id&gt;.scenario</c>, while the run is unarchived), else the archive's
+        /// (<c>{shared}/exercises/&lt;id&gt;/scenario</c>); null when there is none. The same two places, in the same order, as the master's own lookup.
+        /// </summary>
+        public static string? FindCopy(string stagingRoot, Guid exerciseId)
+        {
+            if (exerciseId == Guid.Empty || string.IsNullOrEmpty(stagingRoot)) return null;
+            try
+            {
+                var nodes = Path.Combine(stagingRoot, OrchestrationConstants.NodesDirectoryName);
+                if (Directory.Exists(nodes))
+                    foreach (var node in Directory.EnumerateDirectories(nodes))
+                    {
+                        var snapshot = Path.Combine(node, OrchestrationConstants.RecordingLedgerDirectoryName, OrchestrationConstants.GetScenarioSnapshotName(exerciseId));
+                        if (Directory.Exists(snapshot)) return snapshot;
+                    }
+                var archived = OrchestrationConstants.GetArchivedScenarioDirectory(OrchestrationConstants.GetSharedRoot(stagingRoot), exerciseId);
+                return Directory.Exists(archived) ? archived : null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3340 ② — <b>THE reader of "which version of its scenario did this recording run"</b>: the hash in the stamp of the recording's copy
+        /// (<see cref="FindCopy"/>), else — no copy reachable, no stamp (a recording from before CE-4091), or an empty hash — the recording meta's
+        /// load-time <c>ScenarioHash</c>. Empty when neither knows. ⛔ Nobody else reads <c>RecordingMetadata.ScenarioHash</c>.
+        /// </summary>
+        public static string VersionOf(string stagingRoot, RecordingMetadata meta)
+        {
+            if (meta is null) throw new ArgumentNullException(nameof(meta));
+            if (FindCopy(stagingRoot, meta.ExerciseId) is { } copy && Read(copy) is { ScenarioHash.Length: > 0 } stamp) return stamp.ScenarioHash;
+            return meta.ScenarioHash ?? string.Empty;
         }
 
         /// <summary>The stamp in <paramref name="copyDirectory"/>, or null when there is none (a copy from before CE-4091) or it is unreadable.</summary>

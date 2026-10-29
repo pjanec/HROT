@@ -22,6 +22,22 @@ namespace Fdp.Toolkit.Orchestration
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";
 
+        /// <summary>The folder of the per-node staging roots, <c>{staging}/nodes/node-N</c> (<see cref="GetNodeStagingRoot(string,int)"/>).</summary>
+        public const string NodesDirectoryName = "nodes";
+
+        /// <summary>⭐ CE-3340 ② — the master's per-run ledger, inside its node staging root (<c>recording_ledger/</c>).</summary>
+        public const string RecordingLedgerDirectoryName = "recording_ledger";
+
+        /// <summary>⭐ CE-3340 ② — the archive's copy of a run's scenario, <c>{shared}/exercises/&lt;id&gt;/scenario/</c> (CE-3119).</summary>
+        public const string ArchivedScenarioDirectoryName = "scenario";
+
+        /// <summary>⭐ CE-3340 ② — the name of a run's start-time scenario copy in the ledger (<c>&lt;id&gt;.scenario</c>, beside its entry).</summary>
+        public static string GetScenarioSnapshotName(Guid exerciseId) => $"{exerciseId}.scenario";
+
+        /// <summary>⭐ CE-3340 ② — the archived scenario copy of <paramref name="exerciseId"/> under the shared (NAS) root.</summary>
+        public static string GetArchivedScenarioDirectory(string sharedRoot, Guid exerciseId)
+            => Path.Combine(sharedRoot, ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+
         /// <summary>
         /// Name of the cluster-wide SHARED directory — the NAS stand-in on a single box.
         /// <para>
@@ -70,7 +86,7 @@ namespace Fdp.Toolkit.Orchestration
             => GetNodeStagingRoot(ResolveStagingRoot(), nodeId);
 
         public static string GetNodeStagingRoot(string stagingRoot, int nodeId)
-            => Path.Combine(stagingRoot, "nodes", GetNodeDirectoryName(nodeId));
+            => Path.Combine(stagingRoot, NodesDirectoryName, GetNodeDirectoryName(nodeId));
 
         public static string GetNodeScenariosRoot(int nodeId)
             => Path.Combine(GetNodeStagingRoot(nodeId), ScenariosDirectoryName);

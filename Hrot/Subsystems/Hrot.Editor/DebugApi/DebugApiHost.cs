@@ -33,6 +33,9 @@ namespace Hrot.Editor.DebugApi
         private DebugApiService? _service;
         private bool _disposed;
 
+        /// <summary>⭐ CE-3340 ⑤ — cancelled by <see cref="Dispose"/>: the only bound of a wait that has no deadline of its own (a check round ends by the protocol).</summary>
+        private readonly System.Threading.CancellationTokenSource _shutdown = new();
+
         /// <summary>Maximum wall-clock seconds to wait for a scenario load to reach OperatingEdit.</summary>
         private const double ScenarioReadyTimeoutSeconds = 30.0;
 
@@ -2100,27 +2103,29 @@ namespace Hrot.Editor.DebugApi
                            + "after its wait: read load.notice in GET /cluster/roster on the orchestrator.");
         }
 
-        /// <summary>⭐ CE-4093 — how long a check round may take to answer: it is one capture + hash per node (~60 ms on a large scenario), so this is a stall, not slowness.</summary>
-        private const double UnsavedCheckTimeoutSeconds = 15.0;
-
         /// <summary>
         /// ⭐⭐ CE-4093 (AQ108 D20) — runs ONE check round through the master and waits for its answer, polled through the main-thread queue (the master and the
-        /// read model are ticked there). Returns the outcome, or the failure to send (no master reachable, or no answer within <see cref="UnsavedCheckTimeoutSeconds"/>).
+        /// read model are ticked there). Returns the outcome, or the failure to send (no master reachable, or this host shut down while it waited).
+        /// <para>⭐⭐ <b>CE-3340 ⑤ (R-4001) — NO deadline of its own.</b> The master ALWAYS ends the round: a node that dies is ejected on its heartbeat timeout
+        /// and <c>ClusterMaster.DropFromInFlightRounds</c> completes the round on the nodes that remain (measured:
+        /// <c>ClusterMasterUnsavedCheckTests.ARoundWhoseNodeIsEjected_StillCompletes_OnTheNodesThatRemain</c>), so the answer arrives within the heartbeat
+        /// timeout — the one time limit in the protocol. ⛔ The earlier fixed 15 s answered 504 to a valid round that was merely waiting for that. The wait is
+        /// bounded only by this host's lifetime (<see cref="_shutdown"/>, cancelled by <see cref="Dispose"/>): an <see cref="HttpListener"/> raises no per-request
+        /// abort signal, so a client that gave up leaves at most this poll (one queued main-thread read per 20 ms) until the round — which always ends — answers.</para>
         /// </summary>
         private async Task<(Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? Outcome, RouteResult? Failure)> RunCheckRoundAsync()
         {
             var started = await _jobQueue.RunOnMainThread(() => Service().StartUnsavedCheck()).ConfigureAwait(false);
             if (started.Error != null)
                 return (null, Fail(started.Error.StartsWith("No subsystem", StringComparison.Ordinal) ? 503 : 400, started.Error, started.HintCategory));
-            var sw = Stopwatch.StartNew();
-            while (sw.Elapsed.TotalSeconds < UnsavedCheckTimeoutSeconds)
+            while (!_shutdown.IsCancellationRequested)
             {
                 var outcome = await _jobQueue.RunOnMainThread(() => Service().UnsavedCheckOutcomeOrNull(started.RequestId)).ConfigureAwait(false);
                 if (outcome is not null) return (outcome, null);
-                await Task.Delay(20).ConfigureAwait(false);
+                try { await Task.Delay(20, _shutdown.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
             }
-            return (null, Fail(504, $"The unsaved-changes check was asked of the cluster but no answer came within {UnsavedCheckTimeoutSeconds:0}s "
-                                  + "(a node that never answers holds the round; see GET /cluster/roster).", DebugApiHints.Scenario));
+            return (null, Fail(503, "The debug API host shut down before the unsaved-changes check was answered.", DebugApiHints.Scenario));
         }
 
         /// <summary><c>POST /scenario/check-unsaved</c> — <c>{changed, changedNodes}</c>, the master's check round; 409 when the cluster is not open for editing.</summary>
@@ -2629,6 +2634,7 @@ namespace Hrot.Editor.DebugApi
         {
             if (_disposed) return;
             _disposed = true;
+            try { _shutdown.Cancel(); } catch { /* ignore */ }
             try { _listener.Stop(); } catch { /* ignore */ }
             try { _listener.Close(); } catch { /* ignore */ }
         }

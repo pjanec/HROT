@@ -2118,6 +2118,44 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3340</c> ② (AQ108 D7) — the director's takes compare against the version that RAN, the go-live stamp of the recording's copy: a recording whose meta
+    /// carries the hash AS LOADED but whose copy was stamped from the SAVED file (edit → save → go-live) gives the SAVED hash; one with no copy / stamp (a
+    /// recording from before CE-4091) falls back to its meta hash — in the ONE helper (<c>RecordedScenarioStamp.VersionOf</c>).
+    /// 🔴 Mutation: <c>AttachDirector</c> handing the store <c>m.ScenarioHash</c> again ⇒ the first assertion reads the load-time hash ⇒ red; the fallback arm removed
+    /// from <c>VersionOf</c> ⇒ the old recording reads empty (the file under the scenarios root) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3340_2_TheDirectorsTakes_ReadTheGoLiveStamp_AndAnOldRecordingFallsBackToItsMetaHash()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "ce3340-root");
+        const string loaded = """{"name":"s-film","v":1}""", saved = """{"name":"s-film","v":2}""";
+        string loadedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(loaded), savedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(saved);
+        Assert.NotEqual(loadedHash, savedHash);
+
+        var stamped = Guid.NewGuid();
+        string pathStamped = RecordFilmRun(Path.Combine(root, "nodes", "node-1", "exercises", stamped.ToString()), 2d, exerciseId: stamped, scenarioHash: loadedHash);
+        string copy = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetArchivedScenarioDirectory(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(root), stamped);
+        Directory.CreateDirectory(copy);
+        File.WriteAllText(Path.Combine(copy, "scenario.json"), saved);                       // the SAVED file the go-live copied
+        Fdp.Toolkit.Scenario.RecordedScenarioStamp.Write(copy, "s-film", DateTime.UtcNow);
+
+        var old = Guid.NewGuid();
+        string pathOld = RecordFilmRun(Path.Combine(root, "nodes", "node-1", "exercises", old.ToString()), 2d, exerciseId: old, scenarioHash: loadedHash);
+
+        _subsystem.RecordingsRoot = root;
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var pack = _subsystem.Director!;
+
+        OpenAndIndex(pathStamped);
+        Assert.Equal(savedHash, pack.Takes.ScenarioHash("s-film"));                          // the version that RAN, not the one loaded
+
+        OpenAndIndex(pathOld);
+        Assert.Equal(loadedHash, pack.Takes.ScenarioHash("s-film"));                         // no stamp: the meta hash
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-1305</c> TE-10 (docs/DESIGN_Director_Timeline_Editor.md §11v S1, success condition 3): "still keys captured by Verify" — a VERIFY run's recording
     /// (Alpha fires at 2.6 s and 3.6 s) and a take whose keys name STILLS, hung on Alpha's rounds, its bake made on ANOTHER run (2.0 / 3.0 s, another scenario
     /// hash — as a promoted take carries): the stills plan places each still at THIS run's event (key 2 at 2.6 + 0.5 = 3.1 s, key 3 at 3.6 s) through the runner's

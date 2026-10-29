@@ -71,6 +71,9 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// ⭐ <c>CE-4058</c> ② (Director Timeline TE-13) — the scenario this recording ran (its name/id) and its hash as loaded
         /// (<c>ScenarioDescription.HashOf</c>, the director's <c>TakeStore.ScenarioHash</c> rule), so a kept recording, its takes and a
         /// "promote" know what it is. Empty for a new scenario and for recordings that pre-date these fields.
+        /// <para>⚠ <b>CE-3340 ②</b> — the hash is "AS LOADED" (stamped once by the load step), so ⛔ it is NOT "the version that ran" after an edit → save →
+        /// go-live. The one reader of that is <c>RecordedScenarioStamp.VersionOf</c> (the go-live stamp of the recording's copy), which falls back to this
+        /// hash only when no copy / stamp is reachable. Kept for that fallback and the file format (an old recording reads on).</para>
         /// </summary>
         public string ScenarioName { get; set; } = "";
 

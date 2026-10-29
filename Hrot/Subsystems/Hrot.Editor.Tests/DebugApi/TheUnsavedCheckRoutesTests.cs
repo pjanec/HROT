@@ -53,9 +53,19 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
     /// <summary>The cluster read model: a round the master was asked for is answered as the test set it up (an answer to the id it was asked under).</summary>
     private UnsavedCheckOutcome? Outcome(Guid id)
-        => _master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id)
+        => _master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) && Waited(id)
             ? (_refusal is not null ? new UnsavedCheckOutcome(null, _refusal) : new UnsavedCheckOutcome(_verdict, null))
             : null;
+
+    /// <summary>⭐ CE-3340 ⑤ — how long the master takes to end a round (a node dead mid-round: until its heartbeat times out); zero = at once.</summary>
+    private TimeSpan _roundTakes = TimeSpan.Zero;
+    private readonly System.Collections.Generic.Dictionary<Guid, System.Diagnostics.Stopwatch> _askedAt = new();
+
+    private bool Waited(Guid id)
+    {
+        if (!_askedAt.TryGetValue(id, out var sw)) _askedAt[id] = sw = System.Diagnostics.Stopwatch.StartNew();
+        return sw.Elapsed >= _roundTakes;
+    }
 
     private (DebugApiHost Host, MainThreadJobQueue Queue, string Url) Start(bool observesChecks = true, ExerciseInventoryItem[]? exercises = null)
     {
@@ -107,6 +117,31 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("editing", body["error"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3340 ⑤ (R-4001) — the gate has NO deadline of its own: a round the master takes 17 s to end (a node died mid-round; its heartbeat timeout ejects it and
+    /// the round completes on the rest — <c>ClusterMasterUnsavedCheckTests.ARoundWhoseNodeIsEjected_StillCompletes_OnTheNodesThatRemain</c>) is still answered, both
+    /// by <c>POST /scenario/check-unsaved</c> and by the load's gate (409 "unsaved changes") — never the old fixed 15 s 504. 🔴 Mutation: a 15 s deadline back in
+    /// <c>RunCheckRoundAsync</c> ⇒ both cells answer 504 ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task ARoundTheMasterTakesLongToEnd_IsStillAnswered_NeverA504()
+    {
+        var (host, queue, url) = Start();
+        using var h = host;
+        _roundTakes = TimeSpan.FromSeconds(17);
+        _verdict = new UnsavedCheckResult(true, new[] { 4 });
+
+        var check = _client.PostAsync(url + "/scenario/check-unsaved", Json("{}"));
+        var load = _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}"""));
+        for (int i = 0; i < 6000 && !(check.IsCompleted && load.IsCompleted); i++) { queue.DrainAll(); await Task.Delay(5); }
+        var checkResponse = await check;
+        var loadResponse = await load;
+
+        Assert.Equal(HttpStatusCode.OK, checkResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, loadResponse.StatusCode);
+        Assert.Empty(_master.Transitions);                                        // the gate held the load, it did not time out into it
     }
 
     [Fact(Timeout = 90_000)]

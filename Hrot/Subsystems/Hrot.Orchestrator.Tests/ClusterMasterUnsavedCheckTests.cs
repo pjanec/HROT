@@ -87,6 +87,8 @@ public sealed class ClusterMasterUnsavedCheckTests
         public readonly List<ClusterOpCompletedEvent> Completed = new();
         /// <summary>What each node answers to <c>CheckUnsaved</c> (a missing node answers "unchanged").</summary>
         public readonly Dictionary<int, string> CheckAnswer = new();
+        /// <summary>⭐ CE-3340 ⑤ — nodes that never answer a <c>CheckUnsaved</c> (dead, but still on the roster until their heartbeat times out).</summary>
+        public readonly HashSet<int> SilentOnCheck = new();
         /// <summary>The status a node answers to a <c>SerializeLocal</c> (the save's node round); default Success.</summary>
         public OrchestrationStatusCode SaveRoundStatus = OrchestrationStatusCode.Success;
         /// <summary>When set, a successful <c>SerializeLocal</c> answer carries this manifest (the slices to pull) — the merge then waits for the NAS pull.</summary>
@@ -109,6 +111,7 @@ public sealed class ClusterMasterUnsavedCheckTests
         private NodeOpCompletedEvent? Respond(ExecuteNodeOpIntent i)
         {
             if (i.Operation == FdpNodeOpType.CommitState) return null;   // the slave applies it without an ACK
+            if (i.Operation == FdpNodeOpType.CheckUnsaved && SilentOnCheck.Contains(i.TargetNodeId)) return null;
             object? payload = null;
             var status = OrchestrationStatusCode.Success;
             if (i.Operation == FdpNodeOpType.CheckUnsaved)
@@ -213,6 +216,33 @@ public sealed class ClusterMasterUnsavedCheckTests
         Assert.False(r.Changed);
         Assert.Empty(r.ChangedNodes);
         Assert.False(rig.Master.LastUnsavedCheck!.Changed);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-3340 ⑤ (R-4001) — <b>the round always ends</b>, which is why the HTTP gate needs no deadline of its own: a node that never answers holds the round
+    /// (no timer fails it), and the moment its heartbeat timeout ejects it the master completes the round on the nodes that remain
+    /// (<c>DropFromInFlightRounds</c>) — the answer is the survivors' verdict. 🔴 Mutation: <c>EjectNode</c> not calling <c>DropFromInFlightRounds</c> ⇒ the round
+    /// never completes ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ARoundWhoseNodeIsEjected_StillCompletes_OnTheNodesThatRemain()
+    {
+        var rig = new Rig(A, B);
+        rig.GoTo(ClusterState.OperatingEdit);
+        rig.CheckAnswer[A] = "changed";
+        rig.SilentOnCheck.Add(B);                                   // B died: it will never answer
+
+        var id = Guid.NewGuid();
+        rig.Request(id, ClusterOpType.CheckUnsavedChanges);
+        rig.Settle(20);
+        Assert.DoesNotContain(rig.Completed, c => c.RequestId == id);   // held — no timer ends it
+
+        rig.Master.EjectNode(B);                                    // its heartbeat timed out
+        rig.Settle(4);
+
+        var r = ResultOf(rig.Completed.Last(c => c.RequestId == id));
+        Assert.True(r.Changed);
+        Assert.Equal(new[] { A }, r.ChangedNodes);                  // the verdict of the nodes that remain
     }
 
     /// <summary>Nobody to ask ⇒ "unchanged" at once (only the master's own fact could say otherwise).</summary>
