@@ -1661,73 +1661,58 @@ choice; a later slice with the admission policy (R4).
 
 *Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.
 
-### 11.8 ⭐⭐ The PLAYER's waiting screen — the IG lobby §11.7 left out *(ui, `2026-10-29`; `build-state: READY-TO-BUILD`; CE-1445)*
+### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: DESIGN`; CE-1445; R-1044)*
 
-📌 **Found by backend's late-join test:** a joining player sees no waiting screen. 📐 Cause, measured: `LocalWindowController.ComposeRunControls`
-composes `LoadingScreen` / `ClusterErrorStatusBarSection` only over the run-controls OWNER's `RunModeChoice`; `IgSubsystem` offers no
-`IProvidesRunControls` (grep: Editor, CGF, Orchestrator, SimHost only), so a process whose only host is the IG composes NEITHER. §11.7 deferred
-this on purpose (*"the IG lobby now — the IG has no run choice; a later slice with the admission policy"*) — backend's CE-3346 admission
-policy is that slice. ⚠ And even with an owner, `LoadingScreen` shows only on `Gate.Loading`, so a player parked in the Lobby (not loading,
-not in sync) would still see nothing.
+🔒 **R-1044 (user, `2026-10-29`):** *"The ECS host should be unified, but they should be configurable. So without explicit suppressing some controls, they need to have all of them, because by construction they cannot avoid them, because they are using shared code for Bootstrap. The player node might look differently But just because it is parameterizing its bootstrap code to honor its player role, like for example showing the waiting in the lobby screen."* · ExCon is to be retired and is not an ECS host — ⛔ not touched.
 
-INVENTORY (`scripts/cbm.sh search_graph` name `.*(LoadingScreen|ErrorStatusBar|ProvidesRunControls|RunGate|Lobby|WaitingScreen).*` ⇒ total 3,
-only `IProvidesRunControls` — ⚠ the index predates CE-1442, so the rest is from grep `LoadingScreen\|ClusterErrorStatusBarSection\|IProvidesRunControls` over `*.cs`;
-coverage could not be checked): `LoadingScreen` · `ClusterErrorStatusBarSection` · `RunGate` (+ `RunGate.From`) ·
-`IProvidesRunControls` · `HostGatePolicies` · `ClusterView.GateOpen(Player)` — one construction site each (`LocalWindowController.cs:129-130`),
-one rail (`TheStartGateIsComposedOnceTests.CE1442_*`). ⛔ No player screen exists anywhere.
+📌 **Found by backend's late-join test:** a joining player sees no waiting screen. 📐 **Cause, measured:** the run controls (gate, loading
+screen, error indicator, toolbar time control) are wired PER HOST — `new ClusterTimeTransportAdapter` + `AttachRunChoice` in CGF
+(`CgfSubsystem.cs:1849-1855`), SimHost (`SimHostSubsystem.cs:94-98`), the editor (`EditorSubsystem.cs:2444`) and the Orchestrator
+(`ClusterPanelRunControls.cs:57`), and `LocalWindowController.ComposeRunControls` composes the screen only over a host that offers
+`IProvidesRunControls`. The IG wires none ⇒ a player-only process draws no screen. ⚠ And the screen shows only while LOADING, so a player
+parked in the lobby would see nothing even if wired. ⛔ That is the defect R-1044 names: controls a host gets by REMEMBERING, not by construction.
+
+INVENTORY: `scripts/cbm.sh search_graph` name `.*(LoadingScreen|ErrorStatusBar|ProvidesRunControls|RunGate|Lobby|WaitingScreen).*` ⇒ total 3,
+only `IProvidesRunControls` (⚠ the index predates CE-1442; coverage could not be checked) · grep `new ClusterTimeTransportAdapter|AttachRunChoice(`
+⇒ the four per-host sites above · grep `SharedApplicationBootstrapper` ⇒ IG, SimHost, Traffic, Stride derive from it; ⚠ **CGF composes inline**
+(`CgfSubsystem.cs:928`, *"The other hosts get these from SharedApplicationBootstrapper; CGF composes inline"*) · every ECS node's
+`HrotNodeContext` carries `required ClusterSlave` (`HrotNodeContext.cs:101`) ⇒ `ClusterSlave.View` is the one input every ECS node already has.
 
 ```mermaid
 classDiagram
-    class RunGate { <<existing>> +From(ClusterView, HostGatePolicy) }
-    class RunGateSource { <<new record>> +Func~RunGate~ Gate +HostGatePolicy Policy +Action~string~? Cancel }
-    class LoadingScreen { <<existing, changed>> +Visible: Player ⇒ !Open · Operator ⇒ Loading +Text +Cancel only when Cancel != null }
-    class ClusterErrorStatusBarSection { <<existing, changed>> reads RunGateSource }
-    class IProvidesClusterGate { <<new interface>> +RunHostKind HostKind +ClusterView? ClusterView }
-    class IProvidesRunControls { <<existing>> +RunChoice }
-    class IgSubsystem { <<existing>> implements IProvidesClusterGate · ClusterView = app.ClusterSlave.View }
-    class LocalWindowController { <<existing>> ComposeRunControls picks ONE RunGateSource }
-    LoadingScreen --> RunGateSource
-    ClusterErrorStatusBarSection --> RunGateSource
-    RunGateSource ..> RunGate
-    LocalWindowController ..> IProvidesRunControls : owner's choice first
-    LocalWindowController ..> IProvidesClusterGate : else the gate-only host
-    IgSubsystem ..|> IProvidesClusterGate
+    class HrotNodeContext { <<existing, shared frame>> +ClusterSlave ClusterSlave }
+    class NodeRunProfile { <<new>> +RunHostKind Kind +IRunSessionControl? ScenarioControl +suppressions }
+    class NodeRunControls { <<new, ONE factory>> +For(HrotNodeContext, NodeRunProfile) +Transport +RunChoice +GateSource }
+    class ClusterTimeTransportAdapter { <<existing>> }
+    class RunModeChoice { <<existing>> }
+    class LoadingScreen { <<existing, changed>> Player ⇒ shown while gate closed, no Cancel }
+    class LocalWindowController { <<existing>> composes from the nodes' NodeRunControls }
+    NodeRunControls --> HrotNodeContext : ClusterSlave.View, bus, sim time
+    NodeRunControls --> NodeRunProfile
+    NodeRunControls *-- ClusterTimeTransportAdapter
+    NodeRunControls *-- RunModeChoice
+    LocalWindowController ..> NodeRunControls
+    LocalWindowController ..> LoadingScreen
 ```
-*What the picture shows that the prose hid: the screen needs a GATE, not a run choice — so the IG gets the same two panels through the same one
-composition point without being given a time transport (which Q54/D4 forbids: the IG must not offer a drive path).*
-
-```mermaid
-sequenceDiagram
-    participant LWC as LocalWindowController.ComposeRunControls
-    participant O as owner (IProvidesRunControls)
-    participant IG as IgSubsystem (IProvidesClusterGate)
-    participant LS as LoadingScreen
-    alt an owner with a RunChoice
-        LWC->>O: RunChoice
-        LWC->>LS: RunGateSource(() => choice.Gate, owner.GatePolicy, choice.CancelLoad)
-    else no owner, an IG in the process
-        LWC->>IG: ClusterView, HostKind (Ig)
-        LWC->>LS: RunGateSource(() => RunGate.From(view, Player), Player, Cancel: null)
-    end
-    loop every frame (status bar)
-        LS->>LS: Player and !Open ⇒ modal "Waiting for the scenario…" + reason (Loading ⇒ "Loading — progress"), no Cancel
-    end
-```
-*What it shows: one branch decides the source; the screen's draw is the same code for both.*
+*What the picture shows that the prose hid: the controls hang off the node frame every ECS host already builds, and the only per-host input is a
+PROFILE — so a host cannot lack them, and the player differs only by its profile (R-1044).*
 
 | decision | why |
 |---|---|
-| ① `LoadingScreen` / `ClusterErrorStatusBarSection` take a `RunGateSource`, not a `RunModeChoice` | they only ever read `Gate` and `CancelLoad`; the choice was incidental |
-| ② a Player-policy source shows the modal whenever the gate is CLOSED (lobby, catching up, loading, not in sync, error); Operator keeps "only while loading" | a player has nothing to operate until it is play-ready; an operator must keep the menus usable while waiting |
-| ③ the player's modal has NO Cancel | cancelling fails the load for the whole cluster (§11.7 ⑥) — not a player's call |
-| ④ text: Loading ⇒ *"Loading — {progress}"*; else *"Waiting for the scenario…"* with `Gate.Reason` beneath | the reason strings are the operator-facing `NotOperableReason`; the headline is the player's |
-| ⑤ the IG offers a gate via a new `IProvidesClusterGate`, picked only when no run-controls owner exists | an owner in the same process (`--mode all`) already draws the screen once; one per process |
+| ① ONE factory `NodeRunControls.For(context, profile)` replaces the four per-host adapter + `AttachRunChoice` copies (CGF, SimHost, editor, IG new) | R-1044 + "shared and unified": one construction, hosts agree by construction |
+| ② the profile carries what differs: host kind (⇒ gate policy via `HostGatePolicies.For`), the scenario control (editor / CGF), explicit suppressions | a difference must be a declared parameter, never an absence |
+| ③ the Player profile (IG): gate = Player policy; the screen shows whenever the gate is closed (lobby, catching up, loading, not in sync, error) as *"Waiting for the scenario…"* + reason (*"Loading — progress"* while loading); no Cancel; time-drive verbs suppressed (Q54/D4: the IG issues no ticks) | the player's look is its parameterisation, as R-1044 says |
+| ④ the composer keeps ONE owner per process (operator first, as today); in `--mode all` the editor's screen is the one drawn | one screen per process (§11.7 ④) |
+| ⑤ the Orchestrator (no ECS world) keeps its own panel wiring for now; ExCon untouched (retiring, not ECS) | R-1044 scopes ECS hosts |
 
-*Rejected:* **IG implements `IProvidesRunControls` (like SimHost)** — needs a `ClusterTimeTransportAdapter`, a drive path Q54/D4 says the IG must not
-have, and would put a time control on the player's toolbar · **the IG draws its own lobby window** — a second screen for one concept (ruling 9) ·
-**the screen reads `ClusterView` itself** — §11.7 ① (no control reads the view for the gate).
+*Rejected:* **an IG-only opt-in interface** (the first §11.8 draft, `032607257`) — one more per-host remembering, exactly what R-1044 forbids ·
+**the IG copies SimHost's wiring** — a fifth copy.
 
-**Acceptance (rails):** S1 a process with only an IG composes the screen and the error section, ONCE, over the IG's view with the Player policy
-(`TheStartGateIsComposedOnceTests`) · S2 Player source: visible when closed and not loading (lobby), text names the reason; hidden when play-ready ·
-S3 the player's modal draws no Cancel · S4 an operator owner keeps today's behaviour (the `CE1442_*` rails unchanged) · S5 IG + editor in one process
-⇒ the editor's source, one screen.
+⚠ **Open before READY-TO-BUILD:** CGF does not derive from `SharedApplicationBootstrapper` — the factory must be called where CGF builds its
+`HrotNodeContext` too, and a rail must assert every ECS host subsystem in `HROT.sln` ends up with a `NodeRunControls` (the construction proof).
+The editor builds on CGF's node; measure its path before drawing the sequence.
+
+**Acceptance (rails):** S1 every ECS host (Editor, CGF, SimHost, IG) has `NodeRunControls` after boot — asserted over the constructed hosts, not
+the source · S2 a player-only process composes the screen + error section once, Player policy · S3 Player: shown in the lobby (closed, not
+loading) with the reason; hidden when play-ready; no Cancel · S4 operator behaviour unchanged (`CE1442_*` rails) · S5 no `new
+ClusterTimeTransportAdapter` outside the factory and the Orchestrator.
