@@ -29,7 +29,8 @@ namespace Hrot.IG
     /// </summary>
     public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Hrot.Presentation.DebugApi.IProvidesDebugSurface
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         /// <inheritdoc/>
         public string Name => "IG";
@@ -109,6 +110,16 @@ namespace Hrot.IG
 
         // GZH-014: expose the gizmo controller for perspective-aware listener switching.
         public Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? GizmoController => _app?.GizmoController;
+
+        // ⭐⭐⭐ CE-1445 (R-1044, DESIGN_Cluster_Load_Phase §11.8) — the IG OFFERS its run controls like every ECS host: the Player gate + the waiting screen (the composer draws it over this choice).
+        //   ⛔ Not a drive: `CreateDebugProvider` above still has none (Q54/D4 — the IG issues no ticks); the toolbar time control is suppressed by the role's profile.
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Ig;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _app?.RunControls;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
+        bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
+
+        /// <summary>⭐ CE-1445 — the IG's run choice, for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _app?.RunControls?.RunChoice;
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)

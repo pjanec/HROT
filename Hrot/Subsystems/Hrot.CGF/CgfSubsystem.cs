@@ -1846,16 +1846,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var bus = _context?.EventBus;
         if (bus != null)
         {
-            _clusterTimeAdapter = new ClusterTimeTransportAdapter(
-                bus, () => _context?.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view
-                () => _context?.Kernel.CurrentTime.TotalTime ?? 0.0);
+            // ⭐⭐⭐ CE-1445 (R-1044) — the ONE factory builds the adapter + attaches the choice over the node frame; the host passes only its PROFILE.
             // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
             //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
             //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
-            _clusterTimeAdapter.AttachRunChoice(_scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
-                unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()),
-                gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf),   // ⭐ CE-1442 — from the table, never a literal
-                cancelLoad: reason => _context?.ClusterSlave.CancelLoad(reason));
+            _clusterTimeAdapter = Hrot.UI.Common.RunMode.NodeRunControls.For(_context!, new Hrot.UI.Common.RunMode.NodeRunProfile(
+                Hrot.UI.Common.RunMode.RunHostKind.Cgf,
+                Control: _scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+                UnsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider())));
             // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.
             // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
             //    📐 Measured `2026-08-25`: the editor registers `MainToolbarTimeControlSection` on its

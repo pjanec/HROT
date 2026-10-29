@@ -92,12 +92,10 @@ namespace Hrot.SimHost
         /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (the master's initial armed mode, R-1043) and ▶ from Edit is disabled with its reason.
         /// </summary>
         internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime, Action<string?>? cancelLoad = null)
-        {
-            var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
-            adapter.AttachRunChoice(control: null,
-                gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), cancelLoad: cancelLoad);   // ⭐ CE-1442
-            return adapter;
-        }
+            => Hrot.UI.Common.RunMode.NodeRunControls.For(bus, view, simTime, cancelLoad, SimHostProfile);   // ⭐ CE-1445 — the ONE factory; a rail without a node context reaches it through here
+
+        /// <summary>⭐ CE-1445 — what differs for SimHost: its kind (⇒ Operator policy) and no scenario session.</summary>
+        private static readonly Hrot.UI.Common.RunMode.NodeRunProfile SimHostProfile = new(Hrot.UI.Common.RunMode.RunHostKind.SimHost);
 
         Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.SimHost;
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
