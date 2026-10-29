@@ -119,6 +119,43 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     }
 
     /// <summary>
+    /// ⭐ <b>CE-3340 (R-3066) — no production file spells a content root of the NEW tree by hand</b>: <c>Path.Combine(…, "assets"|"recipes"|"scenarios"|"opened")</c>
+    /// or a <c>"assets/x"</c>-style literal. ⛔ The rail above only bans the OLD shapes; this one keeps the new tree from growing a second spelling beside
+    /// <c>ContentLayout</c> / <c>ContentTreeNames</c> (the one authority) and <c>OrchestrationConstants</c> (whose names ContentLayout reuses).
+    /// ⭐ <c>FDP/ExtDeps/</c> is excluded: a vendored project (SumoSharp) with its OWN <c>scenarios/</c> folder, not this content tree.
+    /// </summary>
+    private static readonly Regex HandSpelledNewContentRoot = new(
+        @"Path\.Combine\([^)]*""(assets|recipes|scenarios|opened)""|""(assets|recipes|opened)/[A-Za-z]",
+        RegexOptions.Compiled);
+
+    private static readonly string[] TheContentAuthorities = { "ContentLayout.cs", "ContentTreeNames.cs", "OrchestrationConstants.cs" };
+
+    [Fact]
+    public void NoProductionFileSpellsANewContentRootOutsideContentLayout()
+    {
+        var offenders = new List<string>();
+        var repoRoot  = RepoRoot();
+        var extDeps   = Path.Combine("FDP", "ExtDeps") + Path.DirectorySeparatorChar;
+
+        foreach (var file in ProductionSources(repoRoot))
+        {
+            var rel = Path.GetRelativePath(repoRoot, file);
+            if (rel.StartsWith(extDeps, StringComparison.Ordinal)) continue;
+            if (TheContentAuthorities.Contains(Path.GetFileName(file))) continue;
+            if (HandSpelledNewContentRoot.IsMatch(StrippedOfCommentLines(File.ReadAllText(file))))
+                offenders.Add(rel);
+        }
+
+        Assert.Equal(new List<string>(), offenders.OrderBy(x => x, StringComparer.Ordinal).ToList());
+
+        // ⚠ anti-vacuity: the pattern still matches each new-tree shape, and not the runner's help text ("scenarios/, assets/ and recipes/").
+        Assert.Matches(HandSpelledNewContentRoot, @"Path.Combine(nas, ""assets"", ""terrain"")");
+        Assert.Matches(HandSpelledNewContentRoot, @"Path.Combine(root, ""opened"")");
+        Assert.Matches(HandSpelledNewContentRoot, @"var p = ""recipes/scenarios"";");
+        Assert.DoesNotMatch(HandSpelledNewContentRoot, @"""scenarios/, assets/ and recipes/).""");
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>The ANTI-VACUITY half: something must still resolve all THREE roots</b> — ⛔ otherwise the
     /// forbid-scan above is satisfied by a tree that resolves nothing at all. 📌 <c>CE-064</c>'s shape:
     /// an assertion that is correct, universal and unreachable.
@@ -188,7 +225,10 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
                      && !f.Contains(".Tests" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
                      && !f.Contains(Path.DirectorySeparatorChar + "examples" + Path.DirectorySeparatorChar,
-                                    StringComparison.OrdinalIgnoreCase));
+                                    StringComparison.OrdinalIgnoreCase)
+                     // ⭐ CE-3340 — never a hidden directory: `.claude/worktrees/*` holds other checkouts (agents' worktrees, old commits) whose
+                     //   sources are not this tree's production code; 📌 measured 2026-10-29, both content rails read a paused worktree's files.
+                     && !Path.GetRelativePath(repoRoot, f).Split(Path.DirectorySeparatorChar).Any(part => part.StartsWith('.')));
 
     private static string TheFile(string fileName)
     {
