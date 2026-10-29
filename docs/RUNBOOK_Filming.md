@@ -101,7 +101,8 @@ launch() { (cd $D && FDP_STAGING_ROOT=/tmp/films-staging HROT_DEBUG_API_PORT=$2 
   xvfb-run -a --server-args="-screen 0 1600x1000x24" dotnet Hrot.ClusterRunner.dll -m $1 --no-wait > /tmp/$1.log 2>&1 < /dev/null &) ; }
 launch editor 8120          # up in ~15 s
 launch replaybrowser 8121   # up in ~9 s — may start later, it scans the folder when asked
-c() { curl -s --noproxy '*' -m 150 -X $1 http://localhost:$2$3 -H 'Content-Type: application/json' -d "${4:-{\}}"; echo; }
+c() { if [ "$1" = POST ]; then curl -s --noproxy '*' -m 150 -X POST "http://localhost:$2$3" -H 'Content-Type: application/json' -d "${4:-{\}}"
+      else curl -s --noproxy '*' -m 30 "http://localhost:$2$3"; fi; echo; }   # usage: c GET|POST <port> <route> [json]
 ```
 
 **② Record a live run in the editor:**
@@ -120,7 +121,7 @@ c POST 8120 /sim/stop                                          # ■: back to ed
 c GET  8121 /exercises                                         # {exerciseId, scenario, durationSeconds} — newest first
 c POST 8121 /replay '{"exerciseId":"<id>"}'                    # OperatingReplay, the recorded entities
 c GET  8121 /director/moments                                  # combat beats to anchor shots on (empty if nothing fired)
-c GET  "8121" "/entities/<networkId>"                          # Components.SimTransform.Position — where to point the camera
+c GET  8121 /entities/<networkId>                          # Components.SimTransform.Position — where to point the camera
 c POST 8121 /director/play '{"scenario":"hill-attack","recording":"<id>","speed":4,
   "take":{"title":"…","shots":[{"at":2,"seconds":6,"lookAt":[668,522,0],"distance":150,"yaw":45,"pitch":-35,"orbit":3},
                                {"at":10,"seconds":6,"lookAt":[668,522,0],"distance":40,"yaw":225,"pitch":-15}]}}'
