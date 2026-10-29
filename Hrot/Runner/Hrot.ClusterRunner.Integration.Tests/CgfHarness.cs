@@ -30,14 +30,6 @@ public sealed class CgfHarness : IDisposable
 
     private static int _domainCounter = CgfDomainIdBase - 1;
 
-    // ⭐ CE-4089 — this harness is the in-process composition root, so it does what the runner's Program.cs does at every dev start: seed the NAS from
-    //    the repository (scenarios/, assets/, recipes/). The nodes read ONLY the NAS now (no shipped terrains in the test output). Once per process.
-    static CgfHarness()
-    {
-        Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
-    }
-
-
     public int          DomainId { get; }
     public CgfSubsystem CgfSvc   { get; }
 
@@ -75,13 +67,10 @@ public sealed class CgfHarness : IDisposable
             localNodeId:  0,
             role:         NodeRole.Brain);
         CgfSvc   = new CgfSubsystem(cgfFactory);
-        CgfSvc.Initialize(new SubsystemConfig
-        {
-            DomainId = domainId,
-            Headless = true,   // Run CGF headless in integration tests (no Raylib/ImGui window).
-                               // DDS is still active: CgfSubsystem.Initialize hardcodes
-                               // HrotNodeConfig.Headless = false regardless of this flag.
-        });
+        // ⭐ CE-3340 ③ — started through the ONE host start (SubsystemOrchestrator.Initialize), like every host: it seeds the NAS from the
+        // repository before CGF's Initialize reads it. Headless: no Raylib/ImGui window; DDS is still active (CgfSubsystem.Initialize
+        // hardcodes HrotNodeConfig.Headless = false regardless of this flag).
+        new SubsystemOrchestrator(new ISubsystem[] { CgfSvc }, new RunnerOptions { Headless = true, DomainId = domainId }).Initialize();
 
         Warmup();
     }

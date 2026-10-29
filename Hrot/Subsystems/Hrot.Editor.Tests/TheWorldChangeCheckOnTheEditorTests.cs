@@ -110,7 +110,9 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
         // ⭐ CE-4093 (master side) — the editor's debug API starts when this variable names a port AT INITIALIZE: the master-side rails below talk HTTP to it
         string? before = Environment.GetEnvironmentVariable("HROT_DEBUG_API_PORT");
         if (httpPort > 0) Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", httpPort.ToString());
-        try { editor.Initialize(new SubsystemConfig { Headless = true }); }
+        // ⭐ CE-3340 ③ — started through the ONE host start (SubsystemOrchestrator.Initialize), as every host is: it seeds the NAS (terrain, scenarios) before the
+        // editor reads it. ⛔ A bare editor.Initialize(...) is not a host start and no longer seeds.
+        try { new SubsystemOrchestrator(new ISubsystem[] { editor }, new RunnerOptions { Headless = true }).Initialize(); }
         finally { if (httpPort > 0) Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", before); }
         try
         {

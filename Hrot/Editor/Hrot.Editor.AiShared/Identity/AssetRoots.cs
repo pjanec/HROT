@@ -14,7 +14,7 @@ namespace Hrot.Editor.AiShared;
 /// <para>
 /// <b>Root resolution (L4):</b> <see cref="ConfiguredRoot"/> (<c>--asset-root</c>, ruling 67) → the <b>NAS root</b>
 /// (<see cref="ContentLayout.NasRoot"/>). ⛔ No source-project walk-up and no <see cref="AppContext.BaseDirectory"/> arm for content:
-/// a dev start SEEDS the NAS from the repository (<c>CuratedScenarios.SeedIntoNas</c>), and every node reads only the NAS.
+/// a dev start SEEDS the NAS from the repository (<c>ContentSeed.SeedIntoNas</c> (called once, by <c>SubsystemOrchestrator.Initialize</c>)), and every node reads only the NAS.
 /// </para>
 /// <para>
 /// Scenario has <b>no</b> Assets root — its only root here is <see cref="ScenariosRecipesRoot"/> (the seeds a new scenario is created

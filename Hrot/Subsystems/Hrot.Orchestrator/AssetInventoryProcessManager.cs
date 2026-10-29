@@ -289,7 +289,7 @@ public sealed class AssetInventoryProcessManager
         try
         {
             var copied = StorageGatewayModule.CopyScenarioFiles(
-                Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioId!), snapshot);
+                ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioId!), snapshot);
             if (copied == 0)
                 FdpLog<AssetInventoryProcessManager>.Warn(
                     "[AssetInventory] scenario '{0}' has no files on the NAS; exercise {1} archives without a scenario copy.",
@@ -340,7 +340,7 @@ public sealed class AssetInventoryProcessManager
     /// <summary>
     /// ⭐⭐ CE-4091 (AQ108 D7, D22) — OPENS A RECORDED COPY AS A NEW SCENARIO: when <paramref name="scenarioName"/> is
     /// <see cref="RecordedScenarioNames.ForExercise"/>'s name, puts the recording's scenario copy (without its stamp) at
-    /// <c>&lt;nas&gt;/scenarios/Recipes/Recorded/&lt;id&gt;/</c> — the place every node's load of that name resolves — and returns true; false for any
+    /// <c>&lt;nas&gt;/opened/recorded/&lt;id&gt;/</c> — the place every node's load of that name resolves — and returns true; false for any
     /// other name. ⛔ It reads the copy and writes ONLY that new folder: never the original scenario's folder, never the recording or its copy.
     /// Run by the prefetch BEFORE it stages the name to the nodes (so it may run off the frame thread: it touches only the file system).
     /// A recording with no copy throws — the load is then refused like any scenario that is not there.
@@ -350,8 +350,7 @@ public sealed class AssetInventoryProcessManager
         if (!RecordedScenarioNames.TryParse(scenarioName, out var exerciseId)) return false;
         var source = FindRecordedCopy(exerciseId)
             ?? throw new DirectoryNotFoundException($"[AssetInventory] exercise {exerciseId} has no scenario copy to open (recorded before CE-3119, recording off, or discarded).");
-        var dest = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName,
-            RecordedScenarioNames.RecipesFolder, RecordedScenarioNames.RecordedFolder, exerciseId.ToString());
+        var dest = RecordedScenarioNames.DirectoryFor(_nasBasePath, exerciseId);
         if (Directory.Exists(dest)) Directory.Delete(dest, recursive: true);   // always the recording's copy as it is, never a half-edited earlier open
         if (StorageGatewayModule.CopyScenarioFiles(source, dest, exceptFileName: RecordedScenarioStamp.FileName) == 0)
             throw new InvalidOperationException($"[AssetInventory] the scenario copy of exercise {exerciseId} is empty.");
@@ -373,7 +372,7 @@ public sealed class AssetInventoryProcessManager
 
             if (string.IsNullOrWhiteSpace(entry.ScenarioId)) return;
             var copied = StorageGatewayModule.CopyScenarioFiles(
-                Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, entry.ScenarioId!), dest);
+                ContentLayout.ResolveScenarioDirectory(_nasBasePath, entry.ScenarioId!), dest);
             FdpLog<AssetInventoryProcessManager>.Warn(
                 "[AssetInventory] exercise {0} had no start-time scenario snapshot; archived the CURRENT '{1}' ({2} file(s)).",
                 exerciseId, entry.ScenarioId, copied);

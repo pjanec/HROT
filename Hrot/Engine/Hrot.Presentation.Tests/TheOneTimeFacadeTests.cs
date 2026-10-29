@@ -811,7 +811,7 @@ public sealed class TheOneTimeFacadeTests
 
     /// <summary>
     /// ⭐ CE-4091 / AQ108 §3 — AAR → Preview from the indicator: when the host says the saved scenario differs from the one the recording ran, the confirmation offers
-    /// <i>Open the recorded version (as a copy)</i> (→ <c>OpenForEdit(Recipes/Recorded/&lt;exercise&gt;)</c>) and <i>Open the current scenario</i>; when it does not (or cannot tell) it is the plain one.
+    /// <i>Open the recorded version (as a copy)</i> (→ <c>OpenForEdit(opened/recorded/&lt;exercise&gt;)</c>) and <i>Open the current scenario</i>; when it does not (or cannot tell) it is the plain one.
     /// 🔴 Red-proof: the recorded button opening the current scenario's name ⇒ the name assertion; <c>RecordedVersionDiffers</c> ignored ⇒ the plain row grows two buttons.
     /// </summary>
     [Fact]

@@ -324,7 +324,7 @@ public sealed class StorageGatewayModule
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
-        var sourceDir = Path.Combine(nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+        var sourceDir = ContentLayout.ResolveScenarioDirectory(nasBasePath, scenarioId);   // ⭐ L6 — a saved scenario, a recipe or an opened copy
         if (!Directory.Exists(sourceDir))
             throw new DirectoryNotFoundException(
                 $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' does not exist. " +

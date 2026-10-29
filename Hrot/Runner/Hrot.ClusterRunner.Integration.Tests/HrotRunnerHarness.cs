@@ -54,13 +54,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
     private static int _domainCounter = DomainIdBase - 1;
 
-    // ⭐ CE-4089 — this harness is the in-process composition root, so it does what the runner's Program.cs does at every dev start: seed the NAS from
-    //    the repository (scenarios/, assets/, recipes/). The nodes read ONLY the NAS now (no shipped terrains in the test output). Once per process.
-    static HrotRunnerHarness()
-    {
-        Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
-    }
-
+    // ⭐ CE-3340 ③ — no seed here: the content seed runs inside SubsystemOrchestrator.Initialize, which this harness calls like every host.
 
     public int DomainId { get; }
     public SubsystemOrchestrator Orchestrator { get; }

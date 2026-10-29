@@ -1427,7 +1427,7 @@ namespace Hrot.Editor.DebugApi
             Params: new RouteParam[]
             {
                 new("name", "string", false, "Scenario name (relative path). Required unless recorded is sent; not with it."),
-                new("recorded", "string", false, "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named Recipes/Recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."),
+                new("recorded", "string", false, "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named opened/recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."),
                 new("waitForReady", "boolean", false, "Wait for the cluster to reach OperatingEdit before returning",
                     DefaultJson: "false"),
                 new("discardUnsaved", "boolean", false, "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",

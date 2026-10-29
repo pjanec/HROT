@@ -320,16 +320,8 @@ class Program
         //    ⚠ A configured-but-missing directory THROWS here, at startup, by design.
         Hrot.Editor.AiShared.AssetRoots.Configure(config.AssetRoot);
 
-        // ⭐⭐⭐ THE CONTENT SEED (CE-4089, R-4097; DESIGN_Content_Layout §2) — the repository is the DEVELOPMENT SEED of the NAS.
-        //    At EVERY dev start, before any subsystem initialises (the asset catalogues read the NAS from Initialize), copy scenarios/,
-        //    assets/ and recipes/ from the source tree into the NAS root; every node then reads ONLY the NAS. A production install has no source
-        //    tree, so this is a no-op there. ⭐ HN-029's seed used to run only when the debug port was on; the design's sequence has the seed
-        //    at every start, so the gate is gone. ⚠ Only files whose bytes differ are written, atomically (CE-1365); nothing is deleted.
-        {
-            var seeded = Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
-            Console.WriteLine($"[Runner] Content seed into '{Fdp.Toolkit.Orchestration.ContentLayout.NasRoot}': {seeded.Count} file(s) written"
-                + (Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree() == null ? " (no source tree — the NAS is the only source)." : "."));
-        }
+        // ⭐⭐⭐ THE CONTENT SEED is NOT here (CE-4089 → CE-3340 ③): it runs inside SubsystemOrchestrator.Initialize — the ONE place every host's start
+        //    passes through (this runner, the editor inside it, the in-process harnesses) — before any subsystem initialises.
 
         // Propagate configurable AI project path to the editor subsystem before Initialize().
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
@@ -445,9 +437,6 @@ class Program
             {
                 // ① Capture must be ON before any panel draws, or every dump is empty.
                 Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
-
-                // ⭐ CE-4089 — the content seed (HN-029's scenarios, now scenarios + assets + recipes) is NOT here any more: it runs at EVERY
-                //    dev start, before any subsystem initialises (see "THE CONTENT SEED" above), no longer only when this debug port is on.
 
                 // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its

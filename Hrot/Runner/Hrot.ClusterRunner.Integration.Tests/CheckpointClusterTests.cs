@@ -251,7 +251,7 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task CE4090_ALiveRunWithRecordingOff_WritesNoExercise_NoLedger_AndEveryGateRefusesAtTheMaster()
     {
-        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(RepoRoot()), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
@@ -338,7 +338,7 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task CE4090_AVerifyRun_RecordsEvenWithTheSettingOff()
     {
-        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(RepoRoot()), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 

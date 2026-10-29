@@ -214,7 +214,7 @@ public sealed class StorageProcessManager
     /// </summary>
     private void MergeScenarioSlices(string scenarioName, List<FileManifestEntry> manifest)
     {
-        var scenarioDir = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioName);
+        var scenarioDir = Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName);
         var slicesDir   = Path.Combine(scenarioDir, ".slices");
         var foreignDir  = Path.Combine(scenarioDir, "foreign");
 

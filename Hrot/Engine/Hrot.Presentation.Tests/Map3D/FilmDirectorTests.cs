@@ -639,6 +639,30 @@ public sealed class FilmDirectorTests
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
+    /// <summary>
+    /// ⭐ L6 — "new from a recipe" loads the recipe by its root-spelled name (<c>recipes/scenarios/&lt;seed&gt;</c>), so its takes are read from the RECIPES root, not
+    /// from a <c>scenarios/recipes/scenarios/&lt;seed&gt;</c> folder that does not exist: a store over the scenarios root lists the recipe's takes and <c>CopyTakes</c> carries them to the
+    /// new scenario. 🔴 Mutation: <c>ScenarioDirectory</c> / <c>CopyTakes</c> composing <c>Path.Combine(scenariosRoot, name)</c> by hand ⇒ no takes, 0 copied.
+    /// </summary>
+    [Fact]
+    public void L6_ARecipesTakes_AreReadFromTheRecipesRoot_AndCarriedToTheNewScenario()
+    {
+        var nas = Path.Combine(Path.GetTempPath(), $"l6-takes-{Guid.NewGuid():N}");
+        try
+        {
+            var scenarios = Fdp.Toolkit.Orchestration.ContentLayout.Scenarios(nas);
+            new TakeStore(() => Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(nas), () => null)
+                .Save(new Take { Scenario = "demo", Name = "main", Shots = new[] { Shot("""{"at":1,"seconds":2,"follow":"X"}""") } });
+            var recipeName = Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName("demo");
+            var store = new TakeStore(() => scenarios, () => null);
+
+            Assert.Equal(new[] { "main" }, store.TakesOf(recipeName));
+            Assert.Equal(1, TakeStore.CopyTakes(scenarios, recipeName, "mine"));
+            Assert.True(store.Load("mine", "main").Ok);
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, true); }
+    }
+
     // ── TE-2 / T1 — take format v2: keys, segments, shots read as keys, ProgramAt ─────────────────────────────
 
     private const string V2Take = """

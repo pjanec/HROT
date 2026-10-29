@@ -123,7 +123,7 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>⭐ The NAS folder holding the behaviour-asset trees, one sub-folder per kind id —
         /// <c>{nas}/assets/&lt;kind&gt;/</c> (docs/DESIGN_Asset_Management.md §10 D5).</summary>
-        public const string NasAssetsDirectoryName = "assets";
+        public const string NasAssetsDirectoryName = ContentTreeNames.Assets;   // CE-3340 (4) — one spelling, shared with the generators
 
         /// <summary>The NAS tree of one asset-sync kind — ⭐ <c>CE-4089</c>: routed through <see cref="ContentLayout.AssetSyncRoot"/>, so a behaviour
         /// kind (<c>blueprint</c>/<c>btree</c>/<c>hsm</c>) is <c>{nas}/assets/behaviors/&lt;Folder&gt;</c>, the SAME tree the dev seed fills.</summary>

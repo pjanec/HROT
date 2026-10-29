@@ -1,5 +1,5 @@
 #!/bin/bash
-# CE-4078 repro (AQ91 §4-B3 S0): orchestrator + cgf + simhost + traffic as separate processes under Xvfb, Recipes/demo-city live,
+# CE-4078 repro (AQ91 §4-B3 S0): orchestrator + cgf + simhost + traffic as separate processes under Xvfb, recipes/scenarios/demo-city live,
 # then the 3-D map opened on CGF (POST /film/shot); prints /status round-trips, the master's ejections/catch-ups and each node's longest log silences.
 # Uses ports 8600-8604 and DDS domain 61; kills only its own nodes. Set HROT_RUNNER_DLL to test another build.
 set -u
@@ -8,7 +8,7 @@ N=$(cd "$(dirname "$0")" && pwd)/cluster-node.sh; D=61
 for p in 8600 8601 8602 8604; do $N kill $p >/dev/null 2>&1; done
 $N start orchestrator 8600 0 $D; $N start cgf 8601 0 $D; $N start simhost 8602 0 $D; $N start traffic 8604 0 $D
 echo "== up $(date +%T)"
-curl -s --noproxy '*' --max-time 180 -X POST localhost:8600/scenario/load/live -H 'Content-Type: application/json' -d '{"name":"Recipes/demo-city","waitForReady":true,"startPaused":false}' | cut -c1-200; echo
+curl -s --noproxy '*' --max-time 180 -X POST localhost:8600/scenario/load/live -H 'Content-Type: application/json' -d '{"name":"recipes/scenarios/demo-city","waitForReady":true,"startPaused":false}' | cut -c1-200; echo
 sleep 5
 echo "== open the 3-D map on CGF (film shot) $(date +%T.%N | cut -c1-12)"
 t0=$(date +%s.%N); r=$(curl -s --noproxy '*' --max-time 170 -X POST localhost:8601/film/shot -H 'Content-Type: application/json' -d '{"lookAt":[400,400,0],"distance":350,"yawDeg":45,"pitchDeg":-35}'); echo "film/shot took $(echo "$(date +%s.%N) - $t0" | bc | cut -c1-6) s: ${r:0:200}"

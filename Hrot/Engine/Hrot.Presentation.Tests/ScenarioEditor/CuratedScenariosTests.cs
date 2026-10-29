@@ -23,12 +23,12 @@ public class CuratedScenariosTests
     {
         var dir = Path.Combine(root, relName.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, CuratedScenarios.MarkerFileName), body);
+        File.WriteAllText(Path.Combine(dir, ContentSeed.MarkerFileName), body);
     }
 
     private static string ReadScenario(string root, string relName)
         => File.ReadAllText(Path.Combine(root, relName.Replace('/', Path.DirectorySeparatorChar),
-                                         CuratedScenarios.MarkerFileName));
+                                         ContentSeed.MarkerFileName));
 
     [Fact]
     public void CuratedRelPaths_ListsEveryFolderWithAMarker_IncludingNested()
@@ -39,7 +39,7 @@ public class CuratedScenariosTests
         WriteScenario(src, "Combat/Ambush", "{}");   // nesting, like the runtime enumerator
         Directory.CreateDirectory(Path.Combine(src, "not-a-scenario"));   // no marker → not listed
 
-        var names = CuratedScenarios.CuratedRelPaths(src);
+        var names = ContentSeed.CuratedRelPaths(src);
 
         Assert.Equal(new[] { "Combat/Ambush", "test-fire", "test-move" }, names.ToArray());
     }
@@ -53,7 +53,7 @@ public class CuratedScenariosTests
         WriteScenario(work, "test-fire", "USER-EDIT");     // will be overwritten by the curated copy
         WriteScenario(work, "my-own", "MINE");             // NOT curated → must survive untouched
 
-        var copied = CuratedScenarios.SeedFrom(src, work);
+        var copied = ContentSeed.SeedFrom(src, work);
 
         Assert.Equal(new[] { "test-fire" }, copied.ToArray());
         Assert.Equal("GIT-v2", ReadScenario(work, "test-fire"));   // force-overwrote the user's edit
@@ -69,7 +69,7 @@ public class CuratedScenariosTests
         WriteScenario(src, "test-fire", "{}");
         File.WriteAllText(Path.Combine(src, "test-fire", "notes.txt"), "sidecar");
 
-        CuratedScenarios.SeedFrom(src, work);
+        ContentSeed.SeedFrom(src, work);
 
         Assert.Equal("sidecar", File.ReadAllText(Path.Combine(work, "test-fire", "notes.txt")));
     }
@@ -112,7 +112,7 @@ public class CuratedScenariosTests
         var work = NewTempDir();
         WriteScenario(work, "my-own", "MINE");
 
-        var copied = CuratedScenarios.SeedFrom(src, work);
+        var copied = ContentSeed.SeedFrom(src, work);
 
         Assert.Empty(copied);
         Assert.Equal("MINE", ReadScenario(work, "my-own"));
@@ -140,14 +140,14 @@ public class CuratedScenariosTests
         string a = "{\"v\":\"" + new string('a', 2_000_000) + "\"}", b = "{\"v\":\"" + new string('b', 1_500_000) + "\"}";
         WriteScenario(srcA, "golden", a);
         WriteScenario(srcB, "golden", b);
-        CuratedScenarios.SeedFrom(srcA, work);
+        ContentSeed.SeedFrom(srcA, work);
 
         var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
         using var stop = new System.Threading.CancellationTokenSource();
         var seeders = Enumerable.Range(0, 8).Select(i => System.Threading.Tasks.Task.Run(() =>
         {
             for (int n = 0; n < 25; n++)
-                try { CuratedScenarios.SeedFrom(i % 2 == 0 ? srcA : srcB, work); }
+                try { ContentSeed.SeedFrom(i % 2 == 0 ? srcA : srcB, work); }
                 catch (System.Exception e) { failures.Enqueue("seed: " + e.GetType().Name + " " + e.Message); }
         })).ToArray();
         var reader = System.Threading.Tasks.Task.Run(() =>
@@ -203,7 +203,7 @@ public class CuratedScenariosTests
         var tree = NewSourceTree();
         var nas = NewTempDir();
 
-        var first = CuratedScenarios.SeedTreeFrom(tree, nas);
+        var first = ContentSeed.SeedTreeFrom(tree, nas);
 
         Assert.Equal("SCN-v1", Read(ContentLayout.Scenarios(nas), "demo/scenario.json"));
         Assert.Equal("TERRAIN-v1", Read(ContentLayout.TerrainAssets(nas), "demo-city/terrain.json"));
@@ -213,10 +213,10 @@ public class CuratedScenariosTests
         Assert.Equal("RECIPE-v1", Read(ContentLayout.BehaviorRecipes(nas, ContentLayout.BlueprintsFolder), "R.bp.json"));
         Assert.Equal(6, first.Count);
 
-        Assert.Empty(CuratedScenarios.SeedTreeFrom(tree, nas));        // identical bytes ⇒ nothing written
+        Assert.Empty(ContentSeed.SeedTreeFrom(tree, nas));        // identical bytes ⇒ nothing written
 
         Write(ContentLayout.BehaviorAssets(tree, ContentLayout.BTreesFolder), "Samples/A.btree.json", "BT-v2");
-        var again = CuratedScenarios.SeedTreeFrom(tree, nas);
+        var again = ContentSeed.SeedTreeFrom(tree, nas);
         Assert.Single(again);                                          // only the changed file
         Assert.EndsWith("A.btree.json", again[0]);
         Assert.Equal("BT-v2", Read(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/A.btree.json"));
@@ -234,7 +234,7 @@ public class CuratedScenariosTests
         Write(ContentLayout.IconAssets(nas), "published-only.png", "MINE");
 
         Assert.Null(ContentLayout.TryFindSourceTree(outside));
-        Assert.Empty(CuratedScenarios.SeedIntoNas(nas, outside));
+        Assert.Empty(ContentSeed.SeedIntoNas(nas, outside));
         Assert.False(CuratedScenarios.CanSaveToGit(outside));
         Assert.Empty(CuratedScenarios.SaveToGit(nas, outside));
         Assert.Equal("MINE", Read(ContentLayout.IconAssets(nas), "published-only.png"));
@@ -244,7 +244,7 @@ public class CuratedScenariosTests
         var tree = NewSourceTree();
         var below = Directory.CreateDirectory(Path.Combine(tree, "Hrot", "Somewhere")).FullName;
         Assert.Equal(tree, ContentLayout.TryFindSourceTree(below));
-        Assert.NotEmpty(CuratedScenarios.SeedIntoNas(nas, below));
+        Assert.NotEmpty(ContentSeed.SeedIntoNas(nas, below));
         Assert.Equal("MINE", Read(ContentLayout.IconAssets(nas), "published-only.png"));
         Assert.Equal("PNG", Read(ContentLayout.IconAssets(nas), "t72.png"));
     }
@@ -259,7 +259,7 @@ public class CuratedScenariosTests
     {
         var tree = NewSourceTree();
         var nas = NewTempDir();
-        CuratedScenarios.SeedTreeFrom(tree, nas);
+        ContentSeed.SeedTreeFrom(tree, nas);
 
         Write(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/A.btree.json", "BT-EDITED");      // changed
         Write(ContentLayout.BehaviorAssets(nas, ContentLayout.BTreesFolder), "Samples/NEW.btree.json", "BT-NEW");        // new

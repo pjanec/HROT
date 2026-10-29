@@ -99,5 +99,70 @@ namespace Fdp.Toolkit.Tests.Orchestration
             Assert.True(File.Exists(Path.Combine(tree!, ContentLayout.RepositoryMarkerFileName)));
             Assert.True(Directory.Exists(ContentLayout.TerrainAssets(tree!)));
         }
+
+        // ── L6 (CE-4089 part two): a recipe is named by its root; ONE name → folder resolver ─────────────────
+
+        /// <summary>
+        /// ⭐⭐ L6 — <see cref="ContentLayout.ResolveScenarioDirectory"/> is the ONE name → NAS-folder resolver: a saved scenario under
+        /// <c>scenarios/</c>, a recipe name (<c>recipes/scenarios/&lt;seed&gt;</c>) under the recipes root, an opened-copy name (<c>opened/…</c>) under the
+        /// opened area; either slash spelling. 🔴 Mutation: the recipe arm removed (the old reserved <c>Recipes/</c> prefix under scenarios/) ⇒ the recipe
+        /// row resolves to <c>scenarios/recipes/scenarios/demo-city</c> and fails.
+        /// </summary>
+        [Fact]
+        public void L6_TheResolver_MapsASavedNameARecipeNameAndAnOpenedCopyName_ToTheirOwnRoots()
+        {
+            var nas = Path.Combine("x", "nas");
+            Assert.Equal(Path.Combine(nas, "scenarios", "Combat", "Ambush"), ContentLayout.ResolveScenarioDirectory(nas, "Combat/Ambush"));
+            Assert.Equal(Path.Combine(nas, "recipes", "scenarios", "demo-city"), ContentLayout.ResolveScenarioDirectory(nas, "recipes/scenarios/demo-city"));
+            Assert.Equal(Path.Combine(nas, "recipes", "scenarios", "demo-city"), ContentLayout.ResolveScenarioDirectory(nas, @"recipes\scenarios\demo-city"));
+            Assert.Equal(Path.Combine(nas, "opened", "recorded", "abc"), ContentLayout.ResolveScenarioDirectory(nas, "opened/recorded/abc"));
+
+            // the spelling a caller loads a recipe by is the one the layout mints
+            Assert.Equal("recipes/scenarios/demo-city", ContentLayout.ScenarioRecipeName("demo-city"));
+            Assert.Equal(ContentLayout.ScenarioRecipes(nas), Path.GetDirectoryName(ContentLayout.ResolveScenarioDirectory(nas, ContentLayout.ScenarioRecipeName("demo-city"))));
+            Assert.True(ContentLayout.IsScenarioRecipeName("recipes/scenarios/x"));
+            Assert.False(ContentLayout.IsScenarioRecipeName("Recipes/x"));      // the OLD reserved prefix is not a recipe name any more
+            Assert.False(ContentLayout.IsScenarioRecipeName("scenarios/recipes/scenarios/x"));
+        }
+
+        /// <summary>A name may not climb out of its root (a recipe / opened name is resolved against the NAS by the master).</summary>
+        [Theory]
+        [InlineData("recipes/scenarios/../../x")]
+        [InlineData("opened/../scenarios/x")]
+        [InlineData("../x")]
+        public void L6_TheResolver_RefusesANameThatClimbsOutOfItsRoot(string name)
+            => Assert.Throws<ArgumentException>(() => ContentLayout.ResolveScenarioDirectory(Path.Combine("x", "nas"), name));
+
+        /// <summary>
+        /// ⭐⭐ CE-3340 ① — the "opened, not saved" area is a SIBLING of <c>scenarios/</c> and <c>recipes/</c>: under neither, so neither "Open" (lists scenarios/) nor "New"
+        /// (lists recipes/) can offer what is in it; and it is never seeded from the repository. 🔴 Mutation: <c>Opened</c> returning <c>Scenarios(root)/opened</c> ⇒ the
+        /// first two asserts fail.
+        /// </summary>
+        [Fact]
+        public void CE3340_TheOpenedArea_IsUnderNeitherScenariosNorRecipes_AndIsNeverSeeded()
+        {
+            var nas = Path.Combine("x", "nas");
+            var opened = ContentLayout.Opened(nas);
+            Assert.False(opened.StartsWith(ContentLayout.Scenarios(nas) + Path.DirectorySeparatorChar));
+            Assert.False(opened.StartsWith(ContentLayout.Recipes(nas) + Path.DirectorySeparatorChar));
+            Assert.DoesNotContain(ContentLayout.OpenedDirectoryName, ContentLayout.SeededDirectories);
+            Assert.Equal(opened, Path.GetDirectoryName(Path.GetDirectoryName(RecordedScenarioNames.DirectoryFor(nas, Guid.NewGuid()))));
+        }
+
+        /// <summary>
+        /// ⭐ L6 — a reader that holds only the SCENARIOS root (the take store, the editor session) resolves a saved name under it — whatever the folder is called — and
+        /// a recipe / opened-copy name against the SIBLING roots. 🔴 Mutation: the recipe arm composing <c>Path.Combine(scenariosRoot, name)</c> ⇒ the second assert fails.
+        /// </summary>
+        [Fact]
+        public void L6_AReaderOfTheScenariosRootOnly_ResolvesRecipeAndOpenedNamesAgainstTheSiblingRoots()
+        {
+            var nas = Path.Combine("x", "nas");
+            var scenarios = ContentLayout.Scenarios(nas);
+            Assert.Equal(Path.Combine("a-temp-root", "Combat", "Ambush"), ContentLayout.ResolveUnderScenariosRoot("a-temp-root", "Combat/Ambush"));
+            Assert.Equal(Path.GetFullPath(Path.Combine(nas, "recipes", "scenarios", "demo-city")),
+                Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "recipes/scenarios/demo-city")));
+            Assert.Equal(Path.GetFullPath(Path.Combine(nas, "opened", "recorded", "abc")),
+                Path.GetFullPath(ContentLayout.ResolveUnderScenariosRoot(scenarios, "opened/recorded/abc")));
+        }
     }
 }

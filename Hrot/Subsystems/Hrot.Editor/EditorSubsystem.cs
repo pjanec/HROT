@@ -1295,12 +1295,8 @@ namespace Hrot.Editor
         {
             _headless = config.Headless;
 
-            // ⭐⭐ CE-4089 (R-4097, DESIGN_Content_Layout §2) — the repository is the DEV SEED of the NAS: copy scenarios/, assets/ and
-            // recipes/ into the NAS root BEFORE anything reads it (the asset catalogue below resolves its roots from the NAS). Only files whose
-            // bytes differ are written (CE-1365), nothing is deleted, only curated scenario names are touched. No-op in a deployed build — there
-            // is no source tree. ⭐ The cluster runner runs the same seed once at start; a second one finds identical bytes and writes nothing.
-            // Hrot.ScenarioEditor.Services.CuratedScenarios.
-            Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
+            // ⭐ CE-3340 ③ — the content seed (repository → NAS) is NOT here: SubsystemOrchestrator.Initialize runs it, once, before any subsystem
+            // initialises (the asset catalogue below resolves its roots from the NAS).
 
             // GZH-016: store active-map-owner predicate injected by SubsystemOrchestrator.
             _isActiveMapOwner = config.IsActiveMapOwner;
@@ -2434,19 +2430,9 @@ namespace Hrot.Editor
             _clusterMaster = _orchestratorCore.Master;
             // ⭐ CE-4089 — the content seed (scenarios/, assets/, recipes/ → the NAS) ran at the top of Initialize, before the asset catalogue read it.
 
-            // ⭐⭐⭐ H2 / U9 — stage the DEPLOYED scenario SEEDS into a reserved subfolder of the same
-            //    working root, so `FromSeed` can load one by the name `Recipes/<seed>`.
-            // 🔴 Why this step exists at all: a scenario load is a CLUSTER transition keyed on a NAME
-            //    that every node resolves against its own NAS scenarios root — nothing accepts a path
-            //    (EditorScenarioSession.OpenForEdit). `Recipes/Scenarios` is a LOCAL authoring/output
-            //    path that does not exist on a remote node, so a seed left there is unreachable however
-            //    the seam is widened. ⇒ copy it where the cluster already looks.
-            // ⭐ Reuses CuratedScenarios.SeedFrom — the shipped overlay-by-name copy — rather than a
-            //    second copier (ruling 9). It is a no-op when nothing is deployed.
-            // 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §10.8, §2.1e ⑤c G2.
-            Hrot.ScenarioEditor.Services.CuratedScenarios.SeedFrom(
-                Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot,
-                Path.Combine(EditorBootstrap.ScenariosRoot, ScenarioNewAssetService.SeedSubfolder));
+            // ⭐ L6 (CE-4089) — the scenario SEEDS are NOT staged under the scenarios root any more: a recipe is loaded by its own name,
+            //    `recipes/scenarios/<seed>` (ContentLayout.ScenarioRecipeName), which the master resolves against the NAS recipes root
+            //    (ContentLayout.ResolveScenarioDirectory). The old H2/U9 staging into `scenarios/Recipes/` is gone.
 
             app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateRelPaths(EditorBootstrap.ScenariosRoot));
 
@@ -4202,14 +4188,14 @@ namespace Hrot.Editor
                 //    recipe ("Empty") and the seed-discovering ctor had ZERO production callers while
                 //    the root was referenced only by tests — the silent-default shape, where the caller
                 //    HAD the value (a static property) and did not pass it. 📄 design §2.1e ⑤c G1.
-                // ⭐ CuratedScenarios.CuratedRelPaths is reused as the discoverer: "every folder holding
+                // ⭐ ContentSeed.CuratedRelPaths is reused as the discoverer: "every folder holding
                 //    a scenario.json, nested, forward-slashed, sorted" is already exactly this question
                 //    (ruling 9 — no second enumerator). ⚠ It is called through a LAMBDA so the list is
                 //    re-read on every AvailableRecipes(), not snapshotted at composition.
                 _newAssetServices[Hrot.Editor.AiShared.AssetKind.Scenario] =
                     new ScenarioNewAssetService(
                         new EditorLogicSessionAdapter(_editorApp),
-                        () => Hrot.ScenarioEditor.Services.CuratedScenarios.CuratedRelPaths(
+                        () => Fdp.Toolkit.Orchestration.ContentSeed.CuratedRelPaths(
                                   Hrot.Editor.AiShared.AssetRoots.ScenariosRecipesRoot));
             }
 

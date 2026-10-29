@@ -1764,10 +1764,7 @@ public sealed partial class ClusterMaster : IDisposable
         try
         {
             return StorageGatewayModule.ReadScenarioContentNames(
-                Path.Combine(
-                    _config.NasBasePath,
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
-                    scenarioId!));
+                Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(_config.NasBasePath, scenarioId!));
         }
         catch (Exception ex)
         {

@@ -608,7 +608,7 @@ export const TOOLS_CATALOG = [
         "name": "recorded",
         "type": "string",
         "required": false,
-        "description": "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named Recipes/Recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."
+        "description": "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named opened/recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."
       },
       {
         "name": "waitForReady",

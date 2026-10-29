@@ -8,6 +8,16 @@
     /// </summary>
     public class RunnerOptions
     {
+        /// <summary>
+        /// ⭐ <c>CE-3340</c> ③ — <c>true</c> (the default): <see cref="SubsystemOrchestrator.Initialize"/> first seeds the NAS from the repository
+        /// (<see cref="Orchestration.ContentSeed.SeedIntoNas"/>) — the ONE place the seed runs. <c>false</c> only for a host that must not touch the NAS
+        /// (a unit test built on fake subsystems).
+        /// </summary>
+        public bool SeedContent { get; set; } = true;
+
+        /// <summary>The NAS root the content seed fills; <c>null</c> (the default) = <see cref="Orchestration.ContentLayout.NasRoot"/>. A test passes a temp tree.</summary>
+        public string? NasRoot { get; set; }
+
         /// <summary>When <c>true</c>, the orchestrator skips all Raylib and ImGui calls.</summary>
         public bool Headless { get; set; }
 

@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED by the user 2026-10-28 (R-4097)
-updated: 2026-10-28
-build-state: BUILT — CE-4089 (2026-10-28); it lands BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
-current-answer: §1 the tree · §5 AS BUILT (the classes, where each lives, what deviated) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
-stale-below: §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
+updated: 2026-10-29 (L6, the opened-copies home, the ONE host-start seed and the shared behaviour names built — §5b)
+build-state: BUILT — CE-4089 (2026-10-28) + part two (2026-10-29: L6, CE-3340 ①③④); it landed BEFORE the AQ108 build (CE-4082), whose start surface lists recipes and scenarios
+current-answer: §1 the tree · §5b AS BUILT, part two (the NEWEST: names, the opened area, the seed's one call site, the shared names) · §5 AS BUILT, part one (the classes; where §5b says SUPERSEDED, §5b wins) · §3 decisions · §4 the move list (done, except its step 5 — CE-4082)
+stale-below: §5's D-7 and D-10, the "TWO call sites" line under §5's module graph, and its `CuratedScenarios` row (SUPERSEDED by §5b) · §2's CLASS NAMES (`ContentRoots`, `ContentSeed`) are the design-time names — SUPERSEDED by §5 (`ContentLayout` in Fdp.Toolkits, `AssetRoots` delegating, `CuratedScenarios` generalised in place). §2's sequence and module pictures still hold, with §5's two start points.
 known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
 known-conflict: designs/main-toolbar-1/DESIGN.md §16 placed Assets/ and Recipes/ INSIDE the Hrot.AI.Behaviors project; this design keeps its rule (final assets and recipes in disjoint roots, AssetRoots the one authority) and moves both roots to the repository root
 related-designs:
@@ -125,7 +125,7 @@ way, a third pattern beside copy-at-start and edit-in-place.
 | L3 | buildings, textures, icons, audio are plain assets; a terrain uses them |
 | L4 | ONE pattern for every content type: a dev start seeds the NAS from the repository; every node reads only the NAS (and its staging); *Save to Git* copies changes back, for behaviours too (today they are edited in place); production has no source tree, so the seed does nothing |
 | L5 | `AssetRoots` (renamed or kept) is the ONE path authority; every hard-coded path routes through it; the exe-folder copy rules go |
-| L6 | a recipe is named by its root: `recipes/scenarios/<seed>` (AQ108 D18's start-up option) — the old `Recipes/<seed>` under the scenarios root goes |
+| L6 | a recipe is named by its root: `recipes/scenarios/<seed>` (AQ108 D18's start-up option) — the old `Recipes/<seed>` under the scenarios root goes — ✅ BUILT (CE-4089 part two, §5b) |
 
 ## 4. The move list (CE-4089)
 
@@ -178,7 +178,7 @@ graph TD
   classDef dead stroke:#d33,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
-*What it shows:* the seed has TWO call sites (the runner for a cluster start, the editor's `Initialize` for hosts that do not go through the runner — every editor test); the second finds identical bytes and writes nothing.
+*What it shows:* ⛔ SUPERSEDED (§5b D-14): the seed had TWO call sites (the runner, the editor's `Initialize`) plus two harness static constructors; it now has ONE — `SubsystemOrchestrator.Initialize`.
 The editor's seed moved from "after the master is built" to the FIRST statement of `Initialize`, because the asset catalogue it composes a few hundred lines earlier now reads the NAS.
 
 ### Decisions taken while building (each is a deviation from, or an addition to, §2–§4)
@@ -191,11 +191,71 @@ The editor's seed moved from "after the master is built" to the FIRST statement 
 | D-4 | `AssetRoots.AssetsRoot`/`RecipesRoot` are now the TOP-LEVEL `assets/` and `recipes/`; `BehaviorAssetsRoot` (`assets/behaviors`) is new and is what `ParamsDtoStaleness` uses | the old `AssetsRoot` meant "behaviour assets"; `assets/` now also holds terrain, icons, audio |
 | D-5 | `AssetRoots.ResolveProjectDir` stays — only for the one non-content need left: the `.csproj` a full rebuild / hot reload builds (`EditorSubsystem`, `EditorApplication`). `ResolveBase`/`ResolveAssetsRoot`/`ReportBase`/`DescribeBase` still take the project segments (≈30 call sites) and IGNORE them | measured: 2 production users of `ResolveProjectDir`, both non-content |
 | D-6 | `ReportBase`'s warning is "the root the catalog reads has no `assets/` folder" (was "no config and no source tree") | there is always a root now (config, else the NAS); the fault left is "nothing seeded or published" |
-| D-7 | `BehaviorGroups` (netstandard2.0 analyzer) spells `assets/behaviors/<Kind>/` as literals | the generator assembly cannot reference `ContentLayout`; rail: `BTreeJsonGeneratorTests.CE3164_*` |
+| D-7 | ⛔ **SUPERSEDED (§5b D-12)** — `BehaviorGroups` (netstandard2.0 analyzer) spelled `assets/behaviors/<Kind>/` as literals | the claim "the generator assembly cannot reference `ContentLayout`" was true of a project REFERENCE only; it now shares the names by link |
 | D-8 | `Hrot.AI.Behaviors.csproj` feeds the generators from `$(AssetsBehaviorsDir)` = `$(MSBuildThisFileDirectory)..\..\..\assets\behaviors\`; every `Content … CopyToOutputDirectory` rule is gone | rail: `FolderLayoutTests.TheBehaviorsProjectHoldsNoContentAndCopiesNone` |
 | D-9 | an editor edit of a behaviour asset now writes the NAS copy; the C# generator still compiles the repository's `assets/behaviors` | this is L4's own consequence ("*Save to Git* for behaviours too — today they are edited in place"): a behaviour edited in the editor reaches the compiled assembly only after *Save to Git* + a rebuild. The menu label still says "Save Curated Scenarios to Git" (CE-4082's menu work) but the command saves every kind |
-| D-10 | not done here: §4 step 5 (asset browser Open lists `assets/`+`scenarios/`, New lists `recipes/`) beyond what the new roots already give; `Recipes/<seed>` under the scenarios root (L6) stays until CE-4082 | out of this task's brief; the roots are separate by construction |
+| D-10 | not done here: §4 step 5 (asset browser Open lists `assets/`+`scenarios/`, New lists `recipes/`) beyond what the new roots already give; ⛔ SUPERSEDED for L6: `Recipes/<seed>` under the scenarios root went in part two (§5b D-13) | out of this task's brief; the roots are separate by construction |
 | D-11 | `Hrot.Core.Tests/Assets/sample_road.json` left in place | measured: no `.cs` reads it; it is a test-project `Content` item only (the other `sample_road.json` copies are unrelated) |
 
 *Prior state (SUPERSEDED, kept so a reader does not re-derive it):* before CE-4089 content was read in place from the source project (`AssetRoots.ResolveBase`: config → source walk-up → exe folder), shipped through four csproj copy rules
 (`Recipes/*`, icons embedded, audio copied), and `TerrainCatalog` searched staging → NAS `terrain/` → the shipped `{app}/Recipes/Terrain`.
+
+## 5b. ⭐ AS BUILT, PART TWO (CE-4089 part two + CE-3340 ① ③ ④, 2026-10-29) — SUPERSEDES the §5 lines marked above
+
+```mermaid
+classDiagram
+  class ContentLayout { <<static, Fdp.Toolkits — existing>> ResolveScenarioDirectory(root,name) · ScenarioRecipeName(seed) · OpenedCopyName(area,key) · Opened(root) · IsScenarioRecipeName · IsOpenedCopyName }
+  class ContentTreeNames { <<internal static, Fdp.Toolkits/Orchestration/Shared — NEW, constants only>> Assets · Behaviors · BTrees · Hsms · Blueprints · BehaviorKindRootPrefix }
+  class ContentSeed { <<static, Fdp.Toolkits — NEW home of the seed half>> SeedIntoNas · SeedTreeFrom · SeedFrom · CuratedRelPaths · CopyTree }
+  class CuratedScenarios { <<existing, Hrot.Presentation — Save to Git only>> SaveToGit · SaveTreeTo · SaveTo · CanSaveToGit }
+  class SubsystemOrchestrator { <<existing, Fdp.Toolkits/Runner>> Initialize() seeds FIRST (RunnerOptions.SeedContent, .NasRoot) }
+  class RecordedScenarioNames { <<existing>> ForExercise → opened/recorded/id · DirectoryFor(nas,id) }
+  class StorageGatewayModule { <<existing>> prefetch source = ResolveScenarioDirectory }
+  class AssetInventoryProcessManager { <<existing>> snapshot · archive · StageRecordedScenario → ResolveScenarioDirectory / DirectoryFor }
+  class ClusterMaster { <<existing>> content names = ResolveScenarioDirectory }
+  class StorageProcessManager { <<existing>> save merge folder = ResolveScenarioDirectory }
+  class ScenarioNewAssetService { <<existing>> SeedNameToScenarioName = ContentLayout.ScenarioRecipeName }
+  class BehaviorGroups { <<existing, Hrot.AiEditor.Persistence netstandard2.0>> kind roots from ContentTreeNames (LINKED) }
+  ContentLayout --> ContentTreeNames
+  OrchestrationConstants --> ContentTreeNames
+  BehaviorGroups ..> ContentTreeNames : source link
+  SubsystemOrchestrator --> ContentSeed
+  ContentSeed --> ContentLayout
+  CuratedScenarios --> ContentSeed : CopyTree, CuratedRelPaths
+  RecordedScenarioNames --> ContentLayout
+  StorageGatewayModule --> ContentLayout
+  AssetInventoryProcessManager --> RecordedScenarioNames
+  AssetInventoryProcessManager --> ContentLayout
+  ClusterMaster --> ContentLayout
+  StorageProcessManager --> ContentLayout
+  ScenarioNewAssetService --> ContentLayout
+```
+
+*What the picture shows that §5's prose hid:* every NAS-side reader of "the folder of scenario X" (prefetch, content names, the run's snapshot, the archive, the save merge, the opened-copy stager) goes through ONE resolver; the seed has ONE caller; the generators' behaviour-root spelling is the same file as the runtime's.
+
+```mermaid
+graph TD
+  RUN["Runner Program.cs"] --> ORCH["SubsystemOrchestrator.Initialize"]
+  CI["CI-mode runner"] --> ORCH
+  H1["HrotRunnerHarness"] --> ORCH
+  H2["CgfHarness"] --> ORCH
+  ORCH --> SEED["ContentSeed.SeedIntoNas(NasRoot)"]
+  ORCH --> SUBS["every subsystem Initialize (editor, CGF, SimHost, IG, orchestrator, …)"]
+  SEED --> NAS["NAS: scenarios/ assets/ recipes/   (opened/ is NOT seeded)"]
+  NAS --> RES["ContentLayout.ResolveScenarioDirectory(nas, name)"]
+  RES --> PF["master prefetch → node staging nodes/node-N/scenarios/<name>"]
+  EDS["EditorSubsystem.Initialize — its own seed"]:::dead
+  EDT["EditorSubsystem scenarios/Recipes staging (SeedFrom)"]:::dead
+  classDef dead stroke:#d33,stroke-width:2px,stroke-dasharray: 5 5
+```
+
+*What it shows:* the two dashed boxes are gone. A direct `new EditorSubsystem().Initialize(...)` (an editor unit test) is NOT a host start and no longer seeds; a test that needs content starts through the orchestrator or seeds a temp NAS itself.
+
+| # | what | why (measured) |
+|---|---|---|
+| D-12 | ④ `BehaviorGroups` takes its kind roots from `ContentTreeNames`, a constants-only file compiled into `Fdp.Toolkits` and LINKED into `Hrot.AiEditor.Persistence`; `ContentLayout` and `OrchestrationConstants.NasAssetsDirectoryName` read the same constants | ⛔ the earlier claim "the analyzer assembly cannot reference `ContentLayout`" held only for a project REFERENCE: `Hrot.AiEditor.Persistence` is netstandard2.0 with no project references, but its csproj already links `OccurrenceSlotKey`, `BuiltInHsmEvents`, `HsmActionKey` from `Fdp.Toolkits`/`Fdp.Toolkits.Analyzers`. Whole `ContentLayout` is not linkable (it uses `OrchestrationConstants`, `AssetTokens`); the names were the only thing the analyzer needed. Rail: `BehaviorGroupsSpellTheContentLayoutTests` |
+| D-13 | L6 — a recipe is loaded by `recipes/scenarios/<seed>` (`ContentLayout.ScenarioRecipeName`); `ContentLayout.ResolveScenarioDirectory(nasRoot, name)` is the ONE name → NAS-folder resolver (saved name → `scenarios/`, recipe name → `recipes/scenarios/`, `opened/…` → `opened/`; `..` refused). Users: `StorageGatewayModule` (prefetch source), `ClusterMaster` (content names), `AssetInventoryProcessManager` (run snapshot, archive, opened-copy stager), `StorageProcessManager` (save merge); readers that hold only the scenarios root — `TakeStore` (the director's takes, `CopyTakes`) and `EditorScenarioSession.CopyTakes` ("new from a recipe" carries the recipe's takes) — use `ContentLayout.ResolveUnderScenariosRoot` (the same rule against the SIBLING roots). The editor no longer stages the seeds under `scenarios/Recipes/` (its `SeedFrom` block is gone); `ScenarioNewAssetService.SeedSubfolder` is gone | node STAGING keeps the name as a relative path (`nodes/node-N/scenarios/recipes/scenarios/<seed>`) — it is a per-run cache keyed by name, not the content tree. ⚠ A saved scenario named `recipes/scenarios/…` or `opened/…` would now resolve elsewhere: those two top-level names are reserved (no such scenario exists in the repository). Rails: `ContentLayoutTests.L6_*`, `AssetInventoryProcessManagerTests.L6_ThePrefetchOfARecipeName_*` |
+| D-14 | ③ the content seed runs in ONE place: `SubsystemOrchestrator.Initialize` (`RunnerOptions.SeedContent`, default true; `RunnerOptions.NasRoot` for a test) — before any subsystem initialises. The seed half of `CuratedScenarios` moved to `Fdp.Toolkits` as `ContentSeed` (the orchestrator cannot reference `Hrot.Presentation`); `CuratedScenarios` keeps *Save to Git*. Removed: `Program.cs`, `EditorSubsystem.Initialize` (two blocks), both harness static constructors; `CgfHarness` now starts through a `SubsystemOrchestrator` | measured: every production host start is an orchestrator `Initialize` (`.Initialize(config)` appears in `SubsystemOrchestrator` and the `CiSubsystem` decorator only). ⚠ ONE host start is not the orchestrator and keeps its own call: the Stride desktop app hosts `EditorSubsystem` in `EditorStrideSubsystem.InitializeHosted` (its config differs — `IsActiveMapOwner = () => false`, `NodeId` — and it is Windows-only, so it was not rerouted blind); the rail names it, so a third cannot appear unnoticed. To end the exception, start the hosted editor through `SubsystemOrchestrator` once that config difference is measured on Windows. A bare `new EditorSubsystem().Initialize(...)` in a test is not a host start: a test that needs content starts through the orchestrator (`TheWorldChangeCheckOnTheEditorTests` does). The orchestrator is generic framework code: the seed does nothing when no `HROT.sln` + `assets/` is found above the working or base directory, and a unit test with fakes can opt out. Rails: `TheContentSeedRunsAtTheOneHostStartTests`, `EveryHostSeedsThroughTheOneHostStartRails` |
+| D-15 | ① opened copies of recordings (and later never-saved autosaves, AQ108 §4c A8) live in the NAS **opened-not-saved area**: `{nas}/opened/<area>/<key>` (`ContentLayout.Opened`, `OpenedCopyName`); a recorded copy is `opened/recorded/<exerciseId>` (`RecordedScenarioNames`). It is a sibling of `scenarios/` and `recipes/`, never seeded, never saved to git | so "Open" (lists `scenarios/`) and "New from a recipe" (lists `recipes/scenarios`) cannot offer it BY CONSTRUCTION. Rails: `TheOpenedCopiesAreNeverOfferedTests`, `ContentLayoutTests.CE3340_*`, `AssetInventoryProcessManagerTests.CE4091_OpeningARecordedCopy_*` (the stager writes there) |
+
+*Prior state (SUPERSEDED):* the recorded copy was staged at `scenarios/Recipes/Recorded/<id>` (inside the folder the old design reserved for recipes); recipes were opened as `Recipes/<seed>` after the editor staged them into `scenarios/Recipes/`; the seed was called from four places.

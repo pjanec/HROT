@@ -18,7 +18,7 @@ namespace Hrot.ClusterRunner.Tests;
 /// <c>demo-city.net.xml</c> (AQ93 §11.3), but a <c>Content</c> glob in <c>Hrot.AI.Behaviors.csproj</c> copied only
 /// <c>*.json</c>/<c>*.geojson</c>/<c>*.asc</c> ⇒ every node's PrepareLive threw <c>FileNotFoundException</c> and the load never reached
 /// <c>OperatingLive</c>. ⭐ <c>CE-4089</c> (R-4097) REWROTE this rail for the new pattern: there is no exe-folder copy and no csproj glob any more —
-/// <c>assets/terrain</c> at the repository root is copied WHOLE into the NAS by <c>CuratedScenarios.SeedTreeFrom</c> — so the rail seeds a temp NAS from
+/// <c>assets/terrain</c> at the repository root is copied WHOLE into the NAS by <c>ContentSeed.SeedTreeFrom</c> — so the rail seeds a temp NAS from
 /// the source tree and reads it exactly as a node does (<c>TerrainCatalog.ForNode</c>, the NAS's <c>assets/buildings</c>). A file reference is
 /// any string value shaped like a relative file name (<c>name.ext</c>), outside <c>$</c>-prefixed keys.</para>
 /// </summary>
@@ -38,7 +38,7 @@ public sealed class ShippedTerrainFilesAreDeployedTests : IDisposable
     {
         var tree = ContentLayout.TryFindSourceTree();
         Assert.NotNull(tree);
-        CuratedScenarios.SeedTreeFrom(tree!, _nas);
+        ContentSeed.SeedTreeFrom(tree!, _nas);
         return _nas;
     }
 

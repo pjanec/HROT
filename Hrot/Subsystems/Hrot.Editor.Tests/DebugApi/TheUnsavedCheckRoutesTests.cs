@@ -194,7 +194,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
     /// <summary>
     /// ⭐⭐ CE-4091 (AQ108 D7, D22) — <c>POST /scenario/load/edit {recorded: &lt;exerciseId&gt;}</c> opens a recording's scenario copy as a NEW scenario: the
-    /// cluster is asked to load for editing the name <c>Recipes/Recorded/&lt;id&gt;</c> (the master's prefetch resolves it to the copy) — and the route writes
+    /// cluster is asked to load for editing the name <c>opened/recorded/&lt;id&gt;</c> (the master's prefetch resolves it to the copy) — and the route writes
     /// nothing and sends no save/storage request. 404 for an id the inventory does not list, 400 for a malformed id, for name + recorded together and
     /// for recorded on a LIVE load. The same unsaved-changes gate as any other load applies. 🔴 Mutations: the route ignoring <c>recorded</c> ⇒ 400
     /// "name is required"; sending the original scenario's name ⇒ the name cell red; no gate for the derived name ⇒ the 409 cell red.
@@ -212,7 +212,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         Assert.Equal(RecordedScenarioNames.ForExercise(known.ExerciseId), body["data"]!["loading"]!.GetValue<string>());
         var transition = _master.Transitions.Last();                                // (the unload to Idle goes first when a scenario is open)
         Assert.Equal(ClusterState.OperatingEdit, transition.TargetState);
-        Assert.Equal("Recipes/Recorded/" + known.ExerciseId, transition.ScenarioId);
+        Assert.Equal("opened/recorded/" + known.ExerciseId, transition.ScenarioId);
         Assert.DoesNotContain(_master.Sent, s => s is ExecuteStorageOpIntent);
         _master.Sent.Clear(); _master.Transitions.Clear();
 
@@ -235,7 +235,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         Assert.Empty(_master.Transitions);
         (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"discardUnsaved\":true}}")));
         Assert.Equal(HttpStatusCode.OK, status);
-        Assert.Equal("Recipes/Recorded/" + known.ExerciseId, _master.Transitions.Last().ScenarioId);
+        Assert.Equal("opened/recorded/" + known.ExerciseId, _master.Transitions.Last().ScenarioId);
     }
 
     /// <summary>Nothing to lose outside editing (Idle, a live run, a replay): no round is asked, the load goes out. A host that cannot SEE the answer does not wait for one.</summary>
