@@ -381,6 +381,76 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(NedClusterState.LoadingLive, hbs[0].LocalClusterState);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success 7 (AQ110 A) — the node's phase, step and reason cross the heartbeat topic both ways through the ONE mapping (<c>NodeHeartbeatWire</c>: the slave's egress, the master's ingress and the observer's read it), and are written
+    /// to the real DDS sample by the slave's translator; an older sender's omission reads as <c>Ready</c> with no step; a phase value this build does not know (a newer peer) reads as <c>Ready</c>.
+    /// 🔴 Mutations (each compiles): <c>ToTopic</c> not writing <c>Phase</c> / <c>Step</c> / <c>Reason</c> ⇒ the DDS cells red; <c>ToEvent</c> not reading them ⇒ the round-trip cells red; the range check removed ⇒ the "unknown phase" cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3345_TheHeartbeat_CarriesPhaseStepAndReason_BothWays_AndOverDds()
+    {
+        // the mapping, both halves
+        var loading = new NodeHeartbeatEvent { NodeId = 7, LocalStateId = (int)NedClusterState.LoadingLive, SubsystemName = "CGF", Phase = NodePhase.Loading, Step = "Terrain" };
+        var failed  = new NodeHeartbeatEvent { NodeId = 7, SubsystemName = "CGF", Phase = NodePhase.Failed, Reason = "cancelled by the user on node 7" };
+        Assert.Equal((2, "Terrain", string.Empty), (NodeHeartbeatWire.ToTopic(loading).Phase, NodeHeartbeatWire.ToTopic(loading).Step, NodeHeartbeatWire.ToTopic(loading).Reason));
+        var back = NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(loading));
+        Assert.Equal((NodePhase.Loading, "Terrain", (string?)null, 7, "CGF"), (back.Phase, back.Step, back.Reason, back.NodeId, back.SubsystemName));
+        back = NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(failed));
+        Assert.Equal((NodePhase.Failed, (string?)null, "cancelled by the user on node 7"), (back.Phase, back.Step, back.Reason));
+        Assert.Equal((NodePhase.Ready, (string?)null), (NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 1 }).Phase, NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 1 }).Step));   // an older sender
+        Assert.Equal(NodePhase.Ready, NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 1, Phase = 99 }).Phase);                                                                                    // a newer peer's phase
+
+        // the slave's egress writes them to the real DDS sample
+        using var participant      = new DdsParticipant(TestDomain);
+        using var cmdReader        = new DdsReader<NodeOpCommand>(participant);
+        using var statusWriter     = new DdsWriter<NodeOpStatus>(participant);
+        using var heartbeatWriter  = new DdsWriter<NodeHeartbeat>(participant);
+        using var heartbeatReader  = new DdsReader<NodeHeartbeat>(participant);
+        var bus        = new FdpEventBus();
+        var translator = new NodeOpSlaveTranslator(cmdReader, statusWriter, heartbeatWriter, bus, 7);
+        Thread.Sleep(400);
+        bus.PublishManaged(loading);
+        bus.SwapBuffers();
+        translator.Tick();
+
+        var hbs = new List<NodeHeartbeat>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (DateTime.UtcNow < deadline && hbs.Count == 0)
+        {
+            using var scope = heartbeatReader.Take();
+            foreach (var s in scope) if (s.IsValid) hbs.Add(s.Data);
+            if (hbs.Count == 0) Thread.Sleep(30);
+        }
+        var sample = Assert.Single(hbs);
+        Assert.Equal((2, "Terrain", NedClusterState.LoadingLive), (sample.Phase, sample.Step, sample.LocalClusterState));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3345</c> success 7 — <c>ClusterPlayReady</c> and <c>LoadProgress</c> cross the cluster-state topic both ways through the ONE encoder / decoder pair; an older sender's omission reads as "not play-ready, nothing loading".
+    /// 🔴 Mutation: <c>StateTopicOf</c> or <c>StateOf</c> not mapping either field ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3345_TheClusterStateBroadcast_CarriesClusterPlayReadyAndLoadProgress_BothWays()
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent
+            { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ClusterPlayReady = true, LoadProgress = "CGF (node 2): Terrain" });
+        Assert.True(topic.ClusterPlayReady);
+        Assert.Equal("CGF (node 2): Terrain", topic.LoadProgress);
+        var seen = ClusterFactsIngress.StateOf(topic);
+        Assert.True(seen.ClusterPlayReady);
+        Assert.Equal("CGF (node 2): Terrain", seen.LoadProgress);
+
+        var older = ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle });   // an older sender's sample
+        Assert.False(older.ClusterPlayReady);
+        Assert.Equal(string.Empty, older.LoadProgress);
+        Assert.Equal(string.Empty, Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent()).LoadProgress);
+
+        // and a failed load's REASON reaches every node's op status as the plain text (the master writes the string as it is; the node's ingress keeps text that is not JSON)
+        var id = Guid.NewGuid();
+        var opStatus = ClusterFactsIngress.OpCompletedOf(new ClusterOpStatus { RequestId = id, StatusCode = (int)OrchestrationStatusCode.Failure, ResultJson = "cancelled by the user on node 2" });
+        Assert.Equal((id, OrchestrationStatusCode.Failure, "cancelled by the user on node 2"), (opStatus.RequestId, opStatus.StatusCode, (string?)opStatus.ResultPayload));
+    }
+
     // ── ⭐ AQ107 I: the CPU load is a 0…1 FRACTION on the wire, a percent in the cluster cache ───────────────
 
     /// <summary>

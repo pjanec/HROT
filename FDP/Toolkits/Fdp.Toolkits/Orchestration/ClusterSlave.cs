@@ -61,6 +61,18 @@ namespace Fdp.Toolkit.Orchestration
         // ── Local state id ────────────────────────────────────────────────────
         private int _localStateId;
 
+        // ── ⭐ CE-3345 part B (R-3070, R-3072) — the node's readiness report and the cancel of its load ──
+        private bool _ticked;                                   // the first Tick has run (the advert, if not held, went out in it)
+        private NodePhase _lastBeatPhase = NodePhase.Ready;     // what the last heartbeat said (a default host never says Booting: its advert goes out before its first beat)
+        private string? _lastBeatStep;
+        private string? _lastBeatReason;
+        private string? _failureReason;                         // set ⇒ Phase Failed, until the next transaction
+        private Guid _failedTransactionId;
+        private bool _loadIsCatchUp;                            // the load in flight is a late joiner's catch-up
+        private System.Threading.CancellationTokenSource? _pendingCts;   // the REAL token the held prepare runs with — CancelLoad cancels it
+        private Guid _cancelledTransactionId;                   // intents of a transaction this node cancelled are not run
+        private string? _progressStepAcked;                     // the step the last InProgress ack named
+
         private bool _disposed;
 
         // ── Production constructor ────────────────────────────────────────────
@@ -215,6 +227,14 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public void Tick()
         {
+            TickCore();
+            PublishHeartbeat();
+        }
+
+        private void TickCore()
+        {
+            _ticked = true;
+
             // CE-285 (C-cap): advertise the static capability token set ONCE at join. Durable descriptor →
             // one publish is retained + delivered to the orchestrator and any late joiner (§Q70-B).
             if (!_capabilitiesPublished && !_readyHeld && _eventBus != null)
@@ -227,21 +247,7 @@ namespace Fdp.Toolkit.Orchestration
                 });
             }
 
-            // Heartbeat at 1 Hz via FdpEventBus.
-            if (_heartbeatTimer.Elapsed.TotalSeconds >= 1.0)
-            {
-                _heartbeatTimer.Restart();
-                _eventBus?.PublishManaged(new NodeHeartbeatEvent
-                {
-                    NodeId        = _nodeId,
-                    LocalStateId  = _localStateId,
-                    WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
-                    SubsystemName = _subsystemName,
-                    SessionId     = _followingSessionId,   // ⭐ C2
-                    // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
-                    // tokens on the durable NodeCapabilities descriptor (published once at join above).
-                });
-            }
+            // ⭐ The heartbeat moved to the END of Tick (PublishHeartbeat): it carries the node's phase, which this frame's dispatch / drain decides.
 
             // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
             View.Update();   // ⭐ CE-1436 — the ONE fold of the master's facts (state, inventory, session, op outcomes); the follow-fields below read it
@@ -299,10 +305,14 @@ namespace Fdp.Toolkit.Orchestration
             {
                 var pending = _pendingPrepare.Value;
                 if (!pending.PrepareTask.IsCompleted)
+                {
+                    PublishProgressIfStepChanged(pending);   // ⭐ CE-3345 — the master reads progress, never an answer
                     return;
+                }
 
                 _pendingPrepare = null;
-                if (pending.PrepareTask.IsFaulted)
+                _pendingCts = null;
+                if (pending.PrepareTask.IsFaulted || pending.PrepareTask.IsCanceled)
                 {
                     // ⭐ The STACK, not just the message: a faulted prepare fails the whole 2PC and leaves an
                     //   empty world, and "Entity … missing NetworkIdentity" alone did not say which of a
@@ -312,16 +322,8 @@ namespace Fdp.Toolkit.Orchestration
                         "(transactionId={1}): {2}. Commit skipped.",
                         pending.Intent.Operation,
                         pending.Intent.TransactionId,
-                        pending.PrepareTask.Exception?.GetBaseException().ToString() ?? "unknown");
-                    _eventBus?.PublishManaged(new NodeOpCompletedEvent
-                    {
-                        TransactionId   = pending.Intent.TransactionId,
-                        Operation       = pending.Intent.Operation,
-                        NodeId          = _nodeId,
-                        StatusCode      = OrchestrationStatusCode.Failure,
-                        IsParticipating = true,
-                        ResultPayload   = null,
-                    });
+                        pending.PrepareTask.Exception?.GetBaseException().ToString() ?? "cancelled");
+                    FailPrepare(pending.Intent, ReasonOf(pending.PrepareTask));
                     _pendingIntents.Clear();  // Discard deferred intents for the failed transaction
                     return;
                 }
@@ -423,6 +425,134 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public int LocalStateIdForTest => _localStateId;
 
+        // ── ⭐⭐ CE-3345 part B (R-3070, R-3072) — the readiness report, the load's progress, the cancel ──────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ What THIS node reports about itself on its heartbeat (<c>AQ110</c> A) — derived from facts the slave already has, a fact about the node only:
+        /// <see cref="NodePhase.Booting"/> until its capability advert (the explicit ready report) is out (the first <see cref="Tick"/>, or <see cref="MarkReady"/> after <see cref="HoldReady"/>);
+        /// <see cref="NodePhase.Failed"/> after a failed or cancelled prepare, until the next transaction; <see cref="NodePhase.Loading"/> / <see cref="NodePhase.CatchingUp"/> while a load prepare is
+        /// held (or the node sits in a committed <c>Loading*</c> state); <see cref="NodePhase.PlayReady"/> once it committed an <c>Operating*</c> state; else <see cref="NodePhase.Ready"/>.
+        /// </summary>
+        public NodePhase Phase
+        {
+            get
+            {
+                if (_readyHeld || !_ticked) return NodePhase.Booting;
+                if (_failureReason != null) return NodePhase.Failed;
+                if (IsLoadHeld || (ClusterState)_localStateId is ClusterState.LoadingLive or ClusterState.LoadingEdit)
+                    return _loadIsCatchUp ? NodePhase.CatchingUp : NodePhase.Loading;
+                if ((ClusterState)_localStateId is ClusterState.OperatingLive or ClusterState.OperatingEdit or ClusterState.OperatingPreview
+                                                or ClusterState.OperatingReplay or ClusterState.OperatingReview)
+                    return NodePhase.PlayReady;
+                return NodePhase.Ready;
+            }
+        }
+
+        /// <summary>⭐ The load step in flight (what <see cref="Phase"/> <c>Loading</c> is on), or <see langword="null"/>.</summary>
+        public string? LoadStep => IsLoadHeld ? (_pendingPrepare!.Value.Handler as ILoadProgressSource)?.CurrentLoadStep : null;
+
+        /// <summary>⭐ The last failure's reason while <see cref="Phase"/> is <c>Failed</c> (else <see langword="null"/>).</summary>
+        public string? FailureReason => _failureReason;
+
+        /// <summary>⭐ A load prepare is held or in flight on this node (its pending prepare belongs to an <see cref="ILoadProgressSource"/>) — what <see cref="CancelLoad"/> may cancel.</summary>
+        public bool IsLoadHeld => _pendingPrepare.HasValue && _pendingPrepare.Value.Handler is ILoadProgressSource;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-3070</c> — <b>the user cancels this node's load.</b> Cancels the REAL token the prepare runs with, calls the chain's <c>AbortLoad</c> (through <see cref="IClusterStateHandler.Abort"/>), and
+        /// answers the prepare with a <b>Failure</b> ack that carries <paramref name="reason"/> — ⭐ no new op: the master learns it through the round it already runs (CE-4103 fails that round at once, the
+        /// failed LOAD round ends in Idle, and the reason reaches every node's op status). Returns <see langword="false"/> when no load is held here.
+        /// </summary>
+        public bool CancelLoad(string? reason = null)
+        {
+            if (!IsLoadHeld) return false;
+            reason ??= $"cancelled by the user on node {_nodeId}";
+
+            var pending = _pendingPrepare!.Value;
+            _pendingPrepare = null;
+            var cts = _pendingCts;
+            _pendingCts = null;
+            try { cts?.Cancel(); }
+            catch (Exception ex) { FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: cancelling the load token failed: {1}", _nodeId, ex.Message); }
+            try { pending.Handler.Abort(pending.Intent, repo: null); }
+            catch (Exception ex) { FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.Abort failed during the cancel: {2}", _nodeId, pending.Handler.GetType().Name, ex.Message); }
+
+            var tx = pending.Intent.TransactionId;
+            _cancelledTransactionId = tx;   // ⭐ the ONE guard (DispatchIntent): the transaction's queued AND later-arriving steps run no more — no second mechanism (a queue purge) beside it
+
+            FdpLog<ClusterSlave>.Warn("[ClusterSlave] Node {0}: the load of transaction {1} CANCELLED — {2}.", _nodeId, tx, reason);
+            FailPrepare(pending.Intent, reason);
+            return true;
+        }
+
+        /// <summary>⭐ The ONE failure path of a prepare (faulted, cancelled, or the user's cancel): the node enters <see cref="NodePhase.Failed"/> with the reason, and answers the prepare Failure — WITH the reason (the ack used to carry none).</summary>
+        private void FailPrepare(ExecuteNodeOpIntent intent, string reason)
+        {
+            _failureReason       = reason;
+            _failedTransactionId = intent.TransactionId;
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.Failure,
+                IsParticipating = true,
+                ResultPayload   = reason,
+            });
+        }
+
+        private static string ReasonOf(System.Threading.Tasks.Task task)
+            => task.IsCanceled ? "the load was cancelled" : task.Exception?.GetBaseException().Message ?? "unknown";
+
+        /// <summary>⭐ A held LOAD prepare names its step in the P4 <c>InProgress</c> ack, and says so AGAIN when the step changes (once per step, never per frame).</summary>
+        private void PublishProgressIfStepChanged(
+            (System.Threading.Tasks.Task<object?> PrepareTask, ExecuteNodeOpIntent Intent, IClusterStateHandler Handler) pending)
+        {
+            if (pending.Handler is not ILoadProgressSource source) return;
+            var step = source.CurrentLoadStep;
+            if (step == null || step == _progressStepAcked) return;
+            _progressStepAcked = step;
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = pending.Intent.TransactionId,
+                Operation       = pending.Intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.InProgress,
+                IsParticipating = true,
+                ResultPayload   = step,
+            });
+        }
+
+        /// <summary>
+        /// ⭐ The heartbeat: every second as before, and ⭐ <b>at once</b> when the node's phase, step or failure reason changed (so progress is never a second late). Called once at the end of each
+        /// <see cref="Tick"/> — ⇒ at most one change-triggered beat per frame, and the 1 Hz timer restarts with it.
+        /// </summary>
+        private void PublishHeartbeat()
+        {
+            var phase  = Phase;
+            var step   = LoadStep;
+            var reason = _failureReason;
+            View.NoteLocalPhase(phase, step, reason);   // the node's own report, for its own host's gate (the ONE ClusterView)
+
+            bool changed = phase != _lastBeatPhase || step != _lastBeatStep || reason != _lastBeatReason;
+            if (!changed && _heartbeatTimer.Elapsed.TotalSeconds < 1.0) return;
+
+            _heartbeatTimer.Restart();
+            _lastBeatPhase = phase; _lastBeatStep = step; _lastBeatReason = reason;
+            _eventBus?.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId        = _nodeId,
+                LocalStateId  = _localStateId,
+                WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+                SubsystemName = _subsystemName,
+                SessionId     = _followingSessionId,   // ⭐ C2
+                Phase         = phase,                 // ⭐ CE-3345 (AQ110 A)
+                Step          = step,
+                Reason        = reason,
+                // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
+                // tokens on the durable NodeCapabilities descriptor (published once at join above).
+            });
+        }
+
         // ── Private helpers ───────────────────────────────────────────────────
 
         private void DispatchIntent(ExecuteNodeOpIntent intent)
@@ -444,6 +574,16 @@ namespace Fdp.Toolkit.Orchestration
                 FdpLog<ClusterSlave>.Debug(
                     "[ClusterSlave] Duplicate intent {0}-{1} dropped.", intent.TransactionId, intent.Operation);
                 return;
+            }
+
+            if (intent.DomainPayload is EditLoadHandlerPayload loadPayload) _loadIsCatchUp = loadPayload.IsCatchUp;   // ⭐ CE-3345 — a catch-up reports CatchingUp, a load Loading
+
+            // ⭐ CE-3345 — a transaction this node CANCELLED runs no more steps (its CommitState must not move the node into a load it abandoned);
+            //   ⭐ and the NEXT transaction (not the master's abort of the failed one) ends the Failed phase.
+            if (intent.Operation != NodeOpType.AbortTransaction)
+            {
+                if (_cancelledTransactionId != Guid.Empty && intent.TransactionId == _cancelledTransactionId) return;
+                if (_failureReason != null && intent.TransactionId != _failedTransactionId) _failureReason = null;
             }
 
             // CommitState: update local state and raise TkClusterStateChangedEvent.
@@ -473,25 +613,20 @@ namespace Fdp.Toolkit.Orchestration
             {
                 if (!handler.CanHandle(intent)) continue;
 
-                var prepareTask = handler.PrepareAsync(intent, default);
+                // ⭐ CE-3345 (R-3070) — a REAL token (it was `default`): CancelLoad cancels it, so a load worker stops instead of finishing for nobody.
+                var cts = new System.Threading.CancellationTokenSource();
+                var prepareTask = handler.PrepareAsync(intent, cts.Token);
                 if (prepareTask.IsCompleted)
                 {
-                    if (prepareTask.IsFaulted)
+                    cts.Dispose();
+                    if (prepareTask.IsFaulted || prepareTask.IsCanceled)
                     {
                         FdpLog<ClusterSlave>.Error(
                             "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                             "(transactionId={1}): {2}. Commit skipped.",
                             intent.Operation, intent.TransactionId,
-                            prepareTask.Exception?.GetBaseException().ToString() ?? "unknown");
-                        _eventBus?.PublishManaged(new NodeOpCompletedEvent
-                        {
-                            TransactionId   = intent.TransactionId,
-                            Operation       = intent.Operation,
-                            NodeId          = _nodeId,
-                            StatusCode      = OrchestrationStatusCode.Failure,
-                            IsParticipating = true,
-                            ResultPayload   = null,
-                        });
+                            prepareTask.Exception?.GetBaseException().ToString() ?? "cancelled");
+                        FailPrepare(intent, ReasonOf(prepareTask));
                     }
                     else
                     {
@@ -511,8 +646,11 @@ namespace Fdp.Toolkit.Orchestration
                 else
                 {
                     _pendingPrepare = (prepareTask, intent, handler);
-                    // ⭐⭐ P4 (Q91 §4-B2, R-4001) — say so ONCE: the prepare runs on, the frame (and the heartbeat) keeps
-                    //   ticking, and the master reads this as progress, never as the answer.
+                    _pendingCts = cts;
+                    // ⭐⭐ P4 (Q91 §4-B2, R-4001) — say so: the prepare runs on, the frame (and the heartbeat) keeps
+                    //   ticking, and the master reads this as progress, never as the answer. ⭐ CE-3345 — it names the load step
+                    //   (and is re-sent when the step changes: PublishProgressIfStepChanged).
+                    _progressStepAcked = (handler as ILoadProgressSource)?.CurrentLoadStep;
                     _eventBus?.PublishManaged(new NodeOpCompletedEvent
                     {
                         TransactionId   = intent.TransactionId,
@@ -520,7 +658,7 @@ namespace Fdp.Toolkit.Orchestration
                         NodeId          = _nodeId,
                         StatusCode      = OrchestrationStatusCode.InProgress,
                         IsParticipating = true,
-                        ResultPayload   = null,
+                        ResultPayload   = _progressStepAcked,
                     });
                 }
                 return;
@@ -724,6 +862,7 @@ namespace Fdp.Toolkit.Orchestration
             }
             _pendingIntents.Clear();
 
+            _pendingCts = null;
             int previous = _localStateId;
             _localStateId = (int)ClusterState.Idle;
             if (previous != _localStateId)

@@ -60,6 +60,10 @@ public sealed partial class ClusterMaster : IDisposable
         public int  Received;
         public bool HasFailure;
         public OrchestrationStatusCode FailureCode;
+        /// <summary>⭐ <c>CE-3345</c> (R-3070) — the REASON the first failing node's ack carried (<i>"cancelled by the user on node 2"</i>); reaches the requester through the op status.</summary>
+        public string? FailureReason;
+        /// <summary>⭐ <c>CE-3345</c> (R-3070, AQ91 §4-H) — this round is a scenario LOAD (it enters <c>LoadingLive</c> / <c>LoadingEdit</c>): a failure fails it AT ONCE and sends the cluster back to Idle.</summary>
+        public bool IsLoadRound;
         /// <summary>
         /// When <c>true</c>, the first node error immediately aborts and rejects the transaction
         /// (ManageEpisode policy).  When <c>false</c>, all ACKs are collected before publishing
@@ -601,6 +605,9 @@ public sealed partial class ClusterMaster : IDisposable
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
                 SessionId               = hb.SessionId,   // ⭐ C2 — the session the node follows (telemetry)
+                Phase                   = hb.Phase,       // ⭐ CE-3345 (AQ110 A) — what the node says about ITSELF
+                Step                    = hb.Step ?? string.Empty,
+                Reason                  = hb.Reason ?? string.Empty,
                 Capabilities            = new System.Collections.Generic.HashSet<string>(tokens),
                 Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };
@@ -1718,6 +1725,7 @@ public sealed partial class ClusterMaster : IDisposable
                     BroadcastClusterStateOnComplete = true,
                     Targets                      = activeNodeIds,
                     ResyncsOnSuccess             = throughIdle,   // ⭐ C3
+                    IsLoadRound                  = trajectory.OfType<TransitionStep>().Any(t => t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit),   // ⭐ CE-3345
                 };
             }
             else
@@ -2126,13 +2134,24 @@ public sealed partial class ClusterMaster : IDisposable
         _owedAcks.Remove(tx.TransactionId);
         tx.IsAborted = true;
 
-        var nodes = new List<int>(_roster.ActiveNodes.Keys);
-        if (nodes.Count > 0)
-            FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), new AbortTransactionPayload(tx.TransactionId), nodes);
         PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Cancelled);
         FdpLog<ClusterMaster>.Info(
-            "[Orchestrator] P8: transition {0} (transaction {1}) CANCELLED — aborted on {2} node(s); returning to Idle.",
-            targetId, tx.TransactionId, nodes.Count);
+            "[Orchestrator] P8: transition {0} (transaction {1}) CANCELLED — aborting on {2} node(s); returning to Idle.",
+            targetId, tx.TransactionId, _roster.ActiveNodes.Count);
+        AbortAndReturnToIdle(tx.TransactionId);
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3070) — <b>the ONE "abort the transaction, then round 2: back to Idle"</b> (P8 / Q91 §4-H.2): an <c>AbortTransaction</c> naming <paramref name="abortedTransactionId"/> to every roster node
+    /// (each node's load chain undoes its load — it may even preempt a stuck prepare, H8), then a round to <c>Idle</c> through the ordinary transition path, which reports the cluster in <c>Idle</c> when every node has
+    /// answered. Used by the master-side CANCEL of an in-flight transition and by a FAILED LOAD round (a node's own cancel, a missing terrain) — ⛔ two copies of round 2 would be two places for it to drift.
+    /// </summary>
+    private void AbortAndReturnToIdle(Guid abortedTransactionId)
+    {
+        var nodes = new List<int>(_roster.ActiveNodes.Keys);
+        if (nodes.Count > 0)
+            FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), new AbortTransactionPayload(abortedTransactionId), nodes);
 
         // ── round 2: back to Idle, the state every load starts from (R-4004, H2).
         var idleRequest = Guid.NewGuid();
@@ -2147,7 +2166,6 @@ public sealed partial class ClusterMaster : IDisposable
                 TargetState   = Fdp.Toolkit.Orchestration.ClusterState.Idle,
             },
             toIdle, _currentDsmState, ClusterState.Idle, toIdle.Count, UtcNowSeconds()));
-        return true;
     }
 
     private void ProcessCancelOperationIntent(CancelOperationIntent intent)
@@ -2250,8 +2268,11 @@ public sealed partial class ClusterMaster : IDisposable
     {
         if (IsInError) state = ClusterState.Degraded;   // ⭐ CE-3345 — what the master announces while in error; _currentDsmState keeps the state the world is really in
         var waitingFor = WaitingFor() ?? string.Empty;   // ⭐ CE-3344 — empty when nothing mandatory is missing
+        var (playReady, loadProgress) = Readiness();     // ⭐ CE-3345 — the participants' combined phases
         _lastPublishedState = state;
         _publishedWaitingFor = waitingFor;
+        _publishedPlayReady = playReady;
+        _publishedLoadProgress = loadProgress;
         _eventBus.PublishManaged(new ClusterStateTransitionedEvent
         {
             NewStateId       = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
@@ -2265,6 +2286,8 @@ public sealed partial class ClusterMaster : IDisposable
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
+            ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070
+            LoadProgress = loadProgress,
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
@@ -2277,11 +2300,15 @@ public sealed partial class ClusterMaster : IDisposable
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
+            ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070
+            LoadProgress = loadProgress,
         });
     }
 
     private ClusterState _lastPublishedState = ClusterState.Idle;
     private string? _publishedWaitingFor;   // null = nothing published yet
+    private bool _publishedPlayReady;
+    private string _publishedLoadProgress = string.Empty;
 
     /// <summary>
     /// ⭐⭐ CE-3344 (R-3069) — while the cluster is not ready (the latch is closed: booting, or after losing a mandatory name / role) the master used to publish NO state at all, so a node
@@ -2290,9 +2317,11 @@ public sealed partial class ClusterMaster : IDisposable
     /// </summary>
     private void PublishWaitingForIfChanged()
     {
-        if (_bootstrapLatch && _publishedWaitingFor is { Length: 0 }) return;   // ready and already said so: no per-frame text building
-        var waiting = WaitingFor() ?? string.Empty;
-        if (waiting == _publishedWaitingFor) return;
+        // ⭐ CE-3345 — the same re-publish carries the readiness the nodes' heartbeats decide (cluster play-ready, who is still loading): it changes with a node's phase, not with a transition.
+        var (playReady, loadProgress) = Readiness();
+        bool readyAndSaid = _bootstrapLatch && _publishedWaitingFor is { Length: 0 };   // ready and already said so: no per-frame text building
+        var waiting = readyAndSaid ? _publishedWaitingFor! : WaitingFor() ?? string.Empty;
+        if (waiting == _publishedWaitingFor && playReady == _publishedPlayReady && loadProgress == _publishedLoadProgress) return;
         PublishClusterState(_lastPublishedState);
     }
 
@@ -2409,6 +2438,7 @@ public sealed partial class ClusterMaster : IDisposable
             {
                 tracker.HasFailure  = true;
                 tracker.FailureCode = ev.StatusCode;
+                tracker.FailureReason ??= ev.ResultPayload as string;   // ⭐ CE-3345 — the node's own reason (first failure wins)
             }
 
             // Populate NodeResponses: use SyntheticResponseJson when set (episode context),
@@ -2439,6 +2469,14 @@ public sealed partial class ClusterMaster : IDisposable
                 FdpLog<ClusterMaster>.Warn(
                     "[Orchestrator] CE-4103: node {0} answered {1} for round {2}; the {3} step(s) it still owed are dropped — the round fails now.",
                     ev.NodeId, ev.StatusCode, ev.TransactionId, stillOwed);
+            }
+            // ⭐⭐ CE-3345 (R-3070) — a LOAD round with a failed node fails NOW, whatever the OTHER nodes still owe: a user's cancel (or a missing terrain) on one node must not wait for another node's
+            //   long load. What they hold is undone by the abort + the round to Idle CompleteRound sends (their late acks find no round and are ignored).
+            if (authoritativeError && tracker.IsLoadRound && tracker.Received < tracker.Expected)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] CE-3345: load round {0} failed on node {1} — it does not wait for the other nodes' {2} outstanding ACK(s).",
+                    ev.TransactionId, ev.NodeId, tracker.Expected - tracker.Received);
+                tracker.Expected = tracker.Received;
             }
             if (tracker.Received >= tracker.Expected)
                 CompleteRound(ev.TransactionId, tracker);
@@ -2473,7 +2511,11 @@ public sealed partial class ClusterMaster : IDisposable
                     new AbortTransactionPayload(txId), tracker.Targets);
 
             NoteRoundCompletedForUnsavedCheck(txId, failed: true, aggregated: null);   // ⭐ CE-4093
-            PublishOpStatus(tracker.RequestId, tracker.FailureCode);
+            PublishOpStatus(tracker.RequestId, tracker.FailureCode, tracker.FailureReason);   // ⭐ CE-3345 — with the failing node's reason
+            // ⭐⭐ CE-3345 (R-3070, AQ91 §4-H: "the cluster goes to the initial default state") — a failed LOAD ends in Idle: abort on every node, then the round to Idle. ⭐ BEFORE the broadcast below,
+            //   so it says Idle (the optimistic advance had moved the master to the load's target). ⛔ Not for any other round: a failed checkpoint or save leaves the world as it is.
+            if (tracker.IsLoadRound)
+                AbortAndReturnToIdle(txId);
         }
         else if (tracker.OnPhaseSuccess != null)
         {

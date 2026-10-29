@@ -93,6 +93,12 @@ namespace Fdp.Toolkit.Orchestration
         public string SubsystemName;
         /// <summary>⭐ C2 (R-4006 I5) — the cluster session this node follows; empty until it has seen one.</summary>
         public Guid   SessionId;
+        /// <summary>⭐⭐ <c>CE-3345</c> part B (R-3072, AQ110 A) — what the node reports about ITSELF: its <see cref="NodePhase"/>. Default 0 = <see cref="NodePhase.Ready"/> (a sender that never sets it).</summary>
+        public NodePhase Phase;
+        /// <summary>⭐ <c>CE-3345</c> — the load step the node is on (while <see cref="NodePhase.Loading"/> / <see cref="NodePhase.CatchingUp"/>); <see langword="null"/> otherwise.</summary>
+        public string? Step;
+        /// <summary>⭐ <c>CE-3345</c> — why the node's last prepare failed (while <see cref="NodePhase.Failed"/>); <see langword="null"/> otherwise.</summary>
+        public string? Reason;
         // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
@@ -148,6 +154,11 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐⭐ <c>CE-3345</c> (R-3073, <c>DESIGN_Cluster_Load_Phase.md</c> §11.5) — the cluster ERROR: why it is broken (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>), set while a mandatory
         /// node / role was lost with a world loaded and cleared only when the cluster reaches Idle. <see langword="null"/> / empty = no error. ⭐ Beside <see cref="WaitingFor"/>, never instead of it.</summary>
         public string? ErrorReason;
+        /// <summary>⭐⭐ <c>CE-3345</c> part B (R-3070, AQ110 B) — CLUSTER PLAY READY: the master's combination over the PARTICIPANTS only (in sync ∧ not an observer, K6) — every one of them reports <see cref="NodePhase.PlayReady"/>.
+        /// False while any of them is still loading, and in Idle (nobody has a world to play). Rides every cluster-state publication, beside <c>WaitingFor</c>.</summary>
+        public bool ClusterPlayReady;
+        /// <summary>⭐ <c>CE-3345</c> — which PARTICIPANTS are still loading and on what step (<i>"CGF (node 2): Terrain; SimHost (node 3): KnowledgeBase"</i>); <see langword="null"/> / empty = none is.</summary>
+        public string? LoadProgress;
     }
 
     /// <summary>
@@ -228,6 +239,11 @@ namespace Fdp.Toolkit.Orchestration
         public string? WaitingFor;
         /// <summary>⭐⭐ <c>CE-3345</c> (R-3073) — as <see cref="ClusterStateTransitionedEvent.ErrorReason"/> (what <see cref="ClusterView.ErrorReason"/> folds).</summary>
         public string? ErrorReason;
+        /// <summary>⭐⭐ <c>CE-3345</c> part B (R-3070, AQ110 B) — CLUSTER PLAY READY: the master's combination over the PARTICIPANTS only (in sync ∧ not an observer, K6) — every one of them reports <see cref="NodePhase.PlayReady"/>.
+        /// False while any of them is still loading, and in Idle (nobody has a world to play). Rides every cluster-state publication, beside <c>WaitingFor</c>.</summary>
+        public bool ClusterPlayReady;
+        /// <summary>⭐ <c>CE-3345</c> — which PARTICIPANTS are still loading and on what step (<i>"CGF (node 2): Terrain; SimHost (node 3): KnowledgeBase"</i>); <see langword="null"/> / empty = none is.</summary>
+        public string? LoadProgress;
     }
 
     /// <summary>

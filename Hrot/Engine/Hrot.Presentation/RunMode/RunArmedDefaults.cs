@@ -1,3 +1,5 @@
+using Fdp.Toolkit.Orchestration;
+
 namespace Hrot.UI.Common.RunMode;
 
 /// <summary>
@@ -14,6 +16,8 @@ public enum RunHostKind
     SimHost,
     /// <summary>⭐ <c>CE-1439</c> — the Orchestrator (the cluster master's own window): an OPERATOR host with no world of its own.</summary>
     Orchestrator,
+    /// <summary>⭐ <c>CE-3345</c> — the IG (image generator): a PLAYER host, not an operator — see <see cref="HostGatePolicies"/>.</summary>
+    Ig,
     /// <summary>Any other host (the all-in-one's other subsystems, the server, a test host).</summary>
     Other,
 }
@@ -27,4 +31,16 @@ public static class RunArmedDefaults
 {
     /// <summary>The armed default of a host of this kind: <see cref="RunHostKind.Editor"/> ⇒ Preview, every other kind ⇒ Live.</summary>
     public static RunArmed For(RunHostKind hostKind) => hostKind == RunHostKind.Editor ? RunArmed.Preview : RunArmed.Live;
+}
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-3345</c> (R-3072, <c>AQ110</c> D) — <b>the ONE gate-policy table</b>, the <see cref="RunArmedDefaults"/> pattern (R-3068): what each kind of host waits on before its controls open.
+/// <see cref="HostGatePolicy.Player"/> for the IG (its own <c>PlayReady</c> alone — what the rest of the cluster loads is irrelevant to it); <see cref="HostGatePolicy.Operator"/> for every other kind (Editor, CGF, Orchestrator,
+/// SimHost, any other: its own load AND the cluster's must be done). ⛔ Never written as a literal at a host: <c>IProvidesRunControls.GatePolicy</c> reads this table from the host's declared <see cref="RunHostKind"/>,
+/// and <c>ClusterView.GateOpen(policy)</c> combines the facts — so no host re-derives it and no two hosts can disagree. ⭐ A new situation is a new policy value here, never a new message.
+/// </summary>
+public static class HostGatePolicies
+{
+    /// <summary>The gate policy of a host of this kind: <see cref="RunHostKind.Ig"/> ⇒ <see cref="HostGatePolicy.Player"/>, every other kind ⇒ <see cref="HostGatePolicy.Operator"/>.</summary>
+    public static HostGatePolicy For(RunHostKind hostKind) => hostKind == RunHostKind.Ig ? HostGatePolicy.Player : HostGatePolicy.Operator;
 }

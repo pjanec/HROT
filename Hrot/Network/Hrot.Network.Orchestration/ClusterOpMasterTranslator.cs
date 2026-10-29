@@ -36,6 +36,8 @@ public sealed class ClusterOpMasterTranslator
         ArmedMode        = (int)ev.ArmedMode,   // ⭐ CE-3341 R-3068
         WaitingFor       = ev.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
         ErrorReason      = ev.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
+        ClusterPlayReady = ev.ClusterPlayReady,              // ⭐ CE-3345 R-3070
+        LoadProgress     = ev.LoadProgress ?? string.Empty,
     };
 
     private readonly DdsReader<ClusterOpRequest>    _requestReader;

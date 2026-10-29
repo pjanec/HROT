@@ -527,6 +527,51 @@ public sealed class LoadPhaseChainTests
         await prepare;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3072, AQ110 A) — <b>the chain names the step it is on</b>, which the node reports on its heartbeat and in its progress ack: the steps in the chain's order while the load prepares (a step run on a WORKER included),
+    /// then — while the Operating prepare is held — the first step still unresolved; <see langword="null"/> once the hold resolves and after an abort.
+    /// 🔴 Mutations (each compiles): the assignment before <c>step.PrepareAsync</c> removed ⇒ the in-order cell reds; the one in <c>DrainDeferredAcks</c> removed ⇒ the hold cell reds; <c>_currentStep = null</c> removed from the resolve ⇒ the "resolved" cell reds;
+    /// from <c>AbortLoad</c> ⇒ the "abort" cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task CE3345_TheChainNamesTheStepItIsOn_InOrder_WhileHeld_AndNothingOnceResolvedOrAborted()
+    {
+        LoadPhaseChain? chain = null;
+        var seen = new List<string?>();
+        FakeStep Named(LoadPart part) => new(part) { OnPrepare = () => seen.Add(chain!.CurrentLoadStep) };
+        var terrain = Named(LoadPart.Terrain);
+        terrain.Resolved = false;   // the MIDDLE step drains on: the held name must differ from the last step prepared
+        chain = LoadPhaseChain.FromRoles(NodeRole.Brain | NodeRole.MuscleGround,
+            new ILoadPartProvider[] { Named(LoadPart.ScenarioEntities), terrain, Named(LoadPart.KnowledgeBase) }, world: null);
+        Assert.Null(chain.CurrentLoadStep);                                         // no load, no step
+
+        await chain.PrepareAsync(LoadIntent(), CancellationToken.None);
+        Assert.Equal(new[] { "KnowledgeBase", "Terrain", "ScenarioEntities" }, seen);   // the chain's order, each named while it ran
+
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+        Assert.Equal("Terrain", chain.CurrentLoadStep);                             // held: the step still draining is the one reported
+
+        terrain.Resolved = true;
+        chain.DrainDeferredAcks();
+        await hold;
+        Assert.Null(chain.CurrentLoadStep);                                         // resolved: nothing to report
+
+        // a step that runs on a WORKER is named while it blocks there; an abort clears the name
+        var blocking = new BlockingStep(LoadPart.Terrain);
+        var chain2 = LoadPhaseChain.FromRoles(NodeRole.MuscleGround, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), blocking }, world: null);
+        var load = LoadIntent();
+        var prepare = chain2.PrepareAsync(load, CancellationToken.None);
+        Assert.True(blocking.Started.Wait(5_000));
+        Assert.Equal("Terrain", chain2.CurrentLoadStep);
+        await chain2.PrepareAsync(new ExecuteNodeOpIntent
+            { Operation = NodeOpType.AbortTransaction, TransactionId = Guid.NewGuid(), DomainPayload = new AbortTransactionPayload(load.TransactionId) }, CancellationToken.None);
+        Assert.Null(chain2.CurrentLoadStep);
+        blocking.Release.SetResult();
+        await prepare;
+    }
+
     /// <summary>⭐ A pure step that waits on a gate, recording the thread it ran on.</summary>
     private sealed class BlockingStep : ILoadPartProvider
     {

@@ -172,6 +172,27 @@ public class TheStartGateIsComposedOnceTests
         => Assert.Equal(new[] { RunHostKind.Editor },
             System.Enum.GetValues<RunHostKind>().Where(k => RunArmedDefaults.For(k) == RunArmed.Preview).ToArray());
 
+    // ── CE-3345 (R-3072, AQ110 D): the gate policy is ONE table too — Player for the IG, Operator for every other host kind ──
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success 6 (the table half) — what each host kind's controls wait on is read from the ONE table: the IG is a <b>Player</b> (its own PlayReady alone), every other kind an <b>Operator</b>; and a host's
+    /// <c>IProvidesRunControls.GatePolicy</c> IS that table's value for its declared kind (no host overrides it).
+    /// 🔴 Mutations (each compiles): <c>For</c> returning <c>Operator</c> for the IG ⇒ the IG row reds; the interface default returning a literal ⇒ the "host reads the table" cell reds.
+    /// </summary>
+    [Theory]
+    [InlineData(RunHostKind.Editor, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
+    [InlineData(RunHostKind.Cgf, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
+    [InlineData(RunHostKind.Orchestrator, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
+    [InlineData(RunHostKind.SimHost, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
+    [InlineData(RunHostKind.Other, Fdp.Toolkit.Orchestration.HostGatePolicy.Operator)]
+    [InlineData(RunHostKind.Ig, Fdp.Toolkit.Orchestration.HostGatePolicy.Player)]
+    public void CE3345_TheGatePolicy_IsPlayerForTheIg_OperatorElsewhere_AndAHostReadsTheTable(RunHostKind kind, Fdp.Toolkit.Orchestration.HostGatePolicy expected)
+    {
+        Assert.Equal(expected, HostGatePolicies.For(kind));
+        IProvidesRunControls host = new RunHost("h", kind, operatorHost: false, offers: false);
+        Assert.Equal(expected, host.GatePolicy);
+    }
+
     // ── CE-1437 (AQ108 §2.10): the run controls are composed ONCE per process, picked BY RULE ────────────────────────
 
     private sealed class FakeControl : IRunScenarioControl

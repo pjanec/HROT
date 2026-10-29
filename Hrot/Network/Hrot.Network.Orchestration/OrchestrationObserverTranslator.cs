@@ -63,15 +63,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         using (var l = _heartbeatReader.Take())
             foreach (var s in l)
                 if (s.IsValid)
-                    _bus.PublishManaged(new NodeHeartbeatEvent
-                    {
-                        NodeId        = s.Data.NodeId,
-                        LocalStateId  = (int)s.Data.LocalClusterState,
-                        WallTicksUtc  = s.Data.WallTicksUtc,
-                        SubsystemName = s.Data.SubsystemName ?? string.Empty,
-                        SessionId     = s.Data.SessionId,   // ⭐ C2
-                        // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
-                    });
+                    _bus.PublishManaged(Hrot.Common.Orchestration.NodeHeartbeatWire.ToEvent(s.Data));   // ⭐ CE-3345 — the ONE mapping
 
         // NodeCapabilities → NodeCapabilitiesEvent (CE-285 — durable static attributes, gathered by ClusterMaster)
         using (var l = _capabilitiesReader.Take())
