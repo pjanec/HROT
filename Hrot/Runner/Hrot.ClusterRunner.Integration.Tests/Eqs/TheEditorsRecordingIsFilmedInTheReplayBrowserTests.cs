@@ -468,7 +468,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
                 Assert.DoesNotContain(cursor.ModeMenuItems(transport.Session!.ZeroWallTicks, "0:03"), i => i.Label.StartsWith("Go live"));
                 return live;
             }
-            void BackInLive(double live, string how)
+            void BackInLive(double live, string how, int framesBefore)
             {
                 Pump(editor, () => transport.Mode == TransportMode.Live, 60, $"back in OperatingLive by {how}");
                 Assert.Equal(exercise, transport.ActiveExercise);                        // the same run: no branch, no new exercise
@@ -479,6 +479,9 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
                 Assert.True(transport.IsPaused, $"live is running after {how}: the design says it returns paused");
                 transport.TogglePlayPause();                                             // the user's ▶
                 Pump(editor, () => transport.TotalTime > live + 1, 20, $"live running on from the live point after ▶ (from {how})");
+                // ⭐ CE-1448 — the live timeline index is NOT restarted by the return: it holds at least the frames it held before the DAR (the node held its step until the world caught up)
+                Assert.True(editor.NodeForTest!.ShownTimeline!.Index.FrameSim.Count >= framesBefore,
+                    $"the live index restarted after {how}: {editor.NodeForTest.ShownTimeline.Index.FrameSim.Count} frames, {framesBefore} before the DAR");
             }
 
             if (viaTimeline)
@@ -489,24 +492,26 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
             int frame = 0; while (frame < index.FrameSim.Count - 1 && index.FrameSim[frame] < 3.0) frame++;
             var asked = index.FrameSim[frame];
             var liveB = transport.TotalTime;
+            int framesBeforeB = index.FrameSim.Count;
             cursor.EnterReview(index.FrameTicks[frame]);
             var pausedAtB = EnteredDar(asked, "the timeline at 3 s");
             Assert.InRange(pausedAtB, liveB - 0.5, liveB + 1.5);
             var eject = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("⏏"));
             eject.Invoke!();
-            BackInLive(pausedAtB, "⏏");
+            BackInLive(pausedAtB, "⏏", framesBeforeB);
             }
             else
             {
             // ── the indicator's window item, then ■ ──
             var liveA = transport.TotalTime;
+            int framesBeforeA = editor.NodeForTest!.ShownTimeline!.Index.FrameSim.Count;
             var window = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("DAR — the last 30 s"));
             Assert.True(window.Enabled);
             window.Invoke!();
             var pausedAtA = EnteredDar(Math.Max(0, liveA - 30), "the last 30 s");
             Assert.InRange(pausedAtA, liveA - 0.5, liveA + 1.5);                         // the live point = where live was when the DAR began
             choice.Stop();                                                               // R-3060: ■ in a review = back to live
-            BackInLive(pausedAtA, "■");
+            BackInLive(pausedAtA, "■", framesBeforeA);
             }
 
             // ── ■ the run: ONE recording, covering the live time, no gap, no branch ──

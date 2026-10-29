@@ -186,6 +186,7 @@ public sealed record HrotNodeContext : IDisposable
     /// is a review or replay (a review rewinds the world: the frame counter going back would otherwise reset it; its history IS the run up to the
     /// live point), and starts AFRESH on entering <c>OperatingLive</c> from anything but a review (edit, preview, idle, loading…) so frame 0 is the
     /// run's first frame. Returning to live FROM a review does not reset — the index continues from the live point.
+    /// ⭐ CE-1448 — "a review" includes the frames around it where this node's state still says live: from the review handler's prepare to its finalize (entry), and, after the return, until the world is past the index's last frame.
     /// </remarks>
     public void StepTimeline()
     {
@@ -193,10 +194,25 @@ public sealed record HrotNodeContext : IDisposable
         // ⭐ CE-3330 E6 — in a cluster replay the shown index is the node's OWN recording's: keep it open (cheap no-op per frame)
         if (IsRecordingShown(state)) RecordingTimeline.Sync(ReplayRecordingPath);
         else _recordingTimeline?.Sync(null);
+        // ⭐⭐ CE-1448 — a review is IN FLIGHT from the moment its prepare commits (the handler holds the live point) to the moment its finalize commits — which is BEFORE the cluster state says so on entry
+        //   (the world is put to the review's moment while this node still reads OperatingLive: MEASURED on the real editor, 314 → 299 → the index reset to one frame) and AFTER it on return. The index is frozen throughout.
+        bool reviewInFlight = (_reviewHandler ??= ClusterSlave.RegisteredHandlers.OfType<Fdp.Toolkit.Orchestration.Handlers.ReferenceReviewHandler>().FirstOrDefault())?.InReview == true;
+        if (reviewInFlight) _timelineAfterReview = true;
         if (Fdp.Toolkit.Orchestration.ClusterStates.IsReview(state)) _timelineAfterReview = true;
         else if (state == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)
         {
+            if (reviewInFlight) { _timelineState = state; return; }   // ⭐ CE-1448 — entering a DAR: the world is rewound under a state that still says live — no step, no reset
             if (_timelineState != Fdp.Toolkit.Orchestration.ClusterState.OperatingLive && !_timelineAfterReview) Timeline.Reset(World);
+            // ⭐ CE-1448 — the state flips to OperatingLive when the review's world is put back, but the master returns the clock to the live point only a few frames later. MEASURED (the DAR rails): the first live
+            //   steps still read this node's own last frame (== the index's last), then the clock snaps back to L (a few frames BEHIND it), then climbs — and the snap-back looked like a rewind and reset the index
+            //   (the DAR's history lost). So HOLD — no step, no reset — until the world is PAST the index's last frame (<=: the stale frame and the snap-back are both held), then continue.
+            //   ⛔ Only after a review: a genuine rewind outside one (edit, a new run) still resets (LiveTimelineSource.Step, and the fresh index on entering live from anything else).
+            if (_timelineAfterReview && World.HasSingleton<Fdp.Core.GlobalTime>()
+                && World.GetSingleton<Fdp.Core.GlobalTime>().FrameNumber <= Timeline.LastFrame)
+            {
+                _timelineState = state;
+                return;
+            }
             _timelineAfterReview = false;
         }
         else if (state is not (Fdp.Toolkit.Orchestration.ClusterState.LoadingLive or Fdp.Toolkit.Orchestration.ClusterState.UnloadingLive))
@@ -208,6 +224,7 @@ public sealed record HrotNodeContext : IDisposable
 
     private Fdp.Toolkit.Orchestration.ClusterState _timelineState;
     private bool _timelineAfterReview;
+    private Fdp.Toolkit.Orchestration.Handlers.ReferenceReviewHandler? _reviewHandler;
 
     /// <summary>The context the node's timeline lanes apply in: the live world.</summary>
     public static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext TimelineContext { get; } = new(Live: true);
