@@ -1775,3 +1775,14 @@ sequenceDiagram
 *Rejected:* **every map host waits for the 3-D map in its load** (R3 as first written) — CGF / SimHost / editor would hold the cluster's
 play-ready on a map nobody looked at · **build on the frame thread** — CE-4078's ejection.
 **Split:** ui — the builder, the switch's background build, the profile flag; backend — the chain step that waits on it (AQ110 R3).
+
+⭐ **The seam — agreed with backend (`NOTE_Backend_To_Ui_Bootstrapper_And_Map_Step.md` §2, `2026-10-29`):** a status the step POLLS, the
+chain's existing shape (`ILoadPhaseStep.IsResolved`, `LoadPhaseContracts.cs:151`, polled each frame). ui's builder exposes
+`IMapBuildStatus { bool IsBuilt; string? Failure; string Step; }` beside `ILoadProgressSource` in `Fdp.Toolkits/Orchestration` (both
+presentation projects already reference it); backend's `MapBuildLoadStep` resolves on `IsBuilt`, fails the prepare with `Failure`, feeds `Step`
+to the heartbeat. *Rejected:* an awaited completion (a second step shape).
+Two points the step relies on, owned by ui's builder:
+① **the status is PER LOAD** — `IsBuilt` refers to the terrain this load committed (a generation the builder resets when the terrain changes),
+never to a map built for the previous scenario; ② **on a `MapInLoad` node the builder STARTS on the terrain commit** (not on a view switch), so the
+step has something to wait for; on every other node it starts on the first 2-D → 3-D request.
+
