@@ -176,7 +176,7 @@ related-designs:
 |---|---|
 | done | CE-1441 · CE-3341 ui half · CE-4102 (live proof + rail; [RUNBOOK_Filming §0b](../RUNBOOK_Filming.md)) · CE-1442 U1 (the run gate, DESIGN_Cluster_Load_Phase §11.7) · CE-1443 part A (the File menu, R-1043) + part B1 (named saves) · backend R-1043 merged (one initial armed mode; AAR/DAR Load follows `LastLoadMode`) |
 | next | CE-1443 B2 (Save … as Recipe — measure the recipe write path first) · coordinator's CE-4104 (prove the mode switches end to end) · scenario picker "waiting for the list" (U1 follow-up) |
-| ⭐ standing Sonnet worker (topic: run modes / File menu, main checkout) | agent id `acc3a39efd45e58d7` — resume with `SendMessage`; dead after a container restart |
+| ⭐ standing Sonnet worker (main checkout; gets EVERY build task, small ones too — CLAUDE.md DELEGATING EFFICIENTLY) | agent id `a01b228ca211f5b44` (started on CE-4104 switch 2) — resume with `SendMessage`, send only the delta; the earlier `acc3a39efd45e58d7` was stopped. Dead after a container restart ⇒ start one fresh and record its id here |
 
 ## ⭐⭐⭐ SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066) *(state at `ui@71e8ac588`, pushed, tree clean)*
 
