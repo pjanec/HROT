@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — OPEN (backend, 2026-10-29): retire the ExCon node completely, unless a good reason to keep it is found
 updated: 2026-10-29
-build-state: DESIGN — §3 MEASURED 2026-10-29 (nothing unique to ExCon); leans in §4 await the user
+build-state: READY-TO-BUILD — A–F APPROVED 2026-10-29 (R-3067), after CE-1436; §5 the DER inspector — its own decision (lean awaits the user)
 current-answer: §1 the user's account · §3 what ExCon carries and where each would go · §4 sub-questions with leans
 stale-below: nothing
 known-rot: docs/projects/Hrot/Subsystems/Hrot.ExCon.md (2026-05-23) describes ExCon as a live role — superseded by §1 once decided
@@ -72,3 +72,33 @@ whose purpose is gone.
 | **F** | order | ⭐ after CE-1436 lands (it moves ExCon onto the shared ingress first, so the retirement is a deletion, not a rewrite) and before CE-3340's rails (so the rails do not pin ExCon's copies) | — |
 
 ⏳ **Next step:** the user decides A–F (§3 is measured). Development stays paused (R-3066); the retirement itself would be one task after CE-1436.
+
+## 5. ✅ Approved (`2026-10-29`, R-3067) — and the one thing kept: the DER entity inspector
+
+🔒 User: *"approved, retire ExCon after ClusterView. Keep just the der entity inspector panel, i guess it is generic and might go to global
+diagnostic windows, pls check it and evaluate it."*
+
+### 5a. 📐 The DER entity inspector, measured
+
+| question | 📐 measured | file |
+|---|---|---|
+| is the PANEL generic? | ✅ yes — `DerEntityInspectorPanel` renders any `IDerRepo`: an entity list + a live tree of each entity's raw network DESCRIPTORS as received (`GetAllRawDescriptors`); it lives in `Fdp.Presentation`, not in ExCon | `FDP/Engine/Fdp.Presentation/ImGui/Panels/DerEntityInspectorPanel.cs:38-68` |
+| is its DATA generic? | ⛔ **no** — `IDerRepo` is documented as *"Non-ECS entity repository for ExCon Mock"*, and the only thing that FILLS one is ExCon's own ingress (`NedExConIngressTranslators`, created by `INetworkFactory.CreateExConIngressHandlers`) | `FDP/Toolkits/Fdp.Toolkits/DER/IDerRepo.cs` header; `Hrot/Network/Hrot.Network.NED/ExCon/NedExConIngressTranslators.cs:248-346` |
+| does any other host have a DER? | ⚠ the editor declares one (`EditorApplication._view`, `:38`) but **nothing writes it** (grep for writes: none) — so `EditorOrbatPanel` (constructed `EditorSubsystem.cs:2865`) reads an always-empty repository, and `EntityPropertyInspector` is never constructed: 🔴 **dead code found**, to delete with ExCon | `Hrot/Subsystems/Hrot.Editor/EditorApplication.cs:38,62` |
+| where would it go? | the shared global diagnostics windows — `DiagnosticsWindowsBundle` (Presentation), attached by IG, CGF, SimHost, the Replay Browser and the editor | `Hrot/Engine/Hrot.Presentation/Windows/DiagnosticsWindowsBundle.cs` |
+| what does it show that nothing else does? | the entity **as received on the wire** — raw descriptors per entity, live, before any translator turns them into components — including from a non-HROT sender (a DIS gateway). The ECS inspector shows components AFTER translation; ddsmonitor records samples to a file, not a live per-entity view | — |
+
+### 5b. ⏳ Lean
+
+⭐ **Keep it as a global diagnostic — "Wire Entity Inspector" — with its OWN data source, opt-in:** move the DER descriptor ingress out of ExCon into
+the shared diagnostics (one passive subscriber to the descriptor topics, filling a `DerRepo`), created **only while the window is open** (a mirror
+of every descriptor on every node otherwise costs memory and DDS readers for nothing), and add the window to `DiagnosticsWindowsBundle` so every
+host offers it by construction. Rename nothing it does not need: `DerRepo` stays the one non-ECS mirror; its header stops saying "ExCon".
+
+| rejected | why |
+|---|---|
+| point the panel at the ECS world instead | it would duplicate the existing ECS `EntityInspectorPanel` — and lose the one thing it is for (the wire, before translation) |
+| keep a DER mirror always on every node | a second entity repository running all the time (the duplication R-3066 removes), for a debugging view |
+| drop it | loses the only live "what did the wire say about entity X" view (the user asked to keep it) |
+
+⏳ What would change the lean: if ddsmonitor gains a live per-entity view, the panel becomes redundant.
