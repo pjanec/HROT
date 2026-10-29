@@ -13,7 +13,7 @@ related-designs:
 
 **ui builds (AQ108 §2.15 has the menu):**
 1. The File menu exactly as drawn there, on every host, through the shared scenario-menu registration: Load Scenario · New Scenario · Load Checkpoint · Open Exercise Recording · Save Checkpoint (live only) · the editing group (only while editing, hidden otherwise) · Close · Exit. ⛔ Remove `File/Live/…`, `File/Edit/…`, `File/Checkpoint/…`, **New Exercise**, and **`File/Terrain…` with `TerrainPickerLauncher`** (the recipe owns the terrain).
-2. ⭐ **Load follows the cluster's armed mode** — this corrects your CE-4097 as-built row 9 (*"Open always opens INTO editing"*), which drifted from the user's fifth pass.
+2. ⭐ **Load follows the cluster's armed mode** — this corrects your CE-4097 as-built row 9 (*"Open always opens INTO editing"*), which drifted from the user's fifth pass. ⭐ **Resolved on the host, not the master** (user: *"all the requests to the cluster state machine are always explicit"*): the shared operator load path reads `ClusterView`'s armed mode and sends an explicit load into Live / into edit. ⛔ Backend's `FollowArmedMode` flag is withdrawn — do not use it.
 3. **Close** = `Door.Leave(LeaveReason.Close)` (a new reason; `BackToStart` folds into it). Exempt from the readiness gate.
 4. Start / every operator host greys its cluster actions on `!ClusterView.CanOperate`, showing `ClusterView.NotOperableReason` (CE-3344, built on `backend`).
 5. **The red status-bar indicator** for the cluster error state (§11.5): its reason, and only Close and Exit enabled; Close asks only *"discard and close?"* (Save is refused during an error).
