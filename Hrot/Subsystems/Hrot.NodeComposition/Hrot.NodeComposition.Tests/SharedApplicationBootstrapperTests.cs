@@ -537,6 +537,7 @@ public sealed class SharedApplicationBootstrapperTests
             "ResolveCapabilities",   // ⭐ CE-4013 — the base owns the capability walk
             "get_TimeRole",          // ⭐ CE-1446 B0 — the two new INPUTS (property getters): a time role and whether a post-sim group is built
             "get_BuildsPostSimGroup",
+            "get_DeduplicateSystemsByType",   // ⭐ CE-1446 B2 — opt-in CE-165 dedupe (the editor)
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
