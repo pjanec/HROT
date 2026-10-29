@@ -650,32 +650,20 @@ ever considered, which is what obligation ① exists to prevent.
 
   ⛔ **SUPERSEDED:** *"Opus reviews the real diff and re-runs the gates"* (the earlier token-thrift line) — ⭐ Opus reviews the tests and the diff; it does not re-run them.
 
-  #### ⭐⭐⭐ WHEN TO DELEGATE AT ALL — **the hybrid** *(user, `2026-10-29`: "Do you consider working this way with sonnet agents as token saving? It seems to me it is a bit painful" → on the lean: "Agreed, write it to claude.md")*
-  📐 **Measured the same day, five agents:** 160k–363k Sonnet tokens and 8–42 min each, + ~20–40k Opus tokens per brief and review. ⭐ ~100k+ of every
-  agent goes on re-reading what Opus already read; every handover dropped something (a missed integration class, a re-brief mid-run). 📌 The Replay
-  Browser scenario-name fix done directly: ~5 min. As an agent it would have been ~20 min and ~150k tokens.
+  #### ⭐⭐⭐ DELEGATING EFFICIENTLY *(user, `2026-10-29`)*
+  📐 Measured: a fresh agent spent ~100k+ tokens and minutes re-reading before any work; agents took 8–42 min each, mostly cold builds and broad
+  test runs, not code.
 
-  | ⭐ the rule | |
+  | ⭐ rule | |
   |---|---|
-  | ⭐⭐⭐ **OPUS DOES DIRECTLY:** design · small fixes (a few files, tests included) · test follow-ups · merges and conflict resolution | ⭐ the threshold: **if writing the change takes about as long as writing the brief, write the change** |
-  | ⭐⭐ **SONNET DOES:** only LARGE, SELF-CONTAINED builds with a clear spec — a feature slice across many files, a long test-writing job — briefed per *BRIEF FOR SPEED* below | ⚠ if rate limits become the binding constraint again, shift more work to Sonnet and accept the slower pace — say so |
+  | ⭐⭐⭐ **Do it directly when writing the change ≈ writing the brief** — design, small fixes, test follow-ups, merges | Sonnet only for large self-contained builds |
+  | ⭐⭐⭐ **Keep ONE Sonnet worker per topic and resume it with `SendMessage`** (send only the delta); record its id in the resume doc | new worker only on a topic change, a container restart, or an over-full context |
+  | ⭐⭐⭐ **No worktree** — work in the main checkout (warm `bin/obj`); while it works Opus commits only its own files, by path | a worktree means cold restores + builds |
+  | ⭐⭐ **Hand over what you measured** (file:line, the seam, the test class); **Opus writes the design** first | never ask it to re-discover |
+  | ⭐⭐ **Gates in the brief = the touched classes + every test class on the changed seam (incl. integration)**, red-proved; broad suites once, after the merge | name exact commands; build test projects **one after another** |
+  | ⭐⭐ **One coherent change per agent, ≤ 15 min** | |
+  | ⭐ **After a killed agent, check its WIP for leftover mutations first** | |
 
-  #### ⭐⭐⭐ BRIEF FOR SPEED — **the brief decides the wall-clock, not the model** *(user, `2026-10-29`: "50 minutes for file menu fix - isnt it a bit way too long? … Can you be more clevwr when briwfing subagents?")*
-  📐 **Measured, four agents the same day: 26–43 min each, and most of it was not the code** — a fresh worktree restores + builds every touched
-  project cold (~80 s+ each), the brief asked for 5–6 FULL suites + integration classes per pass, and it made the agent re-discover seams Opus had
-  already found.
-
-  | ⭐ the rule | why |
-  |---|---|
-  | ⭐⭐⭐ **NO worktree isolation while one agent runs at a time** — it works in the main checkout and reuses the warm `bin/obj` | ⛔ `isolation: worktree` = a cold restore + build of every project. ⚠ **While it runs, Opus edits and commits NOTHING in the checkout** (read-only work only); the agent commits, Opus reviews and pushes |
-  | ⭐⭐⭐ **HAND OVER WHAT YOU MEASURED — file:line, the exact seam, the exact test class to extend** | ⛔ "find the precedents first" makes the agent redo Opus's graph + grep pass. ⭐ The brief is the inventory's OUTPUT, not a request to repeat it |
-  | ⭐⭐⭐ **GATES IN THE BRIEF = T-1 + T0 ONLY**: the feature's own suite (filtered) + the new rails, each red-proved | ⛔ never "run Presentation, Editor, AiShared, Orchestrator, ClusterRunner, CGF + integration". ⭐ The broad T2 run happens ONCE, by Opus in the background after the merge — its reds go back to the agent with `SendMessage` |
-  | ⭐⭐ **ONE coherent change per agent — target ≤ 15 min** | ⭐ split by seam (menu structure · load resolver · bootstrap parameter), each with 2–4 success conditions; ⛔ not one brief carrying a design step + a menu + a ruling rework + a cross-lane bootstrap |
-  | ⭐⭐ **Opus does the DESIGN step itself** (the UML in the owning doc) before dispatching | ⛔ "Step 1 — design, then build" doubles the agent's time and moves the design to the cheaper model |
-  | ⭐ **name the build commands exactly** (`dotnet build <the one test csproj> --no-restore`, then `dotnet test … --no-build --filter …`) | ⛔ an unqualified "run the gates" invites restores and full-solution builds |
-  | ⭐⭐ **BUILD THE TEST PROJECTS ONE AFTER ANOTHER, never in parallel** — say so in the brief | 📌 measured `2026-10-29`: an agent started three builds at once after a container restart; they shared `Hrot.Editor` / `Hrot.Presentation` and fought over one compiler server — ~10 min of compiling before a single test ran. ⭐ The first build pays; the next ones reuse its output |
-  | ⭐⭐⭐ **the brief NAMES every test class that exercises the changed SEAM — including the integration classes that construct real hosts** | 📌 measured `2026-10-29`: U1 (the run gate) changed what a freshly built host reports; its brief listed only unit classes, so `TheRunChoiceIsOnEveryHostTests` (5 rails asserting ▶ right after construction) went red unseen and surfaced one batch later. ⭐ Find them with `search_code` for the changed member before dispatching; this is T-1 for the SEAM, not the full suite |
-  | ⭐⭐ **after a killed / restarted agent, `git diff` its WIP for LEFT-OVER MUTATIONS before anything else** — and say so in the follow-up brief | 📌 measured `2026-10-29`: a container restart killed an agent mid red-proof; its WIP carried TWO deliberate mutations in production code (menu ordering, a visibility rule). Existing rails caught them — ⛔ luck, not method |
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.
 - **Architect-questioning discipline (engine-rules gate):** no non-trivial capability / node / slice starts without a design, and no non-trivial design ships without an **architect pass**. For each non-trivial task, draft an `docs/blueprints/Architect_Question_N_*.md` mirroring the existing Q#2–Q#5 docs (decision-shaped sub-questions A/B/C/D + Claude's recommended lean + the reuse-vs-build tradeoff for each), record the answers in that doc, **then** build. Trivial mirror-pattern nodes (a documented recipe already exists) may proceed on a short in-repo design note without a full architect round.
