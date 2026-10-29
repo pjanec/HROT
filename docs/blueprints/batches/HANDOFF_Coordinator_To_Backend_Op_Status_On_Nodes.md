@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — coordinator → backend: the master's op status (ClusterOpStatus) read back on every ECS node, so a CGF / SimHost / IG host can ask CE-4097's unsaved check; answers NOTE_Ui_To_Backend_Op_Status_On_Nodes (on `ui`, `4a1b03227`)
+state: SUPERSEDED (2026-10-29, before backend started — rule 1a) by ui's frame CE-1436, NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md (on `ui`, `fcbacaae8`); was: coordinator → backend: the master's op status (ClusterOpStatus) read back on every ECS node, so a CGF / SimHost / IG host can ask CE-4097's unsaved check; answers NOTE_Ui_To_Backend_Op_Status_On_Nodes (on `ui`, `4a1b03227`)
 updated: 2026-10-29
 current-answer: the whole note
 stale-below: nothing
@@ -7,6 +7,17 @@ related-designs:
   - ../Architect_Question_108_Run_Mode_Picker.md — D20 / §4b (the master's check round, CE-4093), §2.8a (ui's measurement of this gap)
 -->
 # HANDOFF — coordinator → backend: every ECS node hears the master's op status
+
+> ⛔ **SUPERSEDED `2026-10-29`, re-dispatched before you started (rule 1a — `1da7a246a` is not in `backend`).** 🔒 The user, on this finding:
+> *"How comes cgf is different from other nodes? We need to share and unify, the features need to be available to all nodes by construction."*
+> ⇒ ⭐⭐ **Build ui's frame instead: [CE-1436 — one cluster ingress and one cluster read model on every node](NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md)**
+> (merge `ui` for the note). This handoff's adding one reader would patch the split the frame removes.
+> ⭐ **What still binds from below:** priority — **NEXT, before CE-4089** (a CGF host loses edits silently today); the verified measurement;
+> row 4 (every node now hears every op's completion — ignore other requesters', rail it); the done-when's two-process live check; gate row 8.
+> ⭐ **Who builds:** your own model designs it (UML in the owning design — the frame names it; the read model on every node is an architectural
+> call), then Sonnet for the mechanical moves (callers onto the one ingress, the follow-fields onto the read model, the per-host rails).
+> ⚠ The frame's *cost to watch* is load-bearing: measure the read model's memory and per-frame drain on every node before choosing it over a
+> lighter shared model.
 
 **Dispatched at** the commit that adds this line (`coordinator`); scope frozen there. ⭐⭐ **Do it NEXT, before CE-4089** — it is a correctness gap,
 not a feature: on a CGF host (whose ▶ is armed Live, D12) an edited scenario goes live **without the *Save and go live* prompt**, so the edits are
