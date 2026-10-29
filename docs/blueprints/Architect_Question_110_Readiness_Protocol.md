@@ -55,3 +55,6 @@ The diagram is `DESIGN_Cluster_Load_Phase.md` §11.3 — ⛔ not redrawn here.
 | **R3** | the 3-D map rebuild as a load step on map hosts, so PlayReady includes it | backend + ui | CE-4078 (extended) |
 | **R4** | the admission policy (E) as an explicit parameter with today's two values; RefuseUntilLoaded only on demand | backend | CE-3346 |
 | **U1** | greyed controls + *"waiting for …"*, the loading screen with progress and Cancel, the lobby screen, pickers *"waiting for the cluster's list…"* | ui | ui allocates |
+
+**As-built (backend, `2026-10-29`).**
+- **Late-join rail** — `PlayerJoinsARunningScenarioTests` (`Hrot.ClusterRunner.Integration.Tests`): the cluster (SimHost + ExCon + CGF) loads a 2-unit scenario and runs; THEN a real IG starts on the same DDS domain (`HrotRunnerHarness.StartLate(ig, nodeId)` — through the one `SubsystemOrchestrator.Initialize`). Asserts the IG passes `CatchingUp` → `PlayReady`, its Player gate opens, `ClusterPlayReady` (seen by ExCon) never drops (sampled every frame), the master lists it in `InSyncNodeIds`, and its world holds both brain units. Red-proof: `SendCatchUpOps` without the operating-state step ⇒ the IG stays `CatchingUp`. ⚠ the late node needs its OWN node id — the IG default (300) is the Orchestrator's own in the one-process harness.
