@@ -650,6 +650,16 @@ ever considered, which is what obligation ① exists to prevent.
 
   ⛔ **SUPERSEDED:** *"Opus reviews the real diff and re-runs the gates"* (the earlier token-thrift line) — ⭐ Opus reviews the tests and the diff; it does not re-run them.
 
+  #### ⭐⭐⭐ WHEN TO DELEGATE AT ALL — **the hybrid** *(user, `2026-10-29`: "Do you consider working this way with sonnet agents as token saving? It seems to me it is a bit painful" → on the lean: "Agreed, write it to claude.md")*
+  📐 **Measured the same day, five agents:** 160k–363k Sonnet tokens and 8–42 min each, + ~20–40k Opus tokens per brief and review. ⭐ ~100k+ of every
+  agent goes on re-reading what Opus already read; every handover dropped something (a missed integration class, a re-brief mid-run). 📌 The Replay
+  Browser scenario-name fix done directly: ~5 min. As an agent it would have been ~20 min and ~150k tokens.
+
+  | ⭐ the rule | |
+  |---|---|
+  | ⭐⭐⭐ **OPUS DOES DIRECTLY:** design · small fixes (a few files, tests included) · test follow-ups · merges and conflict resolution | ⭐ the threshold: **if writing the change takes about as long as writing the brief, write the change** |
+  | ⭐⭐ **SONNET DOES:** only LARGE, SELF-CONTAINED builds with a clear spec — a feature slice across many files, a long test-writing job — briefed per *BRIEF FOR SPEED* below | ⚠ if rate limits become the binding constraint again, shift more work to Sonnet and accept the slower pace — say so |
+
   #### ⭐⭐⭐ BRIEF FOR SPEED — **the brief decides the wall-clock, not the model** *(user, `2026-10-29`: "50 minutes for file menu fix - isnt it a bit way too long? … Can you be more clevwr when briwfing subagents?")*
   📐 **Measured, four agents the same day: 26–43 min each, and most of it was not the code** — a fresh worktree restores + builds every touched
   project cold (~80 s+ each), the brief asked for 5–6 FULL suites + integration classes per pass, and it made the agent re-discover seams Opus had
