@@ -170,6 +170,14 @@ related-designs:
   Nothing was deleted.
 -->
 
+## ⭐⭐⭐ SESSION 2026-10-29 (c) — ARMED-MODE MVP, READINESS (U1), THE FILE MENU (U2) *(state at `ui@60c55436f`, pushed)*
+
+| | |
+|---|---|
+| done | CE-1441 · CE-3341 ui half · CE-4102 (live proof + rail; [RUNBOOK_Filming §0b](../RUNBOOK_Filming.md)) · CE-1442 U1 (the run gate, DESIGN_Cluster_Load_Phase §11.7) · CE-1443 part A (the File menu, R-1043) + part B1 (named saves) · backend R-1043 merged (one initial armed mode; AAR/DAR Load follows `LastLoadMode`) |
+| next | CE-1443 B2 (Save … as Recipe — measure the recipe write path first) · coordinator's CE-4104 (prove the mode switches end to end) · scenario picker "waiting for the list" (U1 follow-up) |
+| ⭐ standing Sonnet worker (topic: run modes / File menu, main checkout) | agent id `acc3a39efd45e58d7` — resume with `SendMessage`; dead after a container restart |
+
 ## ⭐⭐⭐ SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066) *(state at `ui@71e8ac588`, pushed, tree clean)*
 
 🔒 User: *"We need to pause any development until we enforce the unification and sharing."* ui's share is BUILT — report:
