@@ -2362,6 +2362,20 @@ public sealed partial class ClusterMaster : IDisposable
 
             PayAck(ev.TransactionId, ev.NodeId);   // ⭐ P1
             tracker.Received++;
+
+            // ⭐⭐ CE-4103 — a node that answered an ERROR answers nothing more in this round: its slave discards the transaction's
+            //   remaining steps (ClusterSlave: a faulted prepare ⇒ "Commit skipped", pending intents cleared). ⛔ The round used to keep
+            //   waiting for those ACKs — a load whose terrain is missing on a node parked the master forever, with the failure only in
+            //   the node's log. ⭐ Like an ejected node (DropFromInFlightRounds): what it still owed comes off, so the round completes
+            //   NOW with the failure. R-4001: no timer — the node's own answer is the only signal.
+            if (authoritativeError && _owedAcks.TryGetValue(ev.TransactionId, out var owedByRound)
+                && owedByRound.Remove(ev.NodeId, out var stillOwed) && stillOwed > 0)
+            {
+                tracker.Expected -= stillOwed;
+                FdpLog<ClusterMaster>.Warn(
+                    "[Orchestrator] CE-4103: node {0} answered {1} for round {2}; the {3} step(s) it still owed are dropped — the round fails now.",
+                    ev.NodeId, ev.StatusCode, ev.TransactionId, stillOwed);
+            }
             if (tracker.Received >= tracker.Expected)
                 CompleteRound(ev.TransactionId, tracker);
         }

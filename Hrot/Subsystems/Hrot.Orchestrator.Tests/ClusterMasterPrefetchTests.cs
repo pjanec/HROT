@@ -595,6 +595,29 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4103</c> — <c>ClusterConfiguration.Default</c> reads the staging root (<c>FDP_STAGING_ROOT</c>) every time, never once per process: a second host
+    /// built with another root must NOT prepare its loads against the first one's NAS. Red-proof: make <c>Default</c> a cached instance again ⇒ the second read
+    /// still names the first root.
+    /// </summary>
+    [Fact]
+    public void CE4103_TheDefaultConfigurationFollowsTheStagingRootOfEachRead()
+    {
+        var old = Environment.GetEnvironmentVariable("FDP_STAGING_ROOT");
+        try
+        {
+            var a = Path.Combine(Path.GetTempPath(), "ce4103-a-" + Guid.NewGuid().ToString("N"));
+            var b = Path.Combine(Path.GetTempPath(), "ce4103-b-" + Guid.NewGuid().ToString("N"));
+            Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", a);
+            var first = ClusterConfiguration.Default.NasBasePath;
+            Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", b);
+            var second = ClusterConfiguration.Default.NasBasePath;
+            Assert.StartsWith(a, first);
+            Assert.StartsWith(b, second);
+        }
+        finally { Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", old); }
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — a node ENTERING the roster gets the deployment's TKB synced, with NO
     /// scenario load and NO command sent to it (its first world build loads the file). 📄 tkb-1 DESIGN §0a.
     /// </summary>

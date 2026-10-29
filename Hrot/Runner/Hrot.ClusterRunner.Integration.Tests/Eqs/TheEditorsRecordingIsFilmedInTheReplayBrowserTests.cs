@@ -114,11 +114,8 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         var choice = editor.RunChoiceForTest ?? throw new InvalidOperationException("the editor has no run choice");
         var transport = editor.TimeTransportForTest!;
 
-        // ⚠ The master publishes a state change only to a roster that has heard a heartbeat, and the node's slave beats at 1 Hz: an open in the very first
-        //   second reaches OperatingEdit on the master and is NEVER broadcast, so the host's view stays Idle (measured: view Idle, master OperatingEdit, for minutes).
         if (transport.Mode != TransportMode.Edit)   // a second run on the same editor starts where ■ left it: editing the scenario (R2)
         {
-            PumpFor(editor, 2.5);
             choice.OpenScenario(Scenario);                                               // the operator's open: loads it for editing, sends the host's armed mode (Preview)
             Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "the scenario open for editing (OperatingEdit)");
             Assert.Equal(RunArmed.Preview, choice.Armed);                                // the editor's default, sent by the open (CE-3341)
@@ -196,8 +193,9 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
     // ── S1 · S2 · S3 · S4 (+ the two red-proof cells) ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// ⭐ ONE test, ONE editor — 📐 measured: a SECOND <see cref="EditorSubsystem"/> in the same process never leaves Idle (its scenario load parks on the prefetch saga and
-    /// is never answered), so the red-proof cells ride on this editor / this root instead of each building their own.
+    /// ⭐ ONE test, ONE editor: the red-proof cells ride on this editor / this root instead of each building their own (cheaper — each editor boots a DDS participant).
+    /// ⚠ The earlier "a second editor in the process never leaves Idle" was <c>CE-4103</c>: <c>ClusterConfiguration.Default</c> froze the FIRST root of the process
+    /// (see <see cref="ASecondEditorInTheSameProcessOpensItsScenario"/>).
     /// </summary>
     [Fact(Timeout = 600_000)]
     public async Task TheEditorsLiveRunIsRecorded_ListedByTheReplayBrowser_OpenedAndFilmedByTheDirector()
@@ -275,5 +273,25 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         {
             editor.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4103</c> — a SECOND <see cref="EditorSubsystem"/> in one process (this class's tests each build their own staging root, so the second one's root is NOT
+    /// the first's) opens its scenario and reaches <c>OperatingEdit</c>. 📐 It used to prepare its load against the FIRST root's NAS (<c>ClusterConfiguration.Default</c>
+    /// cached the environment once per process): <c>NAS source directory … does not exist</c>, the load abandoned, the view at Idle. Run with the other Fact in one process.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void ASecondEditorInTheSameProcessOpensItsScenario()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
+        try
+        {
+            var choice = editor.RunChoiceForTest ?? throw new InvalidOperationException("the editor has no run choice");
+            var transport = editor.TimeTransportForTest!;
+            choice.OpenScenario(Scenario);   // ⭐ no warm-up pump: an open before the node's first heartbeat reaches OperatingEdit too (CE-4103 ①, measured)
+            Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "the scenario open for editing (OperatingEdit)");
+        }
+        finally { editor.Shutdown(); }
     }
 }

@@ -538,6 +538,42 @@ public sealed class ClusterMasterBootstrapTests
         Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4103</c> (R-4001: no silent forever-wait) — a node whose FIRST prepare of a multi-step transition answers an error has dropped the
+    /// rest of the transaction (its slave clears the pending steps), so the round must FAIL NOW with that code instead of waiting for the ACKs it will
+    /// never get. 📐 Measured in the editor: a scenario naming a terrain nobody has — the node's PrepareEdit threw, the master sat at the target
+    /// state with the request unanswered for good. Red-proof: drop the owed-ACK removal in <c>ClusterMaster.ProcessAcks</c> ⇒ no completion here.
+    /// </summary>
+    [Fact]
+    public void CE4103_A_failed_prepare_fails_the_whole_transition_without_waiting_for_the_steps_the_node_will_never_answer()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f });
+        Beat(bus, 1, "SimHost");
+        Step(bus, master);
+
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+        });
+        Step(bus, master);
+        var prepares = bus.ReadManaged<ExecuteNodeOpIntent>()
+                          .Where(i => i.TargetNodeId == 1 && i.Operation != FdpNodeOpType.CommitState).ToList();
+        Assert.True(prepares.Count >= 2, $"the transition has several prepare steps for the node (saw {prepares.Count})");
+
+        // the node answers the FIRST prepare with an error and, like ClusterSlave after a faulted prepare, never answers the others
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = prepares[0].TransactionId, Operation = prepares[0].Operation, NodeId = 1,
+            StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true,
+        });
+        Step(bus, master);
+
+        var done = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+        Assert.Equal(OrchestrationStatusCode.Failure, done.StatusCode);
+    }
+
     // == CE-4087 - the mandatory set's ROLES half, and a load that WAITS on the latch ============================
     // User, 2026-10-28: "scenario should not be able to load at all without muscle role node loaded, as it can not be edited nor started."
     // The roles are the second half of the mandatory set (ClusterMaster.Bootstrap.cs); G1..G9 pin the wait/refuse, L1/L2 its tie to the name latch.

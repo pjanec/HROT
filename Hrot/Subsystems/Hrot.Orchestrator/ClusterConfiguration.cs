@@ -65,7 +65,14 @@ public sealed class ClusterConfiguration
     public string TkbName { get; init; } = DefaultTkbName;
 
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
-    public static ClusterConfiguration Default { get; } = new();
+    /// <remarks>
+    /// ⭐ <c>CE-4103</c> — a FRESH instance per read, not one cached for the process: <see cref="NasBasePath"/> is read from the environment
+    /// (<c>FDP_STAGING_ROOT</c>) when the instance is built, so a cached <c>Default</c> froze the FIRST reader's root for the whole process —
+    /// a second host constructed in the same process (a test, a re-initialised editor) with another root prepared its scenario load against
+    /// the FIRST one's NAS (measured: <c>NAS source directory '…' does not exist</c>, the load abandoned, the view left at Idle). In a real
+    /// process the environment does not change, so every read is equal.
+    /// </remarks>
+    public static ClusterConfiguration Default => new();
 
     /// <summary>
     /// ⭐ Q86 §4-E (R-215) — the ONE place every host reads its cluster configuration from:
