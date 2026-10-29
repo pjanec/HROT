@@ -45,6 +45,15 @@ public sealed class RunModeChoice
     /// <summary>⭐ <c>CE-4101</c> follow-up — the session's ONE guarded door this choice is bound to (<see langword="null"/> on a host with no scenario session). The window composition builds its exit guard over the PICKED owner's door.</summary>
     public ScenarioDoor? Door => _door;
 
+    /// <summary>⭐⭐⭐ <c>CE-1442</c> (U1) — the ONE run gate (see <see cref="RunGate"/>): every control of this host reads it, none reads the cluster view itself.</summary>
+    public RunGate Gate => _transport.Gate;
+
+    /// <summary>⭐ CE-1442 — why the controls are closed now, or <see langword="null"/> when the gate is open. What ▶, the mode menu, the shared scenario commands and the door's refusal all say.</summary>
+    public string? ClosedReason => Gate is { Open: false } g ? g.Reason ?? "not ready" : null;
+
+    /// <summary>⭐ CE-1442 (§11.7 ⑥) — the loading screen's Cancel: the host's slave cancels the load (it fails everywhere, the cluster returns to Idle).</summary>
+    public void CancelLoad(string? reason) => _transport.CancelLoad(reason);
+
     /// <summary>⭐ <c>CE-1437</c> — this host has a scenario session (an <i>operator</i> host: editor, CGF); false on SimHost / IG. Read by the run-controls pick rule.</summary>
     public bool HasScenarioControl => _control is not null;
 
@@ -95,6 +104,7 @@ public sealed class RunModeChoice
             _door.RecordingOpening = exercise => LastExercise = exercise;   // bookkeeping for EVERY caller; only the operator's open arms (OperatorOpening)
             // ⭐ CE-3341 (AQ108 §2.14) — the OPERATOR's open (no asker of its own) sends its armed mode: the HOST's default for a scenario, Live for a live load, AAR for a recording. HTTP / agents send none (D22).
             _door.OperatorOpening = open => Arm(open switch { DoorOpen.Live => RunArmed.Live, DoorOpen.Recording => RunArmed.AAR, _ => HostDefault });
+            _door.ClosedReason = () => ClosedReason;   // ⭐ CE-1442 — the backstop: the door refuses every non-leave move while the gate is closed
             _door.AlsoBusy = () => _asking;   // ▶ Live's own check round shares the one unsaved seam
         }
     }
@@ -193,6 +203,7 @@ public sealed class RunModeChoice
     {
         get
         {
+            if (ClosedReason is { } closed) return closed;   // ⭐ CE-1442 — the gate first
             if (Armed == RunArmed.Live && _control is null) return "No scenario session on this host — Live cannot be started from here";
             if (Armed == RunArmed.AAR && LastExercise is not null && !_lastExerciseRecorded) return RunRecordingGates.NotRecordedReason;   // D14: the last run left nothing to review
             if (Armed == RunArmed.AAR && LastExercise is null && PickRecording is null) return "No exercise for an AAR yet — open a recording first";
@@ -429,10 +440,12 @@ public sealed class RunModeChoice
         var mode = _transport.Mode;
         if (mode == TransportMode.Review) return Array.Empty<RunModeMove>();
         var current = ModeTarget(mode);
+        var closed = ClosedReason;   // ⭐ CE-1442 — every move is disabled with the gate's reason (Close is not a move)
         var moves = new List<RunModeMove>(3);
         foreach (var target in new[] { RunArmed.Preview, RunArmed.Live, RunArmed.AAR })
         {
             var label = target.ToString();
+            if (closed is not null) { moves.Add(new(target, label, null, false, closed, Armed == target)); continue; }
             if (target == current) { moves.Add(new(target, label, null, false, null, Armed == target)); continue; }
             var plan = Plan(target);
             moves.Add(new(target, label, plan.ConfirmText, plan.Enabled, plan.DisabledReason, Armed == target));
@@ -454,7 +467,7 @@ public sealed class RunModeChoice
     /// </summary>
     public void Choose(RunArmed target)
     {
-        if (Pending is not null) return;
+        if (Pending is not null || ClosedReason is not null) return;
         var mode = _transport.Mode;
         if (mode == TransportMode.Review || ModeTarget(mode) == target) return;
         var plan = Plan(target);
@@ -620,10 +633,10 @@ public static class UserTransport
     private static RunModeChoice? EditChoice(ITimeTransportFacade f, RunModeChoice? choice) => f.Mode == TransportMode.Edit ? choice ?? f.RunChoice : null;
 
     /// <summary>▶ is enabled: the facade says so, and — from Edit — the armed mode can run here (Live armed on a host with no scenario session cannot).</summary>
-    public static bool IsUserPlayEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsPlayPauseEnabled && EditChoice(f, choice)?.PlayDisabledReason is null;
+    public static bool IsUserPlayEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsPlayPauseEnabled && (choice ?? f.RunChoice)?.ClosedReason is null && EditChoice(f, choice)?.PlayDisabledReason is null;
 
     /// <summary>Step is enabled (same rule as <see cref="IsUserPlayEnabled"/>).</summary>
-    public static bool IsUserStepEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsStepEnabled && EditChoice(f, choice)?.PlayDisabledReason is null;
+    public static bool IsUserStepEnabled(this ITimeTransportFacade f, RunModeChoice? choice = null) => f.IsStepEnabled && (choice ?? f.RunChoice)?.ClosedReason is null && EditChoice(f, choice)?.PlayDisabledReason is null;
 
     /// <summary>A user's ▶ / ⏸: from Edit the armed mode's start, else the facade's toggle. Does nothing when <see cref="IsUserPlayEnabled"/> is false.</summary>
     public static void UserPlayPause(this ITimeTransportFacade f, RunModeChoice? choice = null)

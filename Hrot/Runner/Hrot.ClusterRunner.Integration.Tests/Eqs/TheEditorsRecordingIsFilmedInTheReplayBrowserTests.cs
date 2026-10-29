@@ -110,6 +110,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
 
         if (transport.Mode != TransportMode.Edit)   // a second run on the same editor starts where ■ left it: editing the scenario (R2)
         {
+            Pump(editor, () => choice.Gate.Open, 60, "the run gate open (the cluster is ready: CE-1442)");   // ⭐ CE-1442 — an open before the master's state has reached the node is refused by the door
             choice.OpenScenario(Scenario);                                               // the operator's open: loads it for editing, sends the host's armed mode (Preview)
             Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "the scenario open for editing (OperatingEdit)");
             Assert.Equal(RunArmed.Preview, choice.Armed);                                // the editor's default, sent by the open (CE-3341)
@@ -283,7 +284,9 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         {
             var choice = editor.RunChoiceForTest ?? throw new InvalidOperationException("the editor has no run choice");
             var transport = editor.TimeTransportForTest!;
-            choice.OpenScenario(Scenario);   // ⭐ no warm-up pump: an open before the node's first heartbeat reaches OperatingEdit too (CE-4103 ①, measured)
+            // ⭐ CE-1442 — was: *no warm-up pump* (an open before the node's first heartbeat reached OperatingEdit too, CE-4103 ①). The run gate now REFUSES that early open at the door (by design: the controls are closed until the cluster is ready), so the rail waits on the gate.
+            Pump(editor, () => choice.Gate.Open, 60, "the run gate open (the cluster is ready: CE-1442)");
+            choice.OpenScenario(Scenario);
             Pump(editor, () => transport.Mode == TransportMode.Edit, 60, "the scenario open for editing (OperatingEdit)");
         }
         finally { editor.Shutdown(); }

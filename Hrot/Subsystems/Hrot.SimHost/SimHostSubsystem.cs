@@ -91,10 +91,11 @@ namespace Hrot.SimHost
         /// ⭐ CE-1437 — SimHost's ONE adapter + run choice (the single <c>AttachRunChoice</c> site of this host), a static so a rail can build it without the graphics window
         /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (D12, <see cref="Hrot.UI.Common.RunMode.RunArmedDefaults"/>) and ▶ from Edit is disabled with its reason.
         /// </summary>
-        internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime)
+        internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime, Action<string?>? cancelLoad = null)
         {
             var adapter = new ClusterTimeTransportAdapter(bus, view, simTime);
-            adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), control: null);
+            adapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), control: null,
+                gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.SimHost), cancelLoad: cancelLoad);   // ⭐ CE-1442
             return adapter;
         }
 
@@ -357,7 +358,8 @@ namespace Hrot.SimHost
             var bus = _app?.OrchestrationEventBus;
             if (bus != null)
             {
-                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime);   // ⭐ CE-1436 — the node's ONE cluster view
+                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime,
+                    cancelLoad: reason => _app?.ClusterSlave?.CancelLoad(reason));   // ⭐ CE-1436 — the node's ONE cluster view
 
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
                 // It had its own private pause flag that nothing read, so its Play/Pause/Step did

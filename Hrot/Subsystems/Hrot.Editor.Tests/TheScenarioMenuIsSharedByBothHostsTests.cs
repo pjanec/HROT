@@ -502,4 +502,74 @@ public sealed class TheScenarioMenuIsSharedByBothHostsTests
         Assert.Empty(session.OpenForEditCalls);
         Assert.Empty(session.LoadForLiveCalls);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1442</c> (U1, S7; §11.7 ②) — the run gate reaches EVERY scenario command through the ONE registration helper: while the gate is closed a command registered through <c>RegisterCommand</c> reports
+    /// <c>IsEnabled = false</c> and a label carrying the reason, and the Start surface's idle action for it (which reads the same menu node) is disabled with that label; invoking it does nothing. New Exercise (a LEAVE) is never gated.
+    /// Open again ⇒ plain labels, enabled. 🔴 Mutations: <c>RegisterCommand</c> without the <c>closedReason</c> wrap ⇒ the enabled / label cells red; the Open Recording call passing <c>null</c> instead of <c>closedReason</c> ⇒ its row reds;
+    /// the New Exercise call passing <c>closedReason</c> ⇒ the leave row reds.
+    /// </summary>
+    [Fact]
+    public void CE1442_AClosedRunGate_GreysEveryScenarioCommand_AndTheStartSurfacesIdleAction_WithTheReason()
+    {
+        var s = new Session();
+        var c = new Commands();
+        var m = new GlobalMenuRegistry();
+        string? closed = "the cluster is not ready — waiting for: Brain (CGF)";
+        ScenarioMenuCommands.Register(
+            registerCommand:     (d, h) => c.Register(d, h),
+            menu:                m,
+            commands:            c,
+            session:             s,
+            openPicker:          (kinds, cb) => cb(new Asset("Picked")),
+            openSaveAsDialog:    cb => cb("Named"),
+            openRecordingPicker: () => { },
+            closedReason:        () => closed);
+
+        foreach (var id in new[] { ScenarioMenuCommands.LoadId, ScenarioMenuCommands.NewId, ScenarioMenuCommands.OpenRecordingId, ScenarioMenuCommands.SaveAsId, ScenarioMenuCommands.TakeCheckpointId })
+        {
+            var d = c.Get(id)!;
+            Assert.False(d.IsEnabled());
+            Assert.Contains("waiting for: Brain (CGF)", d.DynamicDisplayName!());
+            Assert.False(c.Invoke(id).Success);
+        }
+        Assert.Empty(s.OpenForEditCalls);
+
+        foreach (var idle in m.AllowedInIdleItems().Where(a => a.Path.StartsWith("File/", StringComparison.Ordinal)))
+        {
+            Assert.False(idle.Enabled());                                                 // the Start surface reads these very nodes
+            Assert.Contains("waiting for: Brain (CGF)", idle.Label());
+        }
+
+        Assert.True(c.Get(ScenarioMenuCommands.NewExerciseId)!.IsEnabled());              // a LEAVE is never gated
+        Assert.Null(c.Get(ScenarioMenuCommands.NewExerciseId)!.DynamicDisplayName);
+
+        closed = null;
+        Assert.True(c.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
+        Assert.Equal("Open Scenario", c.Get(ScenarioMenuCommands.LoadId)!.DynamicDisplayName?.Invoke() ?? "Open Scenario");
+        Assert.True(m.AllowedInIdleItems().Single(a => a.Path == "File/Open Scenario").Enabled());
+    }
+
+    /// <summary>
+    /// ⭐ CE-1442 — the silent-default rail, on the CONSTRUCTED object: the REAL Orchestrator host (which holds its run choice) passes the gate to the shared registration — before its node has heard any cluster state, its Open Scenario command is
+    /// disabled with the gate's reason (a host that forgot <c>closedReason</c> would leave it enabled). 🔴 Mutation: drop <c>closedReason:</c> from <c>OrchestratorSubsystem</c>'s registration ⇒ <c>IsEnabled</c> is true.
+    /// </summary>
+    [Fact]
+    public void CE1442_TheOrchestratorHost_PassesItsRunGateToTheSharedRegistration()
+    {
+        var host = new Hrot.Orchestrator.OrchestratorSubsystem();
+        host.Initialize(new Fdp.Toolkit.Runner.SubsystemConfig { Headless = true, DomainId = 225 });
+        try
+        {
+            var wm = new Fdp.Presentation.WindowManager.WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 16f, 16f));
+            host.ComposeScenarioActions(wm);
+            var open = wm.ShellCommands.Get(ScenarioMenuCommands.LoadId)!;
+            Assert.False(open.IsEnabled());
+            Assert.Contains("no cluster state", open.DynamicDisplayName!());
+        }
+        finally
+        {
+            host.Shutdown();
+        }
+    }
 }

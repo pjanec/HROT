@@ -2471,7 +2471,9 @@ namespace Hrot.Editor
             _timeTransport.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Editor), _editorApp?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
                 unsavedReads: new Hrot.UI.Common.RunMode.UnsavedCheckReads(
                     () => _orchestratorCore != null,
-                    id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)));
+                    id => _orchestratorCore?.UiCache.UnsavedCheckOutcomeFor(id)),
+                gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Editor),   // ⭐ CE-1442 — from the table, never a literal
+                cancelLoad: reason => _node?.ClusterSlave.CancelLoad(reason));
             // ⭐ CE-1439 (AQ108 §2.12) — the cluster-control panel (the monitor window) asks through THIS host's transport, run choice and session: a caller that HAS them passes them,
             //   so the panel builds none of its own and its Pause / Load / Open AAR / Checkpoint are the toolbar's and the File menu's, not a second surface.
             if (_orchestratorCore != null && _timeTransport.RunChoice is { } panelChoice && _editorApp?.ScenarioSession is { } panelSession)
@@ -4480,7 +4482,8 @@ namespace Hrot.Editor
                     listExercises:  () => _orchestratorCore?.UiCache.AvailableExercises
                                           ?? Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
-                    openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id))
+                    openRecording:  id => _editorApp.ScenarioSession.OpenRecording(id),
+                    hasInventory:   () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true)   // ⭐ CE-1442
                 : null;
 
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
@@ -4493,6 +4496,7 @@ namespace Hrot.Editor
                 registerCommand:      wm.ShellCommands.Register,
                 menu:                 wm.GlobalMenu,
                 commands:             wm.ShellCommands,
+                closedReason:         () => _timeTransport?.RunChoice?.ClosedReason,   // ⭐ CE-1442 — the run gate's reason greys every gated item (the host HAS the choice)
                 // ⭐⭐ CE-046 — the registrar now binds to the SHARED session, which is what lets CGF
                 //    register the identical items. 📄 design §3 ④.
                 session:              _editorApp.ScenarioSession,

@@ -103,6 +103,12 @@ internal sealed class LocalWindowController
         ExitGuard = new ExitGuardChain(guards);
     }
 
+    /// <summary>⭐ CE-1442 — the process's ONE loading screen (null before <see cref="ComposeRunControls"/> or with no owner choice).</summary>
+    internal Hrot.UI.Common.Panels.LoadingScreen? LoadingScreen { get; private set; }
+
+    /// <summary>⭐ CE-1442 — the process's ONE cluster-error status-bar section.</summary>
+    internal Hrot.UI.Common.Panels.ClusterErrorStatusBarSection? ErrorSection { get; private set; }
+
     /// <summary>⭐ <c>CE-1437</c> — the host whose run controls the process's ONE toolbar time control shows (null before <see cref="ComposeRunControls"/>, or when no host offers any).</summary>
     internal IProvidesRunControls? RunControlsOwner { get; private set; }
 
@@ -117,6 +123,12 @@ internal sealed class LocalWindowController
         RunControlsOwner = owner;
         if (owner?.Transport is { } transport)
             Hrot.UI.Common.Panels.ShellTimeControlToolbar.Register(wm.MainToolbar, transport, owner.RunChoice);
+        // ⭐⭐ CE-1442 (U1, §11.7 ④) — the loading screen and the cluster-error indicator are composed HERE, once, over the same owner's choice: a host cannot lack them or draw a second one
+        if (owner?.RunChoice is { } ownerChoice)
+        {
+            LoadingScreen = Hrot.UI.Common.Panels.LoadingScreen.Register(wm.StatusBar, ownerChoice);
+            ErrorSection  = Hrot.UI.Common.Panels.ClusterErrorStatusBarSection.Register(wm.StatusBar, ownerChoice);
+        }
         ComposeExitGuard(owner);             // ⭐ CE-4101 follow-up — the ONE scenario exit guard, over the same owner's door
         owner?.ComposeScenarioActions(wm);   // ⭐ CE-1439 — the scenario menu (and so the Start surface's Open / New / Recording) of the host that owns ▶, by the same rule
     }

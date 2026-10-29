@@ -116,6 +116,10 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
         finally { if (httpPort > 0) Environment.SetEnvironmentVariable("HROT_DEBUG_API_PORT", before); }
         try
         {
+            // ⭐ CE-1442 — the run gate is closed until the master's state (and the in-sync set) has reached the editor's node; the guarded open refuses before that, exactly as a user's click would
+            var gateUntil = DateTime.UtcNow.AddSeconds(30);
+            while (!editor.NodeForTest!.ClusterSlave.View.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Operator) && DateTime.UtcNow < gateUntil) { editor.Update(0.016f); System.Threading.Thread.Sleep(10); }
+            Assert.True(editor.NodeForTest!.ClusterSlave.View.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Operator), editor.NodeForTest!.ClusterSlave.View.NotOperableReason);
             editor.EditorLogic.LoadScenarioByName(name);
             RunUntilLoaded(editor, 120);
             stages(editor, editor.NodeForTest!.World);

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-29 (§11.7 NEW — U1, ui: ONE run gate on the run choice, the loading screen, the error indicator) · 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -1550,3 +1550,113 @@ sequenceDiagram
 
 ⛔ **SUPERSEDED by this block:** §11.2's *"`CancelLoad(reason)` NEW"* / *"`LoadPhaseChain.PrepareAsync(ct) real token NEW`"* / *"`CompleteRound() failed load ⇒ round to Idle NEW`"* and §11.3's *"`NodeHeartbeat … NEW`"* are built as above; the *"`PrepareAsync(ct)`"* in the class diagram is the toolkit's `ClusterSlave` passing a real token, not a change to the chain's signature.
 ⛔ **Not built here** (their slices): the 3-D map reload as a chain step (R3), the admission policy (R4), the loading screen / Cancel button / greyed controls / IG start (U1, ui lane).
+
+### 11.7 ✅ AS-BUILT `2026-10-29` (ui) — U1, the ui half: **ONE run gate on the run choice, read by every control** *(`CE-1442`; `build-state: BUILT`; design 2026-10-29, ui)*
+
+**INVENTORY** *(grep over `Hrot/ FDP/` for `GateOpen|CanOperate|NotOperableReason|HasInventory|IsInError|LoadProgress|CancelLoad|GatePolicy`; `search_graph` for
+`StartSurface|StartGate|ScenarioMenuCommands|RunNoteStatusBar|ShellTimeControlToolbar|RecordingPicker|IProvidesRunControls` — ⚠ the graph predates the
+CE-3345 merge, so the new members are grep-only; `check_index_coverage` unavailable through the CLI)*: **no ui control reads any of them today.**
+Only HTTP does (`DebugApiService` 409s, `GET /status.canOperate`). ⚠ `StartGate.ClusterRest.CanOperate` (CE-4096, ui) is a DIFFERENT fact —
+*"some provider can drive the master"* (`ClusterRestReader.cs:50`) — and must not be read as cluster-ready.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| one gate per host kind, read from ONE table | ✅ `IProvidesRunControls.GatePolicy` → `HostGatePolicies.For(HostKind)` (`RunArmedDefaults.cs:45`); `ClusterView.GateOpen(policy)` (`ClusterView.cs:117`) | ✅ §11.6 row "HostGatePolicy", R-3072 |
+| every operator open / load / leave passes ONE door | ✅ `ScenarioDoor.Admit` (CE-4101, AQ108 §2.11a) | ✅ §2.11a "no unguarded public open remains" |
+| every run control reads ONE choice | ✅ `RunModeChoice` (toolbar, indicator, start surface via `IProvidesRunControls.RunChoice`); the adapter holds the node's `ClusterView` | ✅ CE-1437 composition |
+| Close / Exit / every way to Idle are never gated | ✅ backend HTTP; `LeaveReason.Close` | ✅ R-3073, §11.5 |
+
+```mermaid
+classDiagram
+  class ClusterView { <<existing, backend>> GateOpen(policy) · NotOperableReason · IsInError · ErrorReason · IsClusterLoading · IsLocalLoading · LoadProgress · LocalStep · HasInventory }
+  class RunGate { <<NEW record, Hrot.Presentation>> Open · Reason · Loading · Progress · InError · ErrorReason · HasInventory }
+  class IRunTransport { <<existing>> +Gate : RunGate NEW · +CancelLoad(reason) NEW }
+  class ClusterTimeTransportAdapter { <<existing>> builds RunGate from its ClusterView and the policy handed to AttachRunChoice · CancelLoad to the host's ClusterSlave }
+  class RunModeChoice { <<existing>> +Gate NEW — PlayDisabledReason and every move disabled while the gate is closed }
+  class ScenarioDoor { <<existing>> Admit refuses Open, LoadLive, OpenRecording while closed — the asker gets the reason; Leave never gated }
+  class LoadingScreen { <<NEW, Hrot.Presentation>> modal while Gate.Loading — Progress and Cancel }
+  class ClusterErrorStatusBarSection { <<NEW>> red while Gate.InError — ErrorReason; only Close and Exit }
+  class StartSurfaceWindow { <<existing>> its actions greyed with Gate.Reason }
+  RunModeChoice --> IRunTransport
+  ClusterTimeTransportAdapter ..|> IRunTransport
+  ClusterTimeTransportAdapter --> ClusterView
+  RunModeChoice --> ScenarioDoor : binds the gate
+  LoadingScreen --> RunModeChoice
+  ClusterErrorStatusBarSection --> RunModeChoice
+  StartSurfaceWindow --> RunModeChoice
+```
+
+*What the picture shows that prose hid:* there is ONE `RunGate`, computed in ONE place (the adapter, which already holds the node's view), and the
+door — through which every open passes — refuses on it; so no control can forget the gate, and the File menu, the start surface, the toolbar and
+HTTP-through-the-door all agree by construction.
+
+```mermaid
+sequenceDiagram
+  participant U as operator
+  participant D as ScenarioDoor
+  participant C as RunModeChoice
+  participant A as adapter
+  participant V as ClusterView
+  participant S as ClusterSlave
+  U->>D: Load Scenario
+  D->>C: gate?
+  C->>A: Gate
+  A->>V: GateOpen(policy), NotOperableReason
+  alt closed
+    D-->>U: refused — waiting for Brain (CGF)
+  else open
+    D->>D: Admit, then the load
+    V-->>C: IsClusterLoading, LoadProgress
+    C-->>U: loading screen (progress)
+    opt Cancel
+      U->>C: CancelLoad
+      C->>A: CancelLoad(reason)
+      A->>S: CancelLoad(reason) — fails everywhere, cluster to Idle
+    end
+  end
+```
+
+```mermaid
+graph TD
+  subgraph OH["operator host — editor, CGF, Orchestrator window"]
+    A[ClusterTimeTransportAdapter — each frame, the host's Update] --> C[RunModeChoice.Gate]
+    C --> T[toolbar play and indicator]
+    C --> D[ScenarioDoor.Admit]
+    C --> L[LoadingScreen — composed ONCE by LocalWindowController beside the toolbar]
+    C --> E[ClusterErrorStatusBarSection — composed ONCE]
+    C --> SS[StartSurfaceWindow actions]
+    M[File menu items] --> D
+  end
+  V[ClusterView — ClusterFactsIngress on every node] --> A
+  P[pickers] -->|HasInventory| C
+  IG["IG host — Player policy, no run choice"] -.->|"its own lobby text, not in this slice"| V
+```
+
+*Caption:* the composition that already makes the toolbar ONE per process (CE-1437) also composes the loading screen and the error section, so a
+host cannot lack them; the dotted IG edge is the Player lobby, left for its own slice (the IG has no run choice).
+
+⭐ **Decisions:** ① ONE `RunGate` on `IRunTransport`, built by the adapter from `ClusterView` + the policy `AttachRunChoice` receives (the host's
+declared kind, `HostGatePolicies.For`) — ⛔ no control reads `ClusterView` for this itself. ② the door refuses Open / LoadLive / OpenRecording while
+the gate is closed (Leave and Exit never) — the File menu, Start, Recent, pickers and HTTP-through-the-door inherit it. ③ ▶ and the indicator's
+moves are disabled with `Gate.Reason` (`PlayDisabledReason` gains it first). ④ the loading screen and the error section are composed ONCE per process
+beside the toolbar. ⑤ pickers say *"waiting for the cluster's list…"* while `!Gate.HasInventory`. ⑥ Cancel = `IRunTransport.CancelLoad(reason)` →
+the host's `ClusterSlave.CancelLoad`.
+*Rejected:* **each control reads `ClusterView.CanOperate`** — N copies of the rule, and `GateOpen(policy)` ≠ `CanOperate` for an operator (its own
+load) · **gate in the menu registry** — misses Start, Recent and the pickers, which reach the door directly · **the IG lobby now** — the IG has no run
+choice; a later slice with the admission policy (R4).
+
+#### 11.7a ✅ AS-BUILT — what was built, and the deviations *(obligation ⑤; the design above is the prior state where marked SUPERSEDED)*
+
+| §11.7 said | as built | deviation / why |
+|---|---|---|
+| ① `RunGate` on `IRunTransport`, built by the adapter | ✅ `RunGate` record + `RunGate.From(view, policy)` (`RunMode/RunGate.cs`); `IRunTransport.Gate` + `CancelLoad(reason)`; `ClusterTimeTransportAdapter.Gate`; `AttachRunChoice(…, gatePolicy, cancelLoad)` — each host passes `HostGatePolicies.For(kind)` and its slave's `CancelLoad` (editor `_node.ClusterSlave`, CGF `_context.ClusterSlave`, SimHost `_app.ClusterSlave` via `CreateTimeTransport`, Orchestrator `_clusterSlave`). `Loading` = closed ∧ ¬error ∧ (cluster or local loading); no view ⇒ open | `RunModeChoice.ClosedReason` (the gate's reason or null) added — the one string every consumer reads |
+| ② the door refuses Open / LoadLive / OpenRecording while closed; the File menu, Start, Recent, pickers inherit it | ⛔ **SUPERSEDED (coordinator correction, user, `2026-10-29`):** the gate is composed into the repo's own enable mechanism — `ScenarioMenuCommands.RegisterCommand` (the ONE registration helper) wraps every command's `EditorCommandDescriptor.IsEnabled` and `DynamicDisplayName` (*"Open Scenario (the cluster is not ready — waiting for: Brain (CGF))"*) from a `closedReason` the host passes (it holds its choice); the File menu AND the Start surface (its idle actions read the same menu nodes) therefore grey together. ✅ **The door stays as the BACKSTOP** (HTTP and direct callers): `ScenarioDoor.Admit` refuses every move that is not a LEAVE (`DoorMove.IsLeave`) through `DoorQuestionKind.Refused` — the UI asker shows an info confirmation (OK), `RefusingAsker.Refusal` carries the reason | ⭐ reuse, not a parallel greying path. New Exercise (a leave) is exempt in the registration; Close / Exit are door leaves |
+| ③ ▶ and the moves disabled with the reason | ✅ `PlayDisabledReason` returns the gate reason first; `Moves()` all disabled with it; `Choose` refused; `UserTransport.IsUserPlayEnabled` / `IsUserStepEnabled` gate in ANY mode (not only Edit); the tooltip shows the reason while closed | the time-control toolbar is custom ImGui (not commands), so it reads `PlayDisabledReason` as designed |
+| ④ loading screen + error section composed ONCE | ✅ `LoadingScreen` (modal, progress + Cancel → `RunModeChoice.CancelLoad("cancelled by the user")`) and `ClusterErrorStatusBarSection` (red, `Cluster error — <reason>`), both registered on `wm.StatusBar` (every perspective) by `LocalWindowController.ComposeRunControls` over the PICKED owner's choice (`LoadingScreen` / `ErrorSection` properties) | the loading screen is its own modal drawn from the status bar's per-frame pass, not `ConfirmationModal` (that one needs a resolving button list; this one resolves by the gate) |
+| ⑤ pickers say *"waiting for the cluster's list…"* | ✅ for the **recording** picker (`RecordingPickerLauncher(hasInventory:)` — one disabled placeholder entry; the three hosts pass `RunChoice.Gate.HasInventory`) | ⚠ the scenario picker (`AssetPickerLauncher` over `ScenarioCatalogContributor`) is NOT yet given the placeholder — it is a different shared class with a per-host list; left as a follow-up |
+| ⑥ Cancel → the host's `ClusterSlave.CancelLoad` | ✅ as ①; a host with no slave does nothing | — |
+| Start surface actions greyed with the reason | ✅ by ② (no `StartSurfaceWindow` change: every action it draws is a menu node) | `StartGate.ClusterRest.CanOperate` left untouched (a different fact) |
+
+| rails (S1–S7) | ✅ `TheOneTimeFacadeTests` (`CE1442_*`: the gate from the view and the policy · ▶ and the moves · the door · Cancel + the error text), `TheStartGateIsComposedOnceTests` (composed once over the owner's choice), `TheScenarioMenuIsSharedByBothHostsTests` (a closed gate greys every scenario command and the Start surface's idle action; the REAL Orchestrator host passes it), `RecordingPickerLauncherTests` (waiting, not "no recordings") | ⚠ **existing rails had to hear the cluster first** — a node that has heard nothing is *closed* now (that is the point): `EditorScenarioSessionLoadTests` (2), `HrotNodeBuilderTests.CE1436_…` (also the in-sync set), the Orchestrator-only Start rail, `TheWorldChangeCheckOnTheEditorTests` (wait for `GateOpen` before the load) and `TheEditorsRecordingIsFilmedInTheReplayBrowserTests` (waits on `choice.Gate.Open`; its *"no warm-up pump: an early open reaches OperatingEdit too"* (CE-4103 ①) premise is no longer reachable from the UI — the door refuses an early open by design) |
+
+*Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.

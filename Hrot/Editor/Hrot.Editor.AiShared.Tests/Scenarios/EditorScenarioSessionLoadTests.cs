@@ -145,6 +145,7 @@ public sealed class EditorScenarioSessionLoadTests
                 bus = new FdpEventBus();
                 var session = NewSession(bus);
                 (choice, _, _) = WithChoice(bus, session, answer);
+                ClusterIs(bus, session, ClusterState.Idle);                              // ⭐ CE-1442 — the run gate is closed until the master's state has reached this node
                 session.OpenForEdit("hill");                                             // from Idle: out at once, and the name is remembered
                 Drain(bus);
                 ClusterIs(bus, session, ClusterState.OperatingEdit);
@@ -459,6 +460,7 @@ public sealed class EditorScenarioSessionLoadTests
         var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ViewOf(bus));
         facade.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmed.Live, session);
         Assert.NotNull(session.SaveIntercept);                                  // installed by the choice's constructor, not by a host remembering to
+        ClusterIs(bus, session, ClusterState.Idle);                             // ⭐ CE-1442 — the run gate is closed until the master's state has reached this node
         session.LoadForLive("hill-attack");                                     // names the scenario (and the load itself is not what is under test)
         bus.SwapBuffers();
 
