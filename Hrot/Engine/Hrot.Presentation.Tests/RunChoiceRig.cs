@@ -52,14 +52,15 @@ internal static class RunChoiceRig
     /// <summary>A real adapter on a real bus with a run choice attached; the cluster is heard in <paramref name="state"/> (exercise <see cref="RunId"/>).</summary>
     internal static Rig With(ClusterState state, RunArmed hostDefault = RunArmed.Preview, UnsavedAnswer answer = UnsavedAnswer.Unchanged,
                              bool running = false, double clock = 0, bool withControl = true, string? inventoryScenario = "hill-attack",
-                             bool runNotRecorded = false, bool recordLiveRunsOff = false, bool withDoor = false)
+                             bool runNotRecorded = false, bool recordLiveRunsOff = false, bool withDoor = false,
+                             HostGatePolicy gatePolicy = HostGatePolicy.Operator, Action<string?>? cancelLoad = null)
     {
         var bus = new FdpEventBus();
         var view = new ClusterView(bus);   // ⭐ CE-1436 — the node's ONE cluster view; the rig advances it as ClusterSlave.Tick does
         var facade = new ClusterTimeTransportAdapter(bus, () => view, () => clock);
         var control = withDoor ? new FakeDoorControl() : new FakeControl();
         var unsaved = new FakeUnsaved { Answer = answer };
-        var choice = facade.AttachRunChoice(hostDefault, withControl ? control : null, unsaved);
+        var choice = facade.AttachRunChoice(hostDefault, withControl ? control : null, unsaved, gatePolicy: gatePolicy, cancelLoad: cancelLoad);
         var rig = new Rig(facade, bus, control, unsaved, choice, view);
         bus.Publish(new SwitchTimeModeEvent { TargetMode = running ? Fdp.ModuleHost.Time.TimeMode.Continuous : Fdp.ModuleHost.Time.TimeMode.Deterministic });
         if (inventoryScenario != null)
@@ -110,6 +111,17 @@ internal static class RunChoiceRig
     internal static void Hear(Rig rig, ClusterState state, bool runNotRecorded = false, bool recordLiveRunsOff = false, ClusterArmedMode? armed = null)
     {
         rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, RunNotRecorded = runNotRecorded, RecordLiveRunsOff = recordLiveRunsOff, ArmedMode = armed ?? rig.View.ArmedMode });
+        rig.Bus.SwapBuffers();
+        rig.View.Update();
+        rig.F.Update();
+        rig.Bus.SwapBuffers();
+    }
+
+    /// <summary>⭐ CE-1442 — the master's broadcast with the readiness facts the run gate reads (the view folds them as in production), then the facade's frame.</summary>
+    internal static void HearGate(Rig rig, ClusterState state, string waitingFor = "", string errorReason = "", string loadProgress = "", bool clusterPlayReady = false)
+    {
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId, ArmedMode = rig.View.ArmedMode,
+            WaitingFor = waitingFor, ErrorReason = errorReason, LoadProgress = loadProgress, ClusterPlayReady = clusterPlayReady });
         rig.Bus.SwapBuffers();
         rig.View.Update();
         rig.F.Update();

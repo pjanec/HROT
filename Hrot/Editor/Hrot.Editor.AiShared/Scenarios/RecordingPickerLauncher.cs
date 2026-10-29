@@ -30,18 +30,25 @@ public sealed class RecordingPickerLauncher
     /// <summary>The picker context key — the remembered query/selection of this picker.</summary>
     public const string ContextKey = "recording.open";
 
+    /// <summary>⭐ CE-1442 — the id of the one placeholder entry shown while the cluster's list has not arrived (picking it does nothing: its tag is not an exercise).</summary>
+    public const string WaitingEntryId = "recording.waiting-for-inventory";
+
     private readonly Action<PickerRequest, Action<PickerResult>> _openPicker;
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>> _listExercises;
     private readonly Action<Guid> _openRecording;
+    private readonly Func<bool>? _hasInventory;
 
     /// <param name="openPicker">The picker seam — production: the shell <c>PickerRegistry.OpenPicker</c>.</param>
     /// <param name="listExercises">The master's exercise inventory as this host reads it.</param>
     /// <param name="openRecording">The host's ONE recording opener, given the picked exercise id.</param>
+    /// <param name="hasInventory">⭐ CE-1442 (§11.7 ⑤) — the master's list has arrived (<c>RunGate.HasInventory</c>, read through the host's run choice); until then the picker says <see cref="RunGate.WaitingForInventoryText"/> instead of an empty list that reads as "no recordings". <see langword="null"/> ⇒ always (a rail).</param>
     public RecordingPickerLauncher(
         Action<PickerRequest, Action<PickerResult>> openPicker,
         Func<IReadOnlyList<ExerciseInventoryItem>> listExercises,
-        Action<Guid> openRecording)
+        Action<Guid> openRecording,
+        Func<bool>? hasInventory = null)
     {
+        _hasInventory   = hasInventory;
         _openPicker     = openPicker     ?? throw new ArgumentNullException(nameof(openPicker));
         _listExercises  = listExercises  ?? throw new ArgumentNullException(nameof(listExercises));
         _openRecording  = openRecording  ?? throw new ArgumentNullException(nameof(openRecording));
@@ -49,7 +56,9 @@ public sealed class RecordingPickerLauncher
 
     /// <summary>The entries the picker shows — every recording the master offers, the newest first.</summary>
     public IReadOnlyList<PickerEntry> BuildEntries()
-        => _listExercises()
+        => _hasInventory is not null && !_hasInventory()
+            ? new[] { new PickerEntry(Id: WaitingEntryId, Name: Hrot.UI.Common.RunMode.RunGate.WaitingForInventoryText, Description: null, Category: null, Keywords: null, IconTextureId: null, Tag: null, IsEnabled: false) }
+            : _listExercises()
             .OrderByDescending(x => x.StartTimeUtc)
             .Select(x => new PickerEntry(
                 Id:            AssetRecents.RecordingKey(x.ExerciseId),

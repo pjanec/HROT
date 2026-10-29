@@ -1854,7 +1854,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
             //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
             _clusterTimeAdapter.AttachRunChoice(Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf), _scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
-                unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
+                unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()),
+                gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Cgf),   // ⭐ CE-1442 — from the table, never a literal
+                cancelLoad: reason => _context?.ClusterSlave.CancelLoad(reason));
             // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.
             // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
             //    📐 Measured `2026-08-25`: the editor registers `MainToolbarTimeControlSection` on its
@@ -2916,6 +2918,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 registerCommand: wm.ShellCommands.Register,
                 menu:            wm.GlobalMenu,
                 commands:        wm.ShellCommands,
+                closedReason:    () => _clusterTimeAdapter?.RunChoice?.ClosedReason,   // ⭐ CE-1442 — the run gate's reason greys every gated item (the host HAS the choice)
                 session:         _scenarioSession,
                 // ⭐⭐⭐ CE-049 (Axis-C E2) — THE TWO NULLS ARE GONE. 📄
                 //    docs/DESIGN_Cgf_Asset_Picker_Shell_Slice.md §3 ③.
@@ -2953,7 +2956,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     listExercises: () => Hrot.Presentation.DebugApi.SubsystemDebugProvider.ExercisesFrom(() => _context?.ClusterSlave)()
                                          ?? System.Array.Empty<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>(),
                     // ⭐ CE-4101 — the session's own open IS the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits); no host seam, no unguarded fallback
-                    openRecording: id => _scenarioSession.OpenRecording(id)).Open);
+                    openRecording: id => _scenarioSession.OpenRecording(id),
+                    hasInventory:  () => _clusterTimeAdapter?.RunChoice?.Gate.HasInventory ?? true).Open);   // ⭐ CE-1442
 
         // ⚠⚠ SUPERSEDED 2026-08-27 by CE-059 — the group IS registered now, ~100 lines above.
         // ⭐⭐ HISTORY, kept because HALF of it is still binding. The omission argued here rested on two

@@ -44,6 +44,8 @@ public enum DoorQuestionKind
     Unsaved,
     /// <summary>The scenario being edited was never saved (<i>Discard</i>).</summary>
     NeverSaved,
+    /// <summary>⭐ <c>CE-1442</c> (U1) — the run gate is closed (the cluster is not ready / loading / in error): the move is REFUSED; <see cref="DoorQuestion.Text"/> is the reason. Not a question: it has no buttons.</summary>
+    Refused,
 }
 
 /// <summary>
@@ -78,7 +80,17 @@ public sealed class ConfirmingAsker : IDoorAsker
     public bool DiscardsUnsaved => false;
 
     /// <inheritdoc/>
-    public void Ask(DoorQuestion question) => Show(question.Title, question.Text, question.Buttons.ToArray());
+    public void Ask(DoorQuestion question)
+    {
+        if (question.Kind == DoorQuestionKind.Refused)
+        {
+            // ⭐ CE-1442 — an information confirmation: the reason and one OK (the last button closes it, like every confirmation's Cancel)
+            Pending = new RunModeConfirmation(question.Text, new[] { new RunModeConfirmation.Button("OK", null) },
+                done => { if (ReferenceEquals(Pending, done)) Pending = null; }, question.Title, "mt_run_confirm");
+            return;
+        }
+        Show(question.Title, question.Text, question.Buttons.ToArray());
+    }
 
     /// <summary>Sets <see cref="Pending"/> to <paramref name="actions"/> followed by Cancel.</summary>
     public void Show(string title, string text, params RunModeConfirmation.Button[] actions)
@@ -126,7 +138,7 @@ public sealed class RefusingAsker : IDoorAsker
 }
 
 /// <summary>⭐ What a move through the door is called in its questions, and how a run it would stop is worded (<see langword="null"/> = the move stops a run without asking: the OUT door, ■ never asks).</summary>
-public readonly record struct DoorMove(string What, Func<string, string>? RunText)
+public readonly record struct DoorMove(string What, Func<string, string>? RunText, bool IsLeave = false)
 {
     /// <summary>Opening <paramref name="scenario"/> for editing.</summary>
     public static DoorMove OpeningScenario(string scenario) => new("Opening another scenario", run => RunModeRunGuard.LoadPrompt(run, scenario));
@@ -141,7 +153,7 @@ public readonly record struct DoorMove(string What, Func<string, string>? RunTex
         LeaveReason.Exit        => "Exiting",
         LeaveReason.Close       => "Closing",
         _                       => "Stopping",
-    }, null);
+    }, null, IsLeave: true);
 }
 
 /// <summary>A scenario session that owns its <see cref="ScenarioDoor"/>; the run choice binds to it (<see cref="ScenarioDoor.Bind"/>), HTTP asks through it.</summary>
@@ -213,6 +225,12 @@ public sealed class ScenarioDoor
 
     /// <summary>A question is open or a check round is running: another move does not stack on it.</summary>
     public bool IsBusy => _asking || (_asker is ConfirmingAsker { Pending: not null }) || (AlsoBusy?.Invoke() ?? false);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1442</c> (U1, §11.7 ②) — set by the run choice: the run gate's reason while it is CLOSED (<see langword="null"/> = open). <see cref="Admit"/> refuses every move that is not a LEAVE while it is non-null
+    /// — the BACKSTOP for HTTP and any direct caller (the menus and the start surface already grey their items through the shared command registration). ⛔ A leave (Close / Exit / New Exercise) is never gated.
+    /// </summary>
+    public Func<string?>? ClosedReason { get; set; }
 
     /// <summary>⭐ Set by the run choice: its own check round (▶ in Live armed) shares the one unsaved seam, so a door move must not start a second round over it.</summary>
     public Func<bool>? AlsoBusy { get; set; }
@@ -302,6 +320,13 @@ public sealed class ScenarioDoor
         var proceed = go ?? throw new ArgumentNullException(nameof(go));
         var a = asker ?? _asker;
         if (ReferenceEquals(a, _asker) && IsBusy) return;   // a question is already open: the move is not made twice
+
+        // ⭐ CE-1442 — a closed gate refuses every move but a LEAVE, and says why (the UI asker shows it, HTTP's answers it as the refusal)
+        if (!move.IsLeave && ClosedReason?.Invoke() is { } closed)
+        {
+            a.Ask(new DoorQuestion(DoorQuestionKind.Refused, "Not ready", closed, Array.Empty<RunModeConfirmation.Button>()));
+            return;
+        }
 
         var mode = _mode();
         if (runText is not null && RunModeRunGuard.Of(mode) is { } run)

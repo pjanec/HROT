@@ -148,6 +148,9 @@ public static class ScenarioMenuCommands
     /// <param name="openRecordingPicker">⭐ <c>CE-4098</c> (AQ108 D16/D19) — opens the recording picker (<see cref="RecordingPickerLauncher.Open"/>),
     /// which lists the exercises the master recorded and opens the pick into AAR through <see cref="IScenarioSession.OpenRecording"/>.
     /// Null ⇒ the item is registered but DISABLED with the reason in its label (ruling 49: serviceability decides enablement, never presence).</param>
+    /// <param name="closedReason">⭐⭐ <c>CE-1442</c> (U1, §11.7 ②) — the run gate's reason while it is CLOSED (<c>RunModeChoice.ClosedReason</c>), <see langword="null"/> when open. Composed into every command's <c>IsEnabled</c> and <c>DynamicDisplayName</c> here, in the ONE registration helper —
+    /// so the File menu AND the Start surface (which draws the same menu nodes) grey together, with the reason in the label. ⛔ Exempt: <i>New Exercise</i> (it LEAVES, never gated). Null ⇒ no gate (a rail / a host with no run choice).
+    /// ⭐ A production caller that HAS a run choice must pass it (the silent-default rule).</param>
     /// <param name="isCuratedSaveEnabled">Whether the curated-scenarios git copy can run here.</param>
     /// <param name="saveCuratedToGit">Performs the curated-scenarios git copy.</param>
     public static void Register(
@@ -161,7 +164,8 @@ public static class ScenarioMenuCommands
         Action<IReadOnlyList<SidecarFileInfo>>?                    showMigrationHistory = null,
         Func<bool>?                                               isCuratedSaveEnabled = null,
         Action?                                                   saveCuratedToGit     = null,
-        Action?                                                   openRecordingPicker  = null)
+        Action?                                                   openRecordingPicker  = null,
+        Func<string?>?                                            closedReason         = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -174,7 +178,7 @@ public static class ScenarioMenuCommands
         //    that one is a local wipe for authoring and is registered under File/Edit below. Two ids,
         //    two labels, two menu homes — R2.
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, null,   // ⭐ CE-1442 — New Exercise LEAVES: never gated
             NewExerciseId, "New Exercise", $"{LiveMenuPrefix}/New Exercise",
             "Finish the running exercise and start fresh (cluster-wide)",
             isEnabled: () => true,
@@ -194,7 +198,7 @@ public static class ScenarioMenuCommands
         // ⭐ OPEN — /scenario/load/edit, into editing; the armed mode decides ▶. The id is unchanged; the path left the "Edit" submenu (it is no longer one of two ways to open).
         //   ⭐ CE-4101 — the session's open IS the guarded door (a run → Stop & Load, unsaved edits → Save / Discard / Cancel first, AQ108 §3): no host seam to pass, no unguarded fallback.
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             LoadId, "Open Scenario", OpenScenarioMenuPath,
             "Open a scenario for editing (cluster-wide); what ▶ then runs is the host's armed mode",
             isEnabled: () => openPicker != null,
@@ -203,7 +207,7 @@ public static class ScenarioMenuCommands
             allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             NewId, "New Scenario", NewScenarioMenuPath,
             "Create an empty scenario to author",
             isEnabled: () => true,
@@ -213,7 +217,7 @@ public static class ScenarioMenuCommands
         // ⭐ Save falls back to Save-As when nothing is loaded — unchanged behaviour. ⚠ When the host has
         //   no Save-As dialog the fallback cannot run, so the item says so rather than doing nothing.
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             SaveId, "Save Scenario", $"{EditMenuPrefix}/Save Scenario",
             "Save the currently loaded scenario",
             isEnabled: () => !string.IsNullOrEmpty(session.LoadedScenarioName) || openSaveAsDialog != null,
@@ -226,7 +230,7 @@ public static class ScenarioMenuCommands
             });
 
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             SaveAsId, "Save Scenario As", $"{EditMenuPrefix}/Save Scenario As",
             "Save the scenario under a new name",
             isEnabled: () => openSaveAsDialog != null,
@@ -234,7 +238,7 @@ public static class ScenarioMenuCommands
             dynamicDisplayName: Unavailable("Save Scenario As", openSaveAsDialog != null, NoSaveAsReason));
 
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             MigrationHistoryId, "Migration History", $"{EditMenuPrefix}/Migration History",
             "Show migration sidecars for the loaded scenario",
             isEnabled: () => true,
@@ -245,7 +249,7 @@ public static class ScenarioMenuCommands
         // ⭐⭐ CE-4098 (AQ108 D16 "Open recording (AAR)", D19) — lists the master's exercises (the picker's Recent first) and opens the
         //    pick through the session's ONE replay intent. ⭐ Offered on the Start surface: it leaves Idle through the ordinary state machine.
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             OpenRecordingId, "Open Recording", OpenRecordingMenuPath,
             "Open a recording the master offers into AAR (cluster-wide)",
             isEnabled: () => openRecordingPicker != null,
@@ -259,7 +263,7 @@ public static class ScenarioMenuCommands
         //    ⛔ Restore Checkpoint is NOT here: the save exists cluster-wide, the restore does not
         //    (design §8, Feature X). Registering a restore item would be a control that cannot work.
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             TakeCheckpointId, "Take Checkpoint", $"{CheckpointMenuPrefix}/Take Checkpoint",
             "Save the live running state as a checkpoint",
             isEnabled: () => true,
@@ -271,7 +275,7 @@ public static class ScenarioMenuCommands
         // the layout feature's "Save current as default" is. Always registered so the absence is
         // explainable rather than the item silently missing.
         RegisterCommand(
-            registerCommand, menu, commands,
+            registerCommand, menu, commands, closedReason,
             UpdateCuratedId, "Save Curated Scenarios to Git",
             $"{EditMenuPrefix}/Save Curated Scenarios to Git",
             "Copy the curated test scenarios' working copies back into the git-committed set (only when running from a source checkout)",
@@ -315,6 +319,7 @@ public static class ScenarioMenuCommands
         Action<EditorCommandDescriptor, Action<EditorCommandContext>> registerCommand,
         GlobalMenuRegistry menu,
         IEditorCommands commands,
+        Func<string?>? closedReason,
         string commandId,
         string displayName,
         string menuPath,
@@ -324,6 +329,14 @@ public static class ScenarioMenuCommands
         Func<string>? dynamicDisplayName = null,
         bool allowedInIdle = false)
     {
+        // ⭐⭐ CE-1442 — the ONE place the run gate becomes IsEnabled + a label saying why (EditorCommandDescriptor's own mechanism, VC-3): no per-control check
+        if (closedReason is not null)
+        {
+            var enabledInner = isEnabled;
+            var nameInner = dynamicDisplayName;
+            isEnabled = () => closedReason() is null && enabledInner();
+            dynamicDisplayName = () => closedReason() is { } why ? $"{displayName} ({why})" : nameInner?.Invoke() ?? displayName;
+        }
         var descriptor = new EditorCommandDescriptor(
             Id:          commandId,
             DisplayName: displayName,

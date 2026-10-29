@@ -1303,4 +1303,156 @@ public sealed class TheOneTimeFacadeTests
         cts.Cancel();
         Assert.Null(await waiting);
     }
+
+    // ══ ⭐⭐⭐ CE-1442 (U1, DESIGN_Cluster_Load_Phase §11.7) — the ONE run gate ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐ S1 — the adapter builds the gate from the node's view and the policy it was attached with: error ⇒ closed with the error text; "waiting for" ⇒ that text; the cluster loading ⇒ Loading + Progress; all good ⇒ open;
+    /// no view ⇒ open (a bare rig). The Player reads only its OWN play-ready; the Operator also closes on its own local load.
+    /// 🔴 Mutations (each compiles): <c>RunGate.From</c> without the <c>inError</c> arm ⇒ the error cell reds; <c>reason</c> ignoring <c>NotOperableReason</c> ⇒ the waiting cell reds; <c>loading</c> ignoring <c>IsClusterLoading</c> ⇒ the loading cell reds;
+    /// <c>gatePolicy</c> not stored by <c>AttachRunChoice</c> (always Operator) ⇒ the Player cell reds; the view-less branch returning closed ⇒ the bare-rig cell reds.
+    /// </summary>
+    [Fact]
+    public void CE1442_TheGate_IsBuiltFromTheViewAndThePolicy()
+    {
+        var op = With(ClusterState.OperatingEdit);
+        Assert.True(op.Choice.Gate.Open);
+        Assert.Null(op.Choice.ClosedReason);
+
+        HearGate(op, ClusterState.Idle, waitingFor: "Brain (CGF)");
+        Assert.False(op.Choice.Gate.Open);
+        Assert.Contains("waiting for: Brain (CGF)", op.Choice.Gate.Reason);
+        Assert.False(op.Choice.Gate.Loading);
+
+        HearGate(op, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.False(op.Choice.Gate.Open);
+        Assert.True(op.Choice.Gate.Loading);
+        Assert.Equal("CGF (node 2): Terrain", op.Choice.Gate.Progress);
+        Assert.Equal("loading: CGF (node 2): Terrain", op.Choice.Gate.Reason);
+
+        HearGate(op, ClusterState.Degraded, errorReason: "Brain (CGF) lost at sim 00:12:31", loadProgress: "x");
+        Assert.True(op.Choice.Gate.InError);
+        Assert.False(op.Choice.Gate.Open);
+        Assert.False(op.Choice.Gate.Loading);                                         // an error is not a load: no loading screen over the error
+        Assert.Contains("Brain (CGF) lost at sim 00:12:31", op.Choice.Gate.Reason);
+        Assert.Equal("Brain (CGF) lost at sim 00:12:31", op.Choice.Gate.ErrorReason);
+
+        HearGate(op, ClusterState.OperatingLive, clusterPlayReady: true);
+        Assert.True(op.Choice.Gate.Open);
+
+        // the operator also closes on its OWN load (the editor is an observer: the cluster level does not include it); a player opens on its own play-ready alone
+        op.View.NoteLocalPhase(NodePhase.Loading, "Terrain", null);
+        Assert.False(op.Choice.Gate.Open);
+        Assert.Equal("loading: Terrain", op.Choice.Gate.Reason);
+        var player = With(ClusterState.OperatingLive, gatePolicy: HostGatePolicy.Player);
+        player.View.NoteLocalPhase(NodePhase.PlayReady, null, null);
+        HearGate(player, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.True(player.Choice.Gate.Open);                                         // what the others load is irrelevant to a player
+
+        // no view at all (a bare rig) ⇒ nothing waits
+        var bare = new ClusterTimeTransportAdapter(new FdpEventBus(), () => null, () => 0);
+        Assert.True(bare.AttachRunChoice(RunArmed.Live, null).Gate.Open);
+    }
+
+    /// <summary>
+    /// ⭐ S2 — a closed gate disables ▶ with the gate's reason FIRST, ▶ does nothing, the user-transport helpers say disabled in ANY mode, and every mode move is disabled with the reason.
+    /// 🔴 Mutations: <c>PlayDisabledReason</c> without the <c>ClosedReason</c> line ⇒ the reason cell reds; <c>Moves()</c> without the closed arm ⇒ the moves cell reds; <c>IsUserPlayEnabled</c> without the gate ⇒ the running-mode cell reds.
+    /// </summary>
+    [Fact]
+    public void CE1442_AClosedGate_DisablesPlayAndEveryMove_WithTheReason()
+    {
+        var rig = With(ClusterState.OperatingEdit, hostDefault: RunArmed.Live);
+        Assert.Null(rig.Choice.PlayDisabledReason);
+        HearGate(rig, ClusterState.OperatingEdit, waitingFor: "Brain (CGF)");
+        Assert.Contains("waiting for: Brain (CGF)", rig.Choice.PlayDisabledReason);
+        Assert.False(rig.F.IsUserPlayEnabled());
+        Sent<TransitionStateIntent>(rig);                                            // drain
+        rig.Choice.Play();
+        Assert.Empty(rig.C.Calls);                                                   // ▶ did nothing
+        Assert.Empty(Sent<TransitionStateIntent>(rig));
+        Assert.All(rig.Choice.Moves(), m => { Assert.False(m.Enabled); Assert.Contains("waiting for: Brain (CGF)", m.DisabledReason); });
+        rig.Choice.Choose(RunArmed.Preview);
+        Assert.Equal(RunArmed.Live, rig.Choice.Armed);                               // Choose refused
+
+        var running = With(ClusterState.OperatingLive, running: true);
+        Assert.True(running.F.IsUserPlayEnabled());
+        HearGate(running, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.False(running.F.IsUserPlayEnabled());                                 // not only from Edit
+        Assert.False(running.F.IsUserStepEnabled());
+    }
+
+    /// <summary>
+    /// ⭐ S3 — the door (the backstop for every caller): while the gate is closed an operator Open / LoadLive / OpenRecording publishes NOTHING and the UI asker shows the reason (an info confirmation); an HTTP caller (the refusing asker)
+    /// is refused WITH the reason; a LEAVE (Close, Exit, New Exercise) is never gated — not while closed, not while in error. 🔴 Mutations: <c>Admit</c> without the closed check ⇒ the open rows go out; the check applied to leaves too ⇒ the Close rows stay silent;
+    /// <c>DoorMove.Leaving</c> without <c>IsLeave</c> ⇒ the same; <c>RefusingAsker</c> mis-handling the Refused kind ⇒ the HTTP cell reds.
+    /// </summary>
+    [Fact]
+    public void CE1442_TheDoor_RefusesEveryOpenWhileClosed_ButNeverALeave()
+    {
+        foreach (var errorState in new[] { false, true })
+        {
+            var rig = With(ClusterState.OperatingEdit, withDoor: true);
+            var door = rig.Choice.Door!;
+            if (errorState) HearGate(rig, ClusterState.Degraded, errorReason: "Brain (CGF) lost"); else HearGate(rig, ClusterState.OperatingEdit, waitingFor: "Brain (CGF)");
+            var why = rig.Choice.ClosedReason!;
+            Assert.NotNull(why);
+
+            var opens = new (string Name, Action Go)[]
+            {
+                ("Open", () => door.Open("hill-attack")),
+                ("LoadLive", () => door.LoadLive("hill-attack")),
+                ("OpenRecording", () => door.OpenRecording(RunId)),
+            };
+            foreach (var (name, go) in opens)
+            {
+                rig.C.Calls.Clear();
+                go();
+                Assert.True(rig.C.Calls.Count == 0, $"{name} must not go out while closed");
+                var told = rig.Choice.Pending;
+                Assert.NotNull(told);                                                // the asker is told
+                Assert.Equal(why, told!.Text);
+                told.Cancel();
+            }
+
+            var http = new RefusingAsker();
+            door.Open("hill-attack", asker: http);
+            Assert.Equal(why, http.Refusal);                                         // HTTP is refused with the reason
+            Assert.Empty(rig.C.Calls);
+
+            foreach (var reason in new[] { LeaveReason.Close, LeaveReason.Exit, LeaveReason.NewExercise })
+            {
+                rig.C.Calls.Clear();
+                door.Leave(reason);
+                Assert.Contains($"Leave:{reason}", rig.C.Calls);                     // the way out stays open
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ S4 — Cancel on the loading screen asks the host's slave (the <c>cancelLoad</c> the host gave the adapter) to cancel, with a reason; a host that gave none does nothing; the screen is up only while the gate says Loading; the error section shows the reason only in error.
+    /// 🔴 Mutations: <c>IRunTransport.CancelLoad</c> not forwarding ⇒ the call list is empty; <c>LoadingScreen.Cancel</c> passing a null reason ⇒ the reason cell reds; <c>Visible</c> = <c>!Gate.Open</c> ⇒ the error / waiting cells red; <c>TextNow</c> always non-null ⇒ the last cell reds.
+    /// </summary>
+    [Fact]
+    public void CE1442_CancelOnTheLoadingScreen_CallsTheHostsCancelLoad_WithAReason()
+    {
+        var calls = new List<string?>();
+        var rig = With(ClusterState.OperatingLive, cancelLoad: r => calls.Add(r));
+        var screen = new Hrot.UI.Common.Panels.LoadingScreen(rig.Choice);
+        Assert.False(screen.Visible);
+        HearGate(rig, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.True(screen.Visible);
+        Assert.Contains("CGF (node 2): Terrain", screen.Text);
+        screen.Cancel();
+        Assert.Equal(new[] { "cancelled by the user" }, calls);
+
+        HearGate(rig, ClusterState.Degraded, errorReason: "Brain (CGF) lost");
+        Assert.False(screen.Visible);                                                // an error shows the error section, not a loading screen
+        Assert.Equal("Cluster error — Brain (CGF) lost", new Hrot.UI.Common.Panels.ClusterErrorStatusBarSection(rig.Choice).TextNow());
+        HearGate(rig, ClusterState.Idle, waitingFor: "Brain (CGF)");
+        Assert.False(screen.Visible);
+        Assert.Null(new Hrot.UI.Common.Panels.ClusterErrorStatusBarSection(rig.Choice).TextNow());
+
+        var none = With(ClusterState.OperatingLive);
+        new Hrot.UI.Common.Panels.LoadingScreen(none.Choice).Cancel();               // a host with no slave: nothing happens, nothing throws
+    }
 }

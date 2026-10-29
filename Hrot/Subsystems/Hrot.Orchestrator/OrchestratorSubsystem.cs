@@ -244,7 +244,9 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             _bus, () => core.UiCache.View, () => OrchestrationConstants.GetSharedScenariosRoot());
         var choice = _timeTransport.AttachRunChoice(
             Hrot.UI.Common.RunMode.RunArmedDefaults.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator), _scenarioSession.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
-            unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()));
+            unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider()),
+            gatePolicy: Hrot.UI.Common.RunMode.HostGatePolicies.For(Hrot.UI.Common.RunMode.RunHostKind.Orchestrator),   // ⭐ CE-1442 — from the table, never a literal
+            cancelLoad: reason => _clusterSlave?.CancelLoad(reason));
         core.ScenarioPanel.RunControls = new Hrot.Orchestrator.Panels.ClusterPanelRunControls(_timeTransport, choice, _scenarioSession);
     }
 
@@ -320,6 +322,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             registerCommand:    windowManager.ShellCommands.Register,
             menu:               windowManager.GlobalMenu,
             commands:           windowManager.ShellCommands,
+            // ⭐ CE-1442 — the shared command registration greys every gated item with the run gate's reason (the host HAS the choice, so it passes it)
+            closedReason:       () => _timeTransport?.RunChoice?.ClosedReason,
             session:            _scenarioSession,
             openPicker:         (kinds, callback) => scenarioPicker.Open(kinds, callback),
             openSaveAsDialog:   null,
@@ -329,7 +333,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             openRecordingPicker: new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
                 openPicker:    OpenPicker,
                 listExercises: () => core.UiCache.AvailableExercises,
-                openRecording: id => _scenarioSession.OpenRecording(id)).Open);
+                openRecording: id => _scenarioSession.OpenRecording(id),
+                hasInventory:  () => _timeTransport?.RunChoice?.Gate.HasInventory ?? true).Open);   // ⭐ CE-1442
     }
 
     /// <inheritdoc/>

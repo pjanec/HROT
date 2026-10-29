@@ -56,6 +56,28 @@ public sealed class RecordingPickerLauncherTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-1442 (U1, S6; §11.7 ⑤) — until the master's list has arrived the picker says <i>"waiting for the cluster's list…"</i> (one disabled placeholder), never an empty list that reads as "no recordings";
+    /// picking nothing opens nothing; once it arrived the real entries show (an empty list THEN is a true "none").
+    /// 🔴 Mutations: <c>BuildEntries</c> ignoring <c>hasInventory</c> ⇒ the first cell reds (an empty list); the placeholder enabled / tagged with an exercise ⇒ the second cell reds.
+    /// </summary>
+    [Fact]
+    public void CE1442_WithoutTheClustersList_ThePickerSaysItIsWaiting_NotNoRecordings()
+    {
+        var arrived = false;
+        var launcher = new RecordingPickerLauncher(new PickerRegistry().OpenPicker, () => Array.Empty<ExerciseInventoryItem>(), id => _opened.Add(id), hasInventory: () => arrived);
+
+        var waiting = launcher.BuildEntries();
+        var only = Assert.Single(waiting);
+        Assert.Equal("waiting for the cluster's list…", only.Name);
+        Assert.False(only.IsEnabled);
+        Assert.Null(only.Tag);
+
+        arrived = true;
+        Assert.Empty(launcher.BuildEntries());                                       // arrived and empty: a true "none"
+        Assert.Empty(_opened);
+    }
+
+    /// <summary>
     /// ⭐ CE-4098 success 4 — a pick goes through the ONE opener, once, with the picked exercise id (the real one is
     /// <c>EditorScenarioSession.OpenRecording</c>, which publishes <c>ReplaySessionIntents.EnterReplay</c>); a cancel opens nothing.
     /// 🔴 Red-proof: call the opener with <c>Guid.Empty</c> instead of <c>picked.ExerciseId</c> ⇒ the id assertion fails.

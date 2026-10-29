@@ -673,9 +673,14 @@ public sealed class HrotNodeBuilderTests
             unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => provider));
         void Frame(Action? publish = null) { publish?.Invoke(); bus.SwapBuffers(); ctx.ClusterSlave.Tick(); adapter.Update(); }
 
-        Frame(() => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent
-            { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() }));
+        Frame(() =>
+        {
+            bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent
+                { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+            bus.PublishManaged(new Fdp.Toolkit.Orchestration.InSyncSetChangedEvent { NodeIds = new[] { 93 } });   // ⭐ CE-1442 — the run gate is closed until this node is in the master's in-sync set
+        });
         Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ctx.ClusterSlave.View.State);
+        Assert.True(choice.Gate.Open, choice.ClosedReason);
 
         Hrot.UI.Common.RunMode.UserTransport.UserPlayPause(adapter);               // ▶, Live armed, in edit
         bus.SwapBuffers();

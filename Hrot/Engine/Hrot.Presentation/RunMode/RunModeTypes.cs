@@ -396,4 +396,9 @@ public interface IRunTransport
     RunArmed? ClusterArmed { get; }
     /// <summary>⭐ CE-3341 — publish the armed mode as the cluster-wide setting (<c>SetRunSettingsIntent { Armed }</c> on the bus). The ONE caller is <see cref="RunModeChoice"/>'s <c>Arm</c>.</summary>
     void SendArmed(RunArmed armed);
+
+    /// <summary>⭐⭐⭐ <c>CE-1442</c> (U1, §11.7 ①) — the ONE run gate: built by the adapter from the node's <c>ClusterView</c> and the host's <see cref="HostGatePolicy"/> (<see cref="RunGate.From"/>); no view ⇒ <see cref="RunGate.AlwaysOpen"/>.</summary>
+    RunGate Gate { get; }
+    /// <summary>⭐ CE-1442 (§11.7 ⑥) — cancel the load in progress on this node (the host's <c>ClusterSlave.CancelLoad</c>): it fails everywhere and the cluster returns to Idle with <paramref name="reason"/>. A host with no slave does nothing.</summary>
+    void CancelLoad(string? reason);
 }
