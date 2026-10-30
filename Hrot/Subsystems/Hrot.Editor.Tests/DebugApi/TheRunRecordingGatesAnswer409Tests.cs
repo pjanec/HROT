@@ -34,6 +34,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
     private ClusterState _state = ClusterState.OperatingLive;
     private bool? _notRecorded = true;
     private bool? _settingOff = false;   // the broadcast's RecordLiveRunsOff
+    private bool? _askToKeep = false;   // CE-4100 — the broadcast's AskToKeepRecordings
     private ClusterArmedMode? _armed;     // CE-3341 — the broadcast's armed mode (null = this node keeps none: the route answers the default, live)
 
     [Fact(Timeout = 90_000)]
@@ -44,7 +45,7 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
             new ISubsystemDebugProvider[]
             {
                 new SubsystemDebugProvider("IG", "IG"),
-                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, armedMode: () => _armed),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, exercises: () => new[] { Known }, runNotRecorded: () => _notRecorded, recordLiveRunsOff: () => _settingOff, askToKeepRecordings: () => _askToKeep, armedMode: () => _armed),
             },
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
@@ -193,5 +194,26 @@ public sealed class TheRunRecordingGatesAnswer409Tests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         var both = Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent));
         Assert.Equal((true, ClusterArmedMode.Live), (both.RecordLiveRuns, both.Armed));
+
+        // ── CE-4100 (AQ108 D15) — the cluster's "Ask to keep recordings" setting: same route, same op, reported beside the others ──────────────
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.False(body["data"]!["askToKeepRecordings"]!.GetValue<bool>());                                       // the master's default: keep silently
+        _askToKeep = true;                                                                                           // the master has broadcast it ON
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/run-settings"));
+        Assert.True(body["data"]!["askToKeepRecordings"]!.GetValue<bool>());
+        Assert.True(body["data"]!["recordLiveRuns"]!.GetValue<bool>());                                              // beside the recording setting
+
+        _master.Sent.Clear();
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"askToKeepRecordings":true}""")));
+        Assert.Equal(HttpStatusCode.OK, status);
+        var askOp = Assert.IsType<SetRunSettingsIntent>(Assert.Single(_master.Sent));
+        Assert.Equal(true, askOp.AskToKeepRecordings);
+        Assert.Null(askOp.RecordLiveRuns);                                                                           // the other settings are "no change"
+        Assert.Null(askOp.Armed);
+        Assert.True(body["data"]!["askToKeepRecordings"]!.GetValue<bool>());
+        _master.Sent.Clear();
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-settings", Json("""{"askToKeepRecordings":"yes"}""")));
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Empty(_master.Sent);
     }
 }

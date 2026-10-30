@@ -137,7 +137,8 @@ namespace Hrot.Editor.DebugApi
             if (off is null)
                 return (null, "No subsystem on this host keeps the cluster's read model (a ClusterUiCache / ClusterSlave) that carries the run settings.", DebugApiHints.Panel);
             var armed = _editorArmedMode?.Invoke() ?? _dispatcher?.ArmedModeAnyNode ?? Fdp.Toolkit.Orchestration.ClusterArmedMode.Live;   // the same View fact as `off`; Live = the master's default
-            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant() }, null, null);
+            var ask = _editorAskToKeepRecordings?.Invoke() ?? _dispatcher?.AskToKeepRecordingsAnyNode ?? false;   // ⭐ AQ108 D15 (CE-4100 ①) — the same View fact; OFF = the master's default
+            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant(), ["askToKeepRecordings"] = ask }, null, null);
         }
 
         /// <summary>
@@ -148,7 +149,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SetRunSettings(JsonNode? body)
         {
-            const string usage = "recordLiveRuns (true | false) and / or armed (preview | live | aar) is required: {\"recordLiveRuns\": false} or {\"armed\": \"live\"}.";
+            const string usage = "recordLiveRuns (true | false), armed (preview | live | aar) and / or askToKeepRecordings (true | false) is required: {\"recordLiveRuns\": false}, {\"armed\": \"live\"} or {\"askToKeepRecordings\": true}.";
             bool? record = null;
             if (body?["recordLiveRuns"] is { } rv)
             {
@@ -164,10 +165,16 @@ namespace Hrot.Editor.DebugApi
                     return (null, usage, DebugApiHints.Scenario);
                 armed = parsed;
             }
-            if (record is null && armed is null) return (null, usage, DebugApiHints.Scenario);
+            bool? ask = null;
+            if (body?["askToKeepRecordings"] is { } kv)
+            {
+                if (kv is not JsonValue k || !k.TryGetValue(out bool kb)) return (null, usage, DebugApiHints.Scenario);
+                ask = kb;
+            }
+            if (record is null && armed is null && ask is null) return (null, usage, DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed };
+            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask };
             master.SetRunSettings(intent);
             var result = new JsonObject
             {
@@ -176,6 +183,7 @@ namespace Hrot.Editor.DebugApi
             };
             if (record is { } r) result["recordLiveRuns"] = r;
             if (armed is { } a) result["armed"] = a.ToString().ToLowerInvariant();
+            if (ask is { } k2) result["askToKeepRecordings"] = k2;
             return (result, null, null);
         }
 

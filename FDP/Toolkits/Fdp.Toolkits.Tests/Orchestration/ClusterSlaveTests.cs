@@ -340,7 +340,7 @@ public sealed class ClusterSlaveTests
 
         Hear(new ClusterStateUpdateEvent
         {
-            CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid(), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true,
+            CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid(), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true, AskToKeepRecordings = true,
         });
         var ex = new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.FromSeconds(1), "s");
         Hear(new AssetInventoryUpdateEvent { LocalExercises = new[] { ex } });
@@ -352,6 +352,7 @@ public sealed class ClusterSlaveTests
         Assert.Equal((slave.View.HasFollowedState, slave.View.MasterGone, slave.View.ReplayAxis, slave.View.RunNotRecorded, slave.View.RecordLiveRunsOff),
                      (slave.HasFollowedState, slave.MasterGone, slave.ReplayAxis, slave.RunNotRecorded, slave.RecordLiveRunsOff));
         Assert.True(slave.RunNotRecorded && slave.RecordLiveRunsOff && slave.ReplayAxis == ReplayAxis.Wall);
+        Assert.True(slave.AskToKeepRecordings && slave.View.AskToKeepRecordings);   // ⭐ CE-4100 — the node's accessor reads the ONE view
         Assert.Same(slave.View.AvailableExercises, slave.KnownExercises);
         Assert.True(slave.View.UnsavedCheckOutcomeFor(check)!.Result!.Changed);   // the round's answer reaches the node's view (op status on every node)
     }

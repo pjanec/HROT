@@ -145,6 +145,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool RunNotRecorded;
         /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load will do). Inverse polarity: default false = ON.</summary>
         public bool RecordLiveRunsOff;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> SETTING is ON. Default false (a publisher that never sets it reads as OFF).</summary>
+        public bool AskToKeepRecordings;
         /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode. Default 0 = <see cref="ClusterArmedMode.Live"/>, so a publisher that never sets it reads as the default.</summary>
         public ClusterArmedMode ArmedMode;
         /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live or Preview). Default 0 = Live.</summary>
@@ -235,6 +237,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool RunNotRecorded;
         /// <summary>⭐ CE-4090 — as <see cref="ClusterStateTransitionedEvent.RecordLiveRunsOff"/>.</summary>
         public bool RecordLiveRunsOff;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — as <see cref="ClusterStateTransitionedEvent.AskToKeepRecordings"/>.</summary>
+        public bool AskToKeepRecordings;
         /// <summary>⭐ CE-3341 — as <see cref="ClusterStateTransitionedEvent.ArmedMode"/>.</summary>
         public ClusterArmedMode ArmedMode;
         /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live or Preview). Default 0 = Live.</summary>

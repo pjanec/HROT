@@ -53,6 +53,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             replayAxis:        () => _core?.UiCache.ReplayAxis,   // ⭐ CE-3329 R-3058
             runNotRecorded:    () => _core?.UiCache.RunNotRecorded,   // ⭐ CE-4090 D14
             recordLiveRunsOff: () => _core?.UiCache.RecordLiveRunsOff,
+            askToKeepRecordings: () => _core?.UiCache.AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             armedMode:         () => _core?.UiCache.ArmedMode,   // ⭐ CE-3341 R-3068
             unsavedCheck:      id => _core?.UiCache.UnsavedCheckOutcomeFor(id),   // ⭐ CE-4093 D20
             scenarioDirty:     () => _core?.UiCache.LastUnsavedCheck?.Changed);

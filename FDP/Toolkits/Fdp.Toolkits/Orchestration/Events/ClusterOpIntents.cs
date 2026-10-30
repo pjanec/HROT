@@ -86,6 +86,8 @@ namespace Fdp.Toolkit.Orchestration
         public bool? RecordLiveRuns;
         /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's armed run mode; <see langword="null"/> = no change (an older sender changes nothing).</summary>
         public ClusterArmedMode? Armed;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting; <see langword="null"/> = no change (an older sender, or one that sets only another setting).</summary>
+        public bool? AskToKeepRecordings;
     }
 
     /// <summary>

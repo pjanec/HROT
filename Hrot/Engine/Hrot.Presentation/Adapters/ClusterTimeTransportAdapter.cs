@@ -251,7 +251,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         unsaved ??= new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName,
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
         _run = new RunModeChoice(this, control, unsaved);
-        _run.AskToKeep = () => false;   // TODO(CE-4100, backend): () => View?.AskToKeepRecordings == true once ClusterView carries the cluster's "ask to keep recordings" setting
+        _run.AskToKeep = () => View?.AskToKeepRecordings == true;   // ⭐ CE-4100 ① — the cluster's "ask to keep recordings" setting, off the master's broadcast (ClusterView)
         _run.OnClusterState(_currentState);   // the state the view held before the choice existed
         return _run;
     }

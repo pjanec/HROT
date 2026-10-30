@@ -60,6 +60,13 @@ public sealed class ClusterViewTests
         HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, LastLoadMode = ClusterArmedMode.Preview, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });
         Assert.Equal(ClusterArmedMode.Preview, view.LastLoadMode);
 
+        // CE-4100 (AQ108 D15) - Ask to keep recordings is one more field of the same fold: OFF before any broadcast, the master's word after, replaced by the next real one
+        Assert.False(view.AskToKeepRecordings);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall, AskToKeepRecordings = true });
+        Assert.True(view.AskToKeepRecordings);
+        HearStruct(bus, view, new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, RunNotRecorded = true, RecordLiveRunsOff = true, ReplayAxis = ReplayAxis.Wall });   // a sender that never sets it reads OFF again
+        Assert.False(view.AskToKeepRecordings);
+
         HearStruct(bus, view, new ClusterStateUpdateEvent { MasterGone = true });
         Assert.True(view.MasterGone);
         Assert.True(view.HasFollowedState);                       // a master WAS heard
