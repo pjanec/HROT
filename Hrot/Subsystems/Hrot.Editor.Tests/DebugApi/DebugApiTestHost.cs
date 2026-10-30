@@ -42,8 +42,11 @@ public static class DebugApiTestHost
     /// <summary>Waits for the request, draining the main-thread queue meanwhile (the editor's frame does this), and returns the status and JSON body.</summary>
     public static async Task<(HttpStatusCode Status, JsonNode Body)> Send(MainThreadJobQueue queue, Task<HttpResponseMessage> request)
     {
-        for (int i = 0; i < 4000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
-        var response = await request;
-        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
+        // ⭐ CE-3350 — ConfigureAwait(false): the drain must not resume on xUnit's max-concurrency sync context. In a whole-project run that
+        //   context's few threads are busy with other tests, the loop stalls, the host's queued job is never drained, and the request is
+        //   accepted but never answered (HttpClient's 10 s timeout). The drainer is the only one, so no thread affinity is lost.
+        for (int i = 0; i < 4000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5).ConfigureAwait(false); }
+        var response = await request.ConfigureAwait(false);
+        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync().ConfigureAwait(false))!);
     }
 }
