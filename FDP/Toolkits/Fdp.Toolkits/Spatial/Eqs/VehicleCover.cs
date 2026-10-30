@@ -26,15 +26,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public const string Material = "car-body";
 
         /// <summary>True when <paramref name="e"/> is a vehicle (see the class remarks).</summary>
-        public static bool IsVehicle(ISimulationView view, Entity e)
-        {
-            var repo = view as EntityRepository;
-            if ((repo == null || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>())
-                && view.HasComponent<global::CarKinem.Core.VehicleParams>(e))
-                return view.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class != global::CarKinem.Core.VehicleClass.Pedestrian;
-            return (repo == null || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>())
-                   && view.HasComponent<global::CarKinem.Core.VehicleState>(e);
-        }
+        public static bool IsVehicle(ISimulationView view, Entity e) => Fdp.Toolkit.Motion.Locomotions.IsVehicle(view, e);   // ⭐ CE-1373 — the ONE rule
 
         /// <summary>True when the vehicle moves slower than <see cref="StandingSpeed"/>: on a node that does not own its motion, the velocity
         /// replicated to it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>); else its <c>VehicleState.Speed</c>, else its velocity.</summary>
