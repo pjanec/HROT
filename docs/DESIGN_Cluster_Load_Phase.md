@@ -1918,4 +1918,25 @@ node's chain; the dashed edge is the resume that CE-4122 measured broken, retire
 
 ⛔ **Rejected:** the request names who waits (R-3075) · resume on `OperatingLive` (CE-4122: re-announced states drop it) · the editor's 3-D view
 gates play (a second readiness signal) · the 3-D map in every load (R-1046: the editor would come up and load slowly for pure editing).
-⚠ **To measure before building:** that the master's round completes only after every node's commit acknowledgement (④'s premise) — a rail first.
+#### 11.10a 📐 MEASURED `2026-10-30` — what "loaded" really is, and what a requester can see *(code read; the cluster-level rail is step ① of the build)*
+
+| question | answer | where |
+|---|---|---|
+| does a node acknowledge the load before its chain resolved? | ⛔ no — `ClusterSlave` publishes its `NodeOpCompletedEvent` Success only when the prepare task COMPLETES; `LoadPhaseChain` holds that task open (`_holdTcs`) until every step — the 3-D map step included — is resolved, and a step's `Failure` faults it | `ClusterSlave.cs:304-341` · `LoadPhaseChain.DrainDeferredAcks` |
+| when is the load round done? | when the master has `Expected` = steps × nodes acknowledgements (`GenericTransactionTracker`) ⇒ it publishes **`ClusterOpCompletedEvent { RequestId, Success }`**, then the cluster state | `ClusterMaster.cs` (tracker at the fan-out; `PublishOpStatus`) |
+| ⛔ is "the cluster state is OperatingLive" the same fact? | **NO.** The master advances `_currentDsmState` to the target OPTIMISTICALLY at the round's START (`ClusterMaster.cs:1560`), and two paths re-announce it mid-round — a run-settings change (`ClusterMaster.RunSettings.cs:72`) and `ClusterMaster.Replay.cs:44` ⇒ OperatingLive can be announced before any node finished | ⇒ **"loaded" = the load REQUEST's op status Success, never the state** |
+| what does `POST /scenario/load/live {waitForReady}` wait for today? | the state equal to the target AND the LOCAL world seen changing and settled (`ScenarioReadyProbe`) — ⛔ not the round's Success, so not the other nodes, not the filming node's map | `DebugApiHost.cs` (the load route) |
+| ⛔ today's auto-run | `GlobalContextProcessManager._resumeWhenLive`, keyed on the announced STATE — dropped by a re-announce (CE-4122) and, by the row above, also unsafe | `GlobalContextProcessManager.cs:63-76` |
+
+⇒ **The hole closed: ONE "loaded" fact for every consumer** — the load request's `ClusterOpCompletedEvent` Success (failure: its status + reason).
+
+| ⭐ consumer | uses it as |
+|---|---|
+| **the director / a script** (the usual case — it must know when the load finished AND when the run started anyway) | `POST /scenario/load/live {waitForReady:true}` returns only on the round's Success (every node, the filming node's map included), or fails with the round's reason; then its OWN `POST /sim/play`; `GET /status` → `load: {requestId, phase: Loading│Loaded│Failed, reason}` and `run: {running, startedAtSim}` so a poller sees both edges |
+| **load-and-run** (demos — nobody polls) | the master's run step fires on the SAME Success, through the same `ResumeTimeIntent` as ▶; `startPaused:false` asks for it |
+| the 3-D map setting (`MapInLoadNodes`) | is a property of the LOAD, so BOTH flows wait for the filming node's map — the director's flow does not need load-and-run to get it |
+
+⭐ **Build order (lean):** ① a cluster-level rail: a round with one slow node (a held step) reports Success only after it, and the state
+announced mid-round is not taken for it · ② `MapInLoadNodes` + the per-node stamp + `RequestBuild()` (ui) · ③ `waitForReady` and `GET /status`
+on the request's Success (`load` / `run` blocks) — what the director needs · ④ load-and-run on the same Success, `_resumeWhenLive` retired
+(CE-4122).
