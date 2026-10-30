@@ -100,7 +100,55 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ CE-1034 H1 — the ground's height at (x, y): the height grid where there is one, else <see cref="GroundZ"/>. Every
         /// question about "the ground" goes through this — never read <see cref="GroundZ"/> as the ground (R-248).</summary>
-        public float GroundHeightAt(float x, float y) => Height?.Sample(x, y) ?? GroundZ;
+        public float GroundHeightAt(float x, float y)
+        {
+            var r = Rect;
+            if (!r.Valid) return Height?.Sample(x, y) ?? GroundZ;   // no rectangle (a world built in code with no bounds): the ground as it always was
+            if (x >= r.MinX && x <= r.MaxX && y >= r.MinY && y <= r.MaxY) return Height?.Sample(x, y) ?? GroundZ;   // inside: unchanged
+            // ⭐ CE-4122 (§6ad-2) — outside the terrain: the edge height + the hills (+ an attached outside field, e.g. the SUMO net's)
+            float cx = Math.Clamp(x, r.MinX, r.MaxX), cy = Math.Clamp(y, r.MinY, r.MaxY);
+            float edge = Height?.Sample(cx, cy) ?? GroundZ;
+            float dx = x - cx, dy = y - cy;
+            return (_beyond ?? BeyondGround.Default).HeightAt(x, y, edge, MathF.Sqrt(dx * dx + dy * dy));
+        }
+
+        private BeyondGround? _beyond;
+
+        /// <summary>⭐ CE-4122 — the ground beyond this terrain's rectangle as attached by <see cref="AttachBeyond"/>, or null (edge + hills).</summary>
+        public BeyondGround? Beyond => _beyond;
+
+        /// <summary>
+        /// ⭐ CE-4122 (HB2) — attach the ground beyond the terrain (the SUMO net's height field). Set ONCE, before the world is published: the world
+        /// stays immutable after commit. A second call throws.
+        /// </summary>
+        public void AttachBeyond(BeyondGround beyond)
+        {
+            if (beyond == null) throw new ArgumentNullException(nameof(beyond));
+            if (Interlocked.CompareExchange(ref _beyond, beyond, null) != null)
+                throw new InvalidOperationException("The ground beyond this terrain is already attached (set once).");
+        }
+
+        /// <summary>⭐ CE-4122 — the rectangle the terrain's own ground covers (the ONE rule <c>TerrainWorldMesh</c> lays its ground out by): the
+        /// bounds, their minimum snapped down to the height grid's cells. Valid is false for degenerate bounds.</summary>
+        public (Vector2 Min, Vector2 Max, bool Valid) GroundRect => (new Vector2(Rect.MinX, Rect.MinY), new Vector2(Rect.MaxX, Rect.MaxY), Rect.Valid);
+
+        private GroundRectInfo Rect => _rect ??= ComputeRect();
+        private GroundRectInfo? _rect;
+
+        private GroundRectInfo ComputeRect()
+        {
+            var min = BoundsMin; var max = BoundsMax;
+            if (!(max.X > min.X && max.Y > min.Y)) return new GroundRectInfo(0, 0, 0, 0, false);
+            if (Height is { } g)
+            {
+                float cell = g.CellSize;
+                min = new Vector2(MathF.Floor((min.X - g.Origin.X) / cell) * cell + g.Origin.X,
+                                  MathF.Floor((min.Y - g.Origin.Y) / cell) * cell + g.Origin.Y);
+            }
+            return new GroundRectInfo(min.X, min.Y, max.X, max.Y, true);
+        }
+
+        private sealed record GroundRectInfo(float MinX, float MinY, float MaxX, float MaxY, bool Valid);
         public IReadOnlyList<TerrainPrism> Prisms { get; init; } = Array.Empty<TerrainPrism>();
         public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
         public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();

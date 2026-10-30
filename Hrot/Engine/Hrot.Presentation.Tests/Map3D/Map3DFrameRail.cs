@@ -108,6 +108,16 @@ public sealed class Map3DFrameRail
             double sd = Math.Sqrt(Math.Max(0, sum2 / n - (sum / n) * (sum / n)));
             Assert.True(ground > n * 0.8, $"beyond the terrain's edge is ground ({ground} of {n} green) — not the empty sky");
             Assert.True(sd > 2.0, $"and it is textured (luminance spread {sd:0.00}), so a moving camera sees it move");
+
+            // ⭐ CE-4122 (§6ad-2) — and HILLY: where the ground meets the horizon is not a straight line. ⚠ Not measured from the pixels (the haze blends the far
+            //   ground into the sky, so a pixel scan finds a ragged edge on a FLAT apron too — measured, the first version of this rail passed with the hills off):
+            //   the DRAWN ground's points at one depth across the view (a line 1.5 km ahead, ±1.5 km across), projected through the camera the picture was
+            //   taken with. The camera has no roll, so on flat ground they share ONE screen row; the hills spread them.
+            var eye = sw.Camera3D.Eye;
+            var rows = new List<float>();
+            for (float side = -1500f; side <= 1500f; side += 50f)
+                rows.Add(sw.Camera3D.WorldToScreen(new Vector3(eye.X + 1500f, eye.Y + side, query.GroundHeightAt(eye.X + 1500f, eye.Y + side))).Y);
+            Assert.True(rows.Max() - rows.Min() >= 3f, $"the far ground is hilly: its horizon rows span {rows.Min():0.0}..{rows.Max():0.0} px — a straight line on a flat apron");
         }
         finally { Raylib.UnloadImage(image); }
 
@@ -1114,6 +1124,7 @@ public sealed class Map3DFrameRail
         // from the south-west, looking along the highway at the overpass
         sw.Camera3D.Pose = new CameraPose(new Vector3(200f, 150f, g + 3f), 75f, MathF.PI * 0.18f, -0.32f);
         frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 2000);   // CE-1394: the mesh is built on a worker (the hilly apron, CE-4122, made it a little bigger)
         frame.Step(canvas.Draw);
         string png = Path.Combine(shots, "map3d-9-highway-rest.png");
         frame.Screenshot(png);

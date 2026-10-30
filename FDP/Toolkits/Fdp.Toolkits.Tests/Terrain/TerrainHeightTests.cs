@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Terrain.Tests
                 var levels = w.SurfacesAt(x, y, out int ground);
                 Assert.Equal(g, levels[ground], 3);
             }
-            Assert.Equal(20f, w.GroundHeightAt(50f, 500f), 3);             // past the grid the edge holds
+            Assert.Equal(20f, w.GroundHeightAt(50f, 200f), 3);             // at the grid's edge the edge holds (past it: the hills fade in — CE-4122, see Beyond_*)
             Assert.Equal(new TerrainWorldQuery(w).GroundHeightAt(50f, 120f), w.GroundHeightAt(50f, 120f));
         }
 
@@ -97,6 +97,155 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Contains(TerrainWorldMesh.ApronMaterial, materials);
             q.Build(out var sv, out _, out _);
             Assert.Equal(gv.Length, sv.Length);
+        }
+
+        // ── ⭐ CE-4122 (docs/DESIGN_Map_3D_Mode.md §6ad-2) — the apron is HILLY: one ground function beyond the terrain ──────────────────────
+
+        /// <summary>A synthetic outside field (the SUMO net's role): a plane, over a footprint 1 km east of the 200 m slope terrain, rotated 20°.</summary>
+        private static BeyondGround SyntheticSumo()
+        {
+            var c = new Vector2(1600f, 100f);
+            Vector2 R(float x, float y) { float a = 20f * MathF.PI / 180f; return c + new Vector2(x * MathF.Cos(a) - y * MathF.Sin(a), x * MathF.Sin(a) + y * MathF.Cos(a)); }
+            return new BeyondGround((x, y) => 30f + 0.01f * x - 0.02f * y, new[] { R(-500f, -400f), R(500f, -400f), R(500f, 400f), R(-500f, 400f) });
+        }
+
+        private static TerrainWorld WithSumo()
+        {
+            var w = SlopeFixture.World();
+            w.AttachBeyond(SyntheticSumo());
+            return w;
+        }
+
+        [Fact]
+        public void Beyond_AtOurEdgeItIsTheEdge_ThenHillsFadeIn_AndInsideTheGridNothingChanged()
+        {
+            foreach (var w in new[] { SlopeFixture.World(), WithSumo() })
+            {
+                var flat = SlopeFixture.World();
+                for (float t = 0f; t <= 200f; t += 25f)   // on the rectangle's four edges: the edge height, exactly
+                    foreach (var (x, y) in new[] { (t, 0f), (t, 200f), (0f, t), (200f, t) })
+                        Assert.Equal(flat.Height!.Sample(x, y), w.GroundHeightAt(x, y), 4);
+                foreach (var (x, y) in new[] { (0f, 0f), (55f, 37f), (199f, 5f), (100f, 100f) })   // inside: the grid
+                    Assert.Equal(SlopeFixture.Rise * y, w.GroundHeightAt(x, y), 4);
+                // 1 m out: still within a hair of the edge (the ramp is smooth from zero)
+                Assert.InRange(MathF.Abs(w.GroundHeightAt(-1f, 100f) - 10f), 0f, 0.01f);
+                Assert.InRange(MathF.Abs(w.GroundHeightAt(100f, 201f) - 20f), 0f, 0.01f);
+            }
+        }
+
+        [Fact]
+        public void Beyond_FarAway_TheGroundIsHilly_AndNeverMoreThanTheAmplitudeFromTheLevel()
+        {
+            var w = SlopeFixture.World();
+            var zs = new System.Collections.Generic.List<float>();
+            for (int a = 0; a < 720; a++)   // a 2 km ring round the terrain's centre
+            {
+                float r = a * MathF.PI / 360f;
+                float x = 100f + 2000f * MathF.Cos(r), y = 100f + 2000f * MathF.Sin(r);
+                float z = w.GroundHeightAt(x, y);
+                zs.Add(z);
+                float edge = w.Height!.Sample(Math.Clamp(x, 0f, 200f), Math.Clamp(y, 0f, 200f));
+                Assert.InRange(MathF.Abs(z - edge), 0f, BeyondGround.HillAmplitude + 1e-3f);
+            }
+            // ⭐ on a FLAT terrain (so the edge contributes nothing) the ring's whole spread is the hills
+            var flat = TerrainWorldParser.Parse("""{ "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 1.5 }, "features": [] }""");
+            var fz = Enumerable.Range(0, 720).Select(a => { float r = a * MathF.PI / 360f; return flat.GroundHeightAt(100f + 2000f * MathF.Cos(r), 100f + 2000f * MathF.Sin(r)); }).ToList();
+            Assert.True(fz.Max() - fz.Min() > 3f, $"a 2 km ring round a flat terrain is hilly (spread {fz.Max() - fz.Min():0.0} m)");
+            Assert.True(zs.Max() - zs.Min() > 3f);
+            Assert.Equal(w.GroundHeightAt(1234f, -987f), w.GroundHeightAt(1234f, -987f));   // a fixed function of (x, y)
+        }
+
+        [Fact]
+        public void Beyond_InsideTheSumoFootprint_TheGroundIsTheSumoField_AndTheFieldPullsInOver300m()
+        {
+            var w = WithSumo();
+            var b = w.Beyond!;
+            Assert.True(b.HasField);
+            Assert.Equal(SyntheticSumo().FieldQuad.Length, b.FieldQuad.Length);
+            int checkedPoints = 0;
+            for (float x = b.FieldMin.X; x <= b.FieldMax.X; x += 37f)
+                for (float y = b.FieldMin.Y; y <= b.FieldMax.Y; y += 41f)
+                    if (b.InField(x, y))
+                    {
+                        checkedPoints++;
+                        Assert.Equal(b.Field!(x, y), w.GroundHeightAt(x, y), 3);   // >300 m from our terrain here ⇒ exactly the field
+                    }
+            Assert.True(checkedPoints > 200, $"the footprint was sampled ({checkedPoints})");
+            // between the terrain and the field the level is pulled over, smoothly (no jump)
+            float prev = w.GroundHeightAt(200f, 100f);
+            for (float x = 201f; x < 700f; x += 1f)
+            {
+                float z = w.GroundHeightAt(x, 100f);
+                Assert.InRange(MathF.Abs(z - prev), 0f, 0.5f);
+                prev = z;
+            }
+        }
+
+        [Fact]
+        public void Beyond_ASecondAttach_Throws_AndAWithDerivedWorldKeepsIt()
+        {
+            var w = WithSumo();
+            Assert.Throws<InvalidOperationException>(() => w.AttachBeyond(BeyondGround.Default));
+            var derived = TerrainObstacles.With(w, new[] { new TerrainPrism { Footprint = new[] { new Vector2(10, 10), new Vector2(20, 10), new Vector2(20, 20) }, BaseZ = 0, TopZ = 3, Triangles = new[] { 0, 1, 2 }, Min = new Vector2(10, 10), Max = new Vector2(20, 20) } });
+            Assert.Same(w.Beyond, derived.Beyond);
+            Assert.Equal(w.GroundHeightAt(1500f, 100f), derived.GroundHeightAt(1500f, 100f));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Beyond_TheApron_IsOneFunction_WithNoCrack_AndTheNavmeshSoupIsUntouched(bool withSumo)
+        {
+            var w = withSumo ? WithSumo() : SlopeFixture.World();
+            TerrainWorldMesh.BuildApron(w, out var av, out var ai, extent: 2200f);
+            Assert.NotEmpty(ai);
+            int sunk = 0;
+            foreach (var p in av)
+            {
+                float h = w.GroundHeightAt(p.X, p.Y);
+                if (MathF.Abs(p.Z - h) < 1e-3f) continue;
+                // the only exception: the overlap ring under the SUMO ground, sunk by exactly the drop, inside its footprint
+                Assert.True(withSumo && w.Beyond!.InField(p.X, p.Y) && MathF.Abs(p.Z - (h - TerrainWorldMesh.ApronOverlapDrop)) < 1e-3f, $"({p.X}, {p.Y}): {p.Z} vs ground {h}");
+                sunk++;
+            }
+            if (withSumo) Assert.True(sunk > 0, "the SUMO footprint's ring is drawn (sunk)"); else Assert.Equal(0, sunk);
+
+            // relief is drawn: the apron's heights wander from the level they start at (the edge / the field), by more than 3 m somewhere
+            if (!withSumo)   // (with the SUMO plane the heights vary by the plane itself; the 2 km ring rail pins the hills there too)
+            {
+                float E(Vector3 p) => w.Height!.Sample(Math.Clamp(p.X, 0f, 200f), Math.Clamp(p.Y, 0f, 200f));
+                Assert.True(av.Max(p => p.Z - E(p)) - av.Min(p => p.Z - E(p)) > 3f);
+            }
+
+            // every triangle faces up, none is degenerate
+            for (int i = 0; i < ai.Length; i += 3)
+            {
+                var a = av[ai[i]]; var b = av[ai[i + 1]]; var c = av[ai[i + 2]];
+                Assert.True((b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y) > 0f, "counter-clockwise from above");
+            }
+
+            // water-tight except at the terrain's edge, the outer rim and (with SUMO) the hole its footprint leaves
+            static (int, int) Q(Vector3 p) => ((int)MathF.Round(p.X * 10f), (int)MathF.Round(p.Y * 10f));
+            var uses = new System.Collections.Generic.Dictionary<((int, int), (int, int)), int>();
+            void Edge(Vector3 a, Vector3 b) { var ka = Q(a); var kb = Q(b); var k = ka.CompareTo(kb) < 0 ? (ka, kb) : (kb, ka); uses[k] = uses.GetValueOrDefault(k) + 1; }
+            for (int i = 0; i < ai.Length; i += 3) { Edge(av[ai[i]], av[ai[i + 1]]); Edge(av[ai[i + 1]], av[ai[i + 2]]); Edge(av[ai[i + 2]], av[ai[i]]); }
+            float minX = av.Min(p => p.X), maxX = av.Max(p => p.X), minY = av.Min(p => p.Y), maxY = av.Max(p => p.Y);
+            foreach (var (k, n) in uses)
+            {
+                Assert.InRange(n, 1, 2);
+                if (n == 2) continue;
+                float mx = (k.Item1.Item1 + k.Item2.Item1) / 20f, my = (k.Item1.Item2 + k.Item2.Item2) / 20f;
+                bool onTerrainEdge = mx >= -0.2f && mx <= 200.2f && my >= -0.2f && my <= 200.2f && (MathF.Abs(mx) < 0.2f || MathF.Abs(mx - 200f) < 0.2f || MathF.Abs(my) < 0.2f || MathF.Abs(my - 200f) < 0.2f);
+                bool onRim = MathF.Abs(mx - minX) < 0.2f || MathF.Abs(mx - maxX) < 0.2f || MathF.Abs(my - minY) < 0.2f || MathF.Abs(my - maxY) < 0.2f;
+                bool atSumoHole = withSumo && w.Beyond!.DistanceToField(mx, my) < 2f * TerrainWorldMesh.ApronCoarseCell;
+                Assert.True(onTerrainEdge || onRim || atSumoHole, $"a crack at ({mx}, {my})");
+            }
+
+            // the navmesh soup is the same with or without the beyond
+            TerrainWorldMesh.Build(w, out var sv, out var si);
+            TerrainWorldMesh.Build(SlopeFixture.World(), out var sv0, out var si0);
+            Assert.Equal(sv0, sv);
+            Assert.Equal(si0, si);
         }
 
         [Fact]
@@ -517,7 +666,13 @@ namespace Fdp.Toolkit.Terrain.Tests
                     if (!e.Value.TryGetProperty("SimTransform", out var st)) continue;
                     var p = st.GetProperty("Position");
                     if (p[2].GetSingle() != 0f) continue;                // airborne
-                    Assert.True(MathF.Abs(w.GroundHeightAt(p[0].GetSingle(), p[1].GetSingle())) < 0.01f, $"{file}: {e.Name} would stand off the ground");
+                    float ex = p[0].GetSingle(), ey = p[1].GetSingle();
+                    var (rmin, rmax, _) = w.GroundRect;
+                    float dOut = MathF.Sqrt(MathF.Pow(MathF.Max(MathF.Max(rmin.X - ex, ex - rmax.X), 0f), 2) + MathF.Pow(MathF.Max(MathF.Max(rmin.Y - ey, ey - rmax.Y), 0f), 2));
+                    // ⭐ CE-4122 — OUTSIDE the terrain's rectangle the ground is the hilly beyond (ua-air-strike has one tank 40 m east of the bounds): it may differ
+                    //   from the plain by what the hills have faded in over that distance, never by more; inside, nothing moves.
+                    float allowed = dOut == 0f ? 0.01f : BeyondGround.HillAmplitude * BeyondGround.Ramp(dOut) + 0.01f;
+                    Assert.True(MathF.Abs(w.GroundHeightAt(ex, ey)) < allowed, $"{file}: {e.Name} would stand off the ground");
                     checkedEntities++;
                 }
             }
