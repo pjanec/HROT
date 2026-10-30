@@ -101,17 +101,21 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
     {
         // Read times once, then log and assert on that snapshot.
         var (o, s, ig) = AllTimes();
+        // ⭐ CE-3352 — CGF (the Brain) is a slave of the same clock: its kernel time must stay in the set too. ⛔ It was never asserted, and ui saw
+        //   CGF's /status.simTime read 0 through a live run.
+        double cgf = _harness.Cgf!.NodeForTest!.Kernel.CurrentTime.TotalTime;
         _out.WriteLine($"[{context}]");
         _out.WriteLine($"  Orchestrator : {o:F4} s");
         _out.WriteLine($"  SimHost      : {s:F4} s");
         _out.WriteLine($"  IG           : {ig:F4} s");
-        double max    = Math.Max(Math.Max(o, s), ig);
-        double min    = Math.Min(Math.Min(o, s), ig);
+        _out.WriteLine($"  CGF          : {cgf:F4} s");
+        double max    = Math.Max(Math.Max(Math.Max(o, s), ig), cgf);
+        double min    = Math.Min(Math.Min(Math.Min(o, s), ig), cgf);
         double spread = max - min;
         _out.WriteLine($"  spread       : {spread * 1000:F2} ms");
         Assert.True(spread <= tolerance,
             $"[{context}] Sim-time spread {spread * 1000:F2} ms exceeds tolerance {tolerance * 1000:F0} ms. " +
-            $"Orch={o:F4} SimHost={s:F4} IG={ig:F4}");
+            $"Orch={o:F4} SimHost={s:F4} IG={ig:F4} CGF={cgf:F4}");
     }
 
 

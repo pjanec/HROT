@@ -388,10 +388,10 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
 
             // ── Entry A — the indicator: Choose(Live) asks and names the time ──
             transport.Seek(4.0);
-            PumpFor(editor, 2);                                                          // the seek lands (on a frame boundary: 4.27 s measured for a 4 s seek)
-            Pump(editor, () => Math.Abs(transport.TotalTime - 4.0) < 0.5, 30, "the AAR at ~4 s");
+            PumpFor(editor, 2);                                                          // the seek lands
+            Pump(editor, () => Math.Abs(transport.TotalTime - 4.0) < 0.05, 30, "the AAR at 4 s");   // ⭐ CE-3351 — the shown moment IS the seek target (was 4.27–4.45: the wall clock read as sim)
             var atA = transport.TotalTime;
-            var expectedWallA = WallAt(transport, 4.0);                                  // the seek target: the master branches where IT stands (the display leads it, see the report)
+            var expectedWallA = WallAt(transport, 4.0);                                  // the seek target: the master branches where IT stands — the moment the question names (CE-3351)
             choice.Choose(RunArmed.Live);
             Assert.NotNull(choice.Pending);
             Assert.Equal($"A new exercise starts from {Hrot.UI.Common.Panels.MainToolbarTimeControlSection.FormatSpan(atA)}; this recording stays unchanged", choice.Pending!.Text);
@@ -506,7 +506,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
                 Pump(editor, () => transport.Mode == TransportMode.Review && transport.LivePoint is not null, 60, $"the DAR ({what}) with its live point");
                 Assert.Equal(exercise, transport.ActiveExercise);
                 var live = transport.LivePoint!.Value;
-                Pump(editor, () => Math.Abs(transport.TotalTime - asked) < 0.6, 20, $"the DAR at the asked {asked:0.0} s (the entry pause lands a frame or two after the mode flips; the display leads ≈ 0.3 s)");
+                Pump(editor, () => Math.Abs(transport.TotalTime - asked) < 0.6, 20, $"the DAR at the asked {asked:0.0} s (the entry pause lands a frame or two after the mode flips)");
                 Assert.InRange(transport.TotalTime, asked - 0.6, asked + 0.6);           // at the asked moment — ⛔ not the live end
                 Assert.True(transport.TotalTime < live - 2.5, $"the DAR sits at the live end ({transport.TotalTime:0.0} vs live {live:0.0})");
                 PumpFor(editor, 1.5);

@@ -71,7 +71,7 @@ public sealed class ClusterTimelineCursor : ITimelineCursor
         {
             var m = Mode;
             if (m is not (TimelineMode.Review or TimelineMode.Replay) || ActiveSession is not { } s || _facade() is not { } f) return ExtentTo;
-            return Math.Clamp(s.ZeroWallTicks + (long)Math.Round(f.TotalTime * Tps), ExtentFrom, ExtentTo);
+            return Math.Clamp(s.ZeroWallTicks + (long)Math.Round(f.ClockSeconds * Tps), ExtentFrom, ExtentTo);   // ⭐ CE-3351 — the raw clock; TotalTime is sim now
         }
     }
 

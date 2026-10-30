@@ -578,6 +578,72 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-3352</c> — <b>run controls are NOT UI</b>: every ECS host built HEADLESS has its drive and its run choice. 📐 Measured: CGF and SimHost created their
+    /// <c>ClusterTimeTransportAdapter</c> in <c>RegisterWindows</c>, which returns early when headless, so a headless node's debug provider had <c>Drive == null</c> and
+    /// <c>GET /status</c> fell back to a time source that read 0 and paused through a live run (ui saw it; the kernel clock itself was fine). The drive must exist, be the offered
+    /// <c>Transport</c>, and read the node's kernel clock (the <c>/status.simTime</c> source). The editor and the IG build theirs in <c>Initialize</c> / the bootstrap already (the cells above).
+    /// 🔴 Mutation: CGF's (or SimHost's) construction put back inside <c>RegisterWindows</c> ⇒ <c>Drive</c> null ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE3352_AHeadlessCgf_HasADrive_ThatReadsItsKernelClock()
+    {
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.Brain);
+        var cgf = new CgfSubsystem(factory);
+        try
+        {
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = true });
+            var offer = Assert.IsAssignableFrom<IProvidesRunControls>(cgf);
+            Assert.NotNull(offer.Transport);
+            Assert.NotNull(offer.RunChoice);
+            var debug = cgf.CreateDebugProvider()!;
+            var drive = Assert.IsAssignableFrom<Hrot.UI.Common.Facades.ITimeTransportFacade>(debug.Drive);
+            Assert.Same(offer.Transport, drive);
+            for (int i = 0; i < 5; i++) cgf.Update(0.016f);
+            Assert.Equal(cgf.NodeForTest!.Kernel.CurrentTime.TotalTime, drive.TotalTime);   // the /status.simTime source is the node's own clock
+        }
+        finally
+        {
+            cgf.Shutdown();
+        }
+    }
+
+    /// <summary>⭐ <c>CE-3352</c> — the same for a headless SimHost. 🔴 Mutation: <c>CreateTimeTransport</c> back inside <c>RegisterWindows</c> ⇒ <c>Drive</c> null ⇒ red.</summary>
+    [Fact(Timeout = 60_000)]
+    public void CE3352_AHeadlessSimHost_HasADrive_ThatReadsItsSimClock()
+    {
+        var factory = new NedNetworkFactory(
+            participant:  null,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  0,
+            role:         NodeRole.MuscleGround | NodeRole.Perception);
+        var simHost = new Hrot.SimHost.SimHostSubsystem(factory);
+        try
+        {
+            simHost.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = true });
+            var offer = Assert.IsAssignableFrom<IProvidesRunControls>(simHost);
+            Assert.NotNull(offer.Transport);
+            Assert.NotNull(offer.RunChoice);
+            var debug = simHost.CreateDebugProvider()!;
+            var drive = Assert.IsAssignableFrom<Hrot.UI.Common.Facades.ITimeTransportFacade>(debug.Drive);
+            Assert.Same(offer.Transport, drive);
+            for (int i = 0; i < 5; i++) simHost.Update(0.016f);
+            Assert.True(drive.TotalTime >= 0);
+        }
+        finally
+        {
+            simHost.Shutdown();
+        }
+    }
+
+    /// <summary>
     /// ⭐ The DDS domain block of this class: <c>11 … 10 + (the class's participant count)</c>, a block no other integration class uses (their bases: 39, 52–59, 70–71, 81, 91, 95, 100+; ids 1–38 are free).
     /// 📐 It was <c>230</c>: the third host landed on 233, past CycloneDDS's default-port maximum of 232 — <c>CreateParticipant</c> fails there, which was the four "environment" reds (and the IG rails were put on 90 to dodge it).
     /// </summary>
