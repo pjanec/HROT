@@ -127,15 +127,6 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
         finally { editor.Shutdown(); if (Directory.Exists(dir)) Directory.Delete(dir, true); }
     }
 
-    private static int FreePort()
-    {
-        var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port;
-    }
-
     /// <summary>One HTTP call to the editor's debug API, with the editor's frames pumped meanwhile (the routes run on the main thread, in <c>Update</c>).</summary>
     private static (System.Net.HttpStatusCode Status, System.Text.Json.Nodes.JsonNode Body, double Ms) Call(EditorSubsystem editor, System.Net.Http.HttpClient client, int port, string method, string path, string json = "{}")
     {
@@ -290,7 +281,7 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
     [Fact(Timeout = 400_000)]
     public void TheCheckRoundOverHttp_UnchangedAfterTheLoad_ChangedAfterAnEdit_RefusesTheLiveLoad_UnchangedAfterTheSave()
     {
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(120) };
         WithTheScenarioLoaded("pc-defend-house", (editor, world) =>
         {
@@ -342,7 +333,7 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
     [Fact(Timeout = 400_000)]
     public void TheCheckRound_OnTheBigScenario_TimedOverHttp()
     {
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(120) };
         WithTheScenarioLoaded("uc-urban-battle", (editor, world) =>
         {

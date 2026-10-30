@@ -71,22 +71,6 @@ public sealed class TheRunModeRoutesTests : IDisposable
 
     private static List<T> Sent<T>(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<T>().ToList(); }
 
-    private static int FreePort()
-    {
-        var l = new TcpListener(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port;
-    }
-
-    private static async Task<(HttpStatusCode Status, JsonNode Body)> Send(MainThreadJobQueue queue, Task<HttpResponseMessage> request)
-    {
-        for (int i = 0; i < 4000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
-        var response = await request;
-        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
-    }
-
     private static StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
     private (DebugApiHost Host, MainThreadJobQueue Queue, string Url) Start(ClusterTimeTransportAdapter facade, ClusterState state, IClusterMasterControl? master = null,
@@ -102,7 +86,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
             currentPerspective: () => "CGF", acksPending: null);
         // the unload before a load is "reached" the moment the route asked for it (as in TheUnsavedCheckRoutesTests)
         var service = new DebugApiService(dispatcher, clusterState: () => master is RecordingMasterControl rm && rm.Transitions.Any(t => t.TargetState == ClusterState.Idle) ? ClusterState.Idle : state);
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         var host = new DebugApiHost(port, queue, () => { });
         host.AttachDispatcher(dispatcher);
@@ -122,7 +106,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var (host, queue, url) = Start(facade, ClusterState.OperatingEdit);
         using var h = host;
 
-        var (status, _) = await Send(queue, _client.PostAsync(url + "/sim/play", Json("{}")));
+        var (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/sim/play", Json("{}")));
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(ClusterState.OperatingPreview, Sent<TransitionStateIntent>(bus).Single().TargetState);
@@ -142,7 +126,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var request = Adapter(ClusterState.OperatingLive, RunArmed.Live);
         var (host, queue, url) = Start(request.F, ClusterState.OperatingLive);
         using var h = host;
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/sim/stop", Json("{}")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/sim/stop", Json("{}")));
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("Live", body["data"]!["stoppedFrom"]!.GetValue<string>());
@@ -156,7 +140,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var idle = Adapter(ClusterState.OperatingEdit, RunArmed.Live);
         var (host2, queue2, url2) = Start(idle.F, ClusterState.OperatingEdit);
         using var h2 = host2;
-        (status, body) = await Send(queue2, _client.PostAsync(url2 + "/sim/stop", Json("{}")));
+        (status, body) = await DebugApiTestHost.Send(queue2, _client.PostAsync(url2 + "/sim/stop", Json("{}")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("Nothing to stop", body["error"]!.GetValue<string>());
         Assert.Empty(idle.C.Calls);
@@ -175,26 +159,26 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var (host, queue, url) = Start(edit.F, ClusterState.OperatingEdit);
         using var h = host;
 
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"live"}""")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"live"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("live", body["data"]!["armedMode"]!.GetValue<string>());
         Assert.Equal(RunArmed.Live, edit.F.RunChoice!.Armed);
         Assert.Equal(ClusterArmedMode.Live, Assert.Single(Sent<SetRunSettingsIntent>(edit.Bus)).Armed);   // ⭐ CE-3341 S7 — the route's arm IS the cluster op (one)
-        (status, body) = await Send(queue, _client.GetAsync(url + "/status"));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/status"));
         Assert.Equal("live", body["data"]!["armedMode"]!.GetValue<string>());
         Assert.Empty(Sent<SetRunSettingsIntent>(edit.Bus));                  // reading status sends nothing
-        (status, _) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"preview"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"preview"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(ClusterArmedMode.Preview, Assert.Single(Sent<SetRunSettingsIntent>(edit.Bus)).Armed);   // S7 — Preview, one op
 
-        (status, body) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"nonsense"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"nonsense"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Empty(Sent<SetRunSettingsIntent>(edit.Bus));                  // a refused word arms nothing
 
         var live = Adapter(ClusterState.OperatingLive, RunArmed.Live);
         var (host2, queue2, url2) = Start(live.F, ClusterState.OperatingLive);
         using var h2 = host2;
-        (status, body) = await Send(queue2, _client.PostAsync(url2 + "/run-mode", Json("""{"armed":"preview"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue2, _client.PostAsync(url2 + "/run-mode", Json("""{"armed":"preview"}""")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("Ends the live session; you return to editing the scenario at its start", body["error"]!.GetValue<string>());
         Assert.Contains("confirm:true", body["error"]!.GetValue<string>());
@@ -203,7 +187,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Equal(RunArmed.Live, live.F.RunChoice.Armed);
         Assert.Empty(Sent<SetRunSettingsIntent>(live.Bus));                  // … and the unconfirmed 409 sent no armed mode
 
-        (status, body) = await Send(queue2, _client.PostAsync(url2 + "/run-mode", Json("""{"armed":"preview","confirm":true}""")));
+        (status, body) = await DebugApiTestHost.Send(queue2, _client.PostAsync(url2 + "/run-mode", Json("""{"armed":"preview","confirm":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(new[] { "OpenForEdit:hill-attack" }, live.C.Calls);     // the confirmed move: the live run ended, the scenario reopens
         Assert.Equal(RunArmed.Preview, live.F.RunChoice.Armed);
@@ -218,10 +202,10 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var (host, queue, url) = Start(bare.F, ClusterState.OperatingEdit);
         using var h = host;
 
-        var (status, body) = await Send(queue, _client.GetAsync(url + "/status"));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/status"));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Null(body["data"]!["armedMode"]);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"live"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/run-mode", Json("""{"armed":"live"}""")));
         Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
     }
 
@@ -250,7 +234,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var (host, queue, url) = Start(http.F, ClusterState.OperatingEdit, master,
             unsavedCheck: id => master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) ? new UnsavedCheckOutcome(UnsavedCheckResult.Unchanged, null) : null);
         using var h = host;
-        var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
+        var (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Single(master.Sent.OfType<CheckUnsavedIntent>());             // one round for the move, the same intent type the menu published
     }
@@ -299,7 +283,7 @@ public sealed class TheRunModeRoutesTests : IDisposable
         var (host, queue, url) = Start(http.F, ClusterState.OperatingEdit, master,
             unsavedCheck: id => master.Sent.OfType<CheckUnsavedIntent>().Any(i => i.RequestId == id) ? new UnsavedCheckOutcome(UnsavedCheckResult.Unchanged, null) : null);
         using var h = host;
-        var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
+        var (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.NotEmpty(master.Sent);                                         // the route did reach the master (the check round) ...
         Assert.Empty(master.Sent.OfType<SetRunSettingsIntent>());             // ... and sent no armed mode with it
