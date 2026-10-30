@@ -8,6 +8,7 @@ using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Vis3D;
 using Hrot.UI.Common.Audio;
@@ -1492,5 +1493,142 @@ public sealed class FilmDirectorTests
         var live = NearBook(index, "Alpha", baked: baked, isTheRun: false);
         live.Resolve("near:A", 5.9);
         Assert.Equal(1.0, live.TimeOf("near:A"));   // a live run: the bake leads (R-3038)
+    }
+
+    // ── ⭐ CE-4117 N6 — the five STATE cues answered from the recording's state lanes ──────────────────────────────────────────────────────────────
+
+    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent Ev(string lane, int frame, long subject, long other = 0, float x = 0, float value = 0)
+        => new(frame, lane, subject, other, x, 0f, value);
+
+    /// <summary>A synthetic recording index with state lanes: frame f at sim <c>f × 0.5</c>.</summary>
+    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex LaneIndex(int frames, params Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[] events)
+    {
+        var sim = Enumerable.Range(0, frames).Select(f => f * 0.5).ToArray();
+        var lanes = events.GroupBy(e => e.Lane).ToDictionary(g => g.Key, g => new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent>(g.ToArray()));
+        foreach (var id in new[] { "state.task", "state.side", "state.health", "state.embark", "state.gesture", "life.spawned" })
+            lanes.TryAdd(id, new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent>(Array.Empty<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent>()));
+        return new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(lanes, new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<long>(new long[frames]), frames, frames, null,
+            new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<double>(sim), null);
+    }
+
+    private static AnchorBook StateBook(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex index, double t0 = 0d, bool isTheRun = true, IReadOnlyDictionary<string, double>? baked = null)
+        => new(new Dictionary<string, AnchorSpec>
+        {
+            ["task"] = new() { On = "task", Who = "Alpha", Is = JsonValue.Create("Wander") },
+            ["side"] = new() { On = "side", Who = "Alpha", Is = JsonValue.Create("Hostile") },
+            ["health"] = new() { On = "health", Who = "Alpha", Below = 0.3f },
+            ["embark"] = new() { On = "embark", Who = "Alpha", Is = JsonValue.Create(true) },
+            ["gesture"] = new() { On = "gesture", Who = "Alpha", Is = JsonValue.Create("Waving") },
+        }, baked, h => h == 42 ? "Wander" : null, () => index, t0, indexIsTheRun: isTheRun);
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> N6 — on a recording each state cue's time is its lane frame's sim minus t0: task (the hash 42 = Wander at 3.0 s), side (Hostile at 4.0), health (20 of 100 at 5.0, below 30 %), embark
+    /// (aboard at 2.0), gesture (Waving at 6.0) — with t0 = 1 s the take seconds are 2 · 3 · 4 · 1 · 5; they lead over a bake. 🔴 Mutations: a lane's wiring dropped from <c>StateLaneOf</c> ⇒ that cue unseen; the sim − t0 not
+    /// subtracted ⇒ every figure off by 1; <c>_resolvedAhead</c> not set ⇒ the bake leads.
+    /// </summary>
+    [Fact]
+    public void CE4117_N6_EachStateCue_IsItsLaneFramesTime_OnARecording()
+    {
+        var index = LaneIndex(20,
+            Ev("state.task", 0, 1, other: 0), Ev("state.task", 6, 1, other: 42),
+            Ev("state.side", 0, 1, value: 0), Ev("state.side", 8, 1, value: 2),
+            Ev("state.health", 0, 1, x: 100, value: 100), Ev("state.health", 10, 1, x: 100, value: 20),
+            Ev("state.embark", 4, 1, value: 1),
+            Ev("state.gesture", 12, 1, value: 4));
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        var book = StateBook(index, t0: 1d, baked: new Dictionary<string, double> { ["task"] = 99d });
+        book.ObserveEvents(world);
+        Assert.Equal(2.0, book.TimeOf("task"));      // and it leads over the bake (99)
+        Assert.Equal(3.0, book.TimeOf("side"));
+        Assert.Equal(4.0, book.TimeOf("health"));
+        Assert.Equal(1.0, book.TimeOf("embark"));
+        Assert.Equal(5.0, book.TimeOf("gesture"));
+        Assert.All(new[] { "task", "side", "health", "embark", "gesture" }, k => Assert.True(book.IndexAnswers(k)));
+        // a live run keeps observing the world (exact to the frame): the index does not answer
+        var live = StateBook(index, isTheRun: false); live.ObserveEvents(world);
+        Assert.Empty(live.Live);
+        Assert.False(live.IndexAnswers("task"));
+    }
+
+    /// <summary>⭐ <c>CE-4117</c> N6 — a state already holding before t0 holds at t0 (0), and one true at frame 0 with t0 = 0 is 0. 🔴 Mutation: the carry-over across t0 dropped ⇒ the cue waits for its next entry ⇒ red.</summary>
+    [Fact]
+    public void CE4117_N6_AStateAlreadyHolding_HoldsAtT0()
+    {
+        var index = LaneIndex(20, Ev("state.side", 0, 1, value: 2), Ev("state.side", 12, 1, value: 1));   // Hostile from the start, Friend from 6.0 s
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        var atZero = StateBook(index, t0: 0d); atZero.ObserveEvents(world);
+        Assert.Equal(0d, atZero.TimeOf("side"));
+        var later = StateBook(index, t0: 3d); later.ObserveEvents(world);
+        Assert.Equal(0d, later.TimeOf("side"));   // it held before t0 and still does at t0
+        var after = StateBook(index, t0: 7d); after.ObserveEvents(world);
+        Assert.Null(after.TimeOf("side"));         // by 7 s the unit is Friend: it never holds again
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> N6 — a gesture with no entry yet is None: <c>gesture is None</c> holds from the unit's FIRST APPEARANCE (its first <c>life.spawned</c>, else its first entry in any state lane) until its first gesture
+    /// entry; a unit that never gestures holds it from then on. 🔴 Mutation: the default dropped ⇒ the cue is unseen.
+    /// </summary>
+    [Fact]
+    public void CE4117_N6_AGestureWithNoEntryYet_IsNone_FromTheUnitsFirstAppearance()
+    {
+        var none = new AnchorSpec { On = "gesture", Who = "Alpha", Is = JsonValue.Create("None") };
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex Index(params Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent[] ev) => LaneIndex(30, ev);
+        AnchorBook Book(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex i, double t0 = 0d)
+            => new(new Dictionary<string, AnchorSpec> { ["g"] = none }, null, null, () => i, t0, indexIsTheRun: true);
+
+        var spawned = Book(Index(Ev("life.spawned", 2, 1), Ev("state.gesture", 12, 1, value: 4))); spawned.ObserveEvents(world);
+        Assert.Equal(1.0, spawned.TimeOf("g"));       // from its spawn at 1.0 s
+        var viaState = Book(Index(Ev("state.task", 3, 1, other: 42))); viaState.ObserveEvents(world);
+        Assert.Equal(1.5, viaState.TimeOf("g"));      // no spawn entry: its first state entry (1.5 s); it never gestures
+        var late = Book(Index(Ev("life.spawned", 0, 1)), t0: 2d); late.ObserveEvents(world);
+        Assert.Equal(0d, late.TimeOf("g"));            // appeared before t0: None holds at t0
+        var gesturingFromTheStart = Book(Index(Ev("life.spawned", 0, 1), Ev("state.gesture", 0, 1, value: 4), Ev("state.gesture", 8, 1, value: 0))); gesturingFromTheStart.ObserveEvents(world);
+        Assert.Equal(4.0, gesturingFromTheStart.TimeOf("g"));   // an entry at frame 0 (Waving) supersedes the default; None again when it stops (4.0 s)
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> N6 — ONE comparison per cue: the world path (a component read) and the lane path (an entry's values) judge the SAME values the same way, for a matching and a non-matching cue of each kind.
+    /// 🔴 Mutation: the lane path reading <c>Value</c> where the world reads <c>Max</c> (health), or comparing task by <c>Value</c> instead of the hash ⇒ a cell reds.
+    /// </summary>
+    [Fact]
+    public void CE4117_N6_TheWorldPredicate_AndTheLanePredicate_AgreeOnTheSameValues()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>();
+        world.RegisterComponent<BehaviorState>(); world.RegisterComponent<IsEmbarkedTag>(); world.RegisterComponent<Gesture>();
+        var man = world.CreateEntity();
+        world.AddComponent(man, new NetworkIdentity { Value = 5 });
+        world.AddComponent(man, new EntityInfo { Name = "Alpha", ForceId = ForceId.Hostile });
+        world.AddComponent(man, new Health { Current = 20, Max = 100 });
+        world.AddComponent(man, new BehaviorState { ActiveBehaviorHash = 42 });
+        world.AddComponent(man, new IsEmbarkedTag());
+        world.AddComponent(man, new Gesture { Kind = GestureKind.Waving });
+        var units = new WorldUnits(() => world);
+        Func<int, string?> names = h => h == 42 ? "Wander" : null;
+
+        var cases = new (AnchorSpec Spec, Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent Entry)[]
+        {
+            (new() { On = "task", Who = "Alpha", Is = JsonValue.Create("Wander") }, Ev("state.task", 1, 5, other: 42)),
+            (new() { On = "task", Who = "Alpha", Is = JsonValue.Create("Idle") }, Ev("state.task", 1, 5, other: 42)),
+            (new() { On = "side", Who = "Alpha", Is = JsonValue.Create("Hostile") }, Ev("state.side", 1, 5, value: 2)),
+            (new() { On = "side", Who = "Alpha", Is = JsonValue.Create("Friend") }, Ev("state.side", 1, 5, value: 2)),
+            (new() { On = "health", Who = "Alpha", Below = 0.3f }, Ev("state.health", 1, 5, x: 100, value: 20)),
+            (new() { On = "health", Who = "Alpha", Below = 0.1f }, Ev("state.health", 1, 5, x: 100, value: 20)),
+            (new() { On = "health", Who = "Alpha", Below = 50f }, Ev("state.health", 1, 5, x: 100, value: 20)),   // an absolute threshold
+            (new() { On = "embark", Who = "Alpha", Is = JsonValue.Create(true) }, Ev("state.embark", 1, 5, value: 1)),
+            (new() { On = "embark", Who = "Alpha", Is = JsonValue.Create(false) }, Ev("state.embark", 1, 5, value: 1)),
+            (new() { On = "gesture", Who = "Alpha", Is = JsonValue.Create("Waving") }, Ev("state.gesture", 1, 5, value: 4)),
+            (new() { On = "gesture", Who = "Alpha", Is = JsonValue.Create("HandsUp") }, Ev("state.gesture", 1, 5, value: 4)),
+        };
+        int holds = 0;
+        foreach (var (spec, entry) in cases)
+        {
+            bool onWorld = AnchorBook.HoldsFor(spec, world, units, names);
+            bool onLane = AnchorBook.HoldsOnLaneEntry(spec, entry, names);
+            Assert.True(onWorld == onLane, $"{spec.On} {spec.Is}{(spec.On == "health" ? " below " + spec.Below : "")}: world {onWorld}, lane {onLane}");
+            if (onWorld) holds++;
+        }
+        Assert.Equal(6, holds);   // task Wander · side Hostile · health 0.3 · health 50 · embark true · gesture Waving — the others do not
     }
 }

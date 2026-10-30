@@ -159,6 +159,48 @@ public sealed class TimelinePanelFrameRail
         Assert.True(halfShots > 10 && halfShots < shotPixels, $"a half-scanned index draws only its scanned half ({halfShots} vs {shotPixels} px)");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> — a lane marked <see cref="TimelineLaneDescriptor.Hidden"/> (the director's five state lanes) is NOT drawn: the same events in the same colour draw pixels as a visible lane and none as a hidden one.
+    /// 🔴 Mutation: <c>TimelinePanel.Draw</c> not filtering through <c>TimelineLayout.Drawn</c> ⇒ the hidden lane draws ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE4117_AHiddenLane_IsNotDrawn()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        const int frames = 10 * 60 * Hz;
+        var events = Enumerable.Range(0, 200).Select(i => new TimelineEvent(i * 170, "state.demo", 1, 0, 0, 0, i)).ToArray();
+        var source = new Source { Index = new TimelineIndex(new Dictionary<string, TimelineEvent[]> { ["state.demo"] = events }, Enumerable.Range(0, frames).Select(f => f * Tick).ToArray(), frames, frames) };
+        var cursor = new Cursor { ExtentFrom = 0, ExtentTo = (frames - 1) * Tick, Now = 0 };
+        var shown = new TimelineLaneDescriptor("state.demo", "Demo", Color: 0xFFFF00FFu);
+        using var frame = UiFrameHarness.Begin(1280, 300);
+
+        int Drawn(TimelineLaneDescriptor lane, string shot)
+        {
+            frame.StepN(4, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(1280, 300));
+                ImGui.Begin("Event Timeline", ImGuiWindowFlags.NoCollapse);
+                new TimelinePanel().Draw(source, cursor, new[] { lane });
+                ImGui.End();
+            });
+            string path = ShotPath(shot);
+            frame.Screenshot(path);
+            var image = Raylib.LoadImage(path);
+            try
+            {
+                int hits = 0;
+                for (int y = 0; y < image.Height; y += 2)
+                    for (int x = 0; x < image.Width; x += 2)
+                    { var px = Raylib.GetImageColor(image, x, y); if (px.R > 200 && px.G < 80 && px.B > 200) hits++; }
+                return hits;
+            }
+            finally { Raylib.UnloadImage(image); }
+        }
+
+        Assert.True(Drawn(shown, "timeline-hidden-0-shown.png") > 20, "control: a visible lane draws its events");
+        Assert.Equal(0, Drawn(shown with { Hidden = true }, "timeline-hidden-1-hidden.png"));
+    }
+
     /// <summary>A cursor on the SIM axis over a straight-run map (sim = frame / 60, no pauses), counting its seeks.</summary>
     private sealed class SimCursor : ITimelineCursor
     {

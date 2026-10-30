@@ -34,6 +34,14 @@ public readonly record struct TimelineMark(TimelineMarkKind Kind, float X0, floa
 /// </summary>
 public static class TimelineLayout
 {
+    /// <summary>⭐ <c>CE-4117</c> — the lanes the panel SHOWS: those not <see cref="TimelineLaneDescriptor.Hidden"/> (a hidden lane exists for a resolver, e.g. the director's state cues). ⛔ ONE filter: the panel's rows and its view model
+    /// (its lane count and dump) both go through it.</summary>
+    public static IReadOnlyList<TimelineLaneDescriptor> Drawn(IReadOnlyList<TimelineLaneDescriptor> lanes)
+    {
+        foreach (var l in lanes) if (l.Hidden) return lanes.Where(x => !x.Hidden).ToList();
+        return lanes;
+    }
+
     public const float DefaultGlyphPx = 7f;
     public const float DefaultBinPx = 2f;
 

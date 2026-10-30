@@ -784,7 +784,7 @@ namespace Hrot.UI.Common.Map3D.Director
             Note(_take.EndAt);
             foreach (var name in referenced)
             {
-                if (!_take.Anchors.TryGetValue(name, out var spec) || spec.On == "near" || EventAnchors.IsEventCue(spec.On) || _book.Live.ContainsKey(name)) continue;
+                if (!_take.Anchors.TryGetValue(name, out var spec) || spec.On == "near" || EventAnchors.IsEventCue(spec.On) || _book.Live.ContainsKey(name) || _book.IndexAnswers(name)) continue;   // N6: a recording whose index has the lane answers it ahead
                 string line = $"{name}: awaits play (a state cue — observed as the playhead passes)";
                 if (!Report.Unresolved.Contains(line)) Report.Unresolved.Add(line);
             }

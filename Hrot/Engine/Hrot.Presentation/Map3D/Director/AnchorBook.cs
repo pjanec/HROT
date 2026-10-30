@@ -141,6 +141,7 @@ public sealed class AnchorBook
             if (_live.ContainsKey(key) || !EventAnchors.IsEventCue(a.On)) continue;
             if (EventAnchors.TimeOf(index, a, (who, id) => IsUnit(who, id, units), _t0) is { } sim) _live[key] = sim - _t0;
         }
+        if (_indexIsTheRun) ObserveStateCues(index, units);   // ⭐ CE-4117 N6 — a recording's state lanes answer the five state cues ahead of play
     }
 
     /// <summary>
@@ -257,24 +258,123 @@ public sealed class AnchorBook
                 return Vector2.Distance(new Vector2(pos.X, pos.Y), p) <= a.Within;
             case "task":
                 if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(e)) return false;
-                int hash = world.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash;
-                var name = hash == 0 ? "Idle" : behaviourName(hash) ?? hash.ToString();
-                return string.Equals(name, Text(a.Is), StringComparison.OrdinalIgnoreCase);
+                return TaskHolds(a, world.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash, behaviourName);
             case "side":
-                return world.HasComponent<EntityInfo>(e)
-                    && string.Equals(world.GetComponentRO<EntityInfo>(e).ForceId.ToString(), Text(a.Is), StringComparison.OrdinalIgnoreCase);
+                return world.HasComponent<EntityInfo>(e) && SideHolds(a, world.GetComponentRO<EntityInfo>(e).ForceId);
             case "health":
                 if (!world.IsComponentTypeRegistered<Health>() || !world.HasComponent<Health>(e)) return false;
                 var h = world.GetComponentRO<Health>(e);
-                return a.Below <= 1f ? h.Max > 0 && h.Current / h.Max < a.Below || h.Current <= 0 && a.Below > 0 : h.Current < a.Below;
+                return HealthHolds(a, h.Current, h.Max);
             case "embark":
-                bool aboard = world.IsComponentTypeRegistered<IsEmbarkedTag>() && world.HasComponent<IsEmbarkedTag>(e);
-                return aboard == (a.Is is JsonValue v && v.TryGetValue<bool>(out var b) ? b : !string.Equals(Text(a.Is), "false", StringComparison.OrdinalIgnoreCase));
+                return EmbarkHolds(a, world.IsComponentTypeRegistered<IsEmbarkedTag>() && world.HasComponent<IsEmbarkedTag>(e));
             case "gesture":
-                return string.Equals(Gestures.Of(world, e).ToString(), Text(a.Is), StringComparison.OrdinalIgnoreCase);
+                return GestureHolds(a, Gestures.Of(world, e));
             default:
                 return false;
         }
+    }
+
+
+    // ── ⭐ CE-4117 N6 — ONE comparison per state cue, on VALUES: the world path reads the component and calls it, the recording's lane path calls it with the lane entry's value ──
+
+    /// <summary>The unit's running behaviour (hash; 0 = Idle) is the one the cue names (by name through <paramref name="behaviourName"/>).</summary>
+    public static bool TaskHolds(AnchorSpec a, int hash, Func<int, string?> behaviourName)
+    {
+        var name = hash == 0 ? "Idle" : behaviourName(hash) ?? hash.ToString();
+        return string.Equals(name, Text(a.Is), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The unit's affiliation is the one the cue names.</summary>
+    public static bool SideHolds(AnchorSpec a, ForceId force) => string.Equals(force.ToString(), Text(a.Is), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Health below the cue's share (<c>Below</c> ≤ 1: a fraction of <paramref name="max"/>; above 1: an absolute figure); a dead unit counts for any positive threshold.</summary>
+    public static bool HealthHolds(AnchorSpec a, float current, float max)
+        => a.Below <= 1f ? max > 0 && current / max < a.Below || current <= 0 && a.Below > 0 : current < a.Below;
+
+    /// <summary>Aboard (or not) as the cue says (<c>is</c>: a bool, default aboard).</summary>
+    public static bool EmbarkHolds(AnchorSpec a, bool aboard)
+        => aboard == (a.Is is JsonValue v && v.TryGetValue<bool>(out var b) ? b : !string.Equals(Text(a.Is), "false", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The unit's gesture is the one the cue names.</summary>
+    public static bool GestureHolds(AnchorSpec a, GestureKind kind) => string.Equals(kind.ToString(), Text(a.Is), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The lane that records a state cue's unit state (<c>state.task</c> …); null for a cue that has none.</summary>
+    public static string? StateLaneOf(string on) => on switch
+    {
+        "task" => "state.task", "side" => "state.side", "health" => "state.health", "embark" => "state.embark", "gesture" => "state.gesture", _ => null,
+    };
+
+    /// <summary>
+    /// ⭐ CE-4117 N6 — whether the cue holds for a unit whose state-lane entry is <paramref name="e"/> (<see langword="null"/>: no entry yet — only a gesture has a default, None). The lane carries
+    /// task as <c>Other</c> (the exact hash), side / gesture / embark as <c>Value</c>, health as <c>Value</c> = Current and <c>X</c> = Max.
+    /// </summary>
+    public static bool HoldsOnLaneEntry(AnchorSpec a, TimelineEvent? e, Func<int, string?> behaviourName) => a.On switch
+    {
+        "task" => e is { } t && TaskHolds(a, (int)t.Other, behaviourName),
+        "side" => e is { } si && SideHolds(a, (ForceId)(byte)si.Value),
+        "health" => e is { } he && HealthHolds(a, he.Value, he.X),
+        "embark" => e is { } em && EmbarkHolds(a, em.Value >= 0.5f),
+        "gesture" => GestureHolds(a, e is { } g ? (GestureKind)(byte)g.Value : GestureKind.None),
+        _ => false,
+    };
+
+    /// <summary>⭐ CE-4117 N6 — whether the recording's index answers this state cue (the run is a recording AND the index has the cue's lane): then it is known ahead of play, else it is observed as the playhead passes.</summary>
+    public bool IndexAnswers(string anchor)
+        => _indexIsTheRun && _specs.TryGetValue(anchor, out var a) && StateLaneOf(a.On) is { } lane && _index() is { } index && index.Has(lane);
+
+    private void ObserveStateCues(TimelineIndex index, IShotWorld units)
+    {
+        var fs = index.FrameSim;
+        foreach (var (key, a) in _specs)
+        {
+            if (_live.ContainsKey(key) || a.Who == null || StateLaneOf(a.On) is not { } lane || !index.Has(lane)) continue;
+            double? best = null;
+            foreach (var id in UnitIdsNamed(a.Who, units))
+                if (StateTimeOf(a, lane, id, index, fs) is { } rel && (best is null || rel < best)) best = rel;
+            if (best is { } t) { _live[key] = t; _resolvedAhead.Add(key); }
+        }
+    }
+
+    /// <summary>The first take second the cue holds for the unit, walking its lane entries in frame order (the unit's state carries over between entries); a state already holding at t0 holds at 0.</summary>
+    private double? StateTimeOf(AnchorSpec a, string lane, long id, TimelineIndex index, SharedList<double> fs)
+    {
+        double? SimOf(int frame) => frame >= 0 && frame < fs.Count && !double.IsNaN(fs[frame]) ? fs[frame] : null;
+        TimelineEvent? cur = null;
+        bool crossed = false;   // the state at t0 has been judged
+        double? firstEntrySim = null;
+        foreach (var e in index.Lane(lane))
+        {
+            if (e.Subject != id || SimOf(e.Frame) is not { } sim) continue;
+            firstEntrySim ??= sim;
+            if (sim < _t0 - 1e-9) { cur = e; continue; }
+            if (!crossed)
+            {
+                crossed = true;
+                if (cur is not null && HoldsOnLaneEntry(a, cur, _behaviourName)) return 0d;
+            }
+            cur = e;
+            if (HoldsOnLaneEntry(a, cur, _behaviourName)) return sim - _t0;
+        }
+        if (!crossed && cur is not null && HoldsOnLaneEntry(a, cur, _behaviourName)) return 0d;
+        // a gesture with no entry yet is None, from the unit's first appearance (its first life.spawned, or its first entry in any state lane) until its first gesture entry
+        if (a.On == "gesture" && HoldsOnLaneEntry(a, null, _behaviourName) && FirstSeenSim(index, id, fs) is { } seen)
+        {
+            double at = Math.Max(seen, _t0);
+            if (firstEntrySim is not { } fe || at < fe - 1e-9) return at - _t0;
+        }
+        return null;
+    }
+
+    private static double? FirstSeenSim(TimelineIndex index, long id, SharedList<double> fs)
+    {
+        double? best = null;
+        foreach (var lane in new[] { "life.spawned", "state.task", "state.side", "state.health", "state.embark", "state.gesture" })
+        {
+            if (!index.Has(lane)) continue;
+            foreach (var e in index.Lane(lane))
+                if (e.Subject == id && e.Frame >= 0 && e.Frame < fs.Count && !double.IsNaN(fs[e.Frame])) { if (best is null || fs[e.Frame] < best) best = fs[e.Frame]; break; }
+        }
+        return best;
     }
 
     private static string Text(JsonNode? n) => n?.ToString() ?? "";

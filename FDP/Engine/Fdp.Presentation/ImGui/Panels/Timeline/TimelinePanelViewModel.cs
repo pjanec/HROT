@@ -34,6 +34,7 @@ public sealed record TimelinePanelViewModel(
     public static TimelinePanelViewModel Build(string id, string kind, ITimelineSource? source, ITimelineCursor? cursor, TimelineWindow window,
         IReadOnlyList<TimelineLaneDescriptor> lanes)
     {
+        lanes = TimelineLayout.Drawn(lanes);   // ⭐ CE-4117: a hidden lane is not counted
         var index = source?.Index ?? TimelineIndex.Empty;
         var inWindow = new Dictionary<string, int>();
         var total = new Dictionary<string, int>();

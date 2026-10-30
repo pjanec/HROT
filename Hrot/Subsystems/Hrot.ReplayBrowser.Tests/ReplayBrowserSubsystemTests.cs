@@ -596,7 +596,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             var vm = Fdp.Presentation.Panels.Timeline.TimelinePanelViewModel.Build("rb_event_timeline", "event-timeline", source, cursor,
                 new Fdp.Presentation.Panels.Timeline.TimelineWindow(cursor.ExtentFrom, cursor.ExtentTo),
                 _subsystem.TimelineLanes.Lanes(new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineLaneContext(Recording: true)));
-            Assert.Equal(14, vm.Total.Count);                                 // ⭐ R-4079: the registered lanes — the three toolkits' nine + the five hidden state lanes (CE-4117); ⚠ ui: 9 once the panel honours TimelineLaneDescriptor.Hidden
+            Assert.Equal(9, vm.Total.Count);                                  // ⭐ R-4079: the registered lanes the panel shows — the three toolkits' nine; ⭐ CE-4117: the five hidden state lanes (TimelineLaneDescriptor.Hidden) are registered but not counted
             Assert.True(vm.IsComplete && vm.CanSeek);
             Assert.Equal(2_000_000L, vm.Now);
 

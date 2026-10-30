@@ -53,6 +53,31 @@ public sealed class TimelineInteractionTests
         Assert.Equal(kept, v.Window);                            // KEPT — not reset, not slid
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> — a <see cref="TimelineLaneDescriptor.Hidden"/> lane is neither shown nor counted: <c>TimelineLayout.Drawn</c> (the ONE filter the panel's rows and its view model both go through) drops it, and the view model's
+    /// per-lane counts hold only the visible lanes. 🔴 Mutation: <c>Drawn</c> returning every lane (or the view model not calling it) ⇒ the hidden lane is counted ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4117_AHiddenLane_IsNotShown_AndNotCounted()
+    {
+        var lanes = new[] { new TimelineLaneDescriptor(Shot, "Shot"), new TimelineLaneDescriptor("state.health", "Health", Hidden: true), new TimelineLaneDescriptor(Hit, "Hit") };
+        Assert.Equal(new[] { Shot, Hit }, TimelineLayout.Drawn(lanes).Select(l => l.Id));
+        var index = Index(600, E(10, Shot), E(20, "state.health"), E(30, Hit));
+        var source = new FakeSource(index);
+        var vm = TimelinePanelViewModel.Build("p", "event-timeline", source, null, new TimelineWindow(0, 600 * Tick), lanes);
+        Assert.Equal(new[] { Hit, Shot }, vm.Total.Keys.OrderBy(k => k));
+        Assert.Equal(2, vm.Total.Count);
+    }
+
+    private sealed class FakeSource : ITimelineSource
+    {
+        public FakeSource(TimelineIndex index) => Index = index;
+        public TimelineIndex Index { get; }
+        public float Progress => 1f;
+        public bool IsComplete => true;
+        public string? Error => null;
+    }
+
     /// <summary>A window SHOWN before the first extent arrives (a host's jump to an event — R1-d, the frame rail) is kept, not refitted.</summary>
     [Fact]
     public void CE3330_T1_AWindowShownBeforeTheExtent_IsKept()

@@ -126,6 +126,7 @@ public sealed class TimelinePanel
     {
         _byId.Clear();
         foreach (var lane in lanes) _byId[lane.Id] = lane;
+        lanes = TimelineLayout.Drawn(lanes);   // ⭐ CE-4117: a hidden lane is not drawn
         if (_gesture.Active && ImGui.IsMouseReleased(ImGuiMouseButton.Left)) _gesture.Release();   // ⭐ CE-1364 T2 — commits once, wherever it is released (T10's lesson)
         _trackHits.Clear();
         _tracksNow = Tracks?.Invoke();
