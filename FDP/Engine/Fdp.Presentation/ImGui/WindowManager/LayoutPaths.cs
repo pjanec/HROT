@@ -128,11 +128,40 @@ public static class LayoutPaths
         {
             var src = Path.Combine(from, name);
             if (!File.Exists(src)) continue;      // ⭐ a partial default is still a default
-            File.Copy(src, Path.Combine(to, name), overwrite: true);
-            copied.Add(name);
+            if (TryReplace(src, Path.Combine(to, name))) copied.Add(name);
         }
 
         return copied;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4116</c> — one file of the reset: copied to a temporary file beside the target, then RENAMED over it (atomic; a reader sees the old file or
+    /// the new one, never half of either). 📐 Measured: an editor and a Replay Browser started in the same second share this directory, and
+    /// <c>File.Copy(…, overwrite)</c> threw <c>IOException</c> ("used by another process" — .NET's FileShare lock, on Linux too) and killed the editor at
+    /// start. ⇒ a failed replace is retried briefly, then the layout that is there is KEPT and the reason logged: a reset is a convenience, never fatal.
+    /// </summary>
+    private static bool TryReplace(string src, string dst)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            string tmp = dst + "." + Environment.ProcessId + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.Copy(src, tmp, overwrite: true);
+                File.Move(tmp, dst, overwrite: true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                try { if (File.Exists(tmp)) File.Delete(tmp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                if (attempt >= 4)
+                {
+                    Console.Error.WriteLine($"[layout] kept the existing {Path.GetFileName(dst)}: the reset to the shipped default failed ({ex.Message})");
+                    return false;
+                }
+                System.Threading.Thread.Sleep(50 * (attempt + 1));
+            }
+        }
     }
 
     /// <summary>

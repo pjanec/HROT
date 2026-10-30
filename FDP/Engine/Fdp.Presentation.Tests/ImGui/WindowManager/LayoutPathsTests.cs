@@ -135,6 +135,36 @@ public sealed class LayoutPathsTests : IDisposable
         Assert.Equal("MINE", File.ReadAllText(Path.Combine(dir, LayoutPaths.IniFileName)));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4116</c> — the editor and the Replay Browser started in the same second share this directory; one held the ini open (ImGui reading it)
+    /// while the other's reset overwrote it, and the second process died on <c>IOException</c>. ⇒ a reset over a file another handle holds exclusively
+    /// does not throw (the rename replaces it, or the layout there is kept), and many resets at once on one directory all return and leave a whole file.
+    /// </summary>
+    [Fact]
+    public void CE4116_AResetWhileAnotherProcessHoldsTheIni_AndManyAtOnce_NeverThrow()
+    {
+        const string def = "[Window][Default]\nPos=1,1\n";
+        using var shipped = new ShippedDefault(ini: def, json: "{\"ActivePerspective\":\"Editor\"}");
+        var ini = Path.Combine(LayoutPaths.UserDirectory(_appName), LayoutPaths.IniFileName);
+        File.WriteAllText(ini, "MINE");
+
+        using (new FileStream(ini, FileMode.Open, FileAccess.ReadWrite, FileShare.None))   // ⭐ the other process, mid-read
+        {
+            var ex = Record.Exception(() => LayoutPaths.TryResetUserLayout(_appName));
+            Assert.Null(ex);
+        }
+
+        var errors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        System.Threading.Tasks.Parallel.For(0, 16, _ =>
+        {
+            try { for (int i = 0; i < 10; i++) LayoutPaths.TryResetUserLayout(_appName); }
+            catch (Exception e) { errors.Add(e); }
+        });
+        Assert.Empty(errors);
+        Assert.Equal(def, File.ReadAllText(ini));   // ⭐ a whole file, never half of one
+        Assert.Empty(Directory.GetFiles(LayoutPaths.UserDirectory(_appName), "*.tmp"));
+    }
+
     // ══ the migration ════════════════════════════════════════════════════════
 
     /// <summary>

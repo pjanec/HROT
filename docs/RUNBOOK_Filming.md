@@ -142,7 +142,7 @@ above, played and never saved), a saved name (`"take":"main"`, `scenarios/<s>/ta
 | ⚠ before any scenario is opened the editor's `/status.armedMode` (its own default, Preview) may differ from the cluster's `/run-settings.armed` (Live) | they agree from the first open / arm (AQ108 §2.14) |
 | ⚠ `GET /exercises` listed `scenario: null` before `3f7785c24` | fixed: the scenario comes from the recording's sidecar |
 | ⚠ **the live load may come up PAUSED** (`isPaused: true`, sim 0 — measured `2026-10-30`) | send `POST /sim/play` after `/scenario/load/live`, then check `simTime` moves |
-| ⛔ **launching both in the same second crashed the editor** on the shared `imgui.ini` (CE-4116) | start one, wait for its `/status`, then the other |
+| ~~launching both in the same second crashed the editor on the shared `imgui.ini`~~ — ✅ fixed (CE-4116: the layout reset replaces the file by rename, retries, and keeps the existing layout if it still cannot) | the two may start together |
 | ⚠ **wait for the recording's index** before drafting or playing: `GET /timeline/lanes` until `complete: true` — `/director/moments` answered `complete: true, count: 0` while the index was still at 0 % | — |
 | ⛔ **a Live recording has no shot / hit events and few blasts (CE-4118)**; a take anchored on an event renders unresolved on a recording (CE-4119) | until both close: find the moment from the world (health, positions) or the blasts there are, and render with FIXED times — PLAN_Feature_Films §1d |
 | ⚠ stop both processes after: `pkill -f 'ClusterRunner.dll -m editor'` · `… -m replaybrowser` (and their `xvfb-run` parents) | a leftover holds its port |
