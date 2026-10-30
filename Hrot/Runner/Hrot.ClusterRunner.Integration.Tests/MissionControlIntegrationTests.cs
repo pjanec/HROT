@@ -4,7 +4,6 @@ using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using CoreGeoPoint = Hrot.Core.Mission.GeoPoint;
-using Hrot.ExCon.Services;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -22,8 +21,11 @@ public class MissionControlIntegrationTests
     private const int JumpTimeoutFrames = 100;
     private const int AckTimeoutFrames = 60;
 
+    // ⭐ R-3067 / AQ109 X1 — this test used to ALSO track the jump in ExCon's request-transaction manager and assert ExCon completed it; that half proved an
+    //   ExCon-only capability (its own transaction read model) and is deleted with the node. What stays is the wire path it rode on: a MissionControlRequest on DDS
+    //   is applied by the Brain (CGF), the jump moves the plan, and the ack comes back.
     [Fact]
-    public void ExCon_SendsJumpCommand_SimHostAppliesIt()
+    public void MissionControlRequest_JumpCommand_CgfAppliesItAndAcks()
     {
         using var harness = new HrotRunnerHarness();
 
@@ -114,7 +116,6 @@ public class MissionControlIntegrationTests
         Assert.True(seeded, "CGF did not apply the mission plan in time.");
 
         var jumpRequestId = Guid.NewGuid();
-        harness.ExCon.Logic.TransactionManager.TrackRequest(jumpRequestId, "JumpToTask");
 
         requestWriter.Write(new MissionControlRequest
         {
@@ -141,14 +142,6 @@ public class MissionControlIntegrationTests
             AckTimeoutFrames);
         Assert.True(ackObserved, "MissionControlAck did not arrive in time.");
         Assert.Equal(0, ack.ErrorCode);
-
-        harness.ExCon.Logic.TransactionManager.CompleteRequest(
-            jumpRequestId, ack.ErrorCode == 0, ack.ErrorMessage);
-
-        bool txCompleted = harness.PumpUntil(
-            () => !IsRequestPending(harness.ExCon.Logic.TransactionManager, jumpRequestId),
-            AckTimeoutFrames);
-        Assert.True(txCompleted, "ExCon transaction did not complete in time.");
     }
 
     private static bool TryGetMissionQueue(EntityRepository world, long networkId, out MissionPlanQueue queue)
@@ -199,17 +192,6 @@ public class MissionControlIntegrationTests
         }
 
         ack = default;
-        return false;
-    }
-
-    private static bool IsRequestPending(IRequestTransactionManager txMgr, Guid requestId)
-    {
-        foreach (var pending in txMgr.GetPendingRequests())
-        {
-            if (pending.RequestId == requestId)
-                return true;
-        }
-
         return false;
     }
 }

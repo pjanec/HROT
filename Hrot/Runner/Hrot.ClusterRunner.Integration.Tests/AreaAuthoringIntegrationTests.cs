@@ -13,7 +13,6 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
 public class AreaAuthoringIntegrationTests
 {
-    private const int ConfigSyncTimeoutFrames   = 120;
     private const int CreateRequestTimeoutFrames = 120;
     private const int AckTimeoutFrames          = 120;
     private const int OverlayTimeoutFrames      = 180;
@@ -24,7 +23,6 @@ public class AreaAuthoringIntegrationTests
     {
         using var harness = new HrotRunnerHarness();
 
-        var iosLogic = harness.ExCon.Logic;
         var igApp = harness.Ig.App;
 
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
@@ -32,14 +30,10 @@ public class AreaAuthoringIntegrationTests
         using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant);
         using var overlayReader = new DdsReader<MapVisualOverlay>(observerParticipant);
 
-        iosLogic.StartAreaAuthoringMode();
-
-        bool configSynced = harness.PumpUntil(
-            () => iosLogic.ActiveContextId != System.Guid.Empty
-               && igApp.TestHook_ActiveContextId == iosLogic.ActiveContextId
-               && igApp.TestHook_IsPointSequenceToolActive,
-            ConfigSyncTimeoutFrames);
-        Assert.True(configSynced, "Area authoring config did not reach IG in time.");
+        // ⭐ R-3067 / AQ109 X1 — the area tool is activated on the IG through its own command entry (as AclBackdoorEliminationTests does), not by ExCon's
+        //   remote `StartAreaAuthoringMode` (the ExCon-only half — "ExCon sends the config, the IG activates the tool" — is deleted with the node).
+        igApp.TestHook_ParseCommandAndActivateAreaTool(System.Guid.NewGuid(), $"{{\"contextId\":\"{System.Guid.NewGuid():N}\"}}");
+        Assert.True(igApp.TestHook_IsPointSequenceToolActive, "the IG's point-sequence tool must be active after the area command.");
 
         var points = new List<Vector2>
         {

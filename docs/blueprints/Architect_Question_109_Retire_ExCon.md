@@ -133,3 +133,21 @@ else; **11** test files drive ExCon itself (`harness.ExCon.Logic`, `TestHook_Clu
 entity selection, placement through `SpawnerPanel`) ⇒ drive the same flow from CGF / the editor, in the feature's own suite (T-1), never a new
 class. ExCon-only capability (the remote IG map: `MapPlacementIntegrationTests`' "ExCon starts placement mode → IG activates CreationTool") ⇒
 deleted with the capability, the deletion named in the report. ⛔ No test keeps an ExCon stand-in.
+
+### 6.1 ✅ AS-BUILT `2026-10-30` (backend) — slice X1, the tests off ExCon
+
+`HrotRunnerHarness` has no ExCon node; a node list naming `excon` throws `ArgumentException` citing R-3067. 16 test files dropped the token; the rest per the table.
+
+| test | capability it proved | outcome |
+|---|---|---|
+| `PlayerJoinsARunningScenarioTests` | the running cluster's PlayReady, seen by another node | re-homed: reads CGF's `NodeForTest.ClusterSlave.View` |
+| `SimTimeSyncIntegrationTests` | sim-time agreement | ExCon column dropped (Orchestrator / SimHost / IG remain) |
+| `CheckpointClusterTests` (run-not-recorded) | every node learns it | ExCon debug provider dropped from the node loop |
+| `AllSubsystemsClusterTransitionTests` (2) | a slave's local state follows the master | ExCon removed from the node set; the slave under test is the IG's |
+| `ClusterOpE2eScriptTests`, `UrbanCombatFileLifecycleTests`, `TimeControlIntegrationTests` | — | only a dead `using Hrot.ExCon` removed |
+| `AreaAuthoringIntegrationTests` | area drawn on the IG → create request → ack → overlay → polyline on SimHost + IG | kept; the tool is activated on the IG by `TestHook_ParseCommandAndActivateAreaTool` (as `AclBackdoorEliminationTests`), the ExCon-only "config sent by ExCon" half deleted. ⚠ X3 deletes `MapCommandController`: this activation must be re-pointed then |
+| `MissionControlIntegrationTests` | `MissionControlRequest` on DDS applied by the Brain, jump moves the plan, ack returns | kept; ExCon's request-transaction tracking (ExCon-only) deleted |
+| `MapPlacementIntegrationTests` (2) | ExCon starts placement mode → IG activates `CreationTool` → click → spawn; DER mirror receives it | **deleted** (remote IG map, ExCon-only); the create-request → SimHost/IG distribution is covered by the gateway spawn suites |
+| `SelectionAndMissionIntegrationTests` · selection | IG selection published to ExCon's read model | **deleted** (ExCon was the only DDS consumer of `SelectionChangedEvent`) |
+| `SelectionAndMissionIntegrationTests` · mission commit | commit through an `IMissionEditorService` resolves with the ack | ⏸ **STOPPED (R-106), file removed**: ExCon proved its own duplicate service; the shared `ScenarioMissionService` is built by `CgfSubsystem` only in the non-headless block (`:1011`/`:1061`), so a headless CGF has no mission editor (measured: `CreateDebugProvider().MissionEditor` null). Its resolve-on-ack rail is `AdapterTests.CommitMissionAsync_PollAcksWithMatchingAck_ResolvesSuccess`. A cluster-level rail needs a production seam: build the window-less service for a headless CGF |
+| `DistributedScenarioSaveTests` (2) *(not on the plan's list)* | the save routes ExCon's `ExCon.Observer` slice to `foreign/` | foreign assertions removed (no remaining node writes a foreign slice); canonical merge and the saved-file hash/stamp stay |

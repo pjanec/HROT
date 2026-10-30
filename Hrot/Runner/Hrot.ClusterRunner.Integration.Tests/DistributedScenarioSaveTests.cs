@@ -40,13 +40,13 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     }
 
     [Fact]
-    public async Task DistributedSave_MergesCompatibleSlices_AndRoutesExConForeignSlice()
+    public async Task DistributedSave_MergesCompatibleSlices()
     {
         int domainId = NextDomainId();
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
 
-        // Wait for the node roster (CGF, SimHost, IG, ExCon) to come up.
+        // Wait for the node roster (CGF, SimHost, IG) to come up.
         Assert.True(
             harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400),
             "cluster roster must populate");
@@ -59,12 +59,12 @@ public sealed class DistributedScenarioSaveTests : IDisposable
             PayloadJson   = new JsonObject { ["ScenarioName"] = _name }.ToJsonString(),
         });
 
-        // The merge runs async after the pull; pump until the canonical file AND the foreign slice land.
+        // The merge runs async after the pull; pump until the canonical file lands.
+        // ⛔ R-3067 / AQ109 X1 — this test used to wait for, and assert, ExCon's intentionally-incompatible `ExCon.Observer` slice routed to `foreign/`
+        //   (+ its index). That half proved an ExCon-only producer: no remaining node writes a foreign slice, so there is nothing left to route here.
+        //   The routing rules themselves stay pinned where they are unit-tested (`StorageGatewayTests`, `AssetInventoryProcessManagerTests`).
         var canonical = Path.Combine(ScenarioDir, "scenario.json");
-        var foreignDir = Path.Combine(ScenarioDir, "foreign");
-        bool landed = harness.PumpUntil(
-            () => File.Exists(canonical) && Directory.Exists(foreignDir),
-            timeoutFrames: 600);
+        harness.PumpUntil(() => File.Exists(canonical), timeoutFrames: 600);
 
         Assert.True(File.Exists(canonical),
             $"the merged canonical scenario.json must exist at {canonical}");
@@ -72,27 +72,16 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         // The compatible (Hrot.Scenario) slice(s) merged into the canonical file.
         var dom = JsonNode.Parse(File.ReadAllText(canonical))!.AsObject();
         Assert.Equal("Hrot.Scenario", JsonEnvelope.Read(dom).DocType);
-
-        // ExCon's intentionally-incompatible slice was routed to foreign/, NOT merged.
-        Assert.True(landed && Directory.Exists(foreignDir),
-            "ExCon's foreign slice must be routed to foreign/");
-        var foreignFiles = Directory.GetFiles(foreignDir, "node_*.json");
-        Assert.NotEmpty(foreignFiles);
-        var foreignDom = JsonNode.Parse(File.ReadAllText(foreignFiles[0]))!.AsObject();
-        Assert.Equal("ExCon.Observer", JsonEnvelope.Read(foreignDom).DocType);
-
-        // And an index recorded it for load-side push-back (c3).
-        Assert.True(File.Exists(Path.Combine(foreignDir, "index.json")), "foreign index.json must exist");
     }
 
     /// <summary>
     /// ⭐⭐ CE-4091 (AQ108 D7, M2/M3) — a recording made after EDIT → distributed SAVE → GO-LIVE keeps the scenario as SAVED: the master's copy of the
-    /// scenario folder holds the merged <c>scenario.json</c> byte for byte, the <c>foreign/</c> subfolder the save routed (ExCon's slice), and a
+    /// scenario folder holds the merged <c>scenario.json</c> byte for byte, the nodes' slices merged, and a
     /// stamp whose hash is the SAVED file's — not the recipe's that was loaded first. (The copy and stamp are made at go-live by the master's
     /// inventory; the unit rails in <c>AssetInventoryProcessManagerTests</c> pin each rule, this one proves the real cluster path reaches them.)
     /// </summary>
     [Fact]
-    public async Task CE4091_ARecordingAfterEditSaveGoLive_CarriesTheSavedFilesHash_AndEverySubfolder()
+    public async Task CE4091_ARecordingAfterEditSaveGoLive_CarriesTheSavedFilesHash()
     {
         string repoRoot = TestRepo.Root;
         var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
@@ -102,7 +91,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         var loadedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(Path.Combine(ScenarioDir, "scenario.json")));
         var exercise = Guid.NewGuid();
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
 
@@ -114,15 +103,14 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         });
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingEdit, timeoutFrames: 4000), "the cluster must open the scenario for editing");
 
-        // save: the nodes' slices are merged over scenario.json and ExCon's goes to foreign/
+        // save: the nodes' slices are merged over scenario.json
         await master.HandleClusterOpRequestAsync(new ClusterOpRequest
         {
             RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SaveScenario,
             PayloadJson = new JsonObject { ["ScenarioName"] = _name }.ToJsonString(),
         });
         var saved = Path.Combine(ScenarioDir, "scenario.json");
-        Assert.True(harness.PumpUntil(() => Directory.Exists(Path.Combine(ScenarioDir, "foreign"))
-            && Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(saved)) != loadedHash, timeoutFrames: 800), "the save must rewrite scenario.json and route foreign/");
+        Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(saved)) != loadedHash, timeoutFrames: 800), "the save must rewrite scenario.json");
         var savedText = File.ReadAllText(saved);
         var savedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(savedText);
 
@@ -141,7 +129,6 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         try
         {
             Assert.Equal(savedText, File.ReadAllText(Path.Combine(copy, "scenario.json")));
-            Assert.True(File.Exists(Path.Combine(copy, "foreign", "index.json")), "foreign/ is part of the copy");
             var stamp = Fdp.Toolkit.Scenario.RecordedScenarioStamp.Read(copy);
             Assert.NotNull(stamp);
             Assert.Equal(savedHash, stamp!.ScenarioHash);
@@ -172,7 +159,7 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         Directory.CreateDirectory(ScenarioDir);
         File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
 

@@ -46,9 +46,9 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         AuthorScenario();
 
         // The cluster WITHOUT an IG — the IG object is built by the harness but not initialised until StartLate.
-        using var harness = new HrotRunnerHarness("simhost,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
-        var exConView = harness.ExCon.TestHook_ClusterSlave!.View;   // another node's view of the cluster level (the orchestrator's own is the UI cache)
+        var cgfView = harness.Cgf!.NodeForTest!.ClusterSlave.View;   // another node's view of the cluster level (the orchestrator's own is the UI cache) — CGF's, R-3067: ExCon is retired
 
         Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count > 0, 1000), "a node must reach the roster before the transition");
 
@@ -66,8 +66,8 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         var cgfWorld = harness.Cgf!.World!;
         Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, 4000),
             $"the cluster must reach OperatingLive (31). Current: {(int)master.CurrentClusterState}.");
-        Assert.True(harness.PumpUntil(() => CountUnits(cgfWorld) == 2 && exConView.ClusterPlayReady, 2000),
-            $"the running cluster must hold the 2 scenario units and be PlayReady before the IG joins (units {CountUnits(cgfWorld)}, ClusterPlayReady {exConView.ClusterPlayReady}).");
+        Assert.True(harness.PumpUntil(() => CountUnits(cgfWorld) == 2 && cgfView.ClusterPlayReady, 2000),
+            $"the running cluster must hold the 2 scenario units and be PlayReady before the IG joins (units {CountUnits(cgfWorld)}, ClusterPlayReady {cgfView.ClusterPlayReady}).");
 
         var brainIds = UnitNetworkIds(cgfWorld);
         Assert.Equal(2, brainIds.Count);
@@ -84,7 +84,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         bool joined = harness.PumpUntil(() =>
         {
             if (igView.LocalPhase == NodePhase.CatchingUp) sawCatchingUp = true;
-            if (!exConView.ClusterPlayReady) clusterPlayReadyDropped = true;   // ⭐ (d) sampled EVERY frame, not only at the end
+            if (!cgfView.ClusterPlayReady) clusterPlayReadyDropped = true;   // ⭐ (d) sampled EVERY frame, not only at the end
             gateOpened = igView.GateOpen(HostGatePolicies.For(RunHostKind.Ig));
             return gateOpened && igView.IsLocalPlayReady && master.InSyncNodeIds.Contains(igNodeId);
         }, 4000);
@@ -101,7 +101,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         Assert.True(igView.GateOpen(HostGatePolicies.For(RunHostKind.Ig)), why);
 
         // (d) the cluster's play-ready never went false while the IG joined — a joiner is not a participant until in sync (R-4014 K6)
-        Assert.False(clusterPlayReadyDropped, "ClusterPlayReady (seen by ExCon) must never drop while a Player joins");
+        Assert.False(clusterPlayReadyDropped, "ClusterPlayReady (seen by CGF) must never drop while a Player joins");
 
         // (e) the master counts it in sync
         Assert.Contains(igNodeId, master.InSyncNodeIds);

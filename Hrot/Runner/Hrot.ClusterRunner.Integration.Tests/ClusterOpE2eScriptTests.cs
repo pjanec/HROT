@@ -11,7 +11,6 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.ExCon;
 using Hrot.ClusterRunner.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
