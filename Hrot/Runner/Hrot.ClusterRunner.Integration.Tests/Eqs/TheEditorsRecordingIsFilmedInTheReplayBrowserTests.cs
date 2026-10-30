@@ -82,7 +82,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
     /// The editor's half of the chain, up to ■: opens <see cref="Scenario"/> (the operator's File › Open), arms Live through the choice, ▶, lets the run record for
     /// <paramref name="liveSeconds"/> of wall time, ■. Asserts S1 (the run is live, Live armed, recording) and the first half of S2 (back in Edit, Live still armed) on the way.
     /// </summary>
-    private Run RecordALiveRun(EditorSubsystem editor, bool recordOn, double liveSeconds = 8, bool stop = true)
+    private Run RecordALiveRun(EditorSubsystem editor, bool recordOn, double liveSeconds = 8, bool stop = true, bool askToKeep = false)
     {
         var choice = editor.RunChoiceForTest ?? throw new InvalidOperationException("the editor has no run choice");
         var transport = editor.TimeTransportForTest!;
@@ -99,6 +99,12 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         {
             editor.OrchestrationBusForTest!.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = false });
             Pump(editor, () => !transport.RecordsLiveRuns, 10, "Record live runs OFF heard by the editor");
+        }
+
+        if (askToKeep)   // ⭐ CE-4100 ① — the panel's "Ask to keep recordings" toggle sends exactly this (ClusterPanelRunControls → RunModeChoice.SendRunSettings → IRunTransport)
+        {
+            choice.SendRunSettings(null, true);
+            Pump(editor, () => choice.AskToKeepSetting == true, 10, "Ask to keep recordings ON heard by the editor");
         }
 
         choice.Choose(RunArmed.Live);                                                    // the indicator's menu: R1, the ONLY place Armed changes
@@ -248,6 +254,35 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
         {
             editor.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4100</c> ① end to end — <i>Ask to keep recordings</i> set ON through the new send (what the Orchestrator panel's toggle publishes), a live run on the real
+    /// cluster, ■: the choice asks <i>Keep this recording?</i>; <i>Discard</i> removes the exercise (its recording leaves disk and <c>GET /exercises</c>).
+    /// 🔴 Mutation: the setting not sent ⇒ no prompt pending after ■.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE4100_AskToKeepOn_StopAsksKeepOrDiscard_AndDiscardRemovesTheExercise()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
+        try
+        {
+            var run = RecordALiveRun(editor, recordOn: true, liveSeconds: 4, askToKeep: true);
+            Assert.Single(RecordingsOnDisk());
+            var ask = Assert.IsType<RunModeConfirmation>(run.Choice.Pending);
+            Assert.Equal(new[] { "Keep", "Discard", "Cancel" }, ask.Buttons.Select(b => b.Label));
+
+            using var rb = new BrowserRig(_root, _http, 240 + Interlocked.Increment(ref _domain));
+            var (_, before) = await rb.Call(HttpMethod.Get, "/exercises");
+            Assert.Contains(before["data"]!["exercises"]!.AsArray(), e => Guid.Parse(e!["exerciseId"]!.ToString()) == run.Exercise);
+
+            ask.Resolve(ask.Buttons.First(b => b.Label == "Discard"));
+            Pump(editor, () => RecordingsOnDisk().Length == 0, 60, "the discarded exercise's recording is gone");
+            var (_, after) = await rb.Call(HttpMethod.Get, "/exercises");
+            Assert.DoesNotContain(after["data"]!["exercises"]!.AsArray(), e => Guid.Parse(e!["exerciseId"]!.ToString()) == run.Exercise);
+        }
+        finally { editor.Shutdown(); }
     }
 
     /// <summary>
