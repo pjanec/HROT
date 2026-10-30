@@ -1317,16 +1317,13 @@ namespace Hrot.Editor.DebugApi
                                         ["stoppedRun"] = stopped };
             }
 
-            ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-            {
-                TransactionId = Guid.NewGuid(),
-                TargetState   = ClusterState.OperatingEdit,
-                ScenarioId    = name,
-                // ⭐ Guid.Empty, mirroring the orchestrator panel's own "Load into Edit" button: authoring is
-                //   not an exercise run, so it gets no ExerciseId.
-                ExerciseId    = Guid.Empty,
-            });
+            // ⭐ CE-3354 ⑥ — the ONE edit-load intent (ScenarioLoadSequence.EditLoadIntent: no ExerciseId — authoring is not an exercise run), shared with the command line's startup load
+            var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name);
+            var editRequest = editIntent.TransactionId;
+            NoteLoadSent(editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
+            ScenarioLoads.Request(editIntent);
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
+                                    ["requestId"] = editRequest.ToString(),
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
         }
 
@@ -1361,22 +1358,41 @@ namespace Hrot.Editor.DebugApi
         {
             var stopped = LeaveRunForLoad();
 
-            ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-            {
-                TransactionId = Guid.NewGuid(),
-                TargetState   = ClusterState.OperatingLive,
-                ScenarioId    = name,
-                ExerciseId    = Guid.NewGuid(),
-                // ⭐ Q86 §4-G — the clock is reset to 0 either way; startPaused (default true) decides whether it runs
-                //   once the load is done. The default keeps the documented load → POST /sim/play flow.
-                TimeMode      = startPaused ? "Deterministic" : null,
-                // ⭐ CE-4090 (AQ108 D14, §5a) — the scenario verifier compares the run's RECORDING against a golden: its live load records
-                //   whatever the cluster's "Record live runs" setting says. ⛔ Not reachable from HTTP — only the verifier's own load asks.
-                ForceRecording = forceRecording,
-            });
+            // ⭐ CE-3354 ⑥ — the ONE live-load intent (ScenarioLoadSequence.LiveLoadIntent: a fresh ExerciseId; Q86 §4-G startPaused ⇒ TimeMode "Deterministic" — the default keeps the documented
+            //   load → POST /sim/play flow; ForceRecording is the scenario verifier's, CE-4090 D14 §5a — ⛔ not reachable from HTTP), shared with the command line's startup load
+            var liveIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.LiveLoadIntent(name, startPaused, forceRecording);
+            var liveRequest = liveIntent.TransactionId;
+            NoteLoadSent(liveRequest, name);   // ⭐ CE-3354 ④
+            ScenarioLoads.Request(liveIntent);
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
+                                    ["requestId"] = liveRequest.ToString(),
                                     ["startPaused"] = startPaused,
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
+        }
+
+        // ⭐⭐ CE-3354 ④ (R-3075, DESIGN_Cluster_Load_Phase §11.10a) — the last load this API sent: "loaded" is ITS request's op status Success,
+        //   which the master publishes only when every node's load chain resolved (the filming node's 3-D map included) — ⛔ never the
+        //   announced state, which the master advances at the round's start.
+        private (Guid RequestId, string Scenario)? _lastLoad;
+        private Guid _viewLoadAtSend;   // ⭐ CE-3354 ⑦ — the load id the cluster view reported when this API sent _lastLoad: while the view still says THAT, it has not heard the new request yet
+
+        private void NoteLoadSent(Guid requestId, string name)
+        {
+            _lastLoad = (requestId, name);
+            _viewLoadAtSend = (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.LastLoadRequestId ?? Guid.Empty;
+        }
+
+        /// <summary>⭐ CE-3354 ④ — the phase of load <paramref name="requestId"/> from the cluster's op outcomes (<see cref="Fdp.Toolkit.Orchestration.ClusterView.OutcomeOf"/>):
+        /// Loading until the master answers, then Loaded or Failed (with its reason); <see langword="null"/> where this host keeps no cluster view.</summary>
+        public (string Phase, string? Reason)? LoadPhaseOf(Guid requestId)
+        {
+            if ((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is not { } view) return null;
+            return view.OutcomeOf(requestId) switch
+            {
+                null => ("Loading", null),
+                { Status: Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success } => ("Loaded", null),
+                { } o => ("Failed", o.Reason ?? o.Status.ToString()),
+            };
         }
 
         /// <summary>⭐ <c>CE-1025</c> (R-1031, load design §9.1) — the HTTP load is non-interactive (ruling 53): no prompt; a running dry run

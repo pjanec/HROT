@@ -1,4 +1,5 @@
 ﻿using System;
+using CommandLine;
 using Hrot.ClusterRunner.Configuration;
 using Xunit;
 
@@ -253,6 +254,76 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             var one = new HrotRunnerConfiguration { ModeString = "editor", NodeName = "my-editor" };
             one.Validate();
             Assert.Equal("my-editor", one.NodeNameFor("Editor"));
+        }
+
+        private static HrotRunnerConfiguration Valid(string mode, string? scenario = null, string load = "", bool play = false, string[]? mapInLoad = null)
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = mode, NoWait = true, ScenarioName = scenario ?? string.Empty, LoadTarget = load, Play = play, MapInLoad = mapInLoad };
+            cfg.Validate();
+            return cfg;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ⑥ — the startup load's defaults: <c>-m editor -s X</c> opens for EDIT; <c>-m all|server -s X</c> loads LIVE (paused); <c>--play</c> is live and runs (even in the editor); <c>--load</c> overrides;
+        /// <c>--map-in-load</c> alone is fine on a master host; <c>--mode ci -s X</c> keeps its old meaning (no startup load). 🔴 Mutations (each compiles): the editor test of <c>StartupLoadsLive</c> removed ⇒ the editor cell reds;
+        /// <c>Play</c> not implying live ⇒ the editor-play cell reds; <c>HasStartupLoad</c> ignoring ci ⇒ the ci cell reds.
+        /// </summary>
+        [Fact]
+        public void CE3354_TheStartupLoad_Defaults()
+        {
+            Assert.True(Valid("editor", "X").HasStartupLoad);
+            Assert.False(Valid("editor", "X").StartupLoadsLive);                      // the editor opens for editing
+            Assert.True(Valid("all", "X").StartupLoadsLive);                          // elsewhere: live (paused)
+            Assert.True(Valid("server", "X").StartupLoadsLive);
+            Assert.True(Valid("orchestrator,simhost", "X").StartupLoadsLive);
+            Assert.True(Valid("editor", "X", play: true).StartupLoadsLive);           // --play implies live, even in the editor
+            Assert.False(Valid("all", "X", load: "edit").StartupLoadsLive);           // an explicit target wins
+            Assert.True(Valid("editor", "X", load: "LIVE").StartupLoadsLive);
+            Assert.False(Valid("editor", mapInLoad: Array.Empty<string>()).HasStartupLoad);   // the setting alone
+            Assert.False(Valid("ci", "MinimalCI_01").HasStartupLoad);                 // ci keeps --scenario's old meaning
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ⑥ — refused at startup with a clear message: a scenario or map-in-load with no master in the process (<c>player</c>, a lone <c>simhost</c> / <c>cgf</c> / <c>ig</c> / <c>traffic</c>, <c>replaybrowser</c>) ·
+        /// <c>--play</c> with <c>--load edit</c> · <c>--load</c> / <c>--play</c> without <c>--scenario</c> · an unknown <c>--load</c> · the flags with <c>--mode ci</c>. 🔴 Mutation: the master test removed ⇒ the first cells do not throw.
+        /// </summary>
+        [Theory]
+        [InlineData("player", "X", "", false, null, "master")]
+        [InlineData("simhost", "X", "", false, null, "master")]
+        [InlineData("cgf", "X", "", false, null, "master")]
+        [InlineData("ig,traffic", "X", "", false, null, "master")]
+        [InlineData("simhost", null, "", false, new string[0], "master")]
+        [InlineData("editor", "X", "edit", true, null, "--play")]
+        [InlineData("editor", null, "live", false, null, "--scenario")]
+        [InlineData("all", null, "", true, null, "--scenario")]
+        [InlineData("all", "X", "sideways", false, null, "edit | live")]
+        [InlineData("ci", "X", "live", false, null, "ci")]
+        public void CE3354_TheStartupLoad_IsRefusedWhereItCannotHold(string mode, string? scenario, string load, bool play, string[]? map, string messagePart)
+        {
+            var ex = Assert.Throws<InvalidOperationException>(() => Valid(mode, scenario, load, play, map));
+            Assert.Contains(messagePart, ex.Message);
+        }
+
+        /// <summary>⭐ <c>CE-3354</c> ⑥ — the real parser: <c>--map-in-load</c> with no name is "given, empty" (this process' own nodes), with names it splits on commas, absent is null; <c>--play</c> and <c>--load</c> parse.</summary>
+        [Fact]
+        public void CE3354_TheParser_ReadsTheStartupFlags()
+        {
+            static HrotRunnerConfiguration Parse(params string[] args)
+            {
+                HrotRunnerConfiguration? got = null;
+                var result = Parser.Default.ParseArguments<HrotRunnerConfiguration>(HrotRunnerConfiguration.NormaliseArgs(args));
+                result.WithParsed(c => got = c);
+                Assert.NotNull(got);
+                got!.ModeString = got.ModeString; got.NoWait = true; got.Validate();
+                return got;
+            }
+            Assert.Null(Parse("-m", "all").MapInLoad);
+            Assert.Empty(Parse("-m", "all", "--map-in-load").MapInLoad!);                                        // bare, last
+            Assert.Empty(Parse("-m", "all", "--map-in-load", "-s", "X").MapInLoad!);                            // bare, before another option
+            Assert.Equal(new[] { "film-cam", "sim-1" }, Parse("-m", "all", "--map-in-load", "film-cam,sim-1").MapInLoad);
+            var c = Parse("-m", "editor", "-s", "X", "--play", "--load", "live");
+            Assert.True(c.Play);
+            Assert.Equal("live", c.LoadTarget);
         }
 
         /// <summary>

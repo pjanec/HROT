@@ -148,6 +148,9 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 
     // ── phase 5: the ONE slave, the shared handler composition ───────────────────────────────
 
+    /// <summary>⭐ <c>CE-3354</c> ③ — where this host's 3-D map step polls the map's build from (lazy: the map is attached after the bootstrap; a null result = no map ⇒ the step resolves). The map-in-load setting makes THIS node's load wait for it.</summary>
+    public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
+
     protected override ClusterSlave BuildOrchestration(HrotNodeContext context, TogglableSimulationGroup simGroup, TogglablePostSimulationGroup postSimGroup, ScenarioSerializer serializer)
     {
         ToggleSim = simGroup;
@@ -209,7 +212,8 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
             slaveTranslator:      context.SlaveTranslator,
             scenarioHandlers:     new IClusterStateHandler[] { episodeHandler },
             behaviorRemapper:     behaviorRemapper,
-            entityMap:            context.EntityMap);   // CE-2101 — the world boundary clears it
+            entityMap:            context.EntityMap,   // CE-2101 — the world boundary clears it
+            mapBuildStatus:       MapBuildStatus);     // ⭐ CE-3354 ③ — this host HAS a map (CgfSubsystem attaches it), so it passes it
     }
 
     // ── phase 6a: the spawning pipeline ──────────────────────────────────────────────────────

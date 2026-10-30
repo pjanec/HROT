@@ -48,7 +48,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         // ⭐ CE-4090 (AQ108 D14) — true on a live load (or a replay → live branch) whose run must NOT be recorded: the cluster's
         //   "Record live runs" setting was off when the master minted the session. ⭐ Inverse polarity so `default` and an older sender
         //   (the field is absent on the wire) both mean today's behaviour — record. ⭐ ONE field on the ONE message every node reads.
-        bool RecordingOff = false);
+        bool RecordingOff = false,
+        // ⭐ CE-3354 ③ — true on the PREPARE of a load for a node whose NAME is in the master's map-in-load set: its load chain also starts its 3-D map build at the
+        //   terrain commit and holds the load until the map is built. Stamped per node by the master. Appended; an older peer omits it ⇒ false (as before).
+        bool MapInLoad = false);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

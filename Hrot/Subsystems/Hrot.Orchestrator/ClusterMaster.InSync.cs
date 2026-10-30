@@ -191,7 +191,7 @@ public sealed partial class ClusterMaster
             new EditLoadHandlerPayload(null, false, FdpClusterState.Idle), targets);
         FanOutNodeOp(NodeOpType.CommitState, c.TransactionId, new CommitStatePayload(FdpClusterState.Idle), targets);
 
-        FanOutNodeOp(live ? NodeOpType.PrepareLive : NodeOpType.PrepareEdit, c.TransactionId,
+        FanOutLoadPrepare(live ? NodeOpType.PrepareLive : NodeOpType.PrepareEdit, c.TransactionId,   // ⭐ CE-3354 ③ — a joiner named in the map-in-load set waits for its map too
             new EditLoadHandlerPayload(null, false, loading,
                 ExerciseId: _currentExerciseId, TerrainName: names.TerrainName,
                 // ⛔ NOT a world boundary. 📐 Measured live 2026-10-15: a joiner takes in the current world in the frames before it

@@ -87,7 +87,7 @@ namespace Hrot.UI.Common.Map3D.Director
         /// else the take's baked ones.
         /// </summary>
         public static (IReadOnlyList<StillPlan> Plan, IReadOnlyList<string> Problems) PlanOf(Take take, IReadOnlyList<double>? filmTimes, bool everyKey,
-                                                                                             Func<string, double?>? anchors = null)
+                                                                                             Func<string, double?>? anchors = null, Func<string, string?>? whyUnseen = null)
         {
             if (take == null) throw new ArgumentNullException(nameof(take));
             var problems = new List<string>();
@@ -96,6 +96,10 @@ namespace Hrot.UI.Common.Map3D.Director
             var film = FilmTimeMap.Of(take, anchors);
             // ⭐ CE-4119 part 1 — a segment on an anchor this run does not show makes FilmTimeMap fall back to a 1:1 map: say so, for keys AND for times:[…]
             foreach (var u in film.Unresolved) problems.Add($"{u} — this run does not show it, so film time is mapped 1:1 (segment null), not through the take's segments");
+            // ⭐ CE-4125 — and for each anchor the take hangs something on that has no time here, WHY (no such unit · no such event · never met · awaits play)
+            if (whyUnseen != null)
+                foreach (var name in Referenced(take))
+                    if (anchors(name) is null && whyUnseen(name) is { } why) problems.Add($"anchor '{name}': {why}");
             var wanted = new List<(double Film, string? Name)>();
             if (filmTimes is { Count: > 0 })
                 foreach (var t in filmTimes)
@@ -146,7 +150,8 @@ namespace Hrot.UI.Common.Map3D.Director
             var loaded = runner.TakeOf(play);
             if (loaded.Value is not { } take) return (null, 404, string.Join("; ", loaded.Problems));
             // ⭐ CE-1305 TE-10 (§11v S1) — the keys at the times THIS run places them (the one resolver), not only the take's bake: a verify run's recording
-            var (plan, problems) = PlanOf(take, request.Times, request.EveryKey, runner.AnchorTimesOf(take));
+            var anchors = runner.AnchorsOf(take);
+            var (plan, problems) = PlanOf(take, request.Times, request.EveryKey, anchors.TimeOf, anchors.WhyUnseen);
             if (runner.Index?.Invoke() is { IsComplete: false } && problems.Count > 0)
                 problems = problems.Append(IndexStillReading).ToList();
             if (plan.Count == 0) return (null, 400, "no stills: " + string.Join("; ", problems));
@@ -172,7 +177,22 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>The problem a cancelled job carries.</summary>
         public const string CancelledProblem = "cancelled";
 
-        private static int IndexOfSegment(FilmTimeMap film, string id)
+        /// <summary>The anchors <paramref name="take"/> places something on (its keys, shots, segments and end), in first-use order.</summary>
+        private static IEnumerable<string> Referenced(Take take)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            IEnumerable<AtExpr?> All()
+            {
+                foreach (var k in take.Keys) yield return k.At;
+                foreach (var sh in take.Shots) yield return sh.At;
+                foreach (var g in take.Segments) { yield return g.From; yield return g.To; }
+                yield return take.EndAt;
+            }
+            foreach (var at in All())
+                if (at?.Anchor is { } a && take.Anchors.ContainsKey(a) && seen.Add(a)) yield return a;
+        }
+
+                private static int IndexOfSegment(FilmTimeMap film, string id)
         {
             for (int i = 0; i < film.Segments.Count; i++) if (film.Segments[i].Id == id) return i;
             return -1;

@@ -67,6 +67,31 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public static TransitionStateIntent UnloadIntent() => new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle };
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3354</c> ⑥ — <b>the ONE live-load intent</b>, built here and nowhere else: <c>POST /scenario/load/live</c> and the command line's startup load (<c>--scenario</c> / <c>--play</c>) both send THIS.
+        /// A fresh <c>ExerciseId</c> (a live load IS a new exercise run); <c>TimeMode = "Deterministic"</c> when <paramref name="startPaused"/> (the clock is reset to 0 either way — Q86 §4-G — and a paused load
+        /// waits for ▶), <see langword="null"/> when the load must RUN once loaded (the master runs it when every node's load succeeded, CE-3354 ⑤); <paramref name="forceRecording"/> is the scenario verifier's
+        /// (CE-4090 D14 §5a: it records whatever the cluster's "Record live runs" setting says).
+        /// </summary>
+        public static TransitionStateIntent LiveLoadIntent(string scenario, bool startPaused = true, bool forceRecording = false) => new()
+        {
+            TransactionId  = Guid.NewGuid(),
+            TargetState    = ClusterState.OperatingLive,
+            ScenarioId     = scenario,
+            ExerciseId     = Guid.NewGuid(),
+            TimeMode       = startPaused ? "Deterministic" : null,
+            ForceRecording = forceRecording,
+        };
+
+        /// <summary>⭐⭐ <c>CE-3354</c> ⑥ — <b>the ONE edit-load intent</b> (HTTP's and the command line's): <c>ExerciseId</c> is <see cref="Guid.Empty"/>, mirroring the orchestrator panel's "Load into Edit" — authoring is not an exercise run.</summary>
+        public static TransitionStateIntent EditLoadIntent(string scenario) => new()
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = ClusterState.OperatingEdit,
+            ScenarioId    = scenario,
+            ExerciseId    = Guid.Empty,
+        };
+
         /// <summary>⭐ CE-4101 — sends <see cref="UnloadIntent"/> through this sequence's sender (does not touch a waiting load).</summary>
         public void Unload() => _send(UnloadIntent());
 

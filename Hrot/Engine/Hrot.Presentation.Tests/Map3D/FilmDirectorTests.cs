@@ -1671,4 +1671,43 @@ public sealed class FilmDirectorTests
         var w = Assert.Single(moved.NearWindows(world));
         Assert.Equal((100 - 30) / 15d, w.Estimate, 3);                               // it gets the coarse estimate of the NEW spec
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4125</c> — an anchor with no time says WHY: a wrong name (with the names alike) · an event the recording has too few of · a <c>near</c> never met (its closest
+    /// approach) · a state cue the index cannot answer ahead (awaits play); none for an anchor that resolved. And a stills plan carries the reason in its problems.
+    /// 🔴 Mutation: <c>WhyUnseen</c> counting shots by any unit ⇒ "has 2 shots" not 1 ⇒ red; the plan dropping the reason ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4125_AnUnresolvedAnchor_SaysWhy_AndTheStillsPlanCarriesIt()
+    {
+        var index = LaneIndex(20, Ev("combat.shot", 2, 1), Ev("combat.shot", 4, 2));
+        var units = new Units(); units.Ids["Police rifleman"] = 1; units.Ids["Gunman"] = 2;
+        var specs = new Dictionary<string, AnchorSpec>
+        {
+            ["typo"] = new() { On = "shot", By = "Police rifelman" },
+            ["second"] = new() { On = "shot", By = "Police rifleman", N = 2 },
+            ["first"] = new() { On = "shot", By = "Police rifleman", N = 1 },
+            ["task"] = new() { On = "task", Who = "Gunman", Is = JsonValue.Create("HoldShort") },
+        };
+        var book = new AnchorBook(specs, null, null, () => index, 0d, indexIsTheRun: false);
+        book.ObserveEvents(units);
+        Assert.Null(book.WhyUnseen("first", units));
+        Assert.Contains("no unit named 'Police rifelman'", book.WhyUnseen("typo", units));
+        Assert.Contains("Police rifleman", book.WhyUnseen("typo", units));                 // the names alike
+        Assert.Contains("has 1 shots by 'Police rifleman'; #2 asked", book.WhyUnseen("second", units));
+        Assert.Contains("awaits play", book.WhyUnseen("task", units));
+
+        var moving = PositionIndex(20, 0.5, (1, 0, t => 100 - 5 * t));                     // closest 100 − 5 × 9.5 = 52.5 m
+        var near = NearBook(moving, "Alpha"); var alpha = new Units(); alpha.Ids["Alpha"] = 1;
+        Assert.Contains("no closer than 52.5 m", near.WhyUnseen("near:A", alpha));
+
+        var take = new Take
+        {
+            Scenario = "s", Name = "main", Anchors = specs,
+            Keys = new[] { new CameraKey { At = new AtExpr(0d, "second"), Camera = new CameraSpec { LookAt = Vector3.Zero, Distance = 20f } } },
+            EndAt = new AtExpr(4d),
+        };
+        var (_, problems) = DirectorStills.PlanOf(take, null, everyKey: true, anchors: book.TimeOf, whyUnseen: a => book.WhyUnseen(a, units));
+        Assert.Contains(problems, p => p.StartsWith("anchor 'second':") && p.Contains("#2 asked"));
+    }
 }

@@ -103,6 +103,9 @@ namespace Hrot.SimHost
         private Hrot.ScenarioEditor.Tools.ToolController? _toolController;
         private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
         private DebugGizmoLayer? _gizmoLayer;
+
+        /// <summary>⭐ <c>CE-3354</c> ③ — this window's 3-D map build (null before the layers are attached, or headless): what the node's load chain polls when the master's map-in-load set names the node.</summary>
+        public Fdp.Toolkit.Vis3D.Map3DBuild? Map3D { get; private set; }
         private Fdp.Core.FdpEventBus? _interactionBus;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
@@ -347,8 +350,10 @@ namespace Hrot.SimHost
             //   network id to an Entity. ⚠ NOT a revival of R3's deleted `view` parameter, which was
             //   stored nowhere. See DebugGizmoLayer._world.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
-            _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo).GizmoLayer;
+            var mapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _map, _gizmoBuffer, interactionBus ?? repo.Bus, () => _repo);
+            _gizmoLayer = mapLayers.GizmoLayer;
+            Map3D = mapLayers.Map3D;   // ⭐ CE-3354 ③
             _interactionBus = interactionBus;
 
             // ── Interaction ───────────────────────────────────────────────────

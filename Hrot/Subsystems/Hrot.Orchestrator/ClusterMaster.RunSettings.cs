@@ -39,6 +39,13 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster-wide <i>Ask to keep recordings</i> setting: when a live run ends, the operator UI asks Keep / Discard (default OFF — keep silently). Read by the UI off the broadcast; the master never acts on it.</summary>
     public bool AskToKeepRecordings { get; set; }
 
+    /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES (case-insensitive, de-duplicated, in the order given) of the nodes whose scenario load also waits for their built 3-D map. A setting of the MASTER, keyed by NAME (it survives a node restart and a new node id); a name no node holds now is kept. Broadcast with the cluster state; stamped on each LOAD's per-node payload.</summary>
+    public IReadOnlyList<string> MapInLoadNodes { get; private set; } = Array.Empty<string>();
+
+    /// <summary>⭐ CE-3354 ③ — whether the node named <paramref name="nodeName"/> waits for its map in a load.</summary>
+    public bool MapInLoadFor(string? nodeName)
+        => !string.IsNullOrEmpty(nodeName) && MapInLoadNodes.Contains(nodeName, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// ⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode: what ▶ runs next, ONE fact held HERE and broadcast with every cluster-state
     /// publication (every node reads it through its <c>ClusterView</c>). ⭐ <c>CE-1443</c> (R-1043): its INITIAL value is a BOOTSTRAP parameter (<c>ClusterConfiguration.InitialArmedMode</c>, default <see cref="ClusterArmedMode.Live"/>;
@@ -49,6 +56,24 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (<see cref="ClusterArmedMode.Live"/> for <c>LoadingLive</c>, <see cref="ClusterArmedMode.Preview"/> for <c>LoadingEdit</c>),
     /// set when the load round STARTS; before any load it equals the initial armed mode. A fact the master holds and broadcasts beside <see cref="ArmedMode"/> — it never interprets it for a load.</summary>
     public ClusterArmedMode LastLoadMode { get; private set; } = ClusterArmedMode.Live;
+
+    /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the LAST scenario load the master started (<see cref="TransitionStateIntent.TransactionId"/>; whoever sent it), broadcast beside <see cref="LastLoadMode"/> so any host's <c>/status.load</c> follows it.</summary>
+    public Guid LastLoadRequestId { get; private set; }
+
+    /// <summary>⭐ CE-3354 ⑦ — the scenario that load named.</summary>
+    public string? LastLoadScenario { get; private set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — a scenario load request is TAKEN by the master (held for the mandatory set, parked for its staging, planned, or refused): from this moment it IS the cluster's current load, announced at once, so
+    /// <c>/status.load</c> never shows the PREVIOUS load's outcome after a new request. Whatever then happens to it — a refusal, a failed staging, a timeout, a failed round — publishes its op status for THIS id.
+    /// </summary>
+    private void NoteLoadAccepted(TransitionStateIntent intent)
+    {
+        if (!IsScenarioLoad(intent) || LastLoadRequestId == intent.TransactionId) return;
+        LastLoadRequestId = intent.TransactionId;
+        LastLoadScenario  = intent.ScenarioId;
+        PublishClusterState(_currentDsmState);
+    }
 
     private bool _runNotRecorded;
 
@@ -69,6 +94,9 @@ public sealed partial class ClusterMaster
         if (intent.RecordLiveRuns is { } record) RecordLiveRuns = record;
         if (intent.Armed is { } armed) ArmedMode = armed;
         if (intent.AskToKeepRecordings is { } ask) AskToKeepRecordings = ask;   // ⭐ AQ108 D15 (CE-4100 ①)
+        if (intent.MapInLoadNodes is { } mapNodes)   // ⭐ CE-3354 ③ — null = no change, empty = none; a blank name or one with a comma cannot be a node name
+            MapInLoadNodes = mapNodes.Select(n => n?.Trim() ?? "").Where(n => n.Length > 0 && !n.Contains(','))
+                                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         PublishClusterState(_currentDsmState);   // every host reads the settings off the broadcast, so tell them now
         FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}, ask to keep recordings {2}.", RecordLiveRuns, ArmedMode, AskToKeepRecordings);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);

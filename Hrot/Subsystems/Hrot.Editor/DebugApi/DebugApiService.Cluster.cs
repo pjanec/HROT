@@ -46,10 +46,12 @@ namespace Hrot.Editor.DebugApi
                     conflicts.Add(new JsonObject { ["nodeId"] = r.NodeId, ["subsystem"] = r.Subsystem, ["name"] = r.Name, ["reason"] = r.NameConflict });
                     continue;
                 }
+                var mapSet = MapInLoadNodesNow();
                 nodes.Add(new JsonObject
                 {
                     ["nodeId"]                = r.NodeId,
                     ["name"]                  = r.Name,   // ⭐ CE-3354 ②
+                    ["mapInLoad"]             = mapSet.Contains(r.Name, StringComparer.OrdinalIgnoreCase),   // ⭐ CE-3354 ③ — in the master's map-in-load set (a profile node, the IG, waits regardless)
                     ["subsystem"]             = r.Subsystem,
                     ["reportedState"]         = r.ReportedState,
                     ["roles"]                 = r.Roles,

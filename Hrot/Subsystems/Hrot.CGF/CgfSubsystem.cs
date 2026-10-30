@@ -444,6 +444,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Map context menu ──────────────────────────────────────────────────────
     private DebugGizmoLayer? _cgfGizmoLayer;
+    private Fdp.Toolkit.Vis3D.Map3DBuild? _cgfMap3D;   // ⭐ CE-3354 ③
 
     /// <inheritdoc/>
     public string Name => "CGF";
@@ -998,6 +999,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _bootstrapper = new CgfNodeBootstrapper(_networkFactory, isolatedTempRoot, _fdpEventHistory, map => _stagingRemap.Publish(map));
         _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
+        _bootstrapper.MapBuildStatus = () => _cgfMap3D;   // ⭐ CE-3354 ③ — lazy: the map layers are attached after the bootstrap
         _context = _bootstrapper.BootstrapNode(nodeConfig, DefaultRole, _networkFactory);
 
         if (_context is null || _entityMap is null)
@@ -1098,8 +1100,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //   🔒 This is the silent-default rule exactly: a production caller that HAS a dependency
             //      must PASS it. Every other host does.
             // ⭐ CE-1033 — the shared attach (gizmo layer + draw buffer + the 3-D mode), the same on every host.
-            _cgfGizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _cgfGizmoBuffer!, _cgfInteractionBus!, () => _context.World).GizmoLayer;
+            var cgfMapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _cgfGizmoBuffer!, _cgfInteractionBus!, () => _context.World);
+            _cgfGizmoLayer = cgfMapLayers.GizmoLayer;
+            _cgfMap3D = cgfMapLayers.Map3D;   // ⭐ CE-3354 ③ — the node's load chain polls this map when the master's map-in-load set names the node
 
             // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
 

@@ -101,9 +101,11 @@ public record SetRunSettingsPayloadDto(
     [property: JsonPropertyName("Armed")]
     Fdp.Toolkit.Orchestration.ClusterArmedMode? Armed = null,
     [property: JsonPropertyName("AskToKeepRecordings")]
-    bool? AskToKeepRecordings = null)   // ⭐ AQ108 D15 (CE-4100 ①) — appended; absent = no change
+    bool? AskToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①) — appended; absent = no change
+    [property: JsonPropertyName("MapInLoadNodes")]
+    string[]? MapInLoadNodes = null)    // ⭐ CE-3354 ③ — appended; absent = no change, empty = none
 {
-    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings);
+    public static SetRunSettingsPayloadDto From(Fdp.Toolkit.Orchestration.SetRunSettingsIntent intent) => new(intent.RecordLiveRuns, intent.Armed, intent.AskToKeepRecordings, intent.MapInLoadNodes);
 
     /// <summary>⭐ The ONE decoding (the master's translator): an unreadable payload changes nothing (both fields null).
     /// ⚠ CE-3341 changed this: before it, an unreadable payload meant "recording ON"; a no-op is the safer answer now that the op also carries the armed mode.</summary>
@@ -119,6 +121,7 @@ public record SetRunSettingsPayloadDto(
                     intent.RecordLiveRuns = dto.RecordLiveRuns;
                     intent.Armed = dto.Armed;
                     intent.AskToKeepRecordings = dto.AskToKeepRecordings;
+                    intent.MapInLoadNodes = dto.MapInLoadNodes;
                 }
             }
             catch (System.Text.Json.JsonException) { }
@@ -322,7 +325,11 @@ public record NodeTransitionPayloadDto(
     // ⭐ CE-4090 (AQ108 D14) — this live session must NOT be recorded ("Record live runs" was off when the master minted it). Additive;
     //   omitted ⇒ false ⇒ record, exactly as before.
     [property: JsonPropertyName("RecordingOff")]
-    bool           RecordingOff = false
+    bool           RecordingOff = false,
+
+    // ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (stamped per node by the master). Additive; omitted ⇒ false.
+    [property: JsonPropertyName("MapInLoad")]
+    bool           MapInLoad = false
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

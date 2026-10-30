@@ -158,12 +158,16 @@ namespace Hrot.SimHost.Modules.Orchestration
 
             // 7. The load-phase chain (L2) — once, after every provider is known; before live load, which keeps FinalizeLive.
             // ⭐ CE-4078 — the profile's 3-D map part is composed here, once, for any host that asks (only the Player does).
-            if (h.ProfileLoadParts.Contains(LoadPart.Map3D) && !h.LoadProviders.Any(p => p.Part == LoadPart.Map3D))
-                h.LoadProviders.Add(new MapBuildLoadStep(h.MapBuildStatus ?? (() => null)));
+            // ⭐ CE-3354 ③ — and for ANY host that supplies a map (its status): the step is in the chain, gated per load — required when the profile asks (the Player: always) or when the master's
+            //     map-in-load set names this node (LoadPhaseContext.MapInLoad); otherwise it resolves at once and starts no build.
+            bool profileMap = h.ProfileLoadParts.Contains(LoadPart.Map3D);
+            if ((profileMap || h.MapBuildStatus != null) && !h.LoadProviders.Any(p => p.Part == LoadPart.Map3D))
+                h.LoadProviders.Add(new MapBuildLoadStep(h.MapBuildStatus ?? (() => null), alwaysRequired: profileMap));
+            var chainParts = profileMap || h.MapBuildStatus == null ? h.ProfileLoadParts : h.ProfileLoadParts.Append(LoadPart.Map3D).ToList();
 
             slave.RegisterHandler(LoadPhaseChain.FromRoles(
                 h.Role, h.LoadProviders, h.World,
-                profileParts:        h.ProfileLoadParts,
+                profileParts:        chainParts,
                 recordingController: controller,
                 storageDirectory:    h.StagingRoot,
                 hostLabel:           h.HostLabel,

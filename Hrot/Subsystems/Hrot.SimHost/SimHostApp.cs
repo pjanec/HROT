@@ -384,6 +384,7 @@ namespace Hrot.SimHost
                 _eventHistoryService,
                 hrotConfig,
                 simulationRateHz: nodeConfig.SimulationRateHz);
+            _bootstrapper.MapBuildStatus = () => _vis?.Map3D;   // ⭐ CE-3354 ③ — lazy: the visualization is attached after the bootstrap (null headless ⇒ the step resolves)
 
             // -- Gizmo systems (GZ032) --------------------------------------------------------
             // Registered via Phase 6d callback so they are part of the kernel before Initialize().
