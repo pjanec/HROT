@@ -58,14 +58,75 @@ public sealed class StartSurfaceWindow : ManagedWindow
         Gui.SetNextWindowSize(vp.WorkSize);
     }
 
+    // ── CE-4112: the wallpaper ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-4112</c> — the wallpaper scaled to COVER a <paramref name="winW"/> × <paramref name="winH"/> window with its aspect kept (centre-crop): <c>scale = max(W/w, H/h)</c>, the image centred.
+    /// <c>X</c>/<c>Y</c> are the image rect's offset from the window's corner (≤ 0: the overflow is cropped), <c>W</c>/<c>H</c> its size; <c>U0..V1</c> the visible part in texture space.
+    /// </summary>
+    public readonly record struct CoverRect(float Scale, float X, float Y, float W, float H, float U0, float V0, float U1, float V1);
+
+    /// <summary>The pure cover math (a rail pins it; the draw uses its UVs).</summary>
+    public static CoverRect Cover(float winW, float winH, float imgW, float imgH)
+    {
+        float scale = Math.Max(winW / imgW, winH / imgH);
+        float w = imgW * scale, h = imgH * scale;
+        float x = (winW - w) / 2f, y = (winH - h) / 2f;
+        return new CoverRect(scale, x, y, w, h, -x / w, -y / h, (winW - x) / w, (winH - y) / h);
+    }
+
+    /// <summary>⭐ A dark band behind the menu block: the wallpaper's centre is bright (the arrow), so the white title and the buttons need it. One alpha.</summary>
+    public const float MenuBandAlpha = 0.55f;
+
+    private static nint _wallpaperTexture;
+    private static int _wallpaperW, _wallpaperH;
+    private static bool _wallpaperTried;
+
+    /// <summary>The wallpaper's texture (id, size), loaded ONCE per process on the first drawn frame (a GL context is current) from the embedded resource through
+    /// <see cref="Icons.EmbeddedAtlasResources"/> — ⛔ no file on disk. <see langword="null"/> when the GPU upload failed (the surface then draws without it).</summary>
+    public static (nint Id, int W, int H)? Wallpaper()
+    {
+        if (!_wallpaperTried)
+        {
+            _wallpaperTried = true;
+            var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", Icons.EmbeddedAtlasResources.GetWallpaperPngBytes());
+            var tex = Raylib_cs.Raylib.LoadTextureFromImage(img);
+            Raylib_cs.Raylib.UnloadImage(img);
+            if (tex.Id != 0)
+            {
+                Raylib_cs.Raylib.SetTextureFilter(tex, Raylib_cs.TextureFilter.Bilinear);
+                _wallpaperTexture = (nint)tex.Id; _wallpaperW = tex.Width; _wallpaperH = tex.Height;
+            }
+        }
+        return _wallpaperTexture != 0 ? (_wallpaperTexture, _wallpaperW, _wallpaperH) : null;
+    }
+
+    private void DrawWallpaper()
+    {
+        if (Wallpaper() is not { } wp) return;
+        var pos = Gui.GetWindowPos();
+        var size = Gui.GetWindowSize();
+        var c = Cover(size.X, size.Y, wp.W, wp.H);
+        Gui.GetWindowDrawList().AddImage(wp.Id, pos, pos + size, new Vector2(c.U0, c.V0), new Vector2(c.U1, c.V1));
+    }
+
     protected override void DrawClientArea()
     {
+        DrawWallpaper();   // ⭐ CE-4112: under everything the surface draws
         var model = Model();
         var avail = Gui.GetContentRegionAvail();
         const float buttonWidth = 320f;
         float blockHeight = Gui.GetTextLineHeightWithSpacing() * 2 + model.Buttons.Count * (Gui.GetFrameHeightWithSpacing() + 4f);
         Gui.SetCursorPosY(Gui.GetCursorPosY() + Math.Max(0f, (avail.Y - blockHeight) * 0.4f));
 
+        {
+            // the dark band behind the menu block (readability over the bright wallpaper)
+            var wpos = Gui.GetWindowPos();
+            float top = Gui.GetCursorScreenPos().Y - 12f;
+            float bandW = Math.Max(buttonWidth, Gui.CalcTextSize(model.Text).X) + 56f;
+            Gui.GetWindowDrawList().AddRectFilled(new Vector2(wpos.X + (avail.X - bandW) / 2f, top), new Vector2(wpos.X + (avail.X + bandW) / 2f, top + blockHeight + 24f),
+                (uint)Math.Round(MenuBandAlpha * 255f) << 24, 8f);
+        }
         CenteredText("HROT");
         CenteredText(model.Text);
         Gui.Spacing();

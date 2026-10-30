@@ -33,6 +33,10 @@
     <EmbeddedResource Include="..\..\Data\Icons\famfamfam-silk.png">
       <LogicalName>FDP.Toolkit_ImGui.Icons.famfamfam-silk.png</LogicalName>
     </EmbeddedResource>
+    <!-- ⭐ CE-4112: the HROT wallpaper, the Start surface's background — embedded the same way, read by the same loader (EmbeddedAtlasResources) -->
+    <EmbeddedResource Include="..\..\Data\Icons\HROT-wallpaper.png">
+      <LogicalName>FDP.Toolkit_ImGui.Icons.HROT-wallpaper.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!-- Embedded UI font (gizmo / debug-text rendering + editor chrome / canvas) -->

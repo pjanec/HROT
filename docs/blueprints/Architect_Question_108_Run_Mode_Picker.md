@@ -348,6 +348,8 @@ request is coming · **per-host gates** — four copies (R "shared and unified")
 | 12 | "New scenario from a recipe" | the item marked is today's `File/Edit/New Scenario` (`ClearWorld`, a local blank) — the recipe form follows CE-4089 | content-folder listing follows CE-4089 |
 | 13 | one headless frame rail per host family | no headless frame harness drives a real runner frame here: the gate is driven through the real `LocalWindowController` with a fake shell (`TheStartGateIsComposedOnceTests`) and the draw through `ImGuiTestFixture` (`StartGateTests`). The per-host system rails (`ClusterConformanceRails`, `TheUiBaselineIsPinnedPerHostRails`) are compiled but boot a real editor process | — |
 
+**CE-4112 addendum `2026-10-30` (ui):** the surface draws the HROT wallpaper (`FDP/Data/Icons/HROT-wallpaper.png`, embedded as `FDP.Toolkit_ImGui.Icons.HROT-wallpaper.png`, read by `EmbeddedAtlasResources.GetWallpaperPngBytes`, uploaded once by `StartSurfaceWindow.Wallpaper()`) UNDER its menu, centre-cropped to cover the window (`StartSurfaceWindow.Cover`, UV crop, aspect kept); a dark band (`MenuBandAlpha` 0.55) sits behind the title and buttons because the wallpaper centre is bright. One composition (`LocalWindowController`), so every host that shows Start gets it. Rails: `StartGateTests.CE4112_*` ×2 (cover math, embedded resource), `TheStartScreenShowsTheWallpaperTests` (xvfb pixels + menu text on top).
+
 ### 2.7 CE-4098 — the picker's Recent section + recordings in the picker — ⭐ **AS-BUILT `2026-10-28` (ui)** (built before CE-4089, by the user's decision)
 
 ⭐ **AS-BUILT:** build-state of §2.7 **BUILT**. §2.2's `RecentList` box is **not a new class** — it is the existing `RecentStore` (NodeEditor.UI), extended; the

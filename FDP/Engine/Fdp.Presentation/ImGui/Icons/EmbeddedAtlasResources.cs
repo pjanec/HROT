@@ -27,13 +27,21 @@ public static class EmbeddedAtlasResources
     /// Thrown when the embedded resource is not found — this indicates a build misconfiguration
     /// (the <c>EmbeddedResource</c> item in <c>FDP.Toolkit_ImGui.csproj</c> is missing).
     /// </exception>
-    public static byte[] GetSilkAtlasPngBytes()
+    public static byte[] GetSilkAtlasPngBytes() => Read(SilkResourceName);
+
+    /// <summary>⭐ <c>CE-4112</c> — the manifest name of the HROT wallpaper (the Start surface's background; 1292 × 837).</summary>
+    public const string WallpaperResourceName = "FDP.Toolkit_ImGui.Icons.HROT-wallpaper.png";
+
+    /// <summary>⭐ <c>CE-4112</c> — the raw PNG bytes of the HROT wallpaper, read through the same loader as the silk atlas.</summary>
+    public static byte[] GetWallpaperPngBytes() => Read(WallpaperResourceName);
+
+    private static byte[] Read(string resourceName)
     {
         var asm    = typeof(EmbeddedAtlasResources).Assembly;
-        using var stream = asm.GetManifestResourceStream(SilkResourceName)
+        using var stream = asm.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException(
-                $"Embedded resource '{SilkResourceName}' not found. " +
-                "Ensure 'famfamfam-silk.png' is included as an EmbeddedResource in FDP.Toolkit_ImGui.csproj.");
+                $"Embedded resource '{resourceName}' not found. " +
+                "Ensure the image is included as an EmbeddedResource in Fdp.Presentation.csproj.");
 
         using var ms = new MemoryStream();
         stream.CopyTo(ms);

@@ -316,4 +316,45 @@ public class StartGateTests : IDisposable
             .Where(w => w.OwningPerspective == WM.StartPerspectiveName).ToList();
         Assert.Same(surface, Assert.Single(claimants));
     }
+
+    // ── CE-4112: the wallpaper ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-4112</c> — the cover math: for a window WIDER and one TALLER than the 1292 × 837 wallpaper, the scaled image covers the window fully, keeps its aspect, is centred, and the UV crop is the visible part.
+    /// 🔴 Mutation: <c>Math.Max</c> → <c>Math.Min</c> in <c>Cover</c> ⇒ the image no longer covers (a gap) and the cases red.
+    /// </summary>
+    [Theory]
+    [InlineData(1920f, 800f)]    // wider than the image's 1.544 aspect
+    [InlineData(800f, 1000f)]    // taller
+    [InlineData(1292f, 837f)]    // exactly the image
+    public void CE4112_TheWallpaperCoversTheWindow_KeepingItsAspect(float winW, float winH)
+    {
+        const float iw = 1292f, ih = 837f;
+        var c = StartSurfaceWindow.Cover(winW, winH, iw, ih);
+
+        Assert.True(c.X <= 0.001f && c.Y <= 0.001f, "the image starts at or before the window's corner");
+        Assert.True(c.X + c.W >= winW - 0.01f && c.Y + c.H >= winH - 0.01f, "… and reaches or passes the opposite corner (fully covered)");
+        Assert.Equal(iw / ih, c.W / c.H, 3);                                   // the aspect is kept
+        Assert.Equal((winW - c.W) / 2f, c.X, 2);                               // centred
+        Assert.Equal((winH - c.H) / 2f, c.Y, 2);
+        Assert.InRange(c.U0, 0f, 0.5f); Assert.InRange(c.V0, 0f, 0.5f);       // the UV crop is inside the texture …
+        Assert.InRange(c.U1, 0.5f, 1.0001f); Assert.InRange(c.V1, 0.5f, 1.0001f);
+        Assert.Equal(winW / c.W, c.U1 - c.U0, 3);                              // … and is exactly the visible share
+        Assert.Equal(winH / c.H, c.V1 - c.V0, 3);
+    }
+
+    /// <summary>⭐ <c>CE-4112</c> — the wallpaper is EMBEDDED in the presentation assembly under its logical name and read through the one embedded-resource loader (<c>EmbeddedAtlasResources</c>, as the silk atlas is): a real PNG, 1292 × 837.
+    /// 🔴 Mutation: the csproj's <c>LogicalName</c> changed ⇒ the manifest cell reds.</summary>
+    [Fact]
+    public void CE4112_TheWallpaperIsEmbedded_AndLoadedThroughTheSharedLoader()
+    {
+        Assert.Contains(Fdp.Presentation.Icons.EmbeddedAtlasResources.WallpaperResourceName,
+            typeof(StartSurfaceWindow).Assembly.GetManifestResourceNames());
+        var bytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetWallpaperPngBytes();
+        Assert.True(bytes.Length > 100_000);
+        Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47 }, bytes.Take(4).ToArray());                       // PNG signature
+        int w = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(16)), h = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(20));
+        Assert.Equal((1292, 837), (w, h));                                                                    // the IHDR
+        Assert.NotEmpty(Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes());               // the silk atlas still loads the same way
+    }
 }
