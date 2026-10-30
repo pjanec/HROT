@@ -4960,11 +4960,11 @@ public sealed class Map3DTests
     }
 
     /// <summary>
-    /// ⭐ CE-4123 (§6ad-3, TC1/TC2) — the traffic cars are what they are: every body style is its OWN kit (distinct silhouettes, wheels and glass), and a
+    /// ⭐ CE-1457 (§6ad-3, TC1/TC2) — the traffic cars are what they are: every body style is its OWN kit (distinct silhouettes, wheels and glass), and a
     /// WheeledCar type that NAMES a style is drawn with it, one that names none keeps the family's kit. 🔴 Red-proof: <c>KitOf</c> ignores the style.
     /// </summary>
     [Fact]
-    public void CE4123_EachBodyStyle_IsItsOwnKit_AndATypeNamingOneGetsIt()
+    public void CE1457_EachBodyStyle_IsItsOwnKit_AndATypeNamingOneGetsIt()
     {
         var styles = System.Enum.GetValues<CarBodyStyle>();
         var kits = styles.Select(CarKits.For).ToList();

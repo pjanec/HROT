@@ -3,11 +3,11 @@ using Xunit;
 
 namespace Hrot.Traffic.Tests;
 
-/// <summary>⭐ CE-4123 (§6ad-3, TC4) — a SUMO car's paint is a pure function of its id: the same on every node and replay, and across a fleet it follows the palette.</summary>
+/// <summary>⭐ CE-1457 (§6ad-3, TC4) — a SUMO car's paint is a pure function of its id: the same on every node and replay, and across a fleet it follows the palette.</summary>
 public sealed class TrafficPaintTests
 {
     [Fact]
-    public void CE4123_TheSameId_GivesTheSamePaint_AndAThousandIdsFollowThePalette()
+    public void CE1457_TheSameId_GivesTheSamePaint_AndAThousandIdsFollowThePalette()
     {
         Assert.Equal(TrafficPaint.Of("veh42", UrbanCombatTkbCatalog.TkbCivilianCar), TrafficPaint.Of("veh42", UrbanCombatTkbCatalog.TkbCivilianCar));
         var counts = new Dictionary<uint, int>();
@@ -27,7 +27,7 @@ public sealed class TrafficPaintTests
     }
 
     [Fact]
-    public void CE4123_ABusAndATruck_TakeFleetColours_NotStreetOnes()
+    public void CE1457_ABusAndATruck_TakeFleetColours_NotStreetOnes()
     {
         var bus = Enumerable.Range(0, 200).Select(i => TrafficPaint.Of("b" + i, UrbanCombatTkbCatalog.TkbTrafficBus)).Distinct().ToList();
         Assert.All(bus, c => Assert.Contains(TrafficPaint.BusPalette, p => p.Rgb == c));

@@ -1714,7 +1714,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return look;
     }
 
-    /// <summary>⭐ CE-4123 (§6ad-3 TC1) — the kit a look is drawn with: its body style's when a wheeled car type names one, else its family's.</summary>
+    /// <summary>⭐ CE-1457 (§6ad-3 TC1) — the kit a look is drawn with: its body style's when a wheeled car type names one, else its family's.</summary>
     public static ShapeKit KitOf(in TypeLook look)
         => look.Family == VisualFamily.WheeledCar && look.Style is { } style ? CarKits.For(style) : ShapeKits.For(look.Family);
 
@@ -1762,7 +1762,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                             Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
                             // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
                             Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true,
-                            Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null);   // ⭐ CE-4123
+                            Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null);   // ⭐ CE-1457
     }
 
     /// <summary>

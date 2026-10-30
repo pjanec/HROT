@@ -55,7 +55,7 @@ namespace Hrot.Core.Tkb
         public const int TkbTrafficBus         = 1052;
         /// <summary>⭐ AQ93 T1 — a box truck.</summary>
         public const int TkbTrafficTruck       = 1053;
-        /// <summary>⭐ CE-4123 (§6ad-3 TC3) — a sedan, an estate and an SUV: the passenger mix's own body styles.</summary>
+        /// <summary>⭐ CE-1457 (§6ad-3 TC3) — a sedan, an estate and an SUV: the passenger mix's own body styles.</summary>
         public const int TkbTrafficSedan       = 1054;
         public const int TkbTrafficEstate      = 1055;
         public const int TkbTrafficSuv         = 1056;
@@ -193,13 +193,13 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
                 t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "passenger", Weight = 6f });   // ⭐ AQ93 T1 — SUMO drives it too
-                t.AddDescriptor(new VisualDefinitionDto { ColorHex = "", BodyStyle = "Sedan" });   // ⭐ CE-4123 — a sedan; no type colour
+                t.AddDescriptor(new VisualDefinitionDto { ColorHex = "", BodyStyle = "Sedan" });   // ⭐ CE-1457 — a sedan; no type colour
                 t.AddDescriptor(SoftSkinCar());   // ⭐ CE-4030 — it can be hit
                 tkb.Register(t);
             }
 
             // ⭐ AQ93 §12 T1 (R-4056) — the rest of the traffic: each its own type (its own model and size), SUMO's share by weight.
-            // ⭐ CE-4123 (§6ad-3 TC3) — every traffic type names its BODY STYLE (a kit of its own in the 3-D map); the passenger mix is Sedan 3 · Estate 2 ·
+            // ⭐ CE-1457 (§6ad-3 TC3) — every traffic type names its BODY STYLE (a kit of its own in the 3-D map); the passenger mix is Sedan 3 · Estate 2 ·
             //   Hatchback 3 · Suv 2 · CivilianCar (a Sedan, above) 6
             TrafficCar(tkb, "Sedan", TkbTrafficSedan, 4.6f, 1.8f, 1.45f, 24f, "passenger", 3f, "Sedan");
             TrafficCar(tkb, "Estate", TkbTrafficEstate, 4.7f, 1.82f, 1.5f, 24f, "passenger", 2f, "Estate");
@@ -426,7 +426,7 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
             t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
             t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = vClass, Weight = weight });
-            t.AddDescriptor(new VisualDefinitionDto { ColorHex = "", BodyStyle = bodyStyle });   // ⭐ CE-4123 — no type colour (each car is painted per car), a body style
+            t.AddDescriptor(new VisualDefinitionDto { ColorHex = "", BodyStyle = bodyStyle });   // ⭐ CE-1457 — no type colour (each car is painted per car), a body style
             t.AddDescriptor(SoftSkinCar());   // ⭐ CE-4030 — it can be hit
             tkb.Register(t);
         }

@@ -4434,11 +4434,11 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
-    /// ⭐ CE-4123 (§6ad-3) — one of EACH body style in a row (sedan, estate, hatchback, SUV, van, bus, box truck), each in the paint
-    /// <c>TrafficPaint</c> gives its id: <c>map3d-ce4123-traffic-styles.png</c> under <c>HROT_RAIL_SHOTS</c> (not in git).
+    /// ⭐ CE-1457 (§6ad-3) — one of EACH body style in a row (sedan, estate, hatchback, SUV, van, bus, box truck), each in the paint
+    /// <c>TrafficPaint</c> gives its id: <c>map3d-ce1457-traffic-styles.png</c> under <c>HROT_RAIL_SHOTS</c> (not in git).
     /// </summary>
     [SkippableFact]
-    public void CE4123_OneOfEachTrafficStyle_IsDrawnInARow_InItsOwnPaint()
+    public void CE1457_OneOfEachTrafficStyle_IsDrawnInARow_InItsOwnPaint()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var terrain = Map3DTests.TestTown();
@@ -4482,7 +4482,7 @@ public sealed class Map3DFrameRail
         // from the street-side, a little above, looking along the row
         sw.Camera3D.Pose = new CameraPose(new Vector3(x0 + 25f, spot.Y + 5f, Z(x0 + 25f, spot.Y + 5f) + 1f), 46f, -MathF.PI * 0.5f + 0.0f, -0.18f);
         for (int k = 0; k < 8; k++) frame.Step(canvas.Draw);
-        frame.Screenshot(Path.Combine(shots, "map3d-ce4123-traffic-styles.png"));
+        frame.Screenshot(Path.Combine(shots, "map3d-ce1457-traffic-styles.png"));
         Assert.Equal(types.Length, bodies.AmbientDrawn);
         Assert.True(bodies.PartsDrawn > types.Length * 8, $"parts drawn: {bodies.PartsDrawn}");
         Assert.True(cars.Select(c => c.Color).Distinct().Count() >= 3, "the row is painted in several colours");
