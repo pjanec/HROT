@@ -414,12 +414,23 @@ public sealed class RunModeChoice
             _control!.OpenForEdit(scenario!);          // R2: the RAW verb — sends no armed mode, the cluster's stays
 
         }
+        // ⭐ CE-4100 (AQ108 D15) — with "ask to keep recordings" on, a RECORDED run's ■ then asks. Keep (the default, first button) does nothing more; Discard deletes the exercise;
+        //   Cancel / Esc closes it like every confirmation (= keep). The toast below still follows.
+        if (AskToKeep() && recorded && exercise != Guid.Empty)
+            Ask("Keep this recording?", $"Keep this recording? ({MainToolbarTimeControlSection.FormatSpan(length)}, {scenario ?? "scenario"})",
+                new RunModeConfirmation.Button("Keep", null), new RunModeConfirmation.Button("Discard", () => _transport.DiscardRecording(exercise)));
         // §1a: the user's words are DAR / AAR — "Replay" is gone from the vocabulary (D17). A run that was not recorded offers NO AAR button (D14).
         if (recorded && exercise != Guid.Empty)
             Notify($"Exercise recorded ({MainToolbarTimeControlSection.FormatSpan(length)}) — open the AAR", offersReplay: true);
         else
             Notify("Live run ended");
     }
+
+    /// <summary>
+    /// ⭐ CE-4100 (AQ108 D15) seam — whether ■ in Live asks "Keep this recording?". Default <c>() =&gt; false</c>: nothing changes until the cluster's setting is wired
+    /// (set by <c>ClusterTimeTransportAdapter.AttachRunChoice</c>, the one construction every host passes through).
+    /// </summary>
+    public Func<bool> AskToKeep { get; set; } = () => false;
 
     private bool _lastExerciseRecorded = true;   // whether LastExercise's run was recorded (D14): an unrecorded one is never offered for AAR
 

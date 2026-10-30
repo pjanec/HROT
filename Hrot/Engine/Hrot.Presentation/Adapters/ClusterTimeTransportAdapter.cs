@@ -251,6 +251,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         unsaved ??= new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName,
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
         _run = new RunModeChoice(this, control, unsaved);
+        _run.AskToKeep = () => false;   // TODO(CE-4100, backend): () => View?.AskToKeepRecordings == true once ClusterView carries the cluster's "ask to keep recordings" setting
         _run.OnClusterState(_currentState);   // the state the view held before the choice existed
         return _run;
     }
@@ -310,6 +311,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         RequestId = Guid.NewGuid(),
         Armed     = Enum.Parse<ClusterArmedMode>(armed.ToString()),   // ⭐ CE-3341 — one op; RecordLiveRuns null = unchanged
     });
+
+    void IRunTransport.DiscardRecording(Guid exerciseId) => _bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = exerciseId });   // ⭐ CE-4100 — the ONE construction of the discard request
 
     void IRunTransport.BranchLive() => _bus.PublishManaged(ReplaySessionIntents.BranchLive());   // the ONE construction of the branch intent
 }

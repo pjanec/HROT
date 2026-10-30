@@ -392,6 +392,8 @@ public interface IRunTransport
     void Seek(double t);
     /// <summary>From a replay: a new live run from the moment it stands at (the built branch, D18).</summary>
     void BranchLive();
+    /// <summary>⭐ CE-4100 (AQ108 D15) — discard an UNARCHIVED recording: publishes the one storage-delete request (the same <c>ExecuteStorageOpIntent</c> <c>DELETE /exercises/{id}</c> publishes). The ONE construction.</summary>
+    void DiscardRecording(Guid exerciseId);
     /// <summary>⭐ CE-3341 (AQ108 §2.14, D12a) — the CLUSTER's armed mode as this node last heard it (<c>ClusterView.ArmedMode</c>, mapped by name); <see langword="null"/> when the adapter has no view (no node yet).</summary>
     RunArmed? ClusterArmed { get; }
     /// <summary>⭐ R-1043 — the mode the cluster's LAST scenario load went into (<c>ClusterView.LastLoadMode</c>, held and broadcast by the master; before any load its initial armed mode); <see langword="null"/> with no view. What a Load goes into while AAR / DAR is armed.</summary>

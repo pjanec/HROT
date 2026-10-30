@@ -517,6 +517,54 @@ public class MainToolbarTimeControlTests
         Assert.Null(stop.Choice.Pending);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-4100 (AQ108 D15, §3 "■ in Live with ask to keep recordings ON") — ■ in a RECORDED live run asks <i>"Keep this recording? (12:34, hill-attack)"</i> when the seam says so: Keep (the default,
+    /// first button) publishes nothing, Discard publishes exactly ONE storage-delete for the run's exercise, Cancel closes it. OFF (the default): no prompt, as before. Outside Live: never.
+    /// 🔴 Red-proofs: <c>DiscardRecording</c> publishing nothing ⇒ the Discard row; the prompt shown when OFF ⇒ the off row.
+    /// </summary>
+    [Fact]
+    public void CE4100_StopInLive_AsksToKeepTheRecording_OnlyWhenTheSeamSaysSo()
+    {
+        // off (the default): today's ■ — no prompt, nothing deleted
+        var off = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        off.F.Stop();
+        Assert.Null(off.Choice.Pending);
+        Assert.Empty(RunChoiceRig.Sent<ExecuteStorageOpIntent>(off.Bus));
+
+        // on: the exact text, Keep first
+        var keep = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        keep.Choice.AskToKeep = () => true;
+        keep.F.Stop();
+        var ask = keep.Choice.Pending!;
+        Assert.NotNull(ask);
+        Assert.Equal("Keep this recording? (12:34, hill-attack)", ask.Text);
+        Assert.Equal(new[] { "Keep", "Discard", RunModeConfirmation.CancelLabel }, ask.Buttons.Select(b => b.Label).ToArray());
+        Assert.Empty(RunChoiceRig.Sent<ExecuteStorageOpIntent>(keep.Bus));          // asking deletes nothing
+        ask.Resolve(ask.Buttons[0]);                                                // Keep
+        Assert.Null(keep.Choice.Pending);
+        Assert.Empty(RunChoiceRig.Sent<ExecuteStorageOpIntent>(keep.Bus));
+
+        // Discard: exactly one delete request, for this run's exercise
+        var discard = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        discard.Choice.AskToKeep = () => true;
+        discard.F.Stop();
+        var ask2 = discard.Choice.Pending!;
+        ask2.Resolve(ask2.Buttons.Single(b => b.Label == "Discard"));
+        var sent = RunChoiceRig.Sent<ExecuteStorageOpIntent>(discard.Bus);
+        var one = Assert.Single(sent);
+        Assert.Equal(RunChoiceRig.RunId, one.ExerciseId);
+        Assert.Equal(StorageOpType.Delete, one.Operation);
+
+        // outside Live: never a prompt
+        foreach (var state in new[] { ClusterState.OperatingPreview, ClusterState.OperatingReplay, ClusterState.OperatingReview })
+        {
+            var rig = RunChoiceRig.With(state, RunArmed.Live, clock: 754);
+            rig.Choice.AskToKeep = () => true;
+            rig.F.Stop();
+            Assert.Null(rig.Choice.Pending);
+        }
+    }
+
     /// <summary>A confirmation resolves once: a second press is ignored (no second action), a foreign button is refused.</summary>
     [Fact]
     public void CE4097_AConfirmationResolvesOnce()
