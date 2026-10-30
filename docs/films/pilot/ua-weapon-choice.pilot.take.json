@@ -1,0 +1,157 @@
+{
+ "title": "TOW or 25 mm",
+ "caption": "The weapon picks itself: a 25 mm burst for the man, a TOW for the tank",
+ "clip": "F-40",
+ "chapter": 9,
+ "state": "ready",
+ "endAt": "kill+3",
+ "anchors": {
+  "burst": {
+   "on": "shot",
+   "by": "Bradley",
+   "n": 1
+  },
+  "tow": {
+   "on": "shot",
+   "by": "Bradley",
+   "n": 3
+  },
+  "kill": {
+   "on": "hit",
+   "target": "T-72"
+  }
+ },
+ "keys": [
+  {
+   "at": 0.2,
+   "eye": [
+    70,
+    585,
+    22
+   ],
+   "target": [
+    100,
+    300,
+    0
+   ],
+   "fov": 40,
+   "segment": "man"
+  },
+  {
+   "at": "burst-0.7",
+   "over": "Bradley",
+   "toward": "Insurgent",
+   "back": 14,
+   "height": 4.5,
+   "lift": 2,
+   "fov": 45,
+   "segment": "man"
+  },
+  {
+   "at": "burst+0.3",
+   "eye": [
+    118,
+    258,
+    2.5
+   ],
+   "target": [
+    100,
+    220,
+    1.2
+   ],
+   "fov": 24,
+   "segment": "man"
+  },
+  {
+   "at": "burst+1.5",
+   "over": "Bradley",
+   "toward": "T-72",
+   "back": 14,
+   "height": 4.5,
+   "lift": 2,
+   "fov": 45,
+   "segment": "swing"
+  },
+  {
+   "at": "kill-1.2",
+   "eye": [
+    415,
+    235,
+    4
+   ],
+   "target": [
+    478,
+    162,
+    2
+   ],
+   "fov": 24,
+   "segment": "tank"
+  },
+  {
+   "at": "kill+1.4",
+   "eye": [
+    440,
+    115,
+    45
+   ],
+   "target": [
+    478,
+    162,
+    0
+   ],
+   "fov": 40,
+   "segment": "tank"
+  },
+  {
+   "at": "kill-0.8",
+   "eye": [
+    535,
+    115,
+    3
+   ],
+   "target": [
+    478,
+    162,
+    2
+   ],
+   "fov": 28,
+   "segment": "replay"
+  }
+ ],
+ "segments": [
+  {
+   "id": "man",
+   "from": 0.2,
+   "to": "burst+1.5"
+  },
+  {
+   "id": "swing",
+   "from": "burst+1.5",
+   "to": "tow-0.8",
+   "speed": 2
+  },
+  {
+   "id": "tank",
+   "from": "tow-0.8",
+   "to": "kill+3"
+  },
+  {
+   "id": "replay",
+   "from": "kill-0.8",
+   "to": "kill+1.2",
+   "speed": 0.5
+  }
+ ],
+ "subtitles": [
+  {
+   "at": 0.2,
+   "until": "burst+1.5",
+   "text": "A man with a rifle: a 25 mm burst"
+  },
+  {
+   "at": "tow-0.8",
+   "until": "kill+3",
+   "text": "A tank: the TOW"
+  }
+ ]
+}
