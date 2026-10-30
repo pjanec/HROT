@@ -63,6 +63,18 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ CE-3354 ⑦ — the scenario that load named.</summary>
     public string? LastLoadScenario { get; private set; }
 
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — a scenario load request is TAKEN by the master (held for the mandatory set, parked for its staging, planned, or refused): from this moment it IS the cluster's current load, announced at once, so
+    /// <c>/status.load</c> never shows the PREVIOUS load's outcome after a new request. Whatever then happens to it — a refusal, a failed staging, a timeout, a failed round — publishes its op status for THIS id.
+    /// </summary>
+    private void NoteLoadAccepted(TransitionStateIntent intent)
+    {
+        if (!IsScenarioLoad(intent) || LastLoadRequestId == intent.TransactionId) return;
+        LastLoadRequestId = intent.TransactionId;
+        LastLoadScenario  = intent.ScenarioId;
+        PublishClusterState(_currentDsmState);
+    }
+
     private bool _runNotRecorded;
 
 

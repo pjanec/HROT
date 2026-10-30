@@ -1459,7 +1459,7 @@ public sealed class ClusterMasterBootstrapTests
 
         var first = Guid.NewGuid();
         bus.PublishManaged(new TransitionStateIntent { TransactionId = first, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ScenarioId = "scn-a" });
-        Step(bus, master);
+        Step(bus, master); view.Update();
         bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = first, ScenarioId = "scn-a", IsSuccess = true });   // the scenario's staging is on every node: the parked load resumes
         Step(bus, master); view.Update();
         Assert.Equal((first, "scn-a"), (master.LastLoadRequestId, master.LastLoadScenario));
@@ -1469,6 +1469,33 @@ public sealed class ClusterMasterBootstrapTests
         bus.PublishManaged(new TransitionStateIntent { TransactionId = second, TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
         Step(bus, master); view.Update();
         Assert.Equal(first, view.LastLoadRequestId);                                                       // an unload is not a load
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — a scenario load is the cluster's CURRENT load from the moment the master TAKES it, even while its staging is still under way: the request id is on the broadcast before the files are on the nodes, so a poller
+    /// never reads the previous load's outcome; a staging that then FAILS publishes its op status Failure for that same id, and one that never completes, Timeout. 🔴 Mutations (each compiles): <c>NoteLoadAccepted</c> not called ⇒ the
+    /// parked cells red; the failure status published for another id ⇒ the failure cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3354_AParkedLoad_NamesItsRequestBeforeStaging_AndAFailedStagingFailsThatRequest()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        var view = new ClusterView(bus, nodeId: CgfNode);
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain }, name: "CGF");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost");
+
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ScenarioId = "scn-p" });
+        Step(bus, master); view.Update();
+        Assert.Equal(request, master.ParkedRequestId);                                                       // parked: its files are being staged
+        Assert.Equal((request, "scn-p"), (view.LastLoadRequestId, view.LastLoadScenario));                    // … and it is already THE load
+
+        bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = request, ScenarioId = "scn-p", IsSuccess = false });
+        Step(bus, master); view.Update();
+        var status = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>().Where(e => e.RequestId == request));
+        Assert.Equal(OrchestrationStatusCode.Failure, status.StatusCode);
+        Assert.Equal((request, OrchestrationStatusCode.Failure), (view.LastLoadRequestId, view.OutcomeOf(request)!.Value.Status));
     }
 
     /// <summary>

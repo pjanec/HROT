@@ -452,6 +452,7 @@ public sealed partial class ClusterMaster : IDisposable
                 ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
                 return;
             }
+            if (req.OperationType == ClusterOpType.TransitionState) NoteLoadAccepted(ClusterOpRequestAdapter.ToTransitionStateIntent(req));   // ⭐ CE-3354 ⑦
             PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null);
             return;
         }
@@ -821,7 +822,7 @@ public sealed partial class ClusterMaster : IDisposable
         {
             // ⭐ CE-4087 — a scenario load WAITS on a closed latch (ProcessTransitionStateIntent holds it); anything else is rejected as before.
             //   ⭐ CE-3345 — and, while the cluster is in ERROR, a way back to Idle (Close): a way out is never gated.
-            if (LatchRefuses(intent)) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null); continue; }
+            if (LatchRefuses(intent)) { NoteLoadAccepted(intent); PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null); continue; }   // ⭐ CE-3354 ⑦ — a refused load is still the current one (Rejected)
             try   { ProcessTransitionStateIntent(intent); }
             catch (InvalidOperationException ex)
             {
@@ -1354,7 +1355,7 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessTransitionStateIntent(TransitionStateIntent intent)
     {
         var requestId = intent.TransactionId;
-
+        NoteLoadAccepted(intent);   // ⭐ CE-3354 ⑦ — a scenario load is the current load from the moment it is taken (held, parked, planned)
 
         // ⭐ CE-4087 — a newer request replaces a load that waits on the mandatory set (as ScenarioLoadSequence does caller-side) …
         SupersedeHeldLoad(requestId);

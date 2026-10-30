@@ -45,9 +45,17 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ CE-3354 ⑦ — the load <c>/status.load</c> follows: the master's broadcast current load (the cluster view), else the last this API sent.</summary>
         private (Guid RequestId, string? Scenario)? CurrentLoad
-            => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is { LastLoadRequestId: var id } view && id != Guid.Empty
-                ? (id, view.LastLoadScenario)
-                : _lastLoad is { } mine ? (mine.RequestId, mine.Scenario) : null;
+        {
+            get
+            {
+                var view = _editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode;
+                // ⭐ CE-3354 ⑦ — just after this API SENT a load, the view still reports the load it reported at send time (the master has not announced the new one yet): show OURS (Loading), never the old one's outcome.
+                //   Once the view's id changes (normally to ours) the view is the truth again.
+                if (_lastLoad is { } mine && (view is null || view.LastLoadRequestId == _viewLoadAtSend || view.LastLoadRequestId == Guid.Empty))
+                    return (mine.RequestId, mine.Scenario);
+                return view is { LastLoadRequestId: var id } v && id != Guid.Empty ? (id, v.LastLoadScenario) : null;
+            }
+        }
 
         private JsonNode? LoadStatusOrNull()
         {

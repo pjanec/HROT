@@ -195,6 +195,41 @@ public sealed class TheClusterMembershipRoutesTests
         Assert.Equal("Loaded", (string)svc.GetStatus()["load"]!["phase"]!);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — just after this API SENDS a load, the cluster view still reports the PREVIOUS load (the master has not announced the new one): <c>/status.load</c> shows the NEW request (Loading), never the old one's
+    /// "Loaded" — a poller must not read that and start too early. Once the view's id changes it is the truth again, whether it became ours or another sender's. 🔴 Mutations (each compiles): <c>CurrentLoad</c> preferring the view
+    /// at once ⇒ the first cell reads the old load; the send-time id never remembered ⇒ the same.
+    /// </summary>
+    [Fact]
+    public void CE3354_Status_load_justAfterASend_showsTheNewRequest_NotThePreviousLoadsOutcome()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", master: () => _master, clusterView: () => view) },
+            currentPerspective: () => "IG", acksPending: null),
+            clusterState: () => ClusterState.Idle);
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+
+        Guid old = Guid.NewGuid();
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, LastLoadRequestId = old, LastLoadScenario = "old-scn" });
+        Hear(new ClusterOpCompletedEvent { RequestId = old, StatusCode = OrchestrationStatusCode.Success });
+        Assert.Equal(("old-scn", "Loaded"), ((string)svc.GetStatus()["load"]!["scenario"]!, (string)svc.GetStatus()["load"]!["phase"]!));
+
+        var answer = svc.LoadScenarioLive("new-scn");                                       // sent; the view still says "old"
+        var sentId = ((TransitionStateIntent)_master.Sent.Last()).TransactionId;
+        var load = svc.GetStatus()["load"]!;
+        Assert.Equal((sentId.ToString(), "new-scn", "Loading"), ((string)load["requestId"]!, (string)load["scenario"]!, (string)load["phase"]!));
+
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, LastLoadRequestId = sentId, LastLoadScenario = "new-scn" });   // the master announces OUR load
+        Assert.Equal(sentId.ToString(), (string)svc.GetStatus()["load"]!["requestId"]!);
+
+        Guid other = Guid.NewGuid();
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, LastLoadRequestId = other, LastLoadScenario = "cli-scn" });      // another sender's load takes over
+        Assert.Equal(("cli-scn"), (string)svc.GetStatus()["load"]!["scenario"]!);
+    }
+
     private static void Hear(Fdp.Core.FdpEventBus bus, ClusterView view, string[] names)
     {
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, MapInLoadNodes = names });

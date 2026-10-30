@@ -1320,7 +1320,7 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3354 ⑥ — the ONE edit-load intent (ScenarioLoadSequence.EditLoadIntent: no ExerciseId — authoring is not an exercise run), shared with the command line's startup load
             var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name);
             var editRequest = editIntent.TransactionId;
-            _lastLoad = (editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
+            NoteLoadSent(editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
             ScenarioLoads.Request(editIntent);
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
                                     ["requestId"] = editRequest.ToString(),
@@ -1362,7 +1362,7 @@ namespace Hrot.Editor.DebugApi
             //   load → POST /sim/play flow; ForceRecording is the scenario verifier's, CE-4090 D14 §5a — ⛔ not reachable from HTTP), shared with the command line's startup load
             var liveIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.LiveLoadIntent(name, startPaused, forceRecording);
             var liveRequest = liveIntent.TransactionId;
-            _lastLoad = (liveRequest, name);   // ⭐ CE-3354 ④
+            NoteLoadSent(liveRequest, name);   // ⭐ CE-3354 ④
             ScenarioLoads.Request(liveIntent);
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
                                     ["requestId"] = liveRequest.ToString(),
@@ -1374,6 +1374,13 @@ namespace Hrot.Editor.DebugApi
         //   which the master publishes only when every node's load chain resolved (the filming node's 3-D map included) — ⛔ never the
         //   announced state, which the master advances at the round's start.
         private (Guid RequestId, string Scenario)? _lastLoad;
+        private Guid _viewLoadAtSend;   // ⭐ CE-3354 ⑦ — the load id the cluster view reported when this API sent _lastLoad: while the view still says THAT, it has not heard the new request yet
+
+        private void NoteLoadSent(Guid requestId, string name)
+        {
+            _lastLoad = (requestId, name);
+            _viewLoadAtSend = (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.LastLoadRequestId ?? Guid.Empty;
+        }
 
         /// <summary>⭐ CE-3354 ④ — the phase of load <paramref name="requestId"/> from the cluster's op outcomes (<see cref="Fdp.Toolkit.Orchestration.ClusterView.OutcomeOf"/>):
         /// Loading until the master answers, then Loaded or Failed (with its reason); <see langword="null"/> where this host keeps no cluster view.</summary>
