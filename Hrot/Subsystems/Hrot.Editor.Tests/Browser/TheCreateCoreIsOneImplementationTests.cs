@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Reflection;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
@@ -104,7 +105,7 @@ public sealed class TheCreateCoreIsOneImplementationTests
     [Fact]
     public void NeitherCompositionRootDeclaresItsOwnCreateCore()
     {
-        var repo = RepoRoot();
+        var repo = TestRepo.Root;
         var roots = new[]
         {
             Path.Combine(repo, "Hrot", "Subsystems", "Hrot.Editor", "EditorSubsystem.cs"),
@@ -302,13 +303,4 @@ public sealed class TheCreateCoreIsOneImplementationTests
 
     // ── helper ───────────────────────────────────────────────────────────────
 
-    /// <summary>Walks up from the test binary to the repo root (the dir holding <c>docs/</c>).</summary>
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "docs")))
-            dir = dir.Parent;
-        Assert.NotNull(dir);
-        return dir!.FullName;
-    }
 }

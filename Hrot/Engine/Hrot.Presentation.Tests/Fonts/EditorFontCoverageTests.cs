@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -55,7 +56,7 @@ public sealed class EditorFontCoverageTests
             || (symbols.Contains(cp) && In(EditorFontService.UiSymbolFaceRanges, cp))
             || (cp >= IconsFontAwesome6.IconMin && cp <= IconsFontAwesome6.IconMax);
 
-        string root = RepoRoot();
+        string root = TestRepo.Root;
         var literal = new Regex("\"(?:[^\"\\\\\\n]|\\\\.)*\"", RegexOptions.Compiled);
         var missing = new List<string>();
         int files = 0;
@@ -98,7 +99,7 @@ public sealed class EditorFontCoverageTests
         var named = typeof(IconsFontAwesome6).GetFields().Where(f => f.IsLiteral && f.FieldType == typeof(string))
             .ToDictionary(f => f.Name, f => (string)f.GetRawConstantValue()!);
 
-        string root = RepoRoot();
+        string root = TestRepo.Root;
         var glyph = new Regex(@"\b(?:Header)?Glyph\s*(?:=>|=)\s*(?:[^;""\n]*\?\s*)?(?<v>""(?:[^""\\]|\\.)*""|(?:Fdp\.Presentation\.Fonts\.)?IconsFontAwesome6\.(?<n>\w+))", RegexOptions.Compiled);
         var missing = new List<string>();
         int badges = 0;
@@ -203,10 +204,4 @@ public sealed class EditorFontCoverageTests
         return set;
     }
 
-    private static string RepoRoot()
-    {
-        var d = new DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null && !File.Exists(Path.Combine(d.FullName, "HROT.sln"))) d = d.Parent;
-        return d!.FullName;
-    }
 }

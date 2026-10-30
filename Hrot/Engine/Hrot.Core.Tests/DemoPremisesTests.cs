@@ -17,7 +17,7 @@ namespace Hrot.Core.Tests
 {
     /// <summary>
     /// ⭐⭐ Tuning T-2 — THE DEMO PREMISE TABLE (📄 docs/DESIGN_Terrain_Combat_Tuning.md §3 layer 2). Every <c>bt-*</c> demo's
-    /// premises live as data beside the terrain they run on (<c>Recipes/Terrain/bt-range/premises.json</c>); this theory evaluates
+    /// premises live as data beside the terrain they run on (<c>assets/terrain/bt-range/premises.json</c>); this theory evaluates
     /// each row against what the simulation will actually use — the shipped TKB (<see cref="HrotEnvironment.CreateTkb"/>) through
     /// <see cref="ParameterResolver"/>, the generated <see cref="ReferenceLibrary"/>, the material library, and the
     /// <c>bt-range</c> GEOMETRY — and requires a MARGIN from every threshold, so a demo that would pass by luck fails here.
@@ -36,11 +36,7 @@ namespace Hrot.Core.Tests
 
         private static string TerrainFolder(string name)
         {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors")))
-                dir = dir.Parent;
-            Assert.NotNull(dir);
-            return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+            return Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), name);
         }
 
         private static (JsonObject Demos, TerrainWorld World, Fdp.Toolkit.Tkb.TkbDatabase Tkb) Load(string terrain)

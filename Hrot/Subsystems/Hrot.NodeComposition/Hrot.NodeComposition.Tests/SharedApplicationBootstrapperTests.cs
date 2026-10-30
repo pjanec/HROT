@@ -101,10 +101,19 @@ public sealed class SharedApplicationBootstrapperTests
             CallLog.Add(nameof(BuildContext));
             return new HrotNodeBuilder(config)
                 .WithRole(config.SubsystemName, role)
+                .WithTimeRole(IgnoreTimeRoleWhenBuilding ? Fdp.Toolkit.Time.Controllers.TimeRole.Slave : TimeRole)   // ⭐ CE-1446 B0 — what a subclass does via BuildReplicatedNode(…, timeRole)
                 .WithNetworkFactory(networkFactory)
                 .WithReplication(role)
                 .Build();
         }
+
+        // ⭐ CE-1446 B0 — the two new base inputs, settable per test.
+        public Fdp.Toolkit.Time.Controllers.TimeRole DeclaredTimeRole { get; init; } = Fdp.Toolkit.Time.Controllers.TimeRole.Slave;
+        public bool DeclaredBuildsPostSimGroup { get; init; } = true;
+        /// <summary>Models a subclass that declares a TimeRole but forgets to build the node with it.</summary>
+        public bool IgnoreTimeRoleWhenBuilding { get; init; }
+        protected override Fdp.Toolkit.Time.Controllers.TimeRole TimeRole => DeclaredTimeRole;
+        protected override bool BuildsPostSimGroup => DeclaredBuildsPostSimGroup;
 
         protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
         {
@@ -173,7 +182,149 @@ public sealed class SharedApplicationBootstrapperTests
         public void Register(HrotNodeContext c, NodeBootValues v) => Calls.Add(nameof(Register));
     }
 
+    /// <summary>⭐ CE-1446 B0 — a capability that contributes a POST-simulation system.</summary>
+    private sealed class PostSimCapability : INodeCapability
+    {
+        public string Key => "cap:test-post-sim";
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+        public void PopulateSystems(HrotNodeContext c, List<IEcsModuleSystem> i, List<IEcsModuleSystem> s, List<IEcsModuleSystem> p) => p.Add(new TestSimSystem());
+    }
+
+    /// <summary>⭐ CE-1446 B0 — a declared TimeRole reaches the node's context and its clock (the editor's Standalone is a master-type controller); the default stays Slave — through the ONE build path
+    /// every subclass uses, <c>BuildReplicatedNode(…, timeRole)</c>. 🔴 Red-proof: <c>BuildReplicatedNode</c> dropping its <c>.WithTimeRole(timeRole)</c> ⇒ the Standalone row reads Slave.</summary>
+    [Fact]
+    public void CE1446_ADeclaredTimeRole_ReachesTheContext_AndTheDefaultIsSlave()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var standalone = new TestBootstrapper(factory) { DeclaredTimeRole = Fdp.Toolkit.Time.Controllers.TimeRole.Standalone }
+            .BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        var def = new TestBootstrapper(factory).BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, standalone.TimeRole);
+        Assert.IsType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(standalone.TimeController);
+        Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Slave, def.TimeRole);
+        Assert.IsNotType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(def.TimeController);
+
+        var viaTheSharedBuilder = HrotNodeBuilderReplicationExtensions.BuildReplicatedNode(
+            HeadlessConfig(), NodeRole.None, factory, null, Fdp.Toolkit.Time.Controllers.TimeRole.Standalone);
+        Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, viaTheSharedBuilder.TimeRole);
+        Assert.IsType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(viaTheSharedBuilder.TimeController);
+    }
+
+    /// <summary>⭐ CE-1446 B0 — a subclass that declares a TimeRole but built the node with another fails AT BOOT, naming it (no silent time-authority split).</summary>
+    [Fact]
+    public void CE1446_ATimeRoleTheNodeWasNotBuiltWith_FailsAtBoot()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var sut = new TestBootstrapper(factory) { DeclaredTimeRole = Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, IgnoreTimeRoleWhenBuilding = true };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+        Assert.Contains("declares TimeRole", ex.ToString());
+    }
+
+    private static bool KernelHasPostSimGroup(HrotNodeContext c) => c.Kernel.SystemScheduler.GetAllSystems().Any(x => x is TogglablePostSimulationGroup);
+
+    /// <summary>⭐ CE-1446 B0 — BuildsPostSimGroup=false registers NO post-simulation group (the orchestration still receives a placeholder, never registered); true (default) registers one.
+    /// 🔴 Red-proof: the `if (BuildsPostSimGroup)` guard around the group's registration removed ⇒ the false case finds one.</summary>
+    [Fact]
+    public void CE1446_BuildsPostSimGroupFalse_RegistersNoPostSimGroup_TheDefaultDoes()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var off = new TestBootstrapper(factory) { DeclaredBuildsPostSimGroup = false };
+        var offCtx = off.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        var onCtx = new TestBootstrapper(factory).BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.False(KernelHasPostSimGroup(offCtx));
+        Assert.NotNull(off.ReceivedPostSimGroup);
+        Assert.True(KernelHasPostSimGroup(onCtx));
+    }
+
+    /// <summary>⭐ CE-1446 B0 — with no post-sim group, a capability contributing post-sim systems throws a clear message instead of being dropped; with the group (default) it is fine.
+    /// 🔴 Red-proof: the throw removed ⇒ the false case boots and the systems vanish silently.</summary>
+    [Fact]
+    public void CE1446_APostSimCapability_OnAHostWithoutThatGroup_Throws_ClearlyOnlyThen()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var caps = new INodeCapability[] { new PostSimCapability() };
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            new TestBootstrapper(factory) { DeclaredBuildsPostSimGroup = false, TestCapabilities = caps }.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+        Assert.Contains("post-simulation", ex.Message);
+        Assert.Contains("BuildsPostSimGroup", ex.ToString());
+
+        new TestBootstrapper(factory) { TestCapabilities = caps }.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);   // default: no throw
+    }
+
     /// <summary>⭐⭐ CE-4013 — the base asks every hook, in its step order, on every subclass: no host can drop one.</summary>
+    // ── CE-1446 B3: no ECS host builds its node inline ───────────────────────────────────────
+
+    /// <summary>The ECS hosts and the file each one calls <c>BootstrapNode</c> from, plus the bootstrapper subclass it builds with. Stride targets net8.0-windows, so every host is reached by SOURCE.</summary>
+    private static readonly (string Host, string EntryFile, string BootstrapperFile)[] EcsHosts =
+    {
+        ("CGF",     "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                  "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs"),
+        ("SimHost", "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs",                "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"),
+        ("IG",      "Hrot/Subsystems/Hrot.IG/IgApplication.cs",                  "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"),
+        ("Editor",  "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",            "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs"),
+        ("Traffic", "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs",      "Hrot/Subsystems/Hrot.TrafficNode/TrafficNodeBootstrapper.cs"),
+        ("Stride",  "Stride/HrotStrideApp.Game/StrideNodeShell.cs",              "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs"),
+    };
+
+    private static readonly System.Text.RegularExpressions.Regex NewClusterSlave = new(@"new\s+(?:[\w.]+\.)?ClusterSlave\s*\(", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string CodeOf(string path)   // the file's code lines: comments (// and ///) dropped, so a doc mention is not a call
+        => string.Join("\n", System.IO.File.ReadAllLines(path).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1446</c> B3 (R-1045) — <b>no ECS host builds its node inline.</b> Every host (CGF, SimHost, IG, the editor, the traffic node, Stride) calls <c>BootstrapNode</c> on a
+    /// <c>SharedApplicationBootstrapper</c> subclass, and NO production source outside those bootstrappers and the builder's own files calls <c>new HrotNodeBuilder(</c> or
+    /// <c>BuildReplicatedNode(</c>. A SOURCE scan (Stride targets net8.0-windows, out of reflection's reach); it cannot pass empty — it names the six hosts and fails if one is missing.
+    /// ⚠ Stride's hand-built RUN CONTROLS (CE-1449) are not a node build — Stride's node IS built by <c>StrideNodeBootstrapper</c> (<c>StrideNodeShell.cs</c>) — so no allow-list entry is needed here.
+    /// 🔴 Red-proof: a <c>new HrotNodeBuilder(…)</c> added to <c>CgfSubsystem.Initialize</c> ⇒ the first assertion names it; ⭐ CE-3348: a <c>new ClusterSlave(…)</c> in any host file (it was <c>CgfApplication.cs</c>) ⇒ the slave assertion names it.
+    /// </summary>
+    [Fact]
+    public void CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline()
+    {
+        string root = Fdp.Testing.TestRepo.Root;
+
+        // ① the hosts are FOUND (a scan that finds nothing must fail) and each uses a bootstrapper subclass
+        Assert.Equal(new[] { "CGF", "Editor", "IG", "SimHost", "Stride", "Traffic" }, EcsHosts.Select(h => h.Host).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+        foreach (var (host, entry, bootstrapper) in EcsHosts)
+        {
+            string entryPath = System.IO.Path.Combine(root, entry), bootPath = System.IO.Path.Combine(root, bootstrapper);
+            Assert.True(System.IO.File.Exists(entryPath), $"{host}: host file '{entry}' not found — update the rail with the host's new home.");
+            Assert.True(System.IO.File.Exists(bootPath), $"{host}: bootstrapper file '{bootstrapper}' not found.");
+            Assert.Contains(".BootstrapNode(", CodeOf(entryPath));
+            Assert.Matches(@"class\s+\w+\s*:\s*SharedApplicationBootstrapper", CodeOf(bootPath));
+        }
+
+        // ② no production file outside the bootstrappers and the builder's own files builds a node itself
+        var allowed = new HashSet<string>(StringComparer.Ordinal) { "HrotNodeBuilder.cs", "HrotNodeBuilderReplicationExtensions.cs", "SharedApplicationBootstrapper.cs" };
+        var offenders = new List<string>();
+        var slaveOffenders = new List<string>();
+        int scanned = 0;
+        foreach (string top in new[] { "Hrot", "Stride" })
+            foreach (string file in Fdp.Testing.RepoSources.CsFiles(System.IO.Path.Combine(root, top)))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
+            {
+                string rel = System.IO.Path.GetRelativePath(root, file).Replace('\\', '/');
+                if (rel.Contains("Tests/") || rel.Contains(".Tests") ) continue;   // production code only
+                string name = System.IO.Path.GetFileName(file);
+                if (allowed.Contains(name) || name.EndsWith("NodeBootstrapper.cs", StringComparison.Ordinal)) continue;
+                scanned++;
+                string code = CodeOf(file);
+                if (code.Contains("new HrotNodeBuilder(") || code.Contains("BuildReplicatedNode(")) offenders.Add(rel);
+                // ⭐ CE-3348 — and NO host builds a ClusterSlave itself either: the node's ONE slave is made by the builder / bootstrapper, so every host
+                //   gets the shared handler set (EcsHostClusterHandlers.Compose) by construction. That was the shape `CgfApplication` had (a second root with its
+                //   own `new ClusterSlave(`) and the rail above missed it. ⚠ The orchestrator is not an ECS host (no world, no node): its slave is its own.
+                if (NewClusterSlave.IsMatch(code) && name != "OrchestratorSubsystem.cs") slaveOffenders.Add(rel);   // ⚠ matches a qualified `new Fdp.Toolkit.Orchestration.ClusterSlave(` too — CgfApplication wrote it that way
+            }
+
+        Assert.True(scanned > 500, $"the scan saw only {scanned} production files — it is not looking where the hosts are.");
+        Assert.True(offenders.Count == 0,
+            "These production files build a node inline (new HrotNodeBuilder / BuildReplicatedNode) instead of through a SharedApplicationBootstrapper subclass (CE-1446 / R-1045): " + string.Join(", ", offenders));
+        Assert.True(slaveOffenders.Count == 0,
+            "These production files build a ClusterSlave themselves (new ClusterSlave) instead of getting the node's one slave from the builder / bootstrapper (CE-3348): " + string.Join(", ", slaveOffenders));
+    }
+
     [Fact]
     public void CE4013_TheBaseWalksEveryCapabilityHook_InStepOrder()
     {
@@ -255,9 +406,7 @@ public sealed class SharedApplicationBootstrapperTests
         public INetworkIdAllocator CreateIdAllocator(string id, bool skip = false) => _base.CreateIdAllocator(id, skip);
         public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus b, int n) => _base.CreateMasterTimeTranslators(b, n);
         public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
-        public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus b) => _base.CreateOrchestrationObserver(b);
         public ICommandGateway CreateCommandGateway() => _base.CreateCommandGateway();
-        public IExConEgressWriters CreateExConEgressWriters() => _base.CreateExConEgressWriters();
         public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);
@@ -265,13 +414,6 @@ public sealed class SharedApplicationBootstrapperTests
         public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
         public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => _base.CreateCgfEntityLifecycleAdapters();
-        public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-            CycloneDDS.Runtime.DdsParticipant?   p, long id, IDerRepo repo,
-            Action<MapClickEventDto>              onMapClick,
-            Action<SelectionChangedEventDto>      onSelectionChanged,
-            Action<EntityLifecycleAckDto>         onEntityLifecycleAck,
-            Action<MapCommandAckDto>              onMapCommandAck)
-            => _base.CreateExConIngressHandlers(p, id, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
             CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, nodeId);
@@ -453,6 +595,9 @@ public sealed class SharedApplicationBootstrapperTests
             "DeclaredResourceKeys",
             "ResolveResources",
             "ResolveCapabilities",   // ⭐ CE-4013 — the base owns the capability walk
+            "get_TimeRole",          // ⭐ CE-1446 B0 — the two new INPUTS (property getters): a time role and whether a post-sim group is built
+            "get_BuildsPostSimGroup",
+            "get_DeduplicateSystemsByType",   // ⭐ CE-1446 B2 — opt-in CE-165 dedupe (the editor)
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);

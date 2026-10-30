@@ -24,6 +24,16 @@ namespace Hrot.UI.Common.Audio
         /// The runner sets it each playing frame (<see cref="Map3D.Director.IDirectorSound.SetRate"/>); the layer hands it to the mixer.</summary>
         public static double? Rate { get; set; }
 
+        /// <summary>
+        /// ⭐ <c>CE-1400</c> TE-11 (§11v A2, "live in the Replay Browser") — a host's OWN transport hands the scene its rate: <paramref name="playing"/> at <paramref name="rate"/>, paused = 0 (silence, the same
+        /// <see cref="SoundAtRate.Gain"/> rule a film's pause gets) — unless a film plays (<paramref name="filmPlays"/>): then the runner owns <see cref="Rate"/> and this leaves it alone. ⚠ The speed-of-sound
+        /// delay stays WALL time (§11v known edge 2).
+        /// </summary>
+        public static void HostTransport(bool filmPlays, bool playing, double rate)
+        {
+            if (!filmPlays) Rate = playing ? rate : 0d;
+        }
+
         /// <summary>Whether the camera listens: the take's switch, else the user's.</summary>
         public static bool CameraSound => TakeSound ?? AudioPreferences.CameraSound;
     }

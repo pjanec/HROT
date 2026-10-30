@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -44,14 +45,12 @@ public sealed class TheWalkUpHasOneImplementationTests
     [Fact]
     public void OnlyAssetRootsWalksUpLookingForACsproj()
     {
-        var repoRoot = RepoRoot();
+        var repoRoot = TestRepo.Root;
 
         var offenders = new List<string>();
 
-        foreach (var file in Directory.EnumerateFiles(repoRoot, "*.cs", SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(repoRoot))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")) continue;
-            if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")) continue;
             if (Path.GetFileName(file) == TheOneImplementation) continue;
             if (!IsProductionSource(file)) continue;
 
@@ -73,11 +72,9 @@ public sealed class TheWalkUpHasOneImplementationTests
     [Fact]
     public void TheScanActuallyReachesTheSourceTree()
     {
-        var repoRoot = RepoRoot();
+        var repoRoot = TestRepo.Root;
 
-        var assetRoots = Directory
-            .EnumerateFiles(repoRoot, TheOneImplementation, SearchOption.AllDirectories)
-            .FirstOrDefault(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"));
+        var assetRoots = RepoSources.Files(repoRoot, TheOneImplementation).FirstOrDefault();
 
         Assert.NotNull(assetRoots);
         Assert.Matches(WalkUpStep, File.ReadAllText(assetRoots!));
@@ -102,21 +99,55 @@ public sealed class TheWalkUpHasOneImplementationTests
         && !file.Contains(Path.DirectorySeparatorChar + "examples" + Path.DirectorySeparatorChar,
                           StringComparison.OrdinalIgnoreCase);
 
+    // ── CE-3343 — the TEST-side repository-root walk-up has ONE implementation too ─────────────────────────────────
+
+    /// <summary>⭐ The files that may spell the repository marker: the one production walk-up and the one test-side helper.</summary>
+    private static readonly string[] TheRepoRootImplementations = { "ContentLayout.cs", "TestRepo.cs" };
+
+    /// <summary>The repository marker as a string literal — built from parts so this rail does not flag itself.</summary>
+    private static readonly string MarkerLiteral = "\"" + "HROT" + ".sln" + "\"";
+
     /// <summary>
-    /// ⭐ Found through the very seam under test — <see cref="AssetRoots.ResolveProjectDir"/> — which is
-    /// also a small end-to-end use of it. ⛔ Fails loudly rather than skipping: a rail that quietly opts
-    /// out when it cannot find the tree is a rail that reports green forever.
+    /// ⭐ A method that exists to answer "where is the repo root?" — by any of the names the ~50 private copies used. ⛔ Deliberately
+    /// NOT <c>FindRoot</c> (a tree-root finder in the BTree/HSM editors) and NOT a bare <c>Root</c>.
     /// </summary>
-    private static string RepoRoot()
+    private static readonly Regex RepoRootMethod = new(
+        @"\bstatic\s+[\w?<>.\[\]]+\s+\w*(?:RepoRoot|RepositoryRoot|SolutionRoot|WorkspaceRoot|FindRepo\w*|ResolveRepo\w*|LocateRepo\w*)\s*\(",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-3343</c> — no source file keeps a PRIVATE walk-up to the repository root.</b>
+    /// Route through <c>Fdp.Testing.TestRepo.Root</c> (<c>FDP/TestShared/TestRepo.cs</c>, built on
+    /// <c>ContentLayout.TryFindSourceTree</c>). 📐 Measured <c>2026-10-29</c>: ~60 files each carried their own — different markers
+    /// (<c>HROT.sln</c>, <c>docs/</c>, <c>layout/default</c>, <c>Hrot/Subsystems</c>), different failure modes (null, assert, throw).
+    /// ⚠ A source scan: it catches a copy that spells the marker or is named like a repo-root finder; ⛔ not a walk-up that locates a
+    /// FILE by relative path (<c>FindUp("docs/x.md")</c>) — that is another question.
+    /// </summary>
+    [Fact]
+    public void NoFileKeepsAPrivateRepoRootWalkUp()
     {
-        var projectDir = AssetRoots.ResolveProjectDir(
-            "Hrot", "Editor", "Hrot.Editor.AiShared", "Hrot.Editor.AiShared.csproj");
+        var repoRoot = TestRepo.Root;
+        var offenders = new List<string>();
+        var scanned = 0;
 
-        Assert.True(projectDir != null,
-            "Could not locate the source tree from either the working directory or the output " +
-            "directory. This rail scans sources and cannot run without them.");
+        foreach (var top in new[] { "Hrot", "FDP", "Stride" })
+            foreach (var file in EnumerateSources(Path.Combine(repoRoot, top)))
+            {
+                scanned++;
+                var name = Path.GetFileName(file);
+                if (Array.IndexOf(TheRepoRootImplementations, name) >= 0) continue;
+                if (name == nameof(TheWalkUpHasOneImplementationTests) + ".cs") continue;
 
-        // …/Hrot/Editor/Hrot.Editor.AiShared → up three.
-        return Path.GetFullPath(Path.Combine(projectDir!, "..", "..", ".."));
+                var text = File.ReadAllText(file);
+                if (text.Contains(MarkerLiteral, StringComparison.Ordinal) || RepoRootMethod.IsMatch(text))
+                    offenders.Add(Path.GetRelativePath(repoRoot, file).Replace('\\', '/'));
+            }
+
+        Assert.True(scanned > 1000, $"the scan reached only {scanned} files — it walked the wrong tree");
+        Assert.Equal(new List<string>(), offenders.OrderBy(x => x, StringComparer.Ordinal).ToList());
     }
+
+    /// <summary>⭐ <c>*.cs</c> under <paramref name="dir"/> through the one scan (<see cref="RepoSources"/>: skips <c>obj</c>, <c>bin</c>, <c>.claude</c>, <c>.git</c>), and here also <c>node_modules</c> and <c>ExtDeps</c>.</summary>
+    private static IEnumerable<string> EnumerateSources(string dir)
+        => Directory.Exists(dir) ? RepoSources.CsFiles(dir, "node_modules", "ExtDeps") : Enumerable.Empty<string>();
 }

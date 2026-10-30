@@ -780,5 +780,60 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         }
         Assert.Single(BrainStopWhen.On(manager, Squad, e));
     }
+
+    /// <summary>⭐ CE-1282 — the Squad section names each member's ORDER (the behaviour that carries it out, and where) with the "Open graph"
+    /// link, and prints no <c>GET /entities/{id}/squad</c> hint. 🔴 Red-proof: restore the hint, or drop the member orders ⇒ red.</summary>
+    [SkippableFact]
+    public void CE1282_TheSquadSection_ShowsEachMembersOrder_AndLinksIt_WithNoGetHint()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (w, cmd, _, _) = RunningWorld();
+        using var _w = w;
+        var member = w.CreateEntity();
+        w.AddComponent(member, new BehaviorState { ActiveBehaviorHash = Fight });
+        Fdp.Toolkit.Squad.SquadDrillTrace.Started(w, cmd, kind: 1, phase: 2, now: 10d);
+        Fdp.Toolkit.Squad.SquadDrillTrace.Issued(w, cmd, new[]
+        {
+            new Fdp.Toolkit.Squad.SquadDrillTrace.Order(member, kind: 1, new Vector3(30, 40, 0), cover: true, issuedAt: 11d),
+        });
+
+        var snap = BrainSnapshot.Read(w, cmd, h => h == Fight ? "FightFromCover" : null);
+        Assert.NotNull(snap);
+        Assert.DoesNotContain("GET /", snap!.Squad);
+        Assert.DoesNotContain("GET /", snap.ToJson().ToJsonString());
+        var order = Assert.Single(snap.MemberOrders);
+        Assert.Equal(member, order.Member);
+        Assert.Equal("FightFromCover", order.Behaviour);
+        Assert.Equal(new Vector3(30, 40, 0), order.Point);
+        Assert.Single(snap.ToJson()["memberOrders"]!.AsArray());
+
+        var view = new EntityBrainView(() => w, h => h == Fight ? "FightFromCover" : null);
+        var old = Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current;
+        string? opened = null;
+        Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = new Hrot.Common.Diagnostics.Gizmos.UnitDebugController
+            { OpenGraph = n => { opened = n; return true; } };
+        EntityBrainView.ExpandForRail = true;
+        try
+        {
+            var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { cmd } };
+            using var frame = UiFrameHarness.Begin(760, 900);
+            frame.StepN(3, () =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(8, 8));
+                ImGui.SetNextWindowSize(new Vector2(740, 880));
+                ImGui.Begin("Brain##ce1282");
+                view.Draw(ctx, "details_ce1282");
+                ImGui.End();
+            });
+            // the link the Squad section draws is the Running behaviours' one: the member order's behaviour opens its graph
+            Assert.True(view.OpenGraph(w, order.Member, order.Behaviour, "details_ce1282"));
+            Assert.Equal("FightFromCover", opened);
+        }
+        finally
+        {
+            EntityBrainView.ExpandForRail = false;
+            Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current = old;
+        }
+    }
 }
 

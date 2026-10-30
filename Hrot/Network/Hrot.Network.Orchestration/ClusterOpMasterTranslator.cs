@@ -22,6 +22,26 @@ namespace Hrot.Network.Orchestration;
 /// </summary>
 public sealed class ClusterOpMasterTranslator
 {
+    /// <summary>⭐ CE-3341 — the ONE encoding of the master's cluster-state broadcast onto the wire (the twin of <c>ClusterFactsIngress.StateOf</c>): a field added
+    /// to the broadcast is added here once, and a round-trip test can pin both halves.</summary>
+    internal static ClusterStateTopic StateTopicOf(in ClusterStateTransitionedEvent ev) => new()
+    {
+        CurrentState     = (NedClusterState)(int)ev.NewStateId,
+        ExerciseId       = ev.ExerciseId,
+        SessionId        = ev.SessionId,          // ⭐ C2
+        TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
+        ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
+        RunNotRecorded   = ev.RunNotRecorded ? 1 : 0,   // ⭐ CE-4090 D14
+        RecordLiveRunsOff = ev.RecordLiveRunsOff ? 1 : 0,
+        ArmedMode        = (int)ev.ArmedMode,   // ⭐ CE-3341 R-3068
+        LastLoadMode     = (int)ev.LastLoadMode,   // ⭐ R-1043
+        WaitingFor       = ev.WaitingFor ?? string.Empty,   // ⭐ CE-3344 R-3069
+        ErrorReason      = ev.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
+        ClusterPlayReady = ev.ClusterPlayReady,              // ⭐ CE-3345 R-3070
+        LoadProgress     = ev.LoadProgress ?? string.Empty,
+        AskToKeepRecordings = ev.AskToKeepRecordings ? 1 : 0,   // ⭐ AQ108 D15 (CE-4100 ①)
+    };
+
     private readonly DdsReader<ClusterOpRequest>    _requestReader;
     private readonly DdsWriter<ClusterOpStatus>     _statusWriter;
     private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
@@ -92,14 +112,7 @@ public sealed class ClusterOpMasterTranslator
         {
             foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
             {
-                _clusterStateWriter.Write(new ClusterStateTopic
-                {
-                    CurrentState     = (NedClusterState)(int)ev.NewStateId,
-                    ExerciseId       = ev.ExerciseId,
-                    SessionId        = ev.SessionId,          // ⭐ C2
-                    TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
-                    ReplayAxis       = (int)ev.ReplayAxis,    // ⭐ CE-3329 R-3058
-                });
+                _clusterStateWriter.Write(StateTopicOf(ev));
             }
         }
 
@@ -184,6 +197,10 @@ public sealed class ClusterOpMasterTranslator
                 _bus.PublishManaged(SetReplayAxisPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
 
+            case NedClusterOpType.SetRunSettings:   // ⭐ CE-4090 D14
+                _bus.PublishManaged(SetRunSettingsPayloadDto.Decode(req.RequestId, req.PayloadJson));
+                break;
+
             case NedClusterOpType.SetReplayLoop:   // ⭐ CE-3329 §12n
                 _bus.PublishManaged(SetReplayLoopPayloadDto.Decode(req.RequestId, req.PayloadJson));
                 break;
@@ -205,6 +222,18 @@ public sealed class ClusterOpMasterTranslator
                     RequestId  = req.RequestId,
                     Operation  = StorageOpType.Export,
                     ExerciseId = archDto?.ExerciseId ?? Guid.Empty,
+                });
+                break;
+            }
+
+            case NedClusterOpType.DeleteExercise:   // ⭐ CE-4090 D15
+            {
+                ArchivePayloadDto? delDto = TryDeserialize<ArchivePayloadDto>(req.PayloadJson);
+                _bus.PublishManaged(new ExecuteStorageOpIntent
+                {
+                    RequestId  = req.RequestId,
+                    Operation  = StorageOpType.Delete,
+                    ExerciseId = delDto?.ExerciseId ?? Guid.Empty,
                 });
                 break;
             }
@@ -279,6 +308,10 @@ public sealed class ClusterOpMasterTranslator
                 });
                 break;
             }
+
+            case NedClusterOpType.CheckUnsavedChanges:   // ⭐ CE-4093 D20
+                _bus.PublishManaged(new CheckUnsavedIntent { RequestId = req.RequestId });
+                break;
 
             case NedClusterOpType.LoadZone:
             {

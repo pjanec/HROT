@@ -486,9 +486,9 @@ namespace Hrot.SimHost.Tests
         {
             "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs",
-            "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+            "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs",
-            "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
+            "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs",
         };
 
         // ── S2b — the network adapters are ONE input, and the pack builds the network systems ──────────
@@ -624,7 +624,7 @@ namespace Hrot.SimHost.Tests
         [Theory]
         [InlineData("Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs")]
-        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs")]
+        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs")]
         [InlineData("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs")]
         public void EveryNetworkedRoot_PassesTheAdaptersAndSchedulesTheNetworkSystems(string rootPath)
         {

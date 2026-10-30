@@ -47,8 +47,12 @@ public sealed class ReviewProcessManager
     /// <summary>⭐ The live point has been captured (the entry pause landed) — <see cref="LivePoint"/> is valid.</summary>
     public bool HasLivePoint => _inReview && !_awaitingLivePoint;
 
-    public ReviewProcessManager(FdpEventBus bus, ITimeController clock, ITimeCommands time, Func<ClusterState> state)
+    private readonly Func<bool>? _runNotRecorded;   // ⭐ CE-4090 D14 — the master's "this run was not recorded" (null = every run is)
+
+    public ReviewProcessManager(FdpEventBus bus, ITimeController clock, ITimeCommands time, Func<ClusterState> state,
+        Func<bool>? runNotRecorded = null)
     {
+        _runNotRecorded = runNotRecorded;
         _bus = bus ?? throw new ArgumentNullException(nameof(bus));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _time = time ?? throw new ArgumentNullException(nameof(time));
@@ -60,6 +64,9 @@ public sealed class ReviewProcessManager
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
         {
             if (intent.TargetState != ClusterState.OperatingReview || _state() != ClusterState.OperatingLive || _inReview) continue;
+            // ⭐ CE-4090 (AQ108 D14, §5a) — the run has no recording to review: the master refuses the request (ClusterMaster), and this
+            //   clock must not pause under a review that will never open — ⛔ the old order paused FIRST and threw in the prepare round.
+            if (_runNotRecorded?.Invoke() == true) continue;
             _inReview = true;
             ReviewId = Guid.NewGuid();
             _awaitingLivePoint = true;
@@ -68,7 +75,15 @@ public sealed class ReviewProcessManager
             FdpLog<ReviewProcessManager>.Info("[Orchestrator] CE-3329: review {0} — pausing the live run on the barrier.", intent.TransactionId);
         }
 
-        if (_awaitingLivePoint && _clock.GetMode() == TimeMode.Deterministic)
+        // ⭐⭐ CE-1447 — L is also taken the moment the review's ENTRY SEEK is requested, if the barrier has not landed by then. The pause froze
+        //   the sim time already (BarrierPending does not advance it), and the seek's snap is still a round away. ⛔ Waiting for Deterministic
+        //   alone raced the seek: its own PauseTimeIntent re-arms the 200 ms barrier, and a warm prepare+seek round finished inside it, so the
+        //   SEEK's SnapAndPause produced the Deterministic mode and L was read at the DAR's own position (measured: a second DAR, 0.3 s vs 8.1 s).
+        bool entrySeekRequested = false;
+        if (_awaitingLivePoint)
+            foreach (var _ in _bus.ReadManaged<SeekReplayIntent>()) { entrySeekRequested = true; break; }
+
+        if (_awaitingLivePoint && (entrySeekRequested || _clock.GetMode() == TimeMode.Deterministic))
         {
             _livePoint = _clock.GetCurrentState();
             _awaitingLivePoint = false;

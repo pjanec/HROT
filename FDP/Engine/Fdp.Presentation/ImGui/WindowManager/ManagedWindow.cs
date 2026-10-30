@@ -123,6 +123,17 @@ public abstract class ManagedWindow
     /// </summary>
     protected virtual bool HasMenuBar => false;
 
+    /// <summary>⭐ <c>CE-4096</c> — extra <c>Gui.Begin</c> flags (the start surface is a bare full-screen page: no title bar, no move, no dock).
+    /// Default none, so every existing window is unchanged.</summary>
+    protected virtual ImGuiWindowFlags ExtraFlags => ImGuiWindowFlags.None;
+
+    /// <summary>⭐ <c>CE-4096</c> — a hook run just before <c>Gui.Begin</c> (the place for <c>SetNextWindowPos/Size</c>). Default: nothing.</summary>
+    protected virtual void BeforeBegin() { }
+
+    /// <summary>⭐ AQ109 X5 — a hook run each frame the window is CLOSED (no ImGui calls may be made). The place for an opt-in window to release what it only
+    /// holds while open (the wire inspector's DDS readers). Default: nothing.</summary>
+    protected virtual void OnRenderWhileClosed() { }
+
     // ── Construction ───────────────────────────────────────────────────────────
 
     /// <summary>Initialises a new managed window.</summary>
@@ -154,7 +165,7 @@ public abstract class ManagedWindow
     public void Render(string currentPerspective, IconAtlas atlas)
     {
         // Step 1 — open gate.
-        if (!_isOpen) return;
+        if (!_isOpen) { OnRenderWhileClosed(); return; }
 
         // Step 2 — visibility gate.
         var isVisible = Scope == WindowScope.Global
@@ -198,7 +209,8 @@ public abstract class ManagedWindow
 
         // Step 6 — begin the window. Pass ref _isOpen so ImGui's built-in close button
         //          writes back directly to the backing field.
-        var flags = HasMenuBar ? ImGuiWindowFlags.MenuBar : ImGuiWindowFlags.None;
+        var flags = (HasMenuBar ? ImGuiWindowFlags.MenuBar : ImGuiWindowFlags.None) | ExtraFlags;
+        BeforeBegin();
         Gui.Begin(windowInternalName, ref _isOpen, flags);
 
         // Pop title-bar colours immediately after Begin (title bar is already rendered).
@@ -207,7 +219,7 @@ public abstract class ManagedWindow
 
         // Step 7 — pin button in the actual title bar (PerspectiveBound windows only).
         //          Drawn using absolute screen coordinates so it occupies no client-area height.
-        if (Scope == WindowScope.PerspectiveBound)
+        if (Scope == WindowScope.PerspectiveBound && !flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
             DrawTitleBarPinButton(perspectiveActive);
 
         // Step 8 — optional local menu bar.

@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-26
-current-answer: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
+updated: 2026-10-30
+current-answer: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
   what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-23 EVENING — START AT "SESSION 2026-10-23 — THE PLAN" directly below this STATUS block (the order of the
@@ -168,6 +170,58 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES *(state at `ui@8c3f2b902`, pushed; merged `backend@ad1e7118f`)*
+
+⚠ A STATE doc — verify against git before acting. The standing Sonnet worker is **`a01b228ca211f5b44`** (reuse with `SendMessage`).
+
+| done (ui) | where |
+|---|---|
+| R-1044 / R-1045 / R-1046 (user): ECS hosts unified + configurable; CGF + editor on the shared bootstrapper (backend built it, CE-1446); only the PLAYER loads the 3-D map in its chain | `RULINGS.md` · Cluster Load Phase §11.8 / §11.9 |
+| CE-1443 B1/B2 named saves + recipes | AQ108 §2.15b |
+| CE-4104 switches ①–④ in the real headless editor (+ CE-4100 ③ no live-end DAR) · CE-1447 (backend) proven end to end · CE-1448 the live index held around a DAR | `TheEditorsRecordingIsFilmedInTheReplayBrowserTests` |
+| CE-1445 one `NodeRunControls.For` for every ECS host; the IG offers Player run controls → the waiting screen | §11.8a |
+| R-1046 ui half: `BackgroundMeshBuild`, `Map3DBuild` / `IMapBuildStatus`, the switch waits in 2-D, the picker off the frame, the director waits for the map | §11.9a |
+| CE-4078 accepted LIVE (no ejection; the player's PlayReady waits for its map) · CE-1452 one terrain mesh per world (24.3 → 8.5 s) · CE-1451 the load + gate + waiting text on `/status` (live: "Loading — 3-D map: terrain") · CE-1450 the runner dropped the orchestrator (fixed) | `scripts/repro-ce4078.sh` (`WITH_IG=1`) |
+
+| open | |
+|---|---|
+| CE-1444 | likely refuted (sim text vs wall branch) — worker settling it |
+| CE-4104 | one live multi-process run of the four switches — worker writing `scripts/repro-mode-switches.sh` |
+| CE-1449 | Stride's hand-built run controls → `NodeRunControls.For` — needs a WINDOWS build |
+| ✅ later the same day | CE-1444 → backend CE-3351 (the paused playhead leads a seek) · CE-4104 live over HTTP (`scripts/repro-mode-switches.sh`) · CE-4100 ① the keep/discard prompt + both run-settings toggles in the cluster panel · CE-1366/1373/1393/1400/1434/1435/1324/1282 · the film's 3-D wait fixed (CE-1394) · CE-1453/1454 stale display rails |
+| ⏳ left needing the USER | the run-settings toggles' place (cluster panel, lean taken) · the older design-first rows (CE-1270, CE-1293, CE-1278…1283, CE-1286, CE-1298…1300) |
+
+## ⭐⭐⭐ SESSION 2026-10-29 (c) — ARMED-MODE MVP, READINESS (U1), THE FILE MENU (U2) *(state at `ui@60c55436f`, pushed)*
+
+| | |
+|---|---|
+| done | CE-1441 · CE-3341 ui half · CE-4102 (live proof + rail; [RUNBOOK_Filming §0b](../RUNBOOK_Filming.md)) · CE-1442 U1 (the run gate, DESIGN_Cluster_Load_Phase §11.7) · CE-1443 part A (the File menu, R-1043) + part B1 (named saves) · backend R-1043 merged (one initial armed mode; AAR/DAR Load follows `LastLoadMode`) |
+| next | CE-1443 B2 (Save … as Recipe — measure the recipe write path first) · coordinator's CE-4104 (prove the mode switches end to end) · scenario picker "waiting for the list" (U1 follow-up) |
+| ⭐ standing Sonnet worker (main checkout; gets EVERY build task, small ones too — CLAUDE.md DELEGATING EFFICIENTLY) | agent id `a01b228ca211f5b44` (started on CE-4104 switch 2) — resume with `SendMessage`, send only the delta; the earlier `acc3a39efd45e58d7` was stopped. Dead after a container restart ⇒ start one fresh and record its id here |
+
+## ⭐⭐⭐ SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066) *(state at `ui@71e8ac588`, pushed, tree clean)*
+
+🔒 User: *"We need to pause any development until we enforce the unification and sharing."* ui's share is BUILT — report:
+[NOTE_Ui_To_Coordinator_Unification_Done.md](batches/NOTE_Ui_To_Coordinator_Unification_Done.md). AQ108 §2.10 – §2.13 + §2.11a carry every as-built.
+⏳ Open: CE-1441 (as files are touched) · R-3068 ②–④ (waits on backend CE-3341) · CE-4100 (the rest of CE-4097, after the pause).
+⭐ Learned: **one Sonnet agent at a time** (CLAUDE.md) · **remove a worktree right after merging it** (eleven filled the disk) · after removing worktrees,
+`dotnet build-server shutdown` (the compiler server kept their analyzer paths ⇒ "Could not load file or assembly" from source generators) ·
+the CGF-constructing integration rails fail together on DDS participant creation and pass alone — re-run them alone before calling a red real.
+
+## ⭐⭐⭐ SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES *(state at `ui@4cb975e71`, everything pushed, tree clean)*
+
+| batch | task | state | where |
+|---|---|---|---|
+| editor fixes ([HANDOFF](batches/HANDOFF_Coordinator_To_Ui_Editor_Fixes.md)) | CE-4085 menu order · CE-4081 Esc stops a take · CE-4084 the map's visible centre | ✅ all built | Menu Follows Focus §MB.2 · Film Director §8.4 · Map 3-D §6af |
+| run modes ([HANDOFF](batches/HANDOFF_Coordinator_To_Ui_Run_Modes.md)) | CE-4098 Recent + Open Recording · CE-4096 Start screen · CE-4097 mode picker (core + part two) · CE-4083 status-bar time control removed | ✅ all built (CE-4096/4098 ahead of CE-4089, user) | AQ108 §2.6–§2.9 |
+| — | CE-4054 `inPreview` half | ✅ closed (already fixed; rails added) | Replay Time Axis §12y |
+| — | CE-1392 flaky rebuild test | ⏭ in the flaky lane, row open (backend) | tracker |
+
+⏳ **Waits on backend:** CE-1436 — one cluster ingress + one cluster read model on every node ([NOTE (frame)](batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md)); until it lands CGF / SimHost / IG hosts go live without the unsaved-edits prompt · the recorded-scenario hash for AAR → Preview's two buttons ([NOTE](batches/NOTE_Ui_To_Backend_Recorded_Scenario_Hash.md)) · CE-4089 the content move (the Start screen / pickers then list the new folders with no ui change).
+⚠ **Not built (AQ108 §2.8a):** "ask to keep recordings" (no setting exists) · checkpoint-here in AAR (no recorder in a replay) · D9's review-start default.
+⭐ **Rules learned this session:** one Sonnet agent at a time (CLAUDE.md, user `2026-10-29`) · an absence claim needs a WHOLE-tree search (a one-folder grep sent backend a wrong note — coordinator caught it).
+⚠ Known pre-existing reds: `EverySystemForgetsTheLastWorldTests`, `EverySystemStateFieldIsClassifiedTests` (runner), `TheDetailsPanelHonoursARequestForAViewTests.CE1150_*` (AiShared); load-flaky HTTP rails in `Hrot.Editor.Tests` pass alone.
 
 ## ⭐⭐⭐ SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS *(state at `ui` after the CE-1364 merge; merged `backend@491e09c7a`, `coordinator@8375318cc`)*
 

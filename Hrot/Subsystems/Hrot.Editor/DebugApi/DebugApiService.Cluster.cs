@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Presentation.DebugApi;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.DebugApi
 {
@@ -60,12 +61,22 @@ namespace Hrot.Editor.DebugApi
             }, null, null);
         }
 
+        /// <summary>⭐ CE-4101 — the door's move a transition to <paramref name="target"/> is, or <see langword="null"/> when it is none (the master's raw verbs by name).</summary>
+        public static DoorMove? TransitionMove(ClusterState target, string? scenario) => target switch
+        {
+            ClusterState.Idle                                             => DoorMove.Leaving(LeaveReason.HttpStop),
+            ClusterState.OperatingEdit when !string.IsNullOrWhiteSpace(scenario) => DoorMove.OpeningScenario(scenario!),
+            ClusterState.OperatingLive when !string.IsNullOrWhiteSpace(scenario) => DoorMove.LoadingLive(scenario!),
+            ClusterState.OperatingReplay                                  => DoorMove.OpeningRecording,
+            _                                                             => null,
+        };
+
         /// <summary>
         /// <c>POST /cluster/transition {target, scenario?, exerciseId?, timeMode?, targetWallTicks?}</c> — publish ONE
         /// <see cref="TransitionStateIntent"/>, exactly as the operator panel does. ⚠ ASYNCHRONOUS: the answer confirms
         /// the intent was PUBLISHED; read <c>GET /status</c> or <c>GET /cluster/roster</c> for the outcome.
         /// </summary>
-        public (JsonNode? Result, string? Error, string? HintCategory) RequestClusterTransition(JsonNode? body)
+        public (JsonNode? Result, string? Error, string? HintCategory) RequestClusterTransition(JsonNode? body, HttpUnsavedGate? gate = null)
         {
             var targetText = body?["target"]?.ToString();
             if (string.IsNullOrWhiteSpace(targetText)
@@ -106,7 +117,15 @@ namespace Hrot.Editor.DebugApi
                 TimeMode        = body?["timeMode"]?.ToString(),
                 CheckpointingSeconds = checkpointingSeconds,
             };
-            master.Transition(intent);
+            // ⭐ CE-4101 — the targets that OPEN a scenario / recording or LEAVE to Idle are the editor's door's decision (HTTP's refusing asker: a run is stopped, unsaved edits are refused with a 409 unless
+            //   discarded); every other target (a Loading / Unloading state, Preview, Review) stays the master's raw verb by name, as this route always was.
+            if (TransitionMove(target, intent.ScenarioId) is { } move)
+            {
+                var asker = HttpAsker(gate);
+                HttpDoor.Admit(move, asker, gate?.Answer ?? UnsavedAnswer.Unchanged, () => master.Transition(intent));
+                if (asker.Refusal is { } refusal) return (null, refusal, ConflictHint);
+            }
+            else master.Transition(intent);
             return (new JsonObject
             {
                 ["published"]     = true,

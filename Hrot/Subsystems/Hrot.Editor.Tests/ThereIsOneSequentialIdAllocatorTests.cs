@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -92,21 +93,16 @@ public sealed class ThereIsOneSequentialIdAllocatorTests
     [Fact]
     public void OnlyOneProductionFileDeclaresASequentialIdAllocator()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var found = new List<string>();
 
-        foreach (var file in Directory.EnumerateFiles(root!, "*.cs", SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(root!))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
-                file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                continue;
-
             var rel = Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel == SharedAllocatorPath) continue;
             if (rel.Contains(".Tests/")) continue;   // test doubles are not production implementations
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;   // agent worktrees: a second copy of the tree
 
             foreach (var line in File.ReadLines(file))
             {
@@ -122,14 +118,4 @@ public sealed class ThereIsOneSequentialIdAllocatorTests
     /// <summary>⭐ The one file that is SUPPOSED to declare it.</summary>
     private const string SharedAllocatorPath = "Hrot/Engine/Hrot.Core/Network/SequentialIdAllocator.cs";
 
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

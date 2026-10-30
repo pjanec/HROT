@@ -711,7 +711,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
                             new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => ctx.Kernel)),
                         ExecutionStats: () => ctx.Kernel.GetExecutionStats(),
                         // ⭐ R-S15 — the map's pick bridge is part of the deliverable, not an extra.
-                        PickBroker:     _visualization.GetMapPickBroker())),
+                        PickBroker:     _visualization.GetMapPickBroker(),
+                        WireParticipant: () => _participant)),   // ⭐ AQ109 X5
                 // ⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel every ECS host builds (the Components view).
                 //   ⚠ No actions here: this node composes no map, so nothing schedules a dispatch — Properties… and View ▸ Details
                 //   are absent, said in the warning below.
@@ -738,7 +739,8 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //   StepTimeIntent/SetTimeScaleIntent … onto HrotNodeContext.EventBus"). ⛔ Nothing local: every
         //   button publishes a cluster INTENT, and the node obeys the master like any other slave.
         _clusterTime = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(
-            ctx.EventBus, () => ctx.Kernel.CurrentTime.TotalTime);
+            ctx.EventBus, () => ctx.ClusterSlave.View,   // ⭐ CE-1436 — the node's ONE cluster view
+            () => ctx.Kernel.CurrentTime.TotalTime);
         if (_visualization.UI != null)
             _visualization.UI.TimeFacade = _clusterTime;
 

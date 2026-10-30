@@ -99,6 +99,9 @@ public sealed class AxisCursor : ITimelineCursor
     public void SetLoop(long from, long to) => _inner.SetLoop(Axis.ToWall(from), Axis.ToWall(to));
     public void ClearLoop() => _inner.ClearLoop();
 
+    // ⭐ CE-4097 part two (D21) — the host's run-mode items at a moment: the click is on the axis, the host takes WALL ticks
+    public IEnumerable<TimelineMenuItem> ModeMenuItems(long ticks, string time) => _inner.ModeMenuItems(Axis.ToWall(ticks), time);
+
     private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>? _marksFor;
     private IReadOnlyList<Fdp.Core.FlightRecorder.Metadata.CheckpointMark> _marks = Array.Empty<Fdp.Core.FlightRecorder.Metadata.CheckpointMark>();
 

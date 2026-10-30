@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -45,13 +46,6 @@ public sealed class PostureScenarioTests : IDisposable
 
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
-
     private static unsafe Entity FireTarget(EntityRepository world, Entity unit)
     {
         if (!world.HasComponent<WeaponChannel>(unit)) return Entity.Null;
@@ -73,12 +67,12 @@ public sealed class PostureScenarioTests : IDisposable
     [Fact(Timeout = 240_000)]
     public async Task CE2073_AnArmedRiflemanAgainstAnUnarmedHostile_AdvancesFiring_AndThePostureEndsAtTheObjective()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-posture", "scenario.json"),
+        File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-posture", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -152,12 +146,12 @@ public sealed class PostureScenarioTests : IDisposable
     [InlineData("ua-danger-crossing-bp")]
     public async Task CE3079_DangerCrossing_HoldsShortOfTheWatchedCrossing_UntilTheWatchersMissionWithdrawsIt_ThenArrives(string scenario)
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Path.Combine(root, "scenarios", scenario, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -228,13 +222,13 @@ public sealed class PostureScenarioTests : IDisposable
 
     // ── CE-3085 (G11) — the U1 / U2 live checks' in-process twins (design §5.3: the HTTP check is the acceptance, this the gate) ──
 
-    /// <summary>Stages <c>scenarios/&lt;folder&gt;</c>, boots simhost + ig + excon + cgf and brings the cluster to OperatingLive.</summary>
+    /// <summary>Stages <c>scenarios/&lt;folder&gt;</c>, boots simhost + ig + cgf and brings the cluster to OperatingLive.</summary>
     private async Task<HrotRunnerHarness> StartShippedScenario(string folder)
     {
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", folder, "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", folder, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
-        var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

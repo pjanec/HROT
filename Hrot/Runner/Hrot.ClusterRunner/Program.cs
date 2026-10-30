@@ -320,6 +320,9 @@ class Program
         //    ⚠ A configured-but-missing directory THROWS here, at startup, by design.
         Hrot.Editor.AiShared.AssetRoots.Configure(config.AssetRoot);
 
+        // ⭐⭐⭐ THE CONTENT SEED is NOT here (CE-4089 → CE-3340 ③): it runs inside SubsystemOrchestrator.Initialize — the ONE place every host's start
+        //    passes through (this runner, the editor inside it, the in-process harnesses) — before any subsystem initialises.
+
         // Propagate configurable AI project path to the editor subsystem before Initialize().
         foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
             sub.AiBehaviorsProjectPath = config.AiBehaviorsProjectPath;
@@ -375,7 +378,6 @@ class Program
             {
                 ["IG"]        = "IG",
                 ["SimHost"]   = "SimHost",
-                ["ExCon"]     = "ExCon",
                 ["Scenario"]  = "CGF",
             };
 
@@ -411,7 +413,7 @@ class Program
 
             var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
-                shell, subsystems, options, coordinator);
+                shell, subsystems, options, coordinator);   // ⭐ CE-1437: ⭐ CE-1443: there is no host armed default — the armed mode is the cluster's, bootstrapped by the master
 
             // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
             //
@@ -434,33 +436,13 @@ class Program
                 // ① Capture must be ON before any panel draws, or every dump is empty.
                 Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.CaptureEnabled = true;
 
-                // ⭐⭐⭐ ①b SEED THE CURATED SCENARIOS INTO THE WORKING NAS (HN-029).
-                //
-                // 📐 Measured: `POST /scenario/load/live hill-attack` in `--mode all` published its intent, the
-                //    master accepted it and fanned out to 5 nodes — then AssetPrefetchProcessManager failed with
-                //    "NAS source directory '<staging>/shared/scenarios/hill-attack' does not exist". ⇒ the load
-                //    machinery was fine; the scenario simply was not on the NAS.
-                //
-                // ⭐⭐ REUSE, not a new mechanism: CuratedScenarios is the editor's own start-up seed, and its
-                //    own doc already says "the logic is host-agnostic (the working root is a parameter), so CGF
-                //    or any other host can call the same helper." 📌 A textbook under-adopted seam.
-                //
-                // ⛔⛔ GATED ON THE DEBUG PORT ON PURPOSE — not done in a normal cluster run. The seed
-                //    force-overwrites the curated NAMES in the operator's working NAS folder, and a developer
-                //    running the cluster alongside their own edited scenarios must not have them replaced
-                //    underneath. ⚠ A no-op in a deployed build anyway (no source tree to copy from).
-                var seeded = Hrot.ScenarioEditor.Services.CuratedScenarios.SeedIntoWorking(
-                    System.IO.Path.Combine(
-                        Hrot.Orchestrator.ClusterConfiguration.Default.NasBasePath,
-                        Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName));
-                FdpLog<Program>.Info("[Runner] Curated scenarios seeded to the working NAS: [{0}].",
-                    string.Join(", ", seeded));
-
                 // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
                 //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its
                 //    subsystem's world and time adapter. 📄 ClusterDebugApiComposition.
                 var dispatcher = ClusterDebugApiComposition.Dispatcher(
-                    subsystems, () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty);
+                    subsystems, () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty,
+                    // ⭐⭐ CE-4094 — the alias source for `Start` (AQ108 M7): the ONE remembered perspective lives on the WindowManager.
+                    rememberedPerspective: () => windowCtrl?.WindowManager?.RememberedPerspective);
 
                 // ② construct + attach + start.
                 clusterApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
@@ -634,10 +616,6 @@ class Program
             {
                 // 4. The proper non-headless Render Loop.
                 // App-exit guards (e.g. the editor's unsaved-changes prompt) may DEFER a window-close.
-                var exitGuards = subsystems
-                    .OfType<Fdp.Toolkit.Runner.IAppExitGuard>()
-                    .ToList();
-                bool exiting = false;
 
                 // Remote-desktop clicks (TeamViewer / Parsec / RDP) inject WM_*BUTTONDOWN and
                 // WM_*BUTTONUP microseconds apart, so both land in one glfwPollEvents() drain and
@@ -649,7 +627,7 @@ class Program
                 using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
                 var frameStats = Hrot.ClusterRunner.Presentation.FrameStats.FromEnvironment();   // ⭐ CE-1072 — HROT_FRAME_STATS=1
 
-                while (!exiting)
+                while (true)
                 {
                     // ③ + ④ — THE FRAME BOUNDARY. 🔴 ORDER MATTERS (HN-007): the API's jobs drain FIRST,
                     //    serving the PREVIOUS frame's complete captures, and only then is the captured set
@@ -679,17 +657,12 @@ class Program
                     float dt = Raylib_cs.Raylib.GetFrameTime();
 
                     // WindowShouldClose() is edge-triggered (it reads AND resets the GLFW close flag),
-                    // so this fires once on the frame the window [X] is clicked. Ask every guard: if any
-                    // DEFERS (unsaved work → it opens its own modal), keep running; otherwise exit now.
-                    if (Raylib_cs.Raylib.WindowShouldClose())
-                    {
-                        bool deferred = false;
-                        foreach (var guard in exitGuards)
-                            if (guard.OnExitRequested() == Fdp.Toolkit.Runner.ExitDisposition.Deferred)
-                                deferred = true;
-                        if (!deferred)
-                            break; // no unsaved work → exit immediately (skip this frame's render)
-                    }
+                    // so this fires once on the frame the window [X] is clicked.
+                    // ⭐ CE-4096 — the Exit item / start-surface button is the same request as the [X].
+                    // ⭐ CE-4101 follow-up (AQ108 §2.11a ④) — ONE exit decision, `LocalWindowController.ExitDue`: the request asks the ONE guard (the subsystems' — the editor's unsaved documents — then the composition's
+                    //   scenario guard over the ▶ owner's door); a question it opens DEFERS the exit while the loop keeps drawing it, an answer in favour approves it on a later frame, a Cancel never does.
+                    if (windowCtrl.ExitDue(Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest()))
+                        break; // nothing (left) to ask → exit (skip this frame's render)
 
                     frameStats?.Begin();
                     orchestrator.Update(dt);
@@ -750,6 +723,7 @@ class Program
                     ImGuiNET.ImGui.End();
                     // --------------------------------
 
+                    windowCtrl.TickStartGate();   // ⭐ CE-4096 — the ONE start gate, fed once a frame, before the window manager draws
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
@@ -758,10 +732,6 @@ class Program
                     Raylib_cs.Raylib.EndDrawing();
                     frameStats?.EndFrame();
 
-                    // A guard's modal approved exit this frame (Save All & Exit / Discard & Exit).
-                    foreach (var guard in exitGuards)
-                        if (guard.ExitApproved)
-                            exiting = true;
                 }
 
             }
@@ -801,7 +771,6 @@ class Program
         {
             "SIMHOST"      => 1,
             "IG"           => 100,
-            "EXCON"        => 200,
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,
@@ -823,43 +792,8 @@ class Program
         //   so the rail proves THIS pre-load (folder scan, Hrot.*/Fdp.* only, Hrot.AI.Behaviors kept out for hot reload).
         => Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll();
 
-    /// <summary>
-    /// Scans all loaded assemblies for non-abstract ISubsystem implementations
-    /// (excluding PerspectiveUpdateSubsystem and CiSubsystem, which are
-    /// runner-internal or handled separately).
-    ///
-    /// CE-218: EyesAndMuscleSubsystem used to be excluded here too. It was the
-    /// "tracer bullet" that proved the SoD async-module pattern before Stride
-    /// existed (docs/designs/eyes-and-muscle/DESIGN.md, "Why EyesAndMuscle first,
-    /// Stride later"); the patterns it proved now ship in EqsModule,
-    /// CognitiveSpatialModule, NavigationSolverModule and AutonomousPerceptionModule,
-    /// and it was never reachable from any --mode token. Retired.
-    /// </summary>
-    private static IEnumerable<Type> ScanForSubsystems()
-    {
-        var subsystemType = typeof(ISubsystem);
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
-            .Where(t => t.IsClass && !t.IsAbstract
-                     && subsystemType.IsAssignableFrom(t)
-                     && t != typeof(PerspectiveUpdateSubsystem)
-                     && t != typeof(CiSubsystem));
-    }
+    private static IEnumerable<Type> ScanForSubsystems() => Hrot.ClusterRunner.SubsystemFactory.Scan();
 
-    /// <summary>
-    /// Attempts to instantiate an <see cref="ISubsystem"/> from its <see cref="Type"/>.
-    /// Requires a constructor accepting <see cref="INetworkFactory"/>.
-    /// Returns <c>null</c> when no suitable constructor is found.
-    /// </summary>
-    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory)
-    {
-        // Prefer constructor that accepts INetworkFactory.
-        var factoryCtor = type.GetConstructor(new[] { typeof(INetworkFactory) });
-        if (factoryCtor != null)
-            return (ISubsystem)factoryCtor.Invoke(new object[] { networkFactory });
-
-
-        return null;
-    }
+    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory) => Hrot.ClusterRunner.SubsystemFactory.TryCreate(type, networkFactory);
 }
 

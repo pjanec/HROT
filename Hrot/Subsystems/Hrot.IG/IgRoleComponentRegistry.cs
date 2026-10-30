@@ -52,7 +52,6 @@ public static class IgRoleComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();   // ⭐ CE-1128 — the marks rounds leave
         world.RegisterEvent<Hrot.IG.IgWeaponFireEvent>();
-        world.RegisterManagedComponent<ContextMenuState>();
 
         world.RegisterManagedComponent<EditablePolyline>();
         world.RegisterComponent<MapOverlayStyle>();

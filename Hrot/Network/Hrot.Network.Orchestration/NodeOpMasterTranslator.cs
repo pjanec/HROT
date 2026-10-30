@@ -87,13 +87,17 @@ public sealed class NodeOpMasterTranslator
             if (!sample.IsValid) continue;
             var status        = sample.Data;
             var fdpOp         = (FdpNodeOpType)(int)status.Operation;
-            var resultPayload = DeserializeResultPayload(fdpOp, status.ResultJson);
+            var statusCode    = (OrchestrationStatusCode)status.StatusCode;
+            // ⭐ CE-3345 (R-3070) — an ERROR ack's result is the node's REASON (a JSON string on the wire), whatever the op: ⛔ the per-op decoders below would read it as a malformed result.
+            var resultPayload = statusCode.IsError() && TryReadReason(status.ResultJson) is { } reason
+                ? reason
+                : DeserializeResultPayload(fdpOp, status.ResultJson);
             _bus.PublishManaged(new NodeOpCompletedEvent
             {
                 TransactionId   = status.TransactionId,
                 Operation       = fdpOp,
                 NodeId          = status.NodeId,
-                StatusCode      = (OrchestrationStatusCode)status.StatusCode,
+                StatusCode      = statusCode,
                 IsParticipating = status.IsParticipating,
                 ResultPayload   = resultPayload,
             });
@@ -101,6 +105,14 @@ public sealed class NodeOpMasterTranslator
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>⭐ CE-3345 — a node's failure reason: the JSON string the slave wrote (<c>"cancelled by the user on node 2"</c>), or the text itself when it is not JSON; <see langword="null"/> when empty.</summary>
+    internal static string? TryReadReason(string? resultJson)
+    {
+        if (string.IsNullOrWhiteSpace(resultJson)) return null;
+        try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed) ?? resultJson; }
+        catch (JsonException) { return resultJson; }
+    }
 
     /// <summary>
     /// Serialises a typed <paramref name="domainPayload"/> to a JSON string suitable for
@@ -130,7 +142,8 @@ public sealed class NodeOpMasterTranslator
                     TerrainName: p.TerrainName,
                     IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
                     IsCatchUp:       p.IsCatchUp,          // C7
-                    CheckpointingSeconds: p.CheckpointingSeconds),   // D17
+                    CheckpointingSeconds: p.CheckpointingSeconds,   // D17
+                    RecordingOff: p.RecordingOff),                  // CE-4090 D14
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(
@@ -238,6 +251,14 @@ public sealed class NodeOpMasterTranslator
 
             // ⭐ CE-3299 B3 — a node's export answer is the path it wrote (a JSON string).
             case FdpNodeOpType.ExportCheckpoint:
+            {
+                try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
+                catch { return resultJson; }
+            }
+
+            // ⭐ CE-4093 — a node's check answer is the string "changed" | "unchanged" | "no-baseline" (a JSON string on the wire). ⛔ Without
+            //   this case it fell to `default: null` and the master read every node as silent.
+            case FdpNodeOpType.CheckUnsaved:
             {
                 try { return JsonSerializer.Deserialize<string>(resultJson!, FdpJsonOptionsRegistry.DefaultRelaxed); }
                 catch { return resultJson; }

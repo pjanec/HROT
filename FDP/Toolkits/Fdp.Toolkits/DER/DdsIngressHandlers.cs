@@ -21,15 +21,15 @@ namespace Fdp.Toolkit.DER
     {
         private readonly DdsReader<T> _reader;
         private readonly IDerRepo _repo;
-        private readonly Func<T, int> _getEntityId;
+        private readonly Func<T, long> _getEntityId;
         private readonly Func<T, long> _getTkbType;
-        private readonly ConcurrentDictionary<long, int> _handleMap = new();
+        private readonly ConcurrentDictionary<long, long> _handleMap = new();
         private readonly long _localNodeId;
 
         public MasterIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
-            Func<T, int> getEntityId,
+            Func<T, long> getEntityId,
             Func<T, long> getTkbType,
             long localNodeId = 0)
         {
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.DER
                 // Also covers NotAliveNoWriters (remote node crash / disconnect).
                 if (sample.Info.InstanceState != DdsInstanceState.Alive)
                 {
-                    if (_handleMap.TryRemove(handle, out int id))
+                    if (_handleMap.TryRemove(handle, out long id))
                     {
                         _repo.DeleteEntity(id);
                     }
@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.DER
 
                 if (sample.IsValid)
                 {
-                    int id = _getEntityId(sample.Data);
+                    long id = _getEntityId(sample.Data);
                     FdpLog<MasterIngressHandler<T>>.Debug(
                         "[Node-{0}] DER: Received EntityMaster for NetID {1}. Storing in Repo.", _localNodeId, id);
                     _handleMap[handle] = id;
@@ -82,13 +82,13 @@ namespace Fdp.Toolkit.DER
     {
         private readonly DdsReader<T> _reader;
         private readonly IDerRepo _repo;
-        private readonly Func<T, int> _getEntityId;
+        private readonly Func<T, long> _getEntityId;
         private readonly Func<T, int> _getPartId;
 
         public DescriptorIngressHandler(
             DdsParticipant participant, 
             IDerRepo repo, 
-            Func<T, int> getEntityId, 
+            Func<T, long> getEntityId, 
             Func<T, int>? getPartId = null)
         {
             _reader = new DdsReader<T>(participant);
@@ -104,7 +104,7 @@ namespace Fdp.Toolkit.DER
             {
                 if (sample.IsValid)
                 {
-                    int entityId = _getEntityId(sample.Data);
+                    long entityId = _getEntityId(sample.Data);
                     var entity = _repo.GetEntity(entityId);
                     
                     // Note: In strict designs, descriptors without an active Master might be dropped 

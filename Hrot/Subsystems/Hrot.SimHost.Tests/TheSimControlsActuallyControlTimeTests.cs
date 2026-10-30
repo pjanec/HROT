@@ -39,7 +39,7 @@ public class TheSimControlsActuallyControlTimeTests
         public Hrot.UI.Common.Facades.TransportMode Mode { get; set; }
         public Fdp.Toolkit.Orchestration.ReplayAxis Axis { get; set; }
         public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => Axis = axis;
-        public void EnterReview(double? at = null) { }
+        public void EnterReview(double at) { }
         public void ExitReview() { }
         public Fdp.Toolkit.Orchestration.ReplaySession? Session { get; set; }
         public void EnterReviewAtSim(double simSeconds) { }
@@ -88,6 +88,38 @@ public class TheSimControlsActuallyControlTimeTests
 
         Assert.Same(facade, ui.TimeFacade);
         Assert.True(ui.IsPaused);              // reached the inner panel, not just the wrapper
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1437</c> (AQ108 D22) — the panel's ▶ / Step are the USER entry (<c>UserTransport</c>), like the toolbar's: on SimHost's REAL adapter + choice (Live armed, no
+    /// scenario session) from Edit they are DISABLED with the choice's own reason, and pressing them publishes NOTHING — never the raw dry run.
+    /// 🔴 Red-proof: <c>PlayPause()</c> / <c>Step()</c> calling <c>TimeFacade.TogglePlayPause()</c> / <c>Step()</c> raw ⇒ a dry-run intent is published and this reddens.
+    /// </summary>
+    [Fact]
+    public void ThePanelsPlayAndStep_AreTheUserEntry_DisabledWithTheChoicesReason_NeverARawDryRun()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
+        var adapter = SimHostSubsystem.CreateTimeTransport(bus, () => view, () => 0.0);
+        bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit });
+        bus.SwapBuffers();
+        view.Update();
+        adapter.Update();
+        bus.SwapBuffers();
+        var panel = new SimHostSimulationControlsPanel { TimeFacade = adapter };
+
+        Assert.Equal(TransportMode.Edit, adapter.Mode);
+        Assert.True(adapter.IsPlayPauseEnabled);                     // the RAW facade would let a dry run start — that is exactly what the panel must not use
+        Assert.Equal(Hrot.UI.Common.RunMode.RunArmed.Live, adapter.RunChoice!.Armed);
+        Assert.False(panel.IsPlayEnabled);
+        Assert.False(panel.IsStepEnabled);
+        Assert.NotNull(panel.PlayDisabledReason);
+        Assert.Equal(adapter.RunChoice.PlayDisabledReason, panel.PlayDisabledReason);   // the toolbar shows this same text
+
+        panel.PlayPause();
+        panel.Step();
+        bus.SwapBuffers();
+        Assert.Empty(bus.ReadManaged<Fdp.Toolkit.Orchestration.TransitionStateIntent>());
     }
 
     /// <summary>

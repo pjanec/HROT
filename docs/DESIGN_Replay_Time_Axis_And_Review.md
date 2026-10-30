@@ -362,6 +362,8 @@ Grown — the same three buttons, the same readout and rate, ⭐ plus the **mode
  REPLAY    … │ (▶)  ⏸   ⏭   ■    03:12.7   1×  [W] │ …     blue ▶   — click opens the REPLAY menu
 ```
 
+> ⭐ **`2026-10-28` (CE-4097 part two, [AQ108](blueprints/Architect_Question_108_Run_Mode_Picker.md) §1a / D17, §2.8a):** the words the user sees are **DAR** (this "Review") and **AAR** (this "Replay") — the drawings below keep the old words; the built menu reads *DAR — the last 30 s*, *DAR from the start*, header *DAR · 5:27 behind live*. The menu is also where the run-mode choice lives (Preview / Live / AAR moves with their confirmations) and the timeline's right-click menu gained *AAR from here* · *Go live from here* · *Take checkpoint here*. The rule below ("a click opens a menu, never acts") is unchanged.
+
 ⭐ **The mode indicator never acts on a click — it opens a menu, and only where the menu has something worth offering:**
 
 ```
@@ -695,6 +697,7 @@ parts of R4, R6 and §3c — marked; the user decides D-A…D-H.
 | F19 | the review's playback rate carries into live | the return restores the live rate |
 | F20 | 25 checks of `ClusterState.OperatingReplay` in 14 files and 42 `IsReplayActive` readers need a decision each (the toolbar is DISABLED in a review by `ClusterTimeTransportAdapter.cs:76-80`; the editor's Stop does nothing outside a preview, `EditorTimeTransportFacade.cs:173`; …) | one predicate `ClusterStates.IsReplaying(s)` (replay or review) for the shared behaviour, explicit review cases where they differ; a rail lists every check |
 | F21 | the `Changed` flag may be set on EVERY paused frame (singletons, ghost writes) | measure on the CE-4053 recording before relying on ◯ / ● · ✅ **MEASURED `2026-10-26` (M2): yes — every frame** (a v7 editor run of demo-city: 417 / 417 changed, all 64 frames of an operator pause included; the CE-4053 recording is v6 and carries no flags). ⇒ ◯ / ● cannot be drawn from it yet — CE-3332 · ✅ **FIXED `2026-10-26` (§12q)** — `Changed` now means a recorded byte moved |
+| F22 | ✅ **FIXED `2026-10-29` (CE-1447, backend)** — L was taken on the first tick the master reported `Deterministic`, but the review's ENTRY SEEK also produces that mode (`SnapAndPause`) and publishes its own `PauseTimeIntent`, which re-arms the 200 ms barrier. A warm prepare + seek round (a second DAR in one run) finished inside it, so L was read at the DAR's position (0.3 s, not 8.1 s) and ■ returned live there | ✅ `ReviewProcessManager` also takes L when it sees the entry `SeekReplayIntent` while still waiting: the pause has frozen the sim time and the seek's snap is a round away. Rail: `ClusterMasterReviewTests.CE1447_*` |
 
 ### 11d. Decisions for the user *(leans)*
 
@@ -1535,3 +1538,11 @@ Rails: `LiveBranchProcessManagerTests.CE4067_*` · `ReplayBrowserSubsystemTests.
 `ReplayTimeMapTests.CE4066_*` (3000 frames, ±3 ms wall jitter: every frame's own sim lands on it) · `FlightRecorderSchemaTests.CE1372_*` ×2
 (⛔ `SchemaValidator_ThrowsOnUnregisteredComponentId` SUPERSEDED by them). ⭐ CE-4067's acceptance is the coordinator's H3:
 `--verify ua-civ-melee --verify-branch-at 5` → BRANCH `same`.
+
+### 12y. ✅ CLOSED `2026-10-28` — CE-4054's `inPreview` half: Play drives the cluster clock in a run; `inPreview` is the dry run only
+
+> ⛔ **SUPERSEDED (prior behaviour):** *"`POST /sim/play` → `EditorTimeTransportFacade.TogglePlayPause` → `_preview.EnterPreviewMode()` in every state but preview, so a Play in OperatingLive / OperatingReplay started a dry run on top of the run; and `/status.inPreview` read a local flag, not the cluster state."* That facade is retired (§12m, CE-3329 row 21); the measurement was taken before it.
+
+**As built (nothing to change in code — measured, then pinned by rails).** Only Edit's Play / Step is the dry run (`ClusterTimeTransportAdapter.TogglePlayPause` / `StepBy`, the `OperatingEdit` guard). In OperatingLive, OperatingReplay and OperatingReview Play / Pause publish `ResumeTimeIntent` / `PauseTimeIntent` — the master's clock; no dry run is entered. `/status.inPreview` reads `EditorPreviewController.IsInPreviewMode` = `cluster state == OperatingPreview` (ONE source — the editor's dry run IS that cluster state; the director's `EnterPreviewMode` publishes the same `DryRunIntents.Enter`, so a take still lands there). ■ / Stop is unchanged (CE-4097's).
+
+Rails: `TheOneTimeFacadeTests.PlayAndPause_InARun_DriveTheClusterClock_NeverTheDryRun` (×3 states) · `DebugApiServiceTests.CE4054_GetStatus_InPreview_IsTrueOnlyInTheDryRun` (real `GetStatus`, ×5 states) · `TheEditorRunsTheOrchestratorCoreTests.CE4054_InPreview_*` (the controller, every `ClusterState`).

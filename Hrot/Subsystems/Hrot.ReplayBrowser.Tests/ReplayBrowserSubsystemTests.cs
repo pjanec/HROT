@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Linq;
 using System;
 using System.IO;
@@ -60,8 +61,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             .Register(new Fdp.Toolkit.Behavior.Diagnostics.BehaviourTimelineLanes());
         Assert.Equal(before.Lanes(ctx).Select(l => l.Id), _subsystem.TimelineLanes.Lanes(ctx).Select(l => l.Id));
 
-        string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        string root = TestRepo.Root;
         // the Replay Browser composes the shipped catalogue from the factory, never by hand (the editor's side is proven on a real headless editor:
         //   TheEditorRunsTheOrchestratorCoreTests.CE3330_Node_TheEditorsLiveTimelineIsItsNodeContexts_…)
         string text = File.ReadAllText(Path.Combine(root, "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"));
@@ -226,7 +226,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
         // ⭐ CE-1302 R1-c — and the event timeline (rb_event_timeline) over the primary node's recording.
         // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
-        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" },
+        // ⭐ AQ109 X5 — and the generic wire inspector (rb_wire_entities, closed; this host has no participant, so it says so).
+        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline", "rb_wire_entities" },
                      windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
 
         foreach (var (_, win) in windows)
@@ -268,8 +269,65 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(8, windows.Count);   // ⭐ CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a (the Director) — see the rail above
+        Assert.Equal(9, windows.Count);   // ⭐ AQ109 X5 (+ rb_wire_entities) · CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a (the Director) — see the rail above
         Assert.False(windows.ContainsKey("rb_federation"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1400</c> TE-11 — the Replay Browser's own playback rate is HEARD: playing at 4× with no film running, the scene's audio rate is 4; paused, 0. (The film runner owns the rate while a film plays —
+    /// <c>AudioDirector.HostTransport</c>, in the audio rails.) 🔴 Red-proof: the <c>HostTransport</c> line removed from <c>ReplayBrowserSubsystem.Update</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1400_TheBrowsersOwnPlaybackRate_IsTheAudioRate_WhenNoFilmPlays()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        try
+        {
+            Hrot.UI.Common.Audio.AudioDirector.Rate = null;
+            _subsystem.PlaybackRate = 4f;
+            _subsystem.IsPlaying = true;
+            _subsystem.Update(0.016f);
+            Assert.Equal(4d, Hrot.UI.Common.Audio.AudioDirector.Rate);
+
+            _subsystem.IsPlaying = false;
+            _subsystem.Update(0.016f);
+            Assert.Equal(0d, Hrot.UI.Common.Audio.AudioDirector.Rate);
+        }
+        finally { Hrot.UI.Common.Audio.AudioDirector.Rate = null; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1393</c> — the two test seams load a group THROUGH <c>OpenGroup</c> (the ONE open path), so a group they load is in the same state as one <c>OpenGroup</c> loaded: a new recording starts
+    /// unlooped, not playing, with an empty back/forward history. 🔴 Red-proof: a seam repeating part of <c>OpenGroup</c>'s body again (no resets) ⇒ its row.
+    /// </summary>
+    [Theory]
+    [InlineData("OpenGroup")]
+    [InlineData("LoadFdpGroupForTest")]
+    [InlineData("LoadFdpViaManager")]
+    public void CE1393_ASeamLoadedGroup_IsInTheSameStateAsAnOpenGroupLoadedOne(string how)
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var history = (Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker)typeof(ReplayBrowserSubsystem)
+            .GetField("_playbackHistory", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(_subsystem)!;
+
+        // a previous session's leftovers: playing, a loop set, a history to go back through
+        _subsystem.IsPlaying = true;
+        _subsystem.LocalLoop = (1.0, 2.0);
+        history.PushWaypoint(1, default);
+        history.PushWaypoint(2, default);
+        Assert.True(history.CanGoBack);
+
+        var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());
+        switch (how)
+        {
+            case "OpenGroup": Assert.Null(_subsystem.OpenGroup(new[] { path })); break;
+            case "LoadFdpGroupForTest": _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer())); break;
+            default: _subsystem.LoadFdpViaManager(path); break;
+        }
+
+        Assert.False(_subsystem.IsPlaying);
+        Assert.Null(_subsystem.LocalLoop);
+        Assert.False(history.CanGoBack);
     }
 
     /// <summary>
@@ -1104,7 +1162,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     public void CE3118_TheRecordingsTerrain_AndItsRoads_AreOnTheReplayWorld()
     {
         string path = RecordNamingTerrain("terrain.fdp", "test-town");
-        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        // ⭐ CE-4089 — there is no shipped arm any more: the catalog reads the repository's assets/terrain (a test of repo content reads the SOURCE tree).
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[]
+            { Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!) });
         _subsystem.Initialize(HeadlessConfig());
         _subsystem.LoadFdpViaManager(path);
 
@@ -1798,8 +1858,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     [Fact]
     public void CE1303_P2a_TheReplayBrowser_AttachesTheDirectorThroughThePack_Only()
     {
-        string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+        string root = TestRepo.Root;
         string text = string.Concat(Directory.EnumerateFiles(Path.Combine(root, "Hrot/Subsystems/Hrot.ReplayBrowser"), "*.cs").Select(File.ReadAllText));
         Assert.Contains("DirectorPack.Attach(", text);
         foreach (var built in new[] { "new DirectorRunner(", "new DirectorTakeSession(", "new DirectorWindow(", "new WindowCinema(", "new MapLayerOverride(" })
@@ -2115,6 +2174,44 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.All(onB.Where(s => s.Sim > 3.62 && s.Sim < 4.98), s => Assert.Equal(Key3At, s.Camera));
         Assert.Contains(reportB.Mismatches, m => m.StartsWith("shot:Alpha#1: baked 2 s, live 2.6 s", StringComparison.Ordinal));   // A's bake vs B, said
         Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(pathB)!, "s-film", "takes", "main.take.json")));            // nothing written beside B
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3340</c> ② (AQ108 D7) — the director's takes compare against the version that RAN, the go-live stamp of the recording's copy: a recording whose meta
+    /// carries the hash AS LOADED but whose copy was stamped from the SAVED file (edit → save → go-live) gives the SAVED hash; one with no copy / stamp (a
+    /// recording from before CE-4091) falls back to its meta hash — in the ONE helper (<c>RecordedScenarioStamp.VersionOf</c>).
+    /// 🔴 Mutation: <c>AttachDirector</c> handing the store <c>m.ScenarioHash</c> again ⇒ the first assertion reads the load-time hash ⇒ red; the fallback arm removed
+    /// from <c>VersionOf</c> ⇒ the old recording reads empty (the file under the scenarios root) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE3340_2_TheDirectorsTakes_ReadTheGoLiveStamp_AndAnOldRecordingFallsBackToItsMetaHash()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "ce3340-root");
+        const string loaded = """{"name":"s-film","v":1}""", saved = """{"name":"s-film","v":2}""";
+        string loadedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(loaded), savedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(saved);
+        Assert.NotEqual(loadedHash, savedHash);
+
+        var stamped = Guid.NewGuid();
+        string pathStamped = RecordFilmRun(Path.Combine(root, "nodes", "node-1", "exercises", stamped.ToString()), 2d, exerciseId: stamped, scenarioHash: loadedHash);
+        string copy = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetArchivedScenarioDirectory(Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot(root), stamped);
+        Directory.CreateDirectory(copy);
+        File.WriteAllText(Path.Combine(copy, "scenario.json"), saved);                       // the SAVED file the go-live copied
+        Fdp.Toolkit.Scenario.RecordedScenarioStamp.Write(copy, "s-film", DateTime.UtcNow);
+
+        var old = Guid.NewGuid();
+        string pathOld = RecordFilmRun(Path.Combine(root, "nodes", "node-1", "exercises", old.ToString()), 2d, exerciseId: old, scenarioHash: loadedHash);
+
+        _subsystem.RecordingsRoot = root;
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var pack = _subsystem.Director!;
+
+        OpenAndIndex(pathStamped);
+        Assert.Equal(savedHash, pack.Takes.ScenarioHash("s-film"));                          // the version that RAN, not the one loaded
+
+        OpenAndIndex(pathOld);
+        Assert.Equal(loadedHash, pack.Takes.ScenarioHash("s-film"));                         // no stamp: the meta hash
     }
 
     /// <summary>
@@ -2800,8 +2897,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Log($"recording {recording}; takes root {_subsystem.DirectorTakesRoot}; resident terrain {_subsystem.ResidentTerrainName ?? "none"}");
 
             // TE-1 — the scenario's seeded take, beside the recording, keyed by the scenario the recording names
-            string root = AppContext.BaseDirectory;
-            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string root = TestRepo.Root;
             string seeded = Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json");
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
             Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
@@ -2927,8 +3023,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { recording }, 0));
             for (int i = 0; i < 30; i++) Frame();
             var pack = _subsystem.Director!;
-            string root = AppContext.BaseDirectory;
-            while (!File.Exists(Path.Combine(root, "HROT.sln"))) root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("repo root not found");
+            string root = TestRepo.Root;
             string beside = Path.Combine(_subsystem.DirectorTakesRoot, scenario, "takes", takeName + ".take.json");
             Directory.CreateDirectory(Path.GetDirectoryName(beside)!);
             File.Copy(Path.Combine(root, "scenarios", scenario, "takes", takeName + ".take.json"), beside, overwrite: true);

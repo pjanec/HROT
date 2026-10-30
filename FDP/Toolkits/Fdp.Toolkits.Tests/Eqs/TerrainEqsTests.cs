@@ -234,10 +234,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         /// <summary>A recipe terrain with its building templates (bt-range's House A is a two-storey template).</summary>
         private static TerrainWorld Recipe(string name)
         {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            var folder = Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+            var folder = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), name);
             var file = Directory.GetFiles(folder, "*.world.geojson").Single();
             return TerrainWorldParser.Parse(File.ReadAllText(file), name, TerrainAssets.ForFolder(folder));
         }
@@ -1069,10 +1066,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
         private static TerrainWorld TestTown()
         {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-            Assert.NotNull(dir);
-            var path = Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town",
+            var path = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town",
                 "test-town.world.geojson");
             return TerrainWorldParser.Parse(File.ReadAllText(path), "test-town");
         }

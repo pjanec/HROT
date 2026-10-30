@@ -24,8 +24,8 @@ def comps(nid): return ent(nid).get("Components", {})
 def tkb(nid): return (comps(nid).get("TkbIdentity") or {}).get("TkbType")
 CIVILIANS = (1101, 1102, 1103, 1104)
 
-r = call("POST", "/scenario/load/live", {"name": "Recipes/demo-city", "waitForReady": True, "startPaused": False})
-check("load Recipes/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or "")
+r = call("POST", "/scenario/load/live", {"name": "recipes/scenarios/demo-city", "waitForReady": True, "startPaused": False})
+check("load recipes/scenarios/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or "")
 call("POST", "/sim/play", {}); time.sleep(40)   # pedestrians spawn over time (SumoSharp's rate)
 
 types = data(call("GET", "/tkb/types")) or []

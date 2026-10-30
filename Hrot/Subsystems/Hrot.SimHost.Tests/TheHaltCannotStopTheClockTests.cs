@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -144,21 +145,15 @@ public sealed class TheHaltCannotStopTheClockTests
     [Fact]
     public void OnlyTheThreeTimeTranslatorsDeclareThemselvesControlPlane()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var declaring = new List<string>();
 
-        foreach (var file in System.IO.Directory.EnumerateFiles(root!, "*.cs", System.IO.SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(root!))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}") ||
-                file.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}"))
-                continue;
-
             var rel = System.IO.Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;
-            // ⚠ Agent worktrees live under .claude/worktrees/ — a second copy of the tree, not more declarations.
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;
 
             foreach (var line in System.IO.File.ReadLines(file))
             {
@@ -195,15 +190,4 @@ public sealed class TheHaltCannotStopTheClockTests
         }, declaring);
     }
 
-    /// <summary>⭐ Walks up to the checkout root, the same probe the other structural rails use.</summary>
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (System.IO.File.Exists(System.IO.Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = System.IO.Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

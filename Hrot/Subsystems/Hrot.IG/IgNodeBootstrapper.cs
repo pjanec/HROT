@@ -272,6 +272,15 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <summary>⭐ P5a — IG's recording controller, the same one every ECS host composes (null until orchestration is built).</summary>
     public Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? RecordReplayController { get; private set; }
 
+    /// <summary>
+    /// ⭐ CE-4078 / CE-1446 (R-1046) — the load parts this node's PROFILE adds (<c>MapInLoad</c> ⇒ <see cref="Hrot.Map.Common.ClusterLoad.LoadPart.Map3D"/>), set by the application before <c>BootstrapNode</c> from its
+    /// <c>NodeRunProfile</c>. Empty ⇒ the load does not wait for a map. ⛔ No other host sets it.
+    /// </summary>
+    public System.Collections.Generic.IReadOnlyList<Hrot.Map.Common.ClusterLoad.LoadPart> ProfileLoadParts { get; set; } = System.Array.Empty<Hrot.Map.Common.ClusterLoad.LoadPart>();
+
+    /// <summary>⭐ CE-4078 — where the 3-D map step polls the map's build from (the application's <c>MapBuildStatus</c>; null result = no map attached, resolved).</summary>
+    public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
+
     protected override ClusterSlave BuildOrchestration(
         HrotNodeContext context,
         TogglableSimulationGroup simGroup,
@@ -317,7 +326,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             elm:                 context.BaseModules?.OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault(),
             terrainContent:      context.TerrainContent,
             clusterSlave:        context.ClusterSlave,
-            slaveTranslator:     context.SlaveTranslator);
+            slaveTranslator:     context.SlaveTranslator,
+            profileLoadParts:    ProfileLoadParts,
+            mapBuildStatus:      MapBuildStatus);
 
         RecordReplayController = _nodeBootstrapper.RecordReplayController;   // P5a — the same controller every ECS host composes
         return slave;

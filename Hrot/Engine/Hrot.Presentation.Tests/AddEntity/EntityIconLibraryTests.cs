@@ -1,4 +1,5 @@
 using System.Numerics;
+using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Tkb;
 using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Tkb;
@@ -11,6 +12,8 @@ namespace Hrot.Presentation.Tests.AddEntity;
 /// <summary>
 /// ⭐ <c>CE-1017</c> S5 — the entity icon library serves every icon key the Add Entity catalog asks for.
 /// 📄 docs/DESIGN_Add_Entity_Picker.md D3c, S5.
+/// ⭐ <c>CE-4089</c>: the art is CONTENT — <c>assets/icons</c> at the repository root, seeded into the NAS; nothing is embedded in the assembly. These rails
+/// read the repository's icons through a temp folder that stands for the NAS's <c>assets/icons</c>.
 /// </summary>
 public sealed class EntityIconLibraryTests
 {
@@ -32,17 +35,31 @@ public sealed class EntityIconLibraryTests
 
     private static string EmptyDir() => Directory.CreateTempSubdirectory("entity-icons").FullName;
 
+    /// <summary>The repository's icon art (<c>assets/icons/*.png</c>).</summary>
+    private static string RepoIcons() => ContentLayout.IconAssets(ContentLayout.TryFindSourceTree()!);
+
+    /// <summary>⭐ A folder standing for the NAS's <c>assets/icons</c> after a dev start: the repository's PNGs copied in.</summary>
+    private static string SeededIcons()
+    {
+        var dir = EmptyDir();
+        foreach (var png in Directory.GetFiles(RepoIcons(), "*.png"))
+            File.Copy(png, Path.Combine(dir, Path.GetFileName(png)));
+        return dir;
+    }
+
     [Fact]
-    public void CE1017_EveryIconKeyTheBuiltInCatalogAsksFor_HasEmbeddedArt()
+    public void CE1017_EveryIconKeyTheBuiltInCatalogAsksFor_HasArtInTheIconsFolder()
     {
         var db = new TkbDatabase();
         NedTkbCatalog.RegisterAll(db);
         UrbanCombatTkbCatalog.RegisterAll(db);
 
+        var art = EntityIconLibrary.NamesIn(RepoIcons());
+        Assert.NotEmpty(art);   // the rail would prove nothing on an empty folder
         foreach (var e in EntityTypeCatalog.Build(db))
         {
             var name = EntityTypeCatalog.IconKeyOf(e)[EntityIconLibrary.Prefix.Length..];
-            Assert.True(EntityIconLibrary.EmbeddedNames.Contains(name), $"'{e.Name}' asks for '{name}', which has no PNG");
+            Assert.True(art.Contains(name), $"'{e.Name}' asks for '{name}', which has no PNG in assets/icons");
         }
     }
 
@@ -62,7 +79,7 @@ public sealed class EntityIconLibraryTests
     public void CE1017_AnEntityKey_IsUploadedOnce_AndCached()
     {
         var gpu = new FakeGpu();
-        var lib = new EntityIconLibrary(overrideDirectory: EmptyDir(), upload: gpu.Upload);
+        var lib = new EntityIconLibrary(overrideDirectory: SeededIcons(), upload: gpu.Upload);
 
         Assert.True(lib.TryGet("entity/t72", out var a));
         Assert.True(lib.TryGet("entity/t72", out var b));
@@ -76,14 +93,14 @@ public sealed class EntityIconLibraryTests
     public void CE1017_ANameWithNoArt_FallsBackToTheMarker()
     {
         var gpu = new FakeGpu();
-        var lib = new EntityIconLibrary(overrideDirectory: EmptyDir(), upload: gpu.Upload);
+        var lib = new EntityIconLibrary(overrideDirectory: SeededIcons(), upload: gpu.Upload);
 
         Assert.True(lib.TryGet("entity/no_such_icon", out _));
         Assert.Single(gpu.Uploads);   // the _point marker
     }
 
     [Fact]
-    public void CE1017_AFileInTheOverrideFolder_WinsOverTheEmbeddedArt()
+    public void CE1017_AFileInTheIconsFolder_IsWhatIsServed_AndNothingIsEmbedded()
     {
         var dir = EmptyDir();
         var mine = new byte[] { 1, 2, 3 };
@@ -93,6 +110,11 @@ public sealed class EntityIconLibraryTests
         new EntityIconLibrary(overrideDirectory: dir, upload: gpu.Upload).TryGet("entity/t72", out _);
 
         Assert.Equal(mine, Assert.Single(gpu.Uploads));
+
+        // ⭐ CE-4089 — and with NO art in the folder a name is simply not served (there is no embedded fallback to find it).
+        var bare = new FakeGpu();
+        Assert.False(new EntityIconLibrary(overrideDirectory: EmptyDir(), upload: bare.Upload).TryGet("entity/t72", out _));
+        Assert.Empty(bare.Uploads);
     }
 
     [Fact]

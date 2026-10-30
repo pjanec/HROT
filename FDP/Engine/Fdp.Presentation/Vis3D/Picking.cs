@@ -64,54 +64,62 @@ namespace Fdp.Toolkit.Vis3D
     public sealed class TerrainPicker : IPicker3D
     {
         private readonly Func<ITerrainRenderGeometry?> _source;
-        private object? _identity;
-        private Vector3[] _a = Array.Empty<Vector3>(), _b = Array.Empty<Vector3>(), _c = Array.Empty<Vector3>();
-        private float _minZ, _maxZ;
-        private Vector2 _min;
-        private float _cell = 1f;
-        private int _nx, _ny;
-        private int[] _cellStart = Array.Empty<int>();
-        private int[] _cellTris = Array.Empty<int>();
+        /// <summary>⭐ R-1046 — the grid is built on a worker (<see cref="BackgroundMeshBuild{TStreams}"/>, keyed by the geometry's identity) and swapped in on the frame thread: a pick NEVER builds it.</summary>
+        private readonly BackgroundMeshBuild<PickGrid> _build = new();
+        private PickGrid? _grid;
 
         public TerrainPicker(Func<ITerrainRenderGeometry?> source) => _source = source ?? throw new ArgumentNullException(nameof(source));
 
         public PickFilter Kind => PickFilter.Terrain;
 
-        /// <summary>Triangles indexed (0 until the first pick with a world).</summary>
-        public int TriangleCount => _a.Length;
+        /// <summary>Triangles indexed (0 until the grid for the current geometry is built).</summary>
+        public int TriangleCount => _grid?.A.Length ?? 0;
+
+        /// <summary>True when the grid for the CURRENT geometry is built (a pick can hit).</summary>
+        public bool IsBuilt => _source() is { } geometry && _build.IsBuiltFor(geometry.Identity);
+
+        /// <summary>Starts the build for the current geometry if it has not been asked, swaps in a finished one; returns <see cref="IsBuilt"/>. A pick does this itself.</summary>
+        public bool Update() => Current() != null;
+
+        private PickGrid? Current()
+        {
+            var geometry = _source();
+            if (geometry == null) return null;
+            _build.Request(geometry.Identity, () => PickGrid.Build(geometry));
+            _build.Pump(g => _grid = g);
+            return _build.IsBuiltFor(geometry.Identity) ? _grid : null;
+        }
 
         public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
         {
             hit = PickResult.None;
-            var geometry = _source();
-            if (geometry == null) return false;
-            if (!ReferenceEquals(geometry.Identity, _identity)) Build(geometry);
-            if (_a.Length == 0) return false;
+            var g = Current();                                  // ⭐ R-1046: null while the grid builds on its worker — a pick never blocks, it just misses
+            if (g == null || g.A.Length == 0) return false;
 
             // Clip the ray to the slab of the terrain's Z range and walk the grid over that XY segment.
-            if (!ClipToZ(origin, direction, maxDistance, out float t0, out float t1)) return false;
+            if (!ClipToZ(g, origin, direction, maxDistance, out float t0, out float t1)) return false;
             var p0 = origin + direction * t0;
             var p1 = origin + direction * t1;
             float best = float.PositiveInfinity;
 
-            int cx = CellX(p0.X), cy = CellY(p0.Y);
-            int ex = CellX(p1.X), ey = CellY(p1.Y);
+            int cx = g.CellX(p0.X), cy = g.CellY(p0.Y);
+            int ex = g.CellX(p1.X), ey = g.CellY(p1.Y);
             var d2 = new Vector2(p1.X - p0.X, p1.Y - p0.Y);
             int stepX = d2.X > 0 ? 1 : -1, stepY = d2.Y > 0 ? 1 : -1;
-            float tMaxX = d2.X != 0 ? ((_min.X + (cx + (stepX > 0 ? 1 : 0)) * _cell) - p0.X) / d2.X : float.PositiveInfinity;
-            float tMaxY = d2.Y != 0 ? ((_min.Y + (cy + (stepY > 0 ? 1 : 0)) * _cell) - p0.Y) / d2.Y : float.PositiveInfinity;
-            float tDeltaX = d2.X != 0 ? _cell / MathF.Abs(d2.X) : float.PositiveInfinity;
-            float tDeltaY = d2.Y != 0 ? _cell / MathF.Abs(d2.Y) : float.PositiveInfinity;
-            int guard = _nx + _ny + 4;
+            float tMaxX = d2.X != 0 ? ((g.Min.X + (cx + (stepX > 0 ? 1 : 0)) * g.Cell) - p0.X) / d2.X : float.PositiveInfinity;
+            float tMaxY = d2.Y != 0 ? ((g.Min.Y + (cy + (stepY > 0 ? 1 : 0)) * g.Cell) - p0.Y) / d2.Y : float.PositiveInfinity;
+            float tDeltaX = d2.X != 0 ? g.Cell / MathF.Abs(d2.X) : float.PositiveInfinity;
+            float tDeltaY = d2.Y != 0 ? g.Cell / MathF.Abs(d2.Y) : float.PositiveInfinity;
+            int guard = g.Nx + g.Ny + 4;
             while (guard-- > 0)
             {
-                if (cx >= 0 && cy >= 0 && cx < _nx && cy < _ny)
+                if (cx >= 0 && cy >= 0 && cx < g.Nx && cy < g.Ny)
                 {
-                    int cellIndex = cy * _nx + cx;
-                    for (int k = _cellStart[cellIndex]; k < _cellStart[cellIndex + 1]; k++)
+                    int cellIndex = cy * g.Nx + cx;
+                    for (int k = g.CellStart[cellIndex]; k < g.CellStart[cellIndex + 1]; k++)
                     {
-                        int tri = _cellTris[k];
-                        if (Intersect(origin, direction, _a[tri], _b[tri], _c[tri], out float t) && t >= 0f && t < best && t <= maxDistance)
+                        int tri = g.CellTris[k];
+                        if (Intersect(origin, direction, g.A[tri], g.B[tri], g.C[tri], out float t) && t >= 0f && t < best && t <= maxDistance)
                             best = t;
                     }
                 }
@@ -127,64 +135,15 @@ namespace Fdp.Toolkit.Vis3D
             return true;
         }
 
-        private int CellX(float x) => Math.Clamp((int)MathF.Floor((x - _min.X) / _cell), -1, _nx);
-        private int CellY(float y) => Math.Clamp((int)MathF.Floor((y - _min.Y) / _cell), -1, _ny);
-
-        private bool ClipToZ(Vector3 o, Vector3 d, float max, out float t0, out float t1)
+        private bool ClipToZ(PickGrid g, Vector3 o, Vector3 d, float max, out float t0, out float t1)
         {
             t0 = 0f; t1 = max;
-            float lo = _minZ - 0.01f, hi = _maxZ + 0.01f;
+            float lo = g.MinZ - 0.01f, hi = g.MaxZ + 0.01f;
             if (MathF.Abs(d.Z) < 1e-8f) return o.Z >= lo && o.Z <= hi;
             float ta = (lo - o.Z) / d.Z, tb = (hi - o.Z) / d.Z;
             if (ta > tb) (ta, tb) = (tb, ta);
             t0 = MathF.Max(t0, ta); t1 = MathF.Min(t1, tb);
             return t1 >= t0;
-        }
-
-        private void Build(ITerrainRenderGeometry geometry)
-        {
-            _identity = geometry.Identity;
-            geometry.Build(out var verts, out var indices, out _);
-            int n = indices.Length / 3;
-            _a = new Vector3[n]; _b = new Vector3[n]; _c = new Vector3[n];
-            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
-            _minZ = float.MaxValue; _maxZ = float.MinValue;
-            for (int t = 0; t < n; t++)
-            {
-                _a[t] = verts[indices[3 * t]]; _b[t] = verts[indices[3 * t + 1]]; _c[t] = verts[indices[3 * t + 2]];
-                foreach (var v in new[] { _a[t], _b[t], _c[t] })
-                {
-                    min = Vector2.Min(min, new Vector2(v.X, v.Y)); max = Vector2.Max(max, new Vector2(v.X, v.Y));
-                    _minZ = MathF.Min(_minZ, v.Z); _maxZ = MathF.Max(_maxZ, v.Z);
-                }
-            }
-            if (n == 0) { _nx = _ny = 0; return; }
-            _min = min;
-            var extent = max - min;
-            // ~ 8 triangles per occupied cell on average; at least 2 m, at most 512 cells a side.
-            float area = MathF.Max(1f, extent.X * extent.Y);
-            _cell = Math.Clamp(MathF.Sqrt(area * 8f / n), 2f, MathF.Max(2f, MathF.Max(extent.X, extent.Y) / 8f));
-            _nx = Math.Clamp((int)MathF.Ceiling(extent.X / _cell) + 1, 1, 512);
-            _ny = Math.Clamp((int)MathF.Ceiling(extent.Y / _cell) + 1, 1, 512);
-            _cell = MathF.Max(_cell, MathF.Max(extent.X / (_nx - 0.001f), extent.Y / (_ny - 0.001f)));
-
-            var counts = new int[_nx * _ny + 1];
-            var lists = new List<(int Cell, int Tri)>(n * 2);
-            for (int t = 0; t < n; t++)
-            {
-                float x0 = MathF.Min(_a[t].X, MathF.Min(_b[t].X, _c[t].X)), x1 = MathF.Max(_a[t].X, MathF.Max(_b[t].X, _c[t].X));
-                float y0 = MathF.Min(_a[t].Y, MathF.Min(_b[t].Y, _c[t].Y)), y1 = MathF.Max(_a[t].Y, MathF.Max(_b[t].Y, _c[t].Y));
-                int ix0 = Math.Clamp(CellX(x0), 0, _nx - 1), ix1 = Math.Clamp(CellX(x1), 0, _nx - 1);
-                int iy0 = Math.Clamp(CellY(y0), 0, _ny - 1), iy1 = Math.Clamp(CellY(y1), 0, _ny - 1);
-                for (int iy = iy0; iy <= iy1; iy++)
-                    for (int ix = ix0; ix <= ix1; ix++)
-                    { lists.Add((iy * _nx + ix, t)); counts[iy * _nx + ix]++; }
-            }
-            _cellStart = new int[_nx * _ny + 1];
-            for (int i = 0; i < _nx * _ny; i++) _cellStart[i + 1] = _cellStart[i] + counts[i];
-            _cellTris = new int[lists.Count];
-            var fill = (int[])_cellStart.Clone();
-            foreach (var (cell, tri) in lists) _cellTris[fill[cell]++] = tri;
         }
 
         /// <summary>Möller–Trumbore, two-sided.</summary>
@@ -204,6 +163,69 @@ namespace Fdp.Toolkit.Vis3D
             if (v < 0f || u + v > 1f) return false;
             t = Vector3.Dot(e2, q) * inv;
             return t >= 0f;
+        }
+    }
+
+    /// <summary>⭐ R-1046 — the picker's index of the terrain: its triangles (HROT space) and the uniform grid over their XY bounds. Immutable once built, so it is built on a worker and swapped in whole.</summary>
+    internal sealed class PickGrid
+    {
+        public Vector3[] A = Array.Empty<Vector3>(), B = Array.Empty<Vector3>(), C = Array.Empty<Vector3>();
+        public float MinZ, MaxZ;
+        public Vector2 Min;
+        public float Cell = 1f;
+        public int Nx, Ny;
+        public int[] CellStart = Array.Empty<int>();
+        public int[] CellTris = Array.Empty<int>();
+
+        public int CellX(float x) => Math.Clamp((int)MathF.Floor((x - Min.X) / Cell), -1, Nx);
+        public int CellY(float y) => Math.Clamp((int)MathF.Floor((y - Min.Y) / Cell), -1, Ny);
+
+        /// <summary>The CPU build (off the frame thread): reads only the geometry's immutable terrain.</summary>
+        public static PickGrid Build(ITerrainRenderGeometry geometry)
+        {
+            var g = new PickGrid();
+            geometry.Build(out var verts, out var indices, out _);
+            int n = indices.Length / 3;
+            g.A = new Vector3[n]; g.B = new Vector3[n]; g.C = new Vector3[n];
+            var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+            g.MinZ = float.MaxValue; g.MaxZ = float.MinValue;
+            for (int t = 0; t < n; t++)
+            {
+                g.A[t] = verts[indices[3 * t]]; g.B[t] = verts[indices[3 * t + 1]]; g.C[t] = verts[indices[3 * t + 2]];
+                foreach (var v in new[] { g.A[t], g.B[t], g.C[t] })
+                {
+                    min = Vector2.Min(min, new Vector2(v.X, v.Y)); max = Vector2.Max(max, new Vector2(v.X, v.Y));
+                    g.MinZ = MathF.Min(g.MinZ, v.Z); g.MaxZ = MathF.Max(g.MaxZ, v.Z);
+                }
+            }
+            if (n == 0) { g.Nx = g.Ny = 0; return g; }
+            g.Min = min;
+            var extent = max - min;
+            // ~ 8 triangles per occupied cell on average; at least 2 m, at most 512 cells a side.
+            float area = MathF.Max(1f, extent.X * extent.Y);
+            g.Cell = Math.Clamp(MathF.Sqrt(area * 8f / n), 2f, MathF.Max(2f, MathF.Max(extent.X, extent.Y) / 8f));
+            g.Nx = Math.Clamp((int)MathF.Ceiling(extent.X / g.Cell) + 1, 1, 512);
+            g.Ny = Math.Clamp((int)MathF.Ceiling(extent.Y / g.Cell) + 1, 1, 512);
+            g.Cell = MathF.Max(g.Cell, MathF.Max(extent.X / (g.Nx - 0.001f), extent.Y / (g.Ny - 0.001f)));
+
+            var counts = new int[g.Nx * g.Ny + 1];
+            var lists = new List<(int Cell, int Tri)>(n * 2);
+            for (int t = 0; t < n; t++)
+            {
+                float x0 = MathF.Min(g.A[t].X, MathF.Min(g.B[t].X, g.C[t].X)), x1 = MathF.Max(g.A[t].X, MathF.Max(g.B[t].X, g.C[t].X));
+                float y0 = MathF.Min(g.A[t].Y, MathF.Min(g.B[t].Y, g.C[t].Y)), y1 = MathF.Max(g.A[t].Y, MathF.Max(g.B[t].Y, g.C[t].Y));
+                int ix0 = Math.Clamp(g.CellX(x0), 0, g.Nx - 1), ix1 = Math.Clamp(g.CellX(x1), 0, g.Nx - 1);
+                int iy0 = Math.Clamp(g.CellY(y0), 0, g.Ny - 1), iy1 = Math.Clamp(g.CellY(y1), 0, g.Ny - 1);
+                for (int iy = iy0; iy <= iy1; iy++)
+                    for (int ix = ix0; ix <= ix1; ix++)
+                    { lists.Add((iy * g.Nx + ix, t)); counts[iy * g.Nx + ix]++; }
+            }
+            g.CellStart = new int[g.Nx * g.Ny + 1];
+            for (int i = 0; i < g.Nx * g.Ny; i++) g.CellStart[i + 1] = g.CellStart[i] + counts[i];
+            g.CellTris = new int[lists.Count];
+            var fill = (int[])g.CellStart.Clone();
+            foreach (var (cell, tri) in lists) g.CellTris[fill[cell]++] = tri;
+            return g;
         }
     }
 

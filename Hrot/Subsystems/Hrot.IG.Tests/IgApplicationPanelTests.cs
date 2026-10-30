@@ -50,19 +50,6 @@ public class IgApplicationPanelTests
         Assert.NotNull(panel);
     }
 
-    /// <summary>
-    /// SC2-c: <see cref="MiniExConPanel"/> must be constructable from a
-    /// <see cref="MiniExConPanelState"/> and a <see cref="FdpEventBus"/>.
-    /// </summary>
-    [Fact]
-    public void MiniExConPanel_Constructed_IsNotNull()
-    {
-        var state    = new MiniExConPanelState();
-        var eventBus = new FdpEventBus();
-        var panel    = new MiniExConPanel(state, eventBus);
-
-        Assert.NotNull(panel);
-    }
 
     /// <summary>
     /// SC2-d: <see cref="PerformanceOverlay"/> must be constructable from a

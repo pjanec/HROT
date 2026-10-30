@@ -35,6 +35,7 @@ namespace Hrot.Editor.Director
         private readonly Func<Fdp.Toolkit.Orchestration.ClusterState> _state;
         private readonly Func<string?> _recordingPath;
         private readonly Func<string, IRecordedRun> _openRecording;
+        private readonly Func<Fdp.Toolkit.Vis3D.Map3DBuild?>? _mapBuild;
         private readonly System.Diagnostics.Stopwatch _wall = System.Diagnostics.Stopwatch.StartNew();
 
         public EditorDirectorHost(Func<EntityRepository?> world, Action<string> load, Func<bool> operatingEdit, Func<bool> inPreview,
@@ -42,8 +43,10 @@ namespace Hrot.Editor.Director
                                   Func<int, string?> behaviourName, TakeStore takes, Func<bool> slotRunInFlight,
                                   Action<string, string> writeCheckpoint, Func<string, double> restoreCheckpoint,
                                   Action<string> loadLive, Hrot.Presentation.DebugApi.IClusterMasterControl master, Func<Fdp.Toolkit.Orchestration.ClusterState> state,
-                                  Func<string?> recordingPath, Func<string, IRecordedRun> openRecording)
+                                  Func<string?> recordingPath, Func<string, IRecordedRun> openRecording,
+                                  Func<Fdp.Toolkit.Vis3D.Map3DBuild?>? mapBuild = null)
         {
+            _mapBuild = mapBuild;
             _loadLive = loadLive ?? throw new ArgumentNullException(nameof(loadLive));
             _master = master ?? throw new ArgumentNullException(nameof(master));
             _state = state ?? throw new ArgumentNullException(nameof(state));
@@ -65,6 +68,8 @@ namespace Hrot.Editor.Director
         /// <summary>The director loaded one, or the user did (the editor is then OperatingEdit).</summary>
         public bool HasLoadedAScenario => _loaded || _operatingEdit();
         public int? EntityCount => _world()?.EntityCount;
+        /// <summary>⭐ R-1046 — the editor's shown map's 3-D build (null headless: no map).</summary>
+        public Fdp.Toolkit.Vis3D.Map3DBuild? MapBuild => _mapBuild?.Invoke();
         public bool InPreview => _inPreview();
         public void EnterPreview(bool startPaused) => _enterPreview(startPaused);
         public void ExitPreview() => _exitPreview();
@@ -82,8 +87,8 @@ namespace Hrot.Editor.Director
         // ⭐ CE-4045 H1a — a live run and its recording (Scenario Regression §10-1)
         public void LoadLive(string scenario) { _loaded = true; _loadLive(scenario); }
         public bool IsOperatingLive => _state() == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive;
-        public void StopLive() => _master.Transition(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-            { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        // ⭐ CE-4101 — the director stops a LIVE run (no scenario is being edited there, so the door has nothing to ask): the ONE Idle intent, not a hand-built copy
+        public void StopLive() => _master.Transition(Fdp.Toolkit.Orchestration.ScenarioLoadSequence.UnloadIntent());
 
         // ⭐ CE-4045 H5 — the review through the ONE construction of its intents (the same as POST /review and the facade)
         public void EnterReview(double simSeconds) => _master.Transition(Hrot.UI.Common.Facades.ReplaySessionIntents.EnterReview(simSeconds: simSeconds));

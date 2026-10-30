@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Documents;
@@ -394,7 +395,7 @@ public sealed class SaveCommandsTests
             hasLoadedScenario:       () => true,
             saveScenarioAction:      () => saveScenarioCalled = true,
             requestScenarioSaveAs:   null,
-            describeActiveTarget:    null);
+            scenarioName:            null);
 
         InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
 
@@ -432,7 +433,7 @@ public sealed class SaveCommandsTests
             hasLoadedScenario:       null,
             saveScenarioAction:      () => saveScenarioCalled = true,
             requestScenarioSaveAs:   null,
-            describeActiveTarget:    null);
+            scenarioName:            null);
 
         InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
 
@@ -469,7 +470,7 @@ public sealed class SaveCommandsTests
             hasLoadedScenario:       () => true,
             saveScenarioAction:      null,
             requestScenarioSaveAs:   () => scenarioSaveAsCalled = true,
-            describeActiveTarget:    null);
+            scenarioName:            null);
 
         InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsId);
 
@@ -568,13 +569,20 @@ public sealed class SaveCommandsTests
     }
 
     /// <summary>
-    /// When describeActiveTarget is set, the shell.save descriptor's
-    /// DynamicDisplayName returns the supplied value.
+    /// ⭐ CE-1443 part B (AQ108 §2.15, user: "the save menu item should never be just plain save") — the shell's Save / Save As / Save All NAME what they
+    /// write, by ONE rule (<see cref="SaveLabels"/>) on every host: the scenario in scenario context, else the focused document; Save All counts.
+    /// 🔴 Mutations: <c>DynamicDisplayName</c> dropped from shell.save ⇒ null label ⇒ red; <c>SaveLabels.KindName</c> returning <c>kind.ToString()</c> for Hsm ⇒ "Save Hsm …" ⇒ red;
+    /// <c>DirtyCount</c> counting every open document ⇒ "(2 changed)" ⇒ red.
     /// </summary>
     [Fact]
-    public void DynamicDisplayName_NamesKindAndAsset()
+    public void CE1443_EverySaveItem_NamesWhatItSaves_AndSaveAllCounts()
     {
         var mgr = MakeManager();
+        var hsm = mgr.Open(new FakeAsset(AssetKind.Hsm, "Guard", "/fake/guard.hsm.json"));
+        var bt  = mgr.Open(new FakeAsset(AssetKind.BTree, "Patrol", "/fake/patrol.btree.json"));
+        bt.MarkDirty();
+        bool scenarioContext = false;
+        AiDocument? focused = hsm;
         var (descriptors, unusedActions) = MakeRecordingRegister();
 
         ShellSaveCommands.Register(
@@ -586,25 +594,32 @@ public sealed class SaveCommandsTests
             saveScenario:          null,
             requestSaveAs:         _ => { },
             report:                null,
-            describeActiveTarget:  () => "Save [scenario: test-move]");
+            isScenarioContext:     () => scenarioContext,
+            scenarioName:          () => "test-move",
+            resolveActiveDocument: () => focused);
 
-        var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
-        Assert.NotNull(saveDesc.DynamicDisplayName);
-        Assert.Equal("Save [scenario: test-move]", saveDesc.DynamicDisplayName!());
+        string Label(string id) => FindDescriptor(descriptors, id).DynamicDisplayName!();
+        Assert.Equal("Save HSM 'Guard'", Label(ShellSaveCommands.SaveId));
+        Assert.Equal("Save HSM 'Guard' As…", Label(ShellSaveCommands.SaveAsId));
+        focused = bt;
+        Assert.Equal("Save BTree 'Patrol'", Label(ShellSaveCommands.SaveId));
+        scenarioContext = true;
+        Assert.Equal("Save Scenario 'test-move'", Label(ShellSaveCommands.SaveId));
+        Assert.Equal("Save Scenario 'test-move' As…", Label(ShellSaveCommands.SaveAsId));
+        Assert.Equal("Save All (1 changed)", Label(ShellSaveCommands.SaveAllId));
+        bt.MarkClean();
+        Assert.Equal("Save All (nothing changed)", Label(ShellSaveCommands.SaveAllId));
     }
 
     /// <summary>
-    /// With saveScenarioAction supplied, scenario.save is registered and its handler
-    /// routes to saveScenarioAction. With requestScenarioSaveAs supplied, scenario.saveAs
-    /// is likewise registered.
+    /// ⭐ CE-1443 part B — <c>scenario.save</c> / <c>scenario.saveAs</c> are registered ONCE, by <c>ScenarioMenuCommands</c> (every operator host): the shell
+    /// no longer registers the same two ids a second time (the last registration used to win). 🔴 Mutation: restoring the shell's scenario.save registration ⇒ red.
     /// </summary>
     [Fact]
-    public void ScenarioSave_Command_RoutesToSaveScenario()
+    public void CE1443_TheShell_DoesNotRegisterTheScenarioSaves_ScenarioMenuCommandsOwnsThem()
     {
         var mgr = MakeManager();
         var (descriptors, actions) = MakeRecordingRegister();
-        int saveScenarioCalls = 0;
-        int scenarioSaveAsCalls = 0;
 
         ShellSaveCommands.Register(
             register:                RecordingRegister(descriptors, actions),
@@ -615,27 +630,58 @@ public sealed class SaveCommandsTests
             saveScenario:            null,
             requestSaveAs:           _ => { },
             report:                  null,
-            saveScenarioAction:      () => saveScenarioCalls++,
-            requestScenarioSaveAs:   () => scenarioSaveAsCalls++);
+            saveScenarioAction:      () => { },
+            requestScenarioSaveAs:   () => { });
 
-        // Verify both commands are registered.
-        var scenarioSaveDesc = FindDescriptor(descriptors, ShellSaveCommands.ScenarioSaveId);
-        Assert.Equal("Save Scenario", scenarioSaveDesc.DisplayName);
-        Assert.Equal("File", scenarioSaveDesc.Category);
+        Assert.DoesNotContain(descriptors, d => d.Id is "scenario.save" or "scenario.saveAs");
+    }
 
-        var scenarioSaveAsDesc = FindDescriptor(descriptors, ShellSaveCommands.ScenarioSaveAsId);
-        Assert.Equal("Save Scenario As…", scenarioSaveAsDesc.DisplayName);
-        Assert.Equal("File", scenarioSaveAsDesc.Category);
+    /// <summary>
+    /// ⭐ CE-1443 B2 (AQ108 §2.15) — <i>Save BTree 'x' as Recipe…</i> writes the focused document into its kind's recipes folder (<see cref="Hrot.Editor.AiShared.Recipes.RecipeFiles"/>,
+    /// the one lister New BTree reads), never over an existing recipe, and does NOT mark the document clean (its own file was not saved). Not offered for a kind with no recipe writer.
+    /// 🔴 Mutation: <c>RecipeFiles.PathFor</c> without the "(n)" loop ⇒ the second save overwrites ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1443_B2_SaveAsRecipe_WritesIntoTheKindsRecipes_NeverOverAnExistingOne_AndNamesIt()
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "recipes_" + Guid.NewGuid().ToString("N"));
+        var saved = AssetRoots.ConfiguredRoot;
+        System.IO.Directory.CreateDirectory(root);
+        AssetRoots.Configure(root);
+        try
+        {
+            var mgr = MakeManager();
+            var bt = mgr.Open(new FakeAsset(AssetKind.BTree, "Patrol", "/fake/patrol.btree.json"));
+            bt.MarkDirty();
+            var (descriptors, actions) = MakeRecordingRegister();
+            ShellSaveCommands.Register(
+                register: RecordingRegister(descriptors, actions), docManager: mgr,
+                saveBlueprint: null, saveHsm: null, saveScenario: null, requestSaveAs: _ => { }, report: null,
+                saveBTree: (a, path) => { System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!); System.IO.File.WriteAllText(path, a.Name); },
+                resolveActiveDocument: () => bt);
 
-        // Invoke scenario.save → fires saveScenarioAction.
-        InvokeAction(descriptors, actions, ShellSaveCommands.ScenarioSaveId);
-        Assert.Equal(1, saveScenarioCalls);
-        Assert.Equal(0, scenarioSaveAsCalls);
+            var desc = FindDescriptor(descriptors, ShellSaveCommands.SaveAsRecipeId);
+            Assert.Equal("Save BTree 'Patrol' as Recipe…", desc.DynamicDisplayName!());
+            Assert.True(desc.IsEnabled());
 
-        // Invoke scenario.saveAs → fires requestScenarioSaveAs.
-        InvokeAction(descriptors, actions, ShellSaveCommands.ScenarioSaveAsId);
-        Assert.Equal(1, saveScenarioCalls); // unchanged
-        Assert.Equal(1, scenarioSaveAsCalls);
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+            InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsRecipeId);
+
+            var files = Hrot.Editor.AiShared.Recipes.RecipeFiles.Files(AssetKind.BTree);
+            Assert.Equal(new[] { "Patrol (2).btree.json", "Patrol.btree.json" }, files.Select(System.IO.Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal));
+            Assert.True(bt.IsDirty, "a recipe copy is not a save of the document");
+
+            var hsm = mgr.Open(new FakeAsset(AssetKind.Hsm, "Guard", "/fake/guard.hsm.json"));
+            var (d2, a2) = MakeRecordingRegister();
+            ShellSaveCommands.Register(register: RecordingRegister(d2, a2), docManager: mgr, saveBlueprint: null, saveBTree: null, saveHsm: null, saveScenario: null,
+                                       requestSaveAs: _ => { }, report: null, resolveActiveDocument: () => hsm);
+            Assert.False(FindDescriptor(d2, ShellSaveCommands.SaveAsRecipeId).IsEnabled());   // no HSM writer on this host ⇒ not offered
+        }
+        finally
+        {
+            AssetRoots.Configure(saved);
+            if (System.IO.Directory.Exists(root)) System.IO.Directory.Delete(root, recursive: true);
+        }
     }
 
     // ── BUG-A2: named/unnamed routing in scenario context ─────────────────────
@@ -776,7 +822,7 @@ public sealed class SaveCommandsTests
             hasLoadedScenario:      null,
             saveScenarioAction:     null,
             requestScenarioSaveAs:  null,
-            describeActiveTarget:   null,
+            scenarioName:           null,
             resolveActiveDocument:  resolver);
 
         // IsEnabled must be false for Save and SaveAs.
@@ -837,16 +883,11 @@ public sealed class SaveCommandsTests
         InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsId);
         Assert.True(saveAsCalled, "requestSaveAs should be called for SaveAs (legacy)");
 
-        // shell.save descriptor: no DynamicDisplayName, DisplayName is "Save".
+        // shell.save names what it saves (CE-1443 part B — never a plain "Save"): the active document.
         var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
-        Assert.Null(saveDesc.DynamicDisplayName);
-        Assert.Equal("Save", saveDesc.DisplayName);
+        Assert.Equal("Save Blueprint 'MyBlueprint'", saveDesc.DynamicDisplayName!());
 
-        // scenario.save and scenario.saveAs are NOT registered.
-        var scenarioSaveDesc = descriptors.Find(x => x.Id == ShellSaveCommands.ScenarioSaveId);
-        Assert.Null(scenarioSaveDesc);
-
-        var scenarioSaveAsDesc = descriptors.Find(x => x.Id == ShellSaveCommands.ScenarioSaveAsId);
-        Assert.Null(scenarioSaveAsDesc);
+        // scenario.save and scenario.saveAs are NOT registered by the shell (ScenarioMenuCommands owns them).
+        Assert.DoesNotContain(descriptors, x => x.Id is "scenario.save" or "scenario.saveAs");
     }
 }

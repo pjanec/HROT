@@ -67,6 +67,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         var bus = new FdpEventBus();
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory = System.Array.Empty<string>(),
             HeartbeatTimeoutSeconds = 60f,
             TransactionHistoryCapacity = 10,
@@ -210,6 +211,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -592,6 +594,29 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
     {
         Assert.Equal("HrotDefault", ClusterConfiguration.Default.TkbName);
         Assert.Equal("Custom_v2", new ClusterConfiguration { TkbName = "Custom_v2" }.ForOneNodeCluster().TkbName);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4103</c> — <c>ClusterConfiguration.Default</c> reads the staging root (<c>FDP_STAGING_ROOT</c>) every time, never once per process: a second host
+    /// built with another root must NOT prepare its loads against the first one's NAS. Red-proof: make <c>Default</c> a cached instance again ⇒ the second read
+    /// still names the first root.
+    /// </summary>
+    [Fact]
+    public void CE4103_TheDefaultConfigurationFollowsTheStagingRootOfEachRead()
+    {
+        var old = Environment.GetEnvironmentVariable("FDP_STAGING_ROOT");
+        try
+        {
+            var a = Path.Combine(Path.GetTempPath(), "ce4103-a-" + Guid.NewGuid().ToString("N"));
+            var b = Path.Combine(Path.GetTempPath(), "ce4103-b-" + Guid.NewGuid().ToString("N"));
+            Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", a);
+            var first = ClusterConfiguration.Default.NasBasePath;
+            Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", b);
+            var second = ClusterConfiguration.Default.NasBasePath;
+            Assert.StartsWith(a, first);
+            Assert.StartsWith(b, second);
+        }
+        finally { Environment.SetEnvironmentVariable("FDP_STAGING_ROOT", old); }
     }
 
     /// <summary>

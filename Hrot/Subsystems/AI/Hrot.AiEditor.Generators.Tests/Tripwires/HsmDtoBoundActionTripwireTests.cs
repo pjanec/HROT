@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -92,7 +93,7 @@ namespace Hrot.AiEditor.Generators.Tests.Tripwires
         [Fact]
         public void NoNewDtoBoundHsmAction_ExistsInAGeneratorBearingAssembly()
         {
-            var repoRoot = ResolveRepoRoot();
+            var repoRoot = TestRepo.Root;
             var projects = GeneratorBearingProjects(repoRoot);
 
             // If this ever finds nothing, the DERIVATION broke — not the codebase. A tripwire that
@@ -196,10 +197,8 @@ namespace Synthetic
 
         private static IEnumerable<Entry> ScanDirectory(string dir, string projectName)
         {
-            foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+            foreach (var file in Fdp.Testing.RepoSources.CsFiles(dir))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
             {
-                if (IsBuildOutput(file)) continue;
-
                 var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file));
                 foreach (var method in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
                 {
@@ -245,13 +244,6 @@ namespace Synthetic
                 && attr.ArgumentList is { Arguments.Count: > 0 };
         }
 
-        private static bool IsBuildOutput(string path)
-        {
-            var normalised = path.Replace('\\', '/');
-            return normalised.Contains("/obj/", StringComparison.Ordinal)
-                || normalised.Contains("/bin/", StringComparison.Ordinal);
-        }
-
         // ---- deriving the generator-bearing set --------------------------------
 
         /// <summary>
@@ -267,9 +259,8 @@ namespace Synthetic
                 RegexOptions.Compiled);
 
             var result = new List<string>();
-            foreach (var csproj in Directory.EnumerateFiles(repoRoot, "*.csproj", SearchOption.AllDirectories))
+            foreach (var csproj in Fdp.Testing.RepoSources.Files(repoRoot, "*.csproj"))   // ⭐ CE-1366 — the one scan
             {
-                if (IsBuildOutput(csproj)) continue;
                 var text = File.ReadAllText(csproj);
                 foreach (Match m in refPattern.Matches(text))
                 {
@@ -289,17 +280,5 @@ namespace Synthetic
         private static string ProjectName(string csprojPath)
             => Path.GetFileNameWithoutExtension(csprojPath);
 
-        private static string ResolveRepoRoot()
-        {
-            var dir = AppContext.BaseDirectory;
-            while (dir != null)
-            {
-                if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-                dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
-            }
-            throw new InvalidOperationException(
-                "Could not find repo root (looked for HROT.sln upward from " +
-                AppContext.BaseDirectory + ").");
-        }
     }
 }

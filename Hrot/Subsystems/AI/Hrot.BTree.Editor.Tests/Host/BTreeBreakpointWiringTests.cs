@@ -29,9 +29,10 @@ public sealed class BTreeBreakpointWiringTests
     private sealed class StubBreakpointManager : IDataBreakpointManager
     {
         public BreakpointId Add(Breakpoint breakpoint) => BreakpointId.Invalid;
+        public readonly List<SearchPredicateDto> Added = new();   // ⭐ CE-1324
         public BreakpointId AddBreakpoint(SearchPredicateDto condition, Entity? filter = null,
                                           int occurrenceThreshold = 0, string displayName = "",
-                                          Guid? sourceElementId = null) => BreakpointId.Invalid;
+                                          Guid? sourceElementId = null) { Added.Add(condition); return BreakpointId.Invalid; }
         public void Remove(BreakpointId id) { }
         public void SetEnabled(BreakpointId id, bool enabled) { }
         public void UpdateCondition(BreakpointId id, SearchPredicateDto? condition) { }
@@ -165,18 +166,28 @@ public sealed class BTreeBreakpointWiringTests
             new StubEditorTheme());
     }
 
-    // ── Test 1: Context menu provider returns breakpoint items ──────────────
+    // ── Test 1: Context menu provider returns breakpoint items — for the REAL node of the document (CE-1324) ──
 
     [Fact]
-    public void BTree_ContextMenu_ShowsBreakpointItems_WhenManagerWired()
+    public void BTree_ContextMenu_ShowsBreakpointItems_ForTheRealNode_AndNoneWithoutADocument()
     {
-        var provider = new BTreeBreakpointContextMenuProvider(new StubBreakpointManager());
+        var manager = new StubBreakpointManager();
+        var provider = new BTreeBreakpointContextMenuProvider(manager);
+        var node = new BTreeEditorNode { VisualId = Guid.NewGuid(), KernelBlobIndex = 7, DisplayLabel = "Patrol" };
+        var hit = new CustomElementHit("key", CustomElementKind.Standalone, default);
 
-        var items = provider.GetItemsFor(
-            Guid.NewGuid().ToString("D"),
-            new CustomElementHit("key", CustomElementKind.Standalone, default));
+        Assert.Empty(provider.GetItemsFor(node.VisualId.ToString("D"), hit));       // no document yet: the dot has no node to name (it used a stub with index 0)
 
-        Assert.Contains(items, i => i.Label == "Break on Activation (Enter)");
+        var asset = new BehaviorTreeAsset(Guid.NewGuid(), "Tree", "", false, "", "", new BehaviorTreeBlob());
+        asset.ReplaceAll(new List<BTreeEditorNode> { node }, new List<BTreeEditorPill>(), new BehaviorTreeBlob());
+        provider.Asset = asset;
+        var items = provider.GetItemsFor(node.VisualId.ToString("D"), hit);
+
+        var enter = Assert.Single(items, i => i.Label == "Break on Activation (Enter)");
+        enter.Execute();
+        var step = Assert.IsType<Fdp.Toolkit.ReplayBrowser.Search.BehaviourStepPredicateDto>(manager.Added.Single());
+        Assert.Equal(node.VisualId, step.Node);                                     // the real node, not a stub
+        Assert.Equal("Tree", step.Behaviour);
     }
 
     // ── Test 2: RendererId matches the gutter renderer ID ──────────────────

@@ -35,7 +35,6 @@ public sealed class EditorApplication : IEditorLogic
     //    the behaviour is unchanged by construction because the logic MOVED rather than being rewritten.
     private readonly Hrot.Editor.AiShared.Scenarios.EditorScenarioSession _session;
     private readonly FdpEventBus         _simBus;
-    private readonly DerRepo             _view = new(localNodeId: EditorSubsystem.EditorNodeId);   // CE-3228 — no node is 0
 
     private readonly HotReloadMessageLogSource? _hotReloadSource;
     private readonly string[]                   _aiProjectPathSegments;
@@ -59,7 +58,6 @@ public sealed class EditorApplication : IEditorLogic
     /// </summary>
     private Func<IReadOnlyList<string>>? _availableScenariosSource;
 
-    public IDerRepo View => _view;
 
     /// <inheritdoc/>
     public string? LoadedScenarioName => _session.LoadedScenarioName;
@@ -80,6 +78,7 @@ public sealed class EditorApplication : IEditorLogic
         ScenarioFileService fileService,
         FdpEventBus simBus,
         FdpEventBus orchestrationBus,
+        Func<Fdp.Toolkit.Orchestration.ClusterView?> clusterView,   // ⭐ CE-1436 — the node's ONE cluster read model
         EntityRepository world,
         HotReloadMessageLogSource? hotReloadSource = null,
         string[]? aiProjectPathSegments            = null,
@@ -95,6 +94,7 @@ public sealed class EditorApplication : IEditorLogic
         _session = new Hrot.Editor.AiShared.Scenarios.EditorScenarioSession(
             fileService      ?? throw new ArgumentNullException(nameof(fileService)),
             orchestrationBus ?? throw new ArgumentNullException(nameof(orchestrationBus)),
+            clusterView      ?? throw new ArgumentNullException(nameof(clusterView)),
             world            ?? throw new ArgumentNullException(nameof(world)),
             () => EditorBootstrap.ScenariosRoot,
             leaveRun: leaveRun);   // ⭐ CE-1025 — the editor's dry run, left without a rewind at each load
@@ -114,10 +114,10 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     // ── Scenario members — every one DELEGATES to the shared session (CE-046, design §3 ②) ─────
-    // ⚠⚠ `NewScenario` maps to `ClearWorld`, NOT to `NewExercise`. 📐 Measured: the deferred-load state
-    //    machine calls this as step 1 of its OWN sequence, so pointing it at the cluster-wide reset would
-    //    publish a second Idle intent from inside the handler for the first one. ⭐ `NewExercise` is
-    //    reachable from the File/Live menu item, which is the operator-facing action.
+    // ⚠⚠ `NewScenario` maps to `ClearWorld`, NOT to the cluster-wide leave (`Close`). 📐 Measured: the deferred-load state
+    //    machine calls this as step 1 of its OWN sequence, so pointing it at the cluster-wide leave would
+    //    publish a second Idle intent from inside the handler for the first one. ⭐ `Close` (CE-1443; it replaced New Exercise)
+    //    is the File menu item, which is the operator-facing action.
 
     /// <inheritdoc/>
     public void NewScenario() => _session.ClearWorld();
@@ -127,6 +127,15 @@ public sealed class EditorApplication : IEditorLogic
 
     /// <inheritdoc/>
     public void LoadScenarioByName(string scenarioName) => _session.OpenForEdit(scenarioName);
+
+    /// <inheritdoc/>
+    public void LoadScenarioByName(string scenarioName, Action then) => _session.Door.Open(scenarioName, then: then);
+
+    /// <inheritdoc/>
+    public Hrot.UI.Common.RunMode.ScenarioDoor Door => _session.Door;
+
+    /// <summary>⭐ CE-4101 — the session's RAW verbs, for <c>AttachRunChoice</c> only.</summary>
+    public Hrot.UI.Common.RunMode.IRunScenarioControl RunControl => _session.RunControl;
 
     /// <inheritdoc/>
     public void SaveCurrentScenario() => _session.SaveCurrent();

@@ -33,4 +33,7 @@
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
+  </ItemGroup>
 </Project>

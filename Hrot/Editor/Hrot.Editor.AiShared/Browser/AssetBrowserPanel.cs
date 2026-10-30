@@ -68,9 +68,16 @@ public static class AssetKindFilterMapping
         AssetKind.Blackboard => AssetKindFilter.Blackboard,
         AssetKind.Utility    => AssetKindFilter.Utility,
         AssetKind.Scenario   => AssetKindFilter.Scenario,
+        // ⭐ CE-4098 — a recording is listed by the master's exercise inventory, never by the catalog: no tab, no flag.
+        AssetKind.Recording  => throw new ArgumentOutOfRangeException(nameof(kind), kind,
+            $"{nameof(AssetKind)}.{kind} is not a catalog asset (it has no browser tab); the master's exercise inventory lists recordings."),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind,
             $"Unknown {nameof(AssetKind)} value: {kind}")
     };
+
+    /// <summary>⭐ CE-4098 — whether <paramref name="kind"/> lives in the <see cref="Catalog.IAssetCatalog"/> (every kind but
+    /// <see cref="AssetKind.Recording"/>) and so has an <see cref="AssetKindFilter"/> flag and a browser tab.</summary>
+    public static bool IsCatalogKind(AssetKind kind) => kind != AssetKind.Recording;
 
     /// <summary>
     /// Returns the permitted <see cref="AssetKind"/> values from <paramref name="filter"/>,
@@ -138,6 +145,14 @@ public sealed class AssetBrowserPanelOptions
     public IReadOnlyList<AssetRowCommand> RowCommands { get; init; } = Array.Empty<AssetRowCommand>();
 
     /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — the user's Recent lists (one per kind, persisted in the user folder): the panel draws a <i>Recent</i>
+    /// section first in every tab and an activation pushes to it. ⭐ The SAME store the Open-Asset picker's
+    /// <c>PickerRegistry.Recent</c> reads, so a pick in either shows in both. <see langword="null"/> ⇒ no Recent section
+    /// (a headless rail, a host with no user folder) — ⚠ a production host that has the store must pass it.
+    /// </summary>
+    public NodeEditor.UI.Picker.RecentStore? Recent { get; init; }
+
+    /// <summary>
     /// Which asset kinds are permitted. Defaults to <see cref="AssetKindFilter.All"/>.
     /// <b>Wired in this batch (MTB-P4-T3).</b>
     /// </summary>
@@ -198,7 +213,10 @@ public sealed class AssetBrowserPanel
     private readonly Dictionary<AssetKind, bool> _kindChipsEnabled = new();
 
     // Last-opened-per-kind memory (§10.1).
-    private readonly Dictionary<AssetKind, string> _lastOpenedByKind = new();
+    // ⭐ CE-1441 (audit #15) — there is NO second "last opened" memory: the last-opened asset of a kind is the HEAD of that kind's
+    // Recent list in the one RecentStore (the host's persisted one when it passed it, else a private in-memory one so a headless
+    // panel still remembers). LastOpenedByKind / the initial reveal are read from it.
+    private readonly NodeEditor.UI.Picker.RecentStore _memory;
 
     // Expanded folder paths per kind (initial reveal from InitialFullPath / last-opened).
     private readonly Dictionary<AssetKind, HashSet<string>> _expandedFolders = new();
@@ -260,14 +278,68 @@ public sealed class AssetBrowserPanel
         SetKindChip(kind, !IsKindChipEnabled(kind));
     }
 
+    // ── CE-4098: the Recent section ───────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-4098 (AQ108 D19) — the <b>Recent section</b> of <paramref name="kind"/>'s tab: the assets last activated, the latest
+    /// first, narrowed by the <see cref="Filter"/>. ⭐ Resolved against the CURRENT catalog, so a remembered asset that is no longer
+    /// there is not shown (no ghost row, no crash). Empty when the host passed no <see cref="AssetBrowserPanelOptions.Recent"/>.
+    /// </summary>
+    public IReadOnlyList<IEditableAsset> RecentFor(AssetKind kind)
+    {
+        if (_options.Recent is not { } store)
+            return Array.Empty<IEditableAsset>();
+
+        var result = new List<IEditableAsset>();
+        foreach (var (_, asset) in ResolveRecent(store, kind))
+            if (string.IsNullOrEmpty(_filter) || asset.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase))
+                result.Add(asset);
+        return result;
+    }
+
+    /// <summary>The Recent list of <paramref name="kind"/> resolved against the CURRENT catalog: (relative path, asset), latest first;
+    /// a key that no longer resolves is skipped.</summary>
+    private List<(string RelPath, IEditableAsset Asset)> ResolveRecent(NodeEditor.UI.Picker.RecentStore store, AssetKind kind)
+    {
+        var result = new List<(string, IEditableAsset)>();
+        if (!_leafMap.TryGetValue(kind, out var map)) return result;
+
+        var byId = new Dictionary<string, (string Rel, IEditableAsset Asset)>(map.Count);
+        foreach (var (rel, asset) in map) byId[AssetRecents.ItemKey(asset)] = (rel, asset);
+
+        foreach (var key in store.GetRecent(AssetRecents.ContextFor(kind)))
+            if (byId.TryGetValue(key, out var hit)) result.Add((hit.Rel, hit.Asset));
+        return result;
+    }
+
+    /// <summary>⭐ CE-4098 — the "All" tab's Recent section: every permitted kind's recents (chips respected), the most recently
+    /// picked first within each kind, kinds in tab order.</summary>
+    public IReadOnlyList<IEditableAsset> RecentFlat()
+    {
+        var result = new List<IEditableAsset>();
+        foreach (var kind in Tabs)
+            if (IsKindChipEnabled(kind))
+                result.AddRange(RecentFor(kind));
+        return result;
+    }
+
     // ── T5: Last-opened memory & initial reveal ───────────────────────
 
     /// <summary>
     /// A per-kind map of the last activated asset's relative path.
     /// The host persists this map across sessions (§10.1).
     /// </summary>
-    public IReadOnlyDictionary<AssetKind, string> LastOpenedByKind =>
-        new Dictionary<AssetKind, string>(_lastOpenedByKind);
+    public IReadOnlyDictionary<AssetKind, string> LastOpenedByKind
+    {
+        get
+        {
+            var map = new Dictionary<AssetKind, string>();
+            foreach (var kind in Tabs)
+                if (ResolveRecent(_memory, kind) is { Count: > 0 } recent)
+                    map[kind] = recent[0].RelPath;
+            return map;
+        }
+    }
 
     /// <summary>
     /// Restores last-opened-per-kind memory (e.g. from editor session prefs).
@@ -280,8 +352,12 @@ public sealed class AssetBrowserPanel
         if (map == null) return;
         foreach (var (kind, relPath) in map)
         {
-            if (Tabs.Contains(kind))
-                _lastOpenedByKind[kind] = relPath;
+            // ⭐ CE-1441 — seeds the ONE Recent store, and only a kind it has nothing for (the store is the truth);
+            // a path the catalog does not hold is dropped (it could not be revealed anyway).
+            if (Tabs.Contains(kind)
+                && _memory.GetRecent(AssetRecents.ContextFor(kind)).Count == 0
+                && _leafMap.TryGetValue(kind, out var leaves) && leaves.TryGetValue(relPath, out var asset))
+                _memory.Push(AssetRecents.ContextFor(kind), AssetRecents.ItemKey(asset));
         }
     }
 
@@ -327,10 +403,12 @@ public sealed class AssetBrowserPanel
         foreach (var kind in Tabs)
             _kindChipsEnabled[kind] = true;
 
-        // Restore last-opened memory (before rebuild so leaf maps exist).
-        RestoreLastOpened(lastOpened);
+        _memory = options.Recent ?? new NodeEditor.UI.Picker.RecentStore();
 
         RebuildTrees();
+
+        // Restore last-opened memory (after the rebuild: it resolves the paths against the leaf maps).
+        RestoreLastOpened(lastOpened);
         _catalog.Changed += OnCatalogChanged;
 
         // Apply initial reveal (InitialFullPath / last-opened → Selection + expanded folders).
@@ -556,10 +634,9 @@ public sealed class AssetBrowserPanel
     {
         if (asset == null) throw new ArgumentNullException(nameof(asset));
 
-        // Update last-opened-per-kind memory.
-        var baseFolder = BaseFolderFor(asset.Kind);
-        var relPath = AssetRelPath.RelPath(asset, baseFolder);
-        _lastOpenedByKind[asset.Kind] = relPath;
+        // ⭐ CE-4098 / CE-1441 — a pick pushes to the kind's Recent list (persisted when the host's store is); that list IS the
+        // last-opened memory (its head), there is no second one.
+        _memory.Push(AssetRecents.ContextFor(asset.Kind), AssetRecents.ItemKey(asset));
 
         AssetActivated?.Invoke(asset);
     }
@@ -656,6 +733,8 @@ public sealed class AssetBrowserPanel
         ImGui.NewLine();
         ImGui.Separator();
 
+        DrawRecentSection(RecentFlat());
+
         // Flat list.
         var assets = FilteredFlatList();
         if (assets.Count == 0)
@@ -670,9 +749,25 @@ public sealed class AssetBrowserPanel
         }
     }
 
+    /// <summary>⭐ CE-4098 — the Recent header and rows, FIRST in a tab (nothing when there are none). The same asset is drawn
+    /// again in its folder / the flat list, so the rows get their own ImGui ID scope.</summary>
+    private void DrawRecentSection(IReadOnlyList<IEditableAsset> recent)
+    {
+        if (recent.Count == 0) return;
+
+        ImGui.TextDisabled("↻ Recent");
+        ImGui.PushID("##recent");
+        foreach (var asset in recent)
+            DrawFlatRow(asset);
+        ImGui.PopID();
+        ImGui.Separator();
+    }
+
     private void DrawKindTab(AssetKind kind)
     {
         DrawFilterBox();
+
+        DrawRecentSection(RecentFor(kind));
 
         var tree = FilteredTreeFor(kind);
         if (tree.Children.Count == 0)
@@ -882,9 +977,9 @@ public sealed class AssetBrowserPanel
 
         // Fall back to last-opened if no explicit path.
         if (string.IsNullOrEmpty(targetPath)
-            && _lastOpenedByKind.TryGetValue(targetKind, out var remembered))
+            && ResolveRecent(_memory, targetKind) is { Count: > 0 } recent)
         {
-            targetPath = remembered;
+            targetPath = recent[0].RelPath;
         }
 
         if (string.IsNullOrEmpty(targetPath))

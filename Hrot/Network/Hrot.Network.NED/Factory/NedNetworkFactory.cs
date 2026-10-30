@@ -70,8 +70,10 @@ public sealed class NedNetworkFactory : INetworkFactory
         ITkbDatabase?         tkbDb            = null,
         EntityLifecycleModule? lifecycleModule  = null,
         BehaviorRegistry?     behaviorRegistry = null,
-        FdpEventBus?          worldBus          = null)
+        FdpEventBus?          worldBus          = null,
+        Hrot.Network.Routing.SimpleClusterStateCache? sharedClusterCache = null)
     {
+        _sharedClusterCache = sharedClusterCache;
         _participant      = participant;
         _entityMap        = entityMap;
         _geoTransform     = geoTransform;
@@ -121,12 +123,6 @@ public sealed class NedNetworkFactory : INetworkFactory
         return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId);
     }
 
-    /// <inheritdoc/>
-    public IExConEgressWriters CreateExConEgressWriters()
-    {
-        if (_participant == null) return new NullExConEgressWriters();
-        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant);
-    }
 
     /// <inheritdoc/>
     public ITimeControlGateway CreateTimeControlGateway()
@@ -191,33 +187,6 @@ public sealed class NedNetworkFactory : INetworkFactory
            ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
            : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
 
-    /// <inheritdoc/>
-    public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-        DdsParticipant?                   participant,
-        long                              localNodeId,
-        IDerRepo                          repo,
-        Action<MapClickEventDto>          onMapClick,
-        Action<SelectionChangedEventDto>  onSelectionChanged,
-        Action<EntityLifecycleAckDto>     onEntityLifecycleAck,
-        Action<MapCommandAckDto>          onMapCommandAck)
-    {
-        if (participant == null)
-            yield break;
-
-        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId);
-        yield return new NedSelectionChangedIngressHandler(participant, onSelectionChanged);
-        yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
-        yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);
-        yield return new MasterIngressHandler<EntityMaster>(
-            participant, repo,
-            master => checked((int)master.EntityId), master => master.TkbType, localNodeId: localNodeId);
-        yield return new DescriptorIngressHandler<WorldPos>(participant, repo, d => checked((int)d.EntityId));
-        yield return new NedEntityInfoBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<EntityDamage>(participant, repo, d => checked((int)d.EntityId));
-        yield return new NedEntityMissionBridgingHandler(participant, repo);
-        yield return new NedMapOverlayBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<MapRoute>(participant, repo, d => checked((int)d.EntityId));
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, BehaviorRegistry? behaviorRegistry = null)
@@ -238,7 +207,10 @@ public sealed class NedNetworkFactory : INetworkFactory
             tkbDb:            context.TkbDb,
             lifecycleModule:  elm,
             behaviorRegistry: behaviorRegistry ?? _behaviorRegistry,
-            worldBus:         context.World.Bus);
+            worldBus:         context.World.Bus,
+            // ⭐ CE-1446 B1 — ONE cluster cache per node: the replication module the node builder made already holds the cache that membership/capability ingest fills; the
+            //   adapters and the self-heal callback this factory makes must read/write THAT one (a second cache stayed empty: no Brain→Muscle delegation, nothing moved).
+            sharedClusterCache: (context.NedReplication as Hrot.Network.Replication.NedReplicationModule)?.ClusterCache);
     }
 
     /// <inheritdoc/>
@@ -358,11 +330,6 @@ public sealed class NedNetworkFactory : INetworkFactory
             ? new NedSlaveOrchestrationTranslator(_participant, bus, nodeId)
             : new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public Hrot.Core.Network.IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
-        => _participant != null
-            ? new NedOrchestrationObserver(_participant, bus)
-            : new Hrot.Core.Network.NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
@@ -542,16 +509,6 @@ internal sealed class NullCommandGateway : ICommandGateway
     public void Dispose() { }
 }
 
-/// <summary>No-op stub for IExConEgressWriters until TASK-P4-001 wires the real implementation.</summary>
-internal sealed class NullExConEgressWriters : IExConEgressWriters
-{
-    public void WriteMapConfig(MapConfigDto config) { }
-    public void WriteDeleteEntity(int entityId) { }
-    public void WriteCreateEntity(CreateEntityCommand cmd) { }
-    public void WriteMapCommand(MapCommandDto cmd) { }
-    public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
-    public void Dispose() { }
-}
 
 /// <summary>No-op stub for ITimeControlGateway until TASK-P4-001 wires the real implementation.</summary>
 internal sealed class NullTimeControlGateway : ITimeControlGateway

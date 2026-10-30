@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Reflection;
 using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.Presentation.Windows;
@@ -85,7 +86,7 @@ public sealed class CrossHostPanelKindRails
         // 📄 PanelIds.SystemProfiler's remarks: SimHost · CGF · IG · Editor (StrideMock retired — ST-017).
         var expected = new[] { "CgfSubsystem.cs", "EditorSubsystem.cs", "IgSubsystem.cs", "SimHostSubsystem.cs" };
 
-        var root = RepoRoot();
+        var root = TestRepo.Root;
 
         // ⭐⭐⭐ CE-356 (`2026-09-26`) — RE-POINTED FROM `new SystemProfilerWindow(` TO THE BUNDLE, AND THE
         //    EXPECTED LIST DID NOT CHANGE BY ONE CHARACTER.
@@ -133,17 +134,4 @@ public sealed class CrossHostPanelKindRails
         Assert.Equal(new[] { "DiagnosticsWindowsBundle.cs" }, windowSites);
     }
 
-    /// <summary>
-    /// ⭐ The repo root, found by walking up to the solution file — ⛔ never a path constant, which breaks
-    /// the first time the layout moves.
-    /// </summary>
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
-            dir = dir.Parent;
-
-        Assert.NotNull(dir);   // ⛔ a source-level rail cannot run without sources; say so rather than skip (R-131)
-        return dir!.FullName;
-    }
 }

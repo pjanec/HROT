@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -47,21 +48,14 @@ public sealed class CheckpointClusterTests : IDisposable
             : Enumerable.Empty<string>();
     }
 
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
-
     [Fact]
     public async Task CE3299_B3_ACheckpointOnALiveCluster_IsAKeyframeOnEveryRecordingNode_AtOneWallTime_AndCollects()
     {
-        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -148,11 +142,11 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task CE3299_B4_ARestoreOnALiveCluster_PutsEveryNodeBackToTheCheckpoint_AndRecordsOnAsANewExercise()
     {
-        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -229,6 +223,143 @@ public sealed class CheckpointClusterTests : IDisposable
         }
     }
 
+    // ── ⭐⭐⭐ CE-4090 (AQ108 D14, §5a) — LIVE DOES NOT IMPLY RECORDING, across a real in-process cluster (DDS between the nodes) ─────────────────
+
+    private static IEnumerable<string> StagingFilesNamed(string name)
+    {
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        return Directory.Exists(root) ? Directory.EnumerateFiles(root, name, SearchOption.AllDirectories) : Enumerable.Empty<string>();
+    }
+
+    private static IEnumerable<string> StagingExerciseDirectories(Guid exercise)
+    {
+        var root = OrchestrationConstants.ResolveStagingRoot();
+        return Directory.Exists(root)
+            ? Directory.EnumerateDirectories(root, exercise.ToString(), SearchOption.AllDirectories)
+            : Enumerable.Empty<string>();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-4090 — with <i>Record live runs</i> OFF a live run on a REAL cluster (orchestrator, SimHost, IG, CGF over DDS): (1) writes NO
+    /// <c>exercises/&lt;id&gt;</c> directory on any node and creates NO inventory ledger entry; (2) the "not recorded" fact reaches EVERY node on the load
+    /// (the payload) and the master's broadcast; (3) checkpoint, restore and review are refused AT THE MASTER with the reason — not one TakeSnapshot /
+    /// PrepareRestore / PrepareReview reaches any node (so no node throws), the live clock is not paused and the cluster stays live.
+    /// </summary>
+    [Fact]
+    public async Task CE4090_ALiveRunWithRecordingOff_WritesNoExercise_NoLedger_AndEveryGateRefusesAtTheMaster()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(TestRepo.Root), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var bus    = harness.OrchestratorSvc.TimeBusForTest!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        master.RecordLiveRuns = false;                                       // the setting (what POST /run-settings sets)
+        var exercise = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        harness.PumpFrames(180);                                             // long enough for every recorder (had there been one) to write
+
+        // ① nothing is written, nowhere: no exercise directory under any staging root, no ledger entry
+        Assert.Empty(StagingExerciseDirectories(exercise));
+        Assert.Empty(StagingFilesNamed($"{exercise}.json"));                 // the master's recording_ledger entry
+        Assert.Empty(StagingFilesNamed($"*{exercise}*.fdp"));
+        Assert.True(master.RunNotRecorded);
+
+        // ② every node learned it (the broadcast): the same fact on each node's cluster read model
+        harness.PumpFrames(30);
+        foreach (var (name, provider) in new[]
+        {
+            ("simhost", harness.SimHost.CreateDebugProvider()), ("ig", harness.Ig.CreateDebugProvider()),
+            ("cgf", harness.Cgf!.CreateDebugProvider()),
+        })
+            Assert.True(provider?.RunNotRecorded, $"{name} must know the run is not recorded");
+
+        // ③ every gate refuses at the TOP — and no node op of the refused kinds was ever fanned out
+        var refusals = new Dictionary<Guid, ClusterOpType>();
+        var gateOps = new HashSet<Fdp.Toolkit.Orchestration.NodeOpType>
+        {
+            Fdp.Toolkit.Orchestration.NodeOpType.TakeSnapshot, Fdp.Toolkit.Orchestration.NodeOpType.PrepareRestore,
+            Fdp.Toolkit.Orchestration.NodeOpType.RestoreSnapshot, Fdp.Toolkit.Orchestration.NodeOpType.PrepareReview,
+        };
+        foreach (var (op, payload) in new (ClusterOpType, string)[]
+        {
+            (ClusterOpType.TakeCheckpoint,    JsonSerializer.Serialize(new { label = _label })),
+            (ClusterOpType.RestoreCheckpoint, JsonSerializer.Serialize(new { label = _label })),
+        })
+        {
+            var id = Guid.NewGuid();
+            refusals[id] = op;
+            await master.HandleClusterOpRequestAsync(new ClusterOpRequest { RequestId = id, OperationType = op, PayloadJson = payload });
+        }
+        var review = Guid.NewGuid();                                         // a review is a transition to OperatingReview
+        refusals[review] = ClusterOpType.TransitionState;
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = review, OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new { TargetState = ClusterState.OperatingReview.ToString(), TargetSimSeconds = 1.0 }),
+        });
+
+        var answered = new Dictionary<Guid, ClusterOpCompletedEvent>();
+        var fanned   = new List<Fdp.Toolkit.Orchestration.NodeOpType>();
+        for (int frame = 0; frame < 120 && answered.Count < refusals.Count; frame++)
+        {
+            harness.PumpFrames(1);
+            foreach (var ev in bus.ReadManaged<ClusterOpCompletedEvent>()) if (refusals.ContainsKey(ev.RequestId)) answered[ev.RequestId] = ev;
+            foreach (var i in bus.ReadManaged<ExecuteNodeOpIntent>()) if (gateOps.Contains(i.Operation)) fanned.Add(i.Operation);
+        }
+        Assert.Equal(refusals.Count, answered.Count);
+        foreach (var ev in answered.Values)
+        {
+            Assert.Equal(OrchestrationStatusCode.Rejected, ev.StatusCode);
+            Assert.Equal(RunRecordingGates.NotRecordedReason, ev.ResultPayload);
+        }
+        Assert.Empty(fanned);                                                // ⛔ nothing reached a node to throw there
+        harness.PumpFrames(60);
+        Assert.Equal((int)ClusterState.OperatingLive, (int)master.CurrentClusterState);   // not paused into a review, not restored
+        Assert.Empty(StagingExerciseDirectories(exercise));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4090 §5a — the scenario verifier's live load (<c>ForceRecording</c>) records on every node even with the setting OFF: the same cluster, the
+    /// same setting, but this load's recording exists on disk for each recording node.
+    /// </summary>
+    [Fact]
+    public async Task CE4090_AVerifyRun_RecordsEvenWithTheSettingOff()
+    {
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(TestRepo.Root), "tt-take-cover", "scenario.json");
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var deadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+
+        master.RecordLiveRuns = false;
+        var exercise = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                TargetState = ClusterState.OperatingLive.ToString(), ScenarioId = _scenarioId, ExerciseId = exercise, ForceRecording = true,
+            }),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 4000), "the cluster must go live");
+        Assert.True(harness.PumpUntil(() => Recordings(exercise).Count() >= 3, timeoutFrames: 600),
+            "simhost, ig and cgf must each record the forced run");
+        Assert.False(master.RunNotRecorded);
+    }
+
     /// <summary>
     /// ⭐⭐ CE-3299 D17 (R-3045) — a live session started in CHECKPOINTING mode records, on EVERY recording node, a keyframe every N s of
     /// sim time and nothing between: the request's one number crosses the master, the wire and the load chain to each node's recorder.
@@ -236,11 +367,11 @@ public sealed class CheckpointClusterTests : IDisposable
     [Fact]
     public async Task CE3299_D17_ALiveSessionInCheckpointingMode_RecordsKeyframesOnly_OnEveryNode()
     {
-        var recipe = Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }

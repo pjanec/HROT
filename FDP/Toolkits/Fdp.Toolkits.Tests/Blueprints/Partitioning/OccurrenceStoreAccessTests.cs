@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
@@ -869,7 +870,7 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
         [Fact]
         public void U0_R0_NoProductionCodeReadsTheStoreAsOneBlock()
         {
-            string root = FindRepoRoot();
+            string root = TestRepo.Root;
             var offenders = new System.Collections.Generic.List<string>();
             var rx = new System.Text.RegularExpressions.Regex(
                 @"\.(TryGetStore|TryGetStoreReadOnly|TryGetStoreInView)\(|BlueprintTierTable\.(Of|OfInView)\(");
@@ -896,13 +897,5 @@ namespace Fdp.Toolkits.Tests.Blueprints.Partitioning
                 "production code must use OccurrenceStoreAccess's key API / GetBlocks (CE-3137 U-0): " + string.Join(", ", offenders));
         }
 
-        private static string FindRepoRoot()
-        {
-            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "HROT.sln")))
-                dir = dir.Parent;
-            Assert.True(dir != null, "repo root (HROT.sln) not found above the test binary");
-            return dir!.FullName;
-        }
 }
 }

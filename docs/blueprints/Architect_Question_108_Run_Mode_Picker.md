@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-10-28 (R-4098): the user shaped every decision in chat and accepted every remaining lean ("All your leans accepted")
-updated: 2026-10-28
+updated: 2026-10-29 (§2.15 NEW — the File menu, R-3073: load follows the armed mode (corrects §2.8 row 9), Close replaces New Exercise, no submenus, Terrain… removed) · 2026-10-29 (CE-4101 follow-up: §2.11a — the exit goes through the door (ONE composed exit guard), the scenario menu registered ONCE by the owner (deviation 6 closed), back-to-Start recorded (13)) · 2026-10-29 (CE-4101: §2.11a as-built — the ONE guarded door in and out of the open scenario; §2.11's guard moved from the choice into it) · 2026-10-29 (CE-1439: §2.12 as-built — the Orchestrator composes the scenario menu and the panel asks the one run surfaces) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-29 (CE-1436 ui half: §2.8a deviation 12, the adapter and the editor session read ClusterView) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b) · 2026-10-29 (CE-3340 ① as-built in D7's block, D18's recipe name moved to `recipes/scenarios/<seed>`) · 2026-10-29 (CE-3340 ② as-built in D7's block, ⑤ in §4b) · 2026-10-28 (CE-4097 part two as-built folded into §2.8a) · 2026-10-28 (CE-4097 core as-built folded into §2.8) · 2026-10-28 (CE-4090 as-built folded into §5a; CE-4093 master as-built in §4b)
 build-state: READY-TO-BUILD (2026-10-28) — not dispatched. M1–M6 MEASURED 2026-10-28 (§5); D16 (start perspective) and D18 (start with a scenario) decided by the user; M7–M8 measured; READY-TO-BUILD — ⛓ sequenced AFTER the content-layout move (repo `scenarios/` · `assets/` · `recipes/`, a separate short design), because the start surface lists recipes and scenarios
 current-answer: ⭐ §2.2–§2.5 REVISED (no continue-world flag) · §1 the three rules · §1a the words (Live / DAR / AAR) · §4 D16 the start perspective, D18 start with a scenario · §2 the picture (states, classes, sequences, modules) · §3 every move with its confirmation · §4 decisions · §5 what must be measured · §6 the build list
 stale-below: nothing
@@ -229,7 +229,7 @@ sequenceDiagram
 graph TD
   ED["Every host frame (shared bootstrap)"] --> SG["StartGate: cluster resting in Idle ⇒ Start"]
   ED --> TB["MainToolbarTimeControlSection (draws, menu)"]
-  TB --> RC["RunModeChoice (per host, D12 default)"]
+  TB --> RC["RunModeChoice (reads the cluster armed mode, D12a)"]
   TB --> FAC["ITimeTransportFacade"]
   FAC --> CRC["ClusterReplayControls / ScenarioLoadSequence → TransitionStateIntent"]
   CRC --> ORC["ClusterMaster.Tick (orchestrator / the editor's in-process core)"]
@@ -239,12 +239,1048 @@ graph TD
   SLV --> RLH["ReferenceReplayLoadHandler"]
   SLV --> LLH["ReferenceLiveLoadHandler → RecordingModule"]
   ORC --> GW["AssetInventory: scenario copy into the exercise"]
-  SB["Status-bar time control (CE-4083)"]:::dead
+  SB["Status-bar time control — REMOVED (CE-4083, §2.9)"]:::dead
   classDef dead stroke:#d33,stroke-width:2px,stroke-dasharray: 5 5
 ```
 
+⭐ **AS-BUILT `2026-10-29` (CE-4083):** the dashed box is a **removed** edge — **SUPERSEDED**: until `2026-10-29` it was a live second transport (`ClusterTimeControlStatusBarSection`, wrapped by the editor's `TimeControlStatusBarSection`); it is gone and no status-bar section is a time control (§2.9).
+
 *What the picture shows:* the armed mode is per host; every change to the world goes through the ONE cluster master and the ONE load path; the
 dirty state lives with the master and is announced like the cluster state, so every host shows the same `name*` (UXR-03).
+
+### 2.6 CE-4096 — the start gate — ⭐ **AS-BUILT `2026-10-28` (ui)** (built before CE-4089; the user: *"yes, build CE-4096 now"*)
+
+⭐ **AS-BUILT:** the picture below is the BUILT one (deviations: the table after the sequence diagram; the pre-build form is struck where it was wrong). Build-state of §2.6: **BUILT** — the content-folder listing on the surface follows CE-4089.
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` not available through the CLI): `search_graph .*(StartGate|StartSurface|StartPerspective|IdleGate|RestingIdle).*`
+→ **0** (nothing to extend). `search_graph .*(ClusterState|ClusterUiCache|MasterGone|ClusterStatus).*` (Class/Interface) → `ClusterUiCache`,
+`SimpleClusterStateCache`, `ClusterStates`, `IClusterStateUpdateObserver`, the events. Production `new WindowManager(` → **one** cluster-runner site,
+`LocalWindowController.cs:109` (+ the exempt Stride host). Backend's CE-4094 API: `WindowManager.StartPerspectiveName` / `RememberedPerspective` /
+`IsStartShowing` / `TrySwitchPerspective` refusal / `LeaveStartPerspective` ([NOTE](batches/NOTE_Backend_To_Ui_Run_Modes_Start_Http.md)).
+Cluster state per host: `ISubsystemDebugProvider.ClusterState` (+ `PerspectiveScopedDispatcher.ClusterStateAnyNode`, the one-cluster-one-fact
+fallback) — set by Orchestrator, Editor, ExCon, RB only; ⛔ **SUPERSEDED (found at build): CGF / SimHost / IG / Traffic set none** — they ALL pass `EcsNodeDebugProvider.For` (CE-163), which fills `ClusterState` from `ClusterSlave.LocalClusterState`: the node's own COMMITTED state, which stays Idle while the cluster loads. ⭐ So the gate needed a second, distinct fact (`FollowedClusterState`, below), not a first one. Every node's `ClusterSlave` follows the
+master's broadcast (`ClusterSlave.FollowClusterSession`, private `_clusterState`, MasterGone handled).
+
+| the lean rests on | code | design |
+|---|---|---|
+| one place composes every cluster-runner host's window manager | ✅ `LocalWindowController.cs:109` (one `new WindowManager`) | ✅ D16 "one gate … registered by the shared bootstrapper" |
+| an announced Idle CAN be a pass-through | ✅ the ordinary load is TWO requests (`ScenarioLoadSequence.Request`: Idle, then the load — CE-295) ⇒ every host sees a real Idle between them | ✅ D3 ⚠ "never an Idle a trajectory passes through" |
+| every node knows the master's state and MasterGone | ✅ `ClusterSlave.cs:638-660` | ✅ D16 "reads the cluster state every host already has" |
+
+```mermaid
+classDiagram
+  class WindowManager { <<existing, CE-4094; CE-4096 additions>> StartPerspectiveName · RememberedPerspective · IsStartShowing · TrySwitchPerspective refuses in Start · LeaveStartPerspective() · GetSelectablePerspectives() without Start · Render hides non-Start non-volatile windows and the toolbar while Start shows }
+  class StartGate { <<NEW, Fdp.Presentation>> +Tick(now, ClusterRest) · SettleSeconds = 0.5 · Variant }
+  class ClusterRest { <<NEW record struct>> State? (null = no master yet) · MasterGone · CanOperate · IsResting }
+  class IClusterRestSource { <<NEW>> ReadClusterRest() implemented by EditorSubsystem, which builds no provider }
+  class ClusterRestReader { <<NEW, ClusterRunner>> From(subsystems) the ONE fold: first non-Idle state · any MasterGone · any Master }
+  class StartSurfaceWindow { <<NEW, claims Start>> Model() · draws AllowedInIdleItems as buttons · or the waiting text }
+  class GlobalMenuRegistry { <<existing>> RegisterItem(path, ..., allowedInIdle) · AllowedInIdleItems() · IdleOnlyWhen and Offers() · PruneToIdle for contributors }
+  class MenuItemNode { <<existing>> AllowedInIdle }
+  class ContextMenuItemDto { <<existing, GizmoMap.Contracts>> AllowedInIdle for contributed items }
+  class LocalWindowController { <<existing, cluster runner>> ComposeStartSurface(wm) · TickStartGate() · ArmedMode · RequestExit and TakeExitRequest }
+  class ISubsystemDebugProvider { <<existing>> ClusterState node-committed on an ECS node · FollowedClusterState the cluster as last heard · MasterGone · Master }
+  class ClusterSlave { <<existing>> FollowedClusterState · HasFollowedState · MasterGone public reads of what it already follows }
+  class EcsNodeDebugProvider { <<existing, CE-163>> passes followedClusterState and masterGone from the node slave: CGF, SimHost, IG, Traffic alike }
+  class HostArmedMode { <<NEW, one bootstrap parameter>> editor Preview · everything else Live · read by CE-4097 }
+  LocalWindowController --> StartGate : Tick before Render
+  LocalWindowController --> StartSurfaceWindow : registers
+  LocalWindowController --> ClusterRestReader : feeds the gate
+  LocalWindowController --> HostArmedMode : carries
+  StartGate --> WindowManager : SwitchPerspective(Start) / LeaveStartPerspective
+  StartGate ..> ClusterRest : any node (one cluster, one fact)
+  ClusterRestReader ..> ISubsystemDebugProvider : every node provider
+  ClusterRestReader ..> IClusterRestSource : the editor
+  EcsNodeDebugProvider ..> ClusterSlave : CGF / SimHost / IG / Traffic now answer
+  EcsNodeDebugProvider ..|> ISubsystemDebugProvider
+  StartSurfaceWindow --> GlobalMenuRegistry : the same actions as the menu
+  GlobalMenuRegistry --> MenuItemNode : leaves carry AllowedInIdle
+  GlobalMenuRegistry --> ContextMenuItemDto : contributed leaves carry it too
+  WindowManager --> GlobalMenuRegistry : IdleOnlyWhen is IsStartShowing, so the bar draws only Offers()
+```
+
+*What the picture shows that prose hid:* the start surface owns NO action — it draws the menu items marked *allowed in Idle* (New from a recipe,
+Open scenario, Open recording, Exit, Help) and invokes the SAME bindings, so the surface and the menu cannot disagree; and the gate's only input is
+one `ClusterRest` read from any node, so every host family behaves alike by construction.
+
+```mermaid
+sequenceDiagram
+  participant R as runner frame (LocalWindowController)
+  participant G as StartGate
+  participant W as WindowManager
+  R->>G: Tick(now, rest)
+  alt rest is Idle / MasterGone / no master yet, held ≥ 0.5 s, not Start yet
+    G->>W: SwitchPerspective("Start") — remembers the outgoing one
+  else rest is anything but Idle and Start shows
+    G->>W: LeaveStartPerspective() — restores the remembered one
+  end
+  Note over G: the 0.5 s settle swallows the Idle between CE-295's two requests (a pass-through), on every host alike
+```
+
+⭐ **Decisions:** ① **resting = Idle held ≥ 0.5 s** (also MasterGone, and "no master yet" at a node's boot) — the two-request load leaves a real
+Idle for one round trip; a settle on the HOST needs no wire change. ② **Variants** from `ClusterRest`: `CanOperate` (a provider in this process
+offers `Master`, and the host is not a Player) ⇒ the actions; else *"Waiting for the server to load a scenario"*; MasterGone ⇒ *"Server lost —
+waiting"*. ③ **Exempt:** a process whose only subsystem is the Replay Browser (offline), and the Stride host. ④ **The surface's actions are the
+menu's:** a host that registers no Open/New items (today CGF's come from `ScenarioCatalogContributor`) shows what it has — until CE-4089 they open
+today's dialogs on today's folders, after it the same dialogs on the new ones. ⑤ **`HostArmedMode`** is defined and set here (editor Preview,
+else Live), read by CE-4097.
+Rejected: **a "resting" flag on the master's broadcast** — a wire change in backend's lane, and the master cannot know a requester's second
+request is coming · **per-host gates** — four copies (R "shared and unified") · **a Start provider with no world** — M7 rejected it.
+⚠ **Then fix** `ClusterConformanceRails` and `TheUiBaselineIsPinnedPerHostRails` (they switch perspective without a load — backend's NOTE).
+
+⭐ **Done:** both rails now call `ClusterConformanceRails.LeaveStartAsync` (one helper: when `/status.perspective` is `Start`, load the conformance scenario, then wait for the gate to hand the window back) before they walk the perspectives.
+
+**AS-BUILT deviations from the design above** *(the design text is kept; each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | CGF / SimHost / IG / Traffic set no `ClusterState`; make them answer through their slave | they already did — as the node's COMMITTED state (`EcsNodeDebugProvider.cs`, `ClusterStateFrom` → `LocalClusterState`), which stays Idle while the cluster loads. Added a SECOND member `FollowedClusterState` (the cluster as last heard; null = none yet) + `MasterGone`, as interface defaults (`FollowedClusterState => ClusterState`, `MasterGone => false`) so the Orchestrator / ExCon / Replay Browser keep what they have | reading the committed state would show Start for the whole load on every ECS node, and forever on a node outside the scenario |
+| 2 | `ClusterRest` from the providers, "first non-null state" | first NON-IDLE state any node reports, else Idle if any says Idle, else null | a node lagging into (or out of) Idle must not hold Start up or let it in; the settle covers the rest |
+| 3 | providers carry every host | the **Editor builds no `ISubsystemDebugProvider` in the runner** — it implements the new `IClusterRestSource` (state = its session's, `CanOperate` = true, never MasterGone); `ClusterRestReader` folds both | measured: `IProvidesDebugSurface` implementers = Traffic, IG, Orchestrator, CGF, ReplayBrowser, SimHost, ExCon (no Editor) |
+| 4 | "Exit" is an allowed-in-Idle item | **no Exit menu item existed** (grep `"File/Exit"`, `"Exit"`, `RequestExit`, `"Quit"`: only the window's [X] + `/shutdown`). Added `File/Exit` in `LocalWindowController` → `RequestExit`, taken by the frame loop exactly like the [X] (every `IAppExitGuard` asked first) | one path out, guards respected |
+| 5 | "Open Recording (AAR)" is allowed in Idle | **no such menu item exists yet** (grep `Open Recording`, replay items under `File`): marked `Open Scenario`, `New Scenario`, `Load Scenario` (File/Live), Help › About, Exit. The recording entry arrives with CE-4089 and later | nothing to mark |
+| 6 | `CanOperate` excludes a Player host | no reliable signal at the runner (R-4096 `OrdersOffered` is a per-world singleton, not a host role; the runner has no Player) ⇒ `CanOperate` = some provider's `Master != null` only. ⚠ every ECS node's `Master` is the bus-based control (`OrchestrationBusMasterControl.Via`), so SimHost / IG alone also read `CanOperate` and show the surface's Help / Exit buttons rather than "Waiting for the server" | the waiting text therefore shows today only while no master was ever heard from a node that cannot operate, and for server-lost; a finer signal is a follow-up |
+| 7 | `Start` claimed by one window | `Start` stays in `GetPerspectives()` (A0 needs the claimed set) but is excluded from `GetSelectablePerspectives()` — used by the Perspective menu, the toolbar and the `/perspectives` API switcher — and from the startup choice (`ResolveStartupPerspective`) | otherwise the user (or an MCP caller) could pick `Start`, and a host with a perspective sorting after it could start in it |
+| 8 | "verify Global-scope windows" | **they DO draw in Start** (`ManagedWindow.Render` shows `Scope == Global or IsPinned or owner == current`): `WindowManager.Render` skips every non-Start, non-volatile window while Start shows (volatile = dialogs, still drawn; pickers draw from the subsystems' `DrawUI`, unaffected); the main toolbar is hidden too | "no panels" |
+| 9 | the menu bar draws only allowed-in-Idle items | one visibility test `GlobalMenuRegistry.Offers` (binding AND, while `IdleOnlyWhen`, allowed-in-Idle) used by the drawn bar, the `/panels` menu model and `HasVisibleDescendant`; contributors (Help, Windows, Perspective) are pruned through the DTO flag `ContextMenuItemDto.AllowedInIdle`; separators drop | drawn bar and model cannot disagree |
+| 10 | `Fdp.Presentation` reaches `ClusterState` | it does (project reference to `Fdp.Toolkits`); `ClusterRest.State` is the real enum | — |
+| 11 | ⛔ **SUPERSEDED by §2.10 (CE-1437): `HostArmedMode(s)` and `LocalWindowController.ArmedMode` are DELETED — the table is `RunArmedDefaults`.** `HostArmedMode` "set from the runner's mode" | `HostArmedModes.For(config.RequestedSubsystems)` (editor ⇒ Preview, else Live) passed to `LocalWindowController`'s constructor, exposed as `ArmedMode`; no behaviour yet | CE-4097 reads it |
+| 12 | "New scenario from a recipe" | the item marked is today's `File/Edit/New Scenario` (`ClearWorld`, a local blank) — the recipe form follows CE-4089 | content-folder listing follows CE-4089 |
+| 13 | one headless frame rail per host family | no headless frame harness drives a real runner frame here: the gate is driven through the real `LocalWindowController` with a fake shell (`TheStartGateIsComposedOnceTests`) and the draw through `ImGuiTestFixture` (`StartGateTests`). The per-host system rails (`ClusterConformanceRails`, `TheUiBaselineIsPinnedPerHostRails`) are compiled but boot a real editor process | — |
+
+### 2.7 CE-4098 — the picker's Recent section + recordings in the picker — ⭐ **AS-BUILT `2026-10-28` (ui)** (built before CE-4089, by the user's decision)
+
+⭐ **AS-BUILT:** build-state of §2.7 **BUILT**. §2.2's `RecentList` box is **not a new class** — it is the existing `RecentStore` (NodeEditor.UI), extended; the
+box `ClusterReplayControls.EnterReplay(id, at)` of §2.2 does not exist and was not added (the opener is the session's, see the table).
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` not available through the CLI): `search_graph .*Recent.*` → **one** picker store, `Picker.RecentStore` (in-memory, per
+context, move-to-front, cap 16), read by `PickerState.Refilter` and pushed by `PickerWindow.Confirm`; **no** asset-browser recent; the Tree layout (what the Open-Asset and
+scenario pickers use) drew **no** Recent section — only the flat layouts had the "↻ Recent" header. `search_graph .*Picker.*` (Class) → the pickers: `AssetPickerLauncher`
+(File › Open Asset, and the scenario Open/Load items through `ScenarioMenuCommands`' `openPicker` seam), `AssetPickerModal` + `AssetBrowserPanel` (docked browser),
+`TerrainPickerLauncher` (not a user-open picker — a scenario terrain choice; left alone), no recording list. Recording opener: `IRecordingOpener` is the **Replay Browser's, for
+FILES**; the cluster's, for EXERCISES, is `ReplaySessionIntents.EnterReplay(exerciseId)` (what `POST /replay {exerciseId}` and the orchestrator's *Load Replay* end in).
+Exercise list: `ClusterUiCache.AvailableExercises` (editor, orchestrator, ExCon) / `ClusterSlave.KnownExercises` (ECS nodes, via `SubsystemDebugProvider.ExercisesFrom`).
+
+```mermaid
+classDiagram
+  class RecentStore { <<existing, NodeEditor.UI; EXTENDED>> Push · RankOf · Load(path) · Save · one list per context key · cap 16 }
+  class PickerEntry { <<existing>> + RecentContext : the kind's list }
+  class PickerState { <<existing>> Refilter ranks recents · RecordPick · RecentFilteredIndices }
+  class PickerRegistry { <<existing>> + Recent store · RecentSection · ConfirmEntry }
+  class TreeLayout { <<existing>> draws the Recent section FIRST }
+  class UserRecentPicks { <<NEW, Hrot.Presentation>> recent-picks.json in the user folder · Shared }
+  class AssetRecents { <<NEW, AiShared>> ContextFor(kind) · ItemKey(asset) · RecordingKey(id) }
+  class AssetBrowserPanel { <<existing>> + Options.Recent · RecentFor(kind) · RecentFlat · push on activate }
+  class AssetPickerSource { <<existing>> entries carry RecentContext }
+  class RecordingPickerLauncher { <<NEW, AiShared>> exercises newest first · Open }
+  class ScenarioMenuCommands { <<existing>> + File/Open Recording allowedInIdle }
+  class IScenarioSession { <<existing>> + OpenRecording(exerciseId) }
+  class EditorScenarioSession { <<existing>> OpenRecording publishes ReplaySessionIntents.EnterReplay }
+  class EntityAuthoring { <<existing>> CreatePickers gives every registry the shared store }
+  PickerState --> RecentStore : reads ranks, pushes picks
+  PickerState --> PickerEntry : RecentContext
+  PickerRegistry --> PickerState
+  TreeLayout --> PickerState : RecentFilteredIndices
+  EntityAuthoring --> PickerRegistry : Recent = UserRecentPicks.Shared
+  UserRecentPicks --> RecentStore : Load(user folder)
+  AssetBrowserPanel --> RecentStore : same instance
+  AssetBrowserPanel --> AssetRecents
+  AssetPickerSource --> AssetRecents
+  RecordingPickerLauncher --> AssetRecents
+  RecordingPickerLauncher --> PickerRegistry : OpenPicker
+  ScenarioMenuCommands --> RecordingPickerLauncher : Open
+  RecordingPickerLauncher --> IScenarioSession : OpenRecording
+  EditorScenarioSession ..|> IScenarioSession
+```
+
+*What the picture shows that prose hid:* there is ONE list store and ONE place that names a list (`AssetRecents.ContextFor(kind)`); every picker reaches it through the
+registry the hosts already build (`EntityAuthoring.CreatePickers`, so the editor and CGF cannot differ) and the browser through the same instance. The opener of a recording is
+the SESSION's `OpenRecording`, which publishes the one replay intent — no second open path beside `POST /replay`.
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant M as File › Open Recording (also the Start button)
+  participant L as RecordingPickerLauncher
+  participant P as PickerRegistry / PickerState
+  participant S as IScenarioSession
+  participant C as master
+  U->>M: click
+  M->>L: Open()
+  L->>P: OpenPicker(entries = master's exercises newest first, Id = exercise id, RecentContext = recent.Recording)
+  P-->>U: Recent first (those still in the inventory), then the rest
+  U->>P: confirm a row
+  P->>P: RecordPick → RecentStore.Push(recent.Recording, id) → recent-picks.json
+  P->>L: result (Tag = the exercise)
+  L->>S: OpenRecording(exerciseId)
+  S->>C: TransitionStateIntent EnterReplay(exerciseId) — one request, from any state
+```
+
+**AS-BUILT deviations from the design above** *(§2.2's text is kept; each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `RecentList` — a NEW class, one list per kind (scenarios · recordings · assets) | no new list class: `RecentStore` (NodeEditor.UI) gained `Load(path)` / `Save` (every `Push` writes) and `RankOf`; `UserRecentPicks` (Hrot.Presentation) only names the user-folder file and owns the shared instance | `NodeEditor.UI` is referenced by `Hrot.Presentation` and `Hrot.Editor.AiShared`, so the dependency direction allows it — one store, not two lists (R "shared and unified") |
+| 2 | per kind | one list per `AssetKind`, named `recent.<Kind>` (`AssetRecents.ContextFor`); a `PickerEntry` names its kind through the new `RecentContext` (null ⇒ the picker's own context) | the Open-Asset picker (all kinds), File › Open Scenario (scenario only) and the docked browser must share the scenario list; `PickerRequest.ContextKey` is per picker, not per kind |
+| 3 | an item's identity | the identity the picker already uses: `IEditableAsset.AssetId` (for a scenario it is derived from the path RELATIVE to the scenarios root — `ScenarioCatalogContributor.DeriveAssetId`), a recording's EXERCISE id. Never an absolute path | the content-folder move (CE-4089) must not stale an entry; one that no longer resolves is not in the list the picker draws, so it is not shown |
+| 4 | "every open picker shows a Recent section first" | the flat layouts already ranked recents first (header "↻ Recent"); the **Tree layout drew none** — it now draws the section first (`TreeLayout.RecentSectionRows` = `PickerState.RecentFilteredIndices`); `AssetBrowserPanel` got `RecentFor` / `RecentFlat` + a drawn section in every tab | Open Asset and the scenario pickers are Tree pickers |
+| 5 | `AssetKind.Recording` | added at the END of the enum; **not a catalog kind** — `AssetKindFilterMapping.IsCatalogKind` is false, `FromKind` throws, no filter flag, no browser tab; icon `asset/recording` (atlas cell `d8`) | a recording is listed by the master's inventory, not by any `IAssetCatalog`; a flag would add an empty Recording tab to every "All" browser. The `FromKind_AllKinds_Audited` rail now audits the catalog kinds |
+| 6 | "through the ONE existing recording opener (`IRecordingOpener`, `POST /replay`, `EnterReplay`)" | `IScenarioSession.OpenRecording(exerciseId)` → `ReplaySessionIntents.EnterReplay(exerciseId)` published on the orchestration bus (drops a queued scenario load, leaves a dry run first, like the loads) | `IRecordingOpener` opens FILES and exists only on the Replay Browser host (`DebugApiService.OpenRecordingFiles`: *"A cluster replays the exercises its master recorded"*); the cluster's EXERCISE open is `EnterReplay(exerciseId)`, which `POST /replay {exerciseId}` also ends in — so there is one construction, not a second path. §2.2's `ClusterReplayControls.EnterReplay(id, at)` box does not exist in code and was not added |
+| 7 | list = the cluster read model's exercises | the editor: `_orchestratorCore.UiCache.AvailableExercises` (what `GET /exercises` serves); CGF: its slave's `KnownExercises` (`SubsystemDebugProvider.ExercisesFrom`); a host with no picker registry passes none ⇒ the item is greyed with its cause (ruling 49) | one launcher (`RecordingPickerLauncher`), two inventories |
+| 8 | `allowedInIdle: true` | `File/Open Recording` (a top-level File item: a recording is not a scenario, and it names no mode) is registered by `ScenarioMenuCommands.Register` on every host and marked allowed-in-Idle, so the Start surface offers it (§2.6 deviation 5 is closed) | — |
+| 9 | (not said) | not guarded by the CE-1025 "a run is running" confirm | AQ108 §3 owns every move's confirmation (a later task); the master plans the unload from any state |
+
+⚠ **Not done here (belongs to CE-4089 / later):** listing recipes, scenarios and recordings from the content folders on the Start surface; the Replay Browser's own file
+open (an `IRecordingOpener` caller) does not push to this list — it is a different host with no cluster inventory.
+
+### 2.8 CE-4097 — the mode picker's core — ⭐ **AS-BUILT `2026-10-28` (ui; core built, the repeating parts follow)** (coordinator NOTE: start the core now; CE-4093's master round and CE-4091 to come)
+
+⭐ **AS-BUILT:** the CORE is built — the class diagram below is the BUILT one (changes marked ⭐; the pre-build form is where the deviation table says). Build-state of §2.8: **core BUILT · part two BUILT (§2.8a)**. The as-built block with the deviations table is after the decisions paragraph.
+
+**INVENTORY** (graph + grep; ⚠ coverage not checkable through the CLI): `search_graph .*(RunMode|ArmedMode|ModeIndicator|ModeChoice|TimeControlSection|TimeTransport).*`
+→ `ITimeTransportFacade` (one interface), `ClusterTimeTransportAdapter` (its one implementation — built by the editor `EditorSubsystem.cs:2463`, CGF
+`:1832`, SimHost `:341`), `MainToolbarTimeControlSection` (`ModeGlyph` / `ModeMenu`: the indicator SHOWS the cluster state today, it does not
+choose), `HostArmedMode` (CE-4096, per host); no `RunModeChoice` (0). The scenario actions every operator host already has: `IScenarioSession`
+(`LoadedScenarioName`, `LoadForLive`, `OpenForEdit`, `OpenRecording`, `SaveCurrent`, `TakeCheckpoint` — editor + CGF). The live run's scenario on
+EVERY host: the broadcast's `ExerciseId` → `ExerciseInventoryItem.ScenarioId` (the inventory lists the run in progress since CE-4054).
+
+| the lean rests on | code | design |
+|---|---|---|
+| ■ today sends Live to Idle (⇒ now the Start screen) | ✅ `ClusterTimeTransportAdapter.Stop` | ⛔ R2 / D5: back to the scenario's start, Live armed |
+| every host can name the live run's scenario without a wire change | ✅ `ExerciseInventoryItem(…, ScenarioId)` + broadcast `ExerciseId` | ✅ D7 (the recording keeps its scenario) |
+| a branched run's parent and branch point are NOT on any host | ✅ the inventory has no parent field (`ExerciseInventoryItem`); ⚠ corrected: the RECORDING has them (`RecordingMetadata.ParentExerciseId` / `BranchWallTicks`, `RecordingModule.cs:89`) — only the inventory lacks them (coordinator HANDOFF to backend) | D5 branch case — ⚠ falls back to the scenario's start until backend publishes the parent (filed in the NOTE) |
+| POST /sim/stop and ■ are one Stop | ✅ both reach `ITimeTransportFacade.Stop` | ✅ D22 |
+
+```mermaid
+classDiagram
+  class ITimeTransportFacade { <<existing>> Mode · IsPaused · TogglePlayPause · Stop · Seek · EnterReviewAtSim · Session }
+  class ClusterTimeTransportAdapter { <<existing>> Stop() · TogglePlayPause() · StepBy() ⭐ delegate to the run choice (Stop in every state, ▶ Step from Edit) · ⭐ AttachRunChoice(hostDefault, control, unsaved) · ⭐ RecordsLiveRuns · ActiveExercise · ActiveExerciseScenario }
+  class IRunTransport { <<NEW seam, implemented by the adapter>> raw: StopRaw · EnterDryRun · Resume · Seek · BranchLive · readings: Mode · IsPaused · TotalTime · RecordsLiveRuns · ActiveExercise · ActiveExerciseScenario }
+  class RunModeChoice { <<NEW, per host, Hrot.Presentation/RunMode>> Armed : Preview|Live|AAR · HostDefault (D12) · LastExercise · Play() · Stop() · Choose(mode) · Moves() · Pending : RunModeConfirmation? · Indicator · Toast · PlayDisabledReason · SaveAsPrompt · OnClusterState(state) }
+  class IRunScenarioControl { <<NEW seam>> LoadedScenarioName · LoadForLive · OpenForEdit · OpenRecording · SaveCurrent · TakeCheckpoint }
+  class IScenarioSession { <<existing>> ⭐ : IRunScenarioControl (declares none of the six again) }
+  class IUnsavedChangesQuery { <<NEW seam>> Ask(reply : Changed|Unchanged|NeverSaved) }
+  class ScenarioNameUnsavedChangesQuery { <<NEW, production default until CE-4093's master round>> NeverSaved if no loaded name, else Unchanged }
+  class RunModeConfirmation { <<NEW, ONE dialog shape>> Text · Buttons · Resolve(button) }
+  class MainToolbarTimeControlSection { <<existing>> ctor choice? · the indicator draws RunModeChoice.Indicator · the menu is Moves() after the DAR items · modal for Pending · toast · ▶ ■ call the facade }
+  ClusterTimeTransportAdapter ..|> ITimeTransportFacade
+  ClusterTimeTransportAdapter ..|> IRunTransport
+  ClusterTimeTransportAdapter --> RunModeChoice : delegates Stop / Play from Edit · feeds OnClusterState (D12)
+  RunModeChoice --> IRunTransport : the raw transport (dry run, review exit, seek, branch)
+  RunModeChoice --> IRunScenarioControl
+  RunModeChoice --> IUnsavedChangesQuery
+  RunModeChoice --> RunModeConfirmation : R3
+  ScenarioNameUnsavedChangesQuery ..|> IUnsavedChangesQuery
+  IScenarioSession --|> IRunScenarioControl
+  MainToolbarTimeControlSection --> RunModeChoice
+```
+
+*What the picture shows that prose hid:* ■ and `POST /sim/stop` stay ONE call (`facade.Stop`), and R2 lives behind it in ONE object per host;
+the scenario actions are the session's existing ones, reached through a narrow interface the session implements — nothing is re-implemented.
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant F as facade (adapter)
+  participant C as RunModeChoice
+  participant Q as IUnsavedChangesQuery
+  participant S as IRunScenarioControl
+  U->>F: ▶ (Edit, Live armed)
+  F->>C: Play()
+  C->>Q: Ask
+  alt Changed
+    C-->>U: Pending: "Save and go live / Cancel" → SaveCurrent, then LoadForLive
+  else NeverSaved
+    C-->>U: Pending: "Save as… and go live / Cancel"
+  else Unchanged
+    C->>S: LoadForLive(LoadedScenarioName)
+  end
+  U->>F: ■ (Live)
+  F->>C: Stop()
+  C->>S: OpenForEdit(scenario of the active exercise) — Live stays armed, LastExercise = it, toast
+```
+
+⭐ **Decisions:** ① **`RunModeChoice` per host** holds the armed mode, set to the host default on each open (D12), and owns R1–R3; the indicator
+shows it DIM in Edit, BRIGHT steady while a run is paused, BLINKING while it plays (D1); Live RED when the broadcast says runs are recorded,
+GREEN when not (CE-4090). ② **■ per R2** inside `facade.Stop` via the choice: Preview → the dry run's exit (today's) · DAR → back to live
+(today's) · Live → `OpenForEdit(scenario of the active exercise)`, armed stays Live · AAR → seek to 0, stays AAR. ③ **▶ from Edit** follows the
+armed mode: Preview → the dry run (today's) · Live → the unsaved check, then `LoadForLive` · AAR → `OpenRecording(LastExercise)` at its start.
+④ **One confirmation shape** (`RunModeConfirmation`), texts exactly §3. ⑤ **The unsaved check is a seam** with a fake in rails (coordinator
+NOTE) — ⛔ no round of ui's own. ⑥ **SimHost / IG** (no scenario session): Live-armed ▶ disabled with the reason, indicator still shown.
+Rejected: **R2 in the master** — a new intent in backend's lane, and the inventory already names the scenario · **the toolbar deciding ■** —
+`POST /sim/stop` would then differ from ■ (D22) · **a parallel scenario-action interface** — the session already has them.
+**Built in two parts:** core (this section — Sonnet from this design, reviewed); then the repeating parts (§3's remaining texts and toasts, the
+timeline's right-click menu, the words, `POST /sim/stop` / `POST /run-mode` / `GET /status.armedMode`, Save = checkpoint in Live / AAR, the
+status-bar note, the File-menu fold). CE-4091's *open the recorded copy* item last.
+
+**AS-BUILT `2026-10-28` (ui) — the core.** Rails: `TheOneTimeFacadeTests.CE4097_*` (the adapter + choice on a real bus), `MainToolbarTimeControlTests.CE4097_*` (indicator, moves, confirmations, ■ = the facade's Stop, the draw), `EditorScenarioSessionLoadTests.CE4097_*` (the real session), `TheRunChoiceIsOnEveryHostTests` (the constructed editor + CGF).
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `HostDefault` read from CE-4096's `HostArmedMode` | `AttachRunChoice(hostDefault, …)` takes the default as an argument; the **editor passes Preview, CGF and SimHost pass Live** — the same table as `HostArmedModes.For` (editor ⇒ Preview, else Live) | `HostArmedMode` is `internal` to `Hrot.ClusterRunner`, which references the subsystems (not the reverse): a subsystem cannot read it. `--mode all` requests the token `all`, not `editor`, so the two tables agree today. ⚠ Two places state the default; unify when the runner hands the subsystems a shared host parameter (a follow-up) |
+| 2 | "hook where the host learns a scenario was opened for editing (`IScenarioSession` / the cluster state reaching OperatingEdit with a new scenario)" | **the cluster state**: `RunModeChoice.OnClusterState`, fed by the adapter for every broadcast — the cluster reaching `OperatingEdit` from anything but a dry run resets `Armed` to the host default | one hook for every way in (File menu, Start surface, `POST /scenario/load/edit`) instead of one per opener. The choice's OWN returns to editing (■ in Live, → Preview) set a keep-flag the next Edit consumes — R2 says the armed mode stays. ⚠ If such a return never reaches Edit the flag stays until the next Edit |
+| 3 | `IRunScenarioControl` + `IScenarioSession` extends it | as designed; the interface lives in `Hrot.Presentation` (`Hrot.UI.Common.RunMode`) — `Hrot.Editor.AiShared` already references it, so no third home was needed. The six members moved (with their docs) off `IScenarioSession` | one declaration; a rail pins that the session interface re-declares none |
+| 4 | the raw transport "for the cases that keep today's behaviour" | `IRunTransport` (a narrow interface the adapter implements): `StopRaw` (today's `Stop`: review exit / dry-run exit / else Idle), `EnterDryRun`, `Resume`, `Seek`, `BranchLive` + the readings `RecordsLiveRuns`, `ActiveExercise`, `ActiveExerciseScenario`, `Mode`, `IsPaused`, `TotalTime` | the choice must not hold the whole facade; a fake transport is possible |
+| 5 | `RecordsLiveRuns` "from the CE-4090 field" | in a live run / DAR / AAR: `!ClusterStateUpdateEvent.RunNotRecorded` (the run's own sticky flag); before one (Edit, Preview): `!RecordLiveRunsOff` (the setting) | the armed Live icon shows the setting, the running one shows the run |
+| 6 | `ActiveExerciseScenario` from the events the adapter drains | the adapter folds `AssetInventoryUpdateEvent` (Local + Archived + UnarchivedLocal items, `ExerciseId → ScenarioId`) and reads the broadcast's `ExerciseId`; a ■ whose inventory has not listed the run yet falls back to the session's `LoadedScenarioName`; with neither, ■ does nothing (⛔ never Idle) | no `ClusterUiCache` on a CGF node — the adapter's own bus is the one source on every host |
+| 7 | ■ in Live on a host with no session | keeps TODAY's ■ (to Idle) — the adapter's raw stop | "hosts without one are unchanged"; the choice has no action to return to editing with |
+| 8 | ▶ "live from the world on screen, no reload" (§2.3 sequence: *resume the clock*) | ▶ in Live armed calls `LoadForLive` (the session's load, which lands PAUSED — Q86 §4-G) and the choice then publishes ONE `ResumeTimeIntent` when the cluster reaches `OperatingLive` — only for a load its own ▶ started | without it ▶ would leave a paused live run and a ▶ button to press again. ⚠ Added, not designed in §2.8 — delete `_resumeWhenLive` if the master should resume |
+| 9 | "Save ⇒ SaveCurrent then LoadForLive" | exactly that, back to back on the bus | ⚠ the save is a cluster round (`ExecuteStorageOpIntent`); that the master finishes it before the load's unload is NOT measured here — a rail on a real cluster belongs with CE-4093's round |
+| 10 | "Save as… and go live" | `RunModeChoice.SaveAsPrompt` — a host seam: *asks for a name, SAVES under it, then calls back with the name*; the editor's Save-As dialog (`openScenarioSaveAs`, now taking an optional callback) and CGF's (`OpenScenarioSaveAsDialog`) are wired to it. Null on a host with no dialog ⇒ the button does nothing | `IRunScenarioControl` has no `SaveAs` (the interface lists six members) |
+| 11 | "AAR armed ▶ → `OpenRecording(LastExercise)`" with none yet | ▶ is disabled with the reason *"No exercise to review yet"* unless the host sets `PickRecording` (not wired by any host in this run) | File › Open Recording already is the picker; the indicator's "ask for a recording" is part two |
+| 12 | the menu "offers the moves of §3 that start from the current state" | `RunModeChoice.Moves()` (model, with `ConfirmText` / `DisabledReason`) + the section shows them after the DAR items; the existing DAR items keep their labels ("Review the last 30 s…") | the words DAR / AAR are on the indicator and in the moves; renaming the DAR items touches the pinned label rails — part two |
+| 13 | not in the list | a toast on ■ in Live (`"Exercise recorded (m:ss) — Replay it"` — a button that arms AAR and opens the run at its start — or `"Live run ended"` when not recorded), drawn beside the transport for 8 s | the list asked for exactly these two |
+| 14 | `IRunScenarioControl` from the *session* | `ScenarioNameUnsavedChangesQuery` is the default `IUnsavedChangesQuery` (NeverSaved when no name, else Unchanged) — ⚠ **a LIE for an edited, saved scenario**: ▶ in Live armed goes live without the Save-first prompt until backend's CE-4093 master round replaces it (the TODO is on the class) | the round is backend's |
+
+⛔ **HISTORY — SUPERSEDED `2026-10-28` by §2.8a below (part two BUILT):** *"Part two (not built): the remaining §3 toasts and confirmations, the timeline's right-click menu (D21), `POST /sim/stop` / `POST /run-mode` / `GET /status.armedMode` (⚠ `POST /sim/play` and `/sim/step` in Edit now follow the armed mode through the facade …), Save / Ctrl+S = checkpoint, the status-bar note (D11), the File-menu fold, `EnterReview()`'s default (D9)."* — all built in §2.8a except what its "Not built" list names.
+
+### 2.8a CE-4097 part two — ⭐ **AS-BUILT `2026-10-28` (ui)** — D22 first, the real unsaved check, §3's remaining moves, the words, the timeline menu, HTTP, Save = checkpoint, the status note, the File fold
+
+⭐ Build-state of §2.8 + §2.8a: **BUILT** — incl. (merged from backend `7b1939e25`) ■ on a branched run returning to the parent's AAR at the branch point (D5) and the AAR → Preview *Open the recorded version (as a copy)* / *Open the current scenario* buttons (CE-4091); **except** (b) D15's *Keep / Discard* prompt (CE-4090 built only `DELETE /exercises/{id}` — **no "ask to keep recordings" setting exists**: grep `AskToKeep|ask.to.keep|KeepRecordings|AskKeep` over the WHOLE tree finds only AQ108's own text — so there is nothing to gate the prompt on and none was built), (c) D9's `EnterReview()` "no position = the live point" default (not in this task's list; the HTTP half is CE-4090's).
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` not available through the CLI): `search_graph .*Timeline.*` (Class) → ONE panel `TimelinePanel` (`FDP/Engine/Fdp.Presentation/ImGui/Panels/Timeline`) with ONE cluster cursor `ClusterTimelineCursor` (+ the `AxisCursor` wrapper and the Replay Browser's `FederatedReplayCursor`) — the right-click menu is `TimelinePanel.MenuItems`, no second menu. Callers of the facade's play from a USER control: `MainToolbarTimeControlSection`, `ClusterTimeControlStatusBarSection` (the status-bar copy), `ClusterTimelineCursor.TogglePlay` (Space); HTTP: `DebugApiService.Play/Pause/Step` (one service for the editor AND the cluster runner — `PerspectiveScopedDispatcher.Drive` resolves the same facade, so one route table answers both hosts). Save paths: `ShellSaveCommands` (the toolbar / Ctrl+S, both hosts' `saveScenarioAction`) and `ScenarioMenuCommands` `scenario.save` — all end in `EditorScenarioSession.SaveCurrent`. `unsavedCheck:` passed to a `SubsystemDebugProvider`: Orchestrator, Editor (in-process core), ExCon — **never an ECS node** (`EcsNodeDebugProvider` passes none).
+
+```mermaid
+classDiagram
+  class UserTransport { <<NEW static>> UserPlayPause · UserStep · IsUserPlayEnabled · IsUserStepEnabled }
+  class ITimeTransportFacade { <<existing>> TogglePlayPause / Step RAW · Stop delegates · RunChoice default null }
+  class ClusterTimeTransportAdapter { <<existing>> raw play / step · Stop → choice · Update → choice.Update · AttachRunChoice(…, unsavedReads) }
+  class RunModeChoice { <<existing core>> + Update · OpenRecording · OpenScenario · LeavingEditing · AarFromHere · GoLiveFromHere · TakeCheckpoint · DarDisabledReason · SaveIntercept }
+  class IUnsavedChangesQuery { <<existing seam>> Ask · Poll NEW }
+  class ClusterUnsavedChangesQuery { <<NEW, replaces ScenarioNameUnsavedChangesQuery>> Ask publishes ONE CheckUnsavedIntent · Poll reads UnsavedCheck · no timeout (R-4001), Cancel }
+  class UnsavedCheckReads { <<NEW record>> Observes · Outcome(requestId) }
+  class IClusterMasterControl { <<existing CE-4093>> CheckUnsaved }
+  class ISubsystemDebugProvider { <<existing CE-4093>> UnsavedCheck · ObservesUnsavedChecks }
+  class ISaveInterception { <<NEW>> SaveIntercept }
+  class EditorScenarioSession { <<existing>> SaveCurrent intercepted · OpenRecording(id, simSeconds) }
+  class ITimelineCursor { <<existing>> ModeMenuItems(wallTicks, time) NEW }
+  class ClusterTimelineCursor { <<existing>> AAR from here · Go live from here · Take checkpoint here }
+  class TimelinePanel { <<existing>> MenuItems adds the cursor's mode items · DAR labels }
+  class RunNoteStatusBarSection { <<NEW>> NoteNow : Preview or Live }
+  class DebugApiService { <<existing>> Stop · SetRunMode · status.armedMode }
+  class ScenarioMenuCommands { <<existing>> LoadLive item FOLDED away · Open / New top-level · openScenario seam }
+  ClusterTimeTransportAdapter ..|> ITimeTransportFacade
+  UserTransport ..> ITimeTransportFacade : a user control asks the choice from Edit
+  ClusterTimeTransportAdapter --> RunModeChoice
+  RunModeChoice --> IUnsavedChangesQuery
+  ClusterUnsavedChangesQuery ..|> IUnsavedChangesQuery
+  ClusterUnsavedChangesQuery --> IClusterMasterControl : ONE round per move
+  ClusterUnsavedChangesQuery --> UnsavedCheckReads
+  UnsavedCheckReads ..> ISubsystemDebugProvider : node provider / the editor core's cache
+  RunModeChoice ..> ISaveInterception : installs the intercept
+  EditorScenarioSession ..|> ISaveInterception
+  ClusterTimelineCursor ..|> ITimelineCursor
+  ClusterTimelineCursor --> RunModeChoice : the moment's moves, no confirmation
+  TimelinePanel --> ITimelineCursor
+  DebugApiService --> ITimeTransportFacade : Stop = the toolbar's ■ · RunChoice.Choose
+  ScenarioMenuCommands --> RunModeChoice : File › Open Scenario (guarded)
+  RunNoteStatusBarSection --> ITimeTransportFacade
+```
+
+*What the picture shows that prose hid:* the facade's play/step and the choice meet in ONE place (`UserTransport`) that only user controls call — an HTTP route reaches the raw facade and can never follow the armed mode; every "does this leave unsaved edits?" question of every host is the same `ClusterUnsavedChangesQuery` → `CheckUnsavedIntent` → `UnsavedCheck(requestId)` (nothing of ui's own); and the save is routed by the session the choice is attached to, so no host can forget it.
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant T as Toolbar ▶ (UserTransport)
+  participant C as RunModeChoice
+  participant Q as ClusterUnsavedChangesQuery
+  participant M as master (CE-4093 round)
+  participant S as session
+  U->>T: ▶ (Edit, Live armed)
+  T->>C: Play()
+  C->>Q: Ask
+  Q->>M: CheckUnsavedIntent (ONE, via the facade's bus)
+  Note over C,Q: every frame: adapter.Update → choice.Update → Q.Poll (UnsavedCheck(id) is null until it arrives, nothing blocks)
+  M-->>Q: UnsavedCheckOutcome
+  alt unchanged
+    C->>S: LoadForLive
+  else changed
+    C-->>U: Save and go live / Cancel
+  end
+  U->>T: (AAR) right-click the timeline › Go live from here
+  T->>C: GoLiveFromHere(seek)
+  C->>M: SeekReplayIntent now
+  Note over C: two frames later, so the master has read the seek and (F8) drains it before it branches
+  C->>M: BranchLive
+```
+
+⭐ **Decisions / what was built**
+
+| # | item | built |
+|---|---|---|
+| 1 | **D22 fix** | `ClusterTimeTransportAdapter.TogglePlayPause` / `StepBy` / `IsPlayPauseEnabled` are RAW again (from Edit: the dry run, whatever is armed) — `POST /sim/play` / `/sim/step` call them. `Stop` keeps delegating (`POST /sim/stop` = ■). The toolbar's ▶ / Step, the **status-bar copy's** and the timeline's **Space** call `UserTransport.UserPlayPause` / `UserStep` (the choice's `Play` from Edit). `ITimeTransportFacade.RunChoice` (default null) lets any consumer reach the choice. |
+| 2 | **the real unsaved check** | `ClusterUnsavedChangesQuery` (replaces `ScenarioNameUnsavedChangesQuery`, deleted): `IClusterMasterControl.CheckUnsaved(new CheckUnsavedIntent{…})` through the adapter's bus, answer read through `UnsavedCheckReads` (= `ISubsystemDebugProvider.UnsavedCheck(requestId)` / `ObservesUnsavedChecks`; the editor reads its in-process core's `ClusterUiCache`), polled by `RunModeChoice.Update()` (the adapter's per-frame `Update`). `Observes` false ⇒ asks nothing, **unchanged**; NeverSaved = empty `LoadedScenarioName`, no round; a master refusal ⇒ unchanged; no answer in 15 s ⇒ **Changed** (fail closed, like the HTTP gate's 504). Asked ONLY for moves that LEAVE EDITING: ▶ Live (*Save and go live / Cancel*), ▶ AAR and **File › Open Recording** (*Save / Discard / Cancel*), **File › Open Scenario** (*Save / Discard / Cancel*) — ONE `LeavingEditing` guard. The CGF host observes nothing today (see INVENTORY) ⇒ its ▶ asks no round. |
+| 2a | ⭐ **R-4001 fold `2026-10-29` (ui; R-3066 pause, coordinator NOTE item 2)** | ⛔ SUPERSEDED: the 15 s `Deadline` that read as Changed. Now no timeout — the master's round ends by itself (a node whose heartbeat stops leaves it); while it runs the toolbar shows *"Checking every node for unsaved edits…"* with **Cancel** (`RunModeChoice.IsCheckingUnsaved` / `CancelCheck` → `IUnsavedChangesQuery.Cancel`); a cancelled move is not made and a late answer is ignored. Same rule as backend's CE-3340 ⑤ for the HTTP gate — ONE rule, not two timeouts. Rail: `CE4097_TheUnsavedCheck_NotObserved_NeverSaved_Refused_AndNoTimeout_OnlyACancel` |
+| 3 | **§3 confirmations and toasts** | *Checkpoint taken* toast; the ■ toast now reads *Exercise recorded (m:ss) — open the AAR* (its button = `ReplayLastExercise`, which now opens through the guarded open, at the recording's START, D6); *Live run ended* with no AAR button when not recorded; DAR items and "AAR the last exercise" greyed *this run was not recorded* (D14, `RunNotRecorded`). |
+| 4 | **the words (D17)** | toolbar menu (*DAR — the last 30 s*, *DAR from the start*, header *DAR · …*, the indicator names *DAR* / *AAR*, ■ tooltip *Leave the AAR*), the timeline menu (*DAR from …*), the toasts, the orchestrator panel's section (*AAR (After Action Review)*, button *Open AAR*), the choice's disabled reasons. Code names unchanged. ⛔ Left alone: *Replay Browser* (an application's name), the HTTP route names `/replay` `/review` (D17 itself), the film director's *replay segment* (a film term). |
+| 5 | **timeline menu (D21)** | `ITimelineCursor.ModeMenuItems(wallTicks, time)` (default none; `AxisCursor` converts the click to wall ticks): in Live *AAR from here* (the frame's sim time); in an AAR *Go live from here* (seek, then the built branch two frames later); in Live / DAR / AAR *Take checkpoint here*. None asks. |
+| 6 | **HTTP (D22)** | `POST /sim/stop` → `ITimeTransportFacade.Stop` (409 in editing / Idle); `POST /run-mode {armed, confirm?}` → `RunModeChoice.Choose` (409 + the confirmation's text, and the question is cancelled, unless `confirm:true`; 400 on a bad word; 503 with no choice); `GET /status.armedMode`. ONE `DebugApiService` / route table answers the editor AND the cluster runner (`PerspectiveScopedDispatcher.Drive` is the same facade) — no second routing. MCP catalog + skill regenerated (`gen-catalog.mjs`, `generate-skill.mjs`). |
+| 7 | **Save / Ctrl+S in a run** | `ISaveInterception` on the session, installed by the choice's constructor: in Live / DAR a Save is `TakeCheckpoint` + toast, **never a scenario write**; in an AAR / an unrecorded run nothing is published and the toast says why. HTTP `POST /scenario/save` stays explicit (409, CE-4090). |
+| 8 | **status-bar note (D11)** | `RunNoteStatusBarSection` (*Running — edits are not saved unless you save*) while Preview or Live runs; registered on the editor and CGF beside the time controls (perspective `Scenario`). |
+| 9 | **File fold** | `File/Live/Load Scenario` is gone (the id `scenario.loadLive` retired); **Open Scenario** and **New Scenario** are top-level (`File/Open Scenario`, `File/New Scenario`) beside **Open Recording**; Open always opens INTO editing, the armed mode decides ▶ (D12). AQ108 §3 does not specify the fold's exact shape — the minimal one was done. `File/Live/New Exercise` (the cluster reset) and the `File/Edit/…` save items are unchanged. |
+
+**AS-BUILT deviations from the design above** *(the design text is kept; each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | "Take checkpoint here" everywhere (D21) | enabled only in **Live at the live edge** (±1 s); a past click, a DAR and an AAR show it greyed with the reason | a checkpoint is a keyframe of the LIVE recorder (`ReferenceCheckpointHandler.cs:99` throws on a node that is not recording — an AAR has none); there is no mechanism for a past moment (§5a note) |
+| 2 | Save / Ctrl+S = checkpoint in Live **and AAR** | in an AAR the Save is intercepted (the scenario is not written) but **no checkpoint is taken** — the toast says *a recording cannot take a checkpoint — go live from a moment first* | same: an AAR has no recorder |
+| 3 | toast *"Exercise recorded (12:31) — Replay it"* | *"… — open the AAR"* | D17 (§1a) retires "Replay" from the user's words; §3's table text was written before it |
+| 4 | the ask for "back to Start" / exit | not wired — no ui move reaches `Start` through the choice, and `File/Exit` (CE-4096) is guarded by `IAppExitGuard` only | the task limits the check to the choice's moves; the same `ClusterUnsavedChangesQuery` is the seam when it is built |
+| 5 | "Go live from here (the branch)" at a moment | the cursor seeks, the choice publishes the existing `BranchLive` **two frames later** | the branch takes the replay's current position and the master drains seeks in flight before leaving a replay (`ClusterMaster` CE-3329 F8). ⚠ proven by the rails on a real bus, **not** on a live multi-process cluster |
+| 6 | the CGF host asks the round | CGF passes `UnsavedCheckReads.From(its debug provider)`; that provider observes nothing today | `EcsNodeDebugProvider` passes no `unsavedCheck` (INVENTORY) — a backend change would make CGF's ▶ ask with no ui change |
+| 7 | (not said) | `Save as…` / `SaveAs` in a run is unchanged | D8 wants a new scenario from a checkpoint only — that mechanism has no code (§5a note) |
+| 8 | status-bar note "on every host" | registered where the time controls are (editor, CGF; perspective `Scenario`); SimHost has no scenario session and no window of its own | one registration per host family that shows the time controls |
+| 10 | ■ in a branched run → the parent's AAR at the branch point (D5, backend `ParentExerciseId` / `BranchWallTicks`) | `StopLive` reads `IRunTransport.ActiveExerciseBranch` (the adapter's inventory fold); opens the parent at its START, Live stays armed, then `Update` seeks (`IRunTransport.SeekWall`, the timeline's wall→axis conversion) once the replay session's zero is known | the branch point is in the PARENT's wall ticks and the zero exists only after the replay opens; rail on a real bus, not a live cluster |
+| 11 | AAR → Preview *Open the recorded version (as a copy)* (CE-4091) | the button opens `OpenForEdit(RecordedScenarioNames.ForExercise(exercise))` (`opened/recorded/<id>` — CE-3340 ①, was `Recipes/Recorded/<id>` — what `POST /scenario/load/edit {recorded}` derives); shown only when the host seam `RunModeChoice.RecordedVersionDiffers` says the hashes differ | no host can tell yet (see Not built) |
+| 9 | the facade's `IsPlayPauseEnabled` carried the "Live armed, no session" disabling (core) | raw again; the USER's ▶ is disabled by `UserTransport.IsUserPlayEnabled` | D22 — an HTTP play from Edit works on every host |
+| 12 | **§2.8a — the adapter reads `ClusterView`** (CE-1436, ui half, `2026-10-29`): the adapter's own fold of `ClusterStateUpdateEvent` (state, axis, exercise, `RunNotRecorded`, `RecordLiveRunsOff`), `AssetInventoryUpdateEvent` (its `_exerciseItems`) and `ReplaySessionUpdateEvent`; the editor session's `_currentClusterState` | ⭐ `ClusterTimeTransportAdapter(bus, Func<ClusterView?> view, …)` and `EditorScenarioSession(…, Func<ClusterView?>, …)` READ the node's ONE view (`ClusterSlave.View`; on the editor the node's slave, which its in-process core's cache shares); the adapter keeps only the `SwitchTimeModeEvent` fold (pause / scale / sim time — the view carries no time facts). The ▶ gate reads `EcsNodeDebugProvider.UnsavedCheck` → the same view. ‘Active exercise’ scans the view's Local + Archived + UnarchivedLocal lists (the scopes the adapter always folded). ‘Run choice learns the state’ is now a per-frame compare against the view's state (`OnClusterState` was already idempotent on equal states) | ⛔ SUPERSEDED: the adapter / session folds, deviation 6's "CGF passes `UnsavedCheckReads.From(its debug provider)`; that provider observes nothing today" and rows 10's "the adapter's inventory fold" — all read the one view now. Two kinds of fold of the same facts would drift (`RunNotRecorded` was folded three times; the inventory scopes differed) — [`DESIGN_Cluster_View.md`](../DESIGN_Cluster_View.md) §5; the rails are `TheOneTimeFacadeTests.CE1436_*`, `EditorScenarioSessionLoadTests.CE1436_*`, `HrotNodeBuilderTests.CE1436_CgfShapedHost_*`. One behaviour change: `RunNotRecorded` / `RecordLiveRunsOff` are not touched by a `MasterGone` broadcast any more (the view's rule; the adapter used to take them from it) |
+
+⚠ **Not built (named):** a host that supplies `RunModeChoice.RecordedVersionDiffers` (the saved-vs-recorded hash compare — the inventory carries no hash and the copy's `RecordedScenarioStamp` lives in the master's staging, so until a host reads it the AAR → Preview confirmation is the plain one; the two-button form is built and railed); D15's *Keep / Discard* prompt and its setting (CE-4090 built none); `EnterReview()`'s default (D9, UI facade); a back-to-`Start` / exit guard; a live multi-process proof of *Go live from here* and of an ECS node answering the check round.
+⛔ **SUPERSEDED `2026-10-29` (CE-1436, backend built it; ui's half is deviation 12) — the gap below is CLOSED:** every ECS node now keeps one `ClusterView` fed by one ingress, `EcsNodeDebugProvider` passes `unsavedCheck:`, and ▶ on CGF asks the round (`HrotNodeBuilderTests.CE1436_CgfShapedHost_PlayLive_…`). Kept as the record of why:
+
+⚠ **Gap measured `2026-10-29` (ui):** on an ECS-node host (CGF / SimHost / IG / Traffic) the unsaved check asks NO round — `EcsNodeDebugProvider` passes no `unsavedCheck:`, and it could not: the master's answer (`ClusterOpCompletedEvent` → DDS `ClusterOpStatus`, `ClusterOpMasterTranslator.cs:66`) is read back only by `OrchestrationObserverTranslator` (ExCon); the node's `NodeOpSlaveTranslator` has no `ClusterOpStatus` reader. ⇒ a CGF-host ▶ Live goes live without the *Save and go live* prompt. ⭐ Root cause: two cluster ingress translators and two cluster read models — handed to backend as one unification frame, CE-1436 ([NOTE](batches/NOTE_Ui_To_Backend_One_Cluster_Ingress_And_Read_Model.md)); the provider answers on every host when it lands.
+
+### 2.9 CE-4083 — the status-bar time control is removed — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+| host | before | now |
+|---|---|---|
+| editor | toolbar group + status-bar `editor_time_controls` (`TimeControlStatusBarSection` → `ClusterTimeControlStatusBarSection`) | toolbar group only (`ShellTimeControlToolbar`) |
+| CGF | toolbar group + status-bar `cgf_time_controls` | toolbar group only |
+| SimHost | ⚠ **status-bar `simhost_time_controls` ONLY — no toolbar group** (its `AttachRunChoice` comment said the toolbar section was not registered) | **toolbar group added** (`SimHostSubsystem.RegisterTimeTransport` → `ShellTimeControlToolbar.Register` over the host's one facade + the choice it holds); status-bar copy gone |
+| IG · ReplayBrowser · ClusterRunner window | no time control (build no `ClusterTimeTransportAdapter`) | unchanged — they never had one |
+
+**Deleted:** `ClusterTimeControlStatusBarSection`, the editor's `TimeControlStatusBarSection` wrapper and the former's 2 smoke tests (mechanical; the toolbar section's `Render_*` rails cover the same render path). **Kept:** `RunNoteStatusBarSection` (D11 — a note, not a time control). **Added seam:** `StatusBarManager.SectionIds`. ⚠ SimHost's `SimHostControlsWindow` panel keeps its own Play/Pause/Step on the same facade (`vis.UI.TimeFacade`) — a panel, not the status bar; untouched. Rails: `TheRunChoiceIsOnEveryHostTests` (editor, CGF, SimHost).
+
+### 2.10 CE-1437 — the run controls are composed ONCE PER PROCESS (R-3066 audit #1, #2, #10) — ⭐ **AS-BUILT `2026-10-29` (ui)** (design text kept; the build's deviations are the table at the end of this section)
+
+| the lean rests on | code | design |
+|---|---|---|
+| the toolbar time control is ONE process-wide entry, last registration wins | ✅ `ShellTimeControlToolbar.cs:40,72` (`EntryId`, no perspective) → `MainToolbarManager.RegisterEntry` replace-or-add | ✅ D13 "the picker exists once" |
+| three hosts register it, so in a multi-host process the LAST host owns ▶ | ✅ `EditorSubsystem.cs:5426`, `CgfSubsystem.cs:1865`, `SimHostSubsystem.cs:364`; order = subsystem order in `LocalWindowController` | ⛔ R-3066 / CLAUDE.md "make hosts agree by construction" |
+| the armed default is owned twice | ✅ `HostArmedModes.For` (runner, internal) → `LocalWindowController.ArmedMode`, read by nothing · literals at the three `AttachRunChoice` sites | ✅ D12 "ONE host parameter of the shared bootstrap" |
+| SimHost's panel ▶ bypasses the user entry | ✅ `SimHostControlPanels.cs:61,64` call the facade raw | ✅ D22: user controls follow the armed mode (`UserTransport`), routes stay raw |
+
+```mermaid
+classDiagram
+  class RunArmedDefaults { <<NEW, Hrot.Presentation>> +For(RunHostKind) RunArmed — editor Preview, else Live (the ONE table, D12) }
+  class IProvidesRunControls { <<NEW>> HostKind · Transport : ITimeTransportFacade? · RunChoice : RunModeChoice? — implemented by the Editor, Cgf and SimHost subsystems }
+  class RunModeChoice { <<existing>> HasScenarioControl (NEW, read-only) }
+  class LocalWindowController { <<existing>> ⭐ ComposeRunControls(wm) · PickRunControls(hosts) · RunControlsOwner — ONE toolbar entry, from the operator host's choice, by rule }
+  class ShellTimeControlToolbar { <<existing>> Register(toolbar, facade, choice) — ⭐ called ONLY by the composition }
+  class ClusterTimeTransportAdapter { <<existing>> AttachRunChoice(⭐ RunArmedDefaults.For(kind), control, …) }
+  class SimHostControlPanels { <<existing>> ⭐ Play / Step through UserTransport }
+  LocalWindowController --> IProvidesRunControls : the subsystems that offer one
+  LocalWindowController --> ShellTimeControlToolbar : once
+  ClusterTimeTransportAdapter ..> RunArmedDefaults
+  IProvidesRunControls ..> RunModeChoice : offers
+```
+
+*What the picture shows that prose hid:* the time control's owner moves from three hosts to the one place every host's window is composed (as the
+start gate did, §2.6), and its pick becomes a RULE — ⛔ never registration order.
+
+⭐ **Decisions:** ① **the rule:** the run controls of a host whose choice HAS a scenario session (an operator host: editor, CGF) win; with none,
+the first offered (SimHost alone keeps its own); with two operators in one process (none today), the editor's. ② **one armed-default table**
+(`RunArmedDefaults`, in Hrot.Presentation so both the subsystems and the runner read it); `HostArmedMode(s)` in the runner is deleted.
+③ **`UserTransport` is the only user play entry** — the SimHost panel calls it. ④ every subsystem still builds its own adapter (each node drives
+its own bus); only the TOOLBAR surface is composed once. Rejected: **perspective-scoped entries** (one per host) — the toolbar would change with
+the perspective while the cluster clock is one · **first-registered wins** — still order, not a rule.
+
+**AS-BUILT deviations from the design above** *(each row is where the build differs and why)*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `RunArmedDefaults.For(hostKind)`; `IProvidesRunControls { Transport, RunChoice }` | `For(RunHostKind)` with `RunHostKind { Editor, Cgf, SimHost, Other }`; the interface has a THIRD member `HostKind` | the editor tie-break ("with two operators, the editor's") needs the rule to know which offer is the editor's without a subsystem-name string compare; the same value keys the table at the host's `AttachRunChoice` |
+| 2 | "an offered choice whose scenario control is not null" | `RunModeChoice.HasScenarioControl` (read-only, `_control is not null`) | the choice held the session privately; nothing exposed it |
+| 3 | `LocalWindowController.ComposeRunControls(wm)` picks and registers | the rule is `PickRunControls` (static, pure); `ComposeRunControls(wm)` registers over its pick and records it as `RunControlsOwner`; called in `OpenLocalWindow` right after `ComposeStartSurface`, i.e. after every host's `RegisterWindows` | the hosts build their adapter inside `RegisterWindows`, so the composer must run after it; a host whose `Transport` is still null (headless, no bus) offers nothing |
+| 4 | SimHost's `RegisterTimeTransport` goes | gone; its adapter + choice come from `SimHostSubsystem.CreateTimeTransport(bus, simTime)` (the host's single `AttachRunChoice` site, now a static) | the real SimHost needs a graphics window for `RegisterWindows`, so no rail could reach its choice; the factory is the constructed piece |
+| 5 | the editor registered its toolbar behind `_previewController != null && _timeController != null && _world != null && MainToolbar != null` | the editor offers `_timeTransport` whenever it is built; that guard now only gates its run-note status-bar section | the guard protected the toolbar registration, which moved to the composer |
+| 6 | SimHost panel Play / Step through `UserTransport` | `SimHostSimulationControlsPanel` gets `IsPlayEnabled`, `IsStepEnabled`, `PlayDisabledReason`, `PlayPause()`, `Step()` (all `UserTransport`); `Render` disables the buttons with the choice's reason as the tooltip | so the routing is assertable without an ImGui frame (the suite's own rule: "pin the routing, not the rendering") |
+| 7 | — | **left per host: `RunNoteStatusBarSection.Register`** (editor, CGF) | D11's note is a status-bar note, not a time control; not part of this item |
+
+### 2.11 CE-1438 — one confirmation shape, and the "a run is running" guard inside the run choice (R-3066 audit #5, #6, #7) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+> ⚠ **Moved by CE-4101 (§2.11a, `2026-10-29`):** the "a run is running" guard and the unsaved round now live in the session's ONE `ScenarioDoor`, not in `RunModeChoice` (`AskStopAndLoad` / `LeavingEditing` are gone; the choice binds the door and calls it). The text below is the CE-1438 build as it was.
+
+| the lean rests on | code (measured before the build, `ui@2cd9d28ff`) | design |
+|---|---|---|
+| three confirmation shapes: `ConfirmPromptController` (title / message / confirm label, `Resolve*`), `AppExitPromptController` (`IsPrompting`, three `Resolve*`), `RunModeConfirmation` (text + N buttons, last = Cancel) | ✅ `ConfirmPromptController.cs:23`, `AppExitPromptController.cs:19`, `RunModeTypes.cs:185`; three draw sites: `EditorSubsystem` `DrawExitPromptModal` / `DrawConfirmModal` (two hand-written `BeginPopupModal`s) and `MainToolbarTimeControlSection.DrawConfirmation` | ✅ AQ108 §1 **R3** + **D10** call `RunModeConfirmation` *"the ONE confirmation shape"*; `ConfirmPromptController`'s own header says a second shape is what the seam law forbids |
+| the editor warns *Stop & Load* over a run, CGF does not | ✅ editor passes `runningRun` + `confirmLoad` (`EditorSubsystem.cs` ~4625-4628 → `ScenarioMenuCommands.Guarded`); CGF's `Register` call passes neither (`CgfSubsystem.cs` ~2899-2941) ⇒ its File › Open Scenario goes straight on | ✅ D20 already says *"the File › Open Scenario item of every host ends here"* (the run choice); CE-1025 (`DESIGN_Cluster_Load_Phase.md` §9.1) wrote the warning for the *interactive* host only because it lived in a menu seam |
+| "a run is running" is defined twice | ✅ `ScenarioLoadGuard.RunningRun(inPreview, ClusterState)` (`ScenarioLoadGuard.cs:13`; the editor's seam and `DebugApiService.cs:1306`) vs the facade's `TransportMode` (`ClusterReplayControls.ModeOf`) that `RunModeChoice` reads | ✅ CE-1436 (one cluster read model) / CE-3329 row 21 (one facade) |
+| the editor's `inPreview` flag is not needed to say "dry run" | ✅ `EditorPreviewController.IsInPreviewMode` ≡ `state == OperatingPreview` (`EditorSubsystem.cs:754`) ≡ `TransportMode.Preview`; ⚠ a *live* run can still read as "in preview" on another adapter (CE-4054, `DirectorRunner.cs:570`) ⇒ the override stays as an optional argument | ⛔ no design says otherwise; `ScenarioLoadGuardTests` pins it |
+| no other caller of `ScenarioMenuCommands.Guarded` / `runningRun` / `confirmLoad` | ✅ whole tree `grep -rn "runningRun\|confirmLoad\|Guarded(" Hrot --include=*.cs`: only the registrar, the editor, `ScenarioLoadGuardTests` | — |
+
+```mermaid
+classDiagram
+  class RunModeConfirmation { <<existing, now PUBLIC ctor>> Text · Buttons (last = Cancel) · ⭐Title · ⭐PopupId · Resolve(button) · ⭐Cancel() · ⭐WithCancel(...) }
+  class ConfirmationModal { <<NEW static, Hrot.Presentation>> Draw(RunModeConfirmation?) — the ONE ImGui modal; Esc / X = Cancel }
+  class RunModeRunGuard { <<NEW static, Hrot.Presentation>> Of(TransportMode, inDryRun) : "a live run" / "a dry run" / null · LoadPrompt · RecordingPrompt · StopAndLoad }
+  class RunModeChoice { <<existing>> OpenScenario · OpenRecording — ⭐ AskStopAndLoad first, then LeavingEditing (unchanged) }
+  class ScenarioLoadGuard { <<existing, SHRUNK>> RunningRun(inPreview, state) = RunModeRunGuard.Of(ModeOf(state)) — HTTP's stoppedRun only }
+  class ConfirmPromptController { <<existing, THIN>> Request · Pending : RunModeConfirmation — one slot, no title / label of its own }
+  class AppExitPromptController { <<existing, THIN>> RequestExit · Pending : RunModeConfirmation (Save All and Exit · Discard and Exit · Cancel) }
+  class ScenarioMenuCommands { <<existing>> ⛔ runningRun / confirmLoad / Guarded RETIRED — Open Scenario = openScenario ?? session.OpenForEdit }
+  class MainToolbarTimeControlSection { <<existing>> DrawConfirmation → ConfirmationModal.Draw(choice.Pending) }
+  class EditorSubsystem { <<existing>> DrawPromptModals → ConfirmationModal.Draw ×2 · ⛔ _loadConfirm and the two hand-written modals gone }
+  class DebugApiService { <<existing>> LeaveRunForLoad → ScenarioLoadGuard.RunningRun (UNCHANGED call, same 409 / stoppedRun text) }
+  RunModeChoice ..> RunModeRunGuard : the ONE definition
+  RunModeChoice ..> RunModeConfirmation : Pending
+  ScenarioLoadGuard ..> RunModeRunGuard
+  DebugApiService ..> ScenarioLoadGuard
+  ConfirmPromptController ..> RunModeConfirmation : produces
+  AppExitPromptController ..> RunModeConfirmation : produces
+  ConfirmationModal ..> RunModeConfirmation : draws
+  MainToolbarTimeControlSection ..> ConfirmationModal
+  EditorSubsystem ..> ConfirmationModal
+  ScenarioMenuCommands ..> RunModeChoice : via the host's openScenario
+```
+
+*What the picture shows that prose hid:* the guard has no host-side seam left to forget — CGF and the editor both hand `File › Open Scenario` to the choice they already attach, and the
+choice is the only place that knows both "a run is running" and "what the confirmation looks like".
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant M as File › Open Scenario (ScenarioMenuCommands)
+  participant C as RunModeChoice (this host's)
+  participant G as RunModeRunGuard
+  participant T as Toolbar (ConfirmationModal.Draw)
+  participant S as IRunScenarioControl (the host's session)
+  U->>M: pick "x" over a LIVE run (editor OR CGF — same path)
+  M->>C: openScenario("x")
+  C->>G: Of(facade.Mode)
+  G-->>C: "a live run"
+  C-->>T: Pending = RunModeConfirmation[Stop and Load, Cancel]
+  alt Stop and Load
+    U->>T: press
+    T->>C: Pending.Resolve(button)
+    C->>S: OpenForEdit("x") (the session unloads to Idle, then loads)
+  else Cancel / Esc / X
+    U->>T: dismiss
+    T->>C: Pending.Cancel() — nothing happens
+  end
+```
+
+⭐ **Decisions** *(all three leans adopted)*: ① **`RunModeConfirmation` is THE model**; ONE draw (`ConfirmationModal.Draw`) is used by the toolbar and by the editor's exit and *New Exercise* prompts;
+the two controllers stay as thin PRODUCERS (they own a one-slot / a decision, not a shape) and lose their own title / message / label / button handling.
+② **The run guard moves into `RunModeChoice.OpenScenario` / `OpenRecording`** — every host with a choice warns by construction; the registrar's `runningRun` / `confirmLoad` seams and `Guarded` retire.
+③ **One definition of "running"**: `RunModeRunGuard.Of(TransportMode)`; `ScenarioLoadGuard` keeps only `RunningRun` for HTTP.
+*Rejected:* **passing `runningRun` / `confirmLoad` from CGF too** — fixes one host, keeps the copy-paste seam (the next host forgets again) · **a confirmation service object** — a second owner of a shape that
+a plain model + one static draw already covers · **retiring the two controllers** — the exit prompt's *"is it safe to close?"* decision and `ConfirmPromptController`'s one-slot drop rule are logic worth a headless seam; only their SHAPE was duplicate.
+
+**AS-BUILT deviations from the design above**
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | "a run is running" = the facade `Mode` | `Live` and `Preview` only — a DAR (`Review`) and an AAR (`Replay`) are not a run to stop here; and `LoadingLive` / `LoadingPreview` (which `ScenarioLoadGuard` used to name) map to `Idle` in `ModeOf`, so HTTP's `stoppedRun` is now `null` during those two *loading* states | keeps CE-1025's behaviour for review / replay (a load over them never warned); the loading-state narrowing is the price of ONE definition — the load itself still goes out, only the answer's text differs. `ScenarioLoadGuardTests` pins the table |
+| 2 | `OpenRecording` and `OpenScenario` guarded | both; ⚠ `OpenRecording` over a run is a NEW warning on every host (the editor never had one) | a recording opened over a live run stops it exactly as a scenario load does (`TheOneTimeFacadeTests.CE4097_OnlyAMoveThatLeavesEditing…` used to assert it went straight on — updated) |
+| 3 | `ConfirmPromptController` / `AppExitPromptController` "thin producers (or retired)" | both kept, public `Resolve*` kept; `ConfirmPromptController` keeps only `Pending` / `IsPrompting` / `Request`; the exit prompt's document list is now text inside the model (it was a bulleted ImGui list) | the existing rails call `ResolveConfirm` / `ResolveSaveAndExit` directly; the bullet list is the only visual change of the exit modal |
+| 4 | — | `CgfSubsystem.NodeForTest` (internal) added | the constructed-host rail needs the node's bus + cluster view to "hear" `OperatingLive` |
+
+### 2.11a CE-4101 — ONE guarded door IN (open a scenario / recording) and ONE OUT (leave to Idle) — ⭐ **AS-BUILT `2026-10-29` (ui)** (design text kept; the build's deviations are the table at the end of this section)
+
+🔒 User, on CE-1438: *"this again looks like missing unification, isnt there still dupliction?"* — the DECISION is one (§2.11), the DOOR is not:
+`IScenarioSession.OpenForEdit` / `LoadForLive` / `OpenRecording` stayed public and unguarded, so each caller had to remember the choice. Frame:
+[NOTE](batches/NOTE_Coordinator_To_Ui_One_Guarded_Scenario_Door.md) (coordinator, widened by the user).
+
+**INVENTORY** (`2026-10-29`, re-measured before the build: `scripts/cbm.sh search_code` for `OpenForEdit(` · `LoadForLive(` · `OpenRecording(` · `LoadScenarioByName(` · `ClusterState.Idle` + whole-tree grep over `Hrot/ FDP/ Stride/`
+(excluding `obj`, tests, `.claude/worktrees`); ⚠ `check_index_coverage` is not available through the CLI, so coverage of the graph itself was not checked — the greps are the whole-tree answer).
+Rows marked ➕ were NOT in the first table; they were added and fixed:
+
+| door | caller | guarded before | now |
+|---|---|---|---|
+| IN | File › Open Scenario / Recording — editor, CGF, Orchestrator | ✅ via the choice, each with an UNGUARDED `else` fallback | the session's own `OpenForEdit` / `OpenRecording` ARE the door; the `openScenario` seam and every fallback deleted |
+| IN | the asset browser's scenario pick — CGF `WirePickerShell`, editor, Orchestrator | ⛔ the session directly | the same door (the session's verbs) |
+| IN | New from a recipe — `ScenarioNewAssetService` → `LoadScenarioByName` → `EditorApplication` | ⛔ | the door; the save-as follows the open that WENT OUT (`then`) |
+| IN | the editor's director load — `EditorSubsystem` `EditorDirectorHost(load: …)` | ⛔ | the door (via `EditorApplication.LoadScenarioByName`) |
+| IN | the Orchestrator panel's *Load into Live* — `ClusterPanelRunControls.LoadIntoLive` | ⛔ (and no unsaved check — a loss) | `IScenarioSession.LoadForLive` = the door |
+| IN | HTTP `POST /scenario/load/edit` — `DebugApiService.LoadScenarioEdit` / `BeginLoadScenario` | its own route-level 409 | the editor's door, asked with `RefusingAsker`; same 409 and text |
+| IN ➕ | HTTP `POST /scenario/load/live` — `DebugApiService.LoadScenarioLive` (its own load sequence: `ForceRecording`, the `startPaused` time mode) | its own route-level 409 | `HttpDoor.Admit` decides, the route's own publish executes |
+| IN ➕ | HTTP `POST /replay` — `DebugApiService.EnterReplay` | ⛔ unguarded (unsaved edits lost) | `Admit(OpeningRecording)`; 409 over unsaved edits unless `discardUnsaved` |
+| IN ➕ | HTTP `POST /cluster/transition` to Idle / Edit+scenario / Live+scenario / Replay — `RequestClusterTransition` | ⛔ unguarded | `Admit(<the move of the target>)`; every other target stays the master's raw verb by name |
+| OUT | New Exercise — `EditorScenarioSession` | ⛔ Idle intent, no unsaved check (a loss) | `Door.Leave(NewExercise)`: Save / Discard / Cancel first |
+| OUT | the raw ■ — `ClusterTimeTransportAdapter.StopRaw` | ⛔ own intent | `ScenarioLoadSequence.UnloadIntent()` (a host with no session: nothing of a scenario to ask) |
+| OUT | the director's live stop — `EditorDirectorHost.StopLive` | ⛔ own intent | `UnloadIntent()` (it ends a LIVE run: no edited scenario) |
+| OUT | HTTP `POST /replay/stop` — `DebugApiService.StopReplay` | ⛔ own intent, no check | `Admit(Leaving(HttpStop))`; 409 over unsaved edits unless `discardUnsaved`; `UnloadIntent()` |
+| OUT | the load's own unload — `ScenarioLoadSequence.Request` | ✅ | `Unload()` (the one builder) |
+| — | `ClusterMaster.cs` ~2110 (the master's own bootstrap unload) | the master | left as it is (the master) |
+
+```mermaid
+classDiagram
+  class ScenarioDoor { <<NEW, Hrot.Presentation — the ONE decision>> +Open(name) · +LoadLive(name) · +OpenRecording(id, at?) · +Leave(LeaveReason) · +Admit(DoorMove, asker, answered, go) · decides: a run ⇒ Stop & Load · editing + unsaved ⇒ Save / Discard / Cancel · never saved ⇒ Discard / Cancel }
+  class DoorMove { <<NEW record>> OpeningScenario · LoadingLive · OpeningRecording · Leaving(reason) — its words and how a run it stops is worded }
+  class IDoorAsker { <<NEW>> DiscardsUnsaved · Ask(DoorQuestion) }
+  class ConfirmingAsker { <<NEW, UI hosts>> Pending slot → RunModeConfirmation (drawn by ConfirmationModal) · Show(title, text, buttons) }
+  class RefusingAsker { <<NEW, HTTP + non-interactive>> a run ⇒ stopped (StoppedRun) · a loss ⇒ Refusal text (the route's 409) · discardUnsaved }
+  class IHasScenarioDoor { <<NEW>> Door }
+  class EditorScenarioSession { <<existing>> ⭐ public OpenForEdit / LoadForLive / OpenRecording / NewExercise = Door calls · RawLeave · RunControl · raw verbs = EXPLICIT IRunScenarioControl members }
+  class IScenarioSession { <<existing>> ⭐ no longer extends IRunScenarioControl — guarded members only }
+  class IRunScenarioControl { <<existing>> the RAW verbs — handed ONLY to RunModeChoice (R2's moves ask their own confirmation) }
+  class RunModeChoice { <<existing>> mode logic (armed, R2) · binds the door in its ctor (transport mode, unsaved seam, ConfirmingAsker) · ⛔ no own AskStopAndLoad / LeavingEditing }
+  class ScenarioLoadSequence { <<existing>> ⭐ UnloadIntent() — the ONE Idle intent · Unload() }
+  class DebugApiService { <<existing>> HttpDoor = the editor's door, else a deciding-only door · HttpAsker · HttpUnsavedGate }
+  class ScenarioMenuCommands { <<existing>> openers = session.OpenForEdit (the door) — no openScenario seam, no fallback }
+  ScenarioDoor --> IDoorAsker
+  ScenarioDoor ..> DoorMove
+  IDoorAsker <|.. ConfirmingAsker
+  IDoorAsker <|.. RefusingAsker
+  IHasScenarioDoor <|.. EditorScenarioSession
+  EditorScenarioSession *-- ScenarioDoor
+  EditorScenarioSession ..|> IScenarioSession
+  EditorScenarioSession ..|> IRunScenarioControl : explicit
+  RunModeChoice --> IRunScenarioControl : raw, R2 only
+  RunModeChoice --> ScenarioDoor : every user move (Bind)
+  RunModeChoice *-- ConfirmingAsker
+  EditorScenarioSession --> ScenarioLoadSequence : Unload / Request
+  DebugApiService --> ScenarioDoor : Open / Admit with RefusingAsker
+  ScenarioMenuCommands --> IScenarioSession
+```
+
+*What the picture shows that prose hid:* a caller holding the SESSION (menu, picker, recipe, panel, director load, HTTP) can only reach the door — `IScenarioSession` no longer inherits the raw verbs, which are explicit
+`IRunScenarioControl` members and are handed only to the run choice (the `WindowManager.SwitchPerspective` → `TrySwitchPerspective` shape). The Idle intent exists once (`ScenarioLoadSequence.UnloadIntent`).
+
+```mermaid
+sequenceDiagram
+  participant C as any caller (picker / recipe / panel / menu / HTTP)
+  participant D as ScenarioDoor (in the session)
+  participant A as asker (UI: confirm · HTTP: refuse)
+  participant L as ScenarioLoadSequence
+  C->>D: Open("hill-attack")
+  alt a run is running (RunModeRunGuard)
+    D->>A: Ask "Stop & Load / Cancel"   (HTTP: stops it, names it)
+  else editing with unsaved edits (the one check round, R-4001)
+    D->>A: Ask "Save / Discard / Cancel"   (HTTP: refuses, 409)
+  end
+  A-->>D: proceed (the pressed button's move)
+  D->>L: raw OpenForEdit → Request(load)   (Unload first when not Idle — the one Idle intent)
+```
+
+⭐ **Decisions** *(as designed; the build kept all six)*: ① the decision moves from `RunModeChoice` (`AskStopAndLoad`, `LeavingEditing`) into `ScenarioDoor`; the choice keeps the mode logic
+and calls the door for every user move. ② the asker is injected per host role: UI hosts the confirming asker (its pending slot is the one the toolbar
+already draws), HTTP the refusing asker ⇒ its 409s (D22) come from the same decision. ③ **no unguarded public
+open**: the session's public `OpenForEdit` / `LoadForLive` / `OpenRecording` go through the door; the raw verbs are explicit
+`IRunScenarioControl` members, passed only to the run choice. ④ **the OUT door** `Leave(reason)` — New Exercise (built); **exit** (built in the follow-up, deviation 12: `ScenarioExitGuard`); back to `Start` — ⚠ no caller, D16 has no such action (deviation 13); ■ from edit
+is not offered by the facade; the director's stop ends a live run. ⑤ the scenario menu's openers are the door (the three per-host lambdas lost their `else` fallbacks).
+⑥ rails that fail when production code reaches a raw open (the constructed objects, not source text) + a rail per inventory row.
+Rejected (one line each): **route the missing callers through `RunModeChoice` one by one** — the remember-to-wire pattern that produced this ·
+**enforce only at the master** — it can refuse but cannot show *Save / Discard / Cancel* · **a guard flag callers pass** — callers forget flags.
+**Absorbs:** CE-1440 #12 (go to Idle) and CE-4100 ② (back-to-Start / exit guard — exit built by the follow-up; back-to-Start has no caller, deviation 13).
+
+**AS-BUILT deviations from the design above**
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | `IDoorAsker { Ask(DoorQuestion, proceed); Refuse(reason) }` | `Ask(DoorQuestion)` — the question's buttons carry the continuation — plus `DiscardsUnsaved`; a refusal is `RefusingAsker.Refusal` (no `Refuse` member) | one member answers both hosts; HTTP reads the refusal text off its own asker |
+| 2 | never-saved ⇒ *Save As* | never-saved ⇒ *Discard / Cancel* (D20 as built in §2.8a) | *Save as…* needs the host's Save-As dialog (`RunModeChoice.SaveAsPrompt`), which only ▶ Live's *Save as… and go live* has |
+| 3 | the verbs only | + `ScenarioDoor.Admit(DoorMove, asker, answered, go)` | HTTP's live load and its stop publish THEIR OWN intent (`ForceRecording` / the `startPaused` time mode / the reply's `transactionId`), which the session's raw verbs do not carry; the DECISION is still the door's |
+| 4 | HTTP's 409 "from the same decision, not `DebugApiService`'s own check" | the route still awaits the cluster's check round (no deadline, `UnsavedCheckAsker.WaitAsync`) and hands the verdict to the door as `HttpUnsavedGate`; the 409 and its text come from `RefusingAsker`. A host with no editor logic (a cluster node) gets a deciding-only door (`raw: null`) over the cluster state — the same class | the round is awaited asynchronously through the job queue; the door's own per-frame poll is the UI's |
+| 5 | HTTP loads + `/replay/stop` | + `POST /replay` and `POST /cluster/transition` (Idle / Edit+scenario / Live+scenario / Replay) through the door (inventory ➕) | measured in the re-run grep: both lost unsaved edits; every other `target` stays the master's raw verb by name |
+| 6 | "the scenario menu registered ONCE by the composition" | ~~the `openScenario` seam and the unguarded fallbacks deleted; the editor and CGF still called `ScenarioMenuCommands.Register` from their own `RegisterWindows`~~ ⭐ **CLOSED by the follow-up (deviation 11):** the editor and CGF BUILD their registration in `RegisterWindows` (where their pickers and Save-As live) and run it from `IProvidesRunControls.ComposeScenarioActions` — only the picked ▶ owner registers, in every host combination; no per-host `Register` call remains | the door made a second registration safe; the follow-up made it impossible |
+| 7 | the director's stop through `Leave` | `ScenarioLoadSequence.UnloadIntent()` through the director host's master; no door call | it ends a LIVE run: no scenario is being edited, so the door has nothing to ask; wiring the door into the 19-argument host buys nothing |
+| 8 | `IScenarioSession` unchanged | no longer extends `IRunScenarioControl`; `EditorScenarioSession.RunControl` / `EditorApplication.RunControl` hand the raw verbs to `AttachRunChoice`; `IEditorLogic` + `IScenarioCreationSession` gained `LoadScenarioByName(name, then)` (default members) and `IEditorLogic.Door` | `then` is what makes New-from-a-recipe save only after the open WENT OUT (a cancelled open used to be followed by a save of whatever the world held) |
+| 9 | — | New Exercise keeps the menu's destructive confirmation (ruling 53) and, over unsaved edits, the door's *Save / Discard / Cancel* follows: two questions in that one case | the confirmation words the cluster-wide reset; the door words the loss |
+| 10 | — | a session with NO run choice has an unbound door: a run is stopped (a `RefusingAsker`), unsaved edits are not checked (it has no round to ask) | headless rails and hosts without a choice keep today's behaviour |
+| 11 | — | ⭐ **the scenario menu registered ONCE (follow-up, decision ⑤ closed).** `EditorSubsystem` / `CgfSubsystem` keep a private `_composeScenarioMenu` (the `ScenarioMenuCommands.Register(...)` call with their pickers / Save-As / confirmation, built where it was) and implement `IProvidesRunControls.ComposeScenarioActions` over it; `LocalWindowController.ComposeRunControls` calls it on the picked owner only (as for the Orchestrator, §2.12). The two `RegisterWindows` calls are deleted | measured: the hosts' closures capture locals of `RegisterWindows` (`assetPickerLauncher`, `openScenarioSaveAs`, `catalog`, `_shellPickers`), so the composition is DEFERRED, not rewritten — one registration list, one owner, no behaviour change on a single-host process. ⚠ A host composed without the runner's `ComposeRunControls` (a bare `RegisterWindows` rail) now has no scenario menu: rails compose through the controller |
+| 12 | decision ④ "exit (CE-4100 ② wires it)" | ⭐ **exit through the door (follow-up).** `LeaveReason.Exit` is called by `ScenarioExitGuard` (`Hrot.ClusterRunner/Presentation/ScenarioExitGuard.cs`), ONE per process, built by `LocalWindowController.ComposeRunControls` over the picked owner's `RunChoice.Door` (new `RunModeChoice.Door`). `LocalWindowController.ExitGuard` is an `ExitGuardChain` — **the subsystems' guards (the editor's unsaved DOCUMENTS) FIRST, the scenario guard LAST** — and `ExitDue(requested)` is the frame loop's one decision (`Program.cs` asks it once at the top of a frame; the per-guard `foreach` and the post-render `ExitApproved` poll are gone). `ScenarioDoor.Leave(Exit)` tolerates a door with no raw leave (a bare choice: only the question is asked); the session's `RawLeave` sends nothing for Exit at an Idle cluster and never wipes the world (only New Exercise does). Door decision on exit: a run ⇒ stopped (■ never asks, so Exit does not ask either) · unsaved ⇒ Save / Discard / Cancel · never saved ⇒ Discard / Cancel · else exits | measured: the loop took the exit as soon as ANY guard approved, so two independent guards could have exited while the other's question was still open ⇒ a chain. **Order:** documents first because a Cancel there loses nothing, and the door's approval is the destructive step (it stops the run / unloads the scenario) — asked last, nothing asked before it can still cancel the exit (the other order lets *Discard* at the scenario then a *Cancel* at the documents stop a run for an exit that never happens). A SimHost-only process has no scenario door and so no scenario guard |
+| 13 | decision ④ "back to Start" | **no caller, nothing built.** `LeaveReason.BackToStart` is kept (a future action asks the door), but D16 has **no user action "back to Start"**: Start is entered ONLY by `StartGate` when the cluster rests in Idle (CE-4096, `StartGate.cs:79`). Every path to Idle that loses edits already goes through the door (New Exercise, stop, the load's own unload, HTTP) | measured (INVENTORY, follow-up: `search_graph name_pattern=.*ExitGuard.*` → 11 nodes, the only `IAppExitGuard` implementor before this item being the editor's; `search_code ScenarioMenuCommands.Register(` → production callers editor, CGF, Orchestrator; ⚠ `check_index_coverage` not available through the CLI), whole-tree grep `back to (the )?start|close scenario|"File/Close|BackToStart|SwitchPerspective\(.Start` over `Hrot/ FDP/ Stride/ docs/ tools/` (.cs + .md, excluding obj, worktrees, .dev): production hits are only `WindowManager.StartPerspectiveName` users (the gate, the window manager) and this enum member; no menu item, command or button leaves to Start |
+
+📌 Rails: `TheOneTimeFacadeTests.CE4101_*` (the door's decision for every verb over a run / unsaved edits, the refusing asker and `Admit`, the choice's own moves, the raw ■'s Idle intent) · `EditorScenarioSessionLoadTests.CE4101_*` (the real session: no public raw open, every verb asks, New Exercise asks over unsaved edits, the ONE Idle intent, `then`) ·
+`ThePanelAsksTheOneRunSurfacesTests.LoadIntoLive_OverARun_*` · `ScenarioNewAssetTests.CE4101_*` · `TheUnsavedCheckRoutesTests.CE4101_*` (HTTP stop) · `TheDirectorsStopIsTheOneIdleIntentTests` · `TheRunChoiceIsOnEveryHostTests.CE4101_*` (the constructed editor and CGF) · ⭐ follow-up: `TheStartGateIsComposedOnceTests` (`AnExit_OverUnsavedScenarioEdits_*`, `…NeverSaved…`, `ThereIsExactlyOneScenarioExitGuard_*`, `TheDocumentQuestionComesFirst_*`) · `EditorScenarioSessionLoadTests.CE4101_ExitThroughTheDoor_*` · `TheRunChoiceIsOnEveryHostTests.CE4101_OnTheConstructedHosts_TheExitGoesThroughTheOwnersDoor_*` and `CE1439_*` (RegisterWindows registers no scenario item; the composition does).
+
+### 2.12 CE-1439 — the scenario actions on every operator host (R-3066 audit #8, #9) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+**INVENTORY** (graph + grep; ⚠ `check_index_coverage` is not available through the CLI, and the graph index was still building when this was written — every row below is a whole-tree grep, re-run when the graph is up):
+`grep -rn "ScenarioMenuCommands.Register(" Hrot --include=*.cs` → production callers **two** (`EditorSubsystem.cs:4490`, `CgfSubsystem.cs:2908`) before this item, the rest tests ·
+`grep -rn "new EditorScenarioSession(" Hrot` → editor, CGF, tests · `grep -rn "ClusterScenarioPanel" Hrot` → the panel, `OrchestratorCore`, `OrchestratorWindow`, `ClusterControlWindow`, `EditorSubsystem`, `ExConSubsystem` (retiring, R-3067) ·
+`grep -rn "IProvidesRunControls" Hrot` → editor, CGF, SimHost (CE-1437) + this item's Orchestrator.
+
+| the lean rests on | code | design basis |
+|---|---|---|
+| the Start surface draws ONLY menu items marked allowed-in-Idle | ✅ `StartSurfaceWindow.Model()` ← `GlobalMenuRegistry.AllowedInIdleItems()` | ✅ §2.6; D16 "Open scenario · Open recording · New … on every host that can operate the cluster" |
+| *Open Scenario / New Scenario / Open Recording* are registered by ONE registrar, and only the editor and CGF called it | ✅ `ScenarioMenuCommands.cs:199-257`; callers above | ✅ AQ60 R2 / ruling 58 "one registration list" |
+| an Orchestrator-only window at Idle shows only Help + Exit | ✅ the Orchestrator registers no `File/…` item (`OrchestratorSubsystem.RegisterWindows` registered two windows) | ✅ CE-1437 rule "make hosts agree by construction" |
+| the session NEEDS a world | ⛔ **false**: the only `_world` / `_fileService` readers in `EditorScenarioSession` are `ClearWorld`, `SaveTo` (no production caller, CE-275) and `GetMigrationSidecars`; every cluster verb (`OpenForEdit`, `LoadForLive`, `OpenRecording`, `SaveCurrent/As`, `TakeCheckpoint`, `NewExercise`) publishes on the bus and reads the `ClusterView` | ✅ `DESIGN_Cgf_Scenario_Session_Slice.md` §3: *"the world is a constructor parameter"* |
+| the Orchestrator has a bus, a `ClusterView` and the master's inventory | ✅ `OrchestratorSubsystem._bus`; `OrchestratorCore.UiCache.View` (CE-1436, the cache composes it); `UiCache.AvailableScenarios / AvailableExercises` | ✅ `DESIGN_Cluster_View.md` |
+| the panel is a second control surface | ✅ it published its own `PauseTimeIntent` / `StepTimeIntent` / `TakeCheckpointIntent`, ran its own `ScenarioLoadSequence` (CE-295's copy) and built its own replay `TransitionPayloadDto` | ✅ AQ108 D22 "the user's controls are one entry" · §2.10 |
+| two operators in one process (Orchestrator + CGF, the all-in-one) would both register the menu | ✅ `ShellCommands.Register` / `GlobalMenu.RegisterItem` replace by id/path — the LAST registration wins (the CE-1437 disease) | ✅ §2.10 "never registration order" |
+
+```mermaid
+classDiagram
+  class EditorScenarioSession { <<existing, AiShared>> ⭐ NEW ctor: no world (bus, view, scenariosRoot) · ClearWorld / SaveTo / GetMigrationSidecars act only on a local world }
+  class ScenarioMenuCommands { <<existing>> Register(...) — Open Scenario / New Scenario / Open Recording allowed-in-Idle }
+  class IProvidesRunControls { <<existing, CE-1437>> HostKind · Transport · RunChoice · ⭐ ComposeScenarioActions(wm) default no-op }
+  class RunHostKind { <<enum>> Editor · Cgf · SimHost · ⭐ Orchestrator · Other }
+  class OrchestratorSubsystem { <<existing>> ⭐ implements IProvidesRunControls · builds adapter + world-less session + choice in Initialize · ComposeScenarioActions registers the menu + pickers · DrawUI draws pickers + New Exercise confirm }
+  class LocalWindowController { <<existing>> PickRunControls: OperatorRank Editor, Cgf, Orchestrator · ComposeRunControls calls owner.ComposeScenarioActions }
+  class ClusterPanelRunControls { <<NEW, Orchestrator>> PauseOrResume · Step · SetTimeScale · LoadIntoEdit · LoadIntoLive · OpenAar · TakeCheckpoint · OverBus(bus, view) }
+  class ClusterScenarioPanel { <<existing, now the MONITOR>> RunControls · ⛔ no ScenarioLoadSequence · ⛔ no pause / step / checkpoint / replay-transition requests }
+  class UserTransport { <<existing>> ⭐ UserStepBy(seconds, choice) }
+  class RunModeChoice { <<existing>> OpenScenario · OpenRecording · TakeCheckpoint · CheckpointDisabledReason }
+  class ClusterTimeTransportAdapter { <<existing>> AttachRunChoice }
+  class StartSurfaceWindow { <<existing, CE-4096>> draws the allowed-in-Idle items }
+  class EditorSubsystem { <<existing>> passes ITS transport, choice, session to the panel }
+  class ExConSubsystem { <<existing, RETIRING R-3067, UNTOUCHED>> its panel builds the same shared classes over its own bus }
+  OrchestratorSubsystem ..|> IProvidesRunControls
+  OrchestratorSubsystem --> EditorScenarioSession : world-less
+  OrchestratorSubsystem --> ClusterTimeTransportAdapter
+  OrchestratorSubsystem --> ClusterPanelRunControls : passes to the panel
+  OrchestratorSubsystem ..> ScenarioMenuCommands : ComposeScenarioActions
+  LocalWindowController --> IProvidesRunControls : picks ONE owner by rule
+  ClusterScenarioPanel --> ClusterPanelRunControls
+  ClusterPanelRunControls ..> UserTransport
+  ClusterPanelRunControls ..> RunModeChoice
+  ClusterPanelRunControls ..> EditorScenarioSession
+  ClusterTimeTransportAdapter --> RunModeChoice
+  RunModeChoice --> EditorScenarioSession : IRunScenarioControl
+  StartSurfaceWindow ..> ScenarioMenuCommands : the SAME bindings
+  EditorSubsystem --> ClusterPanelRunControls : passes
+  ExConSubsystem ..> ClusterScenarioPanel : unchanged
+```
+
+*What the picture shows that prose hid:* the panel and the Start surface do not gain features of their own — both now stand on the objects every operator host already composes (the transport's user entry, the run
+choice, the session, the one menu registrar), and the process's scenario menu belongs to the host that owns ▶, picked by the same rule — ⛔ not to whichever host registered last.
+
+```mermaid
+sequenceDiagram
+  actor U as Operator
+  participant L as LocalWindowController
+  participant O as OrchestratorSubsystem (only subsystem)
+  participant S as StartSurfaceWindow
+  participant M as ScenarioMenuCommands bindings
+  participant C as RunModeChoice
+  participant X as EditorScenarioSession (no world)
+  participant B as bus → master
+  L->>O: RegisterWindows (monitor windows)
+  L->>L: ComposeStartSurface · ComposeRunControls → owner = Orchestrator
+  L->>O: ComposeScenarioActions(wm)
+  O->>M: Register(session, pickers, openScenario = choice.OpenScenario, recording picker)
+  Note over S: cluster Idle for 0.5 s → Start shows: Open Scenario · New Scenario · Open Recording · Help · Exit
+  U->>S: Open Scenario
+  S->>M: the menu's own binding → scenario picker over the master's inventory
+  M->>C: OpenScenario(name) — Stop and Load over a run, Save / Discard / Cancel over unsaved edits
+  C->>X: OpenForEdit(name)
+  X->>B: TransitionStateIntent Idle, then OperatingEdit (ScenarioLoadSequence)
+  B-->>S: cluster leaves Idle → the gate hands the window back
+```
+
+⭐ **Decisions** *(the lean adopted; the three measured differences are the AS-BUILT table)*: ① **the Orchestrator composes the SAME session** (`EditorScenarioSession`, a world-less constructor), the same adapter + `RunModeChoice` (offered through `IProvidesRunControls`, armed Live by the table) and the same registrar; ⛔ no Orchestrator-private menu list.
+② **the scenario menu is registered by the host that OWNS ▶** (`IProvidesRunControls.ComposeScenarioActions`, called by the composer on the picked owner) — so Orchestrator + CGF (the all-in-one) keeps CGF's items exactly as before, and an Orchestrator-only process gets its own.
+③ **the owner rule gains a rank among operators**: editor, then CGF, then the Orchestrator (the one that holds a world to author in wins; the world-less master's window is the fallback owner).
+④ **the panel stays as the MONITOR** (node health, transactions, inventory, the state-machine buttons, terrain / assets / archive) — a duplicate *surface* is kept where it is a monitor, a duplicate *code path* is not: its Pause / Resume / Step / speed → the transport's USER entry; *Load into Edit* → the run choice's guarded open; *Load into Live* → the session's explicit live load; *Open AAR* → the run choice's recording open; *Take Checkpoint* → the choice's checkpoint (and its reason).
+⑤ **the editor passes its own surfaces to the panel; ExCon (retiring) is untouched** and its panel builds the same shared classes over its own bus.
+*Rejected:* **registering the scenario items in every host's `RegisterWindows`** — the last registration wins, so the world-less Orchestrator would overwrite CGF's real `New Scenario` in `--mode all` · **a Start-surface-only set of Orchestrator buttons** — a second action list the menu does not know (the surface owns no action, §2.6) · **a no-op world object** — a fake that hides what the host cannot do; an explicit world-less constructor says it · **retiring the panel** — it is the only window showing nodes, transactions and the inventory · **deleting *Load into Live*** — it is the only explicit-mode load left besides HTTP (D22: an explicit control does what it names) · **adding the items to ExCon** — R-3067.
+
+**AS-BUILT deviations from the design above**
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | — | `Hrot.Orchestrator` now references `Hrot.Editor.AiShared` | the session, registrar and pickers live there; measured acyclic (AiShared references neither the Orchestrator nor anything that does) and `Stride/HrotStrideApp.Game` already references `Hrot.Editor` ⇒ AiShared |
+| 2 | *Save Scenario As* offered | **greyed with its reason** on the Orchestrator (`openSaveAsDialog: null`, ruling 49); `RunModeChoice.SaveAsPrompt` is null | the Save-As browser is CGF's / the editor's own composition over their local world; nothing is authored on this host. *Save Scenario* of a loaded scenario still publishes the cluster-wide save (`SaveCurrent`). Follow-up: fold `OpenScenarioSaveAsDialog` (CGF) + `openScenarioSaveAs` (editor) into one shared launcher |
+| 3 | *New Scenario* | the shared binding (`session.ClearWorld`): on a world-less host it forgets the loaded name and the migration alert, wipes nothing | the same limitation the editor and CGF carry until CE-4089 makes *New* a recipe the cluster opens (§2.6 deviation 12) — stated, not hidden |
+| 4 | *Load into Live* keeps its *Start paused* checkbox | the live load is the session's (`TimeMode = Deterministic`, paused at 0, Q86 §4-G); the checkbox still applies to the state-machine buttons below it | ONE live load; "running after a load is a property of the load" and the session's does not ask for it |
+| 5 | — | `RunHostKind.Orchestrator` added (armed Live, from the table) and `UserTransport.UserStepBy(seconds)`; `ConfirmPromptController.RequestNewExercise` (the one wording of *New Exercise*, now also the editor's) | the pick rule needs to know the owner's kind; the panel's *Step (s)* box has a size; the destructive reset reads the same on both windowed hosts |
+| 6 | the panel's `SendRequest` bus switch | its `PauseTime` / `ResumeTime` / `StepTime` / `SetTimeScale` / `TakeCheckpoint` arms are deleted | nothing builds those requests any more (the duplicate mapping of intents the transport publishes) |
+
+### 2.13 CE-1440 — one dry-run intent, one unsaved asker (R-3066 audit #11, #13; #12 → CE-4101) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+```mermaid
+classDiagram
+    class DryRunIntents {
+        <<static, Hrot.Presentation Facades>>
+        +Enter(startPaused) TransitionStateIntent
+        +Exit() TransitionStateIntent
+    }
+    class UnsavedCheckAsker {
+        <<NEW, Hrot.Presentation RunMode>>
+        +Observes bool
+        +Start() Guid
+        +Read(id) UnsavedCheckOutcome
+        +WaitAsync(id, onMainThread, ct) Task
+    }
+    class UnsavedCheckReads
+    class ClusterUnsavedChangesQuery {
+        +Ask(reply)
+        +Poll()
+    }
+    class ClusterTimeTransportAdapter
+    class DebugApiService {
+        +EnterPreview()
+        +StopReplay()
+        +UnsavedAsker
+    }
+    class DebugApiHost {
+        -RunCheckRoundAsync()
+    }
+    ClusterTimeTransportAdapter ..> DryRunIntents : Play / Step from Edit
+    DebugApiService ..> DryRunIntents : POST /preview/enter
+    UnsavedCheckAsker --> UnsavedCheckReads : reads the outcome
+    ClusterUnsavedChangesQuery --> UnsavedCheckAsker : UI polls per frame
+    DebugApiService --> UnsavedCheckAsker : builds over its master + read model
+    DebugApiHost ..> UnsavedCheckAsker : HTTP awaits (WaitAsync through the job queue)
+```
+
+*Caption: what the picture shows that the prose hides — the dry-run entry is ONE static builder, and the UI's per-frame poll and HTTP's await are the SAME asker object (one publish path, one read path).*
+
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| the master reads `TimeMode` of a preview entry as: only `"Continuous"` resumes the clock; `null` stays paused | ✅ `GlobalContextProcessManager.cs:57` `_resumeWhenPreview = intent.TimeMode == ContinuousTimeMode` (const documented *"absent ⇒ paused"*, line 31) | ✅ §2 CE-3329 row 21: ▶ from Edit "runs the dry run, the same request on every host" — the toolbar's value is the intended one |
+| ⇒ HTTP's `null` for a running preview was a DIVERGENCE, not an equivalent | ✅ measured above; `ClusterMaster.cs:1457` only reads `"Deterministic"` | ✅ DESIGN_Http_Control_Through_The_Cluster_Master §7 "no shortcuts" |
+| the unsaved round had two askers | ✅ `ClusterUnsavedChangesQuery` (publish + poll) and `DebugApiService.StartUnsavedCheck` + `DebugApiHost.RunCheckRoundAsync` (publish + poll) | ✅ backend NOTE `NOTE_Backend_To_Ui_Unsaved_Query_Deadline.md`: "ideally both read through ONE helper" |
+
+**AS-BUILT.** `UnsavedCheckAsker` (`RunModeTypes.cs`) owns `Start` (the ONE `CheckUnsavedIntent` publish through the master control) and `Read` (through `UnsavedCheckReads`); `WaitAsync` is the HTTP form of the UI's per-frame poll: the same `Read`, driven through the host's main-thread queue, no deadline (R-4001), ended only by the caller's token. HTTP status codes and texts are unchanged.
+
+⛔ **#12 ("go to Idle" built four times) is NOT done here — it moved to CE-4101** (the coordinator's one guarded leave door, reusing `ScenarioLoadSequence`'s Idle intent).
+
+⚠ **Behaviour change (#11):** `POST /preview/enter {startPaused:false}` now publishes `TimeMode = "Continuous"`, so the master RESUMES the clock when the preview lands, exactly as the toolbar's ▶ does. Before, HTTP's running preview entered paused (the master only resumes on `"Continuous"`), i.e. the route's name and the toolbar's ▶ disagreed. Start-paused is unchanged.
+
+*Rejected:* **a second HTTP-only asker with an async publish** — exactly the duplicate this removes.
+
+📌 Rails: `TheOneTimeFacadeTests.CE1440_*` (asker publish+read id, no-deadline wait), `TheRunModeRoutesTests.CE1440_*` (`/preview/enter` = toolbar ▶/Step), `TheUnsavedCheckRoutesTests.CE1440_*` (one request id from publish to read).
+
+### 2.14 CE-3341 (ui half) — the armed mode is READ from the cluster and SENT by the operator's open (R-3068, D12a) — ⭐ **AS-BUILT `2026-10-29` (ui)**
+
+⛔ **PARTLY SUPERSEDED `2026-10-29` by R-1043 (user, §2.15):** decision ③ (*the operator's open sends its HOST default*) and the host-side default (`RunModeChoice.HostDefault`, `RunArmedDefaults.For`) are WITHDRAWN — Load always loads into the cluster's CURRENT armed mode, and only the master's initial armed mode differs (the editor's single-node orchestrator: Preview). Decisions ①, ② (read the cluster, one `Arm` writer for the indicator), ④ and ⑤ stand. ⭐ The rework is BUILT with CE-1443 part A (§2.15a).
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the master holds the armed mode and NEVER resets it on a load | ✅ `ClusterMaster.RunSettings.cs:44,62` (only `SetRunSettings{Armed}` changes it) | ✅ D12a as-built (backend) |
+| every node reads it | ✅ `ClusterView.ArmedMode` (`ClusterView.cs:55`); the adapter already reads its `ClusterView` (`ClusterTimeTransportAdapter.cs:35`) | ✅ D12a |
+| ⇒ the ORDER of the arm op vs the load does not matter | ✅ the egress reads `TransitionStateIntent` before `SetRunSettingsIntent` in one frame (`ClusterOpEgressTranslator.cs:91,187`), yet the end state is the same because a load never resets the mode | ⚠ D12a says "same topic, same writer ⇒ ordered" — ⭐ true of the wire, but NOT needed: corrected here |
+| HTTP opens go through the SAME door, with their own asker | ✅ `DebugApiService.cs:1217,1279` pass `HttpAsker(…)`; the operator's opens pass none (the bound `ConfirmingAsker`) | ✅ D22 (HTTP sends no armed mode) |
+| today every host resets `Armed` to its OWN default on `OperatingEdit` | ✅ `RunModeChoice.OnClusterState` (`RunModeChoice.cs:515-520`) | ⛔ D12a: two hosts would disagree — this hook is what the op replaces |
+
+```mermaid
+classDiagram
+  class IRunTransport { <<existing>> +ClusterArmed : RunArmed? NEW — ClusterView.ArmedMode by name · +SendArmed(RunArmed) NEW — SetRunSettingsIntent with Armed }
+  class ClusterTimeTransportAdapter { <<existing>> implements both NEW members over its bus and its ClusterView }
+  class RunModeChoice { <<existing>> Armed — READ: the cluster's, a local value only until the next change is heard · Arm(target) NEW — the ONE writer: local + SendArmed · OnClusterState — D12 reset REMOVED }
+  class ScenarioDoor { <<existing>> +OperatorOpening : Action of DoorOpen NEW — raised when a move answered by the BOUND asker goes out }
+  class DoorOpen { <<NEW enum>> Scenario · Live · Recording }
+  class ClusterView { <<existing, backend>> ArmedMode }
+  RunModeChoice --> IRunTransport
+  ClusterTimeTransportAdapter ..|> IRunTransport
+  ClusterTimeTransportAdapter --> ClusterView : reads
+  RunModeChoice --> ScenarioDoor : sets OperatorOpening
+  ScenarioDoor ..> DoorOpen
+```
+
+*What the picture shows that prose hid:* there is still ONE writer of the armed mode in ui (`Arm`), and it now writes to the CLUSTER; the door only says WHICH
+open the operator made — the mapping to a mode (Scenario → `HostDefault`, Live → Live, Recording → AAR) stays in the choice.
+
+```mermaid
+sequenceDiagram
+  participant U as operator (File › Open / Start / Recent)
+  participant D as ScenarioDoor
+  participant C as RunModeChoice
+  participant T as adapter (IRunTransport)
+  participant M as master
+  participant V as every node's ClusterView
+  U->>D: Open(name)  (no asker ⇒ the bound one)
+  D->>D: Admit (run? unsaved?)
+  D->>C: OperatorOpening(Scenario)
+  C->>T: SendArmed(HostDefault)  (Arm)
+  D->>M: raw OpenForEdit(name)
+  T->>M: SetRunSettings{Armed}
+  M-->>V: cluster state (ArmedMode)
+  V-->>C: Armed = the cluster's (every host the same)
+  Note over D,M: HTTP: Open(name, HttpAsker) ⇒ no OperatorOpening ⇒ no op (D22)
+```
+
+```mermaid
+graph TD
+  subgraph every host with a time control
+    A[ClusterTimeTransportAdapter] -->|ClusterArmed| C[RunModeChoice]
+    C -->|Arm → SendArmed| A
+    I[indicator menu / POST /run-mode] -->|Choose| C
+    D[ScenarioDoor of the session] -->|OperatorOpening| C
+  end
+  A -->|bus: SetRunSettingsIntent| E[ClusterOpEgressTranslator / in-process master]
+  E --> M[ClusterMaster.ArmedMode]
+  M -->|ClusterStateTopic.ArmedMode| F[ClusterFactsIngress → ClusterView on EVERY node]
+  F --> A
+  H[HTTP load routes] -.->|no armed mode, D22| D
+```
+
+*Caption:* who ticks what — the adapter is updated by every host's frame (it already is, for the toolbar); the egress / in-process master is the path
+`/run-settings` already uses; the dotted edge is the one that deliberately sends nothing.
+
+⭐ **Decisions:** ① `Armed` = the cluster's, with the choice's own value shown only until the next CHANGE of the cluster's value is heard (an optimistic
+local — the operator sees the click at once; a later arm from another host wins). ② every `Armed = X` in the choice becomes `Arm(X)`; ■ in Live keeps
+using the RAW `OpenForEdit` and so sends nothing (R2: the armed mode stays). ③ the operator's open sends its arm — the door raises `OperatorOpening`
+only when the move was answered by the bound asker; ⛔ HTTP / agent opens pass their own asker and send none (D22). ④ `OnClusterState`'s D12 reset is
+deleted, with `_keepArmedOnEdit` (its only reason). ⑤ a host with no time control (IG, Replay Browser) sends nothing — it has no choice.
+*Rejected:* **send from `ScenarioLoadSequence`** — HTTP uses it too, so it would arm on every agent load (D22) · **keep the per-host reset AND send** —
+two writers, hosts disagree for a frame and forever on a host that missed the op · **the door maps opens to modes** — it would need the host default; the
+choice already owns it.
+
+⭐ **As-built deviations (`2026-10-29`, ui) — the design was built as drawn; these are the details it left open:**
+
+| the design said | built | why |
+|---|---|---|
+| ① "the choice's own value shows until the next CHANGE of the cluster's value is heard" | `RunModeChoice.Armed` is a getter over `IRunTransport.ClusterArmed`: `_seenCluster` is the cluster's value at CONSTRUCTION (the baseline), and a later different value replaces the local one; `Arm` first adopts any pending change, then sets the local value | the view reads `Live` before any broadcast, so a baseline of "unknown" would show Live on the editor at start (host default Preview) and break every rail built on it; a change is the only thing that proves another host armed |
+| ③ `ScenarioDoor.OperatorOpening` raised "only when the move was answered by the bound asker" | raised when the CALLER passed no asker (`asker is null`) — inside the go-lambda, just before the raw verb; `RecordingOpening` (the `LastExercise` bookkeeping) still runs for every caller and no longer arms | `Admit` resolves `asker ?? _asker`; "no asker passed" is exactly the operator's call, and an explicit asker (HTTP's `RefusingAsker`) is exactly D22's |
+| ② every `Armed = X` becomes `Arm(X)` | also the dry run's `Stop & arm`, AAR → Live/Preview, `AarFromHere` and `GoLiveFromHere` — every write — each sends the op | one writer; those moves change the armed mode the same way the indicator does |
+| ⑤ hosts with no time control send nothing | unchanged: `RunModeChoice` exists only where `AttachRunChoice` ran | — |
+
+### 2.15 ⭐⭐⭐ THE FILE MENU, ONE FOR EVERY HOST — and LOAD FOLLOWS THE ARMED MODE *(R-3073, user `2026-10-29`; backend design, ui builds the menu)*
+
+🔒 **User, `2026-10-29`** (verbatim): *"Nothing like "New exercise" makes clear sense to the user."* · *"with Live armed, Load goes straight to live - this is what it should do, this is how Non-editor cluster setup Interpret the play button. But even those non-editor setups can still do the editing if they switch their armed mode to edit/preview. Editor node always load into the edit/preview mode. I think this has been the ruling all the time"* · *"New asset items should be available only in the editing mode."* · *"Load checkpoint is a valid item and should go into live mode, which is paused at the checkpointed state. Menu item like file/dit and file/live else, they should be gone."* · *"During live run, the 'save checkpoint' should be available."* · on the terrain item: *"the recipes should contain the terrain … And the terrain is not replaceable afterwords."* · *"approved, record it."*
+
+```
+File
+  Load Scenario…            Live armed: live, paused at the start · Preview armed: editing
+  New Scenario…             from a recipe (the recipe fixes the terrain), always editing (arms Preview)
+  Load Checkpoint…          live, paused at the checkpoint (the built restore, D18 branch rule)
+  Open Exercise Recording…  review (AAR)
+  ─────────
+  Save Checkpoint           only during a live run
+  ─────────
+  Save · Save As… · Save All · New Asset… ▸ · Open Asset…     only while editing (hidden otherwise)
+  ─────────
+  Close                     back to Idle (Start); through the ONE door (§2.11a); exempt from the readiness gate
+  Exit
+```
+
+| rule | |
+|---|---|
+| ⭐⭐ **Load follows the cluster's armed mode** (R-3068: the host default is sent with the load — editor Preview, CGF Live) — ⭐ **the HOST resolves it**: the one shared operator load path (the scenario door the menu calls) reads `ClusterView`'s armed mode and sends an EXPLICIT *load into Live* / *load into edit*; ⛔ the master never interprets it (user `2026-10-29`) | ⛔ **SUPERSEDES row 9 of the CE-4097 as-built** (*"Open always opens INTO editing"*) — a drift from the fifth pass, now corrected |
+| ⭐⭐⭐ **R-1043 (user, `2026-10-29`) — LOAD ALWAYS LOADS INTO THE CURRENT ARMED MODE, ON EVERY HOST; ONLY THE INITIAL ARMED MODE DIFFERS, AND THE MASTER'S BOOTSTRAP SETS IT** — 🔒 *"Load always load into the current armed mode. It doesn't depend what host it is. The editor single node cluster armed mode is the preview, which makes the difference from the non-editor cluster. Host default should be opening to live, but it always opens into the current armed mode, and just the initial armed mode makes the difference. There doesn't need to be any file config for default armed mode. It should be derived from the parameters of the bootstrap. The orchestrator in the single node editor simply gets the edit as nitial armed mode, which should be the only difference in the bootstrap code."* | ⇒ Live armed ⇒ load into Live (paused at the start); Preview armed ⇒ load into edit; ⭐ **AAR or DAR armed ⇒ the mode the LAST scenario load went into** (Live or edit), held by the MASTER beside the armed mode and broadcast (`ClusterView`), so every host agrees; before any load, the initial armed mode — 🔒 user, `2026-10-29`: *"If AAR or DAR is dearmed mode, the load scenario is ambiguous. In such a case, could the host remember what mode was armed before the AAR was entered? Meaning it what mode was the latest scenario opened and used that mode?"* · on ui's lean (cluster-wide, not per host): *"Approved, add it to R-1043 and note backend"*. ⭐ The ONE difference is the master's initial `ArmedMode`: the editor's in-process orchestrator (single-node cluster) starts **Preview**, every other cluster **Live** — a bootstrap parameter of `OrchestratorCore`, ⛔ no file config. ⛔ **SUPERSEDES** ui's CE-3341 *"the operator's open sends the HOST default"* (§2.14 decision ③, `ScenarioDoor.OperatorOpening`) and the host-side default `RunArmedDefaults.For(RunHostKind)` / `RunModeChoice.HostDefault` — **no host sends a default on open**; the choice only READS the cluster's mode (and `Arm` writes it on the user's indicator move) <br>⭐ **AS-BUILT (backend, `2026-10-29`):** the bootstrap parameter is `ClusterConfiguration.InitialArmedMode` (`[JsonIgnore]`, default Live; the ONE config every master is built through); `ForOneNodeCluster()` — the editor-only factory — sets **Preview**, so ui changes NO editor call. `ClusterMaster.LastLoadMode` (= the initial mode before any load) is set where the load round STARTS (a `LoadingEdit` step ⇒ Preview, else Live) and rides `ClusterStateTransitionedEvent`/`ClusterStateUpdateEvent` → `ClusterStateTopic.LastLoadMode` (int, additive, 0 = Live) → `ClusterFactsIngress.StateOf` → `ClusterView.LastLoadMode`. The master only holds and broadcasts it; every load request stays explicit. |
+| ⭐ **no submenus** | ⛔ `File/Live/…`, `File/Edit/…`, `File/Checkpoint/…` and **New Exercise** are gone — **Close** replaces New Exercise (`LeaveReason.Close`; the unused `BackToStart` folds into it) |
+| ⭐ **context sections are HIDDEN when they do not apply** | the editing group only while editing; Save Checkpoint only in a live run; on Start only the first four + Close + Exit, greyed while the cluster is not ready (R-3069) |
+| ⭐ **the cluster error state** (`DESIGN_Cluster_Load_Phase.md` §11.5) | only Close and Exit work; Close is the way out — the master clears the error on reaching Idle |
+| ✅ **AS-BUILT `CE-3345` part A (backend, `2026-10-29`)** — see `DESIGN_Cluster_Load_Phase.md` §11.5a | `LeaveReason.Close` exists (`ScenarioDoor`, text *"Closing"*; `BackToStart` is still in the enum — the Roslyn fold is pending); ⛔ ~~**load follows the armed mode** is built at the MASTER: `TransitionStateIntent.FollowArmedMode`~~ — **WITHDRAWN `2026-10-29` (user: *"It's a nonsense."*)**: every request to the cluster state machine is EXPLICIT (*"No one is just please load. There is always please load into edit, please load into preview."*); the master never interprets the armed mode. The flag and its resolver are removed |
+| ⛔ **`File/Terrain…` is REMOVED** with `TerrainPickerLauncher` (its only two users: `EditorSubsystem.cs:5118`, `CgfSubsystem.cs:2869`) | the recipe owns the terrain and a scenario's terrain is not replaceable — `DESIGN_Terrain_World.md` §7.3's picker is SUPERSEDED |
+| ⭐⭐ **SAVE NAMES WHAT IT SAVES — never a plain "Save"** *(user, `2026-10-29`: "the save menu item should never be just plain save. It needs to be save scenario, save btree, save HSM etc to Make it clear for the user what is going to be saved.")* | the perspective names its main kind; the item saves the FOCUSED document of that kind and says so: **Save Scenario 'hill-attack'** · **Save BTree 'Patrol'** · **Save HSM …**; likewise **Save Scenario As…**, **Save BTree as Recipe…** (writes `recipes/<kind>/<name>`, which that kind's "New …" then lists — a scenario recipe keeps its terrain and its entities — 🔒 user: *"the recipe should include the entities. That's the point of it. Recipe is not always empty."*). ⭐ **Save All** stays one item and counts what it will write (*Save All (3 changed)*). ⛔ The two save commands of today (`shell.save` by active document, `scenario.save`) become this ONE rule — one per-kind saver each, chosen by the focused document |
+
+### 2.15a ⭐⭐⭐ CE-1443 part A (U2a) — THE ONE FILE MENU + R-1043 — ✅ **AS-BUILT `2026-10-29` (ui)** *(`build-state: BUILT` for part A; the table at the end of this section lists the deviations)*
+
+Frame: §2.15 (the menu, the rules, R-1043 — the user's rulings are binding) · [NOTE backend→ui](batches/NOTE_Backend_To_Ui_File_Menu_And_Error_State.md) · [NOTE ui→backend](batches/NOTE_Ui_To_Backend_Load_Follows_The_Armed_Mode.md) · the run gate it must keep: `DESIGN_Cluster_Load_Phase.md` §11.7 (a command registered through `ScenarioMenuCommands.RegisterCommand` gets the gate). ⛔ Part B (named saves, *Save … as Recipe…*, *Save All (N changed)*) is NOT here: `shell.save` / `scenario.save` stay as they are.
+
+**INVENTORY** (`2026-10-29`; `scripts/cbm.sh search_graph` for `.*(ScenarioMenu|ScenarioDoor|RunModeChoice|ScenarioSession|ShellToolbar|TerrainPicker|RunArmed).*` Class — ⚠ the worktree's graph was still indexing when the answer was due, so the SETS below are the whole-tree grep over `Hrot/ FDP/ Stride/ tools/` (excluding `obj`, worktrees); `check_index_coverage` is not available through the CLI):
+
+| existing | file | what it holds today | this part |
+|---|---|---|---|
+| `ScenarioMenuCommands` | `Hrot.Editor.AiShared/Scenarios/ScenarioMenuCommands.cs` | ONE registration of the scenario items for editor / CGF / Orchestrator, with the run gate in `RegisterCommand`; items under `File/Live`, `File/Edit`, `File/Checkpoint` + 3 top-level | the menu of §2.15 + the layout rules |
+| `ScenarioDoor` / `IHasScenarioDoor` | `Hrot.Presentation/RunMode/ScenarioDoor.cs` | the ONE guarded door; `OperatorOpening` (CE-3341 ③) | + `Load` (R-1043's one resolver call); − `OperatorOpening` |
+| `RunModeChoice` | `Hrot.Presentation/RunMode/RunModeChoice.cs` | `Armed` (reads `IRunTransport.ClusterArmed`), `HostDefault`, `Arm` | − `HostDefault`; + `LoadTarget` (the resolver) bound to the door |
+| `RunArmedDefaults` (+ `RunHostKind`, `HostGatePolicies`) | `Hrot.Presentation/RunMode/RunArmedDefaults.cs` | the per-host default table; the U1 gate table | `RunArmedDefaults` deleted; `RunHostKind` + `HostGatePolicies` stay (file renamed `HostGatePolicies.cs`) |
+| `IScenarioSession` / `EditorScenarioSession` | `Hrot.Editor.AiShared/Scenarios/` | the guarded verbs, `NewExercise` | + `LoadScenario` · `Close` · `RestoreCheckpoint`; − `NewExercise` |
+| `CgfEditorShellToolbar` | `Hrot.Editor.AiShared/Windows/` | the shell slots incl. `File/Terrain…` (`PickTerrainId`) and the asset items | − the terrain slot, command and `HostServices.PickTerrain` |
+| `TerrainPickerLauncher` | `Hrot.Editor.AiShared/Scenarios/` | the W13 terrain picker | ⛔ deleted — its only two users were `EditorSubsystem` / `CgfSubsystem` (§2.15 row 7: the recipe owns the terrain) |
+| `LocalWindowController` | `Hrot.ClusterRunner/Presentation/` | registers `File/Exit` (allowed in Idle) | unchanged; the layout rule orders it last |
+| `GlobalMenuRegistry` / `MenuItemNode` | `Fdp.Presentation/ImGui/WindowManager/` | the trie, `Offers` = THE visibility test, `AllowedInIdle` | + `Order`, `GetVisible`, `SetLayout` (no menu had a hide predicate — measured: `grep IsVisible\|GetVisible\|Hidden` in the registry: none) |
+| checkpoint commands | `ScenarioMenuCommands` `scenario.takeCheckpoint` · `IClusterMasterControl.RestoreCheckpoint` · `ClusterMaster.StartRestore` | the save item exists; the restore has NO operator path (HTTP only) and the master restores only from `OperatingLive` by a LABEL | `Save Checkpoint` = `RunModeChoice.TakeCheckpoint`; `Load Checkpoint…` — see deviation 3 |
+| `ClusterMaster` / `OrchestratorCoreOptions` | `Hrot.Orchestrator` | `ArmedMode` literal `Live` | + the initial armed mode (a bootstrap parameter) |
+
+```mermaid
+classDiagram
+  class GlobalMenuRegistry { <<existing>> Offers(node, perspective) = THE visibility test · AllowedInIdleItems · BuildViewModel · NEW SetLayout(path, order, visible?) · layout rules applied at node creation }
+  class MenuItemNode { <<existing>> Bindings · AllowedInIdle · GetEnabled · NEW Order · NEW GetVisible · NEW OrderedChildren() }
+  class FileMenuLayout { <<NEW static, AiShared.Scenarios>> the ONE table: File path → rank · Apply(menu, isEditing, isLiveRun) declares every rank and the group visibilities and the separators }
+  class ScenarioMenuCommands { <<existing, rewritten>> Register(..) registers: Load Scenario · New Scenario · Load Checkpoint · Open Exercise Recording · Save Checkpoint · Close + the editing items; RegisterCommand = the run gate (CE-1442) }
+  class IScenarioSession { <<existing>> NEW LoadScenario(name) · NEW Close() · NEW RestoreCheckpoint(label) · OpenForEdit · LoadForLive · OpenRecording · TakeCheckpoint · ⛔ NewExercise removed }
+  class EditorScenarioSession { <<existing>> Door · RawLeave · LoadScenario = Door.Load }
+  class ScenarioDoor { <<existing>> NEW Load(name) = LoadTarget() ⇒ Open / LoadLive · NEW LoadTarget seam · Open · LoadLive · OpenRecording · Leave(Close) · ⛔ OperatorOpening removed }
+  class RunModeChoice { <<existing>> Armed (the cluster's) · NEW LoadTarget = THE R-1043 resolver · TakeCheckpoint · Choose/Arm (the indicator) · ⛔ HostDefault removed }
+  class RunArmedDefaults { <<DELETED>> }
+  class HostGatePolicies { <<existing, stays>> the U1 gate table }
+  class ClusterView { <<existing>> ArmedMode (read) · LastLoadMode NOT BUILT (backend) }
+  class ClusterMaster { <<existing>> ArmedMode · NEW initialArmedMode ctor parameter (default Live) }
+  class OrchestratorCore { <<existing>> NEW OrchestratorCoreOptions.InitialArmedMode (Live; the editor passes Preview) }
+  class TerrainPickerLauncher { <<DELETED>> }
+  class CgfEditorShellToolbar { <<existing>> ⛔ File/Terrain… slot removed · the asset items stay }
+  class LocalWindowController { <<existing>> File/Exit }
+  GlobalMenuRegistry *-- MenuItemNode
+  ScenarioMenuCommands --> FileMenuLayout : Apply
+  FileMenuLayout --> GlobalMenuRegistry : SetLayout
+  ScenarioMenuCommands --> IScenarioSession : every item
+  EditorScenarioSession ..|> IScenarioSession
+  EditorScenarioSession *-- ScenarioDoor
+  RunModeChoice --> ScenarioDoor : binds LoadTarget
+  RunModeChoice --> ClusterView : Armed (via IRunTransport.ClusterArmed)
+  OrchestratorCore --> ClusterMaster : initialArmedMode
+  LocalWindowController ..> GlobalMenuRegistry : File/Exit
+  CgfEditorShellToolbar ..> GlobalMenuRegistry : the asset items
+```
+
+*What the picture shows that prose hid:* the File menu is filled by FOUR registrars (`ScenarioMenuCommands`, `CgfEditorShellToolbar`, `EditorSubsystem`'s Save As / Save All, `LocalWindowController`'s Exit) at different times, so "the menu as drawn" cannot be the registration order — the order and the hide rule live as RULES on the registry, applied whenever and by whomever creates the node. And the armed mode has ONE reader on the host (`RunModeChoice.Armed`) and ONE source (the master): there is no host-side default left to drift.
+
+```mermaid
+sequenceDiagram
+  participant U as operator (File › Load Scenario…)
+  participant M as ScenarioMenuCommands item (run gate first)
+  participant S as IScenarioSession (EditorScenarioSession)
+  participant D as ScenarioDoor
+  participant C as RunModeChoice
+  participant L as ScenarioLoadSequence / master
+  U->>M: pick "hill-attack" in the scenario picker
+  M->>S: LoadScenario("hill-attack")
+  S->>D: Load("hill-attack")
+  D->>C: LoadTarget()  (R-1043: the CLUSTER's armed mode)
+  alt Live armed
+    C-->>D: Live
+    D->>D: LoadLive ⇒ Admit(LoadingLive) (run ⇒ Stop and Load · edits ⇒ Save/Discard/Cancel)
+    D->>L: raw LoadForLive (paused at the start, TimeMode Deterministic) — NO SetRunSettingsIntent
+  else Preview armed (the editor's initial) or AAR armed (the last load's mode, until backend adds LastLoadMode: Preview)
+    C-->>D: Scenario
+    D->>D: Open ⇒ Admit(OpeningScenario)
+    D->>L: raw OpenForEdit — NO SetRunSettingsIntent
+  end
+```
+
+⭐ **Decisions** *(each with the measured reason)*: ① **ONE resolver** — `RunModeChoice.LoadTarget` (armed ⇒ Live / edit), called by `ScenarioDoor.Load`, which `IScenarioSession.LoadScenario` calls; the menu item, the asset-picker routers (Start's Recent rows, the Orchestrator / CGF / editor pickers) and the Orchestrator panel's *Load into Edit* all end there (INVENTORY: `OpenForEdit` callers). Explicit verbs stay for what names its mode: New-from-a-recipe (always editing), the checkpoint ■'s return to the scenario, HTTP `POST /scenario/load/*` (D22). ② **no host default**: `OperatorOpening`, `HostDefault`, `RunArmedDefaults` removed; the choice's arm fallback before any broadcast is the master's own default (Live). ③ **the master's initial armed mode is a constructor parameter**, the editor's in-process core passes Preview — the ONE bootstrap difference (user). ④ **the layout is a rule table on the registry** (`SetLayout`), written once by `FileMenuLayout`, not an insertion-order accident. ⑤ **Close** is `IScenarioSession.Close()` = `Door.Leave(LeaveReason.Close)`, exempt from the gate, allowed in Idle. Rejected (one line each): **a `File/Edit` submenu hidden as a whole** — §2.15 says no submenus · **per-host `if (editing)` around each registration** — the remember-to-wire pattern; the rule on the registry makes every registrar agree by construction · **a host-side `LoadMode` parameter on each picker** — five callers would each have to resolve it.
+
+✅ **AS-BUILT `2026-10-29` (ui) — CE-1443 part A.** *(`build-state: BUILT` for part A; part B — the named saves — is still DESIGN. The INVENTORY / diagrams above are the PRIOR STATE where the table below says so.)* The design above is what was built, except:
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| 1 | three separators (after the first four · before the editing group · before Close) | **two**: after the first four, and before Close (drawn when a context group above it is) — `FileMenuLayout.SeparatorAfterLoads` / `SeparatorBeforeClose` | the editing group (state `OperatingEdit`) and *Save Checkpoint* (`OperatingLive`) are never drawn together, so the separator between them could never draw |
+| 2 | *Load Checkpoint…* — "the existing restore" | the item is registered on every host, **disabled with its reason on all of them today** (`openCheckpointPicker` seam; none supplied). Built: `IScenarioSession.RestoreCheckpoint(label)` = the existing `RestoreCheckpointIntent` | ⚠ **found, not built:** the restore has no operator path and no label source — `ClusterMaster.StartRestore` (`ClusterMaster.cs:~940`) restores only in `OperatingLive` of a recorded run and only BY LABEL; the only list of marks the UI sees is the REPLAY session's (`MainToolbarTimeControlSection.cs:~203`, `ReplaySession.Checkpoints`), nothing lists a live run's. ⇒ "from Idle, live paused at a checkpoint" needs the master to publish the live recording's marks (and to restore from Idle): backend, not ui |
+| 3 | §2.14 decision ③ withdrawn ("host default on open") | withdrawn **whole**: no open sends ANY armed mode — the scenario open, the live load AND the recording open (which used to arm AAR) — `ScenarioDoor.OperatorOpening` and `DoorOpen.Recording` are gone, `DoorOpen` is now the load target (`Scenario` \| `Live`) | the user's rule is "only the indicator changes the armed mode"; a recording open arming AAR was the same hook. Effect: ▶ after returning from an AAR runs what the indicator says, not AAR |
+| 4 | `HostDefault` / `RunArmedDefaults` removed | also `RunModeChoice`'s ctor and `ClusterTimeTransportAdapter.AttachRunChoice` lost their first parameter (13 call sites); the choice's pre-broadcast value is `RunModeChoice.MasterDefaultArmed` (= Live, the master's own default). `RunArmedDefaults.cs` → `HostGatePolicies.cs` (the file kept only the U1 gate table and `RunHostKind`) | the parameter WAS the host default |
+| 5 | "LastLoadMode IF backend added it" | ⛔ SUPERSEDED the same day: backend built `ClusterView.LastLoadMode` and ui wired it (`RunModeChoice.LoadTarget` reads `IRunTransport.ClusterLastLoad`; rail `TheOneTimeFacadeTests.R1043_WithAarArmed_ALoadGoesIntoTheLastLoadsMode`). Prior state: **not built by backend** (grep `LastLoadMode`: only the two NOTEs) ⇒ AAR / DAR armed loads **into editing**; one line in `RunModeChoice.LoadTarget` to change when the master broadcasts it | the NOTE asked for it; nothing answered |
+| 6 | the master's initial armed mode | `ClusterMaster(bus, config, initialArmedMode = Live)` (cross-lane edit: backend's class) + `OrchestratorCoreOptions.InitialArmedMode`; `EditorSubsystem` passes Preview — the one bootstrap difference. ⚠ the editor's choice reads Live until its first frame folds the master's first broadcast into the view (the broadcast carries Preview) | the view's own default is Live before any broadcast |
+| 7 | the editing group "existing Save / Save As / Save All / New Asset / Open Asset" | those keep their names and paths; the scenario registrar's own items left `File/Edit/…` for top-level paths (**Save Scenario**, **Save Scenario As**, **Migration History**, **Save Curated Scenarios to Git**) and are part of the group; the shell's *New Behavior / Action / Condition…* are in it too | no submenus |
+| 8 | New Exercise replaced by Close | **gone**: the menu item, `IScenarioSession.NewExercise`, `LeaveReason.NewExercise`, the editor's / Orchestrator's confirmation (`ConfirmPromptController`, `RequestNewExercise`; CGF's log-and-proceed). Close asks only what the door asks (a run is stopped without asking — ■ never asks, R3; unsaved edits ⇒ *Save / Discard / Cancel*); Close at a cluster at rest sends nothing | deleting symbols whose only users were the withdrawn item (no Roslyn rename needed) |
+| 9 | the operator load path "the menu, Start, Recent and pickers all call" | `IScenarioSession.LoadScenario` ← the File item, and the asset-picker routers of the editor, CGF and the Orchestrator (what Start's *Load Scenario…* button and the browser's pick call). ⚠ **left explicit on purpose** (they name their mode): *New from a recipe* and the director's load (editing), the Orchestrator panel's *Load into Edit / Live*, ■'s return to the scenario, HTTP `POST /scenario/load/*` | D22 / R2 |
+| 10 | layout "as far as the registry models it" | the registry gained `Order`, `GetVisible`, `SetLayout(path, order, visible?)` (rules applied when the node is created or at once if it exists; no phantom nodes) and `OrderedChildren()` (every draw and model walk) — `FileMenuLayout.Apply` is the ONE table, called by `ScenarioMenuCommands.Register` | four registrars fill the File menu at different times |
+
+📌 **Rails** (each red-proved by a compiling mutation, named in its summary): `ScenarioMenuTests.CE1443_S1_*` · `CE1443_TheFileMenu_IsDrawnInTheLayoutTablesOrder` · `CE1443_S2_*` · `CE1443_S3_*` · `CE1443_S6_*` · `CE1443_SaveCheckpoint_And_LoadCheckpoint_*` · `TheScenarioMenuIsSharedByBothHostsTests` (the flat paths, Start offers the first four + Close, CGF loads through the one load) · `TheOneTimeFacadeTests.CE1443_S3_*` / `CE1443_S4_*` · `ClusterMasterRunRecordingTests.CE1443_S5_*` · `TheRunChoiceIsOnEveryHostTests.TheEditorArmsPreview_OverItsSession` (S5 on the constructed editor) · `EditorScenarioSessionLoadTests` (Close, the one load) · `GlobalMenuRegistryTests.SetLayout_* / GetVisible_*`.
+
+### 2.15b ⭐⭐ CE-1443 part B (B1 + B2) — SAVE NAMES WHAT IT SAVES, and RECIPES — ✅ **AS-BUILT `2026-10-29` (ui)**
+
+Built against §2.15's row *"SAVE NAMES WHAT IT SAVES"*. ⭐ Reused, not added: `GlobalMenuRegistry` visibility (§2.15a row 10), the per-kind save delegates of `ShellSaveCommands`, `AssetRoots.RecipesFor(kind)` / `ScenariosRecipesRoot`, `ContentLayout.ScenarioRecipeName`, the existing Save-As dialog seam.
+
+```mermaid
+classDiagram
+    class SaveLabels { +For(verb, doc) string }
+    class RecipeFiles { +Files(AssetKind) +PathFor(kind, name) +Read~T~(kind, read) }
+    class ShellSaveCommands { shell.save · shell.saveAs · shell.saveAsRecipe · Save All (N changed) }
+    class ScenarioMenuCommands { scenario.save · scenario.saveAs · scenario.saveAsRecipe }
+    class AssetRoots { +RecipesFor(kind) +ScenariosRecipesRoot }
+    class BTreeNewAssetService
+    class HsmNewAssetService
+    class BlueprintEditorBootstrap { DiscoverRecipes }
+    ShellSaveCommands ..> SaveLabels
+    ScenarioMenuCommands ..> SaveLabels
+    ShellSaveCommands ..> RecipeFiles : PathFor (writes)
+    BTreeNewAssetService ..> RecipeFiles : Read (lists)
+    HsmNewAssetService ..> RecipeFiles : Read (lists)
+    BlueprintEditorBootstrap ..> RecipeFiles : Read (lists)
+    RecipeFiles ..> AssetRoots
+```
+*What the picture shows that prose hid: ONE recipe root per kind is both the place a recipe is written and the place "New …" lists — the writer and the three listers share `RecipeFiles`, so they cannot disagree on root or extension.*
+
+| # | design said | built | why (measured) |
+|---|---|---|---|
+| B1 | one rule for save names | `SaveLabels` names every save (*Save Scenario 'x'*, *Save BTree 'y'*, *… As…*, *Save All (N changed)*); the duplicate `scenario.save`/`scenario.saveAs` registration in `ShellSaveCommands` removed; `File/Save` / `Save As…` drawn only when there is a document to save | two registrars had registered the same two scenario commands |
+| B2a | *Save BTree as Recipe…* writes `recipes/<kind>/<name>` | `shell.saveAsRecipe` (*Save BTree 'y' as Recipe…*) writes through the kind's own save delegate to `RecipeFiles.PathFor` = the NAS `recipes/behaviors/<Folder>/<name><ext>`; ⭐ never overwrites (*name (2)*…); the open document stays dirty (a recipe is a copy, not a save of the document). Blueprint: the written copy carries `EditorMetadata.Recipe` (DisplayName = name) so the lister keeps it — `SaveActiveBlueprintCommand.SaveAsRecipe` | overwriting another author's recipe silently was the alternative |
+| B2b | that kind's "New …" lists it | BTree and HSM `AvailableRecipes` add the on-disk recipes after Empty / Starter (their `TODO: wire IRecipeDiscovery` is gone); Blueprint's discovery moved onto the same `RecipeFiles` | ⛔ prior state: only Blueprint listed files; the TODOs were the gap |
+| B2c | a scenario recipe keeps terrain and entities | `scenario.saveAsRecipe` (*Save Scenario 'x' as Recipe…*) = `session.SaveAs(ContentLayout.ScenarioRecipeName(name))` — a full scenario save under `recipes/scenarios/<name>`, which New Scenario already lists live; disabled with its reason where the host has no Save-As dialog | the existing save writes the whole scenario, entities included |
+| — | (one root?) | listing and saving both use the NAS root (`AssetRoots.cs` `RecipesFor` / `ScenariosRecipesRoot`) | ⛔ an earlier chat claim of a repo-vs-NAS split was wrong |
+
+📌 **Rails** (each red-proved by a compiling mutation): `SaveCommandsTests.CE1443_B2_SaveAsRecipe_*` (no-overwrite loop removed ⇒ red) · `BTreeNewAssetTests.CE1443_B2_NewBTree_ListsTheRecipesOnDisk` (listing dropped ⇒ red) · `ScenarioMenuTests.CE1443_B2_SaveScenarioAsRecipe_SavesUnderTheRecipeName` (recipe name dropped ⇒ red) · Blueprint `DiscoverRecipesTests` unchanged and green.
 
 ## 3. Every move, with what the user is told
 
@@ -284,21 +1320,130 @@ dirty state lives with the master and is announced like the cluster state, so ev
 | **D6** | replay of a just-ended live run is an explicit step (the indicator, or the toast's button), at the recording's START | ✅ user |
 | **D7** | a recording keeps its scenario: the EXISTING master-side copy (CE-3119, `AssetInventoryProcessManager.SnapshotScenario`) grows to the WHOLE folder (subfolders too) and stamps name + hash + `RecordedAt` at go-live from the saved file (M3: today the stamp is load-time only and goes stale after a Save); a branch inherits its parent's copy | ✅ user + lean accepted · mechanism from M2/M3 |
 | **D8** | Save in Live / Replay = a checkpoint with a toast; a new scenario comes from a checkpoint, never from Save As | ✅ user |
-| **D9** | a review always has an explicit start (the indicator's windows, the timeline); the "no position = the live point" default is removed (`ClusterReplayControls.cs:19`, `POST /review`) | ✅ user |
+| **D9** | a review always has an explicit start (the indicator's windows, the timeline); the "no position = the live point" default is removed (`ClusterReplayControls.cs:19`, `POST /review`) | ✅ user · ✅ the HTTP half BUILT (CE-4090: `POST /review` needs `atSeconds` / `atSimSeconds`; the UI facade default is CE-4097's) |
 | **D10** | confirmations exactly as §3; Live → Preview always asks (no "don't ask again"); timeline actions never ask | ✅ user |
 | **D11** | edits are allowed while Preview or Live runs; a status-bar note, not a banner | ✅ user |
-| **D12** | the armed mode after opening a scenario is the HOST's default: **Preview in the editor, Live on CGF, the all-in-one and the server** — ⭐ ONE host parameter of the shared, unified bootstrap (the start perspective and everything else are the same code on every host) | ✅ user |
-| **D13** | the status-bar time control is removed (CE-4083) — the picker exists once | ✅ user (CE-4083) |
-| **D14** | **Live does not imply recording.** A system setting *"Record live runs"* (default ON) decides; the Live icon says which (red recording · green not). Not a conflict with mgmt-1 §8.12 "Always Recording" — that rule keeps the recorder running while the clock is PAUSED, it does not make every live run record | ✅ user (the setting) · ⏸ lean: default ON, one cluster-wide setting the master hands to every node with the live load |
-| **D15** | at ■ in Live, *"Keep this recording?"* — gated by a second setting *"Ask to keep recordings"* | ✅ user (the prompt + its gate) · ⏸ lean: default OFF (keep silently), Keep is the default button |
+| **D12** | the armed mode after opening a scenario is the HOST's default: **Preview in the editor, Live on CGF, the all-in-one and the server** — ⭐ ONE host parameter of the shared, unified bootstrap (the start perspective and everything else are the same code on every host) | ✅ user · ⛔ **AMENDED `2026-10-29` (R-3068): the armed mode is ONE cluster-wide fact** — see D12a |
+| **D12a** | ⭐ **AMENDMENT (R-3068) — the armed mode is synced across the cluster; the host's default travels as its own message.** The master holds the armed mode (beside *Record live runs*, CE-4090) and broadcasts it with the cluster state; every node reads it through `ClusterView`. The host that STARTS a load sends its default FIRST, as its own `SetRunSettings` op (`armed`), then the unchanged load request — same topic, same writer ⇒ ordered. ⭐ No host-specific code: the default is ONE bootstrap parameter of the shared code (`RunArmedDefaults.For(RunHostKind)` — Preview for the editor, Live elsewhere; the editor never runs with CGF), sent by the ONE shared operator load path. ⛔ The HTTP / agent loads send NO armed mode (D22: routes stay explicit) — so the send lives in the operator UI's load path, not in `ScenarioLoadSequence`, which the HTTP routes share. The master never resets the armed mode on a load; the indicator menu and `POST /run-mode` change it through the same op on any host. ⛔ SUPERSEDES: the per-host `RunModeChoice.Armed` as the owner (it becomes a reader of the cluster fact). ⭐ **As-built, backend half (CE-3341, `2026-10-29`):** the fact is `Fdp.Toolkit.Orchestration.ClusterArmedMode` { `Live`=0, `Preview`=1, `AAR`=2 } (⛔ permanent wire values; Live is 0 so an old sender reads as the default — the toolkit cannot reference ui's `RunArmed`, so ui maps by name); `SetRunSettings` (wire 24) payload `{RecordLiveRuns?, Armed?}` — both optional, absent = no change; `ClusterMaster.ArmedMode` (default Live, never reset by a load) is republished at once on the cluster-state broadcast (`ClusterStateTopic.ArmedMode` int); every node reads `ClusterView.ArmedMode` (`ClusterSlave` / `ClusterUiCache` are views onto it); `GET /run-settings` → `{recordLiveRuns, armed}`, `POST /run-settings {armed}`; `POST /run-mode` and every load route are untouched and send no armed mode (the only production `new SetRunSettingsIntent` is the `/run-settings` route). 📄 `batches/NOTE_Backend_To_Ui_Armed_Mode_Wire_Built.md`. ⚠ one behaviour change: an unreadable `SetRunSettings` payload now changes NOTHING (it used to mean recording ON). | ✅ user: *"It should be."* · *"if the host who triggers the loading then sends also the armed mode selection requirement"* · *"the choice what kind of armed mode will be sent from each host together with the scenario load should be just some bootstrap parameterization of a shared code."* |
+| **D13** | the status-bar time control is removed (CE-4083) — the picker exists once | ✅ user (CE-4083) — ⭐ **BUILT `2026-10-29`, §2.9** |
+| **D14** | **Live does not imply recording.** A system setting *"Record live runs"* (default ON) decides; the Live icon says which (red recording · green not). Not a conflict with mgmt-1 §8.12 "Always Recording" — that rule keeps the recorder running while the clock is PAUSED, it does not make every live run record | ✅ user (the setting) · ⏸ lean: default ON, one cluster-wide setting the master hands to every node with the live load · ✅ **BUILT (CE-4090)** — §5a as-built |
+| **D15** | at ■ in Live, *"Keep this recording?"* — gated by a second setting *"Ask to keep recordings"* | ✅ user (the prompt + its gate) · ⏸ lean: default OFF (keep silently), Keep is the default button · ✅ the backend half BUILT (CE-4090: `DELETE /exercises/{id}`; the prompt and its second setting are CE-4097) |
 | **D16** | ⭐⭐ **THE START PERSPECTIVE.** While the cluster is **Idle** (at boot, and whenever it returns to Idle — an unload, a stop to Idle, the master gone), EVERY host shows the perspective `Start`: no panels, only the menu items marked *allowed in Idle* — **New scenario from a recipe** (an unsaved scenario based on it; the empty flat-terrain recipe listed first), **Open scenario**, **Open recording (AAR)**, Exit, Help. ⭐ **Open always loads into the editing state** (clock stopped, nothing recorded); what ▶ then does is the host's armed mode (D12) — going live from there is the no-reload go-live (D3), so a separate "Open live" is not needed (fifth pass). Each of them leaves Idle through the ordinary state machine; leaving Idle restores the host's remembered perspective. ⭐ Enforced BY CONSTRUCTION: one gate in the shared presentation layer, registered by the shared bootstrapper, reads the cluster state every host already has (`ClusterStateUpdateEvent`, `MasterGone`); `Start` is claimed by ONE shared window (the start surface — UXR-01), so the A0 rule (`WindowManager.cs:276-297`) holds. While `Start` shows, the perspective toolbar and `POST /perspective` refuse with *"load a scenario first"*. A host that cannot operate the cluster (a Player, SimHost alone) shows *"Waiting for the server to load a scenario"* with no actions; the master gone shows *"Server lost — waiting"*. The Replay Browser (offline, no cluster) and the Stride host (an example only) are exempt. ⛔ No special flat terrain: an existing terrain's empty recipe does it. ⭐ The empty Idle world stays as it is behind `Start` — harnesses and tools that use it keep working; only the UI can no longer reach it | ✅ user |
-| **D18** | ⭐ **a cluster may be started with a scenario**: a cluster-runner command-line option for the ORCHESTRATOR node (`--startup-scenario <name>`). ⭐ The name decides what is loaded: a name under the reserved recipes folder (`Recipes/<seed>`, `ScenarioNewAssetService.SeedSubfolder`) loads an UNSAVED new scenario based on that recipe; any other name loads that saved scenario. Either way it lands in the editing state with the hosts' armed modes (D12) — nothing records until ▶. ⚠ The rule needs one guard: nothing may be SAVED under `Recipes/` (a save there would turn a scenario into a recipe). The master WAITS until every mandatory node / role is present, THEN loads it through the ordinary state machine. ⭐ ⚠ M8 found: the latch's `LoadWaitSeconds` (30 s) would REFUSE a start-up load whose nodes boot later — ⭐ lean: the start-up scenario waits WITHOUT a deadline (the operator can cancel it; `load.notice` shows what it waits for); the 30 s refusal stays for operator-issued loads. Built on the EXISTING bootstrap latch (`ClusterConfiguration.Mandatory`, `ClusterMaster.CheckBootstrapLatch`, CGF-1-DESIGN §3.5) — today it rejects every transition until the named mandatory subsystems are in Idle (default: none, so it opens at once), and a mandatory node's ejection re-engages it; CE-4087 extends it to ROLES (Brain + MuscleGround always) and makes a load WAIT instead of being rejected. Without the setting a cluster boots Idle into `Start` | ✅ user (command line, orchestrator node, recipe-vs-saved by name) |
+| **D18** | ⭐ **a cluster may be started with a scenario**: a cluster-runner command-line option for the ORCHESTRATOR node (`--startup-scenario <name>`). ⭐ The name decides what is loaded: a recipe name (`recipes/scenarios/<seed>` — L6, CE-4089 part two: `ContentLayout.ScenarioRecipeName`; ⛔ SUPERSEDED: the reserved `Recipes/<seed>` under the scenarios root) loads an UNSAVED new scenario based on that recipe; any other name loads that saved scenario. Either way it lands in the editing state with the hosts' armed modes (D12) — nothing records until ▶. ⚠ The rule needs one guard: nothing may be SAVED under a recipe name (`recipes/scenarios/…`) nor an opened-copy name (`opened/…`) (a save there would turn a scenario into a recipe; both prefixes are reserved — `ContentLayout.ResolveScenarioDirectory` sends them to the recipes root / the opened area, never to `scenarios/`; the refusal itself is CE-4092's). The master WAITS until every mandatory node / role is present, THEN loads it through the ordinary state machine. ⭐ ⚠ M8 found: the latch's `LoadWaitSeconds` (30 s) would REFUSE a start-up load whose nodes boot later — ⭐ lean: the start-up scenario waits WITHOUT a deadline (the operator can cancel it; `load.notice` shows what it waits for); the 30 s refusal stays for operator-issued loads. Built on the EXISTING bootstrap latch (`ClusterConfiguration.Mandatory`, `ClusterMaster.CheckBootstrapLatch`, CGF-1-DESIGN §3.5) — today it rejects every transition until the named mandatory subsystems are in Idle (default: none, so it opens at once), and a mandatory node's ejection re-engages it; CE-4087 extends it to ROLES (Brain + MuscleGround always) and makes a load WAIT instead of being rejected. Without the setting a cluster boots Idle into `Start` | ✅ user (command line, orchestrator node, recipe-vs-saved by name) |
 | **D19** | **Recent**: every open picker (scenarios, recordings, assets) shows a *Recent* section first — the items last picked, per kind — remembered in the user folder (beside the layout's user files) | ✅ user |
 | **D20** | ⭐ **FINAL `2026-10-28` (ninth pass, user): unsaved changes = the WHOLE WORLD compared, ON DEMAND, with NO indicator.** ⭐ **What:** each node captures its whole world as a binary keyframe — the flight recorder's own writer, the same capture the preview's dry-run snapshot uses (`WorldKeyframes.Capture(repo, CaptureOptions)`, `FDP/Toolkits/Fdp.Toolkits/Replay/WorldKeyframes.cs:94`; 📐 19–31 ms and 4–8 MiB per host on `uc-urban-battle`, Debug) — and keeps only its HASH; anything that changed counts (user: *"anything that changes is a good reason"*), not only the scenario's parts, and no JSON is produced. ⭐ **Baseline:** taken by each node when a load into editing commits, after every completed save round, and at a late joiner's catch-up. ⭐ **When:** ONLY in a CHECK ROUND the master asks and every node answers, before a step that would lose edits — going live, opening another scenario, back to `Start`, exit, an HTTP load without `discardUnsaved` (D22). ⛔ No indicator, no periodic check. ⭐ **Why it is safe:** the binary keyframe follows the storage layout, so it can only err towards "changed" (an identical unit deleted and re-added, a slot shift) — a needless "save first?"; it cannot report unchanged for a changed world (bar a hash collision). ⚠ **Rail first (the noise test):** load, move the camera, select, open panels, touch nothing else ⇒ every round answers "unchanged" on every node. In Edit the clock is stopped, but systems that write while paused (map culling, styles, network bookkeeping) would make every round "changed"; if they do, their component types are excluded from the capture by their own type flags (`Transient` / `NoSnapshot`), never by a second list. ⛔ SUPERSEDED: a flag raised by every authoring change (fragile); a periodic check with a `name*` (not needed); the hash of the save's JSON extraction (slow on a large scenario) | ✅ user |
 | **D21** | the timeline's right-click menu changes mode at the clicked moment, without asking: in Live — *DAR from here* (live continues) · *AAR from here* (ends the live run); in AAR — *Go live from here* (a branch); everywhere — *Take checkpoint here* | ✅ user |
 | **D22** | ⭐ **the HTTP surface stays EXPLICIT** (user, seventh pass): routes do what they name and never follow the armed mode. The changes: while `Start` shows the dispatcher routes `Start` to the remembered perspective and `POST /perspective` answers 409; `GET /status` reports `perspective: Start`, `routedTo`, `scenarioDirty`, `recording`, `armedMode`; `POST /scenario/load/live` answers 409 while the scenario is dirty or never saved unless `discardUnsaved:true`; `POST /scenario/save` answers 409 in Live and AAR (take a checkpoint, then make a scenario from it); a new `POST /sim/stop` calls the SAME `ITimeTransportFacade.Stop` as ■; `POST /review` needs its start (D9); with recording off `/checkpoint`, `/checkpoint/restore`, `/review`, `/replay` of the last run and `/exercises/keep` answer 409 *"this run was not recorded"*; new `DELETE /exercises/{id}` (D15), `POST /scenario/load/edit {recorded}` (D7), `POST /scenario/from-checkpoint` (D8), `POST /run-mode {armed}` (a thin route over the indicator's choice, for agents that drive the UI); `POST /sim/play` in a resting Idle keeps today's behaviour for harnesses; the route names `/replay` and `/review` stay (D17); the MCP skill and catalog are regenerated from their sources | ✅ user (explicit) · leans accepted with it |
 | **D23** | ⭐ **AUTOSAVE (ninth pass, user)** — a separate feature: while editing, every N minutes each node captures its world (the fast binary keyframe, ~30 ms on the frame) and a BACKGROUND task rebuilds it in a temporary world (`new EntityRepository()` + the keyframe apply — the precedent is `RecordingExportService`'s `sandboxRepo`, `RecordingExportService.cs:44,299`), runs the ordinary scenario save extraction on it and writes the JSON to an autosave location; nothing blocks. On the next open of that scenario (or at editor start after a crash), an autosave newer than the saved scenario is offered: *"Recover unsaved changes from 14:41?"*. ⏸ Leans: per node, its own slice, merged by the master like a save; the autosave lives beside the scenario on the NAS (`scenarios/<name>/.autosave/`, never listed by Open); N = 2 minutes, a user setting; an autosave is deleted by the next real save. Its own task (CE-4099), after CE-4093 | ✅ user (the feature) · ⏸ leans |
 | **D17** | the user-facing words: **DAR** (inside a live session) and **AAR** (a recording played back) replace "Review" and "Replay"; the code names stay (§1a) | ✅ user (the words) · ⏸ lean: code names unchanged |
+
+### 4a. ⭐ As-built — D20, the node side (`CE-4093`, `2026-10-28`)
+
+📐 **Measured on `uc-urban-battle`** (on demo-city, 682 units, in a real headless editor; the noise test is `TheWorldChangeCheckOnTheEditorTests`). The master's check round is built in §4b.
+
+| | what was built |
+|---|---|
+| **the class** | `Fdp.Toolkit.Replay.WorldChangeCheck` (`FDP/Toolkits/Fdp.Toolkits/Replay/`): `Hash` / `TakeBaseline` / `HasChanged` / `HasBaseline` + `BeginSettling` / `SettleStep`. One per node, built in `EcsHostClusterHandlers.Compose` and kept on the record (`ChangeCheck`) — its state lives in the composition, never in the ECS world |
+| **what is captured** | `WorldKeyframes.Capture` with `KeyframeTypes.Recorded`, **singletons off**. ⛔ SUPERSEDES "the preview's capture": the snapshotable set leaves out `RoutePlan`, `ActiveMissionPlan`, `SimCombatDef`, `TkbCompositionDef`, `SensorConfigPayload` (they are `NoPreview`), so a route or mission edit would read "unchanged"; the singleton tables hold the clock (`GlobalTime` moves every frame, paused) and runtime machinery, none of it authored |
+| **what the hash skips** | exactly three things that are not content: the keyframe's tick (bytes 0–7) and wall clock (9–16), and **every entity's `EntityMetadataCold.LastChangeTick`** (the entity index's cold chunks) — touching ANY component, a runtime-only one included, stamps it, so *selecting a unit* read as an edited world. Hash: FNV-1a 64 (`StableHash.Fnv1a64`, added beside the 32-bit one); a frame the walker cannot parse throws |
+| **types flagged** | **one: `CullingState` → `NoReplay`** (it already was `NoScenario`). Camera view state, rewritten for every unit every frame from the map's viewport — panning changed ~half of it. Not scenario or world state; the same reason and the same flag as `SelectionState` (`CE-4049`). Nothing else churned: 200 quiet frames, camera pans, select/deselect, windows registered ⇒ "unchanged" |
+| **baseline — a load into editing, and a late joiner's catch-up** | **one call site: `LoadPhaseChain.DrainDeferredAcks`** (`Hrot/Engine/Hrot.Core/Services/LoadPhase/LoadPhaseChain.cs:323` the step, `:340` the start) — the chain every host runs; a catch-up is the same chain (`IsCatchUp`). ⭐ **It SETTLES first (refines "when a load commits")**: the frame after the chain resolves, the simulation initialises the loaded units once (9 types — poses, blueprint blackboards, behaviour/SOP state, brain journal — then nothing moves); a baseline taken at the resolve read "changed" from frame 1. `BeginSettling` drops the baseline ("no-baseline" meanwhile); `SettleStep` takes it at the first frame whose content equals the previous frame's (cap 20, logged). `OnEnteredIdle` clears it. Not for a live load |
+| **baseline — a completed save round** | `BaselineAfterSaveHandler` (`Fdp.Toolkits/Orchestration/Handlers/`) wraps the host's scenario-save handler **in `Compose`** (`EcsHostClusterHandlers.cs:164`), so no host can forget; its `Commit` — this node's slice is written — re-baselines. ⚠ The node's part only: a master that fails the round later (slice pull, merge) must treat the scenario as unsaved itself |
+| **the op** | `NodeOpType.CheckUnsaved = 35` in both enums, ⛔ permanent (R-42). `WorldChangeCheckHandler` (registered in `Compose`, `:150`) answers the string `"changed"` / `"unchanged"` / `"no-baseline"` as the op's `ResultPayload` (a JSON string on the wire — `NodeOpMasterTranslator` got its case, as `ExportCheckpoint`'s) → the master's `NodeResponses[node][CheckUnsaved]`; `WorldChangeCheckHandler.Parse` / `MeansChanged` read it (only an explicit "unchanged" means saved; a silent or unknown answer reads as changed). A host with no ECS world registers none ⇒ the slave answers `IsParticipating = false`, empty |
+| **cost** | `uc-urban-battle`: keyframe 6.8 MiB; capture ≈ 33 ms + hash ≈ 24 ms (median of 10, Debug) ⇒ one node's answer ≈ 56 ms |
+
+⚠ **Open edges, named:** a late joiner's replicated world still arriving after its catch-up resolves is waited for by the settling only while it keeps moving frame to frame; the master must also treat a failed save round as unsaved. 📌 Found on the way, **pre-existing at base `1a5bd73a1`**: saving a freshly loaded `uc-urban-battle` (and `hill-attack`) in the headless editor throws `SaveResolver: entity Entity.Null is not in the save map` with no edit made; `pc-defend-house` and `test-move` save.
+
+### 4b. ⭐ As-built (CE-4093 master) — the CHECK ROUND, `2026-10-28`
+
+📐 Built on the node side above; **no new round mechanism** — the round is `CollectCheckpoint`'s shape (`Participants()` → `FanOutNodeOp` → a `GenericTransactionTracker` that completes through an aggregator). ⚠ Open edge 2 of §4a ("a failed save round") is closed here.
+
+| | what was built |
+|---|---|
+| **the op** | `ClusterOpType.CheckUnsavedChanges = 26` in both enums, ⛔ permanent (R-42). ⚠ **Deviation: not `CheckUnsaved`** — IDL scopes enum members by module and `NodeOpType.CheckUnsaved = 35` is in the same module (`idlc: Declaration 'CheckUnsaved' collides`), as `NodeReplaySeek` / `ReplaySeek` before it. New `CheckUnsavedIntent` (EventId 9075, no payload) with its egress / ingress translator arms (`ClusterOpEgressTranslator`, `ClusterOpMasterTranslator`) and a `case` in `ClusterMaster`'s op switch. Any host's debug surface publishes it through `IClusterMasterControl.CheckUnsaved` |
+| **the round** | `ClusterMaster.StartUnsavedCheck` (`ClusterMaster.UnsavedCheck.cs`). **Refused outside `OperatingEdit`** (Rejected + `UnsavedCheckOutcome.NotEditingReason`): Idle has nothing to lose, Preview / Live / a replay hold a run's world, not the scenario's. Zero participants ⇒ Success "unchanged" at once (only the master's own fact below can say otherwise) |
+| **the answer** | `UnsavedCheckAggregator` (registered in `OrchestratorCore` beside the others) → `UnsavedCheckResult { Changed, ChangedNodes[] }` (`Fdp.Toolkit.Orchestration`). Changed when ANY non-empty answer `MeansChanged` (only an explicit "unchanged" is saved; "no-baseline" and unreadable answers are changed); **empty answers are skipped** (a host with no ECS world). The master folds its own fact in through the tracker's `RefineResult` hook and keeps `LastUnsavedCheck`; no aggregator registered ⇒ "changed" (never a silent "saved") |
+| **the master's own fact** | `SaveFailedSinceLoad`: a scenario-save round whose node round FAILS, or whose NAS pull / merge fails (`StorageProcessManager` now publishes `ScenarioSaveFinishedEvent`), makes the master report Changed — the nodes re-baselined at `Commit` and cannot know. Cleared by a save whose pull + merge completes, by a load of a scenario into editing, and by Idle (`NoteLoadForUnsavedCheck`) |
+| **who sees the answer** | the answer is the op's `ResultPayload`, which reaches EVERY host's bus. `ClusterUiCache` keeps the last 32 op outcomes by request id (`UnsavedCheckOutcomeFor`) and `LastUnsavedCheck` (cleared when the cluster leaves editing); the providers expose `UnsavedCheck(requestId)` / `ScenarioDirty` / `ObservesUnsavedChecks` (dispatcher `…AnyNode`, one cluster one fact). ⚠ **Wire trap fixed:** `OrchestrationObserverTranslator` decoded EVERY op result as `ReplayPrepareResult`, which "succeeds" from any JSON object — `DecodeResult` now recognises the verdict by its `changedNodes` property first |
+| **HTTP** | `POST /scenario/check-unsaved` → `{changed, changedNodes}` (409 outside editing; one round per call). `POST /scenario/load/live`, and `load/edit` of ANOTHER scenario than the one open, run **one helper** (`GateUnsavedChangesAsync`) at their top: 409 *"the scenario has unsaved changes"* while a round says changed, unless `discardUnsaved: true`; asked only while the cluster is in editing and this host can see the answer. `GET /status.scenarioDirty` = the last verdict (null: none ran, or the cluster left editing) — **never runs a round**. Route docs, MCP skill and catalog regenerated |
+| **measured** | headless editor, `uc-urban-battle` (682 units): `POST /scenario/check-unsaved` from request to answer, 5 rounds (ms) **189, 191, 240, 225, 222 — median 222** (master fan-out, the node's capture ≈ 32 ms + hash ≈ 21 ms, aggregation, read model, the route's polling; frames pumped back to back) |
+
+⭐ **As-built (CE-3340 ⑤, backend, `2026-10-29`; R-4001) — the HTTP gate has NO deadline of its own.** ~~a hard-coded `GateUnsavedChangesAsync` timeout of 15 s answers 504~~ is gone. **Measured** (`ClusterMasterUnsavedCheckTests.ARoundWhoseNodeIsEjected_StillCompletes_OnTheNodesThatRemain`): a node that never answers HOLDS the round (nothing times it out); when its heartbeat stops the master ejects it (`EjectNode` → `DropFromInFlightRounds`) and completes the round on the nodes that remain — the aggregate is the survivors' verdict. So an answer ALWAYS arrives, within the heartbeat timeout (the one time limit, R-4001), and a 504 on a valid round was a false failure. `RunCheckRoundAsync` (both routes' one helper) now polls until the outcome arrives, bounded only by the host's lifetime (`_shutdown`, cancelled at `Dispose` ⇒ 503). ⚠ **Measured limit:** `HttpListener` raises no per-request abort signal, so a client that gave up leaves one cheap poll (a queued main-thread read per 20 ms) running until the round ends — bounded by the same heartbeat. ⛔ No second timeout policy was introduced: the other long HTTP waits (`ScenarioReadyTimeoutSeconds` 30 s for a load's readiness, `StepAckTimeoutSeconds` 20 s) wait for a STATE edge the protocol does not promise, not for a round, and stay as they are. Rails: `TheUnsavedCheckRoutesTests.ARoundTheMasterTakesLongToEnd_IsStillAnswered_NeverA504` (a 17 s round: `/scenario/check-unsaved` 200, the load gate 409) + the master rail above. ⚠ **Open (ui lane's file, not touched):** `ClusterUnsavedChangesQuery.Deadline` (`Hrot.Presentation/RunMode/RunModeTypes.cs`) is the same 15 s, reading no-answer as *Changed* — the same R-4001 defect on the UI path.
+
+⚠ **Open edges after this:** a `load/edit` of the scenario already open is NOT gated (the harnesses' "start over") — D22's *"never saved"* half (a scenario with no file) and the UI's *Save / Discard / Cancel* are CE-4097's; the multi-process cluster path (observer decode over DDS) is covered by a unit rail on `DecodeResult`, not by a live DDS run.
+
+### 4c. ⭐ Design — D23 AUTOSAVE (`CE-4099`, backend, `2026-10-29`) — READY-TO-BUILD, gated on A0
+
+📐 **Inventory** (graph `search_graph` on `.*(Autosave|AutoSave|ScenarioSave|SaveCore|Sandbox).*`, 40 hits + grep `-i autosave` over `Hrot/ FDP/`): no
+autosave code exists (the grep hits are CE-4091's dot-folder skip, `StorageGatewayModule.cs:893`, and the unrelated AI-JSON `_aiJsonAutoSaveOnEdit` in
+`EditorSubsystem`); ⚠ there are TWO node save handlers — `ExConScenarioSaveHandler` (ExCon has no ECS world; it writes its observer state as a
+foreign slice) beside `HrotScenarioSaveHandler`, so the `Autosave` flag must route ExCon's slice into `.autosave/` too (or ExCon declines an autosave —
+measure what its slice holds). The pieces it composes exist — `HrotScenarioSaveHandler` (the ONE node save: `ScenarioSaveCore.Write(serializer, world, file, header)`, which needs only a
+serializer and an `EntityRepository`), the master's `SaveScenario` fan-out + `StorageProcessManager` pull/merge, `WorldKeyframes.Capture/Apply`, the
+sandbox-repo precedent (`RecordingExportService.cs:44`), the CE-4093 check round, and CE-4091's prefetch stager for loading a substitute file.
+
+```mermaid
+classDiagram
+  class ClusterMaster { <<existing>> AutosaveEvery: TimeSpan · TickAutosave() NEW · SaveFailedSinceLoad → KnownUnsaved(reason) }
+  class StorageProcessManager { <<existing>> merge slices → target file · autosave target NEW · real save deletes .autosave NEW }
+  class HrotScenarioSaveHandler { <<existing>> PrepareAsync: payload.Autosave ⇒ capture on frame, extract on worker NEW }
+  class ScenarioSaveHandlerPayload { <<existing>> ScenarioName · Autosave: bool NEW }
+  class BaselineAfterSaveHandler { <<existing>> Commit: skip when Autosave NEW }
+  class WorldKeyframes { <<existing>> Capture · Apply }
+  class ScenarioSaveCore { <<existing>> Write(serializer, world, file, header) }
+  class AutosaveFiles { <<NEW, Fdp.Toolkits>> Dir(scenarioDir) · DataFile · MetaFile · IsNewerThanSaved() }
+  class AssetPrefetchProcessManager { <<existing>> SourceStager (CE-4091) · recover ⇒ stage autosave as scenario.json NEW }
+  ClusterMaster --> StorageProcessManager : SaveScenario intent, Autosave=true
+  ClusterMaster ..> ClusterMaster : CheckUnsaved round first (CE-4093)
+  HrotScenarioSaveHandler --> WorldKeyframes
+  HrotScenarioSaveHandler --> ScenarioSaveCore : on a sandbox repo (worker)
+  BaselineAfterSaveHandler --> HrotScenarioSaveHandler : wraps
+  StorageProcessManager --> AutosaveFiles
+  AssetPrefetchProcessManager --> AutosaveFiles
+```
+
+*What the picture shows that prose hid:* there is NO second save path. Autosave is the existing save round with one flag. The flag changes three
+things and nothing else: where the merged file goes, whether the node re-baselines, and whether the node extracts on a worker.
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster (OperatingEdit)
+  participant N as each node (frame thread)
+  participant W as worker (private sandbox)
+  participant S as StorageProcessManager
+  M->>M: every AutosaveEvery (default 2 min)
+  M->>N: CheckUnsaved round (CE-4093)
+  N-->>M: changed / unchanged
+  alt nobody changed
+    Note over M: skip, nothing written
+  else changed
+    M->>N: SerializeLocal {name, Autosave=true}
+    N->>N: WorldKeyframes.Capture (singletons ON) ~30 ms
+    N->>W: Task.Run(keyframe)
+    W->>W: new EntityRepository + register types + Apply + ScenarioSaveCore.Write → node .autosave slice
+    W-->>N: manifest (Prepare completes)
+    N-->>M: ACK (Commit: NO re-baseline)
+    M->>S: pull slices → merge → scenarios/<name>/.autosave/autosave.json + autosave.meta.json {at, savedHash}
+  end
+  Note over M,S: a real save that completes deletes .autosave/
+```
+
+| # | decision | why |
+|---|---|---|
+| **A0** | ⛔ **GATE — measure first, build only if it holds:** for 3 curated scenarios (incl. `uc-urban-battle` and `pc-defend-house`), `ScenarioSaveCore.Write` on the live world and on a sandbox repo rebuilt from `WorldKeyframes.Capture(…, singletons ON)` produce **byte-identical JSON**; and `ScenarioSerializer` holds no mutable state a frame-thread caller writes (read every field). If either fails: STOP, report which types/fields differ | the whole design rests on "the keyframe carries everything the save reads". The check round's capture leaves singletons OFF (§4a); the save reads `TerrainDefinition.ResidentName` / `ScenarioDescription.ResidentOf` — singletons — so autosave's capture turns them ON |
+| **A1** | the trigger is the MASTER: every `AutosaveEvery` (default 2 min; `POST /run-settings {autosaveMinutes}`, 0 = off) while `OperatingEdit`, it first runs the CE-4093 check round; only "changed" starts an autosave round | one clock, one decision for the cluster; an untouched scenario writes nothing; reuses the check round instead of a second change detector |
+| **A2** | the round IS the save round with `ScenarioSaveHandlerPayload.Autosave = true` — the same fan-out, handler, pull and merge | ⛔ no second save implementation (the shared-and-unified rule) |
+| **A3** | an autosave is NOT a save: no node re-baselines (`BaselineAfterSaveHandler` skips it), the master's unsaved fact is untouched, a failed autosave only logs (never a 409, never a user toast) | otherwise an autosave would make the world read "saved" and the next go-live would skip *Save first?* |
+| **A4** | the node extracts on a WORKER from a private sandbox repo (capture on the frame thread, ≈30 ms) | R-4001: only work that touches no shared data runs on a worker — the sandbox is private; the frame never blocks for the JSON |
+| **A5** | files: `scenarios/<name>/.autosave/autosave.json` (NOT `scenario.json`, so no scenario enumerator ever lists it) + `autosave.meta.json {at, savedHash}` (`savedHash` = the hash of the `scenario.json` it was based on); dot-folder already skipped by CE-4091's copy | Open never lists it by construction, not by a filter every listing must remember |
+| **A6** | a real save that completes (pull + merge) deletes `.autosave/` | D23 |
+| **A7** | recovery: `GET /scenarios/{name}/autosave` → `{at}` when an autosave exists whose `savedHash` equals the current `scenario.json`'s hash (else it is stale: the file was saved elsewhere since — reported, not offered); `POST /scenario/load/edit {name, recoverAutosave:true}` loads it — the prefetch stager (CE-4091) stages `autosave.json` as the node's `scenario.json` for this load only; the master then holds a `KnownUnsaved("recovered autosave")` fact (generalising `SaveFailedSinceLoad`) so the check round says changed until a real save | the scenario keeps its own name and folder; the recovered world is honestly "unsaved"; the start surface / Open prompt (*"Recover unsaved changes from 14:41?"*) is ui's and reads these two routes |
+
+| **A8** | ⭐ **a NEVER-SAVED scenario** (a new one from a recipe, D18 — no `scenarios/<name>/`, no `scenario.json`): its autosave lives in the NAS **opened-not-saved area** — the ONE home CE-4089 gives opened recorded copies (D7) — keyed by the recipe it came from + the time it was opened, `savedHash` empty. Offered back on the start surface's *New from a recipe* / start, never on Open (Open lists saved scenarios only): `GET /autosaves` lists every never-saved autosave `{recipe, openedAt, at}`; `POST /scenario/load/edit {recoverAutosave: <id>}` reopens it as the same unsaved new scenario. The first real *Save As* deletes it (A6's rule, this home) | coordinator review `NOTE_Coordinator_To_Backend_CE4099_Design_Review.md` (`2026-10-29`): the plan's done-when is *"an edited, unsaved scenario survives a killed editor"*, and the commonest unsaved scenario has no folder for A5/A7 to point at |
+
+**Cost (asked by the review):** one capture per node per interval — ≈30 ms (`uc-urban-battle` 6.8 MiB keyframe, Debug; §4a measured capture ≈33 ms) every 2 min = one frame hitch per node per interval, ONLY while editing (the clock is stopped). The JSON extraction and the write run on the worker. ⛔ Never in Live, Preview or AAR — no autosave runs outside `OperatingEdit` (A1).
+
+`build-state` for §4c: **READY-TO-BUILD, gated on A0** (the review accepted A0–A7; A8 added at its request).
 
 ## 5. 📐 Measured `2026-10-28` (M1–M6) — design documents first, then code; spot-verified rows marked ✓
 
@@ -313,6 +1458,12 @@ dirty state lives with the master and is announced like the cluster state, so ev
 | **M8** the runner's `--wait-for` | ✅ dead, and `--no-wait` too: parsed and REQUIRED for a single-subsystem launch, read by nothing (`Program.cs` reads neither). `docs/designs/modular-2/DESIGN.md` §1.3 ruled "remove the `--wait-for` and `--no-wait` CLI options"; the build deleted the waiting room and kept the options. The documented `--wait-for orchestrator` is even rejected by the validation | ⭐ retire `--wait-for` and its "required" throw; keep `--no-wait` as an accepted no-op (≈10 callers: run scripts, `cluster-node.sh`, Dirigent, the MCP launcher, `EditorProcess`) with a deprecation note. NOT routed to the latch: the latch lives on the master and already waits on roles by default |
 | **M6** Edit vs Live inside the ecosystem | the difference lives in the master, the toolbar and the recorder, not in the nodes (clock always paused in Edit, `ClusterMaster.cs:1441`; recording only on OperatingLive, `LoadPhaseChain.cs:190`; snapshot, ledger, DAR, checkpoints Live-only). ⚠ Nothing gates people or HID on Live: possession and orders gate on HOST type (`MapInteractionPack.cs:343-354`) — a person can possess a unit during a Preview, and the dry run's rewind does not undo what happened outside | confirms D3 is cheap. ⚠ "Live" means two things in the code: a connected live STATION (R-4096, `OrdersOffered`) and the cluster STATE — keep them apart in D12/D14 wording |
 
+> ⭐ **As-built (CE-4094 + CE-4088, backend, `2026-10-28`) — M7's fix, the backend half; the start gate that SHOWS `Start` is CE-4096 (ui).**
+> - **`WindowManager`** (`FDP/Engine/Fdp.Presentation/ImGui/WindowManager/WindowManager.cs`) owns it all: `StartPerspectiveName = "Start"`; `RememberedPerspective` (set in the ONE funnel `ApplyPerspective` when `Start` is entered; cleared on leaving); `IsStartShowing`; `TrySwitchPerspective(name, out reason)` — `SwitchPerspective` delegates to it — is REFUSED (with a reason) while `Start` is current; **`LeaveStartPerspective(out reason)` is the gate's only way out** (restores the remembered one, keeps the `A0` claimed-set check, so a remembered name no longer claimed leaves `Start` showing). `SaveSettings` persists the remembered perspective, never `Start`. ⛔ **CE-4096 must use these — not build another remember-and-restore.** `IPerspectiveSwitcher` carries `TrySwitchPerspective` + `RememberedPerspective` (pass-through).
+> - **Dispatcher alias in ONE place** (`PerspectiveScopedDispatcher`): a new optional ctor delegate `rememberedPerspective` (read live, like `currentPerspective`; `ClusterDebugApiComposition.Dispatcher` takes it, `Program.cs` passes `WindowManager.RememberedPerspective`); `Active()` resolves `RoutedTo` (= the remembered perspective while `Start` shows, else the current one; the one-provider fallback applies to the routed name); `CurrentPerspective` reports `Start` honestly. No first-provider fallback (`SeveralProviders_UnclaimedPerspective_ResolvesToNone` unchanged).
+> - **HTTP:** `GET /status` carries `perspective` + `routedTo` on the runner (dispatcher) AND the editor (window manager through the perspective seam — it was always `null` there); `POST /perspective` answers **409 + the window manager's reason** while `Start` shows (checked before the claimed-set 400). The Stride node shell keeps its fixed `"SimHost"` perspective (no window manager, never shows `Start`).
+> - **CE-4088:** `PerspectiveCoordinatorSystem` removes the OUTGOING gizmo listener whatever the incoming perspective is. The 409 contract in the MCP skill: `tools/ai-debug-mcp` — "load first, then switch" in the mental model, notes on the `/perspective` and `/status` RouteDocs (catalog regenerated from them); scripts `ui-snapshot.py` / `ownership-e2e.py` stop instead of reading the wrong node; the system rails' vacuous `if (!switched.Ok) continue` are now assertions, `PerspectiveReachTests` loads first (`PanelGoldenRails` already did — its fixture loads once).
+
 ### 5a. D14's gates (from M5) — each greyed with a reason at the TOP, never a throw deep in a node
 
 | consumer | fails today with no recording | gate |
@@ -324,6 +1475,28 @@ dirty state lives with the master and is announced like the cluster state, so ev
 | the scenario verifier (H1a / H5) | fails cleanly ("the live run recorded nothing", `ScenarioVerifyRun.cs:340`) | verify runs force recording ON |
 | the director's takes | unaffected (they run in the preview) | none |
 | retention (D15) | `ExerciseRetention` (CE-3218) prunes by count at start | reuse it for the keep/discard prompt's discard |
+
+> ⭐ **As-built (CE-4090, backend, `2026-10-28`) — D14 · D15 · D9 · D22 and every gate of the table above.** *Live does not imply recording.* The prior state of §5a ("fails deep in a node") is SUPERSEDED by the gates below.
+> - **The setting — held by the master, one flag, one wire.** `ClusterMaster.RecordLiveRuns` (default **ON**; `ClusterMaster.RunSettings.cs`) is set by `SetRunSettingsIntent` — a bus intent on the master's host, a new ClusterOp **`SetRunSettings = 24`** from any other (⛔ permanent wire value, R-42, both enums) — and read at the next live LOAD: `NoteRunRecording` (from `ExecuteTransitionTrajectory`) turns it into the master's `RunNotRecorded`. It reaches every node on the load itself: `EditLoadHandlerPayload.RecordingOff` → `NodeTransitionPayloadDto.RecordingOff` (Master/SlaveTranslator) → `LoadPhaseContext.RecordingOff` → **`LoadPhaseChain`** starts no recorder (`Hrot.Core/Services/LoadPhase/LoadPhaseChain.cs`; the legacy `ReferenceLiveLoadHandler` honours the same field). ⭐ **Inverse polarity on purpose** (`RecordingOff`, `RunNotRecorded`): `default` and an older sender both mean today's behaviour — record. The same flag rides every cluster-state broadcast (`ClusterStateTopic.RunNotRecorded` → `ClusterStateUpdateEvent` → `ClusterSlave.RunNotRecorded` / `ClusterUiCache.RunNotRecorded` → `ISubsystemDebugProvider.RunNotRecorded`), so every host's HTTP gate and (later, CE-4097) the Live icon read ONE fact. ⭐ **The SETTING is on the same broadcast** (follow-up, same task): `RecordLiveRunsOff` (inverted, so an old sender reads ON) → `ClusterSlave` / `ClusterUiCache.RecordLiveRunsOff` → `ISubsystemDebugProvider.RecordLiveRunsOff`; the master republishes the state when the setting changes; **`GET /run-settings` → `{recordLiveRuns}`** on every host reads it (the armed Live icon's source for CE-4097).
+> - **Sticky by design:** the flag describes the LAST live run until the next live load or a replay entry, so "replay / keep the last run" still knows it was not recorded after the run has ended.
+> - **DAR** — refused at the master (`ClusterMaster.ProcessTransitionStateIntent`, the `OperatingReview` block) **and** `ReviewProcessManager.Tick` no longer pauses the live clock for it (`runNotRecorded` ctor arg, wired by `OrchestratorCore`) — the old order paused first and threw in every node's prepare.
+> - **checkpoint / restore** — `ClusterMaster.StartCheckpoint` / `StartRestore`: `Rejected` with the reason `"this run was not recorded"` (`Fdp.Toolkit.Orchestration.RunRecordingGates.NotRecordedReason`, the ONE text) before any fan-out or pause.
+> - **the inventory ledger** — ONE gate at its creation: `AssetInventoryProcessManager.Tick` skips the ledger entry **and** the scenario copy when `ClusterStateUpdateEvent.RunNotRecorded`, so nothing offers the run for AAR / keep / export.
+> - **keep / export** — `ClusterMaster.ProcessStorageOpIntent`: an `Export` of the active, unrecorded exercise is rejected; HTTP `POST /exercises/keep` with no id answers 409 (never "the newest older exercise").
+> - **replay of the last run** — `ProcessTransitionStateIntent`: a replay naming no exercise is rejected when the last run was not recorded; naming one still works.
+> - **the replay → live branch** follows the setting (`ReferenceReplayLoadHandler`, PrepareLive: replay torn down, no recorder when `RecordingOff`).
+> - **the verifier forces ON** — `TransitionStateIntent.ForceRecording` (+ DTO), set only by `DebugApiService.LoadScenarioLive(…, forceRecording: true)` from the verifier's `loadLive` lambda (`EditorSubsystem`); ⛔ no HTTP route sets it.
+> - **D5 branch case — the data ui needs (CE-4097; backend, as built 2026-10-28)** — `ExerciseInventoryItem` gained `ParentExerciseId` (`Guid.Empty` = not a branch) and `BranchWallTicks` (the recording metadata's own unit: the PARENT's wall ticks at the branch frame). ⛔ No second record: finished exercises read it off the sidecars through the one reader `ExerciseBranch.Of` (`StorageGatewayModule.ScanNasExercises` / `ScanLocalExercises`, `RecordingGroupInventory.Scan` for the Replay Browser; earliest node wins); the LIVE run's comes from the nodes — `LiveBranchResult` (PrepareLive's answer, `ReferenceReplayLoadHandler`) carries the very `RecordingBranch` the node writes its sidecar from, `LiveBranchAggregator` takes the earliest recording node's, and `AssetInventoryProcessManager` (master) labels the run's ledger entry (`RecordingLedgerEntry` gained both, default = not a branch) whether the answer lands before or after the cluster state. Wire: the inventory JSON carries both (an old peer reads empty); HTTP `GET /exercises` → `parentExerciseId` (null = began at a load) + `branchWallTicks`. **Units:** no sim-seconds twin — a host converts on the replay axis it already seeks by: `atSeconds = (branchWallTicks − zero) / 1e7`, `zero` = `ReplayPosition`'s zero once the parent is the open replay (`DebugApiService.ReplaySeek.cs`). ⚠ Not covered: a CHECKPOINT-restore branch (a live → live branch, `CheckpointRestoreResult`) — its sidecar carries the parent, so an ARCHIVED one lists it, but the master's ledger entry (live and unarchived) is not labelled (D5's ■ case is the replay → live branch). Rails: `AssetInventoryProcessManagerTests` (CE4097 ×3) · `ClusterMasterBranchTests` · `ClusterMasterCheckpointTests` (aggregator) · `ReferenceHandlerTests` · `RecordingGroupInventoryBranchTests` · `TheClusterControlRoutesTests`.
+> - **HTTP (D22)** — the host gates read the same flag and answer **409** (`DebugApiHost.ResultOf` ⇒ `RunRecordingGates.IsConflict`): `/checkpoint`, `/checkpoint/restore`, `/review`, `/exercises/keep` and `/replay` (no id). **`POST /review` needs its start** (`atSeconds` or `atSimSeconds`, else 400 — D9; ⚠ the UI facade's `EnterReview()` default "the live point" in `Hrot.Presentation/Facades/ClusterReplayControls.cs` is CE-4097's to retire). **`POST /scenario/save` is 409 in Live** (host guard + `ClusterMaster.ProcessStorageOpIntent`, extending CE-3329 P3's refusal while replaying — one rule) **and in AAR** (that existing guard). **`POST /run-settings {recordLiveRuns}`** (the minimal route; no name was fixed in D14/D22). **`DELETE /exercises/{id}`** → `StorageOpType.Delete` / ClusterOp **`DeleteExercise = 25`** → `ClusterMaster.ProcessDeleteExercise` → `AssetInventoryProcessManager.DeleteExercise` → **`ExerciseRetention.Delete`** (CE-3218's deleter, new single-id form): the ledger entry, its scenario copy and every `exercises/<id>` under the master's staging root; 404 for an id the inventory does not list (a **kept** exercise stays); the run still recording is refused. ⚠ Node-local copies on OTHER machines are pruned by retention, not deleted here. **`GET /status.recording`** = the run the cluster shows is recorded (Live / DAR / AAR and not flagged), false in Idle / Edit / Preview.
+> ⭐ **As-built (CE-4091, backend, `2026-10-28`) — D7: the recording keeps its scenario (M2, M3) and D22's `POST /scenario/load/edit {recorded}`.** The prior state (M2/M3 above: *"top-level files only"*, *"stamp at load only"*) is SUPERSEDED by this.
+> - **The copy is the WHOLE folder.** `StorageGatewayModule.CopyScenarioFiles` recurses (`foreign/`, `takes/`, any nested file); ⛔ it skips directories whose name starts with a dot (`.slices`, the save's working folder; `.autosave` of CE-4099) — scratch, not scenario. The node PREFETCH is unchanged (top-level files + `foreign/node_*.json`: what a node loads). One copier for the go-live snapshot, the export's archive copy and the open-for-edit staging.
+> - **The stamp — one source for "which version ran".** At go-live `AssetInventoryProcessManager.SnapshotScenario` (the existing CE-3119 copy, on the master) writes `recorded.stamp` into the copy: `{scenarioName, scenarioHash, recordedAt}` — the hash is `ScenarioDescription.HashOf` (the one rule) of the SAVED `scenario.json` just copied (`Fdp.Toolkit.Scenario.RecordedScenarioStamp`, next to `ScenarioDescription`). It rides the copy to the archive. **Decision: the go-live stamp is THE source a reader trusts; the load-time stamp (`ScenarioDescriptionResident` via `ScenarioLoadStep`, M3) stays** for its other readers — its `Text` is what a Save writes back, and its name/hash feed the recorder's `RecordingMetadata.ScenarioName/Hash`, kept as the fallback for a recording without a copy (before CE-4091, recording off). ⚠ The recording meta's hash is therefore "as loaded": ⛔ nothing may use it for "which version ran". ⚠ ~~Open edge: the director's `TakeStore.ScenarioHash` still reads that meta hash~~ — ⭐ **CLOSED by CE-3340 ② (backend, `2026-10-29`), see the next bullet.**
+> - ⭐⭐ **As-built (CE-3340 ②) — ONE reader of "which version ran": `RecordedScenarioStamp.VersionOf(stagingRoot, meta)`** (`Fdp.Toolkits/Scenario/RecordedScenarioStamp.cs`). It finds the recording's copy (`FindCopy`: the master's ledger snapshot `{staging}/nodes/node-N/recording_ledger/<id>.scenario` while unarchived, else the archive `{shared}/exercises/<id>/scenario` — the master's own two places in the same order; the path pieces now live once in `OrchestrationConstants`, which `AssetInventoryProcessManager` also uses) and returns the stamp's hash; **only when no copy / stamp / hash is reachable does it return the recording meta's load-time `ScenarioHash`** (a recording from before CE-4091; a host that sees neither ledger nor archive). The director's takes (`ReplayBrowserSubsystem.Director.cs` → `TakeStore.ScenarioHash` → `Take.ScenarioHash` / `TakePromotion` / `DirectorRunner`) read through it, so a take compares against the SAVED version after edit → save → go-live. **Decision on the meta's `ScenarioHash`:** it has exactly ONE reader left — that fallback inside `VersionOf` (`grep -rniE "scenarioHash"` over `Hrot FDP tools`, non-test: the director delegate was its only reader; the Save's write-back uses the RESIDENT description's `Text`, not the recording meta). It is still WRITTEN (`RecorderTickSystem.StampWorld`, as loaded) because the fallback needs it for old recordings and for a host that cannot see the copy, and the file format stays readable; its doc now says "as loaded, not the version that ran". ⚠ `RunModeChoice.RecordedVersionDiffers` (the AAR → Preview button's host seam) is still supplied by no host; when one does, it reads `VersionOf` too. Rails: `RecordedScenarioStampTests` (`Fdp.Toolkits.Tests`: archive stamp beats the meta hash · ledger found and wins · no copy / no stamp / empty hash / no exercise id fall back) · `CE3340_2_TheDirectorsTakes_ReadTheGoLiveStamp_AndAnOldRecordingFallsBackToItsMetaHash` (`Hrot.ReplayBrowser.Tests`).
+> - **A branch inherits its parent's copy (D7).** The inventory copies the PARENT's copy — ledger snapshot, else the archive's `exercises/<parent>/scenario` — stamp included, so the two are equal; whether the nodes' branch answer (`LiveBranchResult`) reaches the manager before the state event (used at entry) or after it (`InheritParentCopy` replaces the copy made from the file). A branch that names no scenario still gets the copy. CE-3299 D18's branch (`ReferenceReplayLoadHandler`) writes only the recording sidecar's `RecordingBranch`; before this task a branch's copy was the scenario file AS IT IS NOW — the defect D7 names.
+> - ⛔ **SUPERSEDED in part by CE-3340 ① (below): the name and the staging folder are now `opened/recorded/<id>`, not `Recipes/Recorded/<id>`.** **`POST /scenario/load/edit {recorded: <exerciseId>}` — opened as a new scenario, by a NAME.** A scenario load is a name every node resolves against its own scenarios root, and a name under the reserved `Recipes/` folder is how "New from a recipe" already opens a scenario that has no file of its own (found: no other unsaved-scenario state exists — `LoadPhaseContext.IsNewScenario` is always `false` in production, `NodeOpSlaveTranslator.cs:219`). So: the host derives `Recipes/Recorded/<id>` (`RecordedScenarioNames`, `ScenarioNewAssetService.SeedSubfolder` now points at the same constant) and sends the ordinary edit load (same unsaved-changes gate, 409 / `discardUnsaved`); the master's PREFETCH runs `AssetPrefetchProcessManager.SourceStager` (= `AssetInventoryProcessManager.StageRecordedScenario`, on its worker thread, before the gateway copy) which puts the recording's copy — minus its stamp — at `<nas>/scenarios/Recipes/Recorded/<id>/`. ⛔ It writes only that new folder: never the original scenario folder, never the recording or its copy. No new ClusterOp, no new wire value; no copy ⇒ the prefetch fails and the load is refused like any scenario that is not there. 404 for an id the host's inventory does not list, 400 for `recorded` + `name`, and for `recorded` on `load/live`. ⚠ Open edges: the staged folder is a recipe-named scenario in the Open list until the picker (CE-4096/4098) hides `Recipes/`, and a Save of it under that name is the guard of D18 (CE-4092).
+> - ⭐⭐ **As-built (CE-3340 ①, 2026-10-29) — the opened copies' ONE HOME: the NAS "opened, not saved" area `{nas}/opened/<area>/<key>`.** A recorded copy is `opened/recorded/<exerciseId>` (`ContentLayout.OpenedCopyName`, `RecordedScenarioNames.ForExercise` / `DirectoryFor`); the master resolves the name through the ONE resolver `ContentLayout.ResolveScenarioDirectory` (prefetch source, content names, run snapshot, archive) and `StageRecordedScenario` writes `RecordedScenarioNames.DirectoryFor(nas, id)`. `opened/` is a SIBLING of `scenarios/` and `recipes/` — never seeded from the repository, never saved to git — so *Open* (lists `scenarios/`) and *New from a recipe* (lists `recipes/scenarios`) cannot offer it by construction; the "open edge" above (a recipe-named folder in the Open list) is closed. ⭐ **AQ108 §4c A8's never-saved autosaves take the same area** (`opened/autosave/<recipe>-<time>` — the area is named generically, the sub-folder is A8's to choose). Rails: `TheOpenedCopiesAreNeverOfferedTests` (Editor.Tests), `ContentLayoutTests.CE3340_*` / `L6_*`, `AssetInventoryProcessManagerTests.CE4091_OpeningARecordedCopy_*` (writes there) and `CE4091_ThePrefetchOfARecordedName_*`. Design: [`DESIGN_Content_Layout.md`](../DESIGN_Content_Layout.md) §5b D-13/D-15.
+> - **Rails:** `AssetInventoryProcessManagerTests` (`CE4091_*`: stamp from the saved file · every subfolder in the ledger and the archive · a branch equals its parent, answer before / after the state, archived parent, no scenario named · the open stages a new name and writes neither original nor recording · the prefetch runs the stager) · `TheUnsavedCheckRoutesTests` (the route: name, 404, 400s, the gate) · `DistributedScenarioSaveTests` (`ClusterRunner.Integration.Tests`, a real in-process cluster: edit → save → go-live carries the saved file's hash and `foreign/`).
+> - **Rails (CE-4090):** `ClusterMasterRunRecordingTests` · `ClusterMasterReviewTests` · `ClusterMasterBranchTests` · `AssetInventoryProcessManagerTests` · `TranslatorDtoTests` / `NodeOpMasterTranslatorTests` (Orchestrator.Tests) · `LoadPhaseChainTests` / `NodeOpSlaveTranslatorTests` (SimHost.Tests) · `ReferenceHandlerTests` / `ExerciseRetentionTests` (Fdp.Toolkits.Tests) · `TheRunRecordingGatesAnswer409Tests` (Editor.Tests, real HTTP) · `CheckpointClusterTests` (ClusterRunner.Integration.Tests, a real in-process cluster).
 
 ⚠ Two words already taken: `POST /exercises/keep` archives a run to the shared NAS — D15's "keep" must not reuse that name for "do not delete". And D8's "new scenario from a checkpoint" has no code yet (the checkpoint menu holds only Take Checkpoint); a checkpoint taken during AAR has no mechanism either (a replay has no live recorder).
 

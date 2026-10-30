@@ -191,14 +191,9 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
             RepoFiles.Find("Hrot/Editor/Hrot.Editor.AiShared/Variables/VariableEditModal.cs"))!;
         for (int i = 0; i < 4; i++) root = System.IO.Directory.GetParent(root)!.FullName;
 
-        foreach (var path in System.IO.Directory.EnumerateFiles(root, "*.cs",
-                     System.IO.SearchOption.AllDirectories))
+        foreach (var path in Fdp.Testing.RepoSources.CsFiles(root))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/ (agent worktrees are full copies of the repo)
         {
             var rel = System.IO.Path.GetRelativePath(root, path).Replace('\\', '/');
-            if (rel.Contains("/obj/", StringComparison.Ordinal)) continue;
-            if (rel.Contains("/bin/", StringComparison.Ordinal)) continue;
-            // the tooling's own trees (agent worktrees are full copies of the repo) are not the code base
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;
             if (rel.EndsWith("ComponentEditDrawer.cs",     StringComparison.Ordinal)) continue;
             if (rel.EndsWith("ImGuiPropertyTreeAdapter.cs", StringComparison.Ordinal)) continue;
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;

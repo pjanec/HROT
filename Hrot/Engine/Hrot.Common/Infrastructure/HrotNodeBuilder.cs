@@ -152,7 +152,7 @@ public sealed class HrotNodeBuilder
         //
         // The orchestrator (OrchestratorSubsystem), ExCon and the editor each already call this on
         // their own bus; the nodes built here were the gap, because the only call that named a
-        // node's bus was in CgfApplication, whose sole caller is a unit test.
+        // node's bus was in the former CgfApplication, whose sole caller was a unit test (deleted, CE-3348).
         Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(eventBus);
 
         // Step 4 — Time controller. The role is DECLARED by the caller (N₀ / CE-201) and defaults to
@@ -285,6 +285,7 @@ public sealed class HrotNodeBuilder
             // N₀ item ② (CE-203): the controller Step 4 built and already gave the kernel. Exposed so a
             // host that drives the clock — the editor — need not build a second one.
             TimeController  = timeCtrl,
+            TimeRole        = _timeRole,
         };
     }
 }

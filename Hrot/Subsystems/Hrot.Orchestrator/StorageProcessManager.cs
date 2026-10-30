@@ -168,13 +168,15 @@ public sealed class StorageProcessManager
             if (_pendingSaveScenarioJson.TryGetValue(ev.RequestId, out var scenarioName))
             {
                 _pendingSaveScenarioJson.Remove(ev.RequestId);
+                var saveTxId = ev.RequestId;
                 var scnManifest = new List<FileManifestEntry>(manifest);
                 _ = _gateway.PullToNasAsync(scnManifest, _nasBasePath)
                     .ContinueWith(pullTask =>
                     {
+                        bool saved = false;   // ⭐ CE-4093 — the master learns whether the file on disk is current
                         if (pullTask.IsCompletedSuccessfully && pullTask.Result.IsFullSuccess)
                         {
-                            try { MergeScenarioSlices(scenarioName, scnManifest); }
+                            try { MergeScenarioSlices(scenarioName, scnManifest); saved = true; }
                             catch (Exception ex)
                             {
                                 FdpLog<StorageProcessManager>.Error(
@@ -194,6 +196,7 @@ public sealed class StorageProcessManager
                                 "[StorageProcessManager] SaveScenario (JSON) NAS pull partial failure: {0} file(s) failed",
                                 pullTask.Result.FailureCount);
                         }
+                        _bus.PublishManaged(new ScenarioSaveFinishedEvent { TransactionId = saveTxId, Succeeded = saved });
                     }, System.Threading.Tasks.TaskScheduler.Default);
                 continue;
             }
@@ -211,7 +214,7 @@ public sealed class StorageProcessManager
     /// </summary>
     private void MergeScenarioSlices(string scenarioName, List<FileManifestEntry> manifest)
     {
-        var scenarioDir = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioName);
+        var scenarioDir = Fdp.Toolkit.Orchestration.ContentLayout.ResolveScenarioDirectory(_nasBasePath, scenarioName);
         var slicesDir   = Path.Combine(scenarioDir, ".slices");
         var foreignDir  = Path.Combine(scenarioDir, "foreign");
 

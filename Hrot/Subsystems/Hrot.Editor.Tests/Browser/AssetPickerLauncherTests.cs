@@ -286,4 +286,100 @@ public sealed class AssetPickerLauncherTests
         Assert.Contains(entries, e => ((IEditableAsset)e.Tag!).Name == "Scen1");
         Assert.Contains(entries, e => ((IEditableAsset)e.Tag!).Name == "Scen2");
     }
+
+    // ═════════════════════════════════════════════════════════════════
+    //  CE-4098 (AQ108 D19) — the Open-Asset / Open-Scenario picker shows Recent first, per kind
+    // ═════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// ⭐ CE-4098 success 1+2 — through the REAL <see cref="PickerRegistry"/>: a pick is pushed to ITS KIND's Recent list (so File › Open Scenario
+    /// and File › Open Asset share the scenario list and kinds do not mix), the open picker's Recent section lists it first, and after a "restart"
+    /// (fresh store from the file) the picked scenario is still first. 🔴 Red-proof: drop <c>RecentContext:</c> from
+    /// <c>AssetPickerSource.ToEntry</c> ⇒ the pick lands under the picker's own <c>assets.open.*</c> key and the kind-list assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4098_APick_IsPushedToItsKindsList_ShownFirstAfterARestart_AndKindsDoNotMix()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "asset-recent-" + Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(dir, "recent-picks.json");
+        try
+        {
+            var s1 = new StubAsset { Kind = AssetKind.Scenario,  Name = "Scen1" };
+            var s2 = new StubAsset { Kind = AssetKind.Scenario,  Name = "Scen2" };
+            var bp = new StubAsset { Kind = AssetKind.Blueprint, Name = "BP1" };
+            var catalog = new FakeCatalog(s1, s2, bp);
+
+            AssetPickerLauncher Launcher(PickerRegistry r) => new(r.OpenPicker, catalog, MakeRouter(), baseFolderResolver: _ => "");
+
+            var registry = new PickerRegistry { Recent = RecentStore.Load(file) };
+            IEditableAsset? picked = null;
+            Launcher(registry).Open(AssetKindFilter.Scenario, a => picked = a);
+            Assert.Empty(registry.RecentSection());
+            Assert.True(registry.ConfirmEntry(s2.AssetId.ToString()));
+            Assert.Same(s2, picked);
+
+            // File › Open Asset (all kinds) picks a blueprint: its own kind's list, not the scenario list
+            Launcher(registry).Open(AssetKindFilter.All, _ => { });
+            Assert.True(registry.ConfirmEntry(bp.AssetId.ToString()));
+
+            var reloaded = RecentStore.Load(file);
+            Assert.Equal(new[] { s2.AssetId.ToString() }, reloaded.GetRecent(AssetRecents.ContextFor(AssetKind.Scenario)));
+            Assert.Equal(new[] { bp.AssetId.ToString() }, reloaded.GetRecent(AssetRecents.ContextFor(AssetKind.Blueprint)));
+
+            // "restart": a fresh registry over the reloaded store — both the scenario picker and the all-kinds picker show s2 first
+            var second = new PickerRegistry { Recent = reloaded };
+            Launcher(second).Open(AssetKindFilter.Scenario);
+            Assert.Equal(new[] { s2.AssetId.ToString() }, second.RecentSection().Select(e => e.Id));
+            Launcher(second).Open(AssetKindFilter.All);
+            Assert.Equal(new[] { s2.AssetId.ToString(), bp.AssetId.ToString() }.OrderBy(x => x),
+                         second.RecentSection().Select(e => e.Id).OrderBy(x => x));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4098 success 3 — a scenario that is no longer in the catalog (deleted, or moved by the content-folder change and not found there) is
+    /// not shown as Recent: the picker lists only what resolves, so there is no ghost row and no crash.
+    /// </summary>
+    [Fact]
+    public void CE4098_AScenarioThatNoLongerResolves_IsNotShownAsRecent()
+    {
+        var kept  = new StubAsset { Kind = AssetKind.Scenario, Name = "Kept" };
+        var other = new StubAsset { Kind = AssetKind.Scenario, Name = "NeverPicked" };
+        var gone  = new StubAsset { Kind = AssetKind.Scenario, Name = "Gone" };
+        var store = new RecentStore();
+        store.Push(AssetRecents.ContextFor(AssetKind.Scenario), gone.AssetId.ToString());
+        store.Push(AssetRecents.ContextFor(AssetKind.Scenario), kept.AssetId.ToString());
+
+        var registry = new PickerRegistry { Recent = store };
+        new AssetPickerLauncher(registry.OpenPicker, new FakeCatalog(kept, other), MakeRouter(), baseFolderResolver: _ => "")
+            .Open(AssetKindFilter.Scenario);
+
+        // only what the picker lists AND was picked: not the deleted one, not the never-picked one
+        Assert.Equal(new[] { kept.AssetId.ToString() }, registry.RecentSection().Select(e => e.Id));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1442</c> (U1, §11.7 ⑤) — a picker that lists SCENARIOS (the cluster's list) leads with the disabled "waiting for the cluster's list…" row until the
+    /// list has arrived, so an empty picker never reads as "no scenarios"; files on disk (a BTree-only picker) are unaffected, and once the list arrives the row is gone.
+    /// 🔴 Mutation: the <c>_hasInventory()</c> check dropped from <c>Entries</c> ⇒ no waiting row ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1442_AScenarioPicker_SaysItIsWaitingForTheClustersList_UntilItArrives()
+    {
+        bool arrived = false;
+        var catalog = new FakeCatalog(new StubAsset { Name = "Patrol", Kind = AssetKind.BTree });
+        var launcher = new AssetPickerLauncher(new FakeOpenPicker().OpenPicker, catalog, new AssetPickActionRouter(_ => { }, _ => { }), hasInventory: () => arrived);
+
+        var waiting = launcher.Entries(AssetKindFilter.Scenario);
+        Assert.Equal(AssetPickerLauncher.WaitingEntryId, waiting[0].Id);
+        Assert.False(waiting[0].IsEnabled);
+        Assert.DoesNotContain(launcher.Entries(AssetKindFilter.BTree), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+
+        arrived = true;
+        Assert.DoesNotContain(launcher.Entries(AssetKindFilter.Scenario), e => e.Id == AssetPickerLauncher.WaitingEntryId);
+    }
 }

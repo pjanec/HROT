@@ -347,6 +347,45 @@ public sealed class ClusterUiCacheTests : IDisposable
         Assert.Equal(50.0, cacheWithCtrl.MasterSimTime, precision: 3);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V3) — the cache COMPOSES a <see cref="ClusterView"/> and its fact members delegate: a state broadcast, an
+    /// inventory and a check round's answer fold ONCE and the cache's members read what the view holds. ⭐ And on a host that is also an ECS node on the same
+    /// bus (the editor) the cache and the node's <c>ClusterSlave</c> share the ONE view: a broadcast changes BOTH through one fold — and the cache's reachable
+    /// targets follow the state even though the slave drained the view first. 🔴 Mutation: the cache building its own view (<c>new ClusterView(bus)</c>
+    /// regardless of the one passed) ⇒ <c>Assert.Same</c> fails; the reachable-target refresh keyed on a per-event "state changed" instead of the view's
+    /// state ⇒ the last assertion fails.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE1436_TheCacheAndTheNodesSlave_ReadTheSameClusterView()
+    {
+        using var bus   = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        using var cache = new ClusterUiCache(bus, localTimeController: null, view: slave.View);
+        var round = Guid.NewGuid();
+        var exercise = Guid.NewGuid();
+
+        Assert.Same(slave.View, cache.View);
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = FdpClusterState.OperatingEdit, ExerciseId = exercise, SessionId = Guid.NewGuid(), RunNotRecorded = true });
+        bus.PublishManaged(new InSyncSetChangedEvent { NodeIds = new[] { 3 } });   // ⭐ CE-3344: ready from this node includes being in the master's in-sync set
+        bus.PublishManaged(new AssetInventoryUpdateEvent { LocalScenarios = new[] { "one" } });
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = round, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 1 }) });
+        bus.SwapBuffers();
+        slave.Tick();                                                                  // the node's tick drains the view FIRST …
+        cache.Update();                                                                // … the cache's Update then finds nothing new
+
+        Assert.Equal(ClusterState.OperatingEdit, cache.CurrentState);
+        Assert.Equal(FdpClusterState.OperatingEdit, slave.FollowedClusterState);       // ⭐ one fold, two readers
+        Assert.Equal(exercise, cache.ActiveExerciseId);
+        Assert.True(cache.RunNotRecorded && slave.RunNotRecorded);
+        Assert.Equal(new[] { "one" }, cache.AvailableScenarios);
+        Assert.True(cache.UnsavedCheckOutcomeFor(round)!.Result!.Changed);
+        Assert.True(cache.LastUnsavedCheck!.Changed);
+        Assert.True(cache.IsBootstrapped);
+        Assert.Contains(ClusterState.UnloadingEdit, cache.ReachableTargets);          // ⭐ recomputed for OperatingEdit although the slave drained the view first
+        Assert.DoesNotContain(ClusterState.LoadingEdit, cache.ReachableTargets);       // (Idle's targets)
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private sealed class FakeTimeController : ITimeController

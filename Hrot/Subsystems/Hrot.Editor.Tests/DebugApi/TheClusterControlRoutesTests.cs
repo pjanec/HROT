@@ -1,6 +1,11 @@
 using System;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.DebugApi;
@@ -193,10 +198,11 @@ public sealed class TheClusterControlRoutesTests
 
         Assert.Null(svc.GetReplayStatus()["loop"]);                                   // no session loop on this host
         var bus = new FdpEventBus();
-        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => 0);
+        var view = new Fdp.Toolkit.Orchestration.ClusterView(bus);   // CE-1436 - the node's one view, advanced by its owner
+        var facade = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => view, () => 0);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingReplay, ReplayAxis = ReplayAxis.Wall });
         bus.PublishManaged(new ReplaySessionUpdateEvent { Session = new ReplaySession { Active = true, LoopFromSeconds = 2, LoopToSeconds = 5 } });
-        bus.SwapBuffers(); facade.Update();
+        bus.SwapBuffers(); view.Update(); facade.Update();
         var withLoop = new DebugApiService(new PerspectiveScopedDispatcher(
             new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", master: () => _master, drive: () => facade) },
             currentPerspective: () => "CGF", acksPending: null), clusterState: () => _state);
@@ -213,10 +219,15 @@ public sealed class TheClusterControlRoutesTests
         var svc = Host();
         Assert.False(svc.ShowsRecording);
 
-        Assert.Null(svc.EnterReview(null).Error);
+        // ⭐ CE-4090 (AQ108 D9) — a review always has an explicit start: "no moment named ⇒ the live point" is retired
+        Assert.NotNull(svc.EnterReview(null).Error);
+        Assert.NotNull(svc.EnterReview(new JsonObject()).Error);
+        Assert.Empty(_master.Transitions);
+
+        Assert.Null(svc.EnterReview(new JsonObject { ["atSeconds"] = 5 }).Error);
         var enter = Assert.Single(_master.Transitions);
         Assert.Equal(ClusterState.OperatingReview, enter.TargetState);
-        Assert.Equal(0L, enter.TargetWallTicks);           // no moment named ⇒ the master enters at the live point
+        Assert.Equal(TimeSpan.FromSeconds(5).Ticks, enter.TargetWallTicks);
         Assert.Null(enter.TargetSimSeconds);
 
         Assert.Null(svc.EnterReview(new JsonObject { ["atSimSeconds"] = 20 }).Error);
@@ -229,7 +240,7 @@ public sealed class TheClusterControlRoutesTests
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions[^1].TargetState);
 
         _state = ClusterState.OperatingEdit;
-        Assert.NotNull(svc.EnterReview(null).Error);       // only from a live run
+        Assert.NotNull(svc.EnterReview(new JsonObject { ["atSeconds"] = 5 }).Error);       // only from a live run
     }
 
     /// <summary>⭐ CE-3329 D-E — every route the host refuses during a review / replay is a real, documented route (a renamed route would
@@ -241,6 +252,192 @@ public sealed class TheClusterControlRoutesTests
             Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is guarded but is not a route");
     }
 
+    /// <summary>⭐⭐ CE-3344 (R-3069) — every route the cluster-ready gate refuses is a real route, and the ones that must ALWAYS work (cancel, every GET) are not in the set.</summary>
+    [Fact]
+    public void CE3344_Every_cluster_gated_route_exists_and_cancel_and_the_reads_are_not_gated()
+    {
+        foreach (var route in DebugApiHost.ClusterGatedRoutes)
+            Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is gated but is not a route");
+        Assert.DoesNotContain(("POST", "/cluster/cancel"), DebugApiHost.ClusterGatedRoutes);   // a cancel must always work
+        Assert.DoesNotContain(DebugApiHost.ClusterGatedRoutes, r => r.Method == "GET");
+        foreach (var world in DebugApiHost.WorldChangingRoutes) Assert.Contains(world, DebugApiHost.ClusterGatedRoutes);   // the world-changing routes need a ready cluster too
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3344</c> (R-3069) success 6 — on a REAL <see cref="DebugApiHost"/>: while the node's <c>ClusterView.CanOperate</c> is false a cluster route answers <b>409</b> naming what the cluster
+    /// is waiting for and publishes NOTHING to the master; a status read answers 200 (carrying <c>canOperate:false</c> + the reason); <c>POST /cluster/cancel</c> is NOT gated; the frame the
+    /// cluster is ready the same request goes through. 🔴 Mutations (each compiles): the gate removed from <c>HandleRequestAsync</c> ⇒ the 409 cells red; <c>/cluster/cancel</c> added to
+    /// <c>ClusterGatedRoutes</c> ⇒ the cancel cell red; <c>ClusterView.CanOperate</c> ignoring <c>WaitingFor</c> ⇒ the first cell red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE3344_WhileTheClusterIsNotOperable_TheClusterRoutesAnswer409WithTheReason_AStatusReadAnswers200_AndCancelIsNeverGated()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId: 5);
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "Brain (CGF)" });
+        Hear(new InSyncSetChangedEvent { NodeIds = new[] { 5 } });
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterView: () => view),
+            },
+            currentPerspective: () => "CGF", acksPending: null);
+        var service = new DebugApiService(dispatcher, clusterState: () => _state);
+
+        int port = DebugApiTestHost.FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDispatcher(dispatcher);
+        host.AttachService(service);
+        host.Start();
+        string url = $"http://localhost:{port}";
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        StringContent Json(string t) => new(t, Encoding.UTF8, "application/json");
+        Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request) => DebugApiTestHost.Send(queue, request);
+
+        // ── not operable: the cluster waits for its Brain ───────────────────────────────────────────────────────────────────────
+        foreach (var (method, path, body) in new[]
+                 {
+                     ("POST", "/scenario/load/live", """{"scenario":"s1"}"""), ("POST", "/sim/play", "{}"), ("POST", "/run-mode", """{"armed":"preview"}"""),
+                     ("POST", "/cluster/transition", """{"target":"OperatingEdit","scenario":"s1"}"""), ("POST", "/checkpoint", "{}"),   // ⭐ CE-3345: a transition to Idle is a way OUT and is no longer gated (its own test below) ("POST", "/run-settings", """{"recordLiveRuns":true}"""),
+                 })
+        {
+            var (status, json) = await Send(client.PostAsync(url + path, Json(body)));
+            Assert.True(status == HttpStatusCode.Conflict, $"{method} {path} answered {(int)status}, expected 409 while the cluster waits");
+            Assert.Contains("waiting for: Brain (CGF)", json["error"]!.GetValue<string>());
+            Assert.Contains("waiting for: Brain (CGF)", json["data"]!["notOperable"]!.GetValue<string>());
+        }
+        Assert.Empty(_master.Sent);                                                                  // ⭐ nothing reached the master
+
+        var (st, status0) = await Send(client.GetAsync(url + "/status"));                             // a status read is open …
+        Assert.Equal(HttpStatusCode.OK, st);
+        Assert.False(status0["data"]!["canOperate"]!.GetValue<bool>());                               // … and says why the cluster routes are not
+        Assert.Contains("Brain (CGF)", status0["data"]!["notOperable"]!.GetValue<string>());
+
+        (st, _) = await Send(client.PostAsync(url + "/cluster/cancel", Json($"{{\"targetId\":\"{Guid.NewGuid()}\"}}")));   // ⭐ cancel always works
+        Assert.Equal(HttpStatusCode.OK, st);
+        Assert.Single(_master.Cancels);
+        _master.Sent.Clear();
+
+        // ── the cluster is ready: the same request goes through ─────────────────────────────────────────────────────────────────
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "" });
+        Assert.True(view.CanOperate);
+        (st, _) = await Send(client.PostAsync(url + "/run-settings", Json("""{"recordLiveRuns":true}""")));
+        Assert.Equal(HttpStatusCode.OK, st);
+        Assert.Single(_master.Sent.OfType<SetRunSettingsIntent>());
+        (st, status0) = await Send(client.GetAsync(url + "/status"));
+        Assert.True(status0["data"]!["canOperate"]!.GetValue<bool>());
+        Assert.Null(status0["data"]!["notOperable"]);
+    }
+
+    /// <summary>⭐⭐ CE-3345 — every way back to Idle is a real route, and none of them is in the gated set (the rule: a way out is never gated).</summary>
+    [Fact]
+    public void CE3345_Every_way_back_to_Idle_exists_and_is_not_gated()
+    {
+        foreach (var route in DebugApiHost.ClusterExitRoutes)
+        {
+            Assert.True(DebugApiRouteDocs.ByRoute.ContainsKey(route), $"{route.Method} {route.Template} is an exit but is not a route");
+            Assert.DoesNotContain(route, DebugApiHost.ClusterGatedRoutes);
+        }
+        Assert.Contains(("POST", "/replay/stop"), DebugApiHost.ClusterExitRoutes);   // the CE-3344 gap: it was gated and HTTP had no way back to Idle
+        Assert.Contains(("POST", "/cluster/cancel"), DebugApiHost.ClusterExitRoutes);
+        Assert.True(DebugApiHost.IsWayBackToIdle("POST", "/cluster/transition", JsonNode.Parse("""{"target":"Idle"}""")));
+        Assert.False(DebugApiHost.IsWayBackToIdle("POST", "/cluster/transition", JsonNode.Parse("""{"target":"OperatingLive"}""")));
+        Assert.False(DebugApiHost.IsWayBackToIdle("POST", "/scenario/load/live", JsonNode.Parse("""{"target":"Idle"}""")));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-3345</c> (R-3073, success 5) — on a REAL <see cref="DebugApiHost"/>, while the cluster is in its ERROR state — and, as a control, while it is merely not ready — the ways back to Idle
+    /// (<c>POST /replay/stop</c>, <c>/cluster/cancel</c>, <c>/sim/stop</c>, <c>/cluster/transition {target: Idle}</c>) are NOT refused by the gate, while a gated route still answers 409 naming the error and a scenario
+    /// SAVE is refused with it. 🔴 Mutations (each compiles): <c>/replay/stop</c> put back in <c>ClusterGatedRoutes</c> ⇒ its cell red; <c>IsWayBackToIdle</c> without the transition arm ⇒ the Idle-transition cell red;
+    /// <c>ClusterView.NotOperableReason</c> without the error line ⇒ the 409 cells' reason red.
+    /// </summary>
+    [Fact(Timeout = 90_000)]
+    public async Task CE3345_WhileTheClusterIsInError_TheWaysBackToIdleAreNotGated_AGatedRouteAnswers409WithTheError_AndSaveIsRefused()
+    {
+        var bus = new FdpEventBus();
+        OrchestrationEventRegistry.RegisterAll(bus);
+        var view = new ClusterView(bus, nodeId: 5);
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+        Hear(new InSyncSetChangedEvent { NodeIds = new[] { 5 } });
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Degraded, WaitingFor = "Brain (CGF)", ErrorReason = "Brain (CGF, node 3) lost at sim 00:12:31" });
+        Assert.True(view.IsInError);
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("IG", "IG"),
+                new SubsystemDebugProvider("CGF", "CGF", master: () => _master, clusterView: () => view),
+            },
+            currentPerspective: () => "CGF", acksPending: null);
+        var service = new DebugApiService(dispatcher, clusterState: () => _state);
+
+        int port = DebugApiTestHost.FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDispatcher(dispatcher);
+        host.AttachService(service);
+        host.Start();
+        string url = $"http://localhost:{port}";
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        StringContent Json(string t) => new(t, Encoding.UTF8, "application/json");
+        Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request) => DebugApiTestHost.Send(queue, request);
+        static bool RefusedByTheGate(JsonNode body) => body["data"]?["notOperable"] is not null;
+
+        async Task AssertTheGateRefusesAndTheExitsWork(string phase)
+        {
+            _master.Sent.Clear(); _master.Transitions.Clear();   // each phase starts from nothing published
+            // a gated route: 409 naming the reason, nothing published
+            foreach (var (path, body) in new[]
+                     {
+                         ("/scenario/load/live", """{"scenario":"s1"}"""), ("/sim/play", "{}"), ("/checkpoint", "{}"),
+                         ("/cluster/transition", """{"target":"OperatingEdit","scenario":"s1"}"""), ("/scenario/save", """{"name":"x"}"""),
+                     })
+            {
+                var (status, json) = await Send(client.PostAsync(url + path, Json(body)));
+                Assert.True(status == HttpStatusCode.Conflict, $"[{phase}] POST {path} answered {(int)status}, expected 409");
+                Assert.Contains(view.NotOperableReason!, json["data"]!["notOperable"]!.GetValue<string>());
+            }
+            Assert.Empty(_master.Sent);
+            Assert.Empty(_master.Transitions);
+
+            // the ways back to Idle: NOT refused by the gate
+            var (st, json2) = await Send(client.PostAsync(url + "/replay/stop", Json("{}")));
+            Assert.False(RefusedByTheGate(json2), $"[{phase}] POST /replay/stop was refused by the cluster gate");
+            Assert.Equal(HttpStatusCode.OK, st);
+            Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+            _master.Transitions.Clear();
+
+            (st, json2) = await Send(client.PostAsync(url + "/cluster/transition", Json("""{"target":"Idle"}""")));
+            Assert.False(RefusedByTheGate(json2), $"[{phase}] POST /cluster/transition {{target: Idle}} was refused by the cluster gate");
+            Assert.Equal(HttpStatusCode.OK, st);
+            Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
+            _master.Transitions.Clear();
+
+            (st, json2) = await Send(client.PostAsync(url + "/sim/stop", Json("{}")));
+            Assert.False(RefusedByTheGate(json2), $"[{phase}] POST /sim/stop was refused by the cluster gate");
+
+            int cancels = _master.Cancels.Count;
+            (st, _) = await Send(client.PostAsync(url + "/cluster/cancel", Json($"{{\"targetId\":\"{Guid.NewGuid()}\"}}")));
+            Assert.Equal(HttpStatusCode.OK, st);
+            Assert.Equal(cancels + 1, _master.Cancels.Count);
+        }
+
+        // ── in ERROR: the reason is the error ────────────────────────────────────────────────────────────────────────────
+        Assert.Contains("the cluster is in error", view.NotOperableReason);
+        await AssertTheGateRefusesAndTheExitsWork("error");
+
+        // ── merely NOT READY (no error): the same ───────────────────────────────────────────────────────────────────────
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, WaitingFor = "Brain (CGF)", ErrorReason = "" });
+        Assert.False(view.IsInError);
+        Assert.Contains("waiting for: Brain (CGF)", view.NotOperableReason);
+        await AssertTheGateRefusesAndTheExitsWork("not ready");
+    }
+
     [Fact]
     public void The_exercises_are_listed_newest_first()
     {
@@ -249,6 +446,45 @@ public sealed class TheClusterControlRoutesTests
         Assert.Null(error);
         var ids = result!["exercises"]!.AsArray().Select(x => x!["exerciseId"]!.GetValue<string>()).ToArray();
         Assert.Equal(new[] { Newer.ExerciseId.ToString(), Older.ExerciseId.ToString() }, ids);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4097 (AQ108 D5, success 4) — the inventory's wire form carries a branched exercise's parent and branch point: the master's JSON
+    /// (<c>ClusterOpMasterTranslator</c>'s options) decoded by the ONE reader every host uses (<c>InventoryOf</c>) keeps both, an OLD peer's JSON
+    /// (no such fields) reads as not-a-branch, and <c>GET /exercises</c> shows both fields (the parent null for a run from a load).
+    /// 🔴 Mutation: <c>ListExercises</c> without the two fields ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4097_The_inventory_wire_carries_the_parent_and_point_and_GET_exercises_shows_them()
+    {
+        var parent = Guid.NewGuid();
+        var branched = new ExerciseInventoryItem(Guid.NewGuid(), new DateTime(2026, 10, 3, 8, 0, 0, DateTimeKind.Utc), TimeSpan.FromMinutes(2), "c", parent, 638_900_000_000_000_000L);
+        var json = System.Text.Json.JsonSerializer.Serialize(new[] { branched, Older }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        var topic = new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = json };
+
+        var decoded = Hrot.Common.Orchestration.ClusterFactsIngress.InventoryOf(topic).LocalExercises!;
+        Assert.Equal((parent, branched.BranchWallTicks), (decoded[0].ParentExerciseId, decoded[0].BranchWallTicks));
+        Assert.Equal((Guid.Empty, 0L), (decoded[1].ParentExerciseId, decoded[1].BranchWallTicks));
+
+        // an old peer's inventory: no such fields on the wire
+        var old = $"[{{\"ExerciseId\":\"{Older.ExerciseId}\",\"StartTimeUtc\":\"2026-10-01T08:00:00Z\",\"Duration\":\"00:05:00\",\"ScenarioId\":\"a\"}}]";
+        var oldDecoded = Hrot.Common.Orchestration.ClusterFactsIngress.InventoryOf(
+            new Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic { LocalExercisesJson = old }).LocalExercises!;
+        Assert.Equal((Older.ExerciseId, Guid.Empty, 0L), (oldDecoded[0].ExerciseId, oldDecoded[0].ParentExerciseId, oldDecoded[0].BranchWallTicks));
+
+        var host = new DebugApiService(new PerspectiveScopedDispatcher(
+                       new ISubsystemDebugProvider[] { new SubsystemDebugProvider("CGF", "CGF", exercises: () => decoded, replayAxis: () => ReplayAxis.Wall) },
+                       currentPerspective: () => "CGF", acksPending: null),
+                   clusterState: () => _state);
+        var (result, error, _) = host.ListExercises();
+        Assert.Null(error);
+        var rows = result!["exercises"]!.AsArray().Select(x => x!.AsObject()).ToList();
+        var b = rows.Single(r => r["exerciseId"]!.GetValue<string>() == branched.ExerciseId.ToString());
+        Assert.Equal(parent.ToString(), b["parentExerciseId"]!.GetValue<string>());
+        Assert.Equal(branched.BranchWallTicks, b["branchWallTicks"]!.GetValue<long>());
+        var plain = rows.Single(r => r["exerciseId"]!.GetValue<string>() == Older.ExerciseId.ToString());
+        Assert.Null(plain["parentExerciseId"]);
+        Assert.Equal(0L, plain["branchWallTicks"]!.GetValue<long>());
     }
 
     // ── RB-1 / RB-2 (docs/DESIGN_Replay_Browser_Debug_Http.md) — the standalone Replay Browser answers the same routes ────────────────
@@ -338,6 +574,8 @@ public sealed class TheClusterControlRoutesTests
         public void Storage(ExecuteStorageOpIntent intent) => throw new InvalidOperationException("no such exercise");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void SetRunSettings(SetRunSettingsIntent intent) => throw new InvalidOperationException("no such exercise");
+        public void CheckUnsaved(CheckUnsavedIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Cancel(CancelOperationIntent intent) => throw new InvalidOperationException("no such exercise");
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw new InvalidOperationException("no such exercise");
     }

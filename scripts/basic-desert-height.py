@@ -9,7 +9,7 @@ The relief (docs/DESIGN_Terrain_Height.md §5d owns the numbers and why they sit
   * the plain at 0 everywhere else — under every rock, the compound, the track's verges and every desert scenario's
     entity, so nothing that already stands on basic-desert moves.
 
-Usage: python3 scripts/basic-desert-height.py > Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Terrain/basic-desert/basic-desert.height.asc
+Usage: python3 scripts/basic-desert-height.py > assets/terrain/basic-desert/basic-desert.height.asc
 """
 import math
 

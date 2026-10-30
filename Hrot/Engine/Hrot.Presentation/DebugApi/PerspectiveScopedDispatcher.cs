@@ -37,6 +37,7 @@ public sealed class PerspectiveScopedDispatcher
     private readonly IReadOnlyList<ISubsystemDebugProvider> _providers;
     private readonly Func<string> _currentPerspective;
     private readonly Func<bool?>? _acksPending;
+    private readonly Func<string?>? _rememberedPerspective;
 
     /// <param name="providers">One per contributing subsystem. ⚠ An empty list is legal — the manifest then honestly reports nothing routable.</param>
     /// <param name="currentPerspective">
@@ -53,11 +54,20 @@ public sealed class PerspectiveScopedDispatcher
     /// perspective-scoped drive facade *(Q54-2)*, not to the gate.
     /// ⛔ Pass <see langword="null"/> when this host has no orchestrator at all.
     /// </param>
+    /// <param name="rememberedPerspective">
+    /// ⭐⭐⭐ <c>CE-4094</c> (AQ108 M7/D22) — the perspective the window manager REMEMBERED when the <c>Start</c> perspective was
+    /// entered (<c>WindowManager.RememberedPerspective</c>). While Start shows, every world/time/AI read routes there — the ONE
+    /// place the <c>Start</c> alias lives. Read LIVE through a delegate, like <paramref name="currentPerspective"/>, never a
+    /// copy. ⚠ <see langword="null"/> (the default) ⇒ no alias source: Start then routes to nothing, or to the single provider on a
+    /// one-provider host.
+    /// </param>
     public PerspectiveScopedDispatcher(
         IEnumerable<ISubsystemDebugProvider> providers,
         Func<string> currentPerspective,
-        Func<bool?>? acksPending)
+        Func<bool?>? acksPending,
+        Func<string?>? rememberedPerspective = null)
     {
+        _rememberedPerspective = rememberedPerspective;
         _providers = (providers ?? throw new ArgumentNullException(nameof(providers)))
                      .Where(p => p != null).ToList();
         _currentPerspective = currentPerspective ?? throw new ArgumentNullException(nameof(currentPerspective));
@@ -85,24 +95,47 @@ public sealed class PerspectiveScopedDispatcher
     /// "Default", matched no provider, and every world read answered NOT_SUPPORTED_HERE — the node could not be observed over
     /// HTTP at all. ⭐ With one provider there is no "wrong node" to answer for (the reason <see cref="Active"/> never falls back
     /// to the first of SEVERAL), so it is the only honest answer.</para>
+    /// <para>⭐⭐ <c>CE-4094</c> — <b><c>Start</c> is reported AS <c>Start</c></b> (never renamed to a provider's perspective), so
+    /// <c>/status</c> and <c>GET /perspectives</c> agree; where reads GO is <see cref="RoutedTo"/>.</para>
     /// </summary>
     public string CurrentPerspective
     {
         get
         {
             string current = _currentPerspective();
-            return _providers.Count == 1 && Resolve(current) is null ? _providers[0].Perspective : current;
+            return IsStart(current) ? current : OrSoleProvider(current);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4094</c> — <b>the perspective every read resolves through</b>: the current one, except that <c>Start</c> routes to
+    /// the window manager's REMEMBERED perspective (the one leaving Start restores). The single-provider fallback applies to the
+    /// routed name, so a one-provider host stays readable while Start shows.
+    /// </summary>
+    public string RoutedTo
+    {
+        get
+        {
+            string current = _currentPerspective();
+            return OrSoleProvider(IsStart(current) ? _rememberedPerspective?.Invoke() ?? string.Empty : current);
+        }
+    }
+
+    private static bool IsStart(string perspective)
+        => string.Equals(perspective, Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName, StringComparison.Ordinal);
+
+    private string OrSoleProvider(string name)
+        => _providers.Count == 1 && Resolve(name) is null ? _providers[0].Perspective : name;
 
     /// <summary>
     /// ⭐⭐ The provider owning the active perspective, or <see langword="null"/> when nothing claims it.
     /// <para>⚠ <see langword="null"/> is a real answer: in <c>--mode all</c> the startup perspective may be
     /// one whose subsystem contributes no surface. ⛔ The caller reports <c>NOT_SUPPORTED_HERE</c>; it does
     /// not silently fall back to "the first provider", which would answer for the wrong node.</para>
+    /// <para>⭐ <c>CE-4094</c> — while <c>Start</c> shows this is the REMEMBERED perspective's provider (<see cref="RoutedTo"/>).</para>
     /// </summary>
     public ISubsystemDebugProvider? Active()
-        => Resolve(CurrentPerspective);
+        => Resolve(RoutedTo);
 
     /// <summary>⭐ The provider for a NAMED perspective — <c>Q54-2</c>'s optional <c>?perspective=</c> override.</summary>
     public ISubsystemDebugProvider? Resolve(string? perspective)
@@ -260,6 +293,44 @@ public sealed class PerspectiveScopedDispatcher
     /// <summary>⭐ CE-3329 R-3058 — the replay session's axis from the active node, else any node that keeps a read model.</summary>
     public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxisAnyNode
         => Active()?.ReplayAxis ?? _providers.Select(p => p.ReplayAxis).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the master's "this run was not recorded" from the active node, else any node that keeps a cluster
+    /// read model: one cluster, one fact (as <see cref="ClusterStateAnyNode"/>). <see langword="null"/> when no node here tracks it.</summary>
+    /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, from the active node else any node (one cluster, one fact).</summary>
+    public bool? RecordLiveRunsOffAnyNode
+        => Active()?.RecordLiveRunsOff ?? _providers.Select(p => p.RecordLiveRunsOff).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, from the active node else any node (one cluster, one fact).</summary>
+    public bool? AskToKeepRecordingsAnyNode
+        => Active()?.AskToKeepRecordings ?? _providers.Select(p => p.AskToKeepRecordings).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode from the active node else any node (one cluster, one fact).</summary>
+    public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedModeAnyNode
+        => Active()?.ArmedMode ?? _providers.Select(p => p.ArmedMode).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐⭐ CE-3344 (R-3069) — the cluster read model from the active node, else any node that keeps one (one cluster, one fact, as <see cref="ClusterStateAnyNode"/>): what the HTTP cluster routes' 409 gate reads.
+    /// <see langword="null"/> when no node here keeps one.</summary>
+    public Fdp.Toolkit.Orchestration.ClusterView? ClusterViewAnyNode
+        => Active()?.ClusterView ?? _providers.Select(p => p.ClusterView).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-1451 — the run choice of the active node, else any node that has one (independent of the time drive).</summary>
+    public Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceAnyNode
+        => Active()?.RunChoice ?? _providers.Select(p => p.RunChoice).FirstOrDefault(x => x is not null);
+
+    public bool? RunNotRecordedAnyNode
+        => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended, from the active node, else any node that keeps a cluster read model
+    /// (the master's answer reaches every host: one cluster, one fact). <see langword="null"/> while it has not.</summary>
+    public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheckAnyNode(Guid requestId)
+        => Active()?.UnsavedCheck(requestId) ?? _providers.Select(p => p.UnsavedCheck(requestId)).FirstOrDefault(x => x is not null);
+
+    /// <summary>⭐ CE-4093 — the last check round's verdict (<see langword="null"/> = none ran), from the active node, else any node that keeps a read model.</summary>
+    /// <summary>⭐ CE-4093 — some node here keeps the read model that sees check-round answers.</summary>
+    public bool ObservesUnsavedChecksAnyNode => _providers.Any(p => p.ObservesUnsavedChecks);
+
+    public bool? ScenarioDirtyAnyNode
+        => Active()?.ScenarioDirty ?? _providers.Select(p => p.ScenarioDirty).FirstOrDefault(x => x is not null);
 
     public float? ReplayDurationAnyNode
         => Active()?.ReplayDurationSeconds

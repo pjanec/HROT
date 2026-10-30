@@ -85,23 +85,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
                                  new SharedList<double>(Enumerable.Range(0, frames).Select(f => f * 0.1).ToArray()), positions);
     }
 
-    private static int FreePort()
-    {
-        var l = new TcpListener(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port;
-    }
-
     /// <summary>Sends the request and drains the main-thread queue until it is answered (the editor's frame does this).</summary>
-    private static async Task<(HttpStatusCode Status, JsonNode Body)> Send(MainThreadJobQueue queue, Task<HttpResponseMessage> request)
-    {
-        for (int i = 0; i < 2000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
-        var response = await request;
-        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
-    }
-
     /// <summary>
     /// ⭐ <c>CE-4059</c> P3 (§11q D4, success condition 5): <c>GET /director/moments</c> lists the shown index's moments (the shot, the hit merged into it: one, named
     /// Alpha → Bravo); <c>POST /director/draft {lane, eventIndex}</c> OPENS the drafter's take in the session (a new unsaved take <c>draft</c> of the shown scenario,
@@ -118,7 +102,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         var index = ShotIndex();
         var drafts = new DirectorDrafts(() => index, id => id switch { 1 => "Alpha", 2 => "Bravo", _ => null }, _ => SubjectKind.Vehicle, () => "s-a", session);
 
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         using var host = new DebugApiHost(port, queue, () => { });
         host.AttachDirector(runner, store, () => null, drafts);
@@ -128,7 +112,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         host.Start();
         string url = $"http://localhost:{port}";
 
-        var (status, body) = await Send(queue, _client.GetAsync(url + "/director/moments"));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/director/moments"));
         Assert.Equal(HttpStatusCode.OK, status);
         var data = body["data"]!;
         Assert.Equal("s-a", data["scenario"]!.GetValue<string>());
@@ -137,7 +121,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
                                                             moment["actorName"]!.GetValue<string>(), moment["subjectName"]!.GetValue<string>()));
 
         StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.shot","eventIndex":0}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.shot","eventIndex":0}""")));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         data = body["data"]!;
         Assert.Equal(("s-a", "draft", true, false), (data["scenario"]!.GetValue<string>(), data["take"]!.GetValue<string>(),
@@ -150,12 +134,12 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         Assert.Contains(open.Take.Keys, k => k.Segment == Drafter.ReplaySegmentId);
         Assert.False(File.Exists(store.TakePath("s-a", "draft")));
 
-        (status, _) = await Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.hit","eventIndex":0}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.hit","eventIndex":0}""")));
         Assert.Equal(HttpStatusCode.Conflict, status);                                                  // the open draft is unsaved
         Assert.Same(open, session.Editor);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"recording":"x.fdp","lane":"combat.shot","eventIndex":0}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"recording":"x.fdp","lane":"combat.shot","eventIndex":0}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.shot"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/draft", Json("""{"lane":"combat.shot"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
     }
 
@@ -177,7 +161,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         var drafts = new DirectorDrafts(() => ShotIndex(), _ => null, _ => SubjectKind.Vehicle, () => "s-a", session);
         var stills = new DirectorStills(runner, sink: null, canSeek: () => false);
 
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         using var host = new DebugApiHost(port, queue, () => { });
         host.AttachDirector(runner, store, () => null, drafts, stills);
@@ -195,17 +179,17 @@ public sealed class DirectorDraftRoutesTests : IDisposable
                      () => _client.PostAsync(url + "/director/stills", Json("""{"recording":"/x/node_1.fdp","take":"main","times":[1]}""")),
                  })
         {
-            var (status, body) = await Send(queue, call());
+            var (status, body) = await DebugApiTestHost.Send(queue, call());
             Assert.Equal(HttpStatusCode.BadRequest, status);
             Assert.Equal(DebugApiHost.RecordingRefused, body["error"]!.GetValue<string>());
         }
         Assert.Null(session.Editor);                                                         // nothing was drafted
         Assert.Equal(DirectorPhase.Idle, runner.Phase);                                     // nothing played
 
-        var (s2, b2) = await Send(queue, _client.PostAsync(url + "/director/stills", Json("""{"scenario":"s-a","take":"main","times":[1,2]}""")));
+        var (s2, b2) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/stills", Json("""{"scenario":"s-a","take":"main","times":[1,2]}""")));
         Assert.Equal(HttpStatusCode.BadRequest, s2);
         Assert.Equal(DirectorStills.CannotSeek, b2["error"]!.GetValue<string>());
-        (s2, b2) = await Send(queue, _client.PostAsync(url + "/director/stills", Json("""{"scenario":"s-a","take":"main","everyKey":true,"plan":true}""")));
+        (s2, b2) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/stills", Json("""{"scenario":"s-a","take":"main","everyKey":true,"plan":true}""")));
         Assert.True(s2 == HttpStatusCode.OK, b2.ToJsonString());
         Assert.Equal(1d, Assert.Single(b2["data"]!["planned"]!.AsArray())!["sourceTime"]!.GetValue<double>());
     }
@@ -239,7 +223,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         var runner = new DirectorRunner(new Host(recording), new NoCinema(), new NoLayers());
         var promotion = new TakePromotion(() => recording, () => scenarioStore, () => "s-a");
 
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         using var host = new DebugApiHost(port, queue, () => { });
         host.AttachDirector(runner, recording, () => null, promotion: promotion);
@@ -249,12 +233,12 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         string url = $"http://localhost:{port}";
         StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main"}""")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main"}""")));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         Assert.Equal(("kept", false), (body["data"]!["bake"]!.GetValue<string>(), body["data"]!["overwrote"]!.GetValue<bool>()));
         Assert.Equal(File.ReadAllBytes(recording.TakePath("s-a", "main")), File.ReadAllBytes(scenarioStore.TakePath("s-a", "main")));   // a copy
 
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"old","scenario":"s-a"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"old","scenario":"s-a"}""")));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         Assert.Equal("dropped", body["data"]!["bake"]!.GetValue<string>());
         var source = recording.Load("s-a", "old").Value!;
@@ -263,22 +247,22 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         Assert.Equal(TakeJson.WriteTake(source with { Baked = null }).ToJsonString(), TakeJson.WriteTake(copied).ToJsonString());   // equal but the bake
 
         recording.Save(Adjusted("main", hash, 0.9));   // adjusted again on the recording
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main"}""")));
         Assert.True(status == HttpStatusCode.Conflict, body.ToJsonString());
         Assert.Equal(0.5, scenarioStore.Load("s-a", "main").Value!.Keys[0].At.Offset, 6);                // untouched
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main","overwrite":true}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main","overwrite":true}""")));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         Assert.True(body["data"]!["overwrote"]!.GetValue<bool>());
         Assert.Equal(0.9, scenarioStore.Load("s-a", "main").Value!.Keys[0].At.Offset, 6);                // replaced
 
-        (status, _) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"nope"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"nope"}""")));
         Assert.Equal(HttpStatusCode.NotFound, status);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
 
         // the editor's kind of host: its takes ARE the scenario's — nothing to promote to
         host.AttachDirector(runner, scenarioStore, () => null, promotion: new TakePromotion(() => scenarioStore, null));
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main","scenario":"s-a"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/promote", Json("""{"take":"main","scenario":"s-a"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Contains("nothing to promote to", body["error"]!.GetValue<string>());
     }
@@ -308,7 +292,7 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         var stills = new DirectorStills(runner, sink, canSeek: () => false);
         var renders = new DirectorRenders(runner, stills, sink, () => false, () => store, () => "s-a");
 
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         using var host = new DebugApiHost(port, queue, () => { });
         host.AttachDirector(runner, store, () => null, stills: stills, renders: renders);
@@ -318,44 +302,44 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         string url = $"http://localhost:{port}";
         StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/director/renders", Json("""{"scenario":"s-a","take":"main","capture":{"size":"640x360","fps":15}}""")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/renders", Json("""{"scenario":"s-a","take":"main","capture":{"size":"640x360","fps":15}}""")));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         Assert.Equal("r1", Assert.Single(body["data"]!["queuedIds"]!.AsArray())!.GetValue<string>());
         var r1 = renders.Find("r1")!;
         Assert.Equal((RenderState.Queued, 640, 360, 15), (r1.State, r1.Request.Width, r1.Request.Height, r1.Request.Fps));
 
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/renders",
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/renders",
             Json("""{"renders":[{"kind":"stills","take":"main","times":[1]},{"take":"main","capture":{"encode":false}}]}""")));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         Assert.Equal("r2", Assert.Single(body["data"]!["queuedIds"]!.AsArray())!.GetValue<string>());
         var refusal = Assert.Single(body["data"]!["refused"]!.AsArray())!;
         Assert.Equal((0, DirectorStills.CannotSeek), (refusal["index"]!.GetValue<int>(), refusal["error"]!.GetValue<string>()));
 
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/renders", Json("""{"recording":"/x/node_1.fdp","take":"main"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/renders", Json("""{"recording":"/x/node_1.fdp","take":"main"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Equal(DebugApiHost.RecordingRefused, body["error"]!.GetValue<string>());
 
-        (status, body) = await Send(queue, _client.GetAsync(url + "/director/renders"));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/director/renders"));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(new[] { "r1", "r2" }, body["data"]!["jobs"]!.AsArray().Select(j => j!["id"]!.GetValue<string>()));
         Assert.Equal(2, body["data"]!["queued"]!.GetValue<int>());
 
-        (status, body) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r2"));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.DeleteAsync(url + "/director/renders/r2"));
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());
         Assert.Equal(RenderState.Cancelled, renders.Find("r2")!.State);
         Assert.Equal("cancelled", body["data"]!["jobs"]!.AsArray().Single(j => j!["id"]!.GetValue<string>() == "r2")!["state"]!.GetValue<string>());
-        (status, _) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r2"));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.DeleteAsync(url + "/director/renders/r2"));
         Assert.Equal(HttpStatusCode.Conflict, status);
-        (status, _) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r9"));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.DeleteAsync(url + "/director/renders/r9"));
         Assert.Equal(HttpStatusCode.NotFound, status);
 
         renders.Tick();                                                                     // the queue starts r1: it holds the director
         Assert.True(ReferenceEquals(r1, renders.Running), r1.ToJson().ToJsonString());
         Assert.True(runner.Busy);
-        (status, body) = await Send(queue, _client.PostAsync(url + "/director/play", Json("""{"scenario":"s-a","take":"main"}""")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/director/play", Json("""{"scenario":"s-a","take":"main"}""")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Equal(DebugApiHost.RendersHold, body["error"]!.GetValue<string>());
-        (status, _) = await Send(queue, _client.DeleteAsync(url + "/director/renders/r1"));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.DeleteAsync(url + "/director/renders/r1"));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.False(runner.Busy);
     }

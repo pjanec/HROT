@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -34,6 +35,7 @@ namespace Hrot.ClusterRunner.Tests.Presentation;
 /// of claim a comment cannot hold, and one that was already gotten wrong by reading instead of
 /// running.</para>
 /// </summary>
+[Xunit.Collection("UserLayoutFolder")]
 public sealed class TheLayoutResetCanActuallyBeTurnedOffTests
 {
     /// <summary>⭐ The real production option class, through a real parser. ⛔ Nothing here is a stand-in.
@@ -113,7 +115,7 @@ public sealed class TheLayoutResetCanActuallyBeTurnedOffTests
     [Fact]
     public void NoProductionSourceTellsTheUserToUseTheNegatedSpelling()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         if (root is null) return;
 
         var offenders = new[] { "Hrot", "FDP" }
@@ -133,14 +135,4 @@ public sealed class TheLayoutResetCanActuallyBeTurnedOffTests
           + "\n\n  Use `--reset-layout=false`.");
     }
 
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && dir != null; i++)
-        {
-            if (Directory.Exists(Path.Combine(dir, "layout", "default"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

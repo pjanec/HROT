@@ -7,5 +7,6 @@
   "rb_fdp_events",
   "rb_fdp_inspector",
   "rb_search",
-  "rb_timeline"
+  "rb_timeline",
+  "rb_wire_entities"
 ]

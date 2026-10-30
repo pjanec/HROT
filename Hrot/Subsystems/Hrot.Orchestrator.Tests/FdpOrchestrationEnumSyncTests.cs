@@ -41,4 +41,13 @@ public sealed class FdpOrchestrationEnumSyncTests
             Assert.Equal(fdpVal.ToString(), nedVal.ToString());
         }
     }
+
+    /// <summary>⭐ <c>CE-4093</c> — the check round's node op: ⛔ PERMANENT WIRE VALUE 35 (R-42) in BOTH enums, the next free value after
+    /// <c>FinalizeReview = 34</c>. 🔴 Mutation: renumbering either side ⇒ this fails.</summary>
+    [Fact]
+    public void CheckUnsavedIsTheWireValue35InBothEnums()
+    {
+        Assert.Equal(35, (int)Fdp.Toolkit.Orchestration.NodeOpType.CheckUnsaved);
+        Assert.Equal(35, (int)Hrot.NED.Descriptors.Orchestration.NodeOpType.CheckUnsaved);
+    }
 }

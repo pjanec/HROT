@@ -73,6 +73,27 @@ namespace Fdp.Toolkit.Orchestration
             return removed;
         }
 
+        /// <summary>
+        /// ⭐ CE-4090 (AQ108 D15) — deletes ONE exercise (<paramref name="exerciseId"/>) from <c>{root}/exercises</c> and every
+        /// <c>{root}/nodes/*/exercises</c>: the same layout and the same skip-what-is-in-use rule as <see cref="Prune"/>, which is the only
+        /// other deleter of recordings. Returns how many directories were removed (0 = it was not there).
+        /// </summary>
+        public static int Delete(string stagingRoot, Guid exerciseId, Action<string>? log = null)
+        {
+            if (exerciseId == Guid.Empty || !Directory.Exists(stagingRoot)) return 0;
+            int removed = 0;
+            foreach (var exercises in ExerciseDirectories(stagingRoot))
+            {
+                var dir = new DirectoryInfo(Path.Combine(exercises, exerciseId.ToString()));
+                if (!dir.Exists) continue;
+                try { dir.Delete(recursive: true); removed++; }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            if (removed > 0) log?.Invoke($"[Retention] discarded exercise {exerciseId}: {removed} directory(ies) under {stagingRoot}");
+            return removed;
+        }
+
         private static IEnumerable<string> ExerciseDirectories(string stagingRoot)
         {
             var shared = Path.Combine(stagingRoot, OrchestrationConstants.ExercisesDirectoryName);

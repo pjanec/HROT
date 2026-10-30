@@ -9,7 +9,6 @@ using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.ExCon;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;
 using Hrot.NED.Descriptors.Orchestration;

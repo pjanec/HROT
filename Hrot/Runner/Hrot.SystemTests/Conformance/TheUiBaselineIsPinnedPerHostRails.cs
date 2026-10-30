@@ -113,6 +113,8 @@ public sealed class TheUiBaselineIsPinnedPerHostRails
     /// </summary>
     private static async Task<JsonArray> CaptureRegisteredAsync(EditorProcess host, ITestOutputHelper output)
     {
+        await ClusterConformanceRails.LeaveStartAsync(host, output);   // ⭐ CE-4096 — load first: a switch is refused while Start shows
+
         var perspectives = ((await host.Client.ListPerspectivesAsync()).EnsureOk()
                             .Field("perspectives") as JsonArray)!
                            .Select(n => n!.GetValue<string>())
@@ -129,7 +131,8 @@ public sealed class TheUiBaselineIsPinnedPerHostRails
         foreach (var p in perspectives)
         {
             var switched = await host.Client.SwitchPerspectiveAsync(p);
-            if (!switched.Ok) continue;
+            // ⛔⛔ CE-4094 — was `if (!switched.Ok) continue;` (vacuous under a refusal: 409 while the Start perspective shows).
+            Assert.True(switched.Ok, $"[{host.Mode}] refused to switch to the listed perspective '{p}' ({switched.StatusCode}): {switched.Error}");
             // ⭐ §6's contract: switch, STEP, then read — a same-frame read returns the empty prefix.
             await host.Client.StepAsync(2);
             await Task.Delay(150);

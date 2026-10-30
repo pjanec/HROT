@@ -25,6 +25,28 @@ namespace Fdp.Core
             }
         }
 
+        /// <summary>The FNV-1a-64 offset basis.</summary>
+        public const ulong Basis64 = 14695981039346656037UL;
+
+        /// <summary>
+        /// ⭐ <c>CE-4093</c> — FNV-1a over <paramref name="bytes"/>, 64 bits, the same in every process: the whole-world change check
+        /// hashes a binary keyframe with it (<c>Fdp.Toolkit.Replay.WorldChangeCheck</c>). ⚠ 64 bits so a chance collision (a changed
+        /// world answered "unchanged") is out of reach for any world that fits in RAM; chain a second span through <paramref name="seed"/>.
+        /// </summary>
+        public static ulong Fnv1a64(ReadOnlySpan<byte> bytes, ulong seed = Basis64)
+        {
+            unchecked
+            {
+                ulong hash = seed;
+                foreach (byte b in bytes)
+                {
+                    hash ^= b;
+                    hash *= 1099511628211UL;
+                }
+                return hash;
+            }
+        }
+
         /// <summary>The FNV-1a offset basis — the start of an <see cref="Add(uint, int)"/> chain.</summary>
         public const uint Basis = 2166136261u;
 

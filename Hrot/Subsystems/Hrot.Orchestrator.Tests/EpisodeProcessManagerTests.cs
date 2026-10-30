@@ -27,6 +27,7 @@ public sealed class EpisodeProcessManagerTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
@@ -106,6 +107,7 @@ public sealed class EpisodeProcessManagerTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
@@ -215,6 +217,7 @@ public sealed class EpisodeProcessManagerTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,

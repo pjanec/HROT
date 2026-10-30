@@ -22,6 +22,22 @@ namespace Fdp.Toolkit.Orchestration
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";
 
+        /// <summary>The folder of the per-node staging roots, <c>{staging}/nodes/node-N</c> (<see cref="GetNodeStagingRoot(string,int)"/>).</summary>
+        public const string NodesDirectoryName = "nodes";
+
+        /// <summary>⭐ CE-3340 ② — the master's per-run ledger, inside its node staging root (<c>recording_ledger/</c>).</summary>
+        public const string RecordingLedgerDirectoryName = "recording_ledger";
+
+        /// <summary>⭐ CE-3340 ② — the archive's copy of a run's scenario, <c>{shared}/exercises/&lt;id&gt;/scenario/</c> (CE-3119).</summary>
+        public const string ArchivedScenarioDirectoryName = "scenario";
+
+        /// <summary>⭐ CE-3340 ② — the name of a run's start-time scenario copy in the ledger (<c>&lt;id&gt;.scenario</c>, beside its entry).</summary>
+        public static string GetScenarioSnapshotName(Guid exerciseId) => $"{exerciseId}.scenario";
+
+        /// <summary>⭐ CE-3340 ② — the archived scenario copy of <paramref name="exerciseId"/> under the shared (NAS) root.</summary>
+        public static string GetArchivedScenarioDirectory(string sharedRoot, Guid exerciseId)
+            => Path.Combine(sharedRoot, ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+
         /// <summary>
         /// Name of the cluster-wide SHARED directory — the NAS stand-in on a single box.
         /// <para>
@@ -70,7 +86,7 @@ namespace Fdp.Toolkit.Orchestration
             => GetNodeStagingRoot(ResolveStagingRoot(), nodeId);
 
         public static string GetNodeStagingRoot(string stagingRoot, int nodeId)
-            => Path.Combine(stagingRoot, "nodes", GetNodeDirectoryName(nodeId));
+            => Path.Combine(stagingRoot, NodesDirectoryName, GetNodeDirectoryName(nodeId));
 
         public static string GetNodeScenariosRoot(int nodeId)
             => Path.Combine(GetNodeStagingRoot(nodeId), ScenariosDirectoryName);
@@ -107,11 +123,12 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>⭐ The NAS folder holding the behaviour-asset trees, one sub-folder per kind id —
         /// <c>{nas}/assets/&lt;kind&gt;/</c> (docs/DESIGN_Asset_Management.md §10 D5).</summary>
-        public const string NasAssetsDirectoryName = "assets";
+        public const string NasAssetsDirectoryName = ContentTreeNames.Assets;   // CE-3340 (4) — one spelling, shared with the generators
 
-        /// <summary>The NAS tree of one behaviour-asset kind (<c>{nas}/assets/&lt;kind&gt;</c>).</summary>
+        /// <summary>The NAS tree of one asset-sync kind — ⭐ <c>CE-4089</c>: routed through <see cref="ContentLayout.AssetSyncRoot"/>, so a behaviour
+        /// kind (<c>blueprint</c>/<c>btree</c>/<c>hsm</c>) is <c>{nas}/assets/behaviors/&lt;Folder&gt;</c>, the SAME tree the dev seed fills.</summary>
         public static string GetNasAssetRoot(string nasBasePath, string kind)
-            => System.IO.Path.Combine(nasBasePath, NasAssetsDirectoryName, kind);
+            => ContentLayout.AssetSyncRoot(nasBasePath, kind);
 
         /// <summary>Extension of a published TKB artifact. ⛔ One definition.</summary>
         public const string TkbArtifactExtension = ".zip";

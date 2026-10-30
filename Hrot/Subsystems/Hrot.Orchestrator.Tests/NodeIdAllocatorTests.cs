@@ -59,6 +59,7 @@ public sealed class NodeIdAllocatorTests
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
         });
         bus.PublishManaged(new NodeIdRequestEvent { ComputerName = "vm", ProcessId = 4242 });

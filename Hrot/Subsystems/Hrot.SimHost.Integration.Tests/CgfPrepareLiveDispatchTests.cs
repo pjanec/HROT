@@ -61,7 +61,7 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         var stub       = new FailLoudRecordReplayStub("CGF-test");
 
         using var slave = new ClusterSlave();
-        slave.RegisterHandler(new HrotHandlerAdapter(stub));  // same registration order as CgfApplication
+        slave.RegisterHandler(new HrotHandlerAdapter(stub));  // same registration order as the live CGF slave (the former CgfApplication's, CE-3348)
         slave.RegisterHandler(handler);
 
         var scenarioId = "test_scenario_01";

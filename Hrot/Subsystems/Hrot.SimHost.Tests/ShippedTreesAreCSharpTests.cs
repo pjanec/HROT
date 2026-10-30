@@ -93,7 +93,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void NoShippedTree_IsStillAJsonAsset()
         {
-            var root = Path.Combine(ShippedTreeDump.RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees");
+            var root = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder);
             var left = Directory.GetFiles(root, "*.btree.json", SearchOption.AllDirectories)
                 .Select(p => Path.GetFileName(p).Replace(".btree.json", ""))
                 .Intersect(ShippedTrees.All.Select(t => t.Name)).ToList();

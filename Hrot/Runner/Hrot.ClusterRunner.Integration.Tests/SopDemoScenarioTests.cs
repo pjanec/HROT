@@ -15,7 +15,7 @@ using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// ⭐⭐ <c>CE-2082</c> — the shipped DEMO SOP scenario (<c>Hrot.AI.Behaviors/Recipes/Scenarios/sop-demo</c>) loads into a live
+/// ⭐⭐ <c>CE-2082</c> — the shipped DEMO SOP scenario (<c>recipes/scenarios/sop-demo</c>) loads into a live
 /// cluster and shows the SOP end to end: an idle unit runs its SOP's idle choice; a squad on a move order that is shot at
 /// takes cover (a reaction that PAUSES the move); a squad whose ROE says "stay on task" is shot at and keeps moving.
 /// 📄 <c>docs/DESIGN_Decision_Layer.md</c> §4.8. ⭐ Every unit's task, SOP and ROE come from the scenario's snapshot keys
@@ -34,12 +34,8 @@ public sealed class SopDemoScenarioTests : IDisposable
 
     private static string RecipePath()
     {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-        {
-            var p = Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "sop-demo", "scenario.json");
-            if (File.Exists(p)) return p;
-        }
-        throw new FileNotFoundException("sop-demo recipe not found above " + AppContext.BaseDirectory);
+        var p = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "sop-demo", "scenario.json");
+        return File.Exists(p) ? p : throw new FileNotFoundException("sop-demo recipe not found: " + p);
     }
 
     private static Entity ByName(EntityRepository world, string prefix)
@@ -59,7 +55,7 @@ public sealed class SopDemoScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(RecipePath(), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

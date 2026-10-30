@@ -344,6 +344,78 @@ public sealed class HrotNodeBuilderTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V5) — the ONE ECS-node provider reads the node's ONE cluster view for the unsaved-changes check, on the host
+    /// families CGF (Brain), SimHost (Muscle|Perception|Navigation) and IG (Map2D): <c>ObservesUnsavedChecks</c> is true by construction (it was false on
+    /// all three — ▶ asked no round), and a round the master answered reaches <c>UnsavedCheck(requestId)</c> and <c>ScenarioDirty</c> through the node's own
+    /// tick; leaving editing drops the verdict. 🔴 Mutation: the factory's <c>unsavedCheck:</c> argument removed ⇒ <c>ObservesUnsavedChecks</c> false ⇒
+    /// the first assertion fails; <c>scenarioDirty:</c> returning null ⇒ the verdict assertion fails.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Core.NodeRole.Brain, 93)]
+    [InlineData(Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver, 92)]
+    [InlineData(Fdp.Core.NodeRole.Map2D, 91)]
+    public void CE1436_Node_TheEcsNodeDebugProvider_ObservesTheCheckRound_OnEveryHostFamily(Fdp.Core.NodeRole role, int nodeId)
+    {
+        using var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", role).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        var round = Guid.NewGuid();
+        void Hear<T>(T ev) { ctx.EventBus.PublishManaged(ev); ctx.EventBus.SwapBuffers(); ctx.ClusterSlave.Tick(); }
+
+        Assert.True(provider.ObservesUnsavedChecks);
+        Assert.Null(provider.UnsavedCheck(round));                                    // not answered yet
+        Assert.Null(provider.ScenarioDirty);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+        Hear(new Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent
+        {
+            RequestId = round, StatusCode = Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success,
+            ResultPayload = new Fdp.Toolkit.Orchestration.UnsavedCheckResult(true, new[] { 3 }),
+        });
+
+        Assert.True(provider.UnsavedCheck(round)!.Result!.Changed);                   // ⭐ the master's answer, read off THIS node
+        Assert.True(provider.ScenarioDirty);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Assert.Null(provider.ScenarioDirty);                                          // the scenario is no longer open
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the ONE ECS-node provider answers the start gate's input through the node's <c>ClusterSlave</c>, on every
+    /// node (CGF, SimHost, IG, Traffic all go through it): <c>FollowedClusterState</c> is null until a master is heard, then the CLUSTER's state
+    /// (while the node's own committed <c>ClusterState</c> is still Idle), and <c>MasterGone</c> follows the MasterGone broadcast.
+    /// 🔴 Red-proof: <c>followedClusterState:</c> returning null behind a runtime-false guard ⇒ the follow assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE4096_Node_TheEcsNodeDebugProvider_ReportsTheFollowedClusterState_AndMasterGone()
+    {
+        using var ctx = InitialisedNode(94);
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        void Hear(Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent ev)
+        {
+            ctx.EventBus.PublishManaged(ev);
+            ctx.EventBus.SwapBuffers();
+            ctx.ClusterSlave.Tick();
+        }
+
+        Assert.Null(provider.FollowedClusterState);                                   // no master heard: distinguishable from Idle
+        Assert.False(provider.MasterGone);
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, SessionId = Guid.NewGuid() });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.LoadingLive, provider.FollowedClusterState);   // ⭐ the cluster's …
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, provider.ClusterState);                    // … not the node's own commit
+
+        Hear(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(provider.MasterGone);
+
+        HrotNodeContext? none = null;                                                 // before Initialize / after Shutdown: nothing, no throw
+        var gone = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => none);
+        Assert.Null(gone.FollowedClusterState);
+        Assert.False(gone.MasterGone);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> — a host with its OWN frame (the editor) steps the node's timeline through <see cref="HrotNodeContext.StepTimeline"/>, with
     /// no <c>Tick</c>: the entity that gained a network id is indexed into <c>ctx.Timeline</c>, and the access every host serves
     /// (<c>EcsNodeDebugProvider.TimelineOf</c>) is the SAME for the context and reads that same source.
@@ -433,6 +505,73 @@ public sealed class HrotNodeBuilderTests
         Assert.Equal(4, ctx.Timeline.Frames);                                         // 3 before the review + the first one after it
         ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);      // publish now
         Assert.Equal(4, ctx.Timeline.Index.FrameSim.Count);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's return does not restart the index: the state is <c>OperatingLive</c> a few frames BEFORE the master puts the clock back (measured on the real editor: the first live steps still read the
+    /// node's own last frame, then the clock snaps back to L, a few frames BEHIND it, and climbs). The node HOLDS (no step, no reset) until the world is past the index's last frame, then continues: the frame count never
+    /// drops, and runs on past where it was. 🔴 Red-proof: the hold removed ⇒ the snap-back reads as a rewind and the index restarts (count 1).
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_AfterAReviewsReturn_HoldsWhileTheWorldIsBehind_ThenContinues()
+    {
+        using var ctx = InitialisedNode(91);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);                                                             // the review plays an earlier moment
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);       // the world is put back; the clock follows a few frames later
+        SimFrame(ctx, 5);                                                             // the first live step: still the node's own last frame (not behind, not new)
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 3);                                                             // the clock snaps back to L: BEHIND the index's last (5) …
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 4);
+        Assert.Equal(5, ctx.Timeline.Frames);                                         // … the count never drops
+        SimFrame(ctx, 5);                                                             // caught up: the same frame, nothing new
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6); SimFrame(ctx, 7);
+        Assert.Equal(7, ctx.Timeline.Frames);                                         // continues past where it was
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // the run's first frame is still frame 0
+        Assert.Equal(0.7, ctx.Timeline.Index.FrameSim[6], 6);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's ENTRY does not restart the index either: the world is rewound to the review's moment while this node's state still reads <c>OperatingLive</c> (measured on the real editor: frame 314 → 299 under
+    /// a live state, the index reset to one frame). While a review is in flight (the handler holds the live point) the node steps nothing and resets nothing; the whole round trip keeps the index.
+    /// 🔴 Red-proof: the in-flight hold removed ⇒ the rewound frame under a live state reads as a rewind and the index restarts.
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_WhileAReviewIsInFlight_AnEarlierFrameUnderALiveState_DoesNotResetTheIndex()
+    {
+        using var ctx = InitialisedNode(90);
+        bool inFlight = false;
+        ctx.ReviewInFlightForTest = () => inFlight;
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+
+        inFlight = true;                                                              // the review's prepare has committed: the handler holds the live point
+        SimFrame(ctx, 3);                                                             // the world is at the review's moment, the state still says live
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        inFlight = false;                                                             // finalize committed
+        SimFrame(ctx, 0);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 5); SimFrame(ctx, 3);                                           // the return: stale, then the clock snaps back
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6);
+        Assert.Equal(6, ctx.Timeline.Frames);
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
         Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
     }
 
@@ -566,5 +705,66 @@ public sealed class HrotNodeBuilderTests
         Assert.Null(ctx.ReplayRecordingPath);
         Assert.Null(ctx.ShownTimeline);
         Assert.Null(Hrot.Presentation.DebugApi.EcsNodeDebugProvider.TimelineOf(ctx).Source());
+    }
+
+    private sealed class PlayControl : Hrot.UI.Common.RunMode.IRunScenarioControl
+    {
+        public readonly System.Collections.Generic.List<string> Calls = new();
+        public string? LoadedScenarioName => "s";
+        public void LoadForLive(string scenarioName) => Calls.Add("LoadForLive:" + scenarioName);
+        public void OpenForEdit(string scenarioName) { }
+        public void OpenRecording(System.Guid exerciseId) { }
+        public void SaveCurrent() => Calls.Add("SaveCurrent");
+        public void TakeCheckpoint() { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-1436 (R-3066; AQ108 §2.8a) — on a CGF-SHAPED host (a Brain node: the real <c>HrotNodeBuilder</c> context, its slave's ONE <c>ClusterView</c>, the real
+    /// <c>EcsNodeDebugProvider</c>) ▶ with Live armed over an UNSAVED node asks the master's check round and, once the master's answer arrives on the node bus, shows the
+    /// <i>Save and go live</i> confirmation — the answer read through the provider (<c>UnsavedCheckReads.From</c>), the adapter reading the same view. Nothing loads before the answer.
+    /// ⛔ The gap this closes: a CGF host had no reader, so ▶ skipped the prompt and loaded the saved scenario over the edits.
+    /// 🔴 Mutation: <c>EcsNodeDebugProvider</c>'s <c>unsavedCheck:</c> returning <c>null</c> (a provider that "observes" but never hears) ⇒ no prompt ever appears.
+    /// </summary>
+    [Fact]
+    public void CE1436_CgfShapedHost_PlayLive_OverAnUnsavedNode_OffersSaveAndGoLive_FromTheMastersAnswer()
+    {
+        using var ctx = new HrotNodeBuilder(HeadlessConfig(93)).WithRole("Test", Fdp.Core.NodeRole.Brain).Build();
+        foreach (var m in ctx.BaseModules) ctx.Kernel.RegisterModule(m);
+        ctx.Kernel.Initialize();
+        var provider = Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For("TestNode", "TestNode", () => ctx);
+        var bus = ctx.EventBus;
+
+        var adapter = new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(bus, () => ctx.ClusterSlave.View, () => 0);
+        var control = new PlayControl();
+        var choice = adapter.AttachRunChoice(control,
+            unsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => provider));
+        void Frame(Action? publish = null) { publish?.Invoke(); bus.SwapBuffers(); ctx.ClusterSlave.Tick(); adapter.Update(); }
+
+        Frame(() =>
+        {
+            bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterStateUpdateEvent
+                { CurrentState = Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+            bus.PublishManaged(new Fdp.Toolkit.Orchestration.InSyncSetChangedEvent { NodeIds = new[] { 93 } });   // ⭐ CE-1442 — the run gate is closed until this node is in the master's in-sync set
+        });
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ctx.ClusterSlave.View.State);
+        Assert.True(choice.Gate.Open, choice.ClosedReason);
+
+        Hrot.UI.Common.RunMode.UserTransport.UserPlayPause(adapter);               // ▶, Live armed, in edit
+        bus.SwapBuffers();
+        var asked = System.Linq.Enumerable.Single(bus.ReadManaged<Fdp.Toolkit.Orchestration.CheckUnsavedIntent>());   // the master's ONE round
+        Frame();
+        Assert.Empty(control.Calls);                                                // undecided until the master answers
+        Assert.Null(choice.Pending);
+
+        Frame(() => bus.PublishManaged(new Fdp.Toolkit.Orchestration.ClusterOpCompletedEvent
+        {
+            RequestId = asked.RequestId, StatusCode = Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success,
+            ResultPayload = new Fdp.Toolkit.Orchestration.UnsavedCheckResult(true, new[] { 3 }),   // the node has unsaved changes
+        }));
+        Frame();                                                                    // the choice's per-frame poll delivers the answer
+
+        Assert.Empty(control.Calls);                                                // still nothing loaded: the user decides
+        Assert.NotNull(choice.Pending);
+        Assert.Equal(new[] { "Save and go live", "Cancel" }, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
     }
 }

@@ -2,14 +2,19 @@ namespace Hrot.AiEditor.Persistence;
 
 /// <summary>
 /// ⭐ <c>CE-3164</c> (R-268) — the ONE rule for a JSON asset's picker group: the folder path below its kind's root
-/// (<c>Assets/BTrees/</c>, <c>Assets/HSMs/</c>, <c>Assets/Blueprints/</c>), <c>/</c>-separated. A file at the root has no group
+/// (<c>assets/behaviors/BTrees/</c>, <c>…/HSMs/</c>, <c>…/Blueprints/</c>), <c>/</c>-separated. ⭐ CE-3340 ④: the segment names come from <c>ContentTreeNames</c>, LINKED from Fdp.Toolkits — this assembly cannot REFERENCE <c>ContentLayout</c> (netstandard2.0, no project references) but it shares the constants by link, as it already does for <c>OccurrenceSlotKey</c>; the earlier literals are gone. A file at the root has no group
 /// (the picker shows it under "Other"). Relative by construction, so no machine path reaches generated code.
 /// Used by all three asset generators; a hot reload (staging registry merged into the live one) carries none and the live registry keeps the one it had.
 /// 📄 DESIGN_Behavior_Self_Registration.md §10c.
 /// </summary>
 public static class BehaviorGroups
 {
-    private static readonly string[] s_kindRoots = { "Assets/BTrees/", "Assets/HSMs/", "Assets/Blueprints/" };
+    private static readonly string[] s_kindRoots =
+    {
+        Fdp.Toolkit.Orchestration.ContentTreeNames.BehaviorKindRootPrefix(Fdp.Toolkit.Orchestration.ContentTreeNames.BTrees),
+        Fdp.Toolkit.Orchestration.ContentTreeNames.BehaviorKindRootPrefix(Fdp.Toolkit.Orchestration.ContentTreeNames.Hsms),
+        Fdp.Toolkit.Orchestration.ContentTreeNames.BehaviorKindRootPrefix(Fdp.Toolkit.Orchestration.ContentTreeNames.Blueprints),
+    };
 
     /// <summary>The group of the asset at <paramref name="path"/>, or <c>null</c> (root-level, or not under a kind root).</summary>
     public static string? FromAssetPath(string? path)

@@ -57,8 +57,18 @@ namespace Fdp.Toolkit.Orchestration
             }
 
             _pending = load;
-            _send(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle });
+            Unload();
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4101</c> (AQ108 §2.11a) — <b>the ONE Idle intent</b>: "unload to <see cref="ClusterState.Idle"/>". A fresh <c>TransactionId</c> each time, nothing else set. Built HERE and nowhere else:
+        /// the load's first half (<see cref="Request"/>), New Exercise, the transport's raw ■, the film director's stop and HTTP <c>/replay/stop</c> all send THIS (⛔ not a hand-written
+        /// <c>new TransitionStateIntent { TargetState = Idle }</c> beside it — the master's own bootstrap unload, <c>ClusterMaster</c>, is the master and stays its own).
+        /// </summary>
+        public static TransitionStateIntent UnloadIntent() => new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle };
+
+        /// <summary>⭐ CE-4101 — sends <see cref="UnloadIntent"/> through this sequence's sender (does not touch a waiting load).</summary>
+        public void Unload() => _send(UnloadIntent());
 
         /// <summary>Sends the waiting load once the cluster is <c>Idle</c>. Returns true on the call that sent it.</summary>
         public bool Pump()

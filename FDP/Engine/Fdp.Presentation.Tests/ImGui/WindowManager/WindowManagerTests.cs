@@ -515,4 +515,110 @@ public class WindowManagerTests : IDisposable
         Assert.True(wm.GlobalMenu.Root.Children["A"].Children.ContainsKey("B"));
         Assert.True(wm.GlobalMenu.Root.Children["A"].Children["B"].Children.ContainsKey("C"));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CE-4094 (AQ108 D16/M7): the START perspective — remembered on entry, refuses switches, left through the gate
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private WM ManagerWithStart(params string[] perspectives)
+    {
+        var wm = CreateManager();
+        foreach (var p in perspectives) wm.RegisterWindow(MakePerspectiveBound("w-" + p, p));
+        wm.RegisterWindow(MakePerspectiveBound("w-start", WM.StartPerspectiveName));
+        return wm;
+    }
+
+    [Fact]
+    public void Start_EnteringItRemembersThePreviousPerspective()
+    {
+        var wm = ManagerWithStart("IG", "SimHost");
+        wm.SwitchPerspective("SimHost");
+
+        Assert.True(wm.TrySwitchPerspective(WM.StartPerspectiveName, out var reason));
+
+        Assert.Null(reason);
+        Assert.Equal(WM.StartPerspectiveName, wm.CurrentPerspective);
+        Assert.Equal("SimHost", wm.RememberedPerspective);
+        Assert.True(wm.IsStartShowing);
+    }
+
+    [Fact]
+    public void Start_ASwitchWhileItShowsIsRefusedWithAReason_AndFiresNothing()
+    {
+        var wm = ManagerWithStart("IG", "SimHost");
+        wm.SwitchPerspective("SimHost");
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+        int fired = 0;
+        wm.OnPerspectiveChanged += (_, _) => fired++;
+
+        wm.SwitchPerspective("IG");                                   // the void entry point refuses too
+        bool ok = wm.TrySwitchPerspective("IG", out var reason);
+
+        Assert.False(ok);
+        Assert.Contains("Start", reason);
+        Assert.Equal(WM.StartPerspectiveName, wm.CurrentPerspective);
+        Assert.Equal("SimHost", wm.RememberedPerspective);
+        Assert.Equal(0, fired);
+    }
+
+    [Fact]
+    public void Start_LeavingThroughTheGateRestoresTheRememberedPerspective()
+    {
+        var wm = ManagerWithStart("IG", "SimHost");
+        wm.SwitchPerspective("SimHost");
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+        (string, string)? seen = null;
+        wm.OnPerspectiveChanged += (o, n) => seen = (o, n);
+
+        Assert.True(wm.LeaveStartPerspective(out var reason));
+
+        Assert.Null(reason);
+        Assert.Equal("SimHost", wm.CurrentPerspective);
+        Assert.Null(wm.RememberedPerspective);
+        Assert.Equal((WM.StartPerspectiveName, "SimHost"), seen);
+        Assert.True(wm.TrySwitchPerspective("IG", out _));              // ordinary switching works again
+        Assert.Equal("IG", wm.CurrentPerspective);
+    }
+
+    [Fact]
+    public void Start_LeavingWhenItIsNotShowingIsRefused()
+    {
+        var wm = ManagerWithStart("IG");
+        wm.SwitchPerspective("IG");
+
+        Assert.False(wm.LeaveStartPerspective(out var reason));
+        Assert.NotNull(reason);
+        Assert.Equal("IG", wm.CurrentPerspective);
+    }
+
+    [Fact]
+    public void Start_NeverEntered_SwitchingBehavesAsBefore()
+    {
+        var wm = ManagerWithStart("IG", "SimHost");
+
+        Assert.True(wm.TrySwitchPerspective("IG", out var r1));
+        Assert.Null(r1);
+        Assert.True(wm.TrySwitchPerspective("IG", out _));              // no-op onto the current one is not a refusal
+        wm.SwitchPerspective("SimHost");
+        Assert.Equal("SimHost", wm.CurrentPerspective);
+        Assert.Null(wm.RememberedPerspective);
+        Assert.False(wm.TrySwitchPerspective("Nobody", out var r2));    // A0 still refuses an unclaimed name, now with a reason
+        Assert.Contains("Nobody", r2);
+        Assert.Equal("SimHost", wm.CurrentPerspective);
+    }
+
+    [Fact]
+    public void Start_SaveSettingsPersistsTheRememberedPerspective_NotStart()
+    {
+        var wm = ManagerWithStart("IG", "SimHost");
+        wm.SwitchPerspective("SimHost");
+        wm.SwitchPerspective(WM.StartPerspectiveName);
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce4094-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            wm.SaveSettings(path);
+            Assert.Equal("SimHost", CreateManager().LoadSettings(path));
+        }
+        finally { System.IO.File.Delete(path); }
+    }
 }

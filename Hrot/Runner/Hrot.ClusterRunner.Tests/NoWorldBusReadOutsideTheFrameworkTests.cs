@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -32,7 +33,7 @@ public sealed class NoWorldBusReadOutsideTheFrameworkTests
     [Fact]
     public void NoProductionCode_ReadsAWorldsEventsOffItsBus()
     {
-        var root = RepoRoot();
+        var root = new DirectoryInfo(TestRepo.Root);
         var hits = new List<string>();
         int scanned = 0;
         foreach (var top in new[] { "FDP", "Hrot", "Stride" })
@@ -60,13 +61,4 @@ public sealed class NoWorldBusReadOutsideTheFrameworkTests
             + string.Join("\n", hits));
     }
 
-    // Walks up from the test binary directory until HROT.sln is found — the idiom TheMapIsNotSelectionGatedRails uses.
-    private static DirectoryInfo RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln")))
-            dir = dir.Parent;
-        Assert.True(dir != null, "Could not locate workspace root (HROT.sln not found).");
-        return dir!;
-    }
 }

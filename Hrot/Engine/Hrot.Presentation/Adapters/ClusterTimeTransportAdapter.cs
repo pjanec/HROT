@@ -5,7 +5,9 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Time;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
+using System.Collections.Generic;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.UI.Common.Adapters;
 
@@ -22,15 +24,21 @@ namespace Hrot.UI.Common.Adapters;
 /// <para>Call <see cref="Update"/> once per frame BEFORE the bus <c>SwapBuffers</c> so
 /// that state derived from the previous frame's events is current when the UI renders.</para>
 /// </summary>
-public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
+public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTransport
 {
     private readonly FdpEventBus    _bus;
     private readonly Func<double>?  _localSimTimeGetter;
 
-    private ClusterState _currentState  = ClusterState.Idle;
-    private ReplayAxis _axis = ReplayAxis.Sim;            // ⭐ CE-3329 R-3058 — rides every cluster-state publication
-    private ReplaySession? _session;                      // ⭐ CE-3329 — the session layer (ReplaySessionTopic)
+    // ⭐⭐⭐ CE-1436 (R-3066, docs/DESIGN_Cluster_View.md §5; AQ108 §2.8a) — the cluster facts (state, axis, exercise, recording flags, the exercise lists,
+    //   the replay session) are READ off the node's ONE <see cref="ClusterView"/>; ⛔ this adapter folds none of them itself. The view is advanced by its
+    //   owner (the node's <c>ClusterSlave.Tick</c>), not here.
+    private readonly Func<ClusterView?> _view;
+    private ClusterView? View => _view();
+    private ClusterState _currentState => View?.State ?? ClusterState.Idle;
     private readonly ClusterReplayControls _replay;       // ⭐ CE-3329 row 21 — the review / replay members, written once
+    private HostGatePolicy _gatePolicy = HostGatePolicy.Operator;   // ⭐ CE-1442 — set by AttachRunChoice from the host's declared kind (HostGatePolicies.For)
+    private Action<string?>? _cancelLoad;                          // ⭐ CE-1442 — the host's ClusterSlave.CancelLoad
+    private RunModeChoice? _run;                           // ⭐ CE-4097 — null on a host that attached none: today's behaviour, unchanged
 
     /// <summary>
     /// `T7`: the <see cref="SwitchTimeModeEvent"/> fold, shared with <c>ClusterUiCache</c>. The two
@@ -50,40 +58,43 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     /// Creates the adapter.
     /// </summary>
     /// <param name="bus">Orchestration event bus shared by the node.</param>
+    /// <param name="view">
+    ///   ⭐ CE-1436 — the node's ONE cluster read model (<c>ClusterSlave.View</c>; on the editor the node's slave, which its in-process core shares). A delegate because
+    ///   some hosts build the node after the toolbar; <see langword="null"/> from it (no node yet) reads as the empty view. ⛔ Required: a host that HAS a node
+    ///   must pass its view — there is no private fold to fall back on.
+    /// </param>
     /// <param name="localSimTimeGetter">
     ///   Optional delegate that returns the node's locally-measured sim time (seconds).
     ///   When provided, <see cref="TotalTime"/> uses this value for a smoother display;
     ///   otherwise the last snapshot from <see cref="SwitchTimeModeEvent"/> is used.
     /// </param>
-    public ClusterTimeTransportAdapter(FdpEventBus bus, Func<double>? localSimTimeGetter = null)
+    public ClusterTimeTransportAdapter(FdpEventBus bus, Func<ClusterView?> view, Func<double>? localSimTimeGetter = null)
     {
         _bus                = bus ?? throw new ArgumentNullException(nameof(bus));
+        _view               = view ?? throw new ArgumentNullException(nameof(view));
         _localSimTimeGetter = localSimTimeGetter;
-        _replay = new ClusterReplayControls(() => _currentState, () => _session, () => _axis,
+        _replay = new ClusterReplayControls(() => _currentState, () => View?.ReplaySession, () => View?.ReplayAxis ?? ReplayAxis.Sim,
             new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus));
     }
 
     /// <summary>
-    /// Drains <see cref="ClusterStateUpdateEvent"/> and <see cref="SwitchTimeModeEvent"/>
-    /// from the bus read buffer to keep internal state current.
+    /// Drains <see cref="SwitchTimeModeEvent"/> from the bus read buffer (the one fact the node's <see cref="ClusterView"/> does not carry) and tells the
+    /// run choice the cluster state the view holds.
     /// Must be called once per frame BEFORE <c>EventBus.SwapBuffers()</c>.
     /// </summary>
     public void Update()
     {
-        foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
-        {
-            _currentState = ev.CurrentState;
-            if (!ev.MasterGone) _axis = ev.ReplayAxis;
-        }
-
-        foreach (var ev in _bus.ReadManaged<ReplaySessionUpdateEvent>())
-            if (ev.Session != null) _session = ev.Session;
+        // ⭐ CE-4097 D12 — the one hook that learns a scenario was opened for editing; it compares with the state it last saw, so a per-frame call equals a per-event one
+        //   except for a state that left and returned inside ONE frame (not measured; the master moves between states through barrier rounds).
+        _run?.OnClusterState(_currentState);
 
         foreach (var ev in _bus.Read<SwitchTimeModeEvent>())
         {
             _clusterTime.Apply(ev);
             _seenAnyModeEvent = true;
         }
+
+        _run?.Update();   // ⭐ CE-4097 part two — a check-round answer that arrived, a deferred branch (no blocking)
     }
 
     // ── ITimeTransportFacade ──────────────────────────────────────────────
@@ -96,6 +107,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
         _currentState == ClusterState.OperatingReview;   // ⭐ CE-3329
 
     /// <inheritdoc/>
+    /// <remarks>⭐ CE-4097 part two (D22) — RAW: the transport's own answer. "Live armed on a host with no scenario session" disables the USER's ▶
+    /// (<see cref="UserTransport.IsUserPlayEnabled"/>), not this — an HTTP <c>/sim/play</c> from Edit is the dry run on every host.</remarks>
     public bool IsPlayPauseEnabled => _currentState == ClusterState.Idle || IsOperating;
 
     /// <inheritdoc/>
@@ -123,6 +136,8 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     public void TogglePlayPause()
     {
         // ⭐ CE-3329 row 21 — Play from EDIT is the dry run, running (the master resumes it when it lands); the same request on every host
+        // ⭐ CE-4097 part two (AQ108 D22) — and it stays so whatever mode is ARMED: this is what POST /sim/play calls, and a route does what it names. The USER's ▶
+        //   asks the run choice instead (UserTransport.UserPlayPause: Live → the unsaved check, then LoadForLive; AAR → the recording).
         if (_currentState == ClusterState.OperatingEdit)
         {
             _bus.PublishManaged(DryRunIntents.Enter(startPaused: false));
@@ -142,7 +157,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     {
         if (_currentState == ClusterState.OperatingEdit)
         {
-            _bus.PublishManaged(DryRunIntents.Enter(startPaused: true));   // step from edit = the dry run, paused at its first frame
+            _bus.PublishManaged(DryRunIntents.Enter(startPaused: true));   // step from edit = the dry run, paused at its first frame (⭐ D22: raw — never the armed mode, see TogglePlayPause)
         }
         else if (!IsPaused)
         {
@@ -155,12 +170,21 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ CE-4097 — with a run choice attached ■ is R2 (back to where the run came from, the armed mode stays); without one, today's ■ (<see cref="StopRaw"/>).
+    /// ⭐ ONE call: the toolbar's ■ and <c>POST /sim/stop</c> both end here (AQ108 D22).</remarks>
     public void Stop()
+    {
+        if (_run != null) { _run.Stop(); return; }
+        StopRaw();
+    }
+
+    /// <summary>■ exactly as before the run choice existed — the raw transport the choice stands on for the cases that keep today's behaviour.</summary>
+    private void StopRaw()
     {
         if (ClusterStates.IsReview(_currentState)) { ExitReview(); return; }   // R-3060 — ■ in a review = back to live
         // ⭐ a dry run goes back to edit (the master puts the clock back, PreviewClockProcessManager); anything else to idle
         if (_currentState == ClusterState.OperatingPreview) { _bus.PublishManaged(DryRunIntents.Exit()); return; }
-        _bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.Idle });
+        _bus.PublishManaged(ScenarioLoadSequence.UnloadIntent());   // ⭐ CE-4101 — the ONE Idle intent (no session here: nothing of a scenario to ask about)
     }
 
     /// <inheritdoc/>
@@ -179,7 +203,7 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     public void SetAxis(ReplayAxis axis) => _replay.SetAxis(axis);
 
     /// <inheritdoc/>
-    public void EnterReview(double? at = null) => _replay.EnterReview(at);
+    public void EnterReview(double at) => _replay.EnterReview(at);
 
     /// <inheritdoc/>
     public void EnterReviewAtSim(double simSeconds) => _replay.EnterReviewAtSim(simSeconds);
@@ -202,6 +226,103 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade
     /// <inheritdoc/>
     public (double From, double To)? Loop => _replay.Loop;
 
-    /// <summary>The session layer as this host last heard it (<see langword="null"/> before the first sample).</summary>
-    public ReplaySession? Session => _session;
+    /// <summary>The session layer as the node's <see cref="ClusterView"/> last heard it (inactive before the first sample; <see langword="null"/> with no node).</summary>
+    public ReplaySession? Session => View?.ReplaySession;
+
+    // ── ⭐ CE-4097 (AQ108 §2.8) — the run choice and the raw transport it stands on ──────────────────────────────────
+
+    /// <summary>⭐ The host's run choice (what ▶ runs, R1–R3); <see langword="null"/> until <see cref="AttachRunChoice"/>.</summary>
+    public RunModeChoice? RunChoice => _run;
+
+    /// <summary>
+    /// ⭐ Builds this host's ONE <see cref="RunModeChoice"/> over this facade and makes ■ / ▶ / Step from Edit delegate to it (every host calls this one line).
+    /// </summary>
+    /// <param name="control">The host's scenario session (<see langword="null"/> on SimHost / IG: Live-armed ▶ is then disabled with its reason).</param>
+    /// <param name="unsaved">The unsaved-changes seam; a rail passes a fake. Default: <see cref="ClusterUnsavedChangesQuery"/> — the master's ONE check round (CE-4093), asked on
+    /// this adapter's bus (<c>CheckUnsavedIntent</c> through <c>IClusterMasterControl</c>) and read through <paramref name="unsavedReads"/>.</param>
+    /// <param name="unsavedReads">⭐ How this host reads the round's answer (its node's provider / the editor's in-process core); <see langword="null"/> ⇒ it observes nothing and a named scenario counts as unchanged.</param>
+    /// <param name="gatePolicy">⭐ CE-1442 — what this host's controls wait on: <c>HostGatePolicies.For(kind)</c> of the host's declared <see cref="RunHostKind"/> (⛔ never a literal at a host). Default <see cref="HostGatePolicy.Operator"/> — the table's value for every kind but the IG.</param>
+    /// <param name="cancelLoad">⭐ CE-1442 — the host's way to cancel a load in progress (<c>ClusterSlave.CancelLoad</c> of its node); <see langword="null"/> ⇒ Cancel does nothing here.</param>
+    public RunModeChoice AttachRunChoice(IRunScenarioControl? control, IUnsavedChangesQuery? unsaved = null, UnsavedCheckReads? unsavedReads = null,
+                                         HostGatePolicy gatePolicy = HostGatePolicy.Operator, Action<string?>? cancelLoad = null)
+    {
+        _gatePolicy = gatePolicy;
+        _cancelLoad = cancelLoad;
+        unsaved ??= new ClusterUnsavedChangesQuery(() => control?.LoadedScenarioName,
+            new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus), unsavedReads);
+        _run = new RunModeChoice(this, control, unsaved);
+        _run.AskToKeep = () => View?.AskToKeepRecordings == true;   // ⭐ CE-4100 ① — the cluster's "ask to keep recordings" setting, off the master's broadcast (ClusterView)
+        _run.OnClusterState(_currentState);   // the state the view held before the choice existed
+        return _run;
+    }
+
+    /// <summary>⭐ CE-4090 — runs are recorded: in a live run / DAR / AAR the run is not flagged <c>RunNotRecorded</c>; before one, the "Record live runs" setting is on.</summary>
+    public bool RecordsLiveRuns =>
+        _currentState is ClusterState.OperatingLive or ClusterState.OperatingReplay or ClusterState.OperatingReview
+            ? !(View?.RunNotRecorded ?? false)
+            : !(View?.RecordLiveRunsOff ?? false);
+
+    /// <summary>The exercise the cluster state names (<see cref="Guid.Empty"/> before any).</summary>
+    public Guid ActiveExercise => View?.ExerciseId ?? Guid.Empty;
+
+    /// <summary>⭐ The scenario of <see cref="ActiveExercise"/>, from the inventory's <c>ExerciseInventoryItem.ScenarioId</c>; <see langword="null"/> when the inventory has not listed it yet.</summary>
+    public string? ActiveExerciseScenario => ActiveExerciseItem()?.ScenarioId;
+
+    /// <inheritdoc/>
+    public (Guid Parent, long BranchWallTicks)? ActiveExerciseBranch =>
+        ActiveExerciseItem() is { } run && run.ParentExerciseId != Guid.Empty ? (run.ParentExerciseId, run.BranchWallTicks) : null;
+
+    /// <summary>The inventory item of <see cref="ActiveExercise"/>, over the view's local + archived + unarchived-local lists (the last list that names it wins — the scopes this adapter always folded).</summary>
+    private ExerciseInventoryItem? ActiveExerciseItem()
+    {
+        var v = View;
+        if (v == null || v.ExerciseId == Guid.Empty) return null;
+        foreach (var list in new[] { v.UnarchivedLocalExercises, v.ArchivedExercises, v.AvailableExercises })
+            foreach (var item in list)
+                if (item.ExerciseId == v.ExerciseId) return item;
+        return null;
+    }
+
+    /// <inheritdoc/>
+    public void SeekWall(long wallTicks)
+    {
+        if (Session is { Active: true } s) Seek(ClusterTimelineCursor.ToFacadeAxis(this, s, wallTicks));
+    }
+
+    /// <inheritdoc/>
+    public long? ReplayZeroWallTicks => Session is { Active: true } s ? s.ZeroWallTicks : null;
+
+    /// <summary>⭐⭐⭐ CE-1442 — the ONE run gate of this host, from the node's view and the policy <see cref="AttachRunChoice"/> received. No view ⇒ open (a bare rig).</summary>
+    public RunGate Gate => RunGate.From(View, _gatePolicy);
+
+    void IRunTransport.CancelLoad(string? reason) => _cancelLoad?.Invoke(reason);
+
+    void IRunTransport.StopRaw() => StopRaw();
+
+    void IRunTransport.EnterDryRun(bool startPaused) => _bus.PublishManaged(DryRunIntents.Enter(startPaused));
+
+    void IRunTransport.Resume() => _bus.PublishManaged(new ResumeTimeIntent());
+
+    RunArmed? IRunTransport.ClusterArmed => View is { } v ? Enum.Parse<RunArmed>(v.ArmedMode.ToString()) : null;
+    RunArmed? IRunTransport.ClusterLastLoad => View is { } v ? Enum.Parse<RunArmed>(v.LastLoadMode.ToString()) : null;   // ⭐ R-1043 — by name, like ClusterArmed   // ⭐ CE-3341 — by name: the toolkit cannot reference RunArmed
+
+    void IRunTransport.SendArmed(RunArmed armed) => _bus.PublishManaged(new SetRunSettingsIntent
+    {
+        RequestId = Guid.NewGuid(),
+        Armed     = Enum.Parse<ClusterArmedMode>(armed.ToString()),   // ⭐ CE-3341 — one op; RecordLiveRuns null = unchanged
+    });
+
+    bool? IRunTransport.RecordLiveRunsSetting => View is { } v ? !v.RecordLiveRunsOff : null;
+    bool? IRunTransport.AskToKeepSetting => View is { } v ? v.AskToKeepRecordings : null;
+
+    void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings) => _bus.PublishManaged(new SetRunSettingsIntent
+    {
+        RequestId = Guid.NewGuid(),
+        RecordLiveRuns = recordLiveRuns,
+        AskToKeepRecordings = askToKeepRecordings,   // null = unchanged; Armed stays null too (the intent's own default)
+    });
+
+    void IRunTransport.DiscardRecording(Guid exerciseId) => _bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = exerciseId });   // ⭐ CE-4100 — the ONE construction of the discard request
+
+    void IRunTransport.BranchLive() => _bus.PublishManaged(ReplaySessionIntents.BranchLive());   // the ONE construction of the branch intent
 }

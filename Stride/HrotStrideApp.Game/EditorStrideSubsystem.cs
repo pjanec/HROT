@@ -692,6 +692,10 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
             NodeId           = EditorNodeId,
             IsActiveMapOwner = () => false,
         };
+        // ⭐ CE-3340 ③ — THE ONE HOST START THAT IS NOT THE ORCHESTRATOR: this Stride app hosts the editor itself (its own composition root, no SubsystemOrchestrator;
+        // the config above differs from the orchestrator's — IsActiveMapOwner, NodeId), so it seeds the NAS from the repository here, exactly as
+        // SubsystemOrchestrator.Initialize does for every other host, before the editor reads it. (Named in EveryHostSeedsThroughTheOneHostStartRails.)
+        Fdp.Toolkit.Orchestration.ContentSeed.SeedIntoNas(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot);
         _editor.Initialize(config);
 
         // capturedMuscleSet is assigned by the factory lambda above (called during Initialize).

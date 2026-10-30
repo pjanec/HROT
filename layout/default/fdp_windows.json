@@ -174,7 +174,7 @@
       "IsOpen": false,
       "IsPinned": false
     },
-    "excon_cluster_control": {
+    "cluster_control": {
       "IsOpen": false,
       "IsPinned": false
     },

@@ -32,40 +32,15 @@ namespace Hrot.Network.NED.Tests
 
         internal static readonly Lazy<IReadOnlyList<Type>> TopicTypes = new(FindTopicTypes);   // ⭐ CE-4079 ②: the descriptor-QoS rail walks the same types
 
-        private static bool IsHrotAssembly(string? name)
-            => name is not null
-               && (name.StartsWith("Hrot.", StringComparison.Ordinal) || name.StartsWith("Fdp.", StringComparison.Ordinal)
-                   || name.StartsWith("GizmoMap.", StringComparison.Ordinal))
-               && !name.EndsWith(".Tests", StringComparison.Ordinal);
-
+        /// <summary>⭐ AQ109 X5 — the walk lives in production (<see cref="Fdp.Toolkit.DER.WireTypeCatalog"/>), shared with the wire inspector.
+        /// Anchors: one type from each production assembly family that holds [DdsTopic] types; the walk finds the rest.</summary>
         private static IReadOnlyList<Type> FindTopicTypes()
-        {
-            var seen = new Dictionary<string, Assembly>(StringComparer.Ordinal);
-            void Visit(Assembly a)
+            => Fdp.Toolkit.DER.WireTypeCatalog.TopicTypes(new[]
             {
-                var n = a.GetName().Name;
-                if (!IsHrotAssembly(n) || !seen.TryAdd(n!, a)) return;
-                foreach (var r in a.GetReferencedAssemblies())
-                {
-                    try { Visit(Assembly.Load(r)); } catch (Exception) { /* a reference that cannot load carries no topic we can name */ }
-                }
-            }
-
-            // Anchors: one type from each production assembly family that holds [DdsTopic] types. The walk finds the rest.
-            Visit(typeof(WorldPos).Assembly);                                          // Hrot.Network.NED
-            Visit(typeof(Hrot.Animation.Replication.AnimationReplicationModule).Assembly);
-            Visit(typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce).Assembly);               // Hrot.IG — the second IGCapabilitiesAnnounce
-
-            var types = new List<Type>();
-            foreach (var a in seen.Values)
-            {
-                Type?[] all;
-                try { all = a.GetTypes(); }
-                catch (ReflectionTypeLoadException e) { all = e.Types; }
-                types.AddRange(all.Where(t => t is not null && t.GetCustomAttribute<DdsTopicAttribute>() is not null)!);
-            }
-            return types;
-        }
+                typeof(WorldPos).Assembly,                                                  // Hrot.Network.NED
+                typeof(Hrot.Animation.Replication.AnimationReplicationModule).Assembly,
+                typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce).Assembly,                     // Hrot.IG — the second IGCapabilitiesAnnounce
+            });
 
         /// <summary>The names that occur more than once (ordinal). Pure, so the rail can be proved on a list that does collide.</summary>
         internal static IReadOnlyList<string> Collisions(IEnumerable<string> names)
@@ -77,10 +52,10 @@ namespace Hrot.Network.NED.Tests
         public void TheScanReachesEveryProductionAssemblyThatCarriesTopics()
         {
             var types = TopicTypes.Value;
-            Assert.True(types.Count >= 120, $"only {types.Count} [DdsTopic] types found — the assembly walk did not reach the production assemblies");
+            Assert.True(types.Count >= 114, $"only {types.Count} [DdsTopic] types found — the assembly walk did not reach the production assemblies");
             foreach (var anchor in new[]
                      {
-                         typeof(WorldPos), typeof(EntityMaster), typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce), typeof(IGCapabilitiesAnnounce),
+                         typeof(WorldPos), typeof(EntityMaster), typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce),
                          typeof(Hrot.Animation.Replication.DdsStanceIntent),
                          typeof(Fdp.Network.Cyclone.Topics.OwnershipUpdate), typeof(Fdp.Toolkit.Time.Messages.TimeSyncRequest),
                          typeof(GizmoMap.Network.GizmoInteractionBatch),
@@ -120,11 +95,11 @@ namespace Hrot.Network.NED.Tests
         }
 
         [Fact]
-        public void TheTwoIGCapabilitiesAnnounceTypesAreTwoTopicsNow()
+        public void TheGizmoIGCapabilitiesAnnounceKeepsItsDerivedName()
         {
-            // The pair AQ107 A's ruling names: before it both wrote "IGCapabilitiesAnnounce".
+            // AQ107 A's pair: before it both wrote "IGCapabilitiesAnnounce". ⛔ R-3067 / AQ109 X4: the descriptors-namespace one is RETIRED (its name
+            //   Hrot_NED_Descriptors_IGCapabilitiesAnnounce is reserved, MapMessages.cs); the gizmo one stays under its derived name.
             Assert.Equal("Hrot_IG_Gizmos_IGCapabilitiesAnnounce", DdsTopicName.Of<Hrot.IG.Gizmos.IGCapabilitiesAnnounce>());
-            Assert.Equal("Hrot_NED_Descriptors_IGCapabilitiesAnnounce", DdsTopicName.Of<IGCapabilitiesAnnounce>());
         }
 
         [Fact]

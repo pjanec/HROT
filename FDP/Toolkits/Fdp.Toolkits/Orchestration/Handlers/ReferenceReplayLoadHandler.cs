@@ -322,8 +322,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 if (branchedExerciseId == Guid.Empty)
                     throw new InvalidOperationException("a branch from a replay needs the exercise id the master minted for it");
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
-                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory, history)
-                    .ConfigureAwait(false);
+                // ⭐ CE-4090 (AQ108 D14, §5a) — the branch follows the "Record live runs" setting like any live run: with it off the
+                //   replay is torn down and the live world goes on UNRECORDED (the history copy is not started either).
+                bool recordingOff = intent.DomainPayload is EditLoadHandlerPayload { RecordingOff: true };
+                if (!recordingOff)
+                    await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory, history)
+                        .ConfigureAwait(false);
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}, historicalWallTicks={1}, history {2}).",
@@ -331,7 +335,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     historicalTime.TotalWallTicks,
                     history == null ? "none (listener)" : $"{history.FrameCount} frame(s) of {history.ParentExerciseId}");
 
-                return new LiveBranchResult(historicalTime, fromRecording);
+                // ⭐ CE-4097 (AQ108 D5) — the branch's parent and point ride the answer: the SAME RecordingBranch the sidecar is written from.
+                return new LiveBranchResult(historicalTime, fromRecording, history?.ParentExerciseId ?? Guid.Empty, history?.BranchWallTicks ?? 0);
             }
 
             return null;

@@ -33,7 +33,7 @@ namespace Hrot.Map.Common.ClusterLoad;
 /// never from a hand-written registration order, so <i>"this host forgot to register a step"</i> cannot be
 /// expressed — a required part with no provider throws at startup instead of being silently absent.</para>
 /// </summary>
-public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler
+public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler, ILoadProgressSource
 {
     private readonly IReadOnlyList<ILoadPartProvider> _steps;
     private readonly EntityRepository? _world;
@@ -41,13 +41,17 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private readonly string? _storageDirectory;
     private readonly string _hostLabel;
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
+    private readonly Fdp.Toolkit.Replay.WorldChangeCheck? _changeCheck;   // ⭐ CE-4093 — the node's unsaved-changes baseline (hooks a and c)
 
     // ⭐ P8 — the load in flight (from its Loading* prepare until its hold resolves), which an abort may name.
     private Guid               _loadTransactionId;
     private LoadPhaseContext?  _loadContext;
     private TaskCompletionSource<object?>? _holdTcs;
+    // ⭐ CE-3345 (R-3070/R-3072) — the step the load is on, reported on the node's heartbeat and in its P4 progress ack. A worker writes it, the frame thread reads it.
+    private volatile string? _currentStep;
     private Guid _pendingExerciseId;
     private double _pendingCheckpointingSeconds;   // ⭐ CE-3299 D17 (R-3045) — the recording mode the load's session asked for
+    private bool _pendingRecordingOff;             // ⭐ CE-4090 (AQ108 D14) — the load's session must NOT record ("Record live runs" was off)
 
     private LoadPhaseChain(
         IReadOnlyList<ILoadPartProvider> steps,
@@ -55,8 +59,10 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         IRecordReplayController? recordingController,
         string? storageDirectory,
         string hostLabel,
-        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap)
+        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap,
+        Fdp.Toolkit.Replay.WorldChangeCheck? changeCheck)
     {
+        _changeCheck = changeCheck;
         _entityMap = entityMap;
         _steps = steps;
         _world = world;
@@ -64,6 +70,9 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _storageDirectory = storageDirectory;
         _hostLabel = hostLabel;
     }
+
+    /// <summary>⭐ <c>CE-3345</c> — the name of the load step in flight (a <see cref="LoadPart"/>), or <see langword="null"/> when no load is. While the Operating prepare is held it names the first step not yet resolved.</summary>
+    public string? CurrentLoadStep => _currentStep;
 
     /// <summary>⭐ The ordered parts this chain actually runs — for rails and diagnostics.</summary>
     public IReadOnlyList<LoadPart> Parts => _steps.Select(s => s.Part).ToArray();
@@ -90,6 +99,12 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     /// the job <c>ReferenceLiveLoadHandler</c> did before the chain started claiming these operations.
     /// </param>
     /// <param name="storageDirectory">Where a recording is staged; required when a controller is given.</param>
+    /// <param name="changeCheck">
+    /// ⭐ <c>CE-4093</c> (AQ108 D20) — the node's unsaved-changes check. The chain takes its BASELINE when a load into EDITING resolves — the
+    /// ONE call site for both "a load into editing commits" and "a late joiner's catch-up completes" (a catch-up is the same chain, flagged
+    /// <c>IsCatchUp</c>) — and clears it when the node enters <c>Idle</c>. 🔒 A production host that HAS a check must pass it (the silent-default
+    /// rule): <c>EcsHostClusterHandlers.Compose</c> builds one per node and hands it here.
+    /// </param>
     public static LoadPhaseChain FromRoles(
         NodeRole roles,
         IEnumerable<ILoadPartProvider> providers,
@@ -97,12 +112,18 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         IRecordReplayController? recordingController = null,
         string? storageDirectory = null,
         string hostLabel = "node",
-        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null)
+        Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null,
+        Fdp.Toolkit.Replay.WorldChangeCheck? changeCheck = null,
+        IReadOnlyList<LoadPart>? profileParts = null)
     {
         if (providers == null) throw new ArgumentNullException(nameof(providers));
 
         var available = providers.Where(p => p != null).ToList();
-        var required  = RoleLoadRequirements.PartsFor(roles);
+        // ⭐ CE-4078 (R-1046) — what the node's PROFILE adds (the Player's 3-D map): AFTER the role parts, so it runs after the terrain. Not a role requirement, but a missing provider is the same defect.
+        var required  = RoleLoadRequirements.PartsFor(roles).ToList();
+        if (profileParts != null)
+            foreach (var part in profileParts)
+                if (!required.Contains(part)) required.Add(part);
         var ordered   = new List<ILoadPartProvider>(required.Count);
 
         foreach (var part in required)
@@ -110,7 +131,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             var provider = available.FirstOrDefault(p => p.Part == part);
             if (provider == null)
                 throw new InvalidOperationException(
-                    $"[LoadPhase] {hostLabel} has roles [{roles}], which require the '{part}' part of the "
+                    $"[LoadPhase] {hostLabel} has roles [{roles}] (profile parts [{string.Join(", ", profileParts ?? Array.Empty<LoadPart>())}]), which require the '{part}' part of the "
                   + $"load phase, but no provider for it was supplied. Composed providers: "
                   + $"[{string.Join(", ", available.Select(p => p.Part))}]. "
                   + "A host may choose HOW it satisfies a part; it may not satisfy fewer parts than its "
@@ -124,7 +145,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             hostLabel, roles,
             ordered.Count == 0 ? "no parts required" : string.Join(" -> ", ordered.Select(p => p.Part)));
 
-        return new LoadPhaseChain(ordered, world, recordingController, storageDirectory, hostLabel, entityMap);
+        return new LoadPhaseChain(ordered, world, recordingController, storageDirectory, hostLabel, entityMap, changeCheck);
     }
 
     /// <inheritdoc/>
@@ -186,7 +207,9 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             //   (found when the exercise recorder became CreateNew: e2e_live_from_replay_branch failed loudly instead).
             var exercise = _pendingExerciseId;
             _pendingExerciseId = Guid.Empty;
-            if (_recordingController != null && exercise != Guid.Empty
+            // ⭐ CE-4090 (AQ108 D14, §5a) — "Live does not imply recording": a session the master loaded with recording OFF starts no
+            //   recorder on this node, so no checkpoint / review / restore handler finds one (the master refuses those at the top).
+            if (_recordingController != null && exercise != Guid.Empty && !_pendingRecordingOff
              && context.TargetState == ClusterState.OperatingLive)
             {
                 await _recordingController
@@ -200,6 +223,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
 
         _pendingExerciseId = context.ExerciseId;
         _pendingCheckpointingSeconds = context.CheckpointingSeconds;
+        _pendingRecordingOff         = context.RecordingOff;
         _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
         _loadContext       = context;
 
@@ -228,14 +252,20 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         //    ⚠ The order change is safe: the scenario extraction reads template ids from the scenario JSON, not the TKB.
         foreach (var step in steps)
             if (!step.PreparesOffFrameThread)
+            {
+                _currentStep = step.ProgressStep ?? step.Part.ToString();
                 await step.PrepareAsync(context, ct).ConfigureAwait(false);
+            }
 
         var offFrame = steps.Where(s => s.PreparesOffFrameThread).ToArray();
         if (offFrame.Length > 0)
             await Task.Run(async () =>
             {
                 foreach (var step in offFrame)
+                {
+                    _currentStep = step.ProgressStep ?? step.Part.ToString();
                     await step.PrepareAsync(context, ct).ConfigureAwait(false);
+                }
             }, ct).ConfigureAwait(false);
 
         return null;
@@ -286,6 +316,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _pendingExerciseId = Guid.Empty;
         _loadTransactionId = Guid.Empty;
         _loadContext       = null;
+        _currentStep       = null;
     }
 
     /// <summary>
@@ -296,6 +327,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     /// </summary>
     public void OnEnteredIdle()
     {
+        _changeCheck?.ClearBaseline();   // ⭐ CE-4093 — an emptied world has no saved state to compare with
         if (_world != null)
             WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
     }
@@ -308,13 +340,43 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     /// </remarks>
     public void DrainDeferredAcks()
     {
+        // ⭐ CE-4093 — a settling baseline takes its step every frame, whether or not a hold is open (the load resolved a frame ago)
+        if (_changeCheck != null && _world != null && _changeCheck.IsSettling && _changeCheck.SettleStep(_world))
+            FdpLog<LoadPhaseChain>.Info("[LoadPhase] {0}: unsaved-changes baseline taken after {1} frame(s){2}.", _hostLabel,
+                _changeCheck.SettledAfterFrames, _changeCheck.GaveUpSettling ? " — ⚠ the world was still moving; baselined anyway" : "");
+
         if (_holdTcs == null) return;
 
         foreach (var step in _loadContext is { } held ? StepsFor(held) : _steps)
-            if (!step.IsResolved(_world)) return;
+        {
+            // ⭐ CE-4078 — a step that failed in the background fails the LOAD, through the one failure path: the hold faults, the slave's FailPrepare reports the reason, the round ends in Idle.
+            if (step.Failure is { } failure)
+            {
+                var hold = _holdTcs;
+                if (_loadContext is { } failedLoad)
+                    foreach (var undo in StepsFor(failedLoad)) undo.Abort(failedLoad);   // free what the other steps built, as an abort does
+                _holdTcs = null; _currentStep = null; _loadTransactionId = Guid.Empty; _loadContext = null; _pendingExerciseId = Guid.Empty;
+                hold.TrySetException(new InvalidOperationException($"[LoadPhase] {_hostLabel}: the '{step.Part}' part failed — {failure}"));
+                return;
+            }
+            if (!step.IsResolved(_world)) { _currentStep = step.ProgressStep ?? step.Part.ToString(); return; }
+        }   // ⭐ CE-3345 — the first step still draining is the one the node reports
+
+        // ⭐⭐ CE-4093 (AQ108 D20) — THE baseline of the unsaved-changes check STARTS here: the world the load just built IS the saved one — but it
+        //   SETTLES first (a world just loaded still gets one frame of initial work: WorldChangeCheck.BeginSettling), so the baseline is the first
+        //   world that stops moving, taken by SettleStep in the frames that follow (the top of this method). On the frame thread, in the frame every
+        //   step reported resolved — for both an ordinary load and a late joiner's catch-up (IsCatchUp: the universal parts only, the world arrived
+        //   by replication — a settling also waits for what is still arriving). ⛔ Not for a live load: a live run is not edited, and its return to
+        //   editing is a load of its own.
+        if (_changeCheck != null && _world != null && _loadContext is { TargetState: ClusterState.LoadingEdit } loaded)
+        {
+            _changeCheck.BeginSettling();
+            FdpLog<LoadPhaseChain>.Info("[LoadPhase] {0}: unsaved-changes baseline settling ({1}).", _hostLabel, loaded.IsCatchUp ? "catch-up" : "load");
+        }
 
         _holdTcs.TrySetResult(null);
         _holdTcs = null;
+        _currentStep = null;
         _loadTransactionId = Guid.Empty;   // ⭐ P8 — the load is done; nothing left to abort
         _loadContext       = null;
     }

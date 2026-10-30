@@ -62,6 +62,7 @@ public sealed class TranslatorDtoTests
             TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, ScenarioId = "s",
             ExerciseId = Guid.NewGuid(), TimeMode = "Deterministic", CheckpointingSeconds = 5, TargetWallTicks = TimeSpan.FromSeconds(30).Ticks,
             TargetSimSeconds = 12.5,   // ⭐ CE-3329 R11
+            ForceRecording = true,     // ⭐ CE-4090 D14 — the verifier's live load records whatever the setting says
         };
 
         var json = JsonSerializer.Serialize(TransitionPayloadDto.From(sent), Options);
@@ -100,6 +101,36 @@ public sealed class TranslatorDtoTests
         Assert.Equal(2.5, got.FromSeconds); Assert.Equal(5.0, got.ToSeconds);
         Assert.Null(got.FromSimSeconds); Assert.Null(got.ToSimSeconds);                       // wall form carries no sim bounds
         Assert.Equal(clear, SetReplayLoopPayloadDto.Decode(clear.RequestId, "not json"));
+    }
+
+    /// <summary>⭐ CE-4090 (AQ108 D14) + CE-3341 — the run settings cross the wire whole, every combination (a field not sent stays null = "no change");
+    /// an unreadable payload changes nothing.</summary>
+    [Fact]
+    public void The_run_settings_cross_the_wire_whole_and_an_unreadable_one_changes_nothing()
+    {
+        foreach (bool? record in new bool?[] { null, true, false })
+        foreach (Fdp.Toolkit.Orchestration.ClusterArmedMode? armed in new Fdp.Toolkit.Orchestration.ClusterArmedMode?[]
+                     { null, Fdp.Toolkit.Orchestration.ClusterArmedMode.Live, Fdp.Toolkit.Orchestration.ClusterArmedMode.Preview, Fdp.Toolkit.Orchestration.ClusterArmedMode.AAR })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        foreach (var bad in new[] { "not json", null, "{}" })
+        {
+            var got = SetRunSettingsPayloadDto.Decode(Guid.Empty, bad);
+            Assert.Null(got.RecordLiveRuns);
+            Assert.Null(got.Armed);
+        }
+        // an OLD sender's payload (only RecordLiveRuns): the armed mode is absent => no change
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false}").Armed);
+
+        // ⭐ CE-4100 (AQ108 D15) — Ask to keep recordings crosses whole (null / true / false), and an older sender's payload (the field absent) leaves it unchanged
+        foreach (bool? ask in new bool?[] { null, true, false })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), AskToKeepRecordings = ask };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"Armed\":1}").AskToKeepRecordings);
     }
 
     // ── Test 4: Unknown enum string should throw ──────────────────────────────

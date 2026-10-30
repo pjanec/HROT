@@ -44,7 +44,11 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         //   whatever the node's roles; the scenario is never read and no entity is created — the world arrives by replication.
         bool IsCatchUp = false,
         // ⭐ CE-3299 D17 (R-3045) — the session's recording mode: 0 = FULL, N > 0 = a keyframe every N s of sim time (a live load only).
-        double CheckpointingSeconds = 0);
+        double CheckpointingSeconds = 0,
+        // ⭐ CE-4090 (AQ108 D14) — true on a live load (or a replay → live branch) whose run must NOT be recorded: the cluster's
+        //   "Record live runs" setting was off when the master minted the session. ⭐ Inverse polarity so `default` and an older sender
+        //   (the field is absent on the wire) both mean today's behaviour — record. ⭐ ONE field on the ONE message every node reads.
+        bool RecordingOff = false);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — the dispatch record (coordinator, 2026-10-28)
-updated: 2026-10-28
-current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked · §4 decisions taken after dispatch · §5 the order after the mode switches
+updated: 2026-10-29 (§6 CE-3344 built, CE-3345 widened by R-3073, U2 the File menu) · 2026-10-29 (§4 the readiness protocol; §6 NEW — its build order, backend)
+current-answer: §1 the order · §2 the tasks with their lane and success conditions · §2a who builds each (Sonnet or the lane's own model) · §3 how progress is checked · §4 decisions taken after dispatch · §5 the order after the mode switch · §6 the readiness build (cluster ready, play ready, cancel, admission)es
 stale-below: nothing
 related-designs:
   - ../DESIGN_Content_Layout.md — R-4097: the content move (CE-4089)
@@ -94,6 +94,7 @@ its own rails until they pass, the lane reviews the tests and the diff (not a re
 | `2026-10-29` | **The armed-mode MVP (user)** — 🔒 *"focus on making the armed mode switching work with whatever is requires, but in 'minimal viable' way - meaning avoiding not absolutely necessary parts like change detection, autosave. excone retirement can wait. first let's finish the remaining parts of the unification. bt-window-duel scenario failures are out of scope"* · goal: record an exercise in the editor's live run and film it with the director in the Replay Browser. ⇒ in: CE-1441, CE-3341 (ui half), CE-4102 (the end-to-end proof). ⛔ out for now: CE-4099 autosave, more change-detection work, CE-4100 ① ③ (keep/discard prompt, DAR start default), CE-3339 (the two hashes), CE-4095, CE-4092, ExCon retirement (R-3067), CE-3342. |
 | `2026-10-29` | **After the MVP (user)** — 🔒 *"fixing the issues found and then continuing in the rest of the armed mode switching stuff, prioritizing the mode switches like live->AAR, AAR->live, live->DAR, DAR->live from where DAR is … DAR -> live from live pause point etc. Only once this is working we can focus on change indication, auto-save and such."* ⇒ ① CE-4103 (backend: the MVP rail's three workarounds) · ② CE-4104 (ui: each mode switch proven end to end) incl. CE-4105 (DAR → Live from the DAR moment, a branch — new, lean "same as AAR → Live") · ⛔ still waiting: change indication, autosave, CE-4100 ① (keep/discard), the hashes, CE-4095, CE-4092, ExCon. |
 | `2026-10-29` | **CE-4105 deferred and redefined (user)** — 🔒 *"DAR->Live from current DAR point should not be same as AAR->Live … it makes more sense to truncate the original live recording and start rewriting it as part of same exercise … record that as tracked task that we can implement later if required, for now let's keep the original intent only (DAR->Live from where Live paused)"* — CE-4104 keeps switches ①–④; ⛔ SUPERSEDED: the "same as AAR → Live" lean. |
+| `2026-10-29` | **R-3069–R-3072 — readiness (backend, user-approved; [AQ110](Architect_Question_110_Readiness_Protocol.md), [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §11)** — from CE-4103 ① (an open in the editor's first second): no host's controls or HTTP may act before CLUSTER READY (every mandatory name AND role reported ready; role loss ⇒ Degraded); a scenario load gates the controls until PLAY READY, with a loading screen the user can cancel (the node fails its own load and reports it); the TKB precedes every load (already true by construction); each node reports its phase on its heartbeat, the master combines participants only, a gate policy per host kind and an admission policy per deployment (lobby). 🔒 User: *"approved, write it up and update the plan and present it"* |
 
 ## 5. The order after the mode switches *(user, `2026-10-29`: "yes, do both")*
 
@@ -114,3 +115,17 @@ Then, in this order — each parked until the one before it is done or the user 
 | 8 | CE-4105 | DAR → Live from the DAR moment — truncate and re-record the same exercise | ui + backend | ⏸ only if required (user) |
 
 Out of this effort: CE-3342 (`bt-window-duel`, user).
+
+## 6. The readiness build *(R-3069–R-3073, `2026-10-29`)* — backend, one Sonnet agent at a time
+
+⭐ Before the mode switches' next round needs it: it is what CE-4103 ① actually is, and ui's CE-4104 rails start hosts and open at once.
+
+| # | id | what | lane | state |
+|---|---|---|---|---|
+| 1 | CE-3344 | **R1 cluster ready** — latch over names AND roles, role loss ⇒ Degraded, `WaitingFor`, `ClusterView.CanOperate`, HTTP 409 | backend | ✅ built `effbceed1` |
+| 2 | CE-3345 | **R2** the readiness report on the heartbeat, local + cluster play-ready, load progress, `CancelLoad` with a reason, a failed load ⇒ Idle, the gate-policy parameter · **+ R-3073** the cluster ERROR state (Degraded + reason, clock paused, no teardown, sticky, cleared at Idle), `LeaveReason.Close` and every way back to Idle exempt from the gate, Load follows the armed mode on the master | backend | next — 2 measurements first (the recorder under the error pause; does the master's load already follow the armed mode) |
+| 3 | — | **U1** greyed controls + "waiting for …" (`CanOperate`, built), the loading screen (progress + Cancel), the lobby screen, the red error indicator, pickers waiting for their list | ui | greyed controls now; the rest after #2 |
+| 4 | — | **U2** the ONE File menu (AQ108 §2.15): Load / New / Load Checkpoint / Open Exercise Recording / Save Checkpoint / named saves + Save as Recipe / Close / Exit; Terrain… removed | ui | now ([NOTE](batches/NOTE_Backend_To_Ui_File_Menu_And_Error_State.md)) |
+| 5 | CE-3343 | the test repo-root walk-ups (unification) | backend | after #2 |
+| 6 | CE-4078 | **R3** the 3-D map rebuild as a load step | backend + ui | with CE-4078 |
+| 7 | CE-3346 | **R4** the admission policy as a parameter (today's two values) | backend | after #2 |

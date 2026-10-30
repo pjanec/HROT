@@ -716,7 +716,7 @@ public sealed class StorageGatewayTkbConsensusTests
         const string scenarioId = "s-terrain";
         var nas  = MakeNas(scenarioId, null, "test-town", out _);
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var src  = Path.Combine(nas, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName, "test-town");
+        var src  = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), "test-town");
         Directory.CreateDirectory(Path.Combine(src, "roads"));
         File.WriteAllText(Path.Combine(src, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), "{}");
         File.WriteAllText(Path.Combine(src, "w.geojson"), "{}");
@@ -1140,8 +1140,8 @@ public sealed class StorageGatewayTkbConsensusTests
         const string scenarioId = "s-assets";
         var nas  = MakeNas(scenarioId, null, null, out _);
         var root = NewDir();
-        Put(Path.Combine(nas, "assets", "blueprint"), "ai/patrol.bp.json", "nas patrol");
-        Put(Path.Combine(nas, "assets", "blueprint"), "ai/sub/guard.bp.json", "nas guard");
+        Put(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "ai/patrol.bp.json", "nas patrol");
+        Put(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "ai/sub/guard.bp.json", "nas guard");
         var runtime = Path.Combine(root, "runtime", "Blueprints");
         var author  = Path.Combine(root, "author", "Blueprints");
         Put(author, "ai/patrol.bp.json", "author's unpublished edit");
@@ -1178,7 +1178,7 @@ public sealed class StorageGatewayTkbConsensusTests
         const string scenarioId = "s-assets-fail";
         var nas  = MakeNas(scenarioId, null, null, out _);
         var root = NewDir();
-        Put(Path.Combine(nas, "assets", "blueprint"), "a.bp.json", "x");
+        Put(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "a.bp.json", "x");
         var blocked = Path.Combine(root, "not-a-dir");
         File.WriteAllText(blocked, "a FILE where the root should be");
         try
@@ -1218,7 +1218,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public async Task Publish_SendsNewAndNewerOnly_NeverRollsBackOrDeletes_C1()
     {
         var nas = NewDir(); var author = NewDir();
-        var nasBp = Path.Combine(nas, "assets", "blueprint");
+        var nasBp = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
         try
         {
             PutAt(author, "mine/new.bp.json", "brand new", T0);
@@ -1252,7 +1252,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public async Task Refresh_IsTheOnlyRouteAnUpdateReachesAnAuthor_AndNamesWhatItReplaces_C5()
     {
         var nas = NewDir(); var author = NewDir();
-        var nasBp = Path.Combine(nas, "assets", "blueprint");
+        var nasBp = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
         try
         {
             PutAt(nasBp,  "a.bp.json", "nas newer", T0.AddHours(3));
@@ -1284,7 +1284,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public void Probe_AheadAndBehindWarn_InSyncAndOfflineAreSilent_C3()
     {
         var nas = NewDir(); var ahead = NewDir(); var behind = NewDir(); var same = NewDir();
-        var nasBp = Path.Combine(nas, "assets", "blueprint");
+        var nasBp = Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder);
         try
         {
             PutAt(nasBp, "x.bp.json", "n", T0.AddHours(1));
@@ -1316,7 +1316,7 @@ public sealed class StorageGatewayTkbConsensusTests
         {
             PutAt(author, "p.bp.json", "x", T0);
             var bus = new Fdp.Core.FdpEventBus();
-            using var master = new ClusterMaster(bus);
+            using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
             Guid Send()
             {
                 var id = Guid.NewGuid();
@@ -1348,7 +1348,7 @@ public sealed class StorageGatewayTkbConsensusTests
                     .Any(e => e.RequestId == ok && e.StatusCode == Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success);
             }
             Assert.True(done, "PublishAssets never reported Success");
-            Assert.True(File.Exists(Path.Combine(nas, "assets", "blueprint", "p.bp.json")));
+            Assert.True(File.Exists(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(nas, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder), "p.bp.json")));
         }
         finally { Cleanup(nas, author); }
     }
@@ -1359,7 +1359,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public void AssetOpIntent_OnTheBus_IsDrainedByTheMaster_C4()
     {
         var bus = new Fdp.Core.FdpEventBus();
-        using var master = new ClusterMaster(bus);
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
         var id = Guid.NewGuid();
         bus.PublishManaged(new Fdp.Toolkit.Orchestration.AssetOpIntent { RequestId = id, Kind = "blueprint", NodeId = 1 });
         bus.SwapBuffers();

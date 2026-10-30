@@ -236,10 +236,7 @@ public sealed class StaticObstacleTests
     [Fact]
     public void P7a_R9_OnTestTown_AnObstacleBakeRebakesOnlyTheTouchedTiles()
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        Assert.NotNull(dir);
-        var path = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "test-town", "test-town.world.geojson");
+        var path = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town", "test-town.world.geojson");
         var town = TerrainWorldParser.Parse(System.IO.File.ReadAllText(path), "test-town");
 
         var factory = new RecastNavmeshFactory { TileCache = new NavTileCache() };

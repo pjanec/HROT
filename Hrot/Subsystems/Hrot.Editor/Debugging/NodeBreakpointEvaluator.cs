@@ -52,6 +52,7 @@ public sealed class NodeBreakpointEvaluator : IEcsModuleSystem
     private readonly Dictionary<Entity, ushort> _hsmPos = new();
     private readonly Dictionary<BreakpointId, (int Hash, object? Def, ResolvedStep? Step)> _resolved = new();
     private readonly HashSet<Entity> _armedHere = new();
+    private int _epoch;   // WorldEpoch generation last seen (R-3039)
     private readonly List<(Breakpoint Bp, ResolvedStep Step)> _forUnit = new();
 
     /// <summary>Why a mounted step resolves to nothing for the behaviour it names (shown by the API / list), by breakpoint.</summary>
@@ -95,6 +96,9 @@ public sealed class NodeBreakpointEvaluator : IEcsModuleSystem
     public void Execute(ISimulationView view, float deltaTime)
     {
         if (view is not EntityRepository repo) return;
+        // ⭐ R-3039 — the ring cursors and the armed-units set are keyed by Entity; a new world reuses those ids, so a stale cursor would misread another unit's ring
+        //   ("first sight" would not fire) and a stale armed entry would never re-arm. Forget them at the world boundary / a restore.
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) { _btreePos.Clear(); _hsmPos.Clear(); _armedHere.Clear(); }
         SyncMarked();
         var mounted = _manager.MountedBehaviourSteps;
         Arm(repo, mounted);
@@ -149,12 +153,26 @@ public sealed class NodeBreakpointEvaluator : IEcsModuleSystem
             var rec = (BTreeTraceRecord*)(buf + pos);
             if (rec->OpCode == BTreeTraceOpCode.NodeEvaluated)
                 foreach (var (bp, step) in _forUnit)
-                    if (step.Kind == BehaviourStepKind.NodeRuns && step.Nodes.Contains(rec->NodeIndex)
+                    if (step.Kind == BehaviourStepKind.NodeRuns && step.Nodes.Contains(rec->NodeIndex) && OutcomeMatches(step.Outcome, rec->Status)
                         && Hit(bp, unit, $"node {Label(bp)} ran ({rec->Status})")) return true;
+            // ⭐ CE-1324 — an abort: the tree popped a scope (the record names no node, so any scope pop of this behaviour)
+            if (rec->OpCode == BTreeTraceOpCode.ScopePopped)
+                foreach (var (bp, step) in _forUnit)
+                    if (step.Kind == BehaviourStepKind.NodeRuns && step.Outcome == BehaviourNodeOutcome.Aborted
+                        && Hit(bp, unit, $"a scope was popped — {Label(bp)} (or a node beside it) was interrupted")) return true;
             pos = (ushort)((pos + BTreeTraceWorkingMemory1024.RecordStride) % BTreeTraceWorkingMemory1024.PayloadBytes);
         }
         return false;
     }
+
+    /// <summary>⭐ CE-1324 — whether an evaluation with <paramref name="status"/> is the run the step asked for (Aborted is a scope record, never an evaluation).</summary>
+    internal static bool OutcomeMatches(BehaviourNodeOutcome want, Fbt.NodeStatus status) => want switch
+    {
+        BehaviourNodeOutcome.Any       => true,
+        BehaviourNodeOutcome.Running   => status == Fbt.NodeStatus.Running,
+        BehaviourNodeOutcome.Completes => status is Fbt.NodeStatus.Success or Fbt.NodeStatus.Failure,
+        _                              => false,
+    };
 
     private unsafe bool ScanHsm(EntityRepository repo, Entity unit)
     {

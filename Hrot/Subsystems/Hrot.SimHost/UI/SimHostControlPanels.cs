@@ -7,6 +7,7 @@ using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.ModuleHost;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.SimHost.UI
 {
@@ -53,15 +54,37 @@ namespace Hrot.SimHost.UI
         /// <summary>The cluster's time scale. Answers 1 with no transport.</summary>
         public float TimeScale => TimeFacade?.TimeScale ?? 1.0f;
 
+        /// <summary>⭐ <c>CE-1437</c> (AQ108 D22) — ▶ / ⏸ is enabled by the USER entry's rule (<see cref="UserTransport"/>): from Edit with Live armed and no scenario session it is not.</summary>
+        public bool IsPlayEnabled => TimeFacade?.IsUserPlayEnabled() ?? false;
+
+        /// <summary>⭐ <c>CE-1437</c> — Step is enabled by the same user-entry rule.</summary>
+        public bool IsStepEnabled => TimeFacade?.IsUserStepEnabled() ?? false;
+
+        /// <summary>⭐ <c>CE-1437</c> — why ▶ is disabled from Edit (the choice's own text — the toolbar shows the same one); <see langword="null"/> when it is not.</summary>
+        public string? PlayDisabledReason => TimeFacade?.Mode == TransportMode.Edit ? TimeFacade.RunChoice?.PlayDisabledReason : null;
+
+        /// <summary>⭐ <c>CE-1437</c> — ▶ / ⏸ pressed: the USER entry (⛔ never the facade's raw toggle — from Edit that is a dry run whatever is armed).</summary>
+        public void PlayPause() => TimeFacade?.UserPlayPause();
+
+        /// <summary>⭐ <c>CE-1437</c> — Step pressed: the USER entry.</summary>
+        public void Step() => TimeFacade?.UserStep();
+
         public void Render(EntityRepository repo, ModuleHostKernel kernel)
         {
             var facade = TimeFacade;
             if (facade == null) ImGui.BeginDisabled();
 
-            if (ImGui.Button(IsPaused ? "Play  " : "Pause ")) facade?.TogglePlayPause();
+            // ⭐ CE-1437 — Play / Step go through UserTransport (the armed mode's start), like the toolbar's; disabled with the choice's reason when it cannot run here.
+            bool playOff = facade != null && !IsPlayEnabled;
+            if (playOff) ImGui.BeginDisabled();
+            if (ImGui.Button(IsPaused ? "Play  " : "Pause ")) PlayPause();
+            if (playOff) { ImGui.EndDisabled(); if (PlayDisabledReason is { } why && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why); }
             ImGui.SameLine();
 
-            if (ImGui.Button("Step")) facade?.Step();
+            bool stepOff = facade != null && !IsStepEnabled;
+            if (stepOff) ImGui.BeginDisabled();
+            if (ImGui.Button("Step")) Step();
+            if (stepOff) { ImGui.EndDisabled(); if (PlayDisabledReason is { } why && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(why); }
             ImGui.SameLine();
 
             ImGui.SetNextItemWidth(100);

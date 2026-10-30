@@ -34,9 +34,9 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
 
     /// <summary>⭐ P6 N5 — tokens describing how this node can be REACHED (the share it advertises); added to whatever the host advertises.</summary>
     private readonly string[] _transportCapabilities;
-    private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
-    private readonly DdsReader<AssetInventoryTopic>?   _inventoryReader;      // ⭐ R-3055: what the cluster can replay, on every node
-    private readonly DdsReader<ReplaySessionTopic>?    _sessionReader;        // ⭐ CE-3329 rows 32, 45: the replay's session layer
+    /// <summary>⭐ CE-1436 — the ONE ingress of the cluster's facts (state/session C2, inventory R-3055, replay session CE-3329, op status), the same class
+    /// ExCon's observer owns; its readers are null in tests / offline.</summary>
+    private readonly ClusterFactsIngress       _facts;
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -56,11 +56,10 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         DdsReader<ClusterStateTopic>?     clusterStateReader = null,
         DdsReader<AssetInventoryTopic>?   inventoryReader = null,
         string[]?                         transportCapabilities = null,
-        DdsReader<ReplaySessionTopic>?    sessionReader = null)
+        DdsReader<ReplaySessionTopic>?    sessionReader = null,
+        DdsReader<ClusterOpStatus>?       opStatusReader = null,
+        DdsReader<OrchestratorContextTopic>? contextReader = null)
     {
-        _clusterStateReader = clusterStateReader;
-        _inventoryReader    = inventoryReader;
-        _sessionReader      = sessionReader;
         _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
@@ -69,6 +68,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
         _nodeId          = nodeId;
         _jsonOptions     = jsonOptions ?? DefaultOptions;
+        _facts           = new ClusterFactsIngress(bus, clusterStateReader, inventoryReader, sessionReader, opStatusReader, contextReader);
     }
 
     /// <summary>
@@ -76,37 +76,11 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// </summary>
     public void Tick()
     {
-        // ⭐ R-3055 — the master's exercise inventory, on every node's bus (its ClusterSlave keeps the last one): the same answer to
-        //   GET /exercises on CGF, SimHost, IG as on the editor and the orchestrator.
-        if (_inventoryReader != null)
-        {
-            using var inventoryScope = _inventoryReader.Take();
-            foreach (var s in inventoryScope)
-                if (s.IsValid) _bus.PublishManaged(OrchestrationObserverTranslator.InventoryOf(s.Data));
-        }
-
-        // ⭐ CE-3329 — the replay's session layer (§9f) on every node's bus: its time facade and cluster cache fold it
-        if (_sessionReader != null)
-        {
-            using var sessionScope = _sessionReader.Take();
-            foreach (var s in sessionScope)
-                if (s.IsValid && Hrot.Network.Orchestration.ReplaySessionWire.FromTopic(s.Data) is { } session)
-                    _bus.PublishManaged(new ReplaySessionUpdateEvent { Session = session });
-        }
-
-        // ── ⭐⭐ C2 (Q91 §4-I I5, R-4006) — Cluster-state ingress: DDS ClusterStateTopic → bus ClusterStateUpdateEvent, so the
-        //   node's ClusterSlave knows which SESSION it follows. A not-alive instance means the master's writer is gone.
-        if (_clusterStateReader != null)
-        {
-            using var stateScope = _clusterStateReader.Take();
-            foreach (var s in stateScope)
-            {
-                if (s.IsValid)
-                    _bus.PublishManaged(OrchestrationObserverTranslator.StateOf(s.Data));   // ⭐ CE-3329 — the one decoding
-                else if (s.Info.InstanceState != DdsInstanceState.Alive)
-                    _bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
-            }
-        }
+        // ⭐⭐ CE-1436 (R-3066) — the cluster's FACTS on every node's bus, through the ONE ingress (the observer owns the same class): the replay inventory
+        //   (R-3055), the replay session layer (CE-3329), the state broadcast with its SESSION and MasterGone (C2), and the master's op status — so the node's
+        //   ClusterView folds every fact by construction. ⛔ The monitoring topics (other nodes' heartbeats, capabilities, command/status mirror) are NOT read
+        //   here: they would drive THIS node's own egress below (design V2).
+        _facts.Tick();
 
         // ── Ingress: DDS NodeOpCommand → Bus ExecuteNodeOpIntent ─────────────
         using var scope = _commandReader.Take();
@@ -131,20 +105,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         // ── Heartbeat egress: Bus NodeHeartbeatEvent → DDS NodeHeartbeat ─────
         foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
         {
-            _heartbeatWriter.Write(new NodeHeartbeat
-            {
-                NodeId            = hb.NodeId,
-                SessionId         = hb.SessionId,   // ⭐ C2
-                SubsystemName     = hb.SubsystemName ?? string.Empty,
-                LocalClusterState = (NedClusterState)hb.LocalStateId,
-                WallTicksUtc      = hb.WallTicksUtc,
-                CpuUsage          = 0f,
-                RamUsedBytes      = 0L,
-                SimTickAdvancing  = false,
-                SubsystemsJson    = string.Empty,
-                // CE-286 (C-roles): heartbeat no longer carries the role mask — roles travel as fdp.role.*
-                // capability tokens on the durable NodeCapabilities descriptor.
-            });
+            _heartbeatWriter.Write(NodeHeartbeatWire.ToTopic(hb));   // ⭐ CE-3345 — the ONE mapping
         }
 
         // ── Capabilities egress: Bus NodeCapabilitiesEvent → durable DDS NodeCapabilities (CE-285) ──
@@ -189,8 +150,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         _statusWriter.Dispose();
         _heartbeatWriter.Dispose();
         _capabilitiesWriter?.Dispose();
-        _inventoryReader?.Dispose();
-        _sessionReader?.Dispose();
+        _facts.Dispose();   // ⭐ CE-1436 — the ingress owns the fact readers
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -224,7 +184,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     TerrainName:   dto?.TerrainName,
                     IsWorldBoundary: dto?.IsWorldBoundary ?? false,    // CE-2101
                     IsCatchUp:       dto?.IsCatchUp ?? false,          // C7
-                    CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0);   // D17
+                    CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0,   // D17
+                    RecordingOff: dto?.RecordingOff ?? false);              // CE-4090 D14
             }
 
             case NedNodeOpType.StartEpisode:

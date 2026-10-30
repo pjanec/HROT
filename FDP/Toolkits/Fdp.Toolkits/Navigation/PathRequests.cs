@@ -53,12 +53,7 @@ namespace Fdp.Toolkit.Navigation
         public static RoadUse ResolveRoadUse(EntityRepository repo, Entity entity, RoadUse requested)
             => requested != RoadUse.Unspecified ? requested : IsVehicle(repo, entity) ? RoadUse.Prefer : RoadUse.Neutral;
 
-        /// <summary>A vehicle by locomotion class: <c>VehicleParams</c> says so (not Pedestrian), else a bare <c>VehicleState</c>.</summary>
-        public static bool IsVehicle(EntityRepository repo, Entity entity)
-        {
-            if (repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>() && repo.HasComponent<global::CarKinem.Core.VehicleParams>(entity))
-                return repo.GetComponent<global::CarKinem.Core.VehicleParams>(entity).Class != global::CarKinem.Core.VehicleClass.Pedestrian;
-            return repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>() && repo.HasComponent<global::CarKinem.Core.VehicleState>(entity);
-        }
+        /// <summary>A vehicle by locomotion class — ⭐ CE-1373: the ONE rule, <see cref="Fdp.Toolkit.Motion.Locomotions.IsVehicle"/>.</summary>
+        public static bool IsVehicle(EntityRepository repo, Entity entity) => Fdp.Toolkit.Motion.Locomotions.IsVehicle(repo, entity);
     }
 }

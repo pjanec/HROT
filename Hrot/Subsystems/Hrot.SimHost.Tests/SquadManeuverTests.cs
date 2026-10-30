@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -2108,9 +2109,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2301_TheReportInbox_IsDeclaredOnlyByThePlansWithNoBrain()
         {
-            string? root = AppContext.BaseDirectory;
-            while (root is not null && !File.Exists(Path.Combine(root, "HROT.sln"))) root = Directory.GetParent(root)?.FullName;
-            Assert.NotNull(root);
+            string root = TestRepo.Root;
             int Declarations(string rel) => Regex.Matches(File.ReadAllText(Path.Combine(root!, rel)), @"CoreInfrastructureCapabilities\.ReportInbox\s*\(").Count;
 
             Assert.Equal(1, Declarations("Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"));

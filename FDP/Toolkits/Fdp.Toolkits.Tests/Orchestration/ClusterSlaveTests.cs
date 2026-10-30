@@ -290,6 +290,74 @@ public sealed class ClusterSlaveTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — the start gate's input, as a PUBLIC read of what the slave already follows: the cluster state the
+    /// master last announced (NOT the node's own committed state), whether any has been heard, and whether the master is gone — set by the
+    /// MasterGone broadcast, cleared by the next real one.
+    /// </summary>
+    [Fact]
+    public void CE4096_TheSlaveExposesTheFollowedClusterState_AndMasterGone()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        void Hear(ClusterStateUpdateEvent ev) { bus.PublishManaged(ev); bus.SwapBuffers(); slave.Tick(); }
+
+        Assert.False(slave.HasFollowedState);                    // ⭐ "no broadcast yet" is distinguishable from a heard Idle
+        Assert.False(slave.MasterGone);
+
+        var session = Guid.NewGuid();
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = session });
+        Assert.True(slave.HasFollowedState);
+        Assert.Equal(ClusterState.Idle, slave.FollowedClusterState);
+
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, SessionId = session });
+        Assert.Equal(ClusterState.LoadingLive, slave.FollowedClusterState);   // ⭐ the cluster's, while this node's own commit is still Idle
+        Assert.Equal(ClusterState.Idle, slave.LocalClusterState);
+        Assert.False(slave.MasterGone);
+
+        Hear(new ClusterStateUpdateEvent { MasterGone = true });
+        Assert.True(slave.MasterGone);
+
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+        Assert.False(slave.MasterGone);                          // ⭐ cleared by the next real broadcast
+        Assert.Equal(ClusterState.OperatingEdit, slave.FollowedClusterState);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V3) — the slave's follow-fields are the node's ONE <see cref="ClusterView"/>, not a second copy: after one
+    /// broadcast and one inventory every follow-field equals the view's, the check round's outcome is readable from the same view, and "no inventory
+    /// yet" stays <c>null</c> (not an empty list). 🔴 Mutation: <c>FollowedClusterState</c> returning a constant (a private copy that never folds) ⇒ the
+    /// state assertion fails; <c>KnownExercises</c> returning <c>View.AvailableExercises</c> unconditionally ⇒ the first null assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE1436_TheSlaveFollowFields_AreTheOneClusterView()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        void Hear<T>(T ev) { bus.PublishManaged(ev); bus.SwapBuffers(); slave.Tick(); }
+
+        Assert.Null(slave.KnownExercises);                       // no inventory yet ⇒ null, as before
+        Assert.False(slave.View.HasInventory);
+
+        Hear(new ClusterStateUpdateEvent
+        {
+            CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid(), ReplayAxis = ReplayAxis.Wall, RunNotRecorded = true, RecordLiveRunsOff = true, AskToKeepRecordings = true,
+        });
+        var ex = new ExerciseInventoryItem(Guid.NewGuid(), DateTime.UtcNow, TimeSpan.FromSeconds(1), "s");
+        Hear(new AssetInventoryUpdateEvent { LocalExercises = new[] { ex } });
+        var check = Guid.NewGuid();
+        Hear(new ClusterOpCompletedEvent { RequestId = check, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 2 }) });
+
+        Assert.Equal(ClusterState.OperatingEdit, slave.View.State);
+        Assert.Equal(slave.View.State, slave.FollowedClusterState);
+        Assert.Equal((slave.View.HasFollowedState, slave.View.MasterGone, slave.View.ReplayAxis, slave.View.RunNotRecorded, slave.View.RecordLiveRunsOff),
+                     (slave.HasFollowedState, slave.MasterGone, slave.ReplayAxis, slave.RunNotRecorded, slave.RecordLiveRunsOff));
+        Assert.True(slave.RunNotRecorded && slave.RecordLiveRunsOff && slave.ReplayAxis == ReplayAxis.Wall);
+        Assert.True(slave.AskToKeepRecordings && slave.View.AskToKeepRecordings);   // ⭐ CE-4100 — the node's accessor reads the ONE view
+        Assert.Same(slave.View.AvailableExercises, slave.KnownExercises);
+        Assert.True(slave.View.UnsavedCheckOutcomeFor(check)!.Result!.Changed);   // the round's answer reaches the node's view (op status on every node)
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>R-4007</c> (Q91 §4-M) — the join freeze: a node is frozen only when it is BEHIND the cluster it follows (it is
     /// <c>Idle</c>, the cluster is not). ⛔ A node with no master, and a cluster at rest in <c>Idle</c>, are never frozen — 📐
     /// dozens of integration suites spawn and replicate exactly there.
@@ -736,5 +804,229 @@ public sealed class ClusterSlaveTests
 
         // Last CommitState wins
         Assert.Equal(5, slave.LocalStateIdForTest);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3344</c> (R-3069) — the capability advert (the node's explicit "I am ready" report) goes out on the FIRST <c>Tick</c> by default — and a host that called
+    /// <c>HoldReady()</c> before it sends the advert only after <c>MarkReady()</c>; <c>HoldReady()</c> after the advert is too late and throws.
+    /// 🔴 Mutations (each compiles): <c>Tick</c> ignoring <c>_readyHeld</c> ⇒ the held cell reds; <c>MarkReady</c> a no-op ⇒ the released cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3344_TheAdvertGoesOutOnTheFirstTick_UnlessTheHostHeldReadyUntilMarkReady()
+    {
+        static int Adverts(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<NodeCapabilitiesEvent>().Count(); }
+
+        var plainBus = new FdpEventBus();
+        using (var plain = new ClusterSlave(plainBus, nodeId: 1, subsystemName: "Plain"))
+        {
+            plain.Tick();
+            Assert.Equal(1, Adverts(plainBus));                 // today's behaviour: the first Tick IS the ready report
+            Assert.Throws<InvalidOperationException>(() => plain.HoldReady());   // too late: the advert is durable and went out
+        }
+
+        var bus = new FdpEventBus();
+        using var held = new ClusterSlave(bus, nodeId: 2, subsystemName: "Held");
+        held.HoldReady();
+        Assert.True(held.IsReadyHeld);
+        held.Tick(); held.Tick();
+        Assert.Equal(0, Adverts(bus));                          // the host is still initialising: no report
+
+        held.MarkReady();
+        Assert.False(held.IsReadyHeld);
+        held.Tick();
+        var advert = Assert.Single(ReadAdverts(bus));
+        Assert.Equal(2, advert.NodeId);
+
+        held.Tick();
+        Assert.Empty(ReadAdverts(bus));                         // once
+    }
+
+    private static List<NodeCapabilitiesEvent> ReadAdverts(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<NodeCapabilitiesEvent>().ToList(); }
+
+    // ── ⭐⭐ CE-3345 part B (R-3070, R-3072, AQ110 A) — the readiness report on the heartbeat, the load's progress, the cancel ────────────────
+
+    /// <summary>A node's LOAD participant as the slave sees it: an async prepare (gated by the test) that names the step it is on, a REAL token it records, and an abort counter.</summary>
+    private sealed class FakeLoad : ILoadProgressSource
+    {
+        public string? Step;
+        public TaskCompletionSource<object?> Gate = new();
+        public CancellationToken Token;
+        public int Aborts;
+        public string? CurrentLoadStep => Step;
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareLive;
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) { Token = ct; return Gate.Task; }
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) => Aborts++;
+    }
+
+    private static List<NodeHeartbeatEvent> Beats(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<NodeHeartbeatEvent>().ToList(); }
+    private static List<NodeOpCompletedEvent> Acks(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<NodeOpCompletedEvent>().ToList(); }
+
+    private static Guid Send(FdpEventBus bus, int nodeId, NodeOpType op, object? payload = null)
+    {
+        var tx = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = nodeId, Operation = op, DomainPayload = payload });
+        return tx;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success condition 1 — a node's heartbeat goes <b>Booting → Ready → Loading (the step names, in order) → PlayReady</b> through a load; and <b>Failed + the reason</b> after a failed prepare.
+    /// Booting is what a host that called <c>HoldReady()</c> reports until <c>MarkReady()</c> (a default host's advert goes out before its first beat).
+    /// 🔴 Mutations (each compiles): <c>Phase</c> ignoring <c>_readyHeld</c> ⇒ the Booting cell reds; <c>LoadStep</c> returning <c>null</c> ⇒ the step cells red; the <c>OperatingLive</c> arm removed from <c>Phase</c> ⇒ the PlayReady cell reds;
+    /// <c>FailPrepare</c> not setting <c>_failureReason</c> ⇒ the Failed cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3345_TheHeartbeat_GoesBooting_Ready_Loading_WithTheStepsInOrder_PlayReady_AndFailedWithItsReason()
+    {
+        var bus = new FdpEventBus();
+        var load = new FakeLoad { Step = "KnowledgeBase" };
+        using var slave = new ClusterSlave(bus, nodeId: 3, subsystemName: "N");
+        slave.RegisterHandler(load);
+        slave.HoldReady();
+
+        slave.Tick();
+        var b = Assert.Single(Beats(bus));
+        Assert.Equal(NodePhase.Booting, b.Phase);                                  // the host is still initialising
+
+        slave.MarkReady();
+        slave.Tick();
+        b = Assert.Single(Beats(bus));
+        Assert.Equal(NodePhase.Ready, b.Phase);
+
+        Send(bus, 3, NodeOpType.PrepareLive);
+        bus.SwapBuffers(); slave.Tick();
+        b = Assert.Single(Beats(bus));
+        Assert.Equal((NodePhase.Loading, "KnowledgeBase"), (b.Phase, b.Step));
+
+        load.Step = "Terrain";            slave.Tick(); b = Assert.Single(Beats(bus)); Assert.Equal((NodePhase.Loading, "Terrain"), (b.Phase, b.Step));
+        load.Step = "ScenarioEntities";   slave.Tick(); b = Assert.Single(Beats(bus)); Assert.Equal((NodePhase.Loading, "ScenarioEntities"), (b.Phase, b.Step));
+
+        load.Gate.SetResult(null);                                                 // the prepare resolves…
+        Send(bus, 3, NodeOpType.CommitState, new CommitStatePayload(ClusterState.OperatingLive));   // …and the cluster commits the operating state
+        bus.SwapBuffers(); slave.Tick();
+        b = Assert.Single(Beats(bus));
+        Assert.Equal(NodePhase.PlayReady, b.Phase);
+        Assert.Null(b.Step);
+
+        // a failed prepare: Failed + the reason, on the heartbeat AND on the failure ack
+        load.Gate = new TaskCompletionSource<object?>();
+        load.Gate.SetException(new InvalidOperationException("terrain 'Alps' not found"));
+        var failedTx = Send(bus, 3, NodeOpType.PrepareLive);
+        bus.SwapBuffers(); slave.Tick();
+        bus.SwapBuffers();                                                         // ONE swap: the beat and the ack of the same frame
+        var beat = Assert.Single(bus.ReadManaged<NodeHeartbeatEvent>().ToList());
+        Assert.Equal((NodePhase.Failed, "terrain 'Alps' not found"), (beat.Phase, beat.Reason));
+        var ack = Assert.Single(bus.ReadManaged<NodeOpCompletedEvent>().ToList(), a => a.TransactionId == failedTx && a.StatusCode == OrchestrationStatusCode.Failure);
+        Assert.Equal("terrain 'Alps' not found", ack.ResultPayload);               // ⭐ the ack carries the reason (it carried none)
+
+        // the NEXT transaction ends the Failed phase
+        Send(bus, 3, NodeOpType.CommitState, new CommitStatePayload(ClusterState.Idle));
+        bus.SwapBuffers(); slave.Tick();
+        Assert.Equal(NodePhase.Ready, Assert.Single(Beats(bus)).Phase);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3345</c> success condition 2 — a phase / step change publishes a heartbeat AT ONCE (not at the 1 Hz tick), and never more than once per frame; a quiet frame publishes none.
+    /// 🔴 Mutations: the change test in <c>PublishHeartbeat</c> removed (timer only) ⇒ the "at once" cells red; the beat published per change inside the step loop (two per frame) ⇒ the "one per frame" cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3345_AStepChange_PublishesAHeartbeatAtOnce_NeverMoreThanOncePerFrame()
+    {
+        var bus = new FdpEventBus();
+        var load = new FakeLoad { Step = "KnowledgeBase" };
+        using var slave = new ClusterSlave(bus, nodeId: 3, subsystemName: "N");
+        slave.RegisterHandler(load);
+        slave.Tick(); Beats(bus);                                                  // first tick: nothing to say yet (Ready is what a heartbeat always meant)
+
+        slave.Tick();
+        Assert.Empty(Beats(bus));                                                  // a quiet frame: no beat (the 1 Hz timer has not run out)
+
+        Send(bus, 3, NodeOpType.PrepareLive);
+        bus.SwapBuffers(); slave.Tick();
+        Assert.Single(Beats(bus));                                                 // Ready → Loading: at once
+
+        slave.Tick();
+        Assert.Empty(Beats(bus));                                                  // the same step again: nothing
+
+        load.Step = "Terrain";
+        slave.Tick();
+        Assert.Equal("Terrain", Assert.Single(Beats(bus)).Step);                   // the step moved: at once
+
+        load.Step = "ScenarioEntities";                                            // step AND failure in one frame ⇒ still ONE beat
+        load.Gate.SetException(new InvalidOperationException("x"));
+        slave.Tick();
+        Assert.Single(Beats(bus));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3345</c> — the P4 <c>InProgress</c> ack of a load prepare carries the step name in its result and is RE-SENT when the step changes — once per step, not once per frame.
+    /// 🔴 Mutations: <c>ResultPayload = null</c> in the first ack ⇒ the step cell reds; <c>PublishProgressIfStepChanged</c> dropped ⇒ the re-send cells red; its <c>step == _progressStepAcked</c> guard removed ⇒ the "once per step" cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3345_TheProgressAck_NamesTheStep_AndIsResentWhenTheStepChanges()
+    {
+        var bus = new FdpEventBus();
+        var load = new FakeLoad { Step = "KnowledgeBase" };
+        using var slave = new ClusterSlave(bus, nodeId: 3, subsystemName: "N");
+        slave.RegisterHandler(load);
+        Send(bus, 3, NodeOpType.PrepareLive);
+        bus.SwapBuffers(); slave.Tick();
+
+        var progress = Acks(bus).Where(a => a.StatusCode == OrchestrationStatusCode.InProgress).ToList();
+        Assert.Equal("KnowledgeBase", Assert.Single(progress).ResultPayload);
+
+        slave.Tick();
+        Assert.DoesNotContain(Acks(bus), a => a.StatusCode == OrchestrationStatusCode.InProgress);   // same step: not again
+
+        load.Step = "Terrain";
+        slave.Tick();
+        Assert.Equal("Terrain", Assert.Single(Acks(bus), a => a.StatusCode == OrchestrationStatusCode.InProgress).ResultPayload);
+
+        slave.Tick(); slave.Tick();
+        Assert.DoesNotContain(Acks(bus), a => a.StatusCode == OrchestrationStatusCode.InProgress);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success condition 4 (the node's half; R-3070) — <c>CancelLoad</c> on a node mid-load: the REAL token the prepare runs with is cancelled, the chain's abort runs, the prepare is answered
+    /// <b>Failure WITH the reason</b>, the node reports <c>Failed</c>, and the transaction's later steps (its queued <c>CommitState</c>) do not run. With no load held it is a no-op returning false.
+    /// 🔴 Mutations: no <c>cts.Cancel()</c> ⇒ the token cell reds; no <c>Handler.Abort</c> ⇒ the abort cell reds; the ack's <c>ResultPayload</c> null ⇒ the reason cell reds; the cancelled-transaction guard removed ⇒ both CommitState cells (queued behind, and arriving after the cancel) red. (⭐ a queue purge existed beside the guard; it was redundant — nothing observable differs — so it was removed: one mechanism.)
+    /// </summary>
+    [Fact]
+    public void CE3345_CancelLoad_CancelsTheToken_AbortsTheChain_AndAnswersFailureWithTheReason()
+    {
+        var bus = new FdpEventBus();
+        var load = new FakeLoad { Step = "Terrain" };
+        using var slave = new ClusterSlave(bus, nodeId: 3, subsystemName: "N");
+        slave.RegisterHandler(load);
+        Assert.False(slave.CancelLoad());                                          // nothing held: nothing to cancel
+
+        var tx = Send(bus, 3, NodeOpType.PrepareLive);
+        bus.SwapBuffers(); slave.Tick();
+        Assert.True(slave.IsLoadHeld);
+        Assert.False(load.Token.IsCancellationRequested);
+        Assert.True(load.Token.CanBeCanceled);                                     // ⭐ a real token, not `default`
+        Acks(bus);
+
+        // the same transaction's commit is queued behind the held prepare
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = 3, Operation = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(ClusterState.LoadingLive) });
+        bus.SwapBuffers(); slave.Tick(); Acks(bus);
+
+        Assert.True(slave.CancelLoad());
+        Assert.True(load.Token.IsCancellationRequested);
+        Assert.Equal(1, load.Aborts);
+        Assert.False(slave.IsLoadHeld);
+        var ack = Assert.Single(Acks(bus), a => a.StatusCode == OrchestrationStatusCode.Failure);
+        Assert.Equal((tx, NodeOpType.PrepareLive), (ack.TransactionId, ack.Operation));
+        Assert.Equal("cancelled by the user on node 3", ack.ResultPayload);        // ⭐ the default reason names the node
+        Assert.Equal(NodePhase.Failed, slave.Phase);
+        Assert.Equal("cancelled by the user on node 3", slave.FailureReason);
+
+        slave.Tick();                                                              // the cancelled transaction's queued commit never runs
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
+
+        // ⭐ and one that ARRIVES after the cancel (the master's fan-out was already on the wire) is dropped too — the node does not enter a load it abandoned
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = tx, TargetNodeId = 3, Operation = NodeOpType.CommitState, DomainPayload = new CommitStatePayload(ClusterState.LoadingLive) });
+        bus.SwapBuffers(); slave.Tick();
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
     }
 }

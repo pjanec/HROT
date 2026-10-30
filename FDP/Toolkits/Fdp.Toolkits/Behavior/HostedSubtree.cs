@@ -301,28 +301,28 @@ public static unsafe class HostedSubtree
     /// host's earlier children left FINISHED.</b> A hosted child runs under its host's <c>InstanceId</c> (U-10), and
     /// <c>ChannelArbitrationSystem</c> releases a channel only on an instance change — so a second <c>MoveToLocation</c> child
     /// found the first one's <c>MoveTo/Success</c> and ended on its first tick without driving. ⭐ The same release arbitration
-    /// does (<c>ActiveAction = 0</c>, a new <c>ActionInstanceId</c>), for a channel of THIS instance whose action is TERMINAL;
+    /// does (<c>ActiveAction = 0</c>, a new <c>ActionInstanceId</c> — <see cref="ChannelRelease.Release"/>, CE-1434), for a channel of THIS instance whose action is TERMINAL;
     /// ⛔ a channel still <c>Running</c> is left alone, so a sibling running alongside keeps its action.
     /// </summary>
     internal static void ReleaseFinishedChannels(EntityRepository world, Entity self, uint instanceId)
     {
         if (world.HasComponent<Components.LocomotionChannel>(self))
         {
-            ref var c = ref world.GetComponentRW<Components.LocomotionChannel>(self);
+            ref readonly var c = ref world.GetComponentRO<Components.LocomotionChannel>(self);
             if (c.ActiveAction != 0 && c.BehaviorInstanceId == instanceId && IsTerminal(c.Status))
-            { c.ActiveAction = 0; unchecked { c.ActionInstanceId++; } }
+                ChannelRelease.Release(world, self, Fbt.Kernel.ChannelKind.Locomotion);   // ⭐ CE-1434 — the ONE release
         }
         if (world.HasComponent<Components.WeaponChannel>(self))
         {
-            ref var c = ref world.GetComponentRW<Components.WeaponChannel>(self);
+            ref readonly var c = ref world.GetComponentRO<Components.WeaponChannel>(self);
             if (c.ActiveAction != 0 && c.BehaviorInstanceId == instanceId && IsTerminal(c.Status))
-            { c.ActiveAction = 0; unchecked { c.ActionInstanceId++; } }
+                ChannelRelease.Release(world, self, Fbt.Kernel.ChannelKind.Weapon);   // ⭐ CE-1434 — the ONE release
         }
         if (world.HasComponent<Components.InteractionChannel>(self))
         {
-            ref var c = ref world.GetComponentRW<Components.InteractionChannel>(self);
+            ref readonly var c = ref world.GetComponentRO<Components.InteractionChannel>(self);
             if (c.ActiveAction != 0 && c.BehaviorInstanceId == instanceId && IsTerminal(c.Status))
-            { c.ActiveAction = 0; unchecked { c.ActionInstanceId++; } }
+                ChannelRelease.Release(world, self, Fbt.Kernel.ChannelKind.Interaction);   // ⭐ CE-1434 — the ONE release
         }
 
         static bool IsTerminal(NodeStatus s) => s == NodeStatus.Success || s == NodeStatus.Failure;

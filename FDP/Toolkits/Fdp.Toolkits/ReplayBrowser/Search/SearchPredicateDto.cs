@@ -456,6 +456,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         EventHandled,
     }
 
+    /// <summary>⭐ <c>CE-1324</c> — which run of a BTree node a <see cref="BehaviourStepKind.NodeRuns"/> step stops on.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum BehaviourNodeOutcome
+    {
+        /// <summary>Any evaluation of the node (what the Properties "Breakpoint" flag means).</summary>
+        Any,
+        /// <summary>The node is evaluated and is still running — its activation (Enter).</summary>
+        Running,
+        /// <summary>The node finishes: Success or Failure (Exit).</summary>
+        Completes,
+        /// <summary>The tree pops a scope — a running branch was interrupted (Abort). ⚠ The trace's scope record names no node: it stops on ANY scope pop of this behaviour.</summary>
+        Aborted,
+    }
+
     /// <summary>
     /// ⭐ <c>CE-1323</c> (DBG-9) — a BEHAVIOUR BREAKPOINT: a step of a running BTree / HSM, named by NAMES (a state, a transition's two ends,
     /// an event) or by the element's id, so it works on a behaviour built in C# that has no document. ⛔ Not evaluated by the component
@@ -488,6 +502,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         /// <summary>NodeRuns: the BTree node's id (its VisualId).</summary>
         public Guid Node { get; set; }
+
+        /// <summary>⭐ CE-1324 — NodeRuns: which run of the node (default <see cref="BehaviourNodeOutcome.Any"/>).</summary>
+        public BehaviourNodeOutcome Outcome { get; set; }
 
         /// <summary>The element's id when known (a state's StableId, a transition's VisualId) — preferred over the names.</summary>
         public Guid Element { get; set; }

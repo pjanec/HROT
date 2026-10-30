@@ -45,63 +45,6 @@ public sealed class AclBackdoorEliminationTests
 
     // â”€â”€ Test 2: E2E area authoring, no backdoor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// <summary>
-    /// PACK3-A005 Test 2.
-    /// Area authoring places geometry in <c>InitialComponents</c>.  The translator
-    /// synthesises a <c>CreateEntityRequest</c> with <c>dtMapVisualOverlay</c> purely
-    /// from the domain event â€” no pre-built side-channel.
-    /// Compile-time proof that <c>MapCommandController._prebuiltRequests</c> no longer
-    /// exists is implicit: the solution builds cleanly after A001â€“A004.
-    /// </summary>
-    [Fact]
-    public void AreaAuthoring_EndToEnd_NoBackdoor_PublishesCorrectCreateEntityRequest()
-    {
-        int domainId = NextDomainId();
-
-        using var harness = new HrotRunnerHarness(
-            "simhost,ig",
-            domainId);
-
-        var igApp = harness.Ig.App;
-
-        // Observer participant on the same domain â€” reads the CreateEntityRequest
-        // that the SpawnEntityCommandEgressTranslator writes over DDS.
-        using var observer     = new DdsParticipant((uint)domainId);
-        using var reqReader    = new DdsReader<CreateEntityRequest>(observer);
-
-        // Activate area authoring via IG test hook (no ExCon needed).
-        var requestId = Guid.NewGuid();
-        var contextId = Guid.NewGuid();
-        igApp.TestHook_ParseCommandAndActivateAreaTool(
-            requestId,
-            $"{{\"contextId\":\"{contextId:N}\"}}");
-
-        // Commit three canvas points.  The tool callback will build EditablePolyline +
-        // MapOverlayStyle into InitialComponents and call MapCommandController.
-        var points = new List<Vector2>
-        {
-            new Vector2(100f, 200f),
-            new Vector2(150f, 220f),
-            new Vector2(120f, 260f),
-        };
-        igApp.TestHook_DirectPointSequenceToolCommit(points);
-
-        // Pump until the CreateEntityRequest lands on the DDS reader.
-        CreateEntityRequest observed = default;
-        bool arrived = harness.PumpUntil(
-            () => TryTakeAnyCreateRequest(reqReader, out observed),
-            WaitForRequestTimeoutFrames);
-
-        Assert.True(arrived, "CreateEntityRequest did not arrive on DDS in time.");
-        Assert.NotNull(observed.InitialDescriptors);
-
-        // Geometry must be described as dtMapVisualOverlay with 3 points.
-        var overlayDesc = observed.InitialDescriptors!
-            .FirstOrDefault(d => d._d == EDescriptorType.dtMapVisualOverlay);
-        Assert.NotEqual(default, overlayDesc);
-        Assert.NotNull(overlayDesc.MapVisualOverlay.Points);
-        Assert.Equal(points.Count, overlayDesc.MapVisualOverlay.Points!.Count);
-    }
 
     // â”€â”€ Test 3: Offline editor isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

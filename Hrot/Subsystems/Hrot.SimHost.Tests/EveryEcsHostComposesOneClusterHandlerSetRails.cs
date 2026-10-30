@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.ModuleHost;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Replay;
 using Hrot.Map.Common.ClusterLoad;
 using Hrot.Map.Common.Services;
 using Hrot.SimHost.Modules.Orchestration;
@@ -57,6 +58,47 @@ namespace Hrot.SimHost.Tests
             return (slave, built);
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-1436</c> (R-3066, design V4/V5) — the composition hands every ECS host the node's ONE <see cref="ClusterView"/> (the slave's), and the
+        /// check round's answer reaches it with no host wiring: through the
+        /// REAL <c>Compose</c> every host passes, an unsaved round the master answered is readable by request id and as the last verdict — and leaving editing drops the verdict.
+        /// 🔴 Mutation: <c>Compose</c> returning a fresh <c>new ClusterView(null)</c> instead of <c>slave.View</c> ⇒ <c>Assert.Same</c> fails.
+        /// </summary>
+        [Fact]
+        public void CE1436_Compose_GivesTheHostItsOneClusterView_AndTheCheckRoundsAnswerReachesIt()
+        {
+            // the composition is host-independent; the host FAMILIES (CGF / SimHost / IG) are pinned through the shared provider factory
+            // (HrotNodeBuilderTests, a role per family) and the live-cluster rail (DistributedScenarioSaveTests)
+            const NodeRole role = NodeRole.MuscleGround;
+            Directory.CreateDirectory(_staging);
+            var accumulator = new EventAccumulator();
+            var kernel = new ModuleHostKernel(_world, accumulator);
+            var bus    = new FdpEventBus();
+            var slave  = new ClusterSlave(7, "D16", bus, role);
+            var (providers, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
+            var built = EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
+            {
+                Slave = slave, Kernel = kernel, World = _world, NodeId = 7, Role = role, HostLabel = "D16",
+                StagingRoot = _staging, LoadProviders = providers, EventAccumulator = accumulator,
+            });
+
+            Assert.Same(slave.View, built.View);                                                   // one view per node, owned by the slave
+
+            var round = Guid.NewGuid();
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, SessionId = Guid.NewGuid() });
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = round, StatusCode = OrchestrationStatusCode.Success, ResultPayload = new UnsavedCheckResult(true, new[] { 7 }) });
+            bus.SwapBuffers();
+            slave.Tick();                                                                          // the node's own tick drains it — no host wiring
+
+            Assert.True(built.View.UnsavedCheckOutcomeFor(round)!.Result!.Changed);
+            Assert.True(built.View.LastUnsavedCheck!.Changed);
+
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle });
+            bus.SwapBuffers();
+            slave.Tick();
+            Assert.Null(built.View.LastUnsavedCheck);
+        }
+
         [Fact]
         public void Compose_RegistersTheSharedSet_InTheOneOrder()
         {
@@ -77,6 +119,85 @@ namespace Hrot.SimHost.Tests
 
             // ⭐ D14 — the handler the host keeps (the editor's toolbar drives it) IS the one on the slave.
             Assert.Same(built.DryRun, slave.RegisteredHandlers.OfType<ReferencePreviewHandler>().Single());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4093</c> (AQ108 D20) — every ECS host answers a master's CHECK ROUND, by construction: the composition registers ONE
+        /// <see cref="WorldChangeCheckHandler"/>, built on the host's OWN world and on the check instance the host keeps
+        /// (<see cref="EcsHostClusterHandlers.ChangeCheck"/>) — the baseline hooks (load chain, save wrapper) hold that same instance.
+        /// 🔴 Mutation: the handler not registered ⇒ the first assertion fails; a second <c>new WorldChangeCheck()</c> for the handler ⇒ the
+        /// "same instance" assertions fail.
+        /// </summary>
+        [Fact]
+        public async System.Threading.Tasks.Task CE4093_Compose_RegistersTheCheckUnsavedHandler_OnTheHostsOwnWorldAndCheck()
+        {
+            var (slave, built) = ComposeOnARealSlave();
+
+            var handler = Assert.Single(slave.RegisteredHandlers.OfType<WorldChangeCheckHandler>());
+            Assert.True(handler.CanHandle(NodeOpType.CheckUnsaved));
+            Assert.Same(slave.RegisteredHandlers.First(h => h.CanHandle(NodeOpType.CheckUnsaved)), handler);   // nobody ahead of it claims the op
+
+            var intent = new ExecuteNodeOpIntent { Operation = NodeOpType.CheckUnsaved, TransactionId = Guid.NewGuid() };
+            Assert.Equal(WorldChangeCheckHandler.NoBaseline, await handler.PrepareAsync(intent, default));
+            built.ChangeCheck.TakeBaseline(_world);                                                          // the instance the host keeps IS the handler's
+            Assert.Equal(WorldChangeCheckHandler.Unchanged, await handler.PrepareAsync(intent, default));
+            _world.CreateEntity();                                                                           // … on the host's own world
+            Assert.Equal(WorldChangeCheckHandler.Changed, await handler.PrepareAsync(intent, default));
+
+            // the load chain — baselines (a)/(c) — holds the SAME instance (a forwarding rail on the CONSTRUCTED object)
+            var chain = Assert.Single(slave.RegisteredHandlers.OfType<LoadPhaseChain>());
+            var held = typeof(LoadPhaseChain).GetField("_changeCheck", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(chain);
+            Assert.Same(built.ChangeCheck, held);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4093</c> hook (b) — the host's scenario-save handler is registered WRAPPED, by the composition (not by each host): a completed
+        /// save (the node's slice written) re-baselines the check, and the wrapped handler is still the one that claims and runs the save.
+        /// 🔴 Mutation: the save handler registered unwrapped ⇒ the first assertion fails; <c>Commit</c> not taking the baseline ⇒ the last fails.
+        /// </summary>
+        [Fact]
+        public void CE4093_Compose_WrapsTheScenarioSaveHandler_SoACompletedSaveRebaselines()
+        {
+            Directory.CreateDirectory(_staging);
+            var accumulator = new EventAccumulator();
+            var kernel = new ModuleHostKernel(_world, accumulator);
+            var slave  = new ClusterSlave(7, "D16", null, NodeRole.MuscleGround);
+            var (providers, _) = HrotUniversalLoadParts.Build(null, _staging, new CarKinem.Road.RoadNetworkHolder(), null);
+            var save = new SaveStub();
+
+            var built = EcsHostClusterHandlers.Compose(new EcsHostClusterHandlerInputs
+            {
+                Slave = slave, Kernel = kernel, World = _world, NodeId = 7, Role = NodeRole.MuscleGround, HostLabel = "D16",
+                StagingRoot = _staging, LoadProviders = providers, EventAccumulator = accumulator, ScenarioSaveHandler = save,
+            });
+
+            var wrapper = Assert.Single(slave.RegisteredHandlers.OfType<BaselineAfterSaveHandler>());
+            Assert.Same(save, wrapper.Inner);
+            Assert.DoesNotContain(slave.RegisteredHandlers, h => ReferenceEquals(h, save));          // the wrapper replaced it, nothing registered twice
+
+            var intent = new ExecuteNodeOpIntent
+            {
+                Operation = NodeOpType.SerializeLocal, TransactionId = Guid.NewGuid(),
+                DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload("scn"),
+            };
+            Assert.Same(wrapper, slave.RegisteredHandlers.First(h => h.CanHandle(intent)));           // it claims the save (the archive handler does not)
+            Assert.False(built.ChangeCheck.HasBaseline);
+
+            wrapper.Commit(intent, null);
+
+            Assert.True(save.Committed);
+            Assert.True(built.ChangeCheck.HasBaseline);
+            Assert.False(built.ChangeCheck.HasChanged(_world));
+        }
+
+        private sealed class SaveStub : IClusterStateHandler
+        {
+            public bool Committed { get; private set; }
+            public bool CanHandle(NodeOpType operation) => operation == NodeOpType.SerializeLocal;
+            public bool CanHandle(ExecuteNodeOpIntent intent) => intent.Operation == NodeOpType.SerializeLocal && intent.DomainPayload is Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload;
+            public System.Threading.Tasks.Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, System.Threading.CancellationToken ct) => System.Threading.Tasks.Task.FromResult<object?>(null);
+            public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) => Committed = true;
+            public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
         }
 
         public static TheoryData<string> CompositionRoots => new()

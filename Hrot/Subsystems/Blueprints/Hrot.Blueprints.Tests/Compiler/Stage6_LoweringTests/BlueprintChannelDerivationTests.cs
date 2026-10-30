@@ -268,4 +268,39 @@ public sealed class BlueprintChannelDerivationTests
         Assert.Contains($"global::Fdp.Toolkit.Behavior.ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind){kind});", body);
         Assert.DoesNotContain("ActionInstanceId", body);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1435</c> — the exit-cleanup emitter has NO inline fallback: a channel component outside the three engine channels (<c>BuiltInChannelCommandCatalog</c> names no other, and no production catalog exists beside it)
+    /// is REFUSED at Stage 7 with <c>BP6001</c> naming it, and the emitted thunk releases nothing for it; an engine channel is accepted and released through <c>ChannelRelease</c>.
+    /// 🔴 Red-proof: <c>Stage7_Emit.Run</c> not calling <c>CheckChannelsAreEngineChannels</c> ⇒ no <c>BP6001</c>.
+    /// </summary>
+    [Fact]
+    public void CE1435_AChannelOutsideTheEngineThree_IsRefusedAtStage7_NotReleasedInline()
+    {
+        const string Foreign = "Some.Game.FooChannel";
+        var asset = new IrAsset
+        {
+            AssetId = Guid.NewGuid(), Name = "ForeignChannel", Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.AiPrimitive, Hostings = new[] { Hrot.Blueprints.Core.Assets.AiPrimitiveHosting.HsmAction },
+            Graphs = new[] { Graph("Main", IrGraphKind.AiPrimitiveMain, Command(Loco), Command(Foreign)) },
+        };
+        var sink = new Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticSink();
+        var (source, _) = Hrot.Blueprints.Core.Compiler.Stages.Stage7_Emit.Run(asset, Hrot.Blueprints.Core.Compiler.CompilerMode.Release, sink);
+
+        var refused = Assert.Single(sink.All, d => d.Code == Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticCodes.BP6001);
+        Assert.Contains(Foreign, refused.Message);
+        int at = source.IndexOf("public static unsafe void HsmExitCleanup", StringComparison.Ordinal);
+        Assert.True(at >= 0, "the cleanup thunk is emitted");
+        string body = source.Substring(at, source.IndexOf("\n    }", at, StringComparison.Ordinal) - at);
+        Assert.DoesNotContain("ActionInstanceId", body);                         // no inline release for the foreign channel
+        Assert.DoesNotContain("GetComponentRW", body);
+        Assert.Contains("ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind)0);", body);   // the engine channel beside it still goes through the one release
+
+        var ok = new Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticSink();
+        Hrot.Blueprints.Core.Compiler.Stages.Stage7_Emit.Run(new IrAsset
+        {
+            AssetId = Guid.NewGuid(), Name = "EngineChannel", Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.AiPrimitive, Hostings = new[] { Hrot.Blueprints.Core.Assets.AiPrimitiveHosting.HsmAction },
+            Graphs = new[] { Graph("Main", IrGraphKind.AiPrimitiveMain, Command(Loco), Command(Weapon)) },
+        }, Hrot.Blueprints.Core.Compiler.CompilerMode.Release, ok);
+        Assert.DoesNotContain(ok.All, d => d.Code == Hrot.Blueprints.Core.Compiler.Diagnostics.DiagnosticCodes.BP6001);
+    }
 }

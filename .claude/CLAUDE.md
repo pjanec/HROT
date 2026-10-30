@@ -628,22 +628,36 @@ ever considered, which is what obligation ① exists to prevent.
   | ⛔ **never `send_later` / `create_trigger` a "check the other lanes" reminder** | ⭐ each firing waits for the user's approval, and the session stalls until they give it |
   | ⭐⭐ **instead: `git fetch` the other lanes at the end of each piece of work** | `git fetch origin behaviors ui coordinator` then `git diff --name-only HEAD...origin/<lane>` for new `HANDOFF_*` / `STEER_*` / `NOTE_*` addressed to your lane; follow what is there before starting the next item |
 
-- ### ⭐⭐⭐ SONNET DELEGATION — **Sonnet builds and tests; Opus briefs and reviews the tests** *(user, `2026-10-26`)*
-  > 🔒 **User, verbatim:** *"Sonnet should be used for task whose complexity allows for that, and you Opus should make sure that the
-  > instructions always contains a clear success conditions, and the Sonnet is supposed to write its own unit tests and work until they
-  > pass and report to you back, and you will check if the unit tests are written correctly, meaning that they test what really matters
-  > and that the code is okay. You do not run the tests again, you believe the Sonnet that it has run those."*
+- ### ⭐⭐⭐ SONNET DELEGATION *(user, `2026-10-26`, revised `2026-10-29`)*
+  📐 Measured `2026-10-29`: a fresh agent spent ~100k+ tokens re-reading before any work, and 8–42 min per task — mostly cold builds and broad
+  test runs, not code. Three parallel agents hit the 5-hour rate limit twice.
 
-  | ⭐ the contract | |
+  **Who does what**
+
+  | | |
   |---|---|
-  | ⭐⭐ **use Sonnet wherever the task's complexity allows** | mirror-an-existing-pattern slices, mechanical edits, measurements, broad searches, a well-scoped fix. ⭐ Keep for Opus: novel scheduler / IR / compiler work, design calls, anything whose brief cannot be written clearly — ⛔ if you cannot write the brief, you do not understand the task well enough to hand it off |
-  | ⭐⭐⭐ **the brief ALWAYS carries checkable SUCCESS CONDITIONS** | the goal, the files and the existing seams to reuse (from your own graph + grep pass), the fences, and numbered conditions a test can decide — ⛔ never *"make it work"* |
-  | ⭐⭐⭐ **Sonnet writes its OWN tests and works UNTIL THEY PASS** | in the feature's existing suite (T-1); each red-proved by a mutation that COMPILES; the test project built before `--no-build`; then it reports: diff summary, each test + what it asserts + its mutation, the gate commands with pass/fail counts |
-  | ⭐⭐⭐ **Opus does NOT re-run the tests — it believes the reported run** | ⭐ the review is: **do the tests assert what really MATTERS** *(the behaviour the success condition names — not the helper under test, not a tautology, not a condition a mutation cannot break)* **and is the CODE okay** *(read the diff: the risky parts, reuse vs duplication, semantics that differ from what it replaced)* |
-  | ⭐ **a test that misses what matters goes BACK to Sonnet** | with the missing case named; ⛔ do not patch it silently yourself |
-  | ⛔⛔⛔ **VERIFY every "it cannot be done" / "it does not exist" / "it is not reachable" claim in a subagent's report BEFORE accepting it** *(user, `2026-10-26`: "add a rule to CLAUDE.md to verify subagent claims like that")* | ⭐ believing the reported test RUN is the contract; ⛔ believing a reported LIMITATION is not — it is an absence claim, and it is usually the reason a test came out weaker than the success condition. ⭐ One grep for a precedent before passing it on. 📌 **The miss:** a subagent wrote a source-text rail because *"`EditorSubsystem` cannot be constructed headless"*; I relayed it to the user, who asked *"can't you use xvfb?"* — `TheEditorRunsTheOrchestratorCoreTests` already constructs it with `SubsystemConfig { Headless = true }` and runs `Update` frames (no Xvfb needed). ⇒ ⭐ **a weaker test justified by a limitation = check the limitation**; if it is false, the test goes back |
+  | ⭐⭐⭐ **Sonnet: every WELL-SPECIFIED build task, small ones too** — the brief can name the files, the seam to reuse and success conditions a test decides | mirroring a pattern, wiring, tests, measurements, a scoped fix |
+  | ⭐⭐⭐ **Opus: what needs judgment** — design and trade-offs · a defect whose cause is unknown · subtle semantics (scheduler, IR, compiler, wire, replay timing) · cross-lane or ambiguous work · reviews · merges | ⭐ the test: if the brief would have to say *"figure out why"* or *"decide which"*, it is Opus's |
+  | ⭐ **No warm worker and a one-file fix?** Do it directly | a cold start costs more than the fix |
 
-  ⛔ **SUPERSEDED:** *"Opus reviews the real diff and re-runs the gates"* (the earlier token-thrift line) — ⭐ Opus reviews the tests and the diff; it does not re-run them.
+  **How the worker runs**
+
+  | | |
+  |---|---|
+  | ⭐⭐⭐ **ONE standing worker at a time, kept warm and REUSED** — the next task goes to it with `SendMessage`, naming only the delta | a fresh agent only after a container restart or when its context is too full; record its id in the resume doc |
+  | ⭐⭐⭐ **In the main checkout, no worktree** (warm `bin/obj`) | both sides commit ONLY their own files, by path — never `git add -A` |
+  | ⭐⭐ **One build at a time on the machine** — the worker builds test projects one after another; Opus does not start a build while the worker is building | parallel builds of the same projects fight over one compiler |
+  | ⭐ **After a killed worker: `git diff` its WIP for leftover mutations before anything else** | |
+
+  **The brief and the review**
+
+  | | |
+  |---|---|
+  | ⭐⭐⭐ **The brief hands over what Opus measured** — file:line, the seam, the test class to extend — and **checkable success conditions**; Opus writes any design first | ⛔ never "make it work", never ask it to re-discover |
+  | ⭐⭐ **Gates in the brief: the touched test classes + every class that exercises the changed seam (integration included)**, each new rail red-proved by a compiling mutation; exact build/test commands | broad suites once, after the merge, by Opus in the background |
+  | ⭐⭐⭐ **Sonnet writes its own tests and works until they pass; Opus does NOT re-run them** — the review is: do the tests assert what matters, and is the code right (read the diff) | a test that misses what matters goes back to the worker with the missing case named |
+  | ⛔⛔⛔ **Verify every "cannot be done / does not exist / not reachable" claim before accepting it** — one grep for a precedent | 📌 a worker claimed `EditorSubsystem` cannot run headless; `TheEditorRunsTheOrchestratorCoreTests` already did it |
+
 - **Build general, not just minimal (round-out):** when a task needs a generic node, implement the whole obvious set rather than only the one value the immediate task needs — e.g. the `Compare` node ships every `ComparisonOperator`, not just `==`; an operator/enum-keyed node covers the full enum. Proactively add closely-similar, generally-useful companions (the arithmetic/boolean peers of a comparison node) when they reuse the same machinery and are plausibly usable. Default toward completeness over minimalism. Balance against the architect's demand-driven caution: if a round-out means a whole new *speculative* vocabulary or contradicts an explicit architect ruling, flag it for a quick nod first rather than silently building it — but don't be stingy with cheap, obvious generality.
 - **Prior-art discipline (the seam law):** in this codebase a *"we need a shared X"* almost always means **X already exists and is under-adopted** — 24 measured instances so far. So every design opens with a prior-art pass, and that pass **starts with `search_graph`, not grep** (see the Codebase Memory section above — this is the rule that keeps getting skipped). Two failure modes to name explicitly: ⚠ **never read a reference *count* as adoption** — open the call sites; and ⚠ *"the seam is unused"* has two very different meanings — an interface nobody calls, versus one called every frame with a dead parameter. The fixes differ completely.
 - **Architect-questioning discipline (engine-rules gate):** no non-trivial capability / node / slice starts without a design, and no non-trivial design ships without an **architect pass**. For each non-trivial task, draft an `docs/blueprints/Architect_Question_N_*.md` mirroring the existing Q#2–Q#5 docs (decision-shaped sub-questions A/B/C/D + Claude's recommended lean + the reuse-vs-build tradeoff for each), record the answers in that doc, **then** build. Trivial mirror-pattern nodes (a documented recipe already exists) may proceed on a short in-repo design note without a full architect round.
@@ -932,6 +946,13 @@ artefact: the report **names the feature's suite and its result** before it name
 | **T1** ~1 min | ⭐ **before a push** | the touched project's **whole** suite, `--no-build` |
 | **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
 | ⭐⭐ **T3** *(the E2E slow lane)* | ⛔⛔ **NEVER a foreground blocker** | ⭐ `run-system-tests.sh` *(boots the real editor headless per case)* runs **async** — backgrounded, or in CI/nightly — its result lands in the report or the next session. ⛔ **Never sit on it; never re-run it "to be sure"** |
+
+#### ⛔⛔ DISPLAY-ONLY RAILS SKIP SILENTLY — **a change to rendering code runs them under `xvfb-run -a`** *(`2026-10-30`)*
+
+📌 R-1046 moved the 3-D mesh build off the frame and its gates were green — ⛔ but `Map3DFrameRail` / `FilmFrameRail` **skip without a
+display**, so three of them sat red (a mesh now arrives a frame later) until a full Xvfb run found them. ⭐ Touching `Map3D`, `Vis3D`, a
+layer's `Draw`/`Draw3D`, the film or the canvas ⇒ run those classes with `xvfb-run -a dotnet test … --filter …FrameRail` and report the
+counts; ⛔ a "passed" that is really "skipped" is not a gate row.
 
 #### ⭐⭐ KNOWN-FLAKY TESTS RUN IN THEIR OWN LANE, NEVER IN THE USUAL RUN *(user, `2026-10-13`)*
 

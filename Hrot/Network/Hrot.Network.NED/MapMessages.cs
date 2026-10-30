@@ -19,53 +19,8 @@ namespace Hrot.NED.Messages
         ESP_LABEL
     }
 
-    // Describes an object under the mouse cursor.
-    [DdsStruct]
-    [DdsIdlFile("hrot-map-msgs")]
-    public partial struct MapObjectRef
-    {
-        // The ID of the entity.
-        public long EntityId;
 
-        // The type of the entity (helper to avoid looking up Master).
-        public int TkbType;
 
-        // DIS entity type info.
-        public ulong DisType;
-
-        // Which part was clicked? (Icon, Label, or the 3D Body).
-        public EEntitySymbolPart VisualPart;
-    }
-
-    // Event sent when the user clicks on the map.
-    // Includes a "Hit Stack" of all objects under the cursor (for disambiguation).
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct MapClickEvent
-    {
-        // The specific IG Instance where the click happened.
-        public int MapId;
-
-        // World coordinates of the click: local ENU metres (X east, Y north, Z up) — AQ107 B.
-        public Vec3d Position;
-
-        // List of objects under the cursor, ordered Top-to-Bottom (Z-order).
-        [DdsManaged]
-        public List<MapObjectRef> HitStack;
-
-        // The Context ID active at the time of the click.
-        // Allows ExCon to route this click to the correct Tool logic.
-        public Guid InteractionContextId;
-    }
-
-    public enum DragState
-    {
-        DRAG_START,
-        DRAG_UPDATE,
-        DRAG_END,
-        DRAG_CANCEL
-    }
 
     // Event sent during a drag-and-drop operation.
     // Used for "Local Prediction": IG moves the object visually, sends updates to ExCon.
@@ -78,43 +33,24 @@ namespace Hrot.NED.Messages
     | **Backbone on Drop**    | IG emits DragEnd; ExCon commits to backbone        | Standard entity move            |
     | **Continuous Backbone** | Intermediate updates published (explicit opt-in) | Real-time collaborative editing |
     */
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct DragEvent
-    {
-        // The specific IG Instance.
-        public int MapId;
 
-        // Current phase: START (Picked up), UPDATE (Moving), END (Dropped), CANCEL (Esc).
-        public DragState State;
 
-        // The Entity being dragged.
-        public long EntityId;
+    // ⛔⛔ R-3067 / AQ109 X3 + X4 — RETIRED WITH THE EXCON NODE. A WIRE-CONTRACT REMOVAL (a peer still on the old build publishes topics nobody reads).
+    //   The DERIVED topic names below are RESERVED — ⛔ never reuse them for a different type, and never renumber CommandType:
+    //     X3 — Hrot_NED_Messages_MapCommandRequest       (was: ExCon → one IG, an imperative CommandType + JSON args)
+    //          Hrot_NED_Messages_ContextActionsUpdate    (was: ExCon → IG, the pushed context-menu definition)
+    //          Hrot_NED_Messages_ContextMenuRequest      (was: IG → ExCon, the cache-miss fallback for the pushed menu)
+    //          Hrot_NED_Descriptors_MapInteractionConfig (was: ExCon → IG group, the JSON-merge-patch map/tool config; MapDescriptors.cs)
+    //     X4 — Hrot_NED_Messages_MapCommandAck           (was: IG → ExCon, the answer to a map command)
+    //          Hrot_NED_Messages_ContextActionInvoked    (was: IG → ExCon, a clicked pushed-menu item)
+    //          Hrot_NED_Messages_MapClickEvent           (was: IG → ExCon observer, a map click + the hit stack; its MapObjectRef struct went too)
+    //          Hrot_NED_Messages_SelectionChangedEvent   (was: IG → ExCon observer, the IG's selection)
+    //          Hrot_NED_Messages_DragEvent               (was: IG → ExCon, a drag phase; had no reader or writer left — DragState went too)
+    //          Hrot_NED_Descriptors_MapConfigStatus      (was: IG → ExCon, its full map configuration)
+    //          Hrot_NED_Descriptors_IGCapabilitiesAnnounce (was: IG → ExCon, its layer tree; ⚠ NOT Hrot_IG_Gizmos_IGCapabilitiesAnnounce, which stays)
+    //   📄 docs/blueprints/Architect_Question_109_Retire_ExCon.md §6.3/§6.4 · docs/reference/NED_DDS_Protocol.md "Retired topics".
 
-        // Current world coordinates of the cursor/object: local ENU metres — AQ107 B.
-        public Vec3d CurrentPosition;
-
-        // The Context ID associated with this drag operation.
-        public Guid InteractionContextId;
-    }
-
-    // Event sent when the user modifies the selection set (e.g., Box Select, Ctrl+Click).
-    // The IG is authoritative for the selection state.
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    public partial struct SelectionChangedEvent
-    {
-        // The specific IG Instance.
-        public int MapId;
-        
-        // The complete list of currently selected Entity IDs.
-        // Replaces any previous selection state.
-        [DdsManaged]
-        public List<long> SelectedEntityIds;
-    }
-
-    // 4. Commands (ExCon -> IG)
+    // 4. Commands (ExCon -> IG) — ⛔ RETIRED: the type is kept ONLY so its numeric values stay reserved (never reuse or renumber).
     public enum CommandType
     {
         CMD_SET_VIEW,
@@ -152,28 +88,6 @@ namespace Hrot.NED.Messages
         /// </summary>
         CMD_DRAW_PERSONAL_ROUTE,    }
 
-    // Imperative commands sent from ExCon to a specific IG Instance.
-    // Used to force a specific behavior (e.g., "Pan Camera Here", "Enter Edit Mode").
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    [DdsManaged]
-    public partial struct MapCommandRequest
-    {
-        // Unique ID for this request.
-        // Used to match with CommandStatus / Ack.
-        public Guid RequestId;
-
-        // Target IG Instance.
-        public int MapId;
-
-        // Type of command (View, Selection, Editing).
-        public CommandType Type;
-
-        // Arguments for the command in JSON format.
-        // e.g., { "lat": 45.0, "lon": 12.0, "zoom": 1000 }
-        public string CommandArgsJson;
-    }
 
     // ===================================================================================
     // MAP INTERACTION: CONTEXT MENUS (PUSH MODEL)
@@ -186,46 +100,7 @@ namespace Hrot.NED.Messages
     // 5. Execution: User clicks item -> IG sends 'ContextActionInvoked'.
     // ===================================================================================
 
-    // Event sent by the IG when the user clicks a specific item in the context menu.
-    // Direction: IG -> ExCon
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct ContextActionInvoked
-    {
-        // Source IG Instance.
-        public int MapId;
 
-        // The ID of the action chosen (defined in the JSON menu).
-        public int ActionId;
-
-        // The ID of the specific entity on which the menu was opened.
-        // Necessary for resolving ambiguity in multi-selections.
-        public long ContextEntityId;
-
-        // The Context ID active when the menu was opened.
-        public Guid ContextId;
-    }
-
-    // Fallback request sent by the IG when the user right-clicks an entity
-    // that does NOT have a cached menu definition available.
-    // Direction: IG -> ExCon
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct ContextMenuRequest
-    {
-        // Unique ID for this request. Must be echoed in the response.
-        public Guid RequestId;
-
-        // Source IG Instance (where the user clicked).
-        public int MapId;
-
-        // The list of entities currently selected/clicked.
-        // ExCon uses this to generate the appropriate menu options.
-        [DdsManaged]
-        public List<long> ForSelection;
-    }
 
     // ===================================================================================
     // MAP COMMAND ACK (IG -> ExCon)
@@ -236,81 +111,5 @@ namespace Hrot.NED.Messages
     //   and finish on right click or ESC key.
     // ===================================================================================
 
-    // Response to the MapCommandRequest.
-    // One request can generate multiple responses. For example,
-    //   a map placement tool can be configured to create one entity every left click
-    //   and finish on right click or ESC key.
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    [DdsManaged]
-    public partial struct MapCommandAck
-    {
-        // Correlation id with the original MapCommandRequest.
-        public Guid RequestId;
 
-        // 0 = request finished (request can be closed)
-        // 1 = intermediate result (request not closed yet, other acks to come)
-        // 2 = cancelled (tool was cancelled without completing any work)
-        // other values reserved for various error codes
-        public long StatusCode;
-
-        // Carries request-type specific extra data, for example the id of entity created,
-        // or a list of ids. Or for example the 'tool finalized' flag.
-        // For each request type the app should define a data structure describing the expected
-        // content, serving as a schema definition (including what fields are optional).
-        // Example for CMD_PLACE_ENTITY: { "entityId": 42 }
-        public string DataJson;
-    }
-
-    // Proactive update from ExCon containing the context menu definition for a specific selection.
-    // Direction: ExCon -> IG
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    [DdsManaged]
-    public partial struct ContextActionsUpdate
-    {
-        // Target Map Group (Role).
-        // Menus are business logic, so they apply to the Role (e.g. "Instructor"), 
-        // not just one screen.
-        public int MapGroupId;
-
-        // Validation list: Which selected entities does this menu apply to?
-        // The IG checks this against its current selection. If the user's selection 
-        // has changed since this message was generated, the IG discards this update.
-        [DdsManaged]
-        public List<long> ForSelection;
-
-        // Menu structure as JSON.
-        // Supports nested menus, icons, shortcuts, and enable/disable states.
-        // Menu structure as JSON (flexible, nestable)
-        // See "Menu JSON Schema" below
-            /*
-                [
-                {
-                    "id": 100,
-                    "label": "Move Here",
-                    "icon": "move_cursor",
-                    "shortcut": "M",
-                    "enabled": true
-                },
-                { "type": "separator" },
-                {
-                    "label": "Logistics",
-                    "icon": "gear",
-                    "children": [
-                    {
-                        "id": 201,
-                        "label": "Resupply",
-                        "enabled": false,
-                        "tooltip": "Cannot resupply: Unit is moving"
-                    },
-                    { "id": 202, "label": "Repair" }
-                    ]
-                }
-                ]
-            */
-        public string MenuDefinitionJson;
-    }
 }

@@ -29,6 +29,7 @@ public sealed class ClusterMasterFanOutTests
 {
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = Array.Empty<string>(),
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -261,7 +262,7 @@ public sealed class ClusterMasterFanOutTests
             "{\"header\":{\"terrainName\":\"" + terrainName + "\"},\"entities\":[]}");
         if (terrainJson != null)
         {
-            var terrainDir = System.IO.Path.Combine(nas, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName, terrainName);
+            var terrainDir = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), terrainName);
             System.IO.Directory.CreateDirectory(terrainDir);
             System.IO.File.WriteAllText(System.IO.Path.Combine(terrainDir, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), terrainJson);
         }
@@ -307,6 +308,7 @@ public sealed class ClusterMasterFanOutTests
 
     private static ClusterConfiguration ConfigOn(string nas) => new()
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10, NasBasePath = nas,
     };
 
@@ -368,7 +370,7 @@ public sealed class ClusterMasterFanOutTests
         System.IO.Directory.CreateDirectory(scenarioDir);
         System.IO.File.WriteAllText(System.IO.Path.Combine(scenarioDir, "Hrot.SimHost.json"),
             "{\"header\":{\"terrainName\":\"" + terrainName + "\"},\"entities\":[]}");
-        var terrainDir = System.IO.Path.Combine(nas, Fdp.Toolkit.Terrain.TerrainCatalog.SharedDirectoryName, terrainName);
+        var terrainDir = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(nas), terrainName);
         System.IO.Directory.CreateDirectory(terrainDir);
         System.IO.File.WriteAllText(System.IO.Path.Combine(terrainDir, Fdp.Toolkit.Terrain.TerrainCatalog.DefinitionFileName), terrainJson);
     }

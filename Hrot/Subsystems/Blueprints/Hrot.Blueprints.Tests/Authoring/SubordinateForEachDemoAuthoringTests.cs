@@ -14,10 +14,7 @@ public class SubordinateForEachDemoAuthoringTests
 {
     internal static string AssetPath()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
-        Assert.NotNull(dir);
-        return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints",
+        return Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BlueprintsFolder),
             "Samples", SubordinateForEachDemoAuthoring.Name + ".bp.json");
     }
 

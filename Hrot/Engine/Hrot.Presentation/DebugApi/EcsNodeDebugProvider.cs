@@ -40,8 +40,22 @@ public static class EcsNodeDebugProvider
             tkbDb:         SubsystemDebugProvider.TkbFrom(() => node()?.World),
             master:        OrchestrationBusMasterControl.Via(() => node()?.EventBus),
             clusterState:  SubsystemDebugProvider.ClusterStateFrom(() => node()?.ClusterSlave),
+            // ⭐⭐ CE-4096 (AQ108 §2.6) — what the master LAST ANNOUNCED to this node, on every ECS node alike (null = none yet):
+            //    ⛔ not `ClusterState` above, which is the node's own committed state and stays Idle while the cluster loads.
+            followedClusterState: () => node()?.ClusterSlave is { HasFollowedState: true } s ? s.FollowedClusterState : null,
+            masterGone:    () => node()?.ClusterSlave.MasterGone ?? false,
             exercises:     SubsystemDebugProvider.ExercisesFrom(() => node()?.ClusterSlave),
             replayAxis:    () => node()?.ClusterSlave.ReplayAxis,   // ⭐ CE-3329 R-3058 — the master's broadcast, on every node
+            runNotRecorded: () => node()?.ClusterSlave.RunNotRecorded,   // ⭐ CE-4090 D14 — the same broadcast
+            recordLiveRunsOff: () => node()?.ClusterSlave.RecordLiveRunsOff,
+            askToKeepRecordings: () => node()?.ClusterSlave.AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            armedMode:         () => node()?.ClusterSlave.ArmedMode,   // ⭐ CE-3341 R-3068 — the same View
+            runChoice:         x.RunChoice,   // ⭐ CE-1451 — the host's run choice, independent of the drive (the IG has none)
+            clusterView:       () => node()?.ClusterSlave.View,   // ⭐ CE-3344 R-3069 — the node's ONE read model: CanOperate gates the HTTP cluster routes
+            // ⭐⭐⭐ CE-1436 (R-3066, design V5) — the check round's answer from the node's ONE cluster read model (ClusterSlave.View), the same on CGF, SimHost, IG and
+            //    traffic: ObservesUnsavedChecks is true by construction here, so ▶ asks the round on every host. ⛔ Not the node's own world check — the MASTER's answer.
+            unsavedCheck:  id => node()?.ClusterSlave.View.UnsavedCheckOutcomeFor(id),
+            scenarioDirty: () => node()?.ClusterSlave.View.LastUnsavedCheck?.Changed,
             replayRecording: () => node()?.ReplayRecordingPath,   // ⭐ CE-3330 E6 — the one lookup (HrotNodeContext), also what the shown timeline opens
             // ⭐ RB-2 — the replay's zero and now, from the same handler (frame-based seeks resolve against them)
             replayPosition: () => node()?.ClusterSlave.RegisteredHandlers.OfType<ReferenceReplayLoadHandler>().FirstOrDefault() is { } h
@@ -73,6 +87,9 @@ public sealed record EcsNodeDebugExtras
 {
     /// <summary>The node's time-drive adapter (a slave's cluster time adapter); <see langword="null"/> ⇒ it cannot step time.</summary>
     public Func<ITimeTransportFacade?>? Drive { get; init; }
+
+    /// <summary>⭐ CE-1451 — the node's run choice (<c>IProvidesRunControls.RunChoice</c>), so <c>GET /status.runGate</c> works on a host with no drive (the IG).</summary>
+    public Func<Hrot.UI.Common.RunMode.RunModeChoice?>? RunChoice { get; init; }
 
     /// <summary>The node's map/gizmo feed.</summary>
     public Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? GizmoBuffer { get; init; }

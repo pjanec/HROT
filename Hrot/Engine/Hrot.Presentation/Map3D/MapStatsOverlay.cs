@@ -65,7 +65,9 @@ public sealed class MapStatsOverlay : IMapLayer
             cam.Yaw * 180f / MathF.PI, cam.Pitch * 180f / MathF.PI, cam.Distance,
             fps && p!.ZoomFovDegrees is { } zoom ? zoom : cam.FovyDegrees, cam.Viewport, rectMin, rectMax,
             fps ? p!.Unit : Entity.Null, fps ? p!.AimTarget : 0L, fps ? p!.ZoomFovDegrees : null,
-            world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d));
+            world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d,
+            // ⭐ CE-1451 — the 3-D map's build state, for GET /view (what "Building 3-D map…" says on screen)
+            _view.Pending3D, _view.Pending3DFailure, _view.Build?.IsBuilt, _view.Build?.Step));
     }
 
     /// <summary>The counter's text.</summary>
@@ -79,6 +81,14 @@ public sealed class MapStatsOverlay : IMapLayer
     {
         var viewport = _view.Camera3D.Viewport;
         float y = 0f;
+        // ⭐ R-1046 (CE-4078 §11.9 ③) — the 3-D map is being built in the background: the 2-D map says so (and why it gave up, if the build failed)
+        if (_view.Pending3D || _view.Pending3DFailure != null)
+        {
+            var note = _view.Pending3DFailure is { } why ? "3-D map failed: " + why : "Building 3-D map…";
+            var at = OpenMapArea.Corner(viewport, left: false, top: true, Raylib.MeasureText(note, FontSize), FontSize);
+            Raylib.DrawRectangle((int)at.X - 4, (int)at.Y - 2, Raylib.MeasureText(note, FontSize) + 8, FontSize + 4, new Color(0, 0, 0, 140));
+            Raylib.DrawText(note, (int)at.X, (int)at.Y, FontSize, new Color(255, 210, 120, 255));
+        }
         if (_view.Is3D)
         {
             var text = CounterText();

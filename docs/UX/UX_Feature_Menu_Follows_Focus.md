@@ -6,7 +6,7 @@ current-answer: PARTIAL. Mechanism built + railed (GlobalMenuRegistry.ResolveBin
   ⭐ 2026-10-22: §MB (CE-1243) — ONE menu bar BUILT: one tree with per-frame contributors, one row renderer; the 4 host blocks are gone
   and each host's map menus are a perspective-bound contributor (UXI-05 step 2 + UXI-13 closed). The STATUS line above predates it.
 updated: 2026-10-22
-known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope).
+known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope). MB.1's bar order ("Perspective ranked after the leading menus", top-level Settings) is SUPERSEDED by §MB.2 (CE-4085).
 related-designs:
   - ../designs/win-mgr-1/DESIGN.md — §4.3 the menu tree, §4.4.1 the shell's fixed Windows / Perspective / Help (what §MB folds into the tree)
   - ../designs/gizmos-1/canvas-context-menu-design.md — the map's context menu (the other user of ImGuiMenuRenderer's DTO walk; §MB keeps it)
@@ -246,3 +246,16 @@ snapshot from the bar's one collection · the shell's three contributors drawn i
 contributor ⇒ two rails red). Existing `TopLevelMenuOrderTests`, `TheSettingsMenuIsOneMenuTests`, `PerspectiveMenuTests` unchanged and green. **Gates** (built test projects, `--no-build`): `Fdp.Presentation.Tests` 580/0 · `Hrot.Editor.AiShared.Tests` 2131/0 ×3 under Xvfb (⚠ the real-frame rails now share the non-parallel `PanelSnapshotTestCollection` — before, 1 order-dependent red in 3 runs) · `Hrot.Editor.Tests` 534/0 · `Hrot.Presentation.Tests` 871/0 · `Hrot.ReplayBrowser.Tests` 34/0 · `Hrot.IG.Tests` 471/0 · Editor, CGF, SimHost, IG, ReplayBrowser and the Stride game build.
 ⚠ Not yet seen in the GUI.
 
+### MB.2 AS-BUILT — CE-4085: Help last at the RIGHT edge; Settings and Perspective under View (`2026-10-28`, ui) — build-state: BUILT
+
+🔒 User, editor testing `2026-10-28`: *"The Help menu could be hardcoded to be the right aligned last item … Settings menu could be moved into the 'View' menu, also Perspective menu should go there."*
+⛔ **SUPERSEDED (the order MB.1 / CE-1243 built):** `… Debug · Perspective · Settings · Windows · Help`, all drawn left-flowing, with `Perspective` and `Settings` top-level menus.
+
+| decision | as built |
+|---|---|
+| order | `GlobalMenuRegistry.TopLevelOrder` = File · Edit · View · Scenario · Tools · Debug · Windows · Help; an unlisted menu ranks just before `Windows` (`FirstTrailingMenu` = `Windows`) |
+| Help at the right edge | `GlobalMenuRegistry.RightAlignedMenu` = `Help`; `BarMenu.RightAligned` is the model; `WindowManager.RenderMenuBar(contributions, rightAligned)` runs two passes over the ONE bar — the left-flowing menus, the inline toolbar, then Help at `GetWindowWidth() - WindowPadding.X - width` (never left of the flow cursor) |
+| Settings | every host registers under `GlobalMenuRegistry.SettingsMenuPath` = `View/Settings/…` (WM `UI Scale & Fonts…`, `LocalWindowController` layout + sound items, `EditorSubsystem` reset item); no top-level `Settings` |
+| Perspective | the `wm/perspective` contributor returns a `View` DTO holding a `Perspective` submenu (checked state and icons kept); `BarMenus` merges it into the one View menu |
+
+📐 **Rails** (`TopLevelMenuOrderTests`, existing suite): `CE4085_HelpIsLast_AndMarkedRightAligned_OnTheOneTree` · `CE4085_SettingsAndPerspective_AreSubmenusOfView_NotTopLevel` · `CE4085_NoItemIsLost_TheLeafSetIsTheOldSetReparentedUnderView` · `CE4085_ARealFrame_DrawsTheReorderedBar`. ⚠ The pixel position of Help is not asserted (the model flag is); ⚠ not yet seen in the GUI.

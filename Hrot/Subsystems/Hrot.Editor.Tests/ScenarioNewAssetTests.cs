@@ -51,7 +51,7 @@ public sealed class ScenarioNewAssetTests
         var ex = Assert.Throws<InvalidOperationException>(
             () => svc.CreateNew(null, "MyScenario", ""));
 
-        Assert.Contains("Recipes/Scenarios", ex.Message);
+        Assert.Contains("recipes/scenarios", ex.Message);
     }
 
     /// <summary>
@@ -68,8 +68,8 @@ public sealed class ScenarioNewAssetTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>H2</c> / <c>U9</c> — the seed is loaded by the name the CLUSTER can resolve: the
-    /// reserved <c>Recipes/</c> subfolder of the NAS scenarios root the seeds are staged into.
+    /// ⭐⭐⭐ <c>H2</c> / <c>U9</c> — the seed is loaded by the name the CLUSTER can resolve: a recipe is
+    /// named by its root, <c>recipes/scenarios/&lt;seed&gt;</c> (L6, CE-4089 — was the reserved <c>Recipes/</c> prefix under the scenarios root).
     ///
     /// <para>🔴 <b>This assertion is the whole of <c>U9</c>.</b> 📐 Measured: a scenario load is a CLUSTER
     /// transition keyed on a NAME every node resolves against its own NAS scenarios root
@@ -89,8 +89,8 @@ public sealed class ScenarioNewAssetTests
         var result = svc.CreateNew(seedRecipe, "NewName", "Sub");
 
         var loadCall = Assert.Single(session.LoadScenarioByNameCalls);
-        Assert.Equal("Recipes/SeedScenario", loadCall);
-        Assert.Equal(ScenarioNewAssetService.SeedSubfolder + "/SeedScenario", loadCall);
+        Assert.Equal("recipes/scenarios/SeedScenario", loadCall);
+        Assert.Equal(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName("SeedScenario"), loadCall);
 
         var saveCall3 = Assert.Single(session.SaveScenarioAsCalls);
         Assert.Equal("Sub/NewName", saveCall3);
@@ -98,6 +98,29 @@ public sealed class ScenarioNewAssetTests
         Assert.Equal("NewName", result.Name);
         Assert.Equal(AssetKind.Scenario, result.Kind);
         Assert.NotEqual(Guid.Empty, result.AssetId);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4101</c> (AQ108 §2.11a, the New-from-a-recipe row) — the seed's open is GUARDED (a run ⇒ <i>Stop &amp; Load</i>, unsaved edits ⇒ <i>Save / Discard / Cancel</i>), so the save-as under the new name follows the open that WENT OUT:
+    /// while the question is open nothing is saved, and a cancelled open never saves whatever the world holds under the new name.
+    /// 🔴 Mutation: <c>CreateNew</c> calling <c>SaveScenarioAs</c> straight after the load (the old shape) ⇒ the first assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4101_Create_FromSeed_SavesAsOnlyOnceTheGuardedOpenWentOut()
+    {
+        var session = new AskingCreationSession();
+        var svc = new ScenarioNewAssetService(session, new[] { "SeedScenario" });
+
+        svc.CreateNew(svc.AvailableRecipes().First(), "NewName", "Sub");
+
+        Assert.Equal(ScenarioNewAssetService.SeedNameToScenarioName("SeedScenario"), Assert.Single(session.Opens));
+        Assert.Empty(session.SaveScenarioAsCalls);                                  // the door is asking: nothing saved yet
+        session.TheUserConfirms();
+        Assert.Equal("Sub/NewName", Assert.Single(session.SaveScenarioAsCalls));    // the open went out, then the save
+
+        var cancelled = new AskingCreationSession();
+        new ScenarioNewAssetService(cancelled, new[] { "SeedScenario" }).CreateNew(svc.AvailableRecipes().First(), "Other", "");
+        Assert.Empty(cancelled.SaveScenarioAsCalls);                                // the user cancelled: never saved
     }
 
     /// <summary>
@@ -180,6 +203,19 @@ public sealed class ScenarioNewAssetTests
 
         Assert.Equal(AssetKind.Scenario, svc.Kind);
     }
+}
+
+/// <summary>⭐ CE-4101 — a creation session whose guarded open is ASKING: the continuation is held until the user confirms (never run when they cancel).</summary>
+public sealed class AskingCreationSession : IScenarioCreationSession
+{
+    public readonly List<string> Opens = new();
+    public readonly List<string> SaveScenarioAsCalls = new();
+    private System.Action? _held;
+    public void NewScenario() { }
+    public void SaveScenarioAs(string scenarioName) => SaveScenarioAsCalls.Add(scenarioName);
+    public void LoadScenarioByName(string scenarioName) => Opens.Add(scenarioName);
+    public void LoadScenarioByName(string scenarioName, System.Action then) { Opens.Add(scenarioName); _held = then; }
+    public void TheUserConfirms() => _held?.Invoke();
 }
 
 /// <summary>

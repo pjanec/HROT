@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -128,6 +129,70 @@ namespace Hrot.SimHost.Tests
             Assert.True(
                 slave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
                 "D16: the replay handler is part of the one set every ECS host composes.");
+        }
+
+        // ── CE-1446 B0: the orchestration inputs CGF and the editor need ──────────────
+
+        private sealed class MarkerEpisodeHandler : IClusterStateHandler
+        {
+            public bool CanHandle(Fdp.Toolkit.Orchestration.NodeOpType operation) => false;
+            public Task<object?> PrepareAsync(Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent intent, CancellationToken ct) => Task.FromResult<object?>(null);
+            public void Commit(Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+            public void Abort(Fdp.Toolkit.Orchestration.ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+        }
+
+        private ClusterSlave BuildBrain(NodeBootstrapper b, bool offline, DdsParticipant? participant,
+            System.Collections.Generic.IReadOnlyList<IClusterStateHandler>? scenarioHandlers = null, Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? remapper = null)
+            => b.BuildOrchestration(
+                NodeRole.Brain, _kernel, _world, nodeId: 1, participant: participant,
+                scenarioSerializer: Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(new Fdp.Toolkit.Behavior.BehaviorRegistry()),
+                scenarioExtractor: new Hrot.CGF.Orchestration.StagingEntityExtractor(),
+                scenarioSource: new FdpEventBus(),
+                scenarioIdAllocator: new Hrot.Core.Network.SequentialIdAllocator(),
+                localTempRoot: _tempDir,
+                scenarioHandlers: scenarioHandlers, behaviorRemapper: remapper, offline: offline);
+
+        /// <summary>⭐ CE-1446 B0 — an OFFLINE Brain (the editor) builds with no participant; a networked one still refuses (the guard keeps its meaning).
+        /// 🔴 Red-proof: `!offline &&` removed from the guard ⇒ the first half throws.</summary>
+        [Fact]
+        public void CE1446_AnOfflineBrain_BuildsWithNoParticipant_ANetworkedOneStillRefuses()
+        {
+            using var slave = BuildBrain(new NodeBootstrapper(), offline: true, participant: null);
+            Assert.True(slave.IsHandlerRegistered<ReferenceReplayLoadHandler>());
+
+            Assert.Throws<ArgumentNullException>(() => BuildBrain(new NodeBootstrapper(), offline: false, participant: null));
+        }
+
+        /// <summary>⭐ CE-1446 B0 — the host's own scenario handlers replace the default episode handler (CGF's `CgfEpisodeLoadHandler`); with none, the default stays.
+        /// 🔴 Red-proof: `scenarioHandlers` not threaded into the composition ⇒ the marker is absent and the default is present.</summary>
+        [Fact]
+        public void CE1446_HostScenarioHandlers_ReachTheSlave_InPlaceOfTheDefaultEpisodeHandler()
+        {
+            var marker = new MarkerEpisodeHandler();
+            using var custom = BuildBrain(new NodeBootstrapper(), offline: true, participant: null, scenarioHandlers: new IClusterStateHandler[] { marker });
+            Assert.Contains(marker, custom.RegisteredHandlers);
+            Assert.False(custom.IsHandlerRegistered<ReferenceEpisodeLoadHandler>());
+
+            using var def = BuildBrain(new NodeBootstrapper(), offline: true, participant: null);
+            Assert.True(def.IsHandlerRegistered<ReferenceEpisodeLoadHandler>());
+        }
+
+        /// <summary>⭐ CE-1446 B0 — the behaviour remapper reaches the composed scenario load step (so a load that renumbers ids rewrites mission EntityRefs, as CGF and the editor need).
+        /// 🔴 Red-proof: `behaviorRemapper: behaviorRemapper` dropped from the `ScenarioLoadStep` construction ⇒ the step holds null.
+        /// ⚠ Reads the step's private field by reflection: the step is composed inside the chain and exposes nothing.</summary>
+        [Fact]
+        public void CE1446_TheBehaviorRemapper_ReachesTheScenarioLoadStep()
+        {
+            var remapper = Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper();
+            using var slave = BuildBrain(new NodeBootstrapper(), offline: true, participant: null, remapper: remapper);
+
+            var chain = slave.RegisteredHandlers.OfType<Hrot.Map.Common.ClusterLoad.LoadPhaseChain>().Single();
+            var steps = (System.Collections.IEnumerable)typeof(Hrot.Map.Common.ClusterLoad.LoadPhaseChain)
+                .GetField("_steps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(chain)!;
+            var step = steps.Cast<object>().Single(x => x is Hrot.Map.Common.ClusterLoad.ScenarioLoadStep);
+            var held = step.GetType().GetField("_remapper", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(step);
+
+            Assert.Same(remapper, held);
         }
 
         // ── BATCH-18 A.1: Dispatch routing — PrepareLive reaches ReplayLoadClusterOpHandler when replay active ──

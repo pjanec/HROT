@@ -24,8 +24,8 @@ def tf(nid):
     return t.get("Position"), t.get("Rotation")
 def yaw(q): x, y, z, w = q; return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
-r = call("POST", "/scenario/load/live", {"name": "Recipes/demo-city", "waitForReady": True, "startPaused": False})
-check("load Recipes/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or "")
+r = call("POST", "/scenario/load/live", {"name": "recipes/scenarios/demo-city", "waitForReady": True, "startPaused": False})
+check("load recipes/scenarios/demo-city live", (r or {}).get("ok"), (r or {}).get("error") or "")
 call("POST", "/sim/play", {}); time.sleep(15)
 
 cars = [r["networkId"] for r in rows() if "TrafficCar" in r.get("components", [])]

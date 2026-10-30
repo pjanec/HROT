@@ -467,7 +467,7 @@ public sealed class CgfSubsystemHeadlessTests
         });
         _out.WriteLine($"[HT8] EntityDamage + EntityInfo written for entity {networkId}.");
 
-        // Pump frames â€” if CgfApplication crashes on component 165, it would throw here.
+        // Pump frames â€” if the CGF node crashes on component 165, it would throw here.
         var ex = Record.Exception(() => harness.PumpUntil(() => false, 2_000 / 5));
         Assert.Null(ex);
         _out.WriteLine("[HT8] PASS â€” no crash while processing EntityDamage and EntityInfo updates.");

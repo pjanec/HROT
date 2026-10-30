@@ -280,7 +280,9 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             {
                 camera.Driver = null;
                 _view.Set(true, animate);
-                if (_view.IsSwitching) return;
+                // ⭐ CE-1394 (R-1046) — a 3-D request that WAITS for the map's background build is not a switch in progress yet: the director must not take the camera now, or the switch, when the build lands,
+                //   animates a camera a driver holds (a driven camera never advances the animation) and the map is stuck "switching" for good — nothing could be filmed.
+                if (_view.IsSwitching || _view.Pending3D) return;
             }
             if (!ReferenceEquals(camera.Driver, _director)) camera.Driver = _director;
         }
@@ -336,6 +338,8 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             }
             var viewport = camera.ViewportOverride;
             camera.ViewportOverride = new Vector2(w, h);   // the projection and every pixel-sized thing, at the frame's size
+            var centreSource = camera.ViewCentreSource;
+            camera.ViewCentreSource = vp => vp / 2f;      // ⭐ CE-4084 — a film frame has no docked panels: its centre is its own middle
             var camera2D = _view.Is3D ? null : _canvas.Camera;
             var view2D = camera2D?.GetCameraView();
             try
@@ -369,6 +373,7 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
             {
                 _capturing = false;
                 camera.ViewportOverride = viewport;
+                camera.ViewCentreSource = centreSource;
                 if (camera2D != null && view2D is { } restore) camera2D.ApplyCameraView(restore);
             }
 

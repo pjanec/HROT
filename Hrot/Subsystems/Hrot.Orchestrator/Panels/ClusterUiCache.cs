@@ -30,24 +30,56 @@ public sealed class ClusterUiCache : IDisposable
     private static readonly JsonSerializerOptions PayloadJsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;
 
     // ── Published state ────────────────────────────────────────────────────────
-    public ClusterState    CurrentState           { get; private set; }
+    // ⭐⭐⭐ CE-1436 (R-3066) — the FACTS (state, exercise, recording flags, inventory, replay session, op outcomes, the check round's answer) are the
+    // node's ONE ClusterView; the members below delegate to it, so ⛔ no second copy exists. The MONITORING half (heartbeats, transactions, reachable
+    // targets, the diagnostics manifest, time) stays here.
+    private readonly ClusterView _view;
+
+    /// <summary>⭐ CE-1436 — the cluster read model this cache composes (the same instance a node's <c>ClusterSlave.View</c> is, when the host passes it).</summary>
+    public ClusterView View => _view;
+
+    public ClusterState    CurrentState           => (ClusterState)(int)_view.State;
 
     /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master's last cluster-state broadcast said.</summary>
-    public Fdp.Toolkit.Orchestration.ReplayAxis ReplayAxis { get; private set; } = Fdp.Toolkit.Orchestration.ReplayAxis.Sim;
-    public Guid        ActiveExerciseId       { get; private set; }
+    public Fdp.Toolkit.Orchestration.ReplayAxis ReplayAxis => _view.ReplayAxis;
+    public Guid        ActiveExerciseId       => _view.ExerciseId;
+
+    /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF, as the master's last cluster-state broadcast said.</summary>
+    public bool        RunNotRecorded         => _view.RunNotRecorded;
+
+    /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said.</summary>
+    public bool        RecordLiveRunsOff      => _view.RecordLiveRunsOff;
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, as the master's last broadcast said.</summary>
+    public bool        AskToKeepRecordings    => _view.AskToKeepRecordings;
+    /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (the master's broadcast).</summary>
+    public Fdp.Toolkit.Orchestration.ClusterArmedMode ArmedMode => _view.ArmedMode;
+
+    /// <summary>
+    /// ⭐ CE-4093 (AQ108 D20) — the newest check round's answer, as the master published it on every host's bus; null before the first, and once the
+    /// cluster leaves editing (the answer no longer describes what is open). ⛔ Never produced by reading this cache: only a round the master ran.
+    /// </summary>
+    public UnsavedCheckResult? LastUnsavedCheck => _view.LastUnsavedCheck;
+
+    /// <summary>⭐ CE-4093 — how check round <paramref name="requestId"/> ended; null while it has not (or it is older than the last 32 ops seen).</summary>
+    public UnsavedCheckOutcome? UnsavedCheckOutcomeFor(Guid requestId) => _view.UnsavedCheckOutcomeFor(requestId);
 
     /// <summary>
     /// ⭐⭐ CE-3329 (rows 32, 45; §9e–§9g) — the replay's SESSION LAYER as the master last published it: the zero, the length, the axis,
     /// the cluster's time map, the checkpoint marks, the review's id and live point. The same on every host; inactive outside a replay.
     /// </summary>
-    public Fdp.Toolkit.Orchestration.ReplaySession ReplaySession { get; private set; } = Fdp.Toolkit.Orchestration.ReplaySession.None(Guid.Empty);
-    public bool        IsBootstrapped         { get; private set; }
+    public Fdp.Toolkit.Orchestration.ReplaySession ReplaySession => _view.ReplaySession;
+    /// <summary>
+    /// ⭐⭐ <c>CE-3344</c> (R-3069) — the cluster is READY from this host: exactly <see cref="ClusterView.CanOperate"/> (the master's state has reached the node, is not
+    /// <c>Degraded</c>, nothing mandatory is missing, the master is present, this node is in sync). ⛔ One fact — it used to be its own "a broadcast was seen and not Degraded",
+    /// a second, weaker copy that stayed true while a mandatory role was missing and (deliberately, until now) after the master was gone.
+    /// </summary>
+    public bool        IsBootstrapped         => _view.CanOperate;
     public bool        HasInFlightTransaction  { get; private set; }
 
-    public string[]    AvailableScenarios     { get; private set; } = Array.Empty<string>();
-    public ExerciseInventoryItem[] AvailableExercises        { get; private set; } = Array.Empty<ExerciseInventoryItem>();
-    public ExerciseInventoryItem[] ArchivedExercises         { get; private set; } = Array.Empty<ExerciseInventoryItem>();
-    public ExerciseInventoryItem[] UnarchivedLocalExercises  { get; private set; } = Array.Empty<ExerciseInventoryItem>();
+    public string[]    AvailableScenarios     => _view.AvailableScenarios;
+    public ExerciseInventoryItem[] AvailableExercises        => _view.AvailableExercises;
+    public ExerciseInventoryItem[] ArchivedExercises         => _view.ArchivedExercises;
+    public ExerciseInventoryItem[] UnarchivedLocalExercises  => _view.UnarchivedLocalExercises;
 
     public double      MasterSimTime          =>
         _localTimeController != null
@@ -89,6 +121,7 @@ public sealed class ClusterUiCache : IDisposable
     /// Recomputed each time <see cref="CurrentState"/> changes.
     /// </summary>
     public IReadOnlyList<ClusterState> ReachableTargets { get; private set; } = Array.Empty<ClusterState>();
+    private ClusterState _reachableFor;   // the state ReachableTargets was last computed for
 
     /// <summary>
     /// The in-flight transaction with the most recent <see cref="DistributedTransaction.TransactionId"/>,
@@ -117,23 +150,26 @@ public sealed class ClusterUiCache : IDisposable
     // event with the same four lines, and that half was genuine duplicate code.
     private readonly ClusterTimeObservation                   _clusterTime  = new();
 
-    public ClusterUiCache(FdpEventBus bus, ITimeController? localTimeController = null)
+    /// <param name="view">⭐ CE-1436 — the host's cluster read model when it already has one (the editor's node slave owns one on this same bus, so the
+    /// two must be ONE); a fresh view over <paramref name="bus"/> otherwise.</param>
+    public ClusterUiCache(FdpEventBus bus, ITimeController? localTimeController = null, ClusterView? view = null)
     {
         _bus                 = bus ?? throw new ArgumentNullException(nameof(bus));
         _localTimeController = localTimeController;
+        _view                = view ?? new ClusterView(bus);
 
         // even before the first network message arrives, the UI cache already knows what transitions
         // are legal from the default Idle state, and buttons like LoadingEdit, LoadingLive, and LoadingReplay
         // will immediately appear
+        _reachableFor    = CurrentState;
         ReachableTargets = _planner.GetReachableTargets(CurrentState);
     }
 
     /// <summary>Drains all bus events and updates the published state. Call once per frame.</summary>
     public void Update()
     {
-        DrainClusterState();
-        DrainInventory();
-        DrainReplaySession();   // ⭐ CE-3329
+        _view.Update();   // ⭐ CE-1436 — the facts: state, inventory, replay session, op outcomes (idempotent when the node's slave drained it already this frame)
+        RefreshReachableTargets();
         DrainHeartbeats();
         DrainTimeMode();
         Process2PcNetworkTraffic();
@@ -151,35 +187,12 @@ public sealed class ClusterUiCache : IDisposable
 
     // ── Private drain methods ──────────────────────────────────────────────────
 
-    private void DrainClusterState()
+    private void RefreshReachableTargets()
     {
-        foreach (var ev in _bus.ReadManaged<ClusterStateUpdateEvent>())
-        {
-            var prev = CurrentState;
-            CurrentState   = (ClusterState)(int)ev.CurrentState;
-            ActiveExerciseId = ev.ExerciseId;
-            if (!ev.MasterGone) ReplayAxis = ev.ReplayAxis;   // ⭐ CE-3329 R-3058
-            IsBootstrapped = CurrentState != ClusterState.Degraded;
-            if (CurrentState != prev)
-                ReachableTargets = _planner.GetReachableTargets(CurrentState);
-        }
-    }
-
-    private void DrainReplaySession()
-    {
-        foreach (var ev in _bus.ReadManaged<Fdp.Toolkit.Orchestration.ReplaySessionUpdateEvent>())
-            if (ev.Session != null) ReplaySession = ev.Session;   // TransientLocal, KeepLast 1: the newest is the session
-    }
-
-    private void DrainInventory()
-    {
-        foreach (var ev in _bus.ReadManaged<AssetInventoryUpdateEvent>())
-        {
-            AvailableScenarios           = ev.LocalScenarios           ?? Array.Empty<string>();
-            AvailableExercises           = ev.LocalExercises           ?? Array.Empty<ExerciseInventoryItem>();
-            ArchivedExercises            = ev.ArchivedExercises        ?? Array.Empty<ExerciseInventoryItem>();
-            UnarchivedLocalExercises     = ev.UnarchivedLocalExercises ?? Array.Empty<ExerciseInventoryItem>();
-        }
+        var now = CurrentState;
+        if (now == _reachableFor) return;
+        _reachableFor    = now;
+        ReachableTargets = _planner.GetReachableTargets(now);
     }
 
     private void DrainHeartbeats()
@@ -192,6 +205,9 @@ public sealed class ClusterUiCache : IDisposable
                 SubsystemName     = ev.SubsystemName ?? string.Empty,
                 LocalClusterState = (ClusterState)ev.LocalStateId,
                 WallTicksUtc      = ev.WallTicksUtc,
+                Phase             = (int)ev.Phase,   // ⭐ CE-3345 — the node's own report, for the monitoring panel
+                Step              = ev.Step ?? string.Empty,
+                Reason            = ev.Reason ?? string.Empty,
             };
             _nodeReceivedMs[ev.NodeId] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }

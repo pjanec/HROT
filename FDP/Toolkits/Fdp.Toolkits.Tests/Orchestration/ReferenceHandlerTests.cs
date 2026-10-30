@@ -556,6 +556,87 @@ public sealed class ReferenceHandlerTests
         if (restoring) Assert.Equal(300, branch.HistoricalTime.FrameNumber);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-4090 (AQ108 D14, §5a) — "the branch follows the setting like any live run": a replay → live branch whose payload says
+    /// <c>RecordingOff</c> tears the replay down and starts NO recorder (the exercise id is still there — only the recording is not); the same branch
+    /// without it records exactly as before (the control).
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task CE4090_A_branch_from_a_replay_starts_a_recorder_only_when_the_live_run_is_recorded(bool recordingOff, int recorders)
+    {
+        using var world = new EntityRepository();
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0, FrameNumber = 300 });
+        var controller = new SeekCapturingController();
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, ".", world: world);
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid(), RecordingOff: recordingOff),
+        }, CancellationToken.None);
+
+        Assert.IsType<LiveBranchResult>(result);                 // the branch itself happened either way
+        Assert.Equal(recorders, controller.RecordingsStarted);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4097 (AQ108 D5) — a node's answer to the branch carries the parent and branch point of the recording it starts, and they are the
+    /// <b>very</b> <c>RecordingBranch</c> the new recording is opened with (the one <c>RecordingModule</c> writes into the sidecar — see
+    /// <c>RecordingModuleTests</c>): no second record. A listener, which keeps no history, answers empty (= not a branch).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CE4097_A_branch_answers_with_the_parent_and_point_its_recording_is_opened_with(bool hasHistory)
+    {
+        using var world = new EntityRepository();
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 5.0, FrameNumber = 300 });
+        var parent = Guid.NewGuid();
+        var controller = new SeekCapturingController
+        {
+            Branch = hasHistory ? new Fdp.Core.FlightRecorder.RecordingBranch("parent.fdp", 301, parent, 123_456_789L) : null,
+        };
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, ".", world: world);
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: Guid.NewGuid()),
+        }, CancellationToken.None);
+
+        var branch = Assert.IsType<LiveBranchResult>(result);
+        Assert.Equal(hasHistory ? parent : Guid.Empty, branch.ParentExerciseId);
+        Assert.Equal(hasHistory ? 123_456_789L : 0L, branch.BranchWallTicks);
+        Assert.Equal(controller.RecordedBranch?.ParentExerciseId ?? Guid.Empty, branch.ParentExerciseId);   // one source: what the recording is opened with
+        Assert.Equal(controller.RecordedBranch?.BranchWallTicks ?? 0L, branch.BranchWallTicks);
+    }
+
+    /// <summary>⭐ CE-4090 — the reference live-load handler (the hosts with no load chain) gates its recorder on the same payload field.</summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task CE4090_The_reference_live_load_handler_starts_a_recorder_only_when_the_run_is_recorded(bool recordingOff, int recorders)
+    {
+        var controller = new SeekCapturingController();
+        var handler = new ReferenceLiveLoadHandler(controller, ".");
+        var exercise = Guid.NewGuid();
+
+        await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareLive,
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 1, Operation = NodeOpType.PrepareState,
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+
+        Assert.Equal(recorders, controller.RecordingsStarted);
+    }
+
     /// <summary>⭐ CE-3329 D-C / F4 — a node that drops to Idle during a review abandons it: the RAM checkpoint dropped, the gates off,
     /// the egress released; the way back is the recording's labelled keyframe.</summary>
     [Fact]
@@ -606,7 +687,16 @@ public sealed class ReferenceHandlerTests
             LastAckBudget = timeout;
             return AckGate?.Task ?? Task.FromResult<string?>(null);
         }
-        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+        /// <summary>⭐ CE-4090 — how many recorders the handler under test started.</summary>
+        public int RecordingsStarted { get; private set; }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) { RecordingsStarted++; return Task.CompletedTask; }
+        /// <summary>CE-4097 — the history the replay on screen would hand a branch (null = a listener: no recording of it).</summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? Branch { get; set; }
+        public Fdp.Core.FlightRecorder.RecordingBranch? CurrentReplayBranch => Branch;
+        /// <summary>CE-4097 — the branch the handler opened the new recording with (what lands in its sidecar).</summary>
+        public Fdp.Core.FlightRecorder.RecordingBranch? RecordedBranch { get; private set; }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, Fdp.Core.FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
+        { RecordedBranch = branch; RecordingsStarted++; return Task.CompletedTask; }
         public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
         public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public void ProcessPlaybackTick(GlobalTime currentTime) { }

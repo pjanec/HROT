@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-10-28 (gateway re-check: GeoReference field names/units, ids int64 in the gateway table, the sender-identity layout, derived names in §11 and the related-designs; library 1.2.20)
 current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check; §Concepts 15 states the one topic-name rule
 stale-below: nothing
-known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 125 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
+known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 114 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
 known-conflict: BDC_NED_SST_Descriptor_Rules.md (the authoritative spec) and the code differ in the places listed in §Code versus the spec; neither side has been reconciled by a ruling. (Topic names have no conflict left: every name is derived from the C# type, no exceptions — §Concepts 15.)
 related-designs:
   - ../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the wire change — one frame (local metres + GeoReference), names from types, WorldPos as a quaternion pose (R-4092); all of A–I is BUILT (2026-10-28) and this reference describes the result
@@ -32,7 +32,7 @@ SimNetGateway). It states **concepts, rules and full C# type names** — never t
 or the build-generated IDL, see Concepts §15). Every rule carries a `file:line` and/or a doc § citation; what could not be
 determined says so.
 
-**Reading order.** Diagrams (3) → Concepts and rules → Inventory (all 125 wire types) → For a protocol gateway → Code versus the spec.
+**Reading order.** Diagrams (3) → Concepts and rules → Inventory (all 114 wire types) → For a protocol gateway → Code versus the spec.
 
 **The one-paragraph model.** An entity is *nothing but* a set of keyed DDS instances ("descriptors"), one topic per descriptor type,
 all sharing the entity id. `EntityMaster` alive = the entity exists. Each descriptor has its own owner (the node that writes it);
@@ -196,6 +196,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 |---|---|
 | An entity is composed of descriptors and nothing else; each descriptor type has its own topic; which descriptors an entity type needs is a convention among apps | Spec L20-32; code mirrors it: `Hrot/Network/Hrot.Network.NED/GenericDescriptors.cs` header comment (L24-40) |
 | Each descriptor type has a stable integer **ordinal** (`EDescriptorType`, 77 entries, never reused — retired: 93, 94, 121, 134). It is the "descriptor type id" of `OwnershipUpdate`, `DeferredTakeOwnership`, `UpdateEntityDescriptorRequest` | `Hrot/Network/Hrot.Network.NED/AllDescriptors.cs:6,42` |
+| ⛔ **Retired topics** *(R-3067 / AQ109 X3 + X4, 2026-10-30 — a WIRE-CONTRACT REMOVAL: a peer on an older build publishes topics nobody reads)*: the derived names `Hrot_NED_Messages_MapCommandRequest`, `Hrot_NED_Messages_ContextActionsUpdate`, `Hrot_NED_Messages_ContextMenuRequest`, `Hrot_NED_Descriptors_MapInteractionConfig` (X3) and `Hrot_NED_Messages_MapCommandAck`, `Hrot_NED_Messages_ContextActionInvoked`, `Hrot_NED_Messages_MapClickEvent`, `Hrot_NED_Messages_SelectionChangedEvent`, `Hrot_NED_Messages_DragEvent`, `Hrot_NED_Descriptors_MapConfigStatus`, `Hrot_NED_Descriptors_IGCapabilitiesAnnounce` (X4) are **reserved — never reuse them for a different type** (⚠ `Hrot_IG_Gizmos_IGCapabilitiesAnnounce`, the gizmo one, is live); the `CommandType` enum (`CMD_SET_VIEW`=0 … `CMD_DRAW_PERSONAL_ROUTE`=8) stays defined so its values are never renumbered | `Hrot/Network/Hrot.Network.NED/MapMessages.cs` tombstone comment; `docs/blueprints/Architect_Question_109_Retire_ExCon.md` §6.3, §6.4 |
 | In code every descriptor is reached through an `IDescriptorTranslator` (carries `TopicName` + `DescriptorOrdinal`); DDS structs are DTOs, never the ECS components | graph: `search_graph Interface ".*Descriptor.*"` → `FDP/Engine/Fdp.Core/Abstractions/IDescriptorTranslator.cs:82`; §[dds-to-ecs](../designs/dds-to-ecs/DESIGN.md) 1 |
 | Which descriptors a **replica** needs before it accepts an entity is *derived at runtime* from the TKB template (`MandatoryComponentResolver`), not listed anywhere; an unknown `TkbType` skips the gate entirely | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/GhostPromotionSystem.cs:225-296`. The per-type set: **not determinable from sources** as a static list |
 
@@ -213,7 +214,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 
 | Rule | Evidence |
 |---|---|
-| A descriptor topic is **keyed by the entity id** (83 of the 125 wire types are keyed; the 42 unkeyed are messages or singletons) | `scripts/ned-wire-inventory.py` (a type is keyed when a member carries `[DdsKey]`) |
+| A descriptor topic is **keyed by the entity id** (80 of the 114 wire types are keyed; the 34 unkeyed are messages or singletons) | `scripts/ned-wire-inventory.py` (a type is keyed when a member carries `[DdsKey]`) |
 | Spec says `KeepLast 1` so `read_instance` returns one sample; HROT state topics are `Reliable + TransientLocal + KeepLast(1)` (kind `S`) | Spec L59; §QoS kinds below |
 | **Multi-instance descriptors** are keyed by *(parent entity id + part/child instance id)*: turret pose and weapon task/status (part id = 2000 + turret index), the four EQS-family topics (child sensor index = `PartMetadata.InstanceId`) | `SimDescriptors.cs` comments at `EntityTurretPose`; `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsDdsTopics.cs:23-40` |
 | Other composite keys: `MapEntitySymbol` (entity + map group), `SensorTrackState` (observer + target), `DescriptorOptimisticLock` (entity + descriptor type) | inventory §A, §F |
@@ -453,20 +454,9 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
 | `Hrot.IG.Gizmos.IGCapabilitiesAnnounce` | descriptor | yes: node id | S | Hrot.IG | Same simple name as the NED type but a different type with a different layout, hence a different topic; its publisher is registered by no host and nothing reads it (§Not determinable 8) |
-| `Hrot.NED.Descriptors.IGCapabilitiesAnnounce` | descriptor | yes: map id | S | Hrot.Network.NED | IG announces layer tree and config schemas (map keyed) |
-| `Hrot.NED.Descriptors.MapConfigStatus` | descriptor | yes: map id | S | Hrot.Network.NED | Full map configuration state reported by an IG |
 | `Hrot.NED.Descriptors.MapEntitySymbol` | descriptor | yes: entity id + map group id | S | Hrot.Network.NED | Per-map-group symbol override for an entity |
-| `Hrot.NED.Descriptors.MapInteractionConfig` | descriptor | yes: map group id + map id | S | Hrot.Network.NED | Map layers and tools configuration, ExCon to IG |
 | `Hrot.NED.Descriptors.MapRoute` | descriptor | yes: entity id | S | Hrot.Network.NED | Waypoint route of an entity |
 | `Hrot.NED.Descriptors.MapVisualOverlay` | descriptor | yes: entity id | S | Hrot.Network.NED | Tactical graphic overlay attached to an entity |
-| `Hrot.NED.Messages.ContextActionInvoked` | message | no | Q | Hrot.Network.NED | User picked a context-menu action |
-| `Hrot.NED.Messages.ContextActionsUpdate` | message | no | Q | Hrot.Network.NED | Pushed context-menu definition for a selection |
-| `Hrot.NED.Messages.ContextMenuRequest` | message | no | Q | Hrot.Network.NED | IG asks ExCon for a missing context menu |
-| `Hrot.NED.Messages.DragEvent` | message | no | Q | Hrot.Network.NED | Drag gesture on the map |
-| `Hrot.NED.Messages.MapClickEvent` | message | no | Q | Hrot.Network.NED | Click on the map with the hit stack |
-| `Hrot.NED.Messages.MapCommandAck` | message | no | Q | Hrot.Network.NED | IG's answer to a map command |
-| `Hrot.NED.Messages.MapCommandRequest` | message | no | Q | Hrot.Network.NED | Imperative command from ExCon to one IG |
-| `Hrot.NED.Messages.SelectionChangedEvent` | message | no | D | Hrot.Network.NED | Selection set changed (IG is authoritative) |
 
 ### G. Time, session and cluster orchestration — 21
 

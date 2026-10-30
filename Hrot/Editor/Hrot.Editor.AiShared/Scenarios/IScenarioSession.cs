@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Orchestration;
+using Hrot.UI.Common.RunMode;
 
 namespace Hrot.Editor.AiShared.Scenarios;
 
@@ -21,7 +23,7 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// registrar binding to the editor-only <c>IEditorLogic</c> WAS the wall — design §2, measured.</para>
 ///
 /// <para>⚠⚠ <b>TWO clear verbs, not one, and the difference is load-bearing.</b>
-/// <see cref="ClearWorld"/> is the LOCAL wipe; <see cref="NewExercise"/> is the CLUSTER-WIDE reset.
+/// <see cref="ClearWorld"/> is the LOCAL wipe; <see cref="Close"/> leaves the open scenario for Idle CLUSTER-WIDE.
 /// 📐 Measured <c>2026-08-26</c>: the load state machine calls the local wipe as <i>step 1 of its own
 /// sequence</i> *(<c>EditorApplication.Update</c>)*, so collapsing the two would make every load publish
 /// a second <c>Idle</c> intent from inside the handler for the first one. ⇒ ⛔ the design's single
@@ -29,6 +31,37 @@ namespace Hrot.Editor.AiShared.Scenarios;
 /// </summary>
 public interface IScenarioSession
 {
+    // ── ⭐⭐⭐ CE-4101 (AQ108 §2.11a) — THE GUARDED DOOR. ⛔ This interface does NOT extend IRunScenarioControl any more: that one holds the RAW verbs (open / load / open a recording WITHOUT
+    //    asking), handed only to the run choice. Every member below is the guarded one — a run ⇒ Stop & Load · unsaved edits ⇒ Save / Discard / Cancel (the session's Door); a caller that holds a session
+    //    can only reach the door.
+
+    /// <summary>The currently loaded scenario name, or <c>null</c> after a clear.</summary>
+    string? LoadedScenarioName { get; }
+
+    /// <summary>⭐ GUARDED — opens <paramref name="scenarioName"/> for AUTHORING, cluster-wide (the door asks <i>Stop &amp; Load</i> over a run, <i>Save / Discard / Cancel</i> over unsaved edits).</summary>
+    void OpenForEdit(string scenarioName);
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1443</c> (U2a, R-1043) — <b>THE operator's scenario load</b>, GUARDED like every verb here: it goes into the cluster's CURRENT armed mode (Live armed ⇒ <see cref="LoadForLive"/>, Preview ⇒ <see cref="OpenForEdit"/>, AAR ⇒ the last load's mode),
+    /// resolved ONCE in the run choice. The File menu, Start's Recent rows and every picker call THIS. ⛔ Sends no armed mode. A default member (a fake, or a session with no door, opens for editing).
+    /// </summary>
+    void LoadScenario(string scenarioName) => OpenForEdit(scenarioName);
+
+    /// <summary>⭐ GUARDED — loads <paramref name="scenarioName"/> for RUNNING, cluster-wide (a fresh exercise; the same decision as <see cref="OpenForEdit"/>).</summary>
+    void LoadForLive(string scenarioName);
+
+    /// <summary>⭐ GUARDED — opens a RECORDING into AAR (the same decision as <see cref="OpenForEdit"/>).</summary>
+    void OpenRecording(Guid exerciseId);
+
+    /// <summary>⭐ GUARDED — <see cref="OpenRecording(Guid)"/> at a moment of the recording's own sim clock; <see langword="null"/> = its start. A default member so a fake need not state it.</summary>
+    void OpenRecording(Guid exerciseId, double? atSimSeconds) => OpenRecording(exerciseId);
+
+    /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
+    void SaveCurrent();
+
+    /// <summary>Saves the live running state — publishes the existing <c>TakeCheckpointIntent</c> to the master.</summary>
+    void TakeCheckpoint();
+
     /// <summary>
     /// ⭐⭐ Pumps the session once per frame: drains <see cref="ClusterStateUpdateEvent"/> and advances the
     /// deferred-load state machine *(a load first asks the cluster for <see cref="ClusterState.Idle"/>,
@@ -48,52 +81,22 @@ public interface IScenarioSession
     void ClearWorld();
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The CLUSTER-WIDE reset</b> — finishes any running exercise and starts fresh
-    /// *(<c>File/Live/New Exercise</c>)*. Requests <see cref="ClusterState.Idle"/> of the master and wipes
-    /// locally. ⚠ <b>Destructive</b>: the caller owns the confirmation *(ruling 53 — the confirm belongs
-    /// where the operator sits, and a headless node logs instead of prompting)*.
+    /// ⭐⭐⭐ <c>CE-1443</c> (U2a, AQ108 §2.15) — <b>Close</b>: back to Idle (the Start perspective), through the ONE door (<c>Door.Leave(LeaveReason.Close)</c>): a run is stopped (■ never asks), editing with unsaved edits asks <i>Save / Discard / Cancel</i>,
+    /// a cluster in its ERROR state asks only <i>discard and close?</i>. ⛔ Exempt from the readiness gate. REPLACES the withdrawn <i>New Exercise</i> (its local world wipe is gone — the unload to Idle clears the world on every node).
     /// </summary>
-    void NewExercise();
+    void Close();
 
     /// <summary>
-    /// ⭐⭐⭐ <b>Load for RUNNING, cluster-wide</b> — the <c>/scenario/load/live</c> path.
-    /// Publishes <c>TransitionStateIntent{OperatingLive}</c> with a <b>fresh</b> <c>ExerciseId</c>: a live
-    /// load IS a new exercise run, and that id is what recording/replay keys off.
+    /// ⭐ <c>CE-1443</c> — restores a checkpoint of the running exercise by its LABEL: publishes the existing <c>RestoreCheckpointIntent</c> (the master pauses, every node stages the keyframe, then all restore and the cluster records on as a NEW exercise, D18). The master accepts it
+    /// only in <c>OperatingLive</c> of a recorded run. A default member (a fake does nothing).
     /// </summary>
-    void LoadForLive(string scenarioName);
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>Open for AUTHORING, cluster-wide</b> — the <c>/scenario/load/edit</c> path.
-    /// Asks for <see cref="ClusterState.Idle"/>, wipes locally once idle, then requests
-    /// <c>OperatingEdit</c>. ⭐ <c>ExerciseId</c> is deliberately fresh-per-transaction here as it always
-    /// was; authoring is not an exercise run, which is why the direct cluster-intent arm in
-    /// <c>DebugApiService.LoadScenarioEdit</c> uses <c>Guid.Empty</c>.
-    /// </summary>
-    void OpenForEdit(string scenarioName);
-
-    /// <summary>Saves the world into the scenario most recently loaded. No-op when none is loaded.</summary>
-    void SaveCurrent();
+    void RestoreCheckpoint(string label) { }
 
     /// <summary>Saves the world as a new scenario and remembers the name for <see cref="SaveCurrent"/>.</summary>
     void SaveAs(string scenarioName);
 
     /// <summary>Serializes the world to an explicit file path *(the raw round-trip seam)*.</summary>
     void SaveTo(string filePath);
-
-    /// <summary>
-    /// ⭐⭐ <b>Saves the live running state</b> — publishes the existing <c>TakeCheckpointIntent</c> to the
-    /// master *(<c>File/Checkpoint/Take Checkpoint</c>)*.
-    ///
-    /// <para>⚠ <b>DEVIATION from design §4</b>, argued: the class diagram draws
-    /// <c>ScenarioMenuCommands ..&gt; TakeCheckpointIntent</c> — the menu publishing directly. ⛔ That would
-    /// put the same one-line publish in BOTH hosts' composition roots *(two implementations of one
-    /// concept — ruling 9)*. ⭐ The session already holds the orchestration bus, so it is the single home.
-    /// Folded into the design's as-built section.</para>
-    /// </summary>
-    void TakeCheckpoint();
-
-    /// <summary>The currently loaded scenario name, or <c>null</c> after a clear.</summary>
-    string? LoadedScenarioName { get; }
 
     /// <summary>True when the loaded scenario came up in degraded mode *(snapshot fallback)*.</summary>
     bool IsDegraded { get; }

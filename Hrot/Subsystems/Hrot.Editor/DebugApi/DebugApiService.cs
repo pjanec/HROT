@@ -26,6 +26,7 @@ using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.UI.Common.Facades;
+using Hrot.UI.Common.RunMode;
 using StructEdit.Core;
 using StructEdit.Reflection;
 
@@ -71,6 +72,13 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<IReadOnlyList<Fdp.Toolkit.Orchestration.ExerciseInventoryItem>?>? _editorExercises;
         private readonly Func<float?>? _editorReplayDuration;
         private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _editorReplayAxis;   // CE-3329
+        private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _editorArmedMode;   // CE-3341 — the cluster's armed mode, from the in-process master's broadcast
+        private readonly Func<bool?>? _editorRecordLiveRunsOff;   // CE-4090 — the setting, from the in-process master's broadcast
+        private readonly Func<bool?>? _editorAskToKeepRecordings;   // CE-4100 — the same, for the Ask-to-keep setting
+        private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _editorClusterView;   // CE-3344 — the in-process node's ONE cluster read model (the 409 gate)
+        private readonly Func<bool?>? _editorRunNotRecorded;   // CE-4090 — the in-process master's "this run was not recorded"
+        private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _editorUnsavedCheck;   // CE-4093 — the in-process master's check round answer
+        private readonly Func<bool?>? _editorScenarioDirty;   // CE-4093 — the in-process master's last verdict
         private readonly IDiagnosticEventHistoryService?  _editorEventHistory;
         private readonly MasterSyncController?            _timeController;
         private readonly Func<ClusterState>?             _clusterStateGetter;
@@ -567,8 +575,25 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-3329 R-3058 — the replay session's time axis (the core's ClusterUiCache)
             Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? replayAxis = null,
             // ⭐⭐ CE-4087 — the in-process master's load-gate text (GET /cluster/roster → load.notice). ⛔ The editor HOLDS the master.
-            Func<string?>? clusterLoadNotice = null)
+            Func<string?>? clusterLoadNotice = null,
+            // ⭐ CE-4090 (AQ108 D14) — the in-process master's "this run was not recorded" (the core's ClusterUiCache). ⛔ The editor HOLDS it.
+            Func<bool?>? runNotRecorded = null,
+            Func<bool?>? recordLiveRunsOff = null,
+            Func<bool?>? askToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①)
+            Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
+            // ⭐ CE-4093 (AQ108 D20) — the in-process master's check round answer + last verdict (the core's ClusterUiCache). ⛔ The editor HOLDS them.
+            Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
+            Func<bool?>? scenarioDirty = null,
+            // ⭐⭐ CE-3344 (R-3069) — the editor's node's ONE cluster read model; CanOperate gates the HTTP cluster routes. ⛔ The editor HOLDS it (silent-default rule).
+            Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null)
         {
+            _editorClusterView = clusterView;
+            _editorRecordLiveRunsOff = recordLiveRunsOff;
+            _editorAskToKeepRecordings = askToKeepRecordings;
+            _editorArmedMode = armedMode;
+            _editorRunNotRecorded = runNotRecorded;
+            _editorUnsavedCheck = unsavedCheck;
+            _editorScenarioDirty = scenarioDirty;
             _entityCreationGetter = entityCreation;
             _editorClusterLoadNotice = clusterLoadNotice;
             _editorReplayAxis     = replayAxis;
@@ -703,12 +728,52 @@ namespace Hrot.Editor.DebugApi
                 ["inPreview"]    = TryRead(() => (JsonNode?)_preview.IsInPreviewMode),
                 ["entityCount"]  = TryRead(() => (JsonNode?)_world.EntityCount),
                 // ⭐ R-3053 — a LIVE run records on every node; nothing else does (the API no longer starts a recording).
-                ["recording"]    = _rrController is { } rr ? (JsonNode?)(rr.ActiveRecordingModule is not null) : null,
+                //   ⭐ CE-4090 (AQ108 D14, D22) — and for the run the CLUSTER shows: `recording` is false when the master loaded the live run with
+                //   "Record live runs" off (the same fact the 409 gates answer), whatever this node's recorder holds; unknown ⇒ the node's own.
+                ["recording"]    = RunIsRecorded(),
                 // ⭐ Which context these numbers describe — ⛔ without it, a cluster status is ambiguous
                 //   about WHOSE world it counted.
-                ["perspective"]  = _dispatcher?.CurrentPerspective,
+                ["perspective"]  = _dispatcher?.CurrentPerspective ?? _perspectives?.CurrentPerspective,
+                // ⭐⭐ CE-4094 (AQ108 M7/D22) — where the reads above were answered from: equal to `perspective` except while `Start`
+                //   shows, when it is the REMEMBERED perspective. ⛔ Without it `perspective: Start` would leave the caller guessing WHICH
+                //   node's world /entities counted.
+                ["routedTo"]     = _dispatcher?.RoutedTo ?? RoutedToFromSwitcher(),
+                // ⭐⭐ CE-4093 (AQ108 D22) — the LAST check round's verdict (true = the open scenario has unsaved changes); null when none ran or the cluster
+                //   left editing since. ⛔ Reading it never runs a round — POST /scenario/check-unsaved does.
+                ["scenarioDirty"] = ScenarioDirtyOrNull,
+                // ⭐⭐ CE-4097 part two (AQ108 D22) — what ▶ would run from editing on this host: preview | live | aar (null: this host has no run choice). Read-only; POST /run-mode sets it.
+                ["armedMode"]    = TryRead(() => (JsonNode?)ArmedModeText()),
+                // ⭐⭐ CE-3344 (R-3069) — cluster READY from this host (ClusterView.CanOperate): true = the cluster routes work; false + `notOperable` = they answer 409 with that reason;
+                //   absent when this host keeps no cluster read model. ⭐ What a test harness polls before it drives the cluster.
+                ["canOperate"]   = ClusterNotOperableReasonKnown() is { } known ? (JsonNode?)(known.Reason is null) : null,
+                ["notOperable"]  = ClusterNotOperableReasonKnown()?.Reason,
+                // ⭐⭐ CE-1451 — this node's LOAD as its heartbeat reports it (phase, step, failure) and the run gate + loading screen its controls read. Each is absent
+                //   (null) where the host has none: no cluster view ⇒ no `load`; no run choice ⇒ no `runGate`; no composed screen ⇒ no `loadingScreen`.
+                ["load"]         = TryRead(LoadStatusOrNull),
+                ["runGate"]      = TryRead(RunGateOrNull),
+                ["loadingScreen"] = TryRead(LoadingScreenOrNull),
             };
         }
+
+        /// <summary>
+        /// ⭐ CE-4090 (AQ108 D22) — <c>GET /status.recording</c>: is the run the cluster shows RECORDED. True in a live run, a review or a recording
+        /// (AAR) that has its recording; false in Idle / Edit / Preview and in a live run the master loaded with "Record live runs" off. ⭐ Read from the
+        /// master's broadcast (one fact, every host); a host that has no cluster read model answers its own recorder's state (as before), or null.
+        /// </summary>
+        private JsonNode? RunIsRecorded()
+        {
+            var notRecorded = RunNotRecordedOrNull;
+            var state = CurrentClusterStateOrNull();
+            if (notRecorded is { } off && state is { } s)
+                return !off && (s == ClusterState.OperatingLive || ClusterStates.IsReplaying(s));
+            return _rrController is { } rr ? (JsonNode?)(rr.ActiveRecordingModule is not null) : null;
+        }
+
+        /// <summary>⭐ CE-4094 — the editor shape's `routedTo` (no dispatcher): the window manager's perspective, or — while Start shows — the remembered one.</summary>
+        private string? RoutedToFromSwitcher()
+            => _perspectives is not { } sw ? null
+             : sw.CurrentPerspective == Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName ? sw.RememberedPerspective
+             : sw.CurrentPerspective;
 
         /// <summary>
         /// ⭐ Reads one status field, or <see langword="null"/> when this host does not offer it.
@@ -1164,8 +1229,36 @@ namespace Hrot.Editor.DebugApi
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
-            _editor.LoadScenarioByName(name);
+            // ⭐ CE-4101 — through the editor's ONE guarded door, with HTTP's refusing asker (nothing is prompted; a run is stopped, a loss is refused)
+            if (_editor.Door is { } door) door.Open(name, HttpAsker(null), UnsavedAnswer.Unchanged);
+            else _editor.LoadScenarioByName(name);   // an editor logic with no session door (a fake)
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4101</c> (AQ108 §2.11a, D22) — <b>what HTTP's route learned from the cluster's check round</b> before it asked the editor's door: <paramref name="Answer"/> is the round's verdict, <paramref name="ChangedNodes"/> the nodes
+        /// that differ (for the refusal's text), <paramref name="Discard"/> the body's <c>discardUnsaved: true</c> (the door then does not even ask). The DECISION — and so the 409 — is the door's, answered through
+        /// <see cref="RefusingAsker"/>; ⛔ not a second check in the route.
+        /// </summary>
+        public sealed record HttpUnsavedGate(UnsavedAnswer Answer, string? ChangedNodes, bool Discard);
+
+        /// <summary>The 409 text of a load / stop that would lose unsaved edits (HTTP's own words, unchanged since CE-4093).</summary>
+        public static string UnsavedRefusal(string? changedNodes)
+            => "the scenario has unsaved changes (nodes: " + changedNodes + "): save it first (POST /scenario/save), "
+             + "or send {\"discardUnsaved\": true} to load anyway.";
+
+        /// <summary>The marker a service answer carries in its hint slot when the door REFUSED the move: the route answers 409 (a state conflict), not 400.</summary>
+        public const string ConflictHint = "door.refused";
+
+        /// <summary>⭐ CE-4101 — HTTP's asker over <paramref name="gate"/>: nothing is prompted; a run is stopped, unsaved edits are refused with <see cref="UnsavedRefusal"/> unless the body discarded them.</summary>
+        private static RefusingAsker HttpAsker(HttpUnsavedGate? gate)
+            => new(q => q.Kind == DoorQuestionKind.Unsaved ? UnsavedRefusal(gate?.ChangedNodes) : null, gate?.Discard ?? false);
+
+        /// <summary>
+        /// ⭐ CE-4101 — the door that DECIDES for HTTP: this host's scenario session's when it has one (the editor), else a deciding-only door over the cluster state this service reads (a cluster node with no editor): the
+        /// SAME class and the same questions, ⛔ never a second copy of the decision.
+        /// </summary>
+        private ScenarioDoor HttpDoor => _editorLogic?.Door ?? (_decidingDoor ??= new ScenarioDoor(raw: null, () => ClusterReplayControls.ModeOf(CurrentClusterStateOrNull() ?? ClusterState.Idle)));
+        private ScenarioDoor? _decidingDoor;
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>POST /scenario/load/edit</c> — load for AUTHORING, cluster-wide.</b>
@@ -1188,15 +1281,36 @@ namespace Hrot.Editor.DebugApi
         /// <c>--mode all</c> an edit load is PARTIAL: SimHost loads, CGF does not. ⛔ Declared in the
         /// conformance baseline rather than crashing — which is why the content diff uses LIVE.</para>
         /// </summary>
-        public JsonNode LoadScenarioEdit(string name)
+        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
 
+            var asker = HttpAsker(gate);
+            var answered = gate?.Answer ?? UnsavedAnswer.Unchanged;
+            if (_editorLogic?.Door is { } editorDoor)
+            {
+                // ⭐ CE-4101 — the editor's ONE guarded door, asked with HTTP's refusing asker: a run is stopped (the session leaves a dry run itself, CE-1025), a loss is refused — the 409 is the door's answer
+                var stoppedRun = RunToStopForLoad();
+                editorDoor.Open(name, asker, answered);
+                if (asker.Refusal is { } refusal) return new JsonObject { ["refused"] = refusal };
+                return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver",
+                                        ["stoppedRun"] = stoppedRun };
+            }
+
+            // no session door here (a cluster node, a fake editor logic): the SAME decision, made by HTTP's own deciding door; this host's execution below
+            JsonNode? sent = null;
+            HttpDoor.Admit(DoorMove.OpeningScenario(name), asker, answered, () => sent = SendEditLoad(name));
+            if (asker.Refusal is { } refused) return new JsonObject { ["refused"] = refused };
+            return sent ?? throw new InvalidOperationException("the door neither admitted nor refused the edit load");
+        }
+
+        private JsonNode SendEditLoad(string name)
+        {
             var stopped = LeaveRunForLoad();
             if (_editorLogic is not null)
             {
-                _editorLogic.LoadScenarioByName(name);
+                _editorLogic.LoadScenarioByName(name);   // a host whose editor logic has no session door (a fake): as it always was
                 return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "editor-driver",
                                         ["stoppedRun"] = stopped };
             }
@@ -1226,10 +1340,23 @@ namespace Hrot.Editor.DebugApi
         /// <para>⭐ A fresh <c>ExerciseId</c> per load, mirroring the orchestrator panel's "Load into Live"
         /// button: a live load IS a new exercise run, and the id is what recording/replay keys off.</para>
         /// </summary>
-        public JsonNode LoadScenarioLive(string name, bool startPaused = true)
+        public JsonNode LoadScenarioLive(string name, bool startPaused = true, bool forceRecording = false, HttpUnsavedGate? gate = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
+
+            // ⭐ CE-4101 — the DECISION is the editor's ONE door's (HTTP's refusing asker: a run is stopped, a loss is refused); the EXECUTION stays this route's own load (it carries ForceRecording and
+            //   the startPaused TimeMode, which the session's raw live load does not) — so ⛔ nothing is decided here, only published once the door lets the move through.
+            JsonNode? sent = null;
+            void Go() => sent = SendLiveLoad(name, startPaused, forceRecording);
+            var asker = HttpAsker(gate);
+            HttpDoor.Admit(DoorMove.LoadingLive(name), asker, gate?.Answer ?? UnsavedAnswer.Unchanged, Go);
+            if (asker.Refusal is { } refusal) return new JsonObject { ["refused"] = refusal };
+            return sent ?? throw new InvalidOperationException("the door neither admitted nor refused the live load");
+        }
+
+        private JsonNode SendLiveLoad(string name, bool startPaused, bool forceRecording)
+        {
             var stopped = LeaveRunForLoad();
 
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
@@ -1241,6 +1368,9 @@ namespace Hrot.Editor.DebugApi
                 // ⭐ Q86 §4-G — the clock is reset to 0 either way; startPaused (default true) decides whether it runs
                 //   once the load is done. The default keeps the documented load → POST /sim/play flow.
                 TimeMode      = startPaused ? "Deterministic" : null,
+                // ⭐ CE-4090 (AQ108 D14, §5a) — the scenario verifier compares the run's RECORDING against a golden: its live load records
+                //   whatever the cluster's "Record live runs" setting says. ⛔ Not reachable from HTTP — only the verifier's own load asks.
+                ForceRecording = forceRecording,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
                                     ["startPaused"] = startPaused,
@@ -1252,12 +1382,18 @@ namespace Hrot.Editor.DebugApi
         /// it stopped ("a live run" / "a dry run"), or null — the answer says so.</summary>
         private string? LeaveRunForLoad()
         {
+            var run = RunToStopForLoad();
+            if (InPreviewOrNull() == true) _preview.ForgetPreview();
+            return run;
+        }
+
+        /// <summary>The run a load would stop ("a live run" / "a dry run"), or null — the ONE definition (<see cref="Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard"/>), with no side effect.</summary>
+        private string? RunToStopForLoad()
+        {
             // ⭐ a host with NO preview controller (a `--mode all` cluster node) is never in a dry run: degrade, as InPreviewOrNull does —
             //   📌 behaviors, 2026-10-23: reading _preview directly made every live load answer NOT_SUPPORTED_HERE(preview.control) there
             bool inPreview = InPreviewOrNull() == true;
-            var run = Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(inPreview, CurrentClusterState());
-            if (inPreview) _preview.ForgetPreview();
-            return run;
+            return Hrot.Editor.AiShared.Scenarios.ScenarioLoadGuard.RunningRun(inPreview, CurrentClusterState());
         }
 
         // ⭐⭐ CE-295 — loads go through the ONE shared sequence: from any state but Idle it asks for Idle (the unload),

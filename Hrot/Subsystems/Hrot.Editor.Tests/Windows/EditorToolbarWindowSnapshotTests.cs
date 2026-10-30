@@ -49,7 +49,6 @@ public sealed class EditorToolbarWindowSnapshotTests : IDisposable
         public bool IsScenarioDegraded => throw new NotSupportedException();
         public void ActivateTool(EditorTool tool) => throw new NotSupportedException();
         public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) => throw new NotSupportedException();
-        public IDerRepo View => throw new NotSupportedException();
         public void CenterOnEntity(long entityId) => throw new NotSupportedException();
         public void SelectEntity(long entityId) => throw new NotSupportedException();
         public void OpenRenameDialog(long entityId) => throw new NotSupportedException();

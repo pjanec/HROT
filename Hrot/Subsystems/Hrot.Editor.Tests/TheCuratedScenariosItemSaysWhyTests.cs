@@ -46,7 +46,7 @@ public sealed class TheCuratedScenariosItemSaysWhyTests
 {
     // ⭐ CE-046 — the item moved with the rest of the scenario group into the distinct `File/Edit`
 //   submenu (design §3a). ⛔ The COMMAND ID is unchanged; only the human-facing path moved.
-    private const string MenuPath = "File/Edit/Save Curated Scenarios to Git";
+    private const string MenuPath = "File/Save Curated Scenarios to Git";   // ⭐ CE-1443: the File/Edit submenu is gone — a flat item of the editing group
 
     // ── the smallest fakes that let the registrar run ────────────────────────
 
@@ -59,13 +59,14 @@ public sealed class TheCuratedScenariosItemSaysWhyTests
         public bool IsDegraded => false;
         public void Update() { }
         public void ClearWorld() { }
-        public void NewExercise() { }
+        public void Close() { }
         public void LoadForLive(string scenarioName) { }
         public void OpenForEdit(string scenarioName) { }
         public void SaveCurrent() { }
         public void SaveAs(string scenarioName) { }
         public void SaveTo(string filePath) { }
         public void TakeCheckpoint() { }
+        public void OpenRecording(Guid exerciseId) { }
         public IReadOnlyList<SidecarFileInfo> GetMigrationSidecars() => Array.Empty<SidecarFileInfo>();
     }
 

@@ -312,7 +312,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
     /// <summary>The exercises on disk this host can open, newest first (<c>GET /exercises</c>).</summary>
     private IReadOnlyList<ExerciseInventoryItem> ExercisesOnDisk()
         => RecordingGroupInventory.Scan(RecordingsRoot)
-                                  .Select(g => new ExerciseInventoryItem(g.ExerciseId, g.StartTimeUtc, g.Duration, null))
+                                  .Select(g => new ExerciseInventoryItem(g.ExerciseId, g.StartTimeUtc, g.Duration, g.ScenarioName, g.ParentExerciseId, g.BranchWallTicks))   // ⭐ CE-4102 — the scenario the run loaded
                                   .ToList();
 
     private ClusterState ReplayState => _manager is { Contexts.Count: > 0 } ? ClusterState.OperatingReplay : ClusterState.Idle;
@@ -399,6 +399,8 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public void Storage(ExecuteStorageOpIntent intent) => throw Offline("storage");
         public void TakeCheckpoint(TakeCheckpointIntent intent) => throw Offline("checkpoint");
         public void RestoreCheckpoint(RestoreCheckpointIntent intent) => throw Offline("checkpoint restore");
+        public void SetRunSettings(SetRunSettingsIntent intent) => throw Offline("run settings");
+        public void CheckUnsaved(CheckUnsavedIntent intent) => throw Offline("unsaved-changes check");
         public void Cancel(CancelOperationIntent intent) => throw Offline("cancel");
         public void Dump(ExecuteDiagnosticDumpIntent intent) => throw Offline("diagnostic dump");
 
@@ -462,7 +464,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         public TransportMode Mode => Open ? TransportMode.Replay : TransportMode.Idle;
         public Fdp.Toolkit.Orchestration.ReplayAxis Axis => _host.Axis;
         public void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis) => _host.MasterControl.SetReplayAxis(ReplaySessionIntents.SetAxis(axis));
-        public void EnterReview(double? at = null) { }   // offline: no live run
+        public void EnterReview(double at) { }   // offline: no live run
         public void ExitReview() { }
         public void EnterReviewAtSim(double simSeconds) { }   // offline: no live run
         public Fdp.Toolkit.Orchestration.ReplaySession? Session => null;

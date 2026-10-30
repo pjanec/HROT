@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-29 (§11.7 NEW — U1, ui: ONE run gate on the run choice, the loading screen, the error indicator) · 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -23,6 +23,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - blueprints/Architect_Question_110_Readiness_Protocol.md — owns the readiness PROTOCOL decisions (A–E) and the slice ids that §11 builds
   - docs/DESIGN_Cgf_Scenario_Session_Slice.md — OWNS the shared scenario session and the File menu's items (§3a) that §9.1 guards
   - docs/UX/UX_Feature_Modal_Surfaces.md — OWNS ruling 53 (the confirm sits at the origin; headless never pre-flights)
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — a checkpoint restore is a load: CheckpointLoadPart applies the keyframe in place of the scenario step (CE-3299).
@@ -1021,6 +1022,11 @@ Rails: `ScenarioLoadSequenceTests` (6) · `EditorScenarioSessionLoadTests` (4, r
 
 ### 9.1 ⭐⭐⭐ `CE-1025` — **A LOAD DURING A LIVE RUN OR A DRY RUN: warn (interactive only), stop it, FORGET its restore point, load from Idle** *(design `2026-10-23`, ui; `build-state: BUILT 2026-10-23` — as-built at the end of this section; R-1031)*
 
+> ⛔ **SUPERSEDED IN PART `2026-10-29` (CE-1438, [AQ108 §2.11](blueprints/Architect_Question_108_Run_Mode_Picker.md)).** The interactive warning no longer lives in the menu seam described below
+> (`ScenarioMenuCommands` `runningRun` / `confirmLoad` / `Guarded`, `ScenarioLoadGuard.Prompt` — all RETIRED): it is `RunModeChoice.OpenScenario` / `OpenRecording` asking *Stop & Load* (a
+> `RunModeConfirmation`), so CGF warns too. "A run is running" is `RunModeRunGuard.Of(TransportMode)`; `ScenarioLoadGuard.RunningRun` remains only for HTTP's `stoppedRun`. The diagrams and as-built
+> text below describe the CE-1025 build and are history where they name the retired members.
+
 🔒 **User, `2026-10-23`:** *"scenario load should warn about it breaks existing live or dryrun and once approved it stop it first
 forgetting the dry run restoration point then performs the load from standby state. Of course the warn dialog only if not tasked
 from ai debug http which is non interactive by design."* ("standby" = `Idle`; ruling 53: the confirm sits where the operator sits,
@@ -1288,3 +1294,538 @@ unloaded (unnamed) world. Rails: `TerrainLoadStepTests.AScenarioNamingNoTerrain_
 header (the gateway wrote none for a scenario naming nothing, so the previous one stayed). Fixed in the writer:
 [`DESIGN_Artifact_Staging.md`](DESIGN_Artifact_Staging.md) §9.7.
 
+
+## 11. ⭐⭐⭐ READINESS — **"cluster ready" (the boot latch) and "play ready" (the load), one fact each, read by every host** *(rulings `2026-10-29`, backend; `build-state: R1 BUILT (§11.4) · R2 BUILT (§11.6) — R3, R4, U1 DESIGN`)*
+
+🔒 **User, `2026-10-29`** (R-3069…R-3071), in the CE-4103 thread (an open in the editor's first second):
+- *"The HTTP server or UI simply can't be enabled before the node has joined the cluster as the cluster related feature would not work."*
+- *"yes, role loss means Degraded too"* · *"i thought the latch was already checking the roles present as that was the intention - not allowing the cluster report readiness before all parts are up and running. it should."*
+- *"scenario load might include terrain load and 3d map reload, these all are all happening after cluster-ready so not part of the boot latch, but they need to be part of "play readiness" check affecting the player/system controls while the scenario is loading"* · *"must be cancellable by the user which basically fails the load on that node and the node should report that on its side as failure to the master."*
+- *"TKB load must finish before a scenario can be loaded or simulation started"* · *"for test harnesses this might be expected to finish before the system is considered usable for tests on the default initial empty world"*
+
+| # | ruling | measured gap it closes |
+|---|---|---|
+| **R-3069** | ⭐⭐ **CLUSTER READY = every mandatory NAME and ROLE has a node that has REPORTED READY**; losing either ⇒ `Degraded` and the gate closes again. A node reports ready EXPLICITLY when its host's initialization is done (not "its frame loop started"). The master publishes the fact + what is still missing with the cluster state; `ClusterView` exposes it, with "this host's node is in sync" (R-4006). Controls grey out and HTTP cluster routes answer 409 with the missing list until it holds | `CheckBootstrapLatch` reads names only (`ClusterMaster.cs:681-687`); roles feed only the load wait (`ClusterMaster.Bootstrap.cs:100-119`); a lost role does not degrade (§9.2 open row); "ready" today = the default `LocalStateId` 0 = Idle on the first heartbeat (`ClusterSlave.cs:61,213`); no host gates its controls on it except the Orchestrator panel (`ClusterScenarioPanel.cs:315`) |
+| **R-3070** | ⭐⭐ **PLAY READY = the cluster's scenario load (terrain, 3-D map reload, zones …) has finished on every node** — a second gate, AFTER cluster ready, on the same controls; a loading screen while it does not hold; **the user may cancel**: cancelling fails the load on that node, which reports the failure to the master (the round then fails — CE-4103's no-forever-wait rule) | to be measured (INVENTORY below) |
+| **R-3071** | ⭐⭐ **THE TKB IS LOADED BEFORE ANY SCENARIO LOAD OR SIMULATION START**; a test harness may treat "TKB loaded" as part of usable on the initial empty world | to be measured: where each host loads it, and whether a load can start before the join sync's copy lands (R-4018) |
+
+⛔ Not part of either gate: the data a surface SHOWS (the scenario / recording lists) — each surface waits for its own arrival fact (`ClusterView.HasInventory`, `ClusterView.cs:60`) and says "waiting for the cluster's list…" rather than showing a false empty.
+
+### 11.1 INVENTORY — measured `2026-10-29` (read-only sweep: `search_code` + `search_graph` + grep over `Hrot/`, `FDP/`, `Stride/`; `docs/` then `.dev/`; ⚠ `check_index_coverage` unavailable through the CLI)
+
+| question | measured | where |
+|---|---|---|
+| does any host still initialize after its first `Tick`? | ⛔ **no** — every host's slave ticks only after `Initialize` returns; no `Task.Run` for terrain / TKB / catalogs at boot (the editor's 2 s blueprint instrumentation is not cluster work) | `EditorSubsystem.cs:1303,2387,2898` · `SimHostApp.cs:533,624` · `IgApplication.cs:1018,1146` · `CgfSubsystem.cs:1662` · `HrotNodeContext.cs:57-66` |
+| the ready report today | the capability advert on the slave's FIRST `Tick` (durable, kept for late joiners) + `LocalStateId` default 0 = Idle on every heartbeat | `ClusterSlave.cs:61,199-216` |
+| the latch | names only; roles only in the load wait; a lost role never degrades | `ClusterMaster.cs:681-690`, `ClusterMaster.Bootstrap.cs:100-127`, `ClusterMaster.cs:755-765` |
+| mandatory config | default names EMPTY, roles `Brain\|MuscleGround`; the editor alone: `ForOneNodeCluster` + `LocalRoles` ⇒ ready at once; no `orchestrator-config.json` in the repo | `ClusterConfiguration.cs:14,34,88-100`, `EditorSubsystem.cs:2426-2432` |
+| the TKB on a load | ⭐ **already R-3071 by construction**: every prefetch syncs the TKB and the load waits on the prefetch; the knowledge-base step precedes the scenario step; a staged-but-missing file throws ⇒ the load fails. The JOIN sync is fire-and-forget and nothing waits on it — the per-load sync covers it | `StorageGatewayModule.cs:387-389`, `AssetPrefetchProcessManager.cs:333-350`, `KnowledgeBaseLoadStep.cs:100`, `HrotUniversalLoadParts.cs:26` |
+| a load on a node | `LoadPhaseChain`: knowledge base → terrain (worker) → scenario; the `Operating*` prepare is HELD until every step `IsResolved`; one empty `InProgress` ack (P4) | `LoadPhaseChain.cs:172-350`, `ClusterSlave.cs:~493` |
+| 3-D map reload | ⛔ OUTSIDE the chain (a frame-thread rebuild) — not covered by the held prepare | AQ91 §4-B3, CE-4078 |
+| progress | none beyond the one empty `InProgress`; mgmt-1's "Step X of Y" was never built | `docs/designs/mgmt-1/DESIGN.md:633` |
+| loading UI | ⛔ none on any host; only the Orchestrator panel greys on `!IsBootstrapped \|\| HasFlight` | `ClusterScenarioPanel.cs:315,565-598` |
+| cancel | master-side only: held / parked / in-flight (`AbortTransaction` → round to Idle, R-4004), HTTP `POST /cluster/cancel`; ⛔ no node-initiated cancel, no UI cancel for a load; the node's `PrepareAsync` gets `default` as its token | `ClusterMaster.cs:2078-2112`, `ClusterSlave.cs:~423,523-592`, `LoadPhaseChain.cs:292` |
+| a failed load round | fails at once (CE-4103) but ⛔ the master stays at the target state — no return to Idle (AQ91 §4-H: *"cluster goes to the initial default state"*) | `ClusterMaster.cs:~2371` |
+| a node's failure reason | only in the node's log — the ack carries none | `ClusterSlave.cs:~289-305` |
+
+### 11.2 The design
+
+```mermaid
+classDiagram
+  class ClusterSlave {
+    +Tick() advert on first Tick = READY
+    +HoldReady() opt-in, async-init hosts
+    +MarkReady()
+    +CancelLoad(reason) NEW
+  }
+  class LoadPhaseChain {
+    +PrepareAsync(ct) real token NEW
+    +AbortLoad()
+    +CurrentStep : string NEW
+  }
+  class ClusterMaster {
+    -CheckBootstrapLatch() names AND roles
+    -EjectNode() name OR role lost ⇒ Degraded
+    -CompleteRound() failed load ⇒ round to Idle NEW
+  }
+  class ClusterStateTopic {
+    +State
+    +WaitingFor : string NEW
+  }
+  class ClusterView {
+    +CanOperate : bool NEW
+    +IsPlayReady : bool NEW
+    +WaitingFor : string NEW
+    +LoadProgress NEW
+  }
+  class DebugApiHost { cluster routes ⇒ 409 + WaitingFor }
+  class LoadingScreen { ui lane: progress + Cancel }
+  ClusterSlave --> LoadPhaseChain : prepares / aborts
+  ClusterSlave ..> ClusterMaster : advert, heartbeat, acks (+reason)
+  ClusterMaster ..> ClusterStateTopic : publishes
+  ClusterStateTopic ..> ClusterView : ClusterFactsIngress
+  ClusterView <-- DebugApiHost : reads
+  ClusterView <-- LoadingScreen : reads
+  LoadingScreen --> ClusterSlave : Cancel
+```
+*What the picture shows that prose hid: every gate reads ONE object (`ClusterView`); cancel goes to the host's OWN node, which fails its ack — the master learns it through the same round it already runs, no new op.*
+
+```mermaid
+sequenceDiagram
+  participant U as user (loading screen)
+  participant S as ClusterSlave (this node)
+  participant L as LoadPhaseChain
+  participant M as ClusterMaster
+  participant V as ClusterView (every node)
+  M->>S: PrepareLive / PrepareEdit (held)
+  S->>M: InProgress (step name)
+  M->>V: op status: loading, node N, step
+  U->>S: Cancel
+  S->>L: AbortLoad (token cancelled)
+  S->>M: Failure ack, reason "cancelled by user on node N"
+  M->>M: round fails now (CE-4103), drops owed acks
+  M->>S: round to Idle (every node)
+  M->>V: state Idle, op status Failure + reason
+```
+*The cancel needs no new master op: the node's failure IS the cancel, and the failed-round path ends in Idle.*
+
+```mermaid
+graph TD
+  subgraph every_host["every ECS host: HrotNodeContext.Tick each frame"]
+    T[ClusterSlave.Tick] --> V2[ClusterView.Update]
+    T --> D[LoadPhaseChain.DrainDeferredAcks]
+  end
+  subgraph master_host["the master's host each frame"]
+    MT[ClusterMaster.Tick] --> LT[CheckBootstrapLatch]
+    MT --> AK[ProcessAcks → CompleteRound]
+  end
+  V2 --> G1[DebugApiHost route gate]
+  V2 --> G2[run controls + loading screen, ui]
+  RB[Replay Browser: no slave, no master]:::dead
+  classDef dead fill:#fdd,stroke:#c00
+```
+*Red: the Replay Browser has no cluster at all — the gate does not apply there (it is offline by design).*
+
+⭐ **The slices, with their ids, live in [`Architect_Question_110_Readiness_Protocol.md`](blueprints/Architect_Question_110_Readiness_Protocol.md) §4** (R1 cluster ready · R2 the readiness report + play ready + cancel · R3 the 3-D map step · R4 the admission policy · U1 ui) — ⛔ not restated here.
+
+⛔ **Rejected:** a new `Starting` cluster state on the wire (the advert already is the explicit report, and it already gates roles) · a master-side cancel op for the user (the node's own failure already reaches the master through the round) · waiting on the TKB join sync (the per-load sync already makes R-3071 hold).
+
+### 11.3 ⭐⭐ THE READINESS PROTOCOL — **each node reports, the master combines the participants, policies decide who waits** *(R-3072, AQ110 — approved `2026-10-29`)*
+
+```mermaid
+classDiagram
+  class NodeHeartbeat {
+    +NodeId
+    +LocalStateId
+    +Phase NEW
+    +Step NEW
+    +Reason NEW
+  }
+  class NodePhase {
+    <<enumeration>>
+    Booting
+    Ready
+    Loading
+    CatchingUp
+    PlayReady
+    Failed
+  }
+  class ClusterMaster {
+    -participants() in sync and not observer (K6)
+    -CheckBootstrapLatch() names AND roles
+    +AdmissionPolicy JoinTheLoad / Lobby / RefuseUntilLoaded
+  }
+  class ClusterStateTopic {
+    +State
+    +WaitingFor NEW
+    +ClusterPlayReady NEW
+  }
+  class ClusterView {
+    +CanOperate
+    +LocalPhase
+    +ClusterPlayReady
+    +WaitingFor
+    +LoadProgress
+  }
+  class HostGatePolicy {
+    <<bootstrap parameter, per host kind>>
+    Operator: local and cluster ready and cluster play-ready
+    Player: local only
+    +IsOpen(ClusterView) bool
+  }
+  NodeHeartbeat --> NodePhase
+  NodeHeartbeat ..> ClusterMaster : every node, 1 Hz
+  ClusterMaster ..> ClusterStateTopic : combines participants only
+  ClusterStateTopic ..> ClusterView
+  NodeHeartbeat ..> ClusterView : own node's phase
+  HostGatePolicy --> ClusterView : reads
+```
+*What the picture shows that prose hid: the node's report carries NO rule — both levels and every policy are derived from it, so a new situation is a new policy value, never a new message.*
+
+```mermaid
+sequenceDiagram
+  participant P as Player node (joining)
+  participant M as ClusterMaster
+  participant O as Operator host
+  Note over M,O: cluster is loading a scenario
+  P->>M: heartbeat Phase=Booting, then Ready
+  alt AdmissionPolicy = Lobby
+    M-->>P: not in sync (lobby) - P's own gate shows "waiting for the scenario"
+    M->>O: participants finish - ClusterPlayReady
+    M->>P: C7 catch-up
+    P->>M: heartbeat Phase=CatchingUp, then PlayReady
+  else JoinTheLoad (load still parked)
+    M->>P: admitted, takes part in the load
+  else RefuseUntilLoaded
+    M-->>P: not admitted until ClusterPlayReady
+  end
+  Note over O: never waits on P (K6)
+```
+*The three admission values differ only in WHEN the master puts the joiner into the in-sync set; the joiner's own gate is the same in all three.*
+
+### 11.4 ✅ AS-BUILT `CE-3344` (slice R1 — cluster ready), `2026-10-29`, backend *(obligation ⑤: where the build deviated from §11.2, the prior state is marked SUPERSEDED)*
+
+| §11.2 said | as built | why it deviated |
+|---|---|---|
+| `ClusterMaster.CheckBootstrapLatch` "names AND roles" | ✅ as drawn: releases when `MissingMandatoryNames()` **and** `MissingMandatoryRoles()` are both empty (the two shared tests, not copies). ⭐ **Also built, not drawn:** the latch is **closed from construction** whenever roles are mandatory (the constructor used to open it when no NAME was mandatory — which is exactly why a cluster with no nodes reported ready); with nothing mandatory it still opens at once | the default config has no names, so a names-only check opened the latch on an empty cluster |
+| `EjectNode` "name OR role lost ⇒ Degraded" | ✅ the same path (Degraded, abort + Idle to survivors, latch re-engaged); the role arm applies **only while the latch is open** (a booting cluster is missing roles for no ejection's sake). The latch flag is set **before** the Degraded broadcast so it carries `WaitingFor`. ⛔ **SUPERSEDED:** the `ClusterMaster.Bootstrap.cs` header's "deliberately NOT built: the re-engage for a lost ROLE (a 5 s CGF blip…)" — R-3069 ruled the other way | user, 2026-10-29: "role loss means Degraded too" |
+| `ClusterStateTopic.WaitingFor` | ✅ `[DdsManaged] string WaitingFor` on the topic, `ClusterStateTransitionedEvent` and `ClusterStateUpdateEvent`; the master's `PublishClusterState` fills it from the **one** `WaitingFor()` (the load wait's text), encoded by `ClusterOpMasterTranslator.StateTopicOf`, decoded by `ClusterFactsIngress.StateOf` | — |
+| *(not drawn)* the master published **no state at all** before the latch released | ⭐ now it **re-publishes the state it last announced (Idle before the first) whenever the missing text changes** (`PublishWaitingForIfChanged`, once per `Tick`). Nodes still do not treat the cluster as usable: `CanOperate` needs `WaitingFor` empty. Least change: no new state on the wire (the "Rejected: a `Starting` state" stands) | nodes could not learn what was missing from silence |
+| `ClusterView.CanOperate` / `WaitingFor` | ✅ plus `NotOperableReason` (the ONE text the 409 and the grey-outs read; `CanOperate == (NotOperableReason == null)`), `IsInSync`, `HasInSyncSet`, `InSyncNodeIds`, and a `NodeId` (ctor arg; `ClusterSlave` passes its own; `null` = an observer, the in-sync clause is skipped). In-sync folds from `InSyncSetChangedEvent`: **in-process** (the editor) the master's own event is on the shared bus; **over DDS** the node's `ClusterFactsIngress` now also reads `OrchestratorContextTopic` (the durable context plane that already carries the set) and republishes the set as that event, de-duplicated so the echo of the master's own write ends after one round | the set was only on the master's bus and in `SimpleClusterStateCache`; `ClusterView` is the one read model (R-3066) |
+| `DebugApiHost` "cluster routes ⇒ 409 + WaitingFor" | ✅ **one** gate, `DebugApiHost.ClusterGatedRoutes` (= `WorldChangingRoutes` ∪ the cluster-changing routes), checked before the handler and before the recording gate; the reason comes from `DebugApiService.ClusterNotOperableReason` ← `ISubsystemDebugProvider.ClusterView` (default member; every provider that has a view passes it: editor, ECS nodes, ExCon) ← `PerspectiveScopedDispatcher.ClusterViewAnyNode`. `GET /status` gains `canOperate` / `notOperable`. A host with **no** read model is not gated (the master's own refusal stays the authority) | one fact, one gate (R-3066 / ruling 9) |
+| `ClusterSlave.HoldReady/MarkReady` | ✅ opt-in as drawn: the capability advert (the explicit ready report the latch counts roles by) goes out on the first `Tick` unless `HoldReady()` was called before it; `IsReadyHeld`. No host calls it today | — |
+| `ClusterUiCache.IsBootstrapped` | ✅ **is** `ClusterView.CanOperate` now (it was a weaker second copy: "a broadcast was seen and not Degraded"). The Orchestrator panel reads `IsBootstrapped`; its `_master?.BootstrapComplete ?? …` arm is a test-only ctor (production passes no master) and is left as is | ruling 9 — one fact |
+
+⚠ **Behaviour changes that are deliberate:** (1) a cluster whose Brain / MuscleGround have not reported now rejects every non-load request (the latch is closed) — suites that are not about readiness build their master from `TestClusterConfig.NothingMandatory()` / `MandatoryRoles = None`; (2) the HTTP cluster routes answer 409 until the node's view can operate; (3) `ClusterUiCache.IsBootstrapped` is false while the master is gone.
+⛔ **Not built here** (their slices): the node-reported phase / participants' levels (R2), the loading screen and greyed editor controls (U1), the admission policy (R4). Related: [`Architect_Question_110_Readiness_Protocol.md`](blueprints/Architect_Question_110_Readiness_Protocol.md) §4 R1.
+
+### 11.5 ⭐⭐ THE CLUSTER ERROR STATE — **a required node or role lost while a scenario is loaded or running** *(R-3073, user `2026-10-29`; ⛔ SUPERSEDES the "abort + Idle to survivors" teardown of `EjectNode` for that case)*
+
+🔒 **User, `2026-10-29`:** *"Putting the cluster into error state seems sufficient to me (master broadcasts error state of the cluster with the reason, pauses clock, nodes show some red error indicator in status bar), until the master clears the error state the node operations are disallowed similarly to when node is not ready to play"* · *"If cluster is broken, user can likely just exit or leave the current armed mode … into some idle mode where nothing can be done but waiting for the cluster to recover."*
+
+| | |
+|---|---|
+| **when** | a mandatory name OR role is lost while the cluster is loading or operating. ⭐ In Idle there is no world to lose — it is only *not ready* (R-3069) and recovers by itself |
+| **what the master does** | publishes `Degraded` + an **error reason** (*"Brain (CGF) lost at 00:12:31"*) beside `WaitingFor`; **pauses the clock**; ⛔ no abort, no Idle — the world stays for inspection; the live recording is closed and KEPT up to the failure (⚠ the recorder's behaviour under the pause to be measured before building) |
+| **sticky** | a returning node does NOT clear it — the lost node's state is gone (crash recovery out of scope, user) |
+| **the only exits** | **Close** (`LeaveReason.Close` through the ONE door, AQ108 §2.11a/§2.15) and Exit, both exempt from the gate, plus HTTP `POST /replay/stop` and `/cluster/cancel`. ⛔ Save refused (the world may be inconsistent): Close asks only *"discard and close?"* |
+| **cleared** | when the cluster reaches Idle; it is then *not ready, waiting for: Brain* until the node returns |
+| **nodes** | a red status-bar indicator with the reason (ui); every operation refused like *not ready* |
+| ⚠ **CE-3344 gap** | it gated `POST /replay/stop` — HTTP had no way back to Idle while not operable. CE-3345 exempts every way back to Idle and rails it |
+
+⛔ Rejected: tear down at once (hides what happened, destroys the evidence) · pause and resume when the node returns (its state is lost) · an operator "reset cluster" item (the same as Close).
+
+#### 11.5a ✅ AS-BUILT `CE-3345` part A (the master, the view, the exits), `2026-10-29`, backend *(obligation ⑤; the menu and the red indicator are the ui lane's)*
+
+| §11.5 said | as built | deviation / why |
+|---|---|---|
+| master publishes `Degraded` + an error reason beside `WaitingFor` | ✅ `ErrorReason` string beside `WaitingFor` on `ClusterStateTopic`, `ClusterStateTransitionedEvent`, `ClusterStateUpdateEvent`, through the same route (`StateTopicOf` ⇄ `StateOf`); text *"Brain (CGF) lost (node 3, CGF) at sim 00:12:31"* (a lost name: *"SimHost lost (node 3) at …"*) from `ClusterMaster.EnterClusterError` (new file `ClusterMaster.ErrorState.cs`); the sim time comes from `SimSeconds`, set by `OrchestratorCore` beside `WallTicks` | the error is published by `PublishClusterState` for as long as it stands (`Degraded` replaces whatever state is passed), so every later broadcast keeps carrying it |
+| ⛔ no abort, no Idle | ✅ `EjectNode`: a lost mandatory name OR role with a world loaded (`_currentDsmState != Idle`) ⇒ `EnterClusterError`, return. In Idle the CE-3344 arm is unchanged. **`_currentDsmState` is NOT touched** — Close is planned from the state the world really is in, and `ResolveReplayExercise` still names the run | a second loss while in error keeps the first reason (it broke the run) |
+| pauses the clock | ✅ `PublishClusterPause()` — the ONE pause (Pause op, Stop, restore) | — |
+| recording closed and KEPT | ✅ M1: the recorder keeps its file open and writes while the cluster runs; it is closed only by `FinalizeLive` (`ReferenceLiveLoadHandler` → `EcsRecordReplayController.FinalizeRecordingAsync`), which the UNLOAD sends. ⇒ in error the master fans out the same `NodeOpType.FinalizeLive` to the survivors **when the world is a live run** (`OperatingLive`/`LoadingLive`); the ledger (`AssetInventoryProcessManager`) lists the run when the broadcast leaves `OperatingLive` — which `Degraded` does | ⚠ a **review**'s recording (suspended, file open) is NOT finalised at the error — its own unload does it when the user closes. The Close that follows sends `FinalizeLive` again: the handler's *"no active recording module"* **warning** (benign, returns). The lost node's own file is whatever it had flushed (its manifest is written with its first frame, CE-3313) |
+| sticky | ✅ `CheckBootstrapLatch` returns while `IsInError`; a returning node changes `WaitingFor` only. `MissingMandatoryNames` stops requiring `Idle` while in error (the survivors hold the world, they are not Idle) | — |
+| refused like *not ready* | ✅ the latch stays CLOSED in error — the ONE gate. `LatchRefuses(intent)`: in error everything but a transition to Idle is refused, **with the error as the status text**; ⭐ a scenario LOAD is **refused**, not held (the CE-4087 wait is for a booting cluster) | the injected-request path rejected `CancelOperation` while the latch was closed — now a cancel always works there too |
+| cleared when the cluster reaches Idle | ✅ `ClearClusterError()` when the Close round succeeds (`_currentDsmState == Idle`), and at once when there is no node to ask; the broadcast that follows is Idle without it; the latch then reports `WaitingFor` as CE-3344 built it | — |
+| `ClusterView` | ✅ `ErrorReason`, `IsInError`; `NotOperableReason` = *"the cluster is in error — …"* **first**; `CanOperate` false | — |
+| Save refused | ✅ the master refuses `SaveScenario` in error with the reason (`ProcessStorageOpIntent`); HTTP `POST /scenario/save` is a gated route, so it 409s with the error before the master | — |
+| the exits stay open | ✅ `LeaveReason.Close` (`ScenarioDoor.cs`), its `DoorMove` text *"Closing"*; HTTP: `DebugApiHost.ClusterExitRoutes` = `POST /replay/stop`, `POST /sim/stop`, `POST /cluster/cancel` — **not** in `ClusterGatedRoutes` — plus `POST /cluster/transition` **when its target is `Idle`** (`IsWayBackToIdle`; the body is now read before the gate). Rule: *a way back to Idle is never gated* | ⚠ `BackToStart` is **still in the enum**: the Roslyn rename `BackToStart → Close` previewed correctly (ONE file, three sites, matching grep) but `roslyn_apply_rename` errored twice on this tree, so per CLAUDE.md §②a it was left; folding it is a one-line follow-up |
+| ⛔ ~~**LOAD FOLLOWS THE ARMED MODE** at the master (`FollowArmedMode`)~~ | **WITHDRAWN and REMOVED `2026-10-29`** — user: *"all the requests to the cluster state machine are always explicit. No one is just please load."* · *"It's a nonsense."* The master never interprets the armed mode; the HOST's shared load path turns it into an explicit load into Live / into edit (AQ108 §2.15). (M2 stands as a measurement: the master holds and broadcasts `ArmedMode`, and that is all.) |
+
+⛔ **SUPERSEDED by this block:** the CE-3344 row *"`EjectNode` … the same path (Degraded, abort + Idle to survivors, latch re-engaged)"* holds **only in Idle** now; the `ClusterMaster.Bootstrap.cs` header's "abort + Idle to the survivors" the same.
+
+- ⭐ **`CE-3347` (`2026-10-29`) — the required roles are a DEPLOYMENT parameter, and a composition root declares them.** 📐 Measured: with the
+  default (Brain | MuscleGround) a cluster with no Brain node never releases the latch, so EVERY cluster op is refused — including
+  `ResumeTime` — and an in-process test harness without CGF ran a stopped clock (the Wander rail, red since this slice). ⇒
+  `OrchestratorSubsystem(factory, ClusterConfiguration?)` takes the deployment's configuration (null = `orchestrator-config.json`, else the
+  default — the ONE source, unchanged for production); `HrotRunnerHarness` requires only the roles its node list provides.
+  `ClusterConfiguration` is a `record`, so a variant is a `with` copy — ⛔ the hand-listed `ForOneNodeCluster` copy had dropped `AdmissionPolicy`.
+
+### 11.6 ✅ AS-BUILT `CE-3345` part B (slice R2 — the readiness report, progress, cancel, a failed load ⇒ Idle, the gate policy), `2026-10-29`, backend *(obligation ⑤: where the build deviated from §11.2 / §11.3 the prior state is marked SUPERSEDED; the loading screen and the greyed controls are the ui lane's)*
+
+| §11.2 / §11.3 said | as built | why it deviated |
+|---|---|---|
+| `NodeHeartbeat` gains `Phase` (enum `NodePhase`) / `Step` / `Reason` | ✅ `NodePhase` (`Ready=0` · Booting · Loading · CatchingUp · PlayReady · Failed — ⛔ permanent wire ints, R-42) in the toolkit's `Enums/`; `int Phase` + `string Step` / `Reason` on the DDS sample, `Phase` / `Step` / `Reason` on `NodeHeartbeatEvent`. ⭐ **One mapping** — `NodeHeartbeatWire.ToTopic` / `ToEvent` (`Hrot.Network.Orchestration`) replaces the three hand-written copies (slave egress, master ingress `NedOrchestrationTranslator`, observer); an unknown phase (a newer peer) reads `Ready` | `Ready` is **0** so an older sender (which never sets it) reads as it always meant |
+| `ClusterSlave` fills them "from facts it already has"; `LoadPhaseChain` exposes its step | ✅ `ClusterSlave.Phase` / `LoadStep` / `FailureReason`: Booting until `_ticked ∧ ¬HoldReady`; **Failed** after a failed / cancelled prepare until the **next** transaction (the master's abort of the failed one does not clear it); **Loading / CatchingUp** while a load prepare is held *or* the node sits in a committed `LoadingLive/Edit` (the gap between the two prepares); **PlayReady** in any `Operating*`; else Ready. ⭐ The slave names no Hrot type: the toolkit owns the seam `ILoadProgressSource` (`CurrentLoadStep`), `LoadPhaseChain` implements it (the step is set before each step's prepare — also on the worker — and, while the Operating prepare is held, to the first unresolved step; cleared on resolve / abort). A pending prepare whose handler is an `ILoadProgressSource` **is** "a load held" | `ClusterSlave` lives in `FDP/` and cannot reference `Hrot.Core`'s chain; catch-up is read from `EditLoadHandlerPayload.IsCatchUp` (C7) |
+| the heartbeat is 1 Hz; "also publish one immediately on a change" | ✅ `PublishHeartbeat` runs **once at the END of every `Tick`** (it moved from the top: it carries what that frame's dispatch / drain decided): a beat when the phase, step or reason changed **or** the 1 s timer ran out — ⇒ at most one per frame by construction. ⚠ The baseline is *Ready*: a default host's first beat (after its advert) reads Ready, so **Booting is on the wire only for a `HoldReady()` host** — no startup burst for the others | keeps today's first-beat timing for every existing host |
+| the P4 `InProgress` ack carries the step and is re-sent on change | ✅ the first ack carries `CurrentLoadStep` in `ResultPayload`; `PublishProgressIfStepChanged` re-sends once per new step while the prepare is pending. ⚠ The master still **ignores** `InProgress` (R-4001: progress is never the answer) — the step reaches every node through the heartbeat, below | one route for progress (the heartbeat), one for the answer |
+| `ClusterView`: `LocalPhase`, `IsLocalPlayReady`; `ClusterPlayReady` over the participants; `LoadProgress` | ✅ `ClusterView.LocalPhase` / `LocalStep` / `LocalReason` / `IsLocalPlayReady` / `IsLocalLoading` (set by the node's own slave each frame via `NoteLocalPhase`); `ClusterPlayReady` and **`LoadProgress` (a string, added beside it — not drawn in §11.3)** folded from the cluster-state broadcast (`ClusterStateTopic` / `…TransitionedEvent` / `…UpdateEvent`, the `StateTopicOf` ⇄ `StateOf` pair); `IsClusterLoading`. Master: `ClusterMaster.Readiness()` = over `_roster ∩ _inSync` minus `IsObserver` (the K6 predicate that already existed — ⛔ **not** `StepRoster`, which excludes the master's own node and requires a sim role): `ClusterPlayReady` = ≥1 participant ∧ all PlayReady ∧ no load round in flight (false in **Idle** — nobody has a world); `LoadProgress` = *"CGF (node 400): Terrain; …"* for the Loading / CatchingUp participants, or *"the load is starting"* while a load round is fanned out and none has reported yet (the gate closes with the fan-out). `PublishWaitingForIfChanged` re-publishes the state when the text **or** either readiness value changes | a text beside the bool is what a loading screen shows; a joiner / observer never holds the level (P1) |
+| `CancelLoad(reason)`: a real token, `AbortLoad`, a failure ack with the reason | ✅ `ClusterSlave.CancelLoad(string? reason = null)` (default *"cancelled by the user on node N"*): cancels the **real** `CancellationTokenSource` now passed to every `PrepareAsync` (it was `default`), calls `IClusterStateHandler.Abort` → the chain's `AbortLoad`, remembers the transaction as cancelled (ONE guard in `DispatchIntent`: its queued **and** later-arriving steps do not run — a queue purge was built beside it and removed, redundant), enters Failed, and answers the prepare **Failure with the reason in `ResultPayload`**. ⭐ The one failure path `FailPrepare` is shared with a faulted / cancelled prepare — **a faulted prepare's ack now carries the exception message too** (it carried none). The ack's reason crosses the wire as a JSON string and `NodeOpMasterTranslator` decodes it **for any error code, before the per-op decoder** | the per-op decoders read it as a malformed result (PrepareLive ⇒ raw quoted JSON) |
+| master: a failed LOAD round ⇒ the round to Idle ("reuse the cancel path's round 2, ONE implementation") | ✅ `ClusterMaster.AbortAndReturnToIdle(txId)` — the abort fan-out to every roster node + round 2 — **extracted** from `TryCancelInFlightTransition`, which and `CompleteRound`'s failure arm both call. Gated by `GenericTransactionTracker.IsLoadRound` (trajectory enters `LoadingLive` / `LoadingEdit`): ⛔ a failed checkpoint / save / Idle round does **not** go to Idle (rail P3: a failing Idle round does not loop). The op status is Failure **with** the node's reason (`tracker.FailureReason`, first failure wins) → every node's `ClusterView.OutcomeOf(requestId)` | the broadcast that ends the round now says Idle (the return runs before it) |
+| "CE-4103 already fails the round at once" | ⚠ **corrected**: CE-4103 dropped only the **failing** node's owed ACKs, so with a second node still loading the round waited for it. For a load round an authoritative error now sets `Expected = Received` — it fails **now**, whatever the others owe (their late acks find no round and are ignored; the abort preempts what they hold) | a user's cancel on one node must not wait for another node's long load |
+| `HostGatePolicy` per host kind, a bootstrap parameter (the R-3068 pattern) | ✅ `HostGatePolicy { Operator, Player }` (toolkit) · `HostGatePolicies.For(RunHostKind)` beside `RunArmedDefaults` (`RunHostKind` gains **`Ig`**; Player for the IG, Operator for every other kind) · `IProvidesRunControls.GatePolicy` reads the table from the host's declared kind (no host overrides it) · `ClusterView.GateOpen(policy)`: **Operator** = `CanOperate ∧ ¬IsLocalLoading ∧ (¬IsClusterLoading ∨ ClusterPlayReady)`; **Player** = `IsLocalPlayReady ∧ CanOperate` (no cluster play-ready clause). ⚠ **Operator also checks the node's OWN load** — the editor, an observer by role, is excluded from the cluster level, so without it its own terrain load would not close its own gate | no host draws or reads it yet (ui: the loading screen, the greyed controls, the IG's start) |
+| `LeaveReason.BackToStart` folds into `Close` (a Roslyn rename) | ✅ **deleted, not renamed**: `Close` already exists, so the rename is a collision — which is why `roslyn_apply_rename` errored through the MCP twice. Driven over stdio (CLAUDE.md §②a) the preview diff was mangled (it duplicated members) and the apply wrote that to `ScenarioDoor.cs` (reverted from git). `BackToStart` had no reference outside the enum, its `DoorMove` text arm and a cref (grep over `Hrot/ FDP/ Stride/`: 0 outside `ScenarioDoor.cs`) — removed by hand, a deletion not a rename | the enum member, its text arm and the cref |
+
+⛔ **SUPERSEDED by this block:** §11.2's *"`CancelLoad(reason)` NEW"* / *"`LoadPhaseChain.PrepareAsync(ct) real token NEW`"* / *"`CompleteRound() failed load ⇒ round to Idle NEW`"* and §11.3's *"`NodeHeartbeat … NEW`"* are built as above; the *"`PrepareAsync(ct)`"* in the class diagram is the toolkit's `ClusterSlave` passing a real token, not a change to the chain's signature.
+⛔ **Not built here** (their slices): the 3-D map reload as a chain step (R3), the admission policy (R4), the loading screen / Cancel button / greyed controls / IG start (U1, ui lane).
+
+### 11.7 ✅ AS-BUILT `2026-10-29` (ui) — U1, the ui half: **ONE run gate on the run choice, read by every control** *(`CE-1442`; `build-state: BUILT`; design 2026-10-29, ui)*
+
+**INVENTORY** *(grep over `Hrot/ FDP/` for `GateOpen|CanOperate|NotOperableReason|HasInventory|IsInError|LoadProgress|CancelLoad|GatePolicy`; `search_graph` for
+`StartSurface|StartGate|ScenarioMenuCommands|RunNoteStatusBar|ShellTimeControlToolbar|RecordingPicker|IProvidesRunControls` — ⚠ the graph predates the
+CE-3345 merge, so the new members are grep-only; `check_index_coverage` unavailable through the CLI)*: **no ui control reads any of them today.**
+Only HTTP does (`DebugApiService` 409s, `GET /status.canOperate`). ⚠ `StartGate.ClusterRest.CanOperate` (CE-4096, ui) is a DIFFERENT fact —
+*"some provider can drive the master"* (`ClusterRestReader.cs:50`) — and must not be read as cluster-ready.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| one gate per host kind, read from ONE table | ✅ `IProvidesRunControls.GatePolicy` → `HostGatePolicies.For(HostKind)` (`RunArmedDefaults.cs:45`); `ClusterView.GateOpen(policy)` (`ClusterView.cs:117`) | ✅ §11.6 row "HostGatePolicy", R-3072 |
+| every operator open / load / leave passes ONE door | ✅ `ScenarioDoor.Admit` (CE-4101, AQ108 §2.11a) | ✅ §2.11a "no unguarded public open remains" |
+| every run control reads ONE choice | ✅ `RunModeChoice` (toolbar, indicator, start surface via `IProvidesRunControls.RunChoice`); the adapter holds the node's `ClusterView` | ✅ CE-1437 composition |
+| Close / Exit / every way to Idle are never gated | ✅ backend HTTP; `LeaveReason.Close` | ✅ R-3073, §11.5 |
+
+```mermaid
+classDiagram
+  class ClusterView { <<existing, backend>> GateOpen(policy) · NotOperableReason · IsInError · ErrorReason · IsClusterLoading · IsLocalLoading · LoadProgress · LocalStep · HasInventory }
+  class RunGate { <<NEW record, Hrot.Presentation>> Open · Reason · Loading · Progress · InError · ErrorReason · HasInventory }
+  class IRunTransport { <<existing>> +Gate : RunGate NEW · +CancelLoad(reason) NEW }
+  class ClusterTimeTransportAdapter { <<existing>> builds RunGate from its ClusterView and the policy handed to AttachRunChoice · CancelLoad to the host's ClusterSlave }
+  class RunModeChoice { <<existing>> +Gate NEW — PlayDisabledReason and every move disabled while the gate is closed }
+  class ScenarioDoor { <<existing>> Admit refuses Open, LoadLive, OpenRecording while closed — the asker gets the reason; Leave never gated }
+  class LoadingScreen { <<NEW, Hrot.Presentation>> modal while Gate.Loading — Progress and Cancel }
+  class ClusterErrorStatusBarSection { <<NEW>> red while Gate.InError — ErrorReason; only Close and Exit }
+  class StartSurfaceWindow { <<existing>> its actions greyed with Gate.Reason }
+  RunModeChoice --> IRunTransport
+  ClusterTimeTransportAdapter ..|> IRunTransport
+  ClusterTimeTransportAdapter --> ClusterView
+  RunModeChoice --> ScenarioDoor : binds the gate
+  LoadingScreen --> RunModeChoice
+  ClusterErrorStatusBarSection --> RunModeChoice
+  StartSurfaceWindow --> RunModeChoice
+```
+
+*What the picture shows that prose hid:* there is ONE `RunGate`, computed in ONE place (the adapter, which already holds the node's view), and the
+door — through which every open passes — refuses on it; so no control can forget the gate, and the File menu, the start surface, the toolbar and
+HTTP-through-the-door all agree by construction.
+
+```mermaid
+sequenceDiagram
+  participant U as operator
+  participant D as ScenarioDoor
+  participant C as RunModeChoice
+  participant A as adapter
+  participant V as ClusterView
+  participant S as ClusterSlave
+  U->>D: Load Scenario
+  D->>C: gate?
+  C->>A: Gate
+  A->>V: GateOpen(policy), NotOperableReason
+  alt closed
+    D-->>U: refused — waiting for Brain (CGF)
+  else open
+    D->>D: Admit, then the load
+    V-->>C: IsClusterLoading, LoadProgress
+    C-->>U: loading screen (progress)
+    opt Cancel
+      U->>C: CancelLoad
+      C->>A: CancelLoad(reason)
+      A->>S: CancelLoad(reason) — fails everywhere, cluster to Idle
+    end
+  end
+```
+
+```mermaid
+graph TD
+  subgraph OH["operator host — editor, CGF, Orchestrator window"]
+    A[ClusterTimeTransportAdapter — each frame, the host's Update] --> C[RunModeChoice.Gate]
+    C --> T[toolbar play and indicator]
+    C --> D[ScenarioDoor.Admit]
+    C --> L[LoadingScreen — composed ONCE by LocalWindowController beside the toolbar]
+    C --> E[ClusterErrorStatusBarSection — composed ONCE]
+    C --> SS[StartSurfaceWindow actions]
+    M[File menu items] --> D
+  end
+  V[ClusterView — ClusterFactsIngress on every node] --> A
+  P[pickers] -->|HasInventory| C
+  IG["IG host — Player policy, no run choice"] -.->|"its own lobby text, not in this slice"| V
+```
+
+*Caption:* the composition that already makes the toolbar ONE per process (CE-1437) also composes the loading screen and the error section, so a
+host cannot lack them; the dotted IG edge is the Player lobby, left for its own slice (the IG has no run choice).
+
+⭐ **Decisions:** ① ONE `RunGate` on `IRunTransport`, built by the adapter from `ClusterView` + the policy `AttachRunChoice` receives (the host's
+declared kind, `HostGatePolicies.For`) — ⛔ no control reads `ClusterView` for this itself. ② the door refuses Open / LoadLive / OpenRecording while
+the gate is closed (Leave and Exit never) — the File menu, Start, Recent, pickers and HTTP-through-the-door inherit it. ③ ▶ and the indicator's
+moves are disabled with `Gate.Reason` (`PlayDisabledReason` gains it first). ④ the loading screen and the error section are composed ONCE per process
+beside the toolbar. ⑤ pickers say *"waiting for the cluster's list…"* while `!Gate.HasInventory`. ⑥ Cancel = `IRunTransport.CancelLoad(reason)` →
+the host's `ClusterSlave.CancelLoad`.
+*Rejected:* **each control reads `ClusterView.CanOperate`** — N copies of the rule, and `GateOpen(policy)` ≠ `CanOperate` for an operator (its own
+load) · **gate in the menu registry** — misses Start, Recent and the pickers, which reach the door directly · **the IG lobby now** — the IG has no run
+choice; a later slice with the admission policy (R4).
+
+#### 11.7a ✅ AS-BUILT — what was built, and the deviations *(obligation ⑤; the design above is the prior state where marked SUPERSEDED)*
+
+| §11.7 said | as built | deviation / why |
+|---|---|---|
+| ① `RunGate` on `IRunTransport`, built by the adapter | ✅ `RunGate` record + `RunGate.From(view, policy)` (`RunMode/RunGate.cs`); `IRunTransport.Gate` + `CancelLoad(reason)`; `ClusterTimeTransportAdapter.Gate`; `AttachRunChoice(…, gatePolicy, cancelLoad)` — each host passes `HostGatePolicies.For(kind)` and its slave's `CancelLoad` (editor `_node.ClusterSlave`, CGF `_context.ClusterSlave`, SimHost `_app.ClusterSlave` via `CreateTimeTransport`, Orchestrator `_clusterSlave`). `Loading` = closed ∧ ¬error ∧ (cluster or local loading); no view ⇒ open | `RunModeChoice.ClosedReason` (the gate's reason or null) added — the one string every consumer reads |
+| ② the door refuses Open / LoadLive / OpenRecording while closed; the File menu, Start, Recent, pickers inherit it | ⛔ **SUPERSEDED (coordinator correction, user, `2026-10-29`):** the gate is composed into the repo's own enable mechanism — `ScenarioMenuCommands.RegisterCommand` (the ONE registration helper) wraps every command's `EditorCommandDescriptor.IsEnabled` and `DynamicDisplayName` (*"Open Scenario (the cluster is not ready — waiting for: Brain (CGF))"*) from a `closedReason` the host passes (it holds its choice); the File menu AND the Start surface (its idle actions read the same menu nodes) therefore grey together. ✅ **The door stays as the BACKSTOP** (HTTP and direct callers): `ScenarioDoor.Admit` refuses every move that is not a LEAVE (`DoorMove.IsLeave`) through `DoorQuestionKind.Refused` — the UI asker shows an info confirmation (OK), `RefusingAsker.Refusal` carries the reason | ⭐ reuse, not a parallel greying path. New Exercise (a leave) is exempt in the registration; Close / Exit are door leaves |
+| ③ ▶ and the moves disabled with the reason | ✅ `PlayDisabledReason` returns the gate reason first; `Moves()` all disabled with it; `Choose` refused; `UserTransport.IsUserPlayEnabled` / `IsUserStepEnabled` gate in ANY mode (not only Edit); the tooltip shows the reason while closed | the time-control toolbar is custom ImGui (not commands), so it reads `PlayDisabledReason` as designed |
+| ④ loading screen + error section composed ONCE | ✅ `LoadingScreen` (modal, progress + Cancel → `RunModeChoice.CancelLoad("cancelled by the user")`) and `ClusterErrorStatusBarSection` (red, `Cluster error — <reason>`), both registered on `wm.StatusBar` (every perspective) by `LocalWindowController.ComposeRunControls` over the PICKED owner's choice (`LoadingScreen` / `ErrorSection` properties) | the loading screen is its own modal drawn from the status bar's per-frame pass, not `ConfirmationModal` (that one needs a resolving button list; this one resolves by the gate) |
+| ⑤ pickers say *"waiting for the cluster's list…"* | ✅ for the **recording** picker (`RecordingPickerLauncher(hasInventory:)` — one disabled placeholder entry; the three hosts pass `RunChoice.Gate.HasInventory`) | ⚠ the scenario picker (`AssetPickerLauncher` over `ScenarioCatalogContributor`) is NOT yet given the placeholder — it is a different shared class with a per-host list; left as a follow-up |
+| ⑥ Cancel → the host's `ClusterSlave.CancelLoad` | ✅ as ①; a host with no slave does nothing | — |
+| Start surface actions greyed with the reason | ✅ by ② (no `StartSurfaceWindow` change: every action it draws is a menu node) | `StartGate.ClusterRest.CanOperate` left untouched (a different fact) |
+
+| rails (S1–S7) | ✅ `TheOneTimeFacadeTests` (`CE1442_*`: the gate from the view and the policy · ▶ and the moves · the door · Cancel + the error text), `TheStartGateIsComposedOnceTests` (composed once over the owner's choice), `TheScenarioMenuIsSharedByBothHostsTests` (a closed gate greys every scenario command and the Start surface's idle action; the REAL Orchestrator host passes it), `RecordingPickerLauncherTests` (waiting, not "no recordings") | ⚠ **existing rails had to hear the cluster first** — a node that has heard nothing is *closed* now (that is the point): `EditorScenarioSessionLoadTests` (2), `HrotNodeBuilderTests.CE1436_…` (also the in-sync set), the Orchestrator-only Start rail, `TheWorldChangeCheckOnTheEditorTests` (wait for `GateOpen` before the load) and `TheEditorsRecordingIsFilmedInTheReplayBrowserTests` (waits on `choice.Gate.Open`; its *"no warm-up pump: an early open reaches OperatingEdit too"* (CE-4103 ①) premise is no longer reachable from the UI — the door refuses an early open by design) |
+
+*Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.
+
+### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: BUILT` — §11.8a; CE-1445; R-1044)*
+
+🔒 **R-1044 (user, `2026-10-29`):** *"The ECS host should be unified, but they should be configurable. So without explicit suppressing some controls, they need to have all of them, because by construction they cannot avoid them, because they are using shared code for Bootstrap. The player node might look differently But just because it is parameterizing its bootstrap code to honor its player role, like for example showing the waiting in the lobby screen."* · ExCon is to be retired and is not an ECS host — ⛔ not touched.
+
+📌 **Found by backend's late-join test:** a joining player sees no waiting screen. 📐 **Cause, measured:** the run controls (gate, loading
+screen, error indicator, toolbar time control) are wired PER HOST — `new ClusterTimeTransportAdapter` + `AttachRunChoice` in CGF
+(`CgfSubsystem.cs:1849-1855`), SimHost (`SimHostSubsystem.cs:94-98`), the editor (`EditorSubsystem.cs:2444`) and the Orchestrator
+(`ClusterPanelRunControls.cs:57`), and `LocalWindowController.ComposeRunControls` composes the screen only over a host that offers
+`IProvidesRunControls`. The IG wires none ⇒ a player-only process draws no screen. ⚠ And the screen shows only while LOADING, so a player
+parked in the lobby would see nothing even if wired. ⛔ That is the defect R-1044 names: controls a host gets by REMEMBERING, not by construction.
+
+INVENTORY: `scripts/cbm.sh search_graph` name `.*(LoadingScreen|ErrorStatusBar|ProvidesRunControls|RunGate|Lobby|WaitingScreen).*` ⇒ total 3,
+only `IProvidesRunControls` (⚠ the index predates CE-1442; coverage could not be checked) · grep `new ClusterTimeTransportAdapter|AttachRunChoice(`
+⇒ the four per-host sites above · grep `SharedApplicationBootstrapper` ⇒ IG, SimHost, Traffic, Stride derive from it; ⚠ **CGF composes inline**
+(`CgfSubsystem.cs:928`, *"The other hosts get these from SharedApplicationBootstrapper; CGF composes inline"*) · every ECS node's
+`HrotNodeContext` carries `required ClusterSlave` (`HrotNodeContext.cs:101`) ⇒ `ClusterSlave.View` is the one input every ECS node already has.
+
+```mermaid
+classDiagram
+    class HrotNodeContext { <<existing, shared frame>> +ClusterSlave ClusterSlave }
+    class NodeRunProfile { <<new>> +RunHostKind Kind +IRunSessionControl? ScenarioControl +suppressions }
+    class NodeRunControls { <<new, ONE factory>> +For(HrotNodeContext, NodeRunProfile) +Transport +RunChoice +GateSource }
+    class ClusterTimeTransportAdapter { <<existing>> }
+    class RunModeChoice { <<existing>> }
+    class LoadingScreen { <<existing, changed>> Player ⇒ shown while gate closed, no Cancel }
+    class LocalWindowController { <<existing>> composes from the nodes' NodeRunControls }
+    NodeRunControls --> HrotNodeContext : ClusterSlave.View, bus, sim time
+    NodeRunControls --> NodeRunProfile
+    NodeRunControls *-- ClusterTimeTransportAdapter
+    NodeRunControls *-- RunModeChoice
+    LocalWindowController ..> NodeRunControls
+    LocalWindowController ..> LoadingScreen
+```
+*What the picture shows that the prose hid: the controls hang off the node frame every ECS host already builds, and the only per-host input is a
+PROFILE — so a host cannot lack them, and the player differs only by its profile (R-1044).*
+
+| decision | why |
+|---|---|
+| ① ONE factory `NodeRunControls.For(context, profile)` replaces the four per-host adapter + `AttachRunChoice` copies (CGF, SimHost, editor, IG new) | R-1044 + "shared and unified": one construction, hosts agree by construction |
+| ② the profile carries what differs: host kind (⇒ gate policy via `HostGatePolicies.For`), the scenario control (editor / CGF), explicit suppressions | a difference must be a declared parameter, never an absence |
+| ③ the Player profile (IG): gate = Player policy; the screen shows whenever the gate is closed (lobby, catching up, loading, not in sync, error) as *"Waiting for the scenario…"* + reason (*"Loading — progress"* while loading); no Cancel; time-drive verbs suppressed (Q54/D4: the IG issues no ticks) | the player's look is its parameterisation, as R-1044 says |
+| ④ the composer keeps ONE owner per process (operator first, as today); in `--mode all` the editor's screen is the one drawn | one screen per process (§11.7 ④) |
+| ⑤ the Orchestrator (no ECS world) keeps its own panel wiring for now; ExCon untouched (retiring, not ECS) | R-1044 scopes ECS hosts |
+
+*Rejected:* **an IG-only opt-in interface** (the first §11.8 draft, `032607257`) — one more per-host remembering, exactly what R-1044 forbids ·
+**the IG copies SimHost's wiring** — a fifth copy.
+
+📐 **Where it is called — measured (resolves the open point):** every `HrotNodeContext` is built by ONE `HrotNodeBuilder` (`HrotNodeBuilder.cs:269`;
+CGF `CgfSubsystem.cs:685`, the editor `EditorSubsystem.cs:1304`, the others through `SharedApplicationBootstrapper` / the NED extension). ⛔ But
+`Hrot.Common` (the builder) does not reference `Hrot.Presentation` (the adapter, the run choice, the screen) — so the frame cannot construct the
+controls itself. ⇒ the UI-side node composition is where they go: the place each ECS host already calls the shared UI helpers for its node
+(`MapInteractionPack.AttachMapLayers` — CGF `:1610`, IG `IgApplication.cs:971`, SimHost `SimHostVisualization.cs:350`, editor `:2836`;
+`EcsHostClusterHandlers.Compose` — CGF `:1170`, editor `:1886`). ⚠ That is still one call per host; ⭐ the CONSTRUCTION PROOF is rail S1, asserted
+on the constructed hosts, so a host that forgets the call is red. A shared ECS-host UI base that makes the call impossible to skip does not exist
+(measured: no common seam beyond these helpers) — a larger refactor, filed separately if wanted.
+
+```mermaid
+sequenceDiagram
+    participant H as ECS host (Editor / CGF / SimHost / IG)
+    participant B as HrotNodeBuilder
+    participant F as NodeRunControls.For
+    participant LWC as LocalWindowController
+    H->>B: build the node (context with ClusterSlave)
+    H->>F: For(context, profile) — beside AttachMapLayers
+    F-->>H: transport + run choice + gate source (policy from the profile's kind)
+    LWC->>H: IProvidesRunControls (now every ECS host)
+    LWC->>LWC: pick ONE owner, then compose toolbar (unless suppressed), LoadingScreen, error section
+```
+*What it shows: the per-host part shrinks to one call carrying a profile; everything after it is the same code for every host.*
+
+**Acceptance (rails):** S1 every ECS host (Editor, CGF, SimHost, IG) has `NodeRunControls` after boot — asserted over the constructed hosts, not
+the source · S2 a player-only process composes the screen + error section once, Player policy · S3 Player: shown in the lobby (closed, not
+loading) with the reason; hidden when play-ready; no Cancel · S4 operator behaviour unchanged (`CE1442_*` rails) · S5 no `new
+ClusterTimeTransportAdapter` outside the factory and the Orchestrator.
+
+#### 11.8a ✅ AS-BUILT `2026-10-29` (ui, `0df1b7d11`) — CE-1445
+
+| §11.8 said | built | why |
+|---|---|---|
+| `NodeRunControls.For(HrotNodeContext, NodeRunProfile)` | ✅ `Hrot.Presentation/RunMode/NodeRunControls.cs` + a second overload `For(bus, view, simTime, cancelLoad, profile)` that the node overload delegates to (ONE place builds the adapter) | SimHost's static rail builder has a bus, no node context |
+| the profile | ✅ `NodeRunProfile(Kind, Control, UnsavedReads, SuppressTimeControl)`; a Player profile drops `cancelLoad` | — |
+| CGF, SimHost, editor use it | ✅ no `new ClusterTimeTransportAdapter` left in them; ⚠ **a FIFTH copy found: `StrideNodeShell.cs:740`** (no run choice at all) — CE-1449, needs a Windows build | — |
+| the IG offers run controls | ✅ `IgSubsystem : IProvidesRunControls`, built in `IgApplication` after `BootstrapNode`; the IG pumps the adapter each frame; its debug provider still has no drive (Q54/D4) | — |
+| the composer | ✅ toolbar only when `!SuppressTimeControl`; `LoadingScreen` gets the owner's policy; with no operator a non-Player host is preferred (every existing process keeps its owner) | — |
+| the player's screen | ✅ visible whenever the gate is closed — including cluster ERROR (then it shows the reason beside the red error section); `CanCancel` false | kept on purpose: a player in an erroring cluster can do nothing either |
+
+📌 Rails: `TheRunChoiceIsOnEveryHostTests.CE1445_TheConstructedIg_*` (S1) · `TheStartGateIsComposedOnceTests.CE1445_*` (S2, two) · `TheOneTimeFacadeTests.CE1445_ThePlayersWaitingScreen_*` (S3) — each red-proved by a compiling mutation.
+
+### 11.9 ⭐⭐ R3 — the 3-D map in the load: the PLAYER only; everyone else builds it in the background on the first switch *(ui, `2026-10-29`; R-1046; `build-state: BUILT` (ui half) — §11.9a; the chain step is backend's)*
+
+🔒 **R-1046 (user, `2026-10-29`):** *"I think it is just the player node who needs to include the 3D map into the load chain. The other nodes like CGF and SimHost do not need to load 3D map. Actually, they should start in 2D map as now and load the map on the background when first request for map switching is received. that player-specific behavior needs to be just a parameter of a unified shared code as usual."*
+⇒ ⛔ SUPERSEDES R3's *"on map hosts"* (AQ110 §4, CE-4078 extension): only a node whose role profile says so (the Player, §11.8's `NodeRunProfile`)
+puts the 3-D map in its load; every other ECS host starts in 2-D as today.
+
+📐 **Today, measured:** the 3-D map reload is outside the load chain (§11's table: *"⛔ OUTSIDE the chain (a frame-thread rebuild)"*), so a node
+reports `PlayReady` with its map unbuilt; the rebuild is a whole-mesh build + upload inside one `Draw` (`TerrainLayer3D`, `FDP/Engine/Fdp.Presentation/Vis3D/TerrainLayer3D.cs`;
+`TrafficLayer3D.Rebuild`, `Hrot.Presentation/Map3D/TrafficLayer3D.cs:92`) — measured ~37–40 s frame stall on `demo-city` (CE-4078). The switch is
+`MapViewSwitch` (`FDP/Engine/Fdp.Presentation/Vis3D/MapViewSwitch.cs`) driven by `MapViewModeLayer`.
+
+```mermaid
+sequenceDiagram
+    participant L as load chain (node)
+    participant P as NodeRunProfile
+    participant M as 3-D map (one shared builder)
+    participant V as MapViewSwitch
+    alt profile.MapInLoad (the Player)
+        L->>M: step "3-D map": build on a worker, upload on the frame
+        M-->>L: done ⇒ the step resolves ⇒ PlayReady
+        Note over L: the player's waiting screen shows "Loading — 3-D map" meanwhile (§11.8)
+    else every other ECS host (editor, CGF, SimHost)
+        Note over L: no map step, PlayReady as today, the map stays 2-D
+        V->>M: first switch to 3-D ⇒ build on a worker (the 2-D map stays usable)
+        M-->>V: done ⇒ the switch completes into 3-D
+    end
+```
+*What it shows: ONE builder (off the frame, upload on the frame) serves both paths; the profile only decides whether the load waits for it.*
+
+| decision | why |
+|---|---|
+| ① one shared builder for the 3-D map's meshes: geometry on a worker, GPU upload on the frame (AQ91 §4-B3) | both paths need it; it removes CE-4078's frame stall everywhere |
+| ② `NodeRunProfile.MapInLoad` — true for the Player profile only; the load chain gets a "3-D map" step only then | R-1046: the player's difference is a parameter of the shared code |
+| ③ other hosts: the first 2-D → 3-D request starts the build; the view stays 2-D (with a "building 3-D map…" note) until it is done | R-1046: start in 2-D, load in the background on the first switch |
+| ④ a host with no 3-D map at all (headless) has nothing to build; the step is skipped | nothing to wait for |
+
+*Rejected:* **every map host waits for the 3-D map in its load** (R3 as first written) — CGF / SimHost / editor would hold the cluster's
+play-ready on a map nobody looked at · **build on the frame thread** — CE-4078's ejection.
+**Split:** ui — the builder, the switch's background build, the profile flag; backend — the chain step that waits on it (AQ110 R3).
+
+⭐ **The seam — agreed with backend (`NOTE_Backend_To_Ui_Bootstrapper_And_Map_Step.md` §2, `2026-10-29`):** a status the step POLLS, the
+chain's existing shape (`ILoadPhaseStep.IsResolved`, `LoadPhaseContracts.cs:151`, polled each frame). ui's builder exposes
+`IMapBuildStatus { bool IsBuilt; string? Failure; string Step; }` beside `ILoadProgressSource` in `Fdp.Toolkits/Orchestration` (both
+presentation projects already reference it); backend's `MapBuildLoadStep` resolves on `IsBuilt`, fails the prepare with `Failure`, feeds `Step`
+to the heartbeat. *Rejected:* an awaited completion (a second step shape).
+Two points the step relies on, owned by ui's builder:
+① **the status is PER LOAD** — `IsBuilt` refers to the terrain this load committed (a generation the builder resets when the terrain changes),
+never to a map built for the previous scenario; ② **on a `MapInLoad` node the builder STARTS on the terrain commit** (not on a view switch), so the
+step has something to wait for; on every other node it starts on the first 2-D → 3-D request.
+
+
+#### 11.9a ✅ AS-BUILT `2026-10-29` (ui, `3821e0e08`) — the ui half of R-1046
+
+| §11.9 said | built | note |
+|---|---|---|
+| one shared builder, geometry on a worker, upload on the frame | ✅ `BackgroundMeshBuild<T>` (`FDP/Engine/Fdp.Presentation/Vis3D/BackgroundMeshBuild.cs`): a newer identity supersedes a pending one (dropped by generation), `Pump` uploads on the frame, a throwing build or upload reports `Failed` | `TerrainLayer3D` and `TrafficLayer3D` both on it (traffic's identity = net + ambient-ground toggle); neither builds in `Draw3D` any more |
+| `IMapBuildStatus` beside `ILoadProgressSource` | ✅ `Fdp.Toolkits/Orchestration/IMapBuildStatus.cs`; `Map3DBuild` (one per map, also a canvas layer so it runs in 2-D) implements it, PER LOAD (built = each layer's uploaded identity is its source's current one) | a node with NO source yet (no terrain) or no window reads `IsBuilt` = true ⇒ ⚠ **backend's step must come after the terrain commit in the chain** |
+| policy | ✅ `Map3DBuildPolicy.Eager` / `OnFirst3DRequest`; `NodeRunProfile.MapInLoad` (true for the IG) maps to it; `AttachMapLayers(policy)` returns it on `MapLayers.Map3D` | the IG pumps its build itself each `Update` — its canvas update is gated on map ownership and on ImGui not capturing the mouse, and the waiting screen's modal captures it |
+| the switch waits in 2-D | ✅ `MapViewSwitch.Build` / `Pending3D` / `Pending3DFailure`; a request on an unbuilt map starts the build and stays 2-D, completes into 3-D when built; back to 2-D cancels; `MapStatsOverlay` shows *Building 3-D map…* | ⚠ applies to every `Set(true)` — Film, possession and follow wait too on the first 3-D use |
+| where backend reads it | `IgSubsystem.MapBuildStatus` → `IgApplication`'s `Map3DBuild` | the other hosts discard `MapLayers.Map3D` (they need no step) |
+
+⚠ **Found, not built:** `TerrainPicker.Build` (`Fdp.Presentation/Vis3D/Picking.cs:144-175`) is a third heavy frame-thread build (the whole terrain mesh + grid, on the first 3-D pick) · `TerrainWorldQuery.BuildTagged` builds the terrain mesh twice (`:166-170`) · the director's ready probe does not wait for the map (a take could start while it builds). The `TerrainWorld` read off-thread is safe: init-only properties (`TerrainWorld.cs:90-117`) + a pure static `TerrainWorldMesh.Build`.
+📌 Rails: `Map3DTests` (the helper off-thread, superseded never uploaded, failure; `Map3DBuild` per load + policy; the switch waits) · `TheRunChoiceIsOnEveryHostTests` (the constructed IG: `MapInLoad`, an Eager map, the status reachable) · `EveryMapHostAttachesTheSharedLayersTests` (only the IG passes a policy) — each red-proved.
+
+#### 11.9b ✅ AS-BUILT `2026-10-30` (backend) — the chain half of R-1046 *(CE-4078)*
+
+| §11.9 said | built | note |
+|---|---|---|
+| `LoadPart.Map3D`, appended after the role parts | ✅ `Map3D = 3`; `LoadPhaseChain.FromRoles(..., profileParts)` adds the requested profile parts AFTER `RoleLoadRequirements.PartsFor(roles)` (so after Terrain), de-duplicated; a requested part with no provider throws at composition like a role part | ⛔ never in `RoleLoadRequirements` — a profile choice |
+| `MapBuildLoadStep` over `Func<IMapBuildStatus?>` | ✅ `Hrot.Core/Services/LoadPhase/MapBuildLoadStep.cs`: resolved on `IsBuilt` (null status = headless = resolved); no work of its own | `ILoadPartProvider` gained two default members: `ProgressStep` (heartbeat label; the map's `Step`) and `Failure` |
+| failure through CE-3345's path, no second one | ✅ `DrainDeferredAcks` checks each step's `Failure` first: aborts the steps, clears the load and faults the hold ⇒ the slave's `FailPrepare(reason)` ⇒ Failed ⇒ round to Idle | the step also reports resolved on a failure so the poll never spins |
+| wiring: host record carries parts + status source; only the IG | ✅ `EcsHostClusterHandlerInputs.ProfileLoadParts` / `MapBuildStatus` (Compose adds the `MapBuildLoadStep` provider when `Map3D` is requested); `NodeBootstrapper.BuildOrchestration(profileLoadParts, mapBuildStatus)`; `IgNodeBootstrapper.ProfileLoadParts/MapBuildStatus` set by `IgApplication` iff `RunProfile.MapInLoad` | no other host passes them |
+📌 Rails (`LoadPhaseChainTests`, `CE4078_*`): holds until `IsBuilt` · fails with `Failure` · reports `Step` · absent without the profile part · no provider throws.

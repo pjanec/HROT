@@ -28,6 +28,91 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
 
     public class MapCameraTests
     {
+        // ⭐ CE-4084 (docs/DESIGN_Map_3D_Mode.md §6af) — the 2-D camera is centred on the VISIBLE map, not the window
+        private static readonly Vector2 Window = new(1600, 900);
+        private static readonly Vector2 DockedCentre = new(1000, 380);
+
+        /// <summary>CE-4084 SC4a — moving the anchor keeps EVERY world point where it is drawn: the picture does not jump when a panel docks.</summary>
+        [Fact]
+        public void CE4084_AnchorAt_KeepsEveryWorldPointAtItsScreenPosition()
+        {
+            var cam = new MapCamera { ViewportOverride = Window };
+            cam.Zoom = 2f;
+            cam.Target = new Vector2(100, 50);
+            cam.Offset = new Vector2(200, 100);
+            var points = new[] { new Vector2(100, 50), new Vector2(-30, 400), new Vector2(250, -80) };
+            var drawn = Array.ConvertAll(points, cam.WorldToScreen);
+
+            cam.AnchorAt(DockedCentre);
+
+            Assert.Equal(DockedCentre, cam.Offset);
+            for (int i = 0; i < points.Length; i++)
+                Assert.InRange(Vector2.Distance(cam.WorldToScreen(points[i]), drawn[i]), 0f, 0.01f);
+        }
+
+        /// <summary>CE-4084 SC4b — a frame's Update anchors at the visible centre (the glide target moves too), so a later Centre View lands there.</summary>
+        [Fact]
+        public void CE4084_AfterUpdate_FocusOnLandsAtTheVisibleCentre_WithAndWithoutSmoothing()
+        {
+            foreach (bool smooth in new[] { false, true })
+            {
+                var cam = new MapCamera { ViewportOverride = Window, ViewCentreSource = _ => DockedCentre, EnableSmoothing = smooth };
+                var t0 = new Vector2(12, 34);
+                cam.ApplyCameraView(new MapCameraView { Target = t0, Zoom = 1.5f, SmoothTarget = t0, SmoothZoom = 1.5f });
+                var before = cam.WorldToScreen(new Vector2(500, 500));
+                cam.Update(0.016f);
+                Assert.Equal(DockedCentre, cam.Offset);
+                Assert.InRange(Vector2.Distance(cam.WorldToScreen(new Vector2(500, 500)), before), 0f, 0.05f);   // the picture did not jump
+
+                var p = new Vector2(-200, 300);
+                cam.FocusOn(p);
+                for (int i = 0; i < 400; i++) cam.Update(0.016f);
+                Assert.InRange(Vector2.Distance(cam.WorldToScreen(p), DockedCentre), 0f, 0.05f);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ CE-1441 (audit #18) — a host does NOT seed <c>Offset = ViewCentre</c>: the camera places a never-placed Offset at the visible centre on its
+        /// FIRST update, with <c>Target</c> untouched — so the world point the host set as Target is the one drawn at the centre (IG / CGF / SimHost relied on
+        /// their own seed for exactly this). A host that placed Offset itself, or applied a full view, is left alone.
+        /// 🔴 Red-proof: delete the <c>InnerCamera.Offset = ViewCentre</c> line in <c>MapCamera.Update</c> ⇒ <c>AnchorAt</c> moves Target instead and the first assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE1441_TheFirstUpdate_CentresANeverPlacedOffset_WithoutMovingTheTarget()
+        {
+            var cam = new MapCamera { ViewportOverride = Window, ViewCentreSource = _ => DockedCentre };
+            var t = new Vector2(120, -80);
+            cam.FocusOn(t);                                 // what a host sets, never touching Offset
+            cam.Zoom = 2f;
+
+            cam.Update(0.016f);
+
+            Assert.Equal(DockedCentre, cam.Offset);
+            Assert.Equal(t, cam.InnerCamera.Target);                                          // not shifted to keep a (0,0)-anchored picture
+            Assert.InRange(Vector2.Distance(cam.WorldToScreen(t), DockedCentre), 0f, 0.01f);   // Target IS at the centre
+
+            // a host that placed Offset itself is not re-seeded (the picture is kept; AnchorAt then moves Target as before)
+            var placed = new MapCamera { ViewportOverride = Window, ViewCentreSource = _ => DockedCentre, Offset = Vector2.Zero };
+            placed.FocusOn(t);
+            placed.Zoom = 2f;
+            placed.Update(0.016f);
+            Assert.NotEqual(t, placed.InnerCamera.Target);
+        }
+
+        /// <summary>CE-4084 — with no dockspace the centre is the window's middle (the default source reads no area).</summary>
+        [Fact]
+        public void CE4084_WithoutAVisibleArea_TheCentreIsTheWindowsMiddle()
+        {
+            var saved = Fdp.Presentation.WindowManager.OpenMapArea.Current;
+            try
+            {
+                Fdp.Presentation.WindowManager.OpenMapArea.Current = null;
+                var cam = new MapCamera { ViewportOverride = Window };
+                Assert.Equal(Window / 2f, cam.ViewCentre);
+            }
+            finally { Fdp.Presentation.WindowManager.OpenMapArea.Current = saved; }
+        }
+
         [Fact]
         public void MapCamera_ZoomIn_IncreasesZoom()
         {
@@ -140,7 +225,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
         /// <summary>One three-frame drag (down at 100,100 → 90,90 → 80,80) with the given button held; returns the camera's target after.</summary>
         private static Vector2 DragWith(Action<MockInputProvider> hold)
         {
-            var camera = new TestableMapCamera { Zoom = 1.0f, Target = Vector2.Zero };
+            var camera = new TestableMapCamera { Zoom = 1.0f, Target = Vector2.Zero, ViewCentreSource = _ => Vector2.Zero };   // ⭐ CE-4084 — these cameras sit at Offset (0,0): pin the anchor there so "did not pan" still means Target unchanged
             var input = new MockInputProvider();
             hold(input);
             foreach (var p in new[] { new Vector2(100, 100), new Vector2(90, 90), new Vector2(80, 80) })
@@ -180,7 +265,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Components
         [Fact]
         public void MapCamera_SecondaryPanButton_IsConfigurable()
         {
-            var camera = new TestableMapCamera { Zoom = 1.0f, Target = Vector2.Zero };
+            var camera = new TestableMapCamera { Zoom = 1.0f, Target = Vector2.Zero, ViewCentreSource = _ => Vector2.Zero };   // ⭐ CE-4084 — these cameras sit at Offset (0,0): pin the anchor there so "did not pan" still means Target unchanged
             camera.InputMap.SecondaryPanButton = MapMouseButton.Left;
             var input = new MockInputProvider { IsMiddleDown = true };
             foreach (var p in new[] { new Vector2(100, 100), new Vector2(60, 60) })

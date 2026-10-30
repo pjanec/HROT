@@ -39,10 +39,8 @@ public sealed class Ce1368OpenAndResetLayoutTests : IDisposable
 
     private static string BTreesRoot()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
-        dir.Should().NotBeNull("the repo root (HROT.sln) must be above the test binary");
-        return Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees");
+        Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree().Should().NotBeNull("the repo root (HROT.sln) must be above the test binary");
+        return Fdp.Toolkit.Orchestration.ContentLayout.BehaviorAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!, Fdp.Toolkit.Orchestration.ContentLayout.BTreesFolder);
     }
 
     /// <summary>Every shipped <c>*.btree.json</c>, loaded by the contributor the editor's catalog uses.</summary>

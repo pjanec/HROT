@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,12 +19,6 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 internal static class ScenarioTwin
 {
-    public static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
 
     public static Entity ByName(EntityRepository world, string name)
     {
@@ -43,10 +38,10 @@ internal static class ScenarioTwin
         var id = scenario.Replace('-', '_') + "_" + Guid.NewGuid().ToString("N");
         staged.Add(id);
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(id));
-        File.Copy(Path.Combine(RepoRoot(), "scenarios", scenario, "scenario.json"),
+        File.Copy(Path.Combine(TestRepo.Root, "scenarios", scenario, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(id), "scenario.json"), overwrite: true);
 
-        var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

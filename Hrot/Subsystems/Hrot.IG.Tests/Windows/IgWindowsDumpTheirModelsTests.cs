@@ -66,37 +66,7 @@ public sealed class IgWindowsDumpTheirModelsTests : IDisposable
         Assert.NotNull(vm);
     }
 
-    // ── MiniExConPanel / IgMiniExConWindow ───────────────────────────────────────────────────
 
-    [Fact]
-    public void MiniExConWindow_DeclaresItInstrumented_AndDumpsARealField()
-    {
-        Assert.DoesNotContain("ig_mini_excon", PanelSnapshot.RegisteredPanels);   // ⛔ anti-vacuity
-
-        PanelSnapshot.CaptureEnabled = true;
-        var state = new MiniExConPanelState { TkbType = 4242 };
-        var window = new IgMiniExConWindow(new MiniExConPanel(state, new Fdp.Core.FdpEventBus()));
-
-        Assert.Contains("ig_mini_excon", PanelSnapshot.RegisteredPanels);
-        window.SimulateDrawClientArea();
-
-        var vm = PanelSnapshot.TryGet("ig_mini_excon");
-        Assert.NotNull(vm);
-        Assert.Equal(IgMiniExConWindow.Kind, vm!.PanelKind);
-        Assert.Equal(4242, vm.Dump()["tkbType"]!.GetValue<long>());
-    }
-
-    [Fact]
-    public void MiniExConWindow_WithCaptureOff_PublishesNothing_ButStaysRegistered()
-    {
-        var window = new IgMiniExConWindow(new MiniExConPanel(new MiniExConPanelState(), new Fdp.Core.FdpEventBus()));
-
-        var vm = window.SimulateDrawClientArea();
-
-        Assert.Empty(PanelSnapshot.CapturedPanels);
-        Assert.Contains("ig_mini_excon", PanelSnapshot.RegisteredPanels);
-        Assert.NotNull(vm);
-    }
 
     // ── WaypointEditorPanel / WaypointEditorWindow (⭐ CE-1096 — shared, in Hrot.Presentation) ─────────────────────────────────────────
 

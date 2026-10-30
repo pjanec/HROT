@@ -71,6 +71,19 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ CE-3329 §12n — set / clear the replay's LOOP range (a session setting of the master's replay clock), from any host.
         //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-26 — the next free value in BOTH enums. Payload: SetReplayLoopPayloadDto.
         SetReplayLoop = 23,
+
+        // ⭐ CE-4090 (AQ108 D14) — set the cluster-wide run settings (today: Record live runs), held by the master, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. Payload: SetRunSettingsPayloadDto.
+        SetRunSettings = 24,
+
+        // ⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording (its ledger entry and staging copies), from any host. Payload: ArchivePayloadDto.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums.
+        DeleteExercise = 25,
+
+        // ⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: ask every node whether its whole world differs from its saved baseline, from any host.
+        //   ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 — the next free value in BOTH enums. No payload; the answer is UnsavedCheckResult.
+        //   ⚠ Named CheckUnsavedChanges, not CheckUnsaved: IDL scopes enum members by module, and NodeOpType.CheckUnsaved (35) is in the same module.
+        CheckUnsavedChanges = 26,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="ClusterOpType.ReplaySeek"/>.</summary>
@@ -122,6 +135,11 @@ namespace Hrot.NED.Descriptors.Orchestration
         // ⭐ CE-3329 P3 — enter / leave a review on a node. ⛔ PERMANENT WIRE VALUES (R-42), allocated 2026-10-26 in BOTH enums.
         PrepareReview = 33,
         FinalizeReview = 34,
+
+        // ⭐ CE-4093 (AQ108 D20) — the CHECK ROUND: every node answers whether its whole world differs from its baseline (the world's keyframe
+        //   content hash against the hash taken at its load / completed save / catch-up). The node's response is the JSON STRING "changed" |
+        //   "unchanged" | "no-baseline". ⛔ PERMANENT WIRE VALUE (R-42), allocated 2026-10-28 in BOTH enums.
+        CheckUnsaved = 35,
     }
 
     [DdsTopic]
@@ -142,6 +160,29 @@ namespace Hrot.NED.Descriptors.Orchestration
         /// <summary>⭐ CE-3329 P1 (R-3058) — the replay session's time axis: 0 = Sim (the default), 1 = Wall. The same on every node
         /// (what each host's timeline draws, what its seeks mean). Additive on the wire.</summary>
         public int ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — 1 = the run the cluster shows was started with recording OFF (nothing is being, or was,
+        /// recorded). 0 = recorded, or no run yet. ⭐ Inverse polarity on purpose: an older sender omits it, and 0 is today's behaviour.
+        /// Held by the master, the same on every node — what every host's HTTP gates and the Live icon read. Additive on the wire.</summary>
+        public int RunNotRecorded;
+        /// <summary>⭐ CE-4090 — 1 = the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load does); 0 = ON, or an older sender. Additive.</summary>
+        public int RecordLiveRunsOff;
+        /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode: 0 = Live (also an older sender), 1 = Preview, 2 = AAR (<c>ClusterArmedMode</c>; ⛔ permanent, R-42). Held by the master, the same on every node. Additive on the wire.</summary>
+        public int ArmedMode;
+        /// <summary>⭐ R-1043 — the mode the LAST scenario load went into: 0 = Live (also an older sender), 1 = Preview (<c>ClusterArmedMode</c>; ⛔ permanent, R-42). Additive on the wire.</summary>
+        public int LastLoadMode;
+        /// <summary>⭐⭐ CE-3344 (R-3069) — what the cluster is still WAITING FOR before it is ready (<i>"SimHost, Brain (CGF)"</i>: the mandatory names and roles no node has reported);
+        /// empty = nothing is missing. Held by the master, the same on every node. Additive on the wire: an older sender omits it, which reads as "nothing missing".</summary>
+        [DdsManaged] public string WaitingFor;
+        /// <summary>⭐⭐ CE-3345 (R-3073) — the cluster ERROR reason (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>); empty = no error. Set by the master while a mandatory node / role was lost with a world loaded,
+        /// cleared when the cluster reaches Idle; the same on every node. Additive on the wire: an older sender omits it, which reads as "no error".</summary>
+        [DdsManaged] public string ErrorReason;
+        /// <summary>⭐⭐ CE-3345 (R-3070, AQ110 B) — CLUSTER PLAY READY: the master's combination over the PARTICIPANTS only (in sync, not an observer) — every one reports PlayReady. False while any participant loads, and in Idle.
+        /// Additive on the wire: an older sender omits it, which reads as "not play-ready" (the gate then reads LoadProgress, which an older sender also omits ⇒ "not loading").</summary>
+        public bool ClusterPlayReady;
+        /// <summary>⭐ CE-3345 — which participants are still loading and on what step (<i>"CGF (node 2): Terrain"</i>); empty = none is. Held by the master, the same on every node. Additive on the wire.</summary>
+        [DdsManaged] public string LoadProgress;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — 1 = the cluster's <i>Ask to keep recordings</i> SETTING is ON; 0 = OFF, or an older sender (the default). ⭐ APPENDED LAST (R-42: never renumber / reorder); additive on the wire.</summary>
+        public int AskToKeepRecordings;
     }
 
     /// <summary>
@@ -381,6 +422,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsKey] public int NodeId;
         /// <summary>⭐ C2 (Q91 §4-I I5) — the cluster session this node follows (empty until it has seen one).</summary>
         public Guid SessionId;
+        /// <summary>⭐⭐ CE-3345 (R-3072, AQ110 A) — the node's phase about ITSELF: <c>NodePhase</c> as an int (0 = Ready — also an older sender; 1 Booting · 2 Loading · 3 CatchingUp · 4 PlayReady · 5 Failed; ⛔ permanent, R-42).
+        /// A fact about the node only: the master combines the participants', a host's gate policy decides who waits. Additive on the wire.</summary>
+        public int Phase;
+        /// <summary>⭐ CE-3345 — the load step the node is on while Loading / CatchingUp; empty otherwise.</summary>
+        [DdsManaged] public string Step;
+        /// <summary>⭐ CE-3345 — why the node's last prepare failed while Failed; empty otherwise.</summary>
+        [DdsManaged] public string Reason;
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;

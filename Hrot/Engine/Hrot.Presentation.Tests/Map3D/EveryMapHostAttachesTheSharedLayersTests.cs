@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -16,16 +17,9 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     private static readonly string[] ProductionTrees = { "Hrot", "Stride" };
     private const string PackFile = "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs";
 
-    private static string RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir);
-        return dir ?? throw new InvalidOperationException("repo root not found");
-    }
-
     private static IEnumerable<(string Rel, string Text)> ProductionFiles()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         foreach (var tree in ProductionTrees)
         {
             var dir = Path.Combine(root, tree);
@@ -79,6 +73,22 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
         Assert.True(missing.Count == 0, "map hosts with no cursor readout in the status bar: " + string.Join(", ", missing));
     }
 
+    /// <summary>
+    /// ⭐ <c>R-1046</c> (CE-4078) S4 — <b>only the Player's map is eager, and it says so through its profile</b>: no host passes the map's build policy to the shared attach except the IG, which passes its profile's
+    /// <c>MapBuildPolicy</c> (never a literal), and nothing outside the pack / the profile names <c>Map3DBuildPolicy.Eager</c> — so CGF, SimHost, the editor and the Replay Browser start in 2-D and build on the first request.
+    /// 🔴 Mutation: a host passing <c>map3DBuildPolicy: Eager</c> (or the IG a literal) ⇒ this names it.
+    /// </summary>
+    [Fact]
+    public void R1046_OnlyThePlayersMapIsEager_AndItReadsItsProfile()
+    {
+        var files = ProductionFiles().ToList();
+        var passers = files.Where(f => f.Text.Contains("map3DBuildPolicy:") && !f.Rel.EndsWith("MapInteractionPack.cs")).ToList();
+        Assert.Equal(new[] { "Hrot/Subsystems/Hrot.IG" }, passers.Select(f => HostOf(f.Rel)).Distinct().ToArray());
+        Assert.Contains("map3DBuildPolicy: RunProfile.MapBuildPolicy", passers.Single().Text);
+        var eager = files.Where(f => f.Text.Contains("Map3DBuildPolicy.Eager")).Select(f => f.Rel).OrderBy(r => r).ToArray();
+        Assert.Equal(new[] { "Hrot/Engine/Hrot.Presentation/RunMode/NodeRunControls.cs" }, eager);
+    }
+
     [Theory]
     [InlineData(@"MapInteractionPack\.BuildRenderLayer\(")]
     [InlineData(@"new\s+(Fdp\.Toolkit\.Vis3D\.)?TerrainLayer3D\(")]
@@ -103,9 +113,9 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Fact]
     public void S5_TheCameraNeedsNoPerHostWiring()
     {
-        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        var pack = File.ReadAllText(Path.Combine(TestRepo.Root, PackFile));
         Assert.Contains("new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider)", pack);
-        var creation = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
+        var creation = File.ReadAllText(Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
         Assert.Contains("ctx.World.RegisterManagedEvent<EntityCreationRequest>();", creation);
         Assert.Contains("new BusEntityCreationRequestSource(ctx.World.Bus)", creation);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && System.Text.RegularExpressions.Regex.IsMatch(f.Text, @"MapCamera(Layer|Tkb|Pose)\b")).Select(f => f.Rel).ToList();
@@ -117,7 +127,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Fact]
     public void WL1_TheTurretPoseNeedsNoPerHostWiring()
     {
-        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        var pack = File.ReadAllText(Path.Combine(TestRepo.Root, PackFile));
         Assert.Contains("new Hrot.UI.Common.Map3D.EntityBodyLayer3D(worldProvider, tkb, turretPoses.PoseOf, Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TurretPoseSource")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires the turret pose itself: " + string.Join(", ", hostMentions));
@@ -128,7 +138,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [Fact]
     public void CE4031_SumoFarAgents_ReachTheBodies_AtTheSharedAttach()
     {
-        var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
+        var pack = File.ReadAllText(Path.Combine(TestRepo.Root, PackFile));
         Assert.Contains("Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of)", pack);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && f.Text.Contains("TrafficAmbientBodies")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires SUMO's far bodies itself: " + string.Join(", ", hostMentions));

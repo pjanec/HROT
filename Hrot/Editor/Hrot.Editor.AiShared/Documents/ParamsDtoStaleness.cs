@@ -20,7 +20,7 @@ public static class ParamsDtoStaleness
 {
     /// <summary>Null when the asset may quick-reload; otherwise the refusal ("full rebuild needed").</summary>
     /// <param name="paramsDtoTypeId">the asset's <c>ParamsDtoTypeId</c> (FQN).</param>
-    /// <param name="paramsAssetsRoot">where the <c>.params.json</c> assets live; <see cref="AssetRoots.AssetsRoot"/> when null.</param>
+    /// <param name="paramsAssetsRoot">where the <c>.params.json</c> assets live; <see cref="AssetRoots.BehaviorAssetsRoot"/> when null.</param>
     public static string? Check(string? paramsDtoTypeId, string? paramsAssetsRoot = null)
     {
         if (string.IsNullOrWhiteSpace(paramsDtoTypeId)) return null;
@@ -29,7 +29,7 @@ public static class ParamsDtoStaleness
         if (loaded.GetCustomAttribute<ParamsDtoAttribute>(inherit: false) is not { AssetId: { } id } || !Guid.TryParse(id, out var guid))
             return null;
 
-        string? path = ParamsDtoJson.FindByAssetId(paramsAssetsRoot ?? AssetRoots.AssetsRoot, guid);
+        string? path = ParamsDtoJson.FindByAssetId(paramsAssetsRoot ?? AssetRoots.BehaviorAssetsRoot, guid);
         if (path == null) return null;
         ParamsDtoAssetDto asset;
         try { asset = ParamsDtoJson.Deserialize(System.IO.File.ReadAllText(path)); }

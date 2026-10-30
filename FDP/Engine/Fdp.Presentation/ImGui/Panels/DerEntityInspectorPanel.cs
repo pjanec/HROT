@@ -15,19 +15,17 @@ namespace Fdp.Presentation.Panels;
 /// ⭐⭐⭐ <b>U-obs-5 — the whole of what <see cref="DerEntityInspectorPanel"/> shows, this frame.</b>
 /// 📄 <c>docs/DESIGN_UI_Observability_Snapshot.md</c> §Example.
 ///
-/// <para>⭐ <b>Wired as an ExCon window.</b> Its only production caller is
-/// <c>Hrot.ExCon</c> — <c>ExConDerEntityInspectorWindow</c> (in <c>Hrot.ExCon.Windows</c>) hosts it as a
-/// perspective-bound <c>ManagedWindow</c>. Per the queue's caller-registers rule, <c>BuildViewModel</c>
-/// lives here (the panel's own assembly); the <c>DeclareInstrumented</c>/<c>Register</c> call sites live
-/// at that host.</para>
+/// <para>⭐ <b>Hosted by the generic wire inspector</b> — <c>Hrot.Presentation.Windows.WireEntityInspectorWindow</c> (AQ109 X5; the
+/// ExCon node that used to host it is retired, R-3067). Per the queue's caller-registers rule, <c>BuildViewModel</c> lives here (the
+/// panel's own assembly); the <c>DeclareInstrumented</c>/<c>Register</c> call sites live at that host.</para>
 /// </summary>
 public sealed record DerEntityInspectorPanelViewModel(
     string PanelId,
     string PanelKind,
     int TotalEntityCount,
     string SearchFilter,
-    IReadOnlyList<int> EntityIds,
-    int SelectedEntityId,
+    IReadOnlyList<long> EntityIds,
+    long SelectedEntityId,
     IReadOnlyList<string> SelectedDescriptorHeaders) : IPanelViewModel
 {
     /// <inheritdoc/>
@@ -70,11 +68,11 @@ public sealed class DerEntityInspectorPanel
     // ── Constants ─────────────────────────────────────────────────────────────
 
     /// <summary>Entity ID value that represents "no entity selected".</summary>
-    public const int NoSelection = 0;
+    public const long NoSelection = 0;
 
     // ── Per-instance state ────────────────────────────────────────────────────
 
-    private int    _selectedEntityId = NoSelection;
+    private long   _selectedEntityId = NoSelection;
 
     // ══ UXI-11 S-4 — THE DER INSPECTOR'S SEAM ══════════════════════════════════
     // 📄 docs/UX/UX_Feature_Selection.md §2.7.5 assigned this panel's seam to S-4, and §2.7.8
@@ -93,26 +91,26 @@ public sealed class DerEntityInspectorPanel
     /// <summary>
     /// ⭐ Publishes *"select this network id"* — the host turns it into a <c>SelectEntityCommand</c>.
     /// </summary>
-    public Action<int>? RequestSelectEntity { get; set; }
+    public Action<long>? RequestSelectEntity { get; set; }
 
     /// <summary>
     /// ⭐ The host's currently-selected network id, or <see cref="NoSelection"/>. Re-read every draw,
     /// so this panel cannot disagree with the map — ⚠ a PROJECTION, for the same reason
     /// <c>EntityInspectorPanel</c> projects rather than subscribes (§2.7.8 deviation ②).
     /// </summary>
-    public Func<int>? HostSelectedNetworkId { get; set; }
+    public Func<long>? HostSelectedNetworkId { get; set; }
 
     private bool DefersToHostSelection => RequestSelectEntity != null && HostSelectedNetworkId != null;
 
     /// <summary>The id this panel should paint as selected — the host's when bound, its own otherwise.</summary>
-    private int EffectiveSelectedId
+    private long EffectiveSelectedId
         => DefersToHostSelection ? HostSelectedNetworkId!() : _selectedEntityId;
 
     /// <summary>
     /// Applies §2.3's click semantics for this surface. ⚠ Right-click on the ALREADY-selected entity
     /// changes nothing, which is the ruling's first row and also what keeps its menu correct.
     /// </summary>
-    internal void RequestSelect(int entityId)
+    internal void RequestSelect(long entityId)
     {
         if (DefersToHostSelection) RequestSelectEntity!(entityId);
         else                       _selectedEntityId = entityId;
@@ -124,7 +122,7 @@ public sealed class DerEntityInspectorPanel
     /// <c>_contextMenuEntity</c>, never the selection read back — so unlike <c>EntityInspectorPanel</c>
     /// this needs no gesture-time flag. ⭐ Extracted from the draw so it can be railed headlessly.
     /// </summary>
-    internal void RightClick(int entityId)
+    internal void RightClick(long entityId)
     {
         if (entityId != EffectiveSelectedId) RequestSelect(entityId);
     }
@@ -158,7 +156,7 @@ public sealed class DerEntityInspectorPanel
     /// list after applying <paramref name="searchFilter"/>.
     /// Testable without an active ImGui context.
     /// </summary>
-    public static List<int> GetEntityListRows(IDerRepo repo, string searchFilter = "")
+    public static List<long> GetEntityListRows(IDerRepo repo, string searchFilter = "")
     {
         ArgumentNullException.ThrowIfNull(repo);
         return FilterEntities(repo, searchFilter).Select(e => e.EntityId).ToList();
@@ -230,7 +228,7 @@ public sealed class DerEntityInspectorPanel
 
     /// <summary>
     /// ⭐⭐⭐ <b>U-obs-5 — the panel BODY only (no <c>ImGui.Begin</c>/<c>End</c>).</b> Called by
-    /// <c>ExConDerEntityInspectorWindow</c> when this panel is hosted as a managed window; also used
+    /// <c>WireEntityInspectorWindow</c> when this panel is hosted as a managed window; also used
     /// by <see cref="Draw"/> for the standalone (non-window-managed) path.
     /// </summary>
     public void DrawContent(IDerRepo repo)
@@ -373,7 +371,7 @@ public sealed class DerEntityInspectorPanel
             return all.ToList();
 
         // Numeric filter: show only the entity whose ID matches.
-        if (int.TryParse(filter, out int filterId))
+        if (long.TryParse(filter, out long filterId))
             return all.Where(e => e.EntityId == filterId).ToList();
 
         // Non-numeric filter: no match (IDs are integers only).

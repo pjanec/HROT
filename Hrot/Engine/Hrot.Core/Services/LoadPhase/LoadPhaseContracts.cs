@@ -39,6 +39,12 @@ public enum LoadPart
 
     /// <summary>The scenario's authored entities. ⭐ Role-derived — <c>Brain</c> only.</summary>
     ScenarioEntities = 2,
+
+    /// <summary>
+    /// ⭐ <c>CE-4078</c> / <c>CE-1446</c> (R-1046) — the node's 3-D map. ⛔ A PROFILE choice, not a role (only the Player waits for it): never in <see cref="RoleLoadRequirements.PartsFor"/>, requested through
+    /// <c>LoadPhaseChain.FromRoles(profileParts)</c>, and placed AFTER the role parts so it runs after <see cref="Terrain"/> (the map builds from the terrain a load commits).
+    /// </summary>
+    Map3D = 3,
 }
 
 /// <summary>
@@ -61,14 +67,15 @@ public readonly record struct LoadPhaseContext(
     bool IsNewScenario,
     bool IsWorldBoundary = false,
     bool IsCatchUp = false,
-    double CheckpointingSeconds = 0)   // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (0 = FULL)
+    double CheckpointingSeconds = 0,   // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (0 = FULL)
+    bool RecordingOff = false)         // ⭐ CE-4090 (AQ108 D14) — this live run must not be recorded ("Record live runs" was off at its load)
 {
     /// <summary>⭐ Builds the context from a node-op intent, or <c>null</c> when it carries no load payload.</summary>
     public static LoadPhaseContext? From(ExecuteNodeOpIntent intent)
         => intent.DomainPayload is EditLoadHandlerPayload p
             ? new LoadPhaseContext(
                 intent.TransactionId, p.TargetState, p.ScenarioId,
-                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp, p.CheckpointingSeconds)
+                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp, p.CheckpointingSeconds, p.RecordingOff)
             : null;
 
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>
@@ -148,4 +155,10 @@ public interface ILoadPartProvider
     /// was missing the terrain-residency call — each had lost a line the others kept.</para>
     /// </summary>
     bool IsResolved(EntityRepository? world) => true;
+
+    /// <summary>⭐ CE-4078 — a step that knows more than its part name says (the 3-D map: <i>"3-D map: terrain"</i>) reports it on the node's heartbeat while it is the one still draining. Default: the part's name.</summary>
+    string? ProgressStep => null;
+
+    /// <summary>⭐ CE-4078 — a step whose work drains in the background and can FAIL there reports why; the chain then fails the load through its one failure path (the hold faults ⇒ the slave's <c>FailPrepare</c>). Default: none.</summary>
+    string? Failure => null;
 }

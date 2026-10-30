@@ -37,7 +37,8 @@ namespace Hrot.SimHost
     /// </summary>
     public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Hrot.Presentation.DebugApi.IProvidesDebugSurface
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ namespace Hrot.SimHost
             => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "SimHost", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
             {
                 Drive       = () => _clusterTimeAdapter,
+                RunChoice   = () => _clusterTimeAdapter?.RunChoice,
                 GizmoBuffer = () => _app?.Visualization?.GizmoBuffer,
             });
 
@@ -82,6 +84,23 @@ namespace Hrot.SimHost
         private bool _headless;
         private int _nodeId;
         private ClusterTimeTransportAdapter? _clusterTimeAdapter;
+        /// <summary>⭐ CE-4097 — this host's one run choice (no scenario session; default Live), for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _clusterTimeAdapter?.RunChoice;
+
+        // ⭐ CE-1437 (AQ108 §2.10) — SimHost OFFERS its transport + choice; the window composer registers the ONE toolbar time control (alone, SimHost's wins).
+        /// <summary>
+        /// ⭐ CE-1437 — SimHost's ONE adapter + run choice (the single <c>AttachRunChoice</c> site of this host), a static so a rail can build it without the graphics window
+        /// <c>RegisterWindows</c> needs. ⭐ CE-4097 (AQ108 §2.8 ⑥): SimHost has NO scenario session — Live is armed (the master's initial armed mode, R-1043) and ▶ from Edit is disabled with its reason.
+        /// </summary>
+        internal static ClusterTimeTransportAdapter CreateTimeTransport(Fdp.Core.FdpEventBus bus, Func<Fdp.Toolkit.Orchestration.ClusterView?> view, Func<double> simTime, Action<string?>? cancelLoad = null)
+            => Hrot.UI.Common.RunMode.NodeRunControls.For(bus, view, simTime, cancelLoad, SimHostProfile);   // ⭐ CE-1445 — the ONE factory; a rail without a node context reaches it through here
+
+        /// <summary>⭐ CE-1445 — what differs for SimHost: its kind (⇒ Operator policy) and no scenario session.</summary>
+        private static readonly Hrot.UI.Common.RunMode.NodeRunProfile SimHostProfile = new(Hrot.UI.Common.RunMode.RunHostKind.SimHost);
+
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.SimHost;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _clusterTimeAdapter;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _clusterTimeAdapter?.RunChoice;
 
         /// <summary>
         /// Initialises SimHost with the specified node role.
@@ -305,7 +324,8 @@ namespace Hrot.SimHost
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
-                        PickBroker:     vis.GetMapPickBroker())),
+                        PickBroker:     vis.GetMapPickBroker(),
+                        WireParticipant: () => _app?.NodeContext?.Participant)),   // ⭐ AQ109 X5
                     // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
                     //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on SimHost.
                     //   ⭐ The world ticks from boot (no planning state, as on CGF); frozen = the clock is halted.
@@ -334,11 +354,12 @@ namespace Hrot.SimHost
             // ⭐ CE-1289 (+ CE-3151) — the point under the map cursor, flat and lat/long/alt, on the 2-D and the 3-D map.
             Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
 
-            // ── Time transport controls in status bar ─────────────────────────
+            // ── Time transport (toolbar) ─────────────────────────
             var bus = _app?.OrchestrationEventBus;
             if (bus != null)
             {
-                _clusterTimeAdapter = new ClusterTimeTransportAdapter(bus, () => _app!.CurrentSimTime);
+                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime,
+                    cancelLoad: reason => _app?.ClusterSlave?.CancelLoad(reason));   // ⭐ CE-1436 — the node's ONE cluster view
 
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
                 // It had its own private pause flag that nothing read, so its Play/Pause/Step did
@@ -347,12 +368,8 @@ namespace Hrot.SimHost
                 if (vis.UI != null)
                     vis.UI.TimeFacade = _clusterTimeAdapter;
 
-                var timeSection = new ClusterTimeControlStatusBarSection(_clusterTimeAdapter);
-                windowManager.StatusBar.RegisterSection(
-                    id:             "simhost_time_controls",
-                    sortOrder:      100,
-                    renderDelegate: timeSection.Render,
-                    perspective:    "SimHost");
+                // ⭐ CE-1437 (AQ108 §2.10) — the toolbar time control is NOT registered here: this host offers it (IProvidesRunControls) and
+                //   LocalWindowController.ComposeRunControls registers the ONE entry for the process (⛔ was CE-4083's RegisterTimeTransport).
             }
         }
 

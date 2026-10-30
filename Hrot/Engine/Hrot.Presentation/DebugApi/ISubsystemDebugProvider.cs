@@ -234,6 +234,40 @@ public interface ISubsystemDebugProvider
     /// <c>ClusterSlave</c> or <c>ClusterUiCache</c>; the Replay Browser's is the viewer's); <see langword="null"/> when it keeps none.</summary>
     Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis { get; }
 
+    /// <summary>⭐ <c>CE-4090</c> (AQ108 D14) — the run the cluster shows was started with recording OFF, as this node's cluster read model has
+    /// it (the master's broadcast); <see langword="null"/> when this node keeps no such read model. What every HTTP gate that needs a
+    /// recording (checkpoint, restore, review, replay / keep of the last run) and <c>GET /status.recording</c> read — ONE fact, the same on every host.</summary>
+    bool? RunNotRecorded { get; }
+
+    /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> SETTING is OFF (the master's broadcast); null when this node keeps no cluster read model.</summary>
+    bool? RecordLiveRunsOff { get; }
+
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> SETTING is ON (the master's broadcast); null when this node keeps no cluster read model.</summary>
+    bool? AskToKeepRecordings { get; }
+
+    /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode (the master's broadcast, via this node's <c>ClusterView</c>); null when this node keeps no cluster read model.</summary>
+    Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3344</c> (R-3069) — this node's ONE cluster read model (<c>ClusterView</c>): <c>CanOperate</c> / <c>NotOperableReason</c> are what the HTTP cluster routes' 409 gate reads.
+    /// <see langword="null"/> when this node keeps none (then no gate refuses — the master's own refusal is the authority). A default member so a provider that predates it is unchanged.
+    /// </summary>
+    Fdp.Toolkit.Orchestration.ClusterView? ClusterView => null;
+
+    /// <summary>⭐ CE-1451 — this host's run choice (its gate, armed mode), independent of the time <see cref="Drive"/>: the IG (a Player) offers no drive and still has a gate to show. <see langword="null"/> where none is composed.</summary>
+    Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => null;
+    /// <summary>⭐⭐ <c>CE-4093</c> (AQ108 D20) — how the unsaved-changes check round <paramref name="requestId"/> ended, from this node's cluster read model
+    /// (the master's answer reaches every host's bus); <see langword="null"/> while it has not, or when this node keeps no such read model.</summary>
+    Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId);
+
+    /// <summary>⭐ <c>CE-4093</c> — the LAST check round's verdict (true = the open scenario has unsaved changes), from this node's cluster read model;
+    /// <see langword="null"/> when no round ran (or the cluster left editing since) or this node keeps no read model. ⛔ Reading it never runs a round.</summary>
+    bool? ScenarioDirty { get; }
+
+    /// <summary>⭐ <c>CE-4093</c> — this node keeps the cluster read model that sees check-round answers (<see cref="UnsavedCheck"/> can ever be non-null).
+    /// A host with none cannot gate a load on the check — it must not wait for an answer that cannot reach it.</summary>
+    bool ObservesUnsavedChecks { get; }
+
 
     /// <summary>⭐ <c>CE-1265</c>/<c>CE-1266</c> on <c>R-3052</c>…<c>R-3055</c> — the recording THIS node replays now (its own), which the
     /// journal history and the recording search scan read-only; <see langword="null"/> outside a replay or on a node that keeps none.
@@ -256,6 +290,18 @@ public interface ISubsystemDebugProvider
     TimelineAccess? Timeline { get; }
 
     ClusterState? ClusterState { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 §2.6) — <b>the CLUSTER's state as this host last heard it</b>: what the start gate reads.
+    /// <see langword="null"/> = no master seen yet. ⚠ Not <see cref="ClusterState"/> on an ECS node: that is the node's own COMMITTED
+    /// state and stays <c>Idle</c> while the cluster is already loading. Default = <see cref="ClusterState"/> — the Orchestrator, the
+    /// Editor, ExCon and the Replay Browser already answer the cluster-wide fact there; an ECS node answers through its
+    /// <c>ClusterSlave</c> (<see cref="EcsNodeDebugProvider"/>).
+    /// </summary>
+    ClusterState? FollowedClusterState => ClusterState;
+
+    /// <summary>⭐ <c>CE-4096</c> — the master this host followed has announced it is gone (the start gate shows "Server lost").</summary>
+    bool MasterGone => false;
 
     /// <summary>
     /// ⭐ The scenario names this node knows about, or <see langword="null"/> when it tracks none — so
@@ -360,6 +406,14 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<IReadOnlyList<ExerciseInventoryItem>?>? _exercises;
     private readonly Func<float?>? _replayDuration;
     private readonly Func<Fdp.Toolkit.Orchestration.ReplayAxis?>? _replayAxis;   // CE-3329
+    private readonly Func<bool?>? _runNotRecorded;   // CE-4090
+    private readonly Func<bool?>? _recordLiveRunsOff;   // CE-4090
+    private readonly Func<bool?>? _askToKeepRecordings;   // CE-4100
+    private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _armedMode;   // CE-3341
+    private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _clusterView;   // CE-3344
+    private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;   // CE-1451
+    private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _unsavedCheck;   // CE-4093
+    private readonly Func<bool?>? _scenarioDirty;   // CE-4093
     private readonly Func<string?>? _replayRecording;
     private readonly Func<IReplayBrowserControl?>? _replayBrowser;   // RB-3
     private readonly Func<ReplayPosition?>? _replayPosition;          // RB-2
@@ -373,6 +427,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
     private readonly Func<IReadOnlyList<ClusterRosterEntry>?>? _clusterRoster;   // CE-4002
     private readonly Func<string?>? _clusterLoadNotice;   // CE-4087
+    private readonly Func<ClusterState?>? _followedClusterState;   // CE-4096
+    private readonly Func<bool>? _masterGone;                      // CE-4096
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -432,8 +488,34 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         // ⭐ RB-6 — the host's timeline index (the Replay Browser's recording; CE-3330 — every ECS node's live one, EcsNodeDebugProvider).
         Func<TimelineAccess?>? timeline = null,
         // ⭐⭐ CE-4087 — the master's load-gate text (a Func, like the roster: the core is built in Initialize).
-        Func<string?>? clusterLoadNotice = null)
+        Func<string?>? clusterLoadNotice = null,
+        // ⭐⭐ CE-4096 — the cluster state this host LAST HEARD (null = no master seen yet) and whether that master is gone: the start
+        //    gate's one input (AQ108 §2.6). Omitted ⇒ FollowedClusterState falls back to `clusterState`, MasterGone is false.
+        Func<ClusterState?>? followedClusterState = null,
+        Func<bool>? masterGone = null,
+        // ⭐ CE-4090 (AQ108 D14) — "this run was not recorded", from the same cluster read model as the cluster state
+        Func<bool?>? runNotRecorded = null,
+        Func<bool?>? recordLiveRunsOff = null,
+        Func<bool?>? askToKeepRecordings = null,   // ⭐ AQ108 D15 (CE-4100 ①)
+        Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? armedMode = null,   // ⭐ CE-3341
+        // ⭐ CE-4093 (AQ108 D20) — the check round's outcome and the last verdict, from the same cluster read model (ClusterUiCache)
+        Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
+        Func<bool?>? scenarioDirty = null,
+        // ⭐⭐ CE-3344 (R-3069) — this node's ONE cluster read model, whose CanOperate the HTTP cluster routes gate on
+        Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null,
+        // ⭐ CE-1451 — the host's run choice, read without a drive (a Player has none)
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
     {
+        _runChoice = runChoice;
+        _clusterView = clusterView;
+        _followedClusterState = followedClusterState;
+        _masterGone = masterGone;
+        _runNotRecorded = runNotRecorded;
+        _recordLiveRunsOff = recordLiveRunsOff;
+        _askToKeepRecordings = askToKeepRecordings;
+        _armedMode = armedMode;
+        _unsavedCheck = unsavedCheck;
+        _scenarioDirty = scenarioDirty;
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
         _world        = world;
@@ -595,12 +677,23 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public IReadOnlyList<ExerciseInventoryItem>? Exercises => _exercises?.Invoke();
     public float? ReplayDurationSeconds => _replayDuration?.Invoke();
     public Fdp.Toolkit.Orchestration.ReplayAxis? ReplayAxis => _replayAxis?.Invoke();
+    public bool? RunNotRecorded => _runNotRecorded?.Invoke();
+    public bool? RecordLiveRunsOff => _recordLiveRunsOff?.Invoke();
+    public bool? AskToKeepRecordings => _askToKeepRecordings?.Invoke();
+    public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode => _armedMode?.Invoke();
+    public Fdp.Toolkit.Orchestration.ClusterView? ClusterView => _clusterView?.Invoke();
+    public Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => _runChoice?.Invoke();
+    public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId) => _unsavedCheck?.Invoke(requestId);
+    public bool? ScenarioDirty => _scenarioDirty?.Invoke();
+    public bool ObservesUnsavedChecks => _unsavedCheck != null;
     public string? ReplayRecordingPath => _replayRecording?.Invoke();
     public IReplayBrowserControl? ReplayBrowser => _replayBrowser?.Invoke();
     public ReplayPosition? ReplayPosition => _replayPosition?.Invoke();
     public Fdp.Core.Diagnostics.IDiagnosticEventHistoryService? EventHistory => _eventHistory?.Invoke();
     public TimelineAccess? Timeline => _timeline?.Invoke();
     public ClusterState? ClusterState => _clusterState?.Invoke();
+    public ClusterState? FollowedClusterState => _followedClusterState is { } f ? f() : _clusterState?.Invoke();   // ⭐ CE-4096
+    public bool MasterGone => _masterGone?.Invoke() ?? false;                                                       // ⭐ CE-4096
     public IReadOnlyList<string>? AvailableScenarios => _availableScenarios?.Invoke();
     public Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture => _architecture?.Invoke();
     public DiagnosticDumpStatus? DumpStatus => _dumpStatus?.Invoke();

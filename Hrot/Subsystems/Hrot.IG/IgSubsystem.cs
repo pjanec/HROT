@@ -29,7 +29,8 @@ namespace Hrot.IG
     /// </summary>
     public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
-        Hrot.Presentation.DebugApi.IProvidesDebugSurface
+        Hrot.Presentation.DebugApi.IProvidesDebugSurface,
+        Hrot.UI.Common.RunMode.IProvidesRunControls
     {
         /// <inheritdoc/>
         public string Name => "IG";
@@ -49,6 +50,9 @@ namespace Hrot.IG
         /// declared and assertable. ⛔ Fabricating an adapter here would invent a control path the operator's
         /// UI does not have.</para>
         ///
+        /// <para>📐 <b>CE-1445 (R-1044) update:</b> IG now holds a <c>ClusterTimeTransportAdapter</c> too — built by <c>NodeRunControls.For</c> with the Player profile for the GATE / waiting screen only
+        /// (<c>IProvidesRunControls</c>, below). ⛔ It is still NOT offered as a drive: this debug surface keeps <c>drive: null</c>, and the profile suppresses the toolbar time control.</para>
+        ///
         /// <para>⭐ IG is still a full ACK participant in the roster — 📌 <c>PARTICIPATE ≠ OBSERVE</c>: it
         /// executes the master's ticks, it just does not ISSUE them.</para>
         /// </summary>
@@ -57,6 +61,7 @@ namespace Hrot.IG
             //    (it executes the master's — PARTICIPATE ≠ OBSERVE), so stepping from its perspective answers NOT_SUPPORTED_HERE.
             => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "IG", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
             {
+                RunChoice   = () => _app?.RunControls?.RunChoice,   // ⭐ CE-1451 — the Player's gate, read without a drive
                 GizmoBuffer = () => _app?.GizmoBuffer,
             });
 
@@ -110,6 +115,19 @@ namespace Hrot.IG
         // GZH-014: expose the gizmo controller for perspective-aware listener switching.
         public Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? GizmoController => _app?.GizmoController;
 
+        // ⭐⭐⭐ CE-1445 (R-1044, DESIGN_Cluster_Load_Phase §11.8) — the IG OFFERS its run controls like every ECS host: the Player gate + the waiting screen (the composer draws it over this choice).
+        //   ⛔ Not a drive: `CreateDebugProvider` above still has none (Q54/D4 — the IG issues no ticks); the toolbar time control is suppressed by the role's profile.
+        Hrot.UI.Common.RunMode.RunHostKind Hrot.UI.Common.RunMode.IProvidesRunControls.HostKind => Hrot.UI.Common.RunMode.RunHostKind.Ig;
+        Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _app?.RunControls;
+        Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
+        bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
+
+        /// <summary>⭐ R-1046 (CE-4078) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); null before the IG is initialised. The one place the node exposes it.</summary>
+        public Fdp.Toolkit.Orchestration.IMapBuildStatus? MapBuildStatus => _app?.MapBuildStatus;
+
+        /// <summary>⭐ CE-1445 — the IG's run choice, for the wiring rail.</summary>
+        internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _app?.RunControls?.RunChoice;
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
@@ -159,7 +177,6 @@ namespace Hrot.IG
             Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _app?.Canvas, "IG");
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(   // ⭐ CE-1096 — the shared window
                 _app.WaypointEditorPanel, Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", IgWindowColor.TitleBar));
-            windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));
             _app.RegisterMainMenu(windowManager.GlobalMenu, "IG");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
             windowManager.RegisterWindow(new IgPerformanceWindow(_app.PerformanceOverlay));
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites this host used to spell out by hand are
@@ -194,7 +211,8 @@ namespace Hrot.IG
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS IgWindowColor.TitleBar now.
-                        PickBroker:     _app.GetMapPickBroker())),
+                        PickBroker:     _app.GetMapPickBroker(),
+                        WireParticipant: () => _app.NodeContext?.Participant)),   // ⭐ AQ109 X5
                     // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
                     //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on the IG.
                     new Hrot.Editor.AiShared.Windows.EntityDetailsBundle(new Hrot.Editor.AiShared.Windows.EntityDetailsHostServices(

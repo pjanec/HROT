@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -191,15 +192,7 @@ namespace Hrot.SimHost.Tests
         private static object ReadAt<T>(byte[] block, int offset) where T : struct
             => MemoryMarshal.Read<T>(block.AsSpan(offset));
 
-        /// <summary>The repo root (the folder holding HROT.sln), found from the test binary.</summary>
-        public static string RepoRoot()
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null && !File.Exists(Path.Combine(dir.FullName, "HROT.sln"))) dir = dir.Parent;
-            return dir?.FullName ?? throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory);
-        }
-
         public static string SnapshotPath(string name)
-            => Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.SimHost.Tests", "Snapshots", "ShippedTrees", name + ".tree.txt");
+            => Path.Combine(TestRepo.Root, "Hrot", "Subsystems", "Hrot.SimHost.Tests", "Snapshots", "ShippedTrees", name + ".tree.txt");
     }
 }

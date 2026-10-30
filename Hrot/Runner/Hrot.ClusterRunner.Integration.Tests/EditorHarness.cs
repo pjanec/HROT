@@ -57,6 +57,9 @@ public sealed class EditorHarness : IDisposable
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
     public FdpEventBus        OrchBus   { get; }
+    /// <summary>CE-1436 - the harness node's ONE cluster read model (its slave's view).</summary>
+    public Fdp.Toolkit.Orchestration.ClusterView ClusterView => _clusterView!;
+    private Fdp.Toolkit.Orchestration.ClusterView? _clusterView;
     public ModuleHostKernel   Kernel    { get; }
     public NetworkEntityMap   EntityMap { get; }
 
@@ -105,13 +108,14 @@ public sealed class EditorHarness : IDisposable
     /// blueprint registries, and the mission service. Endpoints in those groups answer their own
     /// "not available" — they are out of scope for the entity/spawn/command tier this unlocks.</para>
     /// </remarks>
-    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService()
+    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService(
+        IPreviewController? preview = null, System.Func<Fdp.Toolkit.Orchestration.ClusterState>? clusterState = null)
         => new(
             world:          Repo,
             entityMap:      EntityMap,
             extraction:     new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(Repo, EntityMap),
-            time:           new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(OrchBus, () => _timeController!.GetCurrentState().TotalTime),   // ⭐ CE-3329 row 21 — the one facade
-            preview:        Preview,
+            time:           new Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter(OrchBus, () => ClusterView, () => _timeController!.GetCurrentState().TotalTime),   // ⭐ CE-3329 row 21 — the one facade
+            preview:        preview ?? Preview,
             editor:         Editor,
             eventHistory:   _eventHistory,
             timeController: _timeController!,
@@ -119,7 +123,7 @@ public sealed class EditorHarness : IDisposable
             //   answering NOT_SUPPORTED_HERE. See BpManager's remarks for why it is real, not a stub.
             bpManager:      BpManager,
             // ⭐ The harness is a single offline editor: it is always "the one node, operating".
-            clusterState:   () => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit,
+            clusterState:   clusterState ?? (() => Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit),
             // ⭐ CE-515 ③ — the harness HOLDS a creation pack; a debug API built without it is the silent-default
             //   pattern (POST /entities/spawn and /create-request would refuse).
             entityCreation: _ => EntityCreation,
@@ -272,6 +276,7 @@ public sealed class EditorHarness : IDisposable
         var behaviorRegistry = new BehaviorRegistry();
         _behaviorRegistry = behaviorRegistry;
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
+        _clusterView         = clusterSlave.View;
         // ⭐ The editor's OWN serializer (EditorBootstrap.CreateFileService), not a bare builder: the bare one has no
         //   translators, so a scenario saved here dropped ActiveMissionPlan (MissionPlanTranslator) and a live load of it
         //   had no missions — the drift this harness's header warns about (DistributedScenarioLoadTests).
@@ -422,7 +427,7 @@ public sealed class EditorHarness : IDisposable
         Kernel.Initialize();
 
         // ── Editor application facade ─────────────────────────────────────────
-        Editor = new EditorApplication(fileService, Bus, OrchBus, Repo);
+        Editor = new EditorApplication(fileService, Bus, OrchBus, () => ClusterView, Repo);
         Preview = new EditorPreviewController(_timeController!, _previewHandler!);
     }
 

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -579,11 +580,11 @@ public sealed class AudioTests
     [Fact]
     public void CE1120_EveryMapHostGetsTheLayer_BesideThePossessionStation()
     {
-        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
         Assert.Contains("var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);", pack);
         Assert.Contains("canvas.AddLayer(audio);", pack);
         Assert.Contains("possession, audio", pack);   // (CE-1227 appended the 2-D terrain after it)
-        string spawner = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs"));
+        string spawner = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs"));
         Assert.Contains("Hrot.UI.Common.Audio.SoundEvents.Of(world)", spawner);
     }
 
@@ -666,10 +667,25 @@ public sealed class AudioTests
         ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer()).Playback(world);
     }
 
-    private static string RepoRoot()
+    /// <summary>
+    /// ⭐ <c>CE-1400</c> TE-11 — a host's own transport hands the scene its rate (<see cref="AudioDirector.HostTransport"/>): playing at 4× ⇒ 4, paused ⇒ 0; a film that plays keeps its own rate.
+    /// 🔴 Red-proof: <c>HostTransport</c> ignoring <c>filmPlays</c> ⇒ the film row; not setting the rate ⇒ the first rows.
+    /// </summary>
+    [Fact]
+    public void CE1400_TheHostsTransport_SetsTheRate_AFilmThatPlaysKeepsItsOwn()
     {
-        var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "HROT.sln"))) d = d.Parent;
-        return d!.FullName;
+        try
+        {
+            AudioDirector.Rate = null;
+            AudioDirector.HostTransport(filmPlays: false, playing: true, rate: 4d);
+            Assert.Equal(4d, AudioDirector.Rate);
+            AudioDirector.HostTransport(filmPlays: false, playing: false, rate: 4d);
+            Assert.Equal(0d, AudioDirector.Rate);                       // paused: silence, as a film's pause
+
+            AudioDirector.Rate = 0.5d;                                  // the film's
+            AudioDirector.HostTransport(filmPlays: true, playing: true, rate: 4d);
+            Assert.Equal(0.5d, AudioDirector.Rate);
+        }
+        finally { AudioDirector.Rate = null; }
     }
 }

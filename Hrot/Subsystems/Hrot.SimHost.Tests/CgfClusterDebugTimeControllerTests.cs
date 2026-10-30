@@ -286,7 +286,7 @@ public sealed class CgfClusterDebugTimeControllerTests
 
     /// <summary>
     /// 🔒 <b>The documented no-DDS mode is NORMAL operation, not a degraded one</b>
-    /// (<c>CgfApplication.cs:107</c>). ⛔ No warning, and no intent published to a cluster that does
+    /// (the headless / no-DDS node). ⛔ No warning, and no intent published to a cluster that does
     /// not exist — *"a permanent warning in a supported mode is ruling 49's dead affordance in another
     /// costume."*
     /// </summary>

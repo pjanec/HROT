@@ -35,7 +35,7 @@ public sealed class DerEntityInspectorPanelBuildsItsModelTests
         var vm = panel.BuildViewModel(repo, "der-test", "der-entity-inspector");
 
         Assert.Equal(2, vm.TotalEntityCount);
-        Assert.Equal(new[] { 1, 2 }, vm.EntityIds);
+        Assert.Equal(new[] { 1L, 2L }, vm.EntityIds);
         Assert.Equal(1, vm.SelectedEntityId);
         Assert.Contains(nameof(SampleDescriptor), vm.SelectedDescriptorHeaders);
     }
@@ -54,7 +54,7 @@ public sealed class DerEntityInspectorPanelBuildsItsModelTests
         var vm = panel.BuildViewModel(repo, "der-test", "der-entity-inspector");
 
         Assert.Equal(DerEntityInspectorPanel.GetEntityListRows(repo, "2"), vm.EntityIds);
-        Assert.Equal(new[] { 2 }, vm.EntityIds);
+        Assert.Equal(new[] { 2L }, vm.EntityIds);
     }
 
     private struct SampleDescriptor { public int Value; }

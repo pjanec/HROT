@@ -73,7 +73,11 @@ public static class SharedAiEditorServiceCollectionExtensions
             return new AssetBrowserDockedWindow(
                 sp.GetRequiredService<IAssetCatalog>(),
                 sp.GetRequiredService<IIconProvider>(),
-                new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
+                new AssetBrowserPanelOptions
+                {
+                    Kinds = AssetKindFilter.All, ShowAllTab = false,
+                    Recent = Hrot.UI.Common.Picker.UserRecentPicks.Shared,   // ⭐ CE-4098 (AQ108 D19) — the user's Recent lists, shared with the shell pickers
+                },
                 onAssetActivated ?? (_ => { }));
         });
         // ⛔ S5 (2026-08-22): InspectorWindow is RETIRED — all six of its arms became Details views

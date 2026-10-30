@@ -17,7 +17,6 @@ using Hrot.Common;
 using Hrot.Common.Abstractions;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
-using Hrot.ExCon;
 using Hrot.Orchestrator;
 using Xunit;
 using HrotCoreOrchTranslator = Hrot.Core.Network.IOrchestrationTranslator;
@@ -47,7 +46,7 @@ public sealed class HexagonalBoundaryTests
     // ── Test 1: Strict Headless Hexagonal Boundary ────────────────────────────
 
     /// <summary>
-    /// HEXAG2-T001: OrchestratorSubsystem and ExConSubsystem constructed with an
+    /// HEXAG2-T001: OrchestratorSubsystem constructed with an
     /// OfflineNetworkFactory (zero DDS translators) survive 100 Update() frames
     /// without exception.
     /// Traps: rogue new NodeOpSlaveTranslator / new ClusterOpEgressTranslator calls that
@@ -58,22 +57,18 @@ public sealed class HexagonalBoundaryTests
     {
         INetworkFactory factory = new Hrot.Editor.OfflineNetworkFactory();
         var orch  = new OrchestratorSubsystem(factory);
-        var excon = new ExConSubsystem(factory);
         try
         {
             orch.Initialize(HeadlessConfig());
-            excon.Initialize(HeadlessConfig());
 
             for (int i = 0; i < 100; i++)
             {
                 orch.Update(0.016f);
-                excon.Update(0.016f);
             }
         }
         finally
         {
             orch.Shutdown();
-            excon.Shutdown();
         }
         // Passes if no NullReferenceException or DDS init exception was thrown.
     }
@@ -162,43 +157,8 @@ public sealed class HexagonalBoundaryTests
             "consumes PauseTimeIntent directly from the bus (no ClusterMaster bridge).");
     }
 
-    // ── Test 4: Slave Egress Translation ─────────────────────────────────────
-
-    /// <summary>
-    /// HEXAG2-T004: ExConSubsystem wired with a spy ISlaveOrchestrationTranslator
-    /// receives PauseTimeIntent in its Tick() read buffer after one Update() frame.
-    /// Traps: if ExCon kept a separate ClusterOp egress bus, the spy translator would
-    /// never see the typed intent; if ClusterOpIntent wrapper was still used the
-    /// spy would drain nothing.
-    /// </summary>
-    [Fact]
-    public void Hexagonal_PauseIntent_ReachesSlaveTranslatorTick()
-    {
-        var spy     = new SpySlaveTranslator();
-        var factory = new SpyTranslatorFactory(spy);
-
-        var excon = new ExConSubsystem(factory);
-        excon.Initialize(HeadlessConfig());
-        try
-        {
-            var bus = excon.BusForTest!;
-
-            // Publish PauseTimeIntent to the write buffer.
-            bus.PublishManaged(new PauseTimeIntent());
-
-            // Update() swaps buffers (PauseTimeIntent -> read) then calls
-            // _slaveTranslator.Tick() which runs after the swap in ExConSubsystem.Update().
-            excon.Update(0.016f);
-
-            Assert.True(spy.PauseIntentSeen,
-                "SpySlaveTranslator.Tick() must drain PauseTimeIntent from the read buffer " +
-                "after ExConSubsystem.Update() propagates it through the single-bus pipeline.");
-        }
-        finally
-        {
-            excon.Shutdown();
-        }
-    }
+    // ⛔ R-3067 / AQ109 X2 — DELETED: `Hexagonal_PauseIntent_ReachesSlaveTranslatorTick` (HEXAG2-T004). It asserted ExConSubsystem's own single-bus pipeline
+    //   (a spy slave translator draining PauseTimeIntent after ExConSubsystem.Update()); the node is retired and no other subsystem here exposes that pipeline.
 
     // ── Test 5: Infrastructure Lifecycle Teardown ─────────────────────────────
 
@@ -225,93 +185,10 @@ public sealed class HexagonalBoundaryTests
 
     // ── Spy / helper types ────────────────────────────────────────────────────
 
-    private sealed class SpySlaveTranslator : ISlaveOrchestrationTranslator
-    {
-        public FdpEventBus? Bus           { get; set; }
-        public bool         PauseIntentSeen { get; private set; }
-
-        public void Tick()
-        {
-            if (Bus == null) return;
-            foreach (var _ in Bus.ReadManaged<PauseTimeIntent>())
-                PauseIntentSeen = true;
-        }
-
-        public void Dispose() { }
-    }
-
     private sealed class SpyDisposable : IDisposable
     {
         public int DisposeCount { get; private set; }
         public void Dispose() => DisposeCount++;
-    }
-
-    /// <summary>
-    /// Minimal INetworkFactory that wires a spy ISlaveOrchestrationTranslator and
-    /// returns no-op stubs for all other methods (ExCon-compatible subset).
-    /// Delegates all non-overridden methods to OfflineNetworkFactory.
-    /// </summary>
-    private sealed class SpyTranslatorFactory : INetworkFactory
-    {
-        private readonly Hrot.Editor.OfflineNetworkFactory _base = new();
-        private readonly SpySlaveTranslator _spy;
-        public SpyTranslatorFactory(SpySlaveTranslator spy) => _spy = spy;
-
-        public DdsParticipant?     Participant          => _base.Participant;
-        public long                WorldPosDescriptorId => _base.WorldPosDescriptorId;
-        public long                NavigationStatusDescriptorId => _base.NavigationStatusDescriptorId;
-
-        // Return this (not _base) so the spy is preserved after ConfigureForNode.
-        public INetworkFactory ConfigureForNode(DdsParticipant? p, int n, NodeRole r) => this;
-        public INetworkFactory ConfigureForNode(HrotNodeContext c, NodeRole r, BehaviorRegistry? d = null) => this;
-
-        // Inject the spy instead of a null-object translator.
-        public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId)
-        {
-            _spy.Bus = bus;
-            return _spy;
-        }
-
-        // Delegate everything else to _base.
-        public HrotCoreOrchTranslator           CreateOrchestratorTranslators(FdpEventBus b, int n)    => _base.CreateOrchestratorTranslators(b, n);
-        public IDisposable                      CreateIdAllocatorServer()                              => _base.CreateIdAllocatorServer();
-        public INetworkIdAllocator              CreateIdAllocator(string clientId, bool skipRoutingWait = false) => _base.CreateIdAllocator(clientId, skipRoutingWait);
-        public IMasterTimeTranslators           CreateMasterTimeTranslators(FdpEventBus b, int n)      => _base.CreateMasterTimeTranslators(b, n);
-        public IOrchestrationObserver           CreateOrchestrationObserver(FdpEventBus b)             => _base.CreateOrchestrationObserver(b);
-        public ICommandGateway                  CreateCommandGateway()                                 => _base.CreateCommandGateway();
-        public IExConEgressWriters              CreateExConEgressWriters()                             => _base.CreateExConEgressWriters();
-        public ITimeControlGateway              CreateTimeControlGateway()                             => _base.CreateTimeControlGateway();
-        public ISimHostMissionSender            CreateSimHostMissionSender()                           => _base.CreateSimHostMissionSender();
-        public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();
-        public ISimHostPathfindingTranslators   CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _base.CreateSimHostPathfindingTranslators(trajectoryPool);
-        public ISimHostPerceptionTranslators    CreateSimHostPerceptionTranslators(Fdp.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null) => _base.CreateSimHostPerceptionTranslators(ghostCreationSystem);
-        public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> CreateSimHostAttributeUpdateSystems()          => _base.CreateSimHostAttributeUpdateSystems();
-        public IIgTranslators                   CreateIgTranslators()                                  => _base.CreateIgTranslators();
-        public IIgNetworkAdapter                CreateIgNetworkAdapter(DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
-        public ICgfEntityLifecycleAdapters?     CreateCgfEntityLifecycleAdapters()                    => _base.CreateCgfEntityLifecycleAdapters();
-        public Hrot.Common.Abstractions.IReplicationModule CreateReplicationModule()               => _base.CreateReplicationModule();
-
-        public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
-            DdsParticipant participant, FdpEventBus bus, long nodeId)
-            => _base.CreateIgEgressTranslators(participant, bus, nodeId);
-
-        public IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
-            FdpEventBus interactionBus, long localNodeId, bool headless)
-            => _base.CreateGizmoTranslators(interactionBus, localNodeId, headless);
-
-        public Fdp.ModuleHost.Abstractions.IEcsModuleSystem? CreateGizmoPublisherSystem(
-            Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
-            => _base.CreateGizmoPublisherSystem(buffer, localNodeId);
-
-        public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-            DdsParticipant?                  participant,
-            long                             localNodeId,
-            IDerRepo                         repo,
-            Action<MapClickEventDto>         onMapClick,
-            Action<SelectionChangedEventDto> onSelectionChanged,
-            Action<EntityLifecycleAckDto>    onEntityLifecycleAck,
-            Action<MapCommandAckDto>         onMapCommandAck)
-            => _base.CreateExConIngressHandlers(participant, localNodeId, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
     }
 
     /// <summary>
@@ -339,9 +216,7 @@ public sealed class HexagonalBoundaryTests
         public HrotCoreOrchTranslator           CreateOrchestratorTranslators(FdpEventBus b, int n)    => _base.CreateOrchestratorTranslators(b, n);
         public IMasterTimeTranslators           CreateMasterTimeTranslators(FdpEventBus b, int n)      => _base.CreateMasterTimeTranslators(b, n);
         public ISlaveOrchestrationTranslator    CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
-        public IOrchestrationObserver           CreateOrchestrationObserver(FdpEventBus b)             => _base.CreateOrchestrationObserver(b);
         public ICommandGateway                  CreateCommandGateway()                                 => _base.CreateCommandGateway();
-        public IExConEgressWriters              CreateExConEgressWriters()                             => _base.CreateExConEgressWriters();
         public ITimeControlGateway              CreateTimeControlGateway()                             => _base.CreateTimeControlGateway();
         public ISimHostMissionSender            CreateSimHostMissionSender()                           => _base.CreateSimHostMissionSender();
         public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();
@@ -365,14 +240,5 @@ public sealed class HexagonalBoundaryTests
             Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
             => _base.CreateGizmoPublisherSystem(buffer, localNodeId);
 
-        public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-            DdsParticipant?                  participant,
-            long                             localNodeId,
-            IDerRepo                         repo,
-            Action<MapClickEventDto>         onMapClick,
-            Action<SelectionChangedEventDto> onSelectionChanged,
-            Action<EntityLifecycleAckDto>    onEntityLifecycleAck,
-            Action<MapCommandAckDto>         onMapCommandAck)
-            => _base.CreateExConIngressHandlers(participant, localNodeId, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
     }
 }

@@ -65,6 +65,25 @@ public sealed class ClusterConformanceRails
 
     // ══ the shared machinery ══════════════════════════════════════════════════
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4096</c> (AQ108 D16) — <b>LOAD BEFORE SWITCHING.</b> A host that boots and rests in Idle shows the <c>Start</c> perspective (the start
+    /// gate, once the cluster has rested 0.5 s), and while it shows every perspective switch is refused (409). ⇒ a rail that walks the perspectives
+    /// leaves Start first, the way a user does: it loads a scenario (the ordinary load path), then waits for the gate to hand the window back.
+    /// ⭐ ONE helper for both baseline rails (<see cref="CaptureByKindAsync"/> and the UI-baseline's registered-window capture) — a copy would be two
+    /// implementations of one mechanism. ⛔ A no-op on a host that is not in Start (a headless host has no window manager at all, so no Start).
+    /// </summary>
+    internal static async Task LeaveStartAsync(EditorProcess host, ITestOutputHelper output)
+    {
+        string? Perspective(ApiResult r) => r.Ok ? r.String("perspective") : null;
+        if (Perspective(await host.Client.GetStatusAsync()) != "Start") return;
+
+        output.WriteLine($"[{host.Mode}] the Start perspective shows (cluster Idle) — loading '{ConformanceScenario}' to leave it");
+        await LoadLiveAsync(host, output);
+        for (int i = 0; i < 50 && Perspective(await host.Client.GetStatusAsync()) == "Start"; i++)
+            await Task.Delay(100);   // the gate leaves on the frame after the cluster leaves Idle
+        Assert.NotEqual("Start", Perspective(await host.Client.GetStatusAsync()));
+    }
+
     /// <summary>⭐ Every captured panel in one host, keyed by KIND, with its id and canonical model.</summary>
     /// <remarks>
     /// ⭐ <c>internal</c>, not <c>private</c>, since <c>CE-016</c>: a second conformance file needs the
@@ -77,6 +96,8 @@ public sealed class ClusterConformanceRails
     {
         var byKind = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
 
+        await LeaveStartAsync(host, output);   // ⭐ CE-4096 — load first: a switch is refused while Start shows
+
         var perspectives = ((await host.Client.ListPerspectivesAsync()).EnsureOk()
                             .Field("perspectives") as JsonArray)!
                            .Select(n => n!.GetValue<string>())
@@ -88,7 +109,9 @@ public sealed class ClusterConformanceRails
         {
             // ⭐ §6's CONTRACT: switch, STEP, then read. ⛔ A same-frame read returns the empty prefix.
             var switched = await host.Client.SwitchPerspectiveAsync(p);
-            if (!switched.Ok) continue;                 // a perspective that refuses is not this rail's subject
+            // ⛔⛔ CE-4094 — was `if (!switched.Ok) continue;`, which would have passed VACUOUSLY the day a switch is refused (409 while the
+            //    Start perspective shows: load a scenario first). A listed perspective that cannot be switched to is a finding, not a skip.
+            Assert.True(switched.Ok, $"[{host.Mode}] refused to switch to the listed perspective '{p}' ({switched.StatusCode}): {switched.Error}");
             await host.Client.StepAsync(SettleTicks);   // ⚠ may be NOT_SUPPORTED_HERE — see the step rail
             await Task.Delay(150);
 
@@ -177,25 +200,8 @@ public sealed class ClusterConformanceRails
     /// </summary>
     private static readonly HashSet<string> ClusterOnlyKinds = new(StringComparer.Ordinal)
     {
-        "excon-data-monitor", "excon-der-entity-inspector", "excon-diagnostics", "excon-orbat",
-        "ig-debug", "ig-mini-excon", "ig-waypoint-editor",
+        "ig-debug", "ig-waypoint-editor",   // ⛔ R-3067 / AQ109 X2/X3: the four `excon-*` kinds, `ExConObserver` (X2) and `ig-mini-excon` (X3) went with ExCon
 
-        // ⭐⭐⭐ CE-357 (`2026-09-26`) — `ExConObserver` DECLARED, and it is a genuine cluster-only kind.
-        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.27.
-        // 📐 `ExConObserverPanelViewModel.Kind` (`Hrot.ExCon.Observer`), registered by
-        //    `ExConSubsystem.cs:564`. It is ExCon's read/proof surface for the observer console state:
-        //    *"ExCon has no ECS world, so GET /entities proves nothing; this panel publishes the
-        //    observer state so GET /panels/excon_observer shows the restored camera + marker after a
-        //    scenario load"* — added by `CE-277(c3)`, the distributed-scenario save/load work.
-        // ⭐ It belongs in THIS set rather than being ported, because `HrotRunnerConfiguration:181`
-        //   FORBIDS the editor coexisting with ExCon ⇒ the editor can never host an ExCon panel, and
-        //   "register it on the editor" is not an available option, not merely an unchosen one.
-        // ⚠⚠ WHY THIS SAT UNDECLARED: the kind is NEW (it arrived with `CE-277`), and adding a
-        //    cluster-only panel reddens this rail by design — that is the rail working. ⛔ It stayed red
-        //    rather than being declared, which is how the ONE rail that answers *"is editor⇄cluster
-        //    parity intact?"* came to be failing while parity was being reported as intact. 🔒 That
-        //    misreport is recorded in `CE-357`; this entry is the fix it was asking for all along.
-        "ExConObserver",
     };
 
     /// <summary>
@@ -566,7 +572,7 @@ public sealed class ClusterConformanceRails
         // 2026-10-28 (measured on a live `--mode all`): the Orchestrator has been a debug provider since CE-4002 (2026-10-15) and the
         // traffic node joined `all` the same day this line was re-measured — each contributes a ROUTABLE perspective (a provider's name,
         // which is not the same set as the window-claimed GET /perspectives).
-        Assert.Equal(new[] { "ExCon", "IG", "Orchestrator", "Scenario", "SimHost", "Traffic" }, perspectives);
+        Assert.Equal(new[] { "IG", "Orchestrator", "Scenario", "SimHost", "Traffic" }, perspectives);
 
         // ⭐⭐ HN-028: the ack-gate is confirmable cluster-wide here. ⛔ If this reddens, the dispatcher lost its
         //    live read of OrchestratorSubsystem.IsAwaitingStepAcks and every /sim/step went back to being
@@ -643,12 +649,7 @@ public sealed class ClusterConformanceRails
           + "ScenarioMissionService (CgfSubsystem ~:1095) and must pass it as `missionEditor:` — CE-066's "
           + "whole failure mode was that it built one and handed it to nobody.");
 
-        // ⭐ And the honest FALSEs, which are what prove the cells are measured rather than defaulted.
-        Assert.False(matrix["ExCon"]!["panels.gizmo"]!.GetValue<bool>(),
-            "ExCon reports a gizmo feed, but no DebugPrimitiveBuffer exists in Hrot.ExCon at all.");
-        Assert.False(matrix["ExCon"]!["mission.edit"]!.GetValue<bool>(),
-            "ExCon reports mission editing, but it builds no IMissionEditorService. ⚠ Note Hrot.ExCon has a "
-          + "DIFFERENT interface of the same name — the provider seam takes Hrot.UI.Common.Facades' one.");
+        // ⛔ R-3067 / AQ109 X2 — the honest FALSEs for the ExCon perspective (no gizmo feed, no mission editor) went with the node.
     }
 
     /// <summary>
@@ -2188,7 +2189,7 @@ public sealed class ClusterConformanceRails
         // ⛔⛔ NOT bare `--mode simhost`, and the reason is measured, not stylistic: a standalone SimHost
         //    node dies in `DdsIdAllocatorHelper.EnsureRouting` — *"Hrot.Orchestrator must be running before
         //    this node starts"* — so a one-subsystem rail cannot boot at all in this harness.
-        // ⭐⭐ ORDER MATTERS and it is measured: `--mode all` expands to `orchestrator,simhost,ig,excon,cgf`
+        // ⭐⭐ ORDER MATTERS and it is measured: `--mode all` expands to `orchestrator,simhost,ig,cgf,traffic`
         //    and the orchestrator is FIRST for exactly this reason — the id allocator needs it serving
         //    before SimHost bootstraps. `simhost,orchestrator` dies the same way the bare mode does.
         // ⭐⭐ `orchestrator,simhost` is the smallest mode that BOOTS and still has NO EditorSubsystem,

@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Linq;
 using Fdp.Core;
@@ -243,10 +244,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         [Fact]
         public void NoHost_CallsAGeneratedPerNamespaceGizmoRegistrar()
         {
-            var root = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-            while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root.FullName, "HROT.sln")))
-                root = root.Parent;
-            Assert.True(root != null, "Could not locate workspace root (HROT.sln not found).");
+            var root = new System.IO.DirectoryInfo(TestRepo.Root);
 
             string[] hosts =
             {

@@ -4,8 +4,9 @@ using System.Collections.Generic;
 namespace Fdp.Toolkit.DER
 {
     /// <summary>
-    /// Non-ECS entity repository for ExCon Mock.
-    /// Thread-safe dictionary-based storage.
+    /// The DER mirror: a non-ECS (world-less) entity repository, thread-safe and dictionary-based, filled by DDS ingress handlers and read by
+    /// <c>DerEntityInspectorPanel</c>. ⭐ Kept on purpose (user, 2026-10-29: the DER inspector stays; AQ109 §5a/§5b makes it a generic wire inspector).
+    /// ⛔ Its first user, the ExCon node, is retired (R-3067).
     /// </summary>
     public interface IDerRepo
     {
@@ -17,7 +18,7 @@ namespace Fdp.Toolkit.DER
         /// <summary>
         /// Retrieve entity by ID. Returns null if not found.
         /// </summary>
-        IDerEntity? GetEntity(int entityId);
+        IDerEntity? GetEntity(long entityId);
         
         /// <summary>
         /// Get all entities currently in repository.
@@ -28,12 +29,12 @@ namespace Fdp.Toolkit.DER
         /// Create new entity with specified ID and TKB type.
         /// Throws if entity ID already exists.
         /// </summary>
-        IDerEntity CreateEntity(int entityId, long tkbType);
+        IDerEntity CreateEntity(long entityId, long tkbType);
         
         /// <summary>
         /// Delete entity by ID. No-op if entity doesn't exist.
         /// </summary>
-        void DeleteEntity(int entityId);
+        void DeleteEntity(long entityId);
         
         /// <summary>
         /// Raised when new entity is created.

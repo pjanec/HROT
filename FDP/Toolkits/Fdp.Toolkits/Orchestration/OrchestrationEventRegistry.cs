@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<SeekReplayIntent>();
             bus.RegisterManaged<SetReplayAxisIntent>();   // ⭐ CE-3329 R-3058
             bus.RegisterManaged<SetReplayLoopIntent>();   // ⭐ CE-3329 §12n
+            bus.RegisterManaged<SetRunSettingsIntent>();   // ⭐ CE-4090 D14 — Record live runs
             bus.RegisterManaged<ReplaySessionPublishedEvent>();   // ⭐ CE-3329 rows 32, 45 — the session layer, to the DDS writer
             bus.RegisterManaged<ReplaySessionUpdateEvent>();      // ⭐ CE-3329 — the session layer, folded by every host
             bus.RegisterManaged<GeoReferencePublishedEvent>();    // ⭐ AQ107 C — the NED wire's frame origin, to the DDS writer
@@ -39,6 +40,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<TakeCheckpointIntent>();
             bus.RegisterManaged<CollectCheckpointIntent>();   // ⭐ CE-3299 B3
             bus.RegisterManaged<RestoreCheckpointIntent>();   // ⭐ CE-3299 B4
+            bus.RegisterManaged<CheckUnsavedIntent>();   // ⭐ CE-4093 D20 — the unsaved-changes check round
             bus.RegisterManaged<LoadZoneIntent>();
             // ⭐ E4 — the terrain-asset build op's intent.
             bus.RegisterManaged<BuildTerrainAssetIntent>();

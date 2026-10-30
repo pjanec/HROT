@@ -2,7 +2,18 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration
 {
-    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId);
+    /// <summary>
+    /// One exercise of the cluster's inventory (what can be replayed / kept / exported).
+    /// </summary>
+    /// <param name="ParentExerciseId">⭐ CE-4097 (AQ108 D5) — the exercise this one BRANCHED from (a replay going live); <c>Guid.Empty</c> for a run
+    /// that began at a load. ⛔ Not a second record of the branch: it is the recording's own <c>RecordingMetadata.ParentExerciseId</c>
+    /// (<see cref="ExerciseBranch"/> reads it), and the live run's is what the nodes report from the very <c>RecordingBranch</c> they write it from.
+    /// Default = not a branch, so an old peer's inventory reads as one.</param>
+    /// <param name="BranchWallTicks">⭐ The branch point in the metadata's own unit: the parent's WALL time at the frame the branch left it
+    /// (<c>RecordingMetadata.BranchWallTicks</c>; 0 when not a branch). A host converts it to the replay axis as
+    /// <c>atSeconds = (BranchWallTicks − zero) / 1e7</c> with the replay's zero (<c>ReplayPosition</c>) — no sim-seconds twin.</param>
+    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId,
+                                               Guid ParentExerciseId = default, long BranchWallTicks = 0);
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes
@@ -82,6 +93,12 @@ namespace Fdp.Toolkit.Orchestration
         public string SubsystemName;
         /// <summary>⭐ C2 (R-4006 I5) — the cluster session this node follows; empty until it has seen one.</summary>
         public Guid   SessionId;
+        /// <summary>⭐⭐ <c>CE-3345</c> part B (R-3072, AQ110 A) — what the node reports about ITSELF: its <see cref="NodePhase"/>. Default 0 = <see cref="NodePhase.Ready"/> (a sender that never sets it).</summary>
+        public NodePhase Phase;
+        /// <summary>⭐ <c>CE-3345</c> — the load step the node is on (while <see cref="NodePhase.Loading"/> / <see cref="NodePhase.CatchingUp"/>); <see langword="null"/> otherwise.</summary>
+        public string? Step;
+        /// <summary>⭐ <c>CE-3345</c> — why the node's last prepare failed (while <see cref="NodePhase.Failed"/>); <see langword="null"/> otherwise.</summary>
+        public string? Reason;
         // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
@@ -123,6 +140,29 @@ namespace Fdp.Toolkit.Orchestration
         public int TransactionEpoch;
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis (rides every cluster-state publication).</summary>
         public ReplayAxis ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — the run the cluster shows was started with recording OFF. Inverse polarity: default false = recorded
+        /// (today's behaviour), so a publisher that does not set it changes nothing. Rides every cluster-state publication.</summary>
+        public bool RunNotRecorded;
+        /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> SETTING is OFF (what the next live load will do). Inverse polarity: default false = ON.</summary>
+        public bool RecordLiveRunsOff;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> SETTING is ON. Default false (a publisher that never sets it reads as OFF).</summary>
+        public bool AskToKeepRecordings;
+        /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode. Default 0 = <see cref="ClusterArmedMode.Live"/>, so a publisher that never sets it reads as the default.</summary>
+        public ClusterArmedMode ArmedMode;
+        /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live or Preview). Default 0 = Live.</summary>
+        public ClusterArmedMode LastLoadMode;
+        /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — what the cluster is still WAITING FOR before it is ready, as <i>"SimHost, Brain (CGF)"</i>: the mandatory subsystem names and roles
+        /// no node has reported yet. <see langword="null"/> / empty = nothing is missing. Rides every cluster-state publication; ⭐ the ONE text — the load wait's
+        /// "waiting for" reads the same master function.</summary>
+        public string? WaitingFor;
+        /// <summary>⭐⭐ <c>CE-3345</c> (R-3073, <c>DESIGN_Cluster_Load_Phase.md</c> §11.5) — the cluster ERROR: why it is broken (<i>"Brain (CGF, node 3) lost at sim 00:12:31"</i>), set while a mandatory
+        /// node / role was lost with a world loaded and cleared only when the cluster reaches Idle. <see langword="null"/> / empty = no error. ⭐ Beside <see cref="WaitingFor"/>, never instead of it.</summary>
+        public string? ErrorReason;
+        /// <summary>⭐⭐ <c>CE-3345</c> part B (R-3070, AQ110 B) — CLUSTER PLAY READY: the master's combination over the PARTICIPANTS only (in sync ∧ not an observer, K6) — every one of them reports <see cref="NodePhase.PlayReady"/>.
+        /// False while any of them is still loading, and in Idle (nobody has a world to play). Rides every cluster-state publication, beside <c>WaitingFor</c>.</summary>
+        public bool ClusterPlayReady;
+        /// <summary>⭐ <c>CE-3345</c> — which PARTICIPANTS are still loading and on what step (<i>"CGF (node 2): Terrain; SimHost (node 3): KnowledgeBase"</i>); <see langword="null"/> / empty = none is.</summary>
+        public string? LoadProgress;
     }
 
     /// <summary>
@@ -193,6 +233,25 @@ namespace Fdp.Toolkit.Orchestration
         public bool MasterGone;
         /// <summary>⭐ CE-3329 R-3058 — the replay session's time axis, as the master last said.</summary>
         public ReplayAxis ReplayAxis;
+        /// <summary>⭐ CE-4090 (AQ108 D14) — as <see cref="ClusterStateTransitionedEvent.RunNotRecorded"/>.</summary>
+        public bool RunNotRecorded;
+        /// <summary>⭐ CE-4090 — as <see cref="ClusterStateTransitionedEvent.RecordLiveRunsOff"/>.</summary>
+        public bool RecordLiveRunsOff;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — as <see cref="ClusterStateTransitionedEvent.AskToKeepRecordings"/>.</summary>
+        public bool AskToKeepRecordings;
+        /// <summary>⭐ CE-3341 — as <see cref="ClusterStateTransitionedEvent.ArmedMode"/>.</summary>
+        public ClusterArmedMode ArmedMode;
+        /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live or Preview). Default 0 = Live.</summary>
+        public ClusterArmedMode LastLoadMode;
+        /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — as <see cref="ClusterStateTransitionedEvent.WaitingFor"/> (what <see cref="ClusterView.WaitingFor"/> folds).</summary>
+        public string? WaitingFor;
+        /// <summary>⭐⭐ <c>CE-3345</c> (R-3073) — as <see cref="ClusterStateTransitionedEvent.ErrorReason"/> (what <see cref="ClusterView.ErrorReason"/> folds).</summary>
+        public string? ErrorReason;
+        /// <summary>⭐⭐ <c>CE-3345</c> part B (R-3070, AQ110 B) — CLUSTER PLAY READY: the master's combination over the PARTICIPANTS only (in sync ∧ not an observer, K6) — every one of them reports <see cref="NodePhase.PlayReady"/>.
+        /// False while any of them is still loading, and in Idle (nobody has a world to play). Rides every cluster-state publication, beside <c>WaitingFor</c>.</summary>
+        public bool ClusterPlayReady;
+        /// <summary>⭐ <c>CE-3345</c> — which PARTICIPANTS are still loading and on what step (<i>"CGF (node 2): Terrain; SimHost (node 3): KnowledgeBase"</i>); <see langword="null"/> / empty = none is.</summary>
+        public string? LoadProgress;
     }
 
     /// <summary>

@@ -23,7 +23,7 @@ namespace Hrot.UI.Common.Map3D;
 /// toward the eye (<see cref="LitShader.SetDepthBias"/>): from afar a few centimetres are less than one depth step, so they fought our
 /// ground. The ambient ground is its own mesh, unbiased — it lies UNDER everything.
 /// </remarks>
-public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
+public sealed class TrafficLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   // ⭐ CE-3289 — the world: filmed
 {
     public static readonly Color AsphaltColor   = new(64, 66, 70, 255);
     public static readonly Color JunctionColor  = new(74, 76, 80, 255);
@@ -35,10 +35,16 @@ public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 �
     public static readonly Color PoleColor      = new(60, 60, 60, 255);
 
     private readonly Func<EntityRepository?> _world;
-    private object? _identity;
-    private bool _ambient;
     private Mesh _mesh, _ground, _cube;
     private bool _hasMesh, _hasGround, _hasCube;
+    /// <summary>⭐ R-1046 — the road streams are built on a worker, keyed by (the net, the ambient-ground switch); the frame thread uploads them.</summary>
+    private readonly BackgroundMeshBuild<Streams> _build = new();
+
+    /// <summary>One mesh's un-indexed vertex streams.</summary>
+    private sealed record MeshStreams(Vector3[] Positions, Vector3[] Normals, Color[] Colors);
+
+    /// <summary>The roads, and (when shown) the ambient ground — each its own mesh (the roads are depth-biased, the ground is not).</summary>
+    private sealed record Streams(MeshStreams Roads, MeshStreams? Ground);
 
     public TrafficLayer3D(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
@@ -52,15 +58,39 @@ public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 �
     /// <summary>Triangles in the uploaded road mesh (0 before the first 3-D frame with a net).</summary>
     public int TriangleCount { get; private set; }
 
+    // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
     public void Update(float dt) { }
     public void Draw(RenderContext ctx) { }
+
+    private TrafficNetCache? Net => _world() is { } world ? TrafficNetCache.Of(world) : null;
+    /// <summary>The identity a build is keyed by: the net, and whether the ambient ground is in it.</summary>
+    private (TrafficNetCache Net, bool Ambient) Identity(TrafficNetCache net) => (net, ShowAmbientGround);
+
+    string IMeshLayer3D.BuildName => "roads";
+    bool IMeshLayer3D.HasSource => Net != null;
+    bool IMeshLayer3D.IsBuilt => Net is { } net && _build.IsBuiltFor(Identity(net));
+    string? IMeshLayer3D.BuildFailure => _build.Failure;
+
+    void IMeshLayer3D.RequestBuild()
+    {
+        if (Net is not { } net)
+        {
+            if (_hasMesh || _hasGround || _build.State != MeshBuildState.Idle) { ReleaseMesh(); _build.Reset(); }
+            return;
+        }
+        RequestBuild(net);
+    }
+
+    void IMeshLayer3D.PumpBuild() => _build.Pump(Upload);
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
     public Entity? PickEntity(Vector2 worldPos) => null;
 
     public void Draw3D(RenderContext ctx)
     {
-        if (_world() is not { } world || TrafficNetCache.Of(world) is not { } net) { Release(); _identity = null; return; }
-        if (!ReferenceEquals(net, _identity) || _ambient != ShowAmbientGround) Rebuild(net);
+        if (_world() is not { } world || TrafficNetCache.Of(world) is not { } net) { Release(); _build.Reset(); return; }
+        // a frame drawn in 3-D wants its mesh: ask (a no-op when asked), and upload what a worker has finished — the build never runs here
+        RequestBuild(net);
+        _build.Pump(Upload);
         if (_hasMesh || _hasGround)
         {
             var lit = LitShader.Shared;
@@ -89,18 +119,33 @@ public sealed class TrafficLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 �
         }
     }
 
-    private void Rebuild(TrafficNetCache net)
+    /// <summary>⭐ R-1046 — starts the CPU build for <paramref name="net"/> on a worker (<see cref="TrafficNetCache"/> is immutable; its <c>Roads</c> were built off the main thread already).</summary>
+    private void RequestBuild(TrafficNetCache net)
+    {
+        bool ambient = ShowAmbientGround;
+        _build.Request(Identity(net), () =>
+        {
+            BuildVertexData(net.Roads, k => k != SceneKind.AmbientGround, out var positions, out var normals, out var colors);
+            var roads = new MeshStreams(positions, normals, colors);
+            MeshStreams? ground = null;
+            if (ambient)
+            {
+                BuildVertexData(net.Roads, k => k == SceneKind.AmbientGround, out positions, out normals, out colors);
+                ground = new MeshStreams(positions, normals, colors);
+            }
+            return new Streams(roads, ground);
+        });
+    }
+
+    /// <summary>FRAME THREAD: the finished streams onto the GPU, replacing the previous meshes.</summary>
+    private void Upload(Streams streams)
     {
         ReleaseMesh();
-        _identity = net;
-        _ambient = ShowAmbientGround;
-        BuildVertexData(net.Roads, k => k != SceneKind.AmbientGround, out var positions, out var normals, out var colors);
-        _hasMesh = Upload(positions, normals, colors, out _mesh);
-        TriangleCount = positions.Length / 3;
-        if (!ShowAmbientGround) return;
-        BuildVertexData(net.Roads, k => k == SceneKind.AmbientGround, out positions, out normals, out colors);
-        _hasGround = Upload(positions, normals, colors, out _ground);
-        TriangleCount += positions.Length / 3;
+        _hasMesh = Upload(streams.Roads.Positions, streams.Roads.Normals, streams.Roads.Colors, out _mesh);
+        TriangleCount = streams.Roads.Positions.Length / 3;
+        if (streams.Ground is not { } g) return;
+        _hasGround = Upload(g.Positions, g.Normals, g.Colors, out _ground);
+        TriangleCount += g.Positions.Length / 3;
     }
 
     private static bool Upload(Vector3[] positions, Vector3[] normals, Color[] colors, out Mesh uploaded)

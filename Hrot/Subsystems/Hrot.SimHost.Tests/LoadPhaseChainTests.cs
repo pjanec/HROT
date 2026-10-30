@@ -249,6 +249,64 @@ public sealed class LoadPhaseChainTests
         Assert.True(hold.IsCompleted);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ CE-4090 (AQ108 D14, §5a) — <b>LIVE DOES NOT IMPLY RECORDING, on the node.</b> The recorder starts when the load's operating transition
+    /// completes — unless the load's payload said <c>RecordingOff</c>: then NO recorder starts on this node (so no checkpoint / review / restore handler
+    /// finds one, and nothing is written under <c>exercises/&lt;id&gt;</c>). The same load without the flag starts exactly one (the control).
+    /// </summary>
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task CE4090_ALiveLoadStartsTheRecorder_UnlessThePayloadSaysRecordingOff(bool recordingOff, int recorders)
+    {
+        var recorder = new CountingRecorder();
+        var exercise = Guid.NewGuid();
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Map2D, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) },
+            world: null, recordingController: recorder, storageDirectory: ".");
+
+        await chain.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        var hold = chain.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareState, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.OperatingLive, ExerciseId: exercise, RecordingOff: recordingOff),
+        }, CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;
+
+        Assert.Equal(recorders, recorder.Started);
+        if (recorders == 1) Assert.Equal(exercise, recorder.LastExercise);
+    }
+
+    private sealed class CountingRecorder : Fdp.Core.Orchestration.IRecordReplayController
+    {
+        public int Started { get; private set; }
+        public Guid LastExercise { get; private set; }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) { Started++; LastExercise = exerciseId; return Task.CompletedTask; }
+        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+        public void ProcessPlaybackTick(GlobalTime currentTime) { }
+        public Task TeardownReplayAsync() => Task.CompletedTask;
+        public bool IsReplayActive => false;
+        public GlobalTime GetCurrentReplayTime() => default;
+        public float ActiveReplayDurationSeconds => 0f;
+        public long ActiveRecordingStartWallTicks => 0;
+        public long ActiveRecordingEndWallTicks => 0;
+        public long ReplayAnchorWallTicks { get; set; }
+        public string? ActiveReplayFilePath => null;
+        public bool IsRestoringReplay => false;
+        public long ActiveMaxNetworkId => 0;
+        public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => Task.FromResult(default(GlobalTime));
+        public Task<string?> AwaitRetractionAcksAsync(TimeSpan timeout) => Task.FromResult<string?>(null);
+        public void HoldEgress(string reason) { }
+        public void ReleaseEgress() { }
+        public void ReleaseReplayExit() { }
+    }
+
     /// <summary>⭐ An abort cancels the hold and rolls every step back, rather than leaving the cluster waiting.</summary>
     [Fact]
     public async Task AnAbort_CancelsTheHold_AndAbortsEveryStep()
@@ -469,6 +527,51 @@ public sealed class LoadPhaseChainTests
         await prepare;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> (R-3072, AQ110 A) — <b>the chain names the step it is on</b>, which the node reports on its heartbeat and in its progress ack: the steps in the chain's order while the load prepares (a step run on a WORKER included),
+    /// then — while the Operating prepare is held — the first step still unresolved; <see langword="null"/> once the hold resolves and after an abort.
+    /// 🔴 Mutations (each compiles): the assignment before <c>step.PrepareAsync</c> removed ⇒ the in-order cell reds; the one in <c>DrainDeferredAcks</c> removed ⇒ the hold cell reds; <c>_currentStep = null</c> removed from the resolve ⇒ the "resolved" cell reds;
+    /// from <c>AbortLoad</c> ⇒ the "abort" cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task CE3345_TheChainNamesTheStepItIsOn_InOrder_WhileHeld_AndNothingOnceResolvedOrAborted()
+    {
+        LoadPhaseChain? chain = null;
+        var seen = new List<string?>();
+        FakeStep Named(LoadPart part) => new(part) { OnPrepare = () => seen.Add(chain!.CurrentLoadStep) };
+        var terrain = Named(LoadPart.Terrain);
+        terrain.Resolved = false;   // the MIDDLE step drains on: the held name must differ from the last step prepared
+        chain = LoadPhaseChain.FromRoles(NodeRole.Brain | NodeRole.MuscleGround,
+            new ILoadPartProvider[] { Named(LoadPart.ScenarioEntities), terrain, Named(LoadPart.KnowledgeBase) }, world: null);
+        Assert.Null(chain.CurrentLoadStep);                                         // no load, no step
+
+        await chain.PrepareAsync(LoadIntent(), CancellationToken.None);
+        Assert.Equal(new[] { "KnowledgeBase", "Terrain", "ScenarioEntities" }, seen);   // the chain's order, each named while it ran
+
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+        Assert.Equal("Terrain", chain.CurrentLoadStep);                             // held: the step still draining is the one reported
+
+        terrain.Resolved = true;
+        chain.DrainDeferredAcks();
+        await hold;
+        Assert.Null(chain.CurrentLoadStep);                                         // resolved: nothing to report
+
+        // a step that runs on a WORKER is named while it blocks there; an abort clears the name
+        var blocking = new BlockingStep(LoadPart.Terrain);
+        var chain2 = LoadPhaseChain.FromRoles(NodeRole.MuscleGround, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), blocking }, world: null);
+        var load = LoadIntent();
+        var prepare = chain2.PrepareAsync(load, CancellationToken.None);
+        Assert.True(blocking.Started.Wait(5_000));
+        Assert.Equal("Terrain", chain2.CurrentLoadStep);
+        await chain2.PrepareAsync(new ExecuteNodeOpIntent
+            { Operation = NodeOpType.AbortTransaction, TransactionId = Guid.NewGuid(), DomainPayload = new AbortTransactionPayload(load.TransactionId) }, CancellationToken.None);
+        Assert.Null(chain2.CurrentLoadStep);
+        blocking.Release.SetResult();
+        await prepare;
+    }
+
     /// <summary>⭐ A pure step that waits on a gate, recording the thread it ran on.</summary>
     private sealed class BlockingStep : ILoadPartProvider
     {
@@ -492,6 +595,102 @@ public sealed class LoadPhaseChainTests
         public bool IsResolved(EntityRepository? world) => true;
     }
 
+    // ── CE-4093 (AQ108 D20) — the unsaved-changes BASELINE hooks: a load into editing commits · a late joiner's catch-up completes ──────────────
+
+    private static (LoadPhaseChain Chain, Fdp.Toolkit.Replay.WorldChangeCheck Check, EntityRepository World, FakeStep Step) BaselineChain()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        var check = new Fdp.Toolkit.Replay.WorldChangeCheck();
+        // the load's own content: the step's COMMIT builds a unit — the baseline must be taken AFTER it (the loaded world IS the saved one)
+        var step = new FakeStep(LoadPart.KnowledgeBase)
+        {
+            Resolved = false,
+            OnCommit = w => w!.SetComponent(w.CreateEntity(), new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 }),
+        };
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Map2D, new ILoadPartProvider[] { step, new FakeStep(LoadPart.Terrain) }, world, changeCheck: check);
+        return (chain, check, world, step);
+    }
+
+    private static ExecuteNodeOpIntent Loading(ClusterState loading, bool catchUp) => new()
+    {
+        Operation     = NodeOpType.PrepareEdit,
+        TransactionId = Guid.NewGuid(),
+        DomainPayload = new EditLoadHandlerPayload(ScenarioId: "scn", TargetState: loading, IsCatchUp: catchUp),
+    };
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4093</c> hook (a) and (c) — ONE call site in the chain every host runs: when the load into EDITING resolves (every step reported
+    /// resolved, in the frame <c>DrainDeferredAcks</c> releases the hold), the world's content hash becomes the node's baseline — taken AFTER the
+    /// steps' commits (the loaded world is the saved one), never before they resolve. The same for a late joiner's catch-up (the chain flagged
+    /// <c>IsCatchUp</c>). 🔴 Mutation: no <c>BeginSettling</c> in <c>DrainDeferredAcks</c> ⇒ <c>IsSettling</c> / <c>HasBaseline</c> never happen; no <c>SettleStep</c> at its top ⇒ <c>HasBaseline</c> stays false.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CE4093_ALoadIntoEditing_AndACatchUp_TakeTheBaseline_WhenEveryStepResolved(bool catchUp)
+    {
+        var (chain, check, world, step) = BaselineChain();
+        var load = Loading(ClusterState.LoadingEdit, catchUp);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingEdit), CancellationToken.None);
+
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+        Assert.False(check.HasBaseline, "a step is still unresolved: the world is not the loaded one yet");
+
+        step.Resolved = true;
+        chain.DrainDeferredAcks();
+        await hold;
+
+        // the load resolved: the world SETTLES first (a loaded world still gets its first frame of initial work), then it is the baseline
+        Assert.True(check.IsSettling);
+        Assert.False(check.HasBaseline);
+        chain.DrainDeferredAcks();                                 // frame 1 of the settling: the first hash
+        Assert.False(check.HasBaseline);
+        chain.DrainDeferredAcks();                                 // frame 2: the world did not move — it is the baseline
+        Assert.True(check.HasBaseline);
+        Assert.False(check.IsSettling);
+        Assert.Equal(1, world.EntityCount);                       // the step's commit ran before the baseline
+        Assert.False(check.HasChanged(world), "the loaded world is the baseline: a quiet world reads unchanged");
+        world.SetComponent(world.CreateEntity(), new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1001 });
+        Assert.True(check.HasChanged(world));
+    }
+
+    /// <summary>⭐ A load into LIVE takes no baseline: a live run is not edited, and its return to editing is a load of its own.
+    /// 🔴 Mutation: the <c>LoadingEdit</c> condition dropped ⇒ this fails.</summary>
+    [Fact]
+    public async Task CE4093_ALiveLoad_TakesNoBaseline()
+    {
+        var (chain, check, _, step) = BaselineChain();
+        step.Resolved = true;
+        var load = Loading(ClusterState.LoadingLive, catchUp: false);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;
+
+        Assert.False(check.HasBaseline);
+        Assert.False(check.IsSettling);
+    }
+
+    /// <summary>⭐ Entering Idle empties the world ⇒ the baseline goes with it (an emptied world has nothing saved to compare with).
+    /// 🔴 Mutation: no <c>ClearBaseline</c> in <c>OnEnteredIdle</c> ⇒ this fails.</summary>
+    [Fact]
+    public void CE4093_EnteringIdle_ForgetsTheBaseline()
+    {
+        var (chain, check, world, _) = BaselineChain();
+        check.TakeBaseline(world);
+        Assert.True(check.HasBaseline);
+
+        chain.OnEnteredIdle();
+
+        Assert.False(check.HasBaseline);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
 
     private static ExecuteNodeOpIntent LoadIntent()
@@ -505,6 +704,98 @@ public sealed class LoadPhaseChainTests
             DomainPayload = new EditLoadHandlerPayload(
                 ScenarioId: "scn", TargetState: target),
         };
+
+    // ── ⭐ CE-4078 / CE-1446 (R-1046, DESIGN_Cluster_Load_Phase §11.9b) — the player's load waits for its 3-D map ────────────────────────────
+
+    private sealed class FakeMapStatus : IMapBuildStatus
+    {
+        public bool IsBuilt { get; set; }
+        public string? Failure { get; set; }
+        public string Step { get; set; } = "";
+    }
+
+    private static LoadPhaseChain MapChain(FakeMapStatus? status, NodeRole roles = NodeRole.Map2D, bool withProfilePart = true)
+        => LoadPhaseChain.FromRoles(
+            roles,
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new MapBuildLoadStep(() => status) },
+            world: null,
+            profileParts: withProfilePart ? new[] { LoadPart.Map3D } : null);
+
+    /// <summary>⭐ The map step HOLDS the load until the map reports built — and a headless node (no status) is resolved at once.</summary>
+    [Fact]
+    public async Task CE4078_TheLoadHoldsUntilTheMapIsBuilt()
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapChain(status);
+        var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+
+        chain.DrainDeferredAcks();
+        Assert.NotSame(hold, await Task.WhenAny(hold, Task.Delay(200)));   // (the hold's continuation is asynchronous: IsCompleted alone could read false right after a release)
+
+        status.IsBuilt = true;
+        chain.DrainDeferredAcks();
+        await hold;
+
+        // headless: no map attached ⇒ nothing to wait for
+        var headless = MapChain(null);
+        var h2 = headless.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        headless.DrainDeferredAcks();
+        await h2;
+    }
+
+    /// <summary>⭐ A map build failure FAILS the load with the map's reason, through the chain's one failure path (the hold faults).</summary>
+    [Fact]
+    public async Task CE4078_AMapBuildFailureFailsTheLoadWithItsReason()
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapChain(status);
+        var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+
+        status.Failure = "mesh upload exploded";
+        chain.DrainDeferredAcks();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => hold);
+        Assert.Contains("mesh upload exploded", ex.Message);
+        Assert.Null(chain.CurrentLoadStep);
+    }
+
+    /// <summary>⭐ While the map is the step still draining, the node reports the map's OWN step, not "Map3D".</summary>
+    [Fact]
+    public void CE4078_WhileWaiting_TheReportedStepIsTheMapsOwn()
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapChain(status);
+        _ = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+
+        Assert.Equal("3-D map: terrain", chain.CurrentLoadStep);
+    }
+
+    /// <summary>⭐ A node whose profile does not ask for the part does not wait for it — even when a provider is registered.</summary>
+    [Fact]
+    public async Task CE4078_WithoutTheProfilePart_TheMapStepIsAbsent()
+    {
+        var status = new FakeMapStatus { IsBuilt = false };
+        var chain  = MapChain(status, withProfilePart: false);
+        var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;   // the never-built map did not hold it
+    }
+
+    /// <summary>⭐ A requested profile part with no provider throws at composition, like a role part.</summary>
+    [Fact]
+    public void CE4078_AProfilePartWithNoProvider_ThrowsAtComposition()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            LoadPhaseChain.FromRoles(
+                NodeRole.Map2D,
+                new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) },
+                world: null,
+                profileParts: new[] { LoadPart.Map3D }));
+        Assert.Contains("Map3D", ex.Message);
+    }
 
     private sealed class FakeStep : ILoadPartProvider
     {

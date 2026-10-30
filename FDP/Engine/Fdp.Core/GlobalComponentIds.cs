@@ -320,7 +320,7 @@ namespace Fdp.Core
         /// <summary><c>HistoryTrail</c> â€” circular-buffer of recent world-space positions for trail rendering.</summary>
         public const int HistoryTrail            = 115;
 
-        /// <summary><c>ContextMenuState</c> â€” managed component holding active context-menu actions.</summary>
+        /// <summary>⛔ RETIRED (R-3067 / AQ109 X3, with ExCon's pushed context menu) — never reuse 116. Was <c>ContextMenuState</c> â€” managed component holding active context-menu actions.</summary>
         public const int ContextMenuState        = 116;
 
         /// <summary><c>EditablePolyline</c> â€” managed component storing vertex list of a user-editable overlay.</summary>

@@ -201,11 +201,7 @@ public sealed class TerrainDefinitionTests
     [InlineData("highway-rest")]   // ⭐ CE-1034 H5d
     public void CE3126_EveryShippedTerrain_DeclaresItsOrigin(string terrain)
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir, "Hrot", "Subsystems")))
-            dir = System.IO.Path.GetDirectoryName(dir)!;
-        Assert.NotNull(dir);
-        var path = System.IO.Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", terrain, "terrain.json");
+        var path = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), terrain, "terrain.json");
         var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(path));
         Assert.Equal(new TerrainGeoOrigin(52.52, 13.405, 0.0), d.Origin);
     }
@@ -241,10 +237,7 @@ public sealed class TerrainDefinitionTests
     [InlineData("basic-desert", 3, 2, 10f)]
     public void CE3128_ShippedTerrains_DeclareALoadableRoadGraph(string terrain, int nodes, int segments, float width)
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir, "Hrot", "Subsystems")))
-            dir = System.IO.Path.GetDirectoryName(dir)!;
-        var folder = System.IO.Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", terrain);
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), terrain);
         var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "terrain.json")));
         var road = Assert.Single(d.RoadNetworks);
         using var blob = global::CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(folder, road));
@@ -287,10 +280,7 @@ public sealed class TerrainDefinitionTests
     [Fact]
     public void AQ93_ShippedDemoCity_NamesItsSumoNet_AndTheFileExists()
     {
-        string dir = AppContext.BaseDirectory;
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir, "Hrot", "Subsystems")))
-            dir = System.IO.Path.GetDirectoryName(dir)!;
-        var folder = System.IO.Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "demo-city");
+        var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "demo-city");
         var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "terrain.json")));
 
         Assert.NotNull(d.SumoNet);

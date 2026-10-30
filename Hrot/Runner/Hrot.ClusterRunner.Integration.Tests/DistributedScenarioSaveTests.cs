@@ -1,5 +1,7 @@
+using Fdp.Testing;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +10,7 @@ using Fdp.Toolkit.Orchestration;
 using Hrot.NED.Descriptors.Orchestration;
 using Xunit;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -37,13 +40,13 @@ public sealed class DistributedScenarioSaveTests : IDisposable
     }
 
     [Fact]
-    public async Task DistributedSave_MergesCompatibleSlices_AndRoutesExConForeignSlice()
+    public async Task DistributedSave_MergesCompatibleSlices()
     {
         int domainId = NextDomainId();
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
 
-        // Wait for the node roster (CGF, SimHost, IG, ExCon) to come up.
+        // Wait for the node roster (CGF, SimHost, IG) to come up.
         Assert.True(
             harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400),
             "cluster roster must populate");
@@ -56,12 +59,12 @@ public sealed class DistributedScenarioSaveTests : IDisposable
             PayloadJson   = new JsonObject { ["ScenarioName"] = _name }.ToJsonString(),
         });
 
-        // The merge runs async after the pull; pump until the canonical file AND the foreign slice land.
+        // The merge runs async after the pull; pump until the canonical file lands.
+        // ⛔ R-3067 / AQ109 X1 — this test used to wait for, and assert, ExCon's intentionally-incompatible `ExCon.Observer` slice routed to `foreign/`
+        //   (+ its index). That half proved an ExCon-only producer: no remaining node writes a foreign slice, so there is nothing left to route here.
+        //   The routing rules themselves stay pinned where they are unit-tested (`StorageGatewayTests`, `AssetInventoryProcessManagerTests`).
         var canonical = Path.Combine(ScenarioDir, "scenario.json");
-        var foreignDir = Path.Combine(ScenarioDir, "foreign");
-        bool landed = harness.PumpUntil(
-            () => File.Exists(canonical) && Directory.Exists(foreignDir),
-            timeoutFrames: 600);
+        harness.PumpUntil(() => File.Exists(canonical), timeoutFrames: 600);
 
         Assert.True(File.Exists(canonical),
             $"the merged canonical scenario.json must exist at {canonical}");
@@ -69,16 +72,122 @@ public sealed class DistributedScenarioSaveTests : IDisposable
         // The compatible (Hrot.Scenario) slice(s) merged into the canonical file.
         var dom = JsonNode.Parse(File.ReadAllText(canonical))!.AsObject();
         Assert.Equal("Hrot.Scenario", JsonEnvelope.Read(dom).DocType);
+    }
 
-        // ExCon's intentionally-incompatible slice was routed to foreign/, NOT merged.
-        Assert.True(landed && Directory.Exists(foreignDir),
-            "ExCon's foreign slice must be routed to foreign/");
-        var foreignFiles = Directory.GetFiles(foreignDir, "node_*.json");
-        Assert.NotEmpty(foreignFiles);
-        var foreignDom = JsonNode.Parse(File.ReadAllText(foreignFiles[0]))!.AsObject();
-        Assert.Equal("ExCon.Observer", JsonEnvelope.Read(foreignDom).DocType);
+    /// <summary>
+    /// ⭐⭐ CE-4091 (AQ108 D7, M2/M3) — a recording made after EDIT → distributed SAVE → GO-LIVE keeps the scenario as SAVED: the master's copy of the
+    /// scenario folder holds the merged <c>scenario.json</c> byte for byte, the nodes' slices merged, and a
+    /// stamp whose hash is the SAVED file's — not the recipe's that was loaded first. (The copy and stamp are made at go-live by the master's
+    /// inventory; the unit rails in <c>AssetInventoryProcessManagerTests</c> pin each rule, this one proves the real cluster path reaches them.)
+    /// </summary>
+    [Fact]
+    public async Task CE4091_ARecordingAfterEditSaveGoLive_CarriesTheSavedFilesHash()
+    {
+        string repoRoot = TestRepo.Root;
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
+        Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets loaded, then saved over: " + recipe);
+        Directory.CreateDirectory(ScenarioDir);
+        File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);
+        var loadedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(Path.Combine(ScenarioDir, "scenario.json")));
+        var exercise = Guid.NewGuid();
 
-        // And an index recorded it for load-side push-back (c3).
-        Assert.True(File.Exists(Path.Combine(foreignDir, "index.json")), "foreign index.json must exist");
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
+
+        // load for editing → the loaded hash is the recipe's
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = new JsonObject { ["TargetState"] = ClusterState.OperatingEdit.ToString(), ["ScenarioId"] = _name }.ToJsonString(),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingEdit, timeoutFrames: 4000), "the cluster must open the scenario for editing");
+
+        // save: the nodes' slices are merged over scenario.json
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SaveScenario,
+            PayloadJson = new JsonObject { ["ScenarioName"] = _name }.ToJsonString(),
+        });
+        var saved = Path.Combine(ScenarioDir, "scenario.json");
+        Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(File.ReadAllText(saved)) != loadedHash, timeoutFrames: 800), "the save must rewrite scenario.json");
+        var savedText = File.ReadAllText(saved);
+        var savedHash = Fdp.Toolkit.Scenario.ScenarioDescription.HashOf(savedText);
+
+        // go live (from Edit the planner goes through Idle and loads the file)
+        //   ⚠ as the editor asks (and the DDS translator republishes it): the INTENT on the master's bus — the inventory learns the scenario from it
+        //   (a direct HandleClusterOpRequestAsync call bypasses the bus, so the inventory would see a live run with no scenario named)
+        harness.OrchestratorSvc.TimeBusForTest!.PublishManaged(new Fdp.Toolkit.Orchestration.TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ScenarioId = _name, ExerciseId = exercise,
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingLive, timeoutFrames: 6000), "the cluster must go live");
+        harness.PumpFrames(30);
+
+        var copyDirs = Directory.EnumerateDirectories(OrchestrationConstants.ResolveStagingRoot(), $"{exercise}.scenario", SearchOption.AllDirectories).ToList();
+        var copy = Assert.Single(copyDirs);   // the master's ledger holds the copy while the recording is unarchived
+        try
+        {
+            Assert.Equal(savedText, File.ReadAllText(Path.Combine(copy, "scenario.json")));
+            var stamp = Fdp.Toolkit.Scenario.RecordedScenarioStamp.Read(copy);
+            Assert.NotNull(stamp);
+            Assert.Equal(savedHash, stamp!.ScenarioHash);
+            Assert.NotEqual(loadedHash, stamp.ScenarioHash);
+            Assert.Equal(_name, stamp.ScenarioName);
+        }
+        finally
+        {
+            // the run's staging leaves nothing behind for the next test (the ledger entry and its copy are the master's, under the shared staging root)
+            foreach (var d in copyDirs) { try { Directory.Delete(d, recursive: true); } catch { } }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-1436</c> (R-3066) — the cluster's facts reach EVERY ECS node, not just the master's cache and ExCon: with the cluster open for editing, a
+    /// CHECK ROUND the master runs is answered on the SimHost, IG and CGF nodes' own debug providers (<c>ObservesUnsavedChecks</c> true,
+    /// <c>UnsavedCheck(requestId)</c> the master's answer) — through the real DDS wire (<c>ClusterOpStatus</c> → each node's <c>ClusterFactsIngress</c> →
+    /// its <c>ClusterView</c>). ⛔ Before: no ECS node had the reader, so ▶ on a CGF host skipped the <i>Save and go live</i> prompt.
+    /// 🔴 Mutation: the slave translator's op-status reader not forwarded to its ingress (<c>NedSlaveOrchestrationTranslator</c> without <c>opStatusReader:</c>) ⇒
+    /// the pump times out with no node answered.
+    /// </summary>
+    [Fact]
+    public async Task CE1436_ACheckRound_IsAnsweredOnEveryEcsNode_ThroughTheirOwnClusterViews()
+    {
+        string repoRoot = TestRepo.Root;
+        var recipe = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repoRoot), "tt-take-cover", "scenario.json");
+        Assert.True(File.Exists(recipe), "the shipped recipe is the scenario that gets opened for editing: " + recipe);
+        Directory.CreateDirectory(ScenarioDir);
+        File.Copy(recipe, Path.Combine(ScenarioDir, "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        Assert.True(harness.PumpUntil(() => master.NodeRoster.ActiveNodes.Count >= 2, timeoutFrames: 400), "cluster roster must populate");
+
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = new JsonObject { ["TargetState"] = ClusterState.OperatingEdit.ToString(), ["ScenarioId"] = _name }.ToJsonString(),
+        });
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == (int)ClusterState.OperatingEdit, timeoutFrames: 4000), "the cluster must open the scenario for editing");
+
+        var nodes = new (string Name, Hrot.Presentation.DebugApi.ISubsystemDebugProvider? Provider)[]
+        {
+            ("SimHost", harness.SimHost.CreateDebugProvider()),
+            ("IG",      harness.Ig.CreateDebugProvider()),
+            ("CGF",     harness.Cgf!.CreateDebugProvider()),
+        };
+        foreach (var n in nodes) Assert.True(n.Provider!.ObservesUnsavedChecks, $"{n.Name} must observe the check round by construction");
+
+        var round = Guid.NewGuid();
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest { RequestId = round, OperationType = ClusterOpType.CheckUnsavedChanges });
+
+        Assert.True(harness.PumpUntil(() => nodes.All(n => n.Provider!.UnsavedCheck(round) != null), timeoutFrames: 1500),
+            "the round's answer must reach every ECS node: " + string.Join(", ", nodes.Select(n => $"{n.Name}={(n.Provider!.UnsavedCheck(round) != null)}")));
+        foreach (var n in nodes)
+        {
+            var outcome = n.Provider!.UnsavedCheck(round)!;
+            Assert.NotNull(outcome.Result);                       // the master's answer, not a refusal
+            Assert.Null(outcome.Refusal);
+        }
     }
 }

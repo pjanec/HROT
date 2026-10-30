@@ -11,10 +11,10 @@ namespace Fdp.Toolkit.Vis3D
     /// ⭐ CE-1033 S1 — the terrain in the map's 3-D mode (<c>docs/DESIGN_Map_3D_Mode.md</c> M4, M5): the triangles the world query
     /// hands out through <see cref="ITerrainRenderGeometry"/> (the stand-in: its navmesh soup, unchanged), one colour per kind, lit
     /// and fogged by <see cref="LitShader"/>. Flat shading by un-indexing (each triangle its own normal). The mesh is rebuilt only
-    /// when the geometry's <see cref="ITerrainRenderGeometry.Identity"/> changes. Nothing in 2-D.
+    /// when the geometry's <see cref="ITerrainRenderGeometry.Identity"/> changes — ⭐ R-1046: built on a worker (<see cref="BackgroundMeshBuild{TStreams}"/>), uploaded on the frame. Nothing in 2-D.
     /// 🔒 R-250/R-252: the map sees triangles and a kind, never how the terrain is modelled.
     /// </summary>
-    public sealed class TerrainLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
+    public sealed class TerrainLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   // ⭐ CE-3289 — the world: filmed
     {
         public static readonly Color GroundColor = new(112, 142, 86, 255);
         public static readonly Color WallColor = new(206, 200, 188, 255);
@@ -23,9 +23,13 @@ namespace Fdp.Toolkit.Vis3D
         public static readonly Color RoofColor = new(112, 114, 118, 255);
 
         private readonly Func<ITerrainRenderGeometry?> _source;
-        private object? _identity;
         private Mesh _mesh;
         private bool _hasMesh;
+        /// <summary>⭐ R-1046 — the CPU streams are built on a worker, keyed by the geometry's identity; the frame thread uploads them (<see cref="PumpBuild"/>).</summary>
+        private readonly BackgroundMeshBuild<Streams> _build = new();
+
+        /// <summary>The terrain's un-indexed vertex streams.</summary>
+        private sealed record Streams(Vector3[] Positions, Vector3[] Normals, Color[] Colors);
 
         public TerrainLayer3D(Func<ITerrainRenderGeometry?> source)
             => _source = source ?? throw new ArgumentNullException(nameof(source));
@@ -37,8 +41,29 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>Triangles in the uploaded mesh (0 before the first 3-D frame with a world).</summary>
         public int TriangleCount { get; private set; }
 
+        // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
         public void Update(float dt) { }
         public void Draw(RenderContext ctx) { }
+
+        string IMeshLayer3D.BuildName => "terrain";
+        bool IMeshLayer3D.HasSource => _source() != null;
+        bool IMeshLayer3D.IsBuilt => _source() is { } g && _build.IsBuiltFor(g.Identity);
+        string? IMeshLayer3D.BuildFailure => _build.Failure;
+
+        /// <summary>The build state of the mesh (for the rails).</summary>
+        public MeshBuildState BuildState => _build.State;
+
+        void IMeshLayer3D.RequestBuild()
+        {
+            if (_source() is not { } geometry)
+            {
+                if (_hasMesh || _build.State != MeshBuildState.Idle) { Release(); _build.Reset(); }
+                return;
+            }
+            RequestBuild(geometry);
+        }
+
+        void IMeshLayer3D.PumpBuild() => _build.Pump(Upload);
         public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
         public Entity? PickEntity(Vector2 worldPos) => null;
 
@@ -46,7 +71,9 @@ namespace Fdp.Toolkit.Vis3D
         {
             var geometry = _source();
             if (geometry == null) return;
-            if (!ReferenceEquals(geometry.Identity, _identity)) Rebuild(geometry);
+            // a frame drawn in 3-D wants its mesh: ask (a no-op when asked), and upload what a worker has finished — the build itself never runs here
+            RequestBuild(geometry);
+            _build.Pump(Upload);
             if (!_hasMesh) return;
             Rlgl.DisableBackfaceCulling();
             var lit = LitShader.Shared;
@@ -56,13 +83,24 @@ namespace Fdp.Toolkit.Vis3D
             Rlgl.EnableBackfaceCulling();
         }
 
-        private void Rebuild(ITerrainRenderGeometry geometry)
+        /// <summary>
+        /// ⭐ R-1046 — starts the CPU build for <paramref name="geometry"/> on a worker. 📐 Safe off the frame thread: <see cref="ITerrainRenderGeometry.BuildTagged"/> of the terrain reads only its
+        /// <c>TerrainWorld</c> (init-only, never mutated after the terrain is committed — <c>TerrainWorldMesh.Build</c> is static and pure).
+        /// </summary>
+        private void RequestBuild(ITerrainRenderGeometry geometry)
+            => _build.Request(geometry.Identity, () =>
+            {
+                // ⭐ CE-1033 S4 — the tagged build: each triangle's material, and the water surfaces.
+                geometry.BuildTagged(out var verts, out var indices, out var kinds, out var materials);
+                BuildVertexData(verts, indices, kinds, materials, out var positions, out var normals, out var colors);
+                return new Streams(positions, normals, colors);
+            });
+
+        /// <summary>FRAME THREAD: the finished streams onto the GPU, replacing the previous mesh.</summary>
+        private void Upload(Streams streams)
         {
             Release();
-            _identity = geometry.Identity;
-            // ⭐ CE-1033 S4 — the tagged build: each triangle's material, and the water surfaces.
-            geometry.BuildTagged(out var verts, out var indices, out var kinds, out var materials);
-            BuildVertexData(verts, indices, kinds, materials, out var positions, out var normals, out var colors);
+            var positions = streams.Positions;
             TriangleCount = positions.Length / 3;
             if (TriangleCount == 0) return;
 
@@ -71,8 +109,8 @@ namespace Fdp.Toolkit.Vis3D
             mesh.AllocNormals();
             mesh.AllocColors();
             positions.AsSpan().CopyTo(mesh.VerticesAs<Vector3>());
-            normals.AsSpan().CopyTo(mesh.NormalsAs<Vector3>());
-            colors.AsSpan().CopyTo(mesh.ColorsAs<Color>());
+            streams.Normals.AsSpan().CopyTo(mesh.NormalsAs<Vector3>());
+            streams.Colors.AsSpan().CopyTo(mesh.ColorsAs<Color>());
             Raylib.UploadMesh(ref mesh, false);
             _mesh = mesh;
             _hasMesh = true;

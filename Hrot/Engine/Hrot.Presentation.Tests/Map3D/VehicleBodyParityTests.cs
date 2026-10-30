@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -318,9 +319,7 @@ public class VehicleBodyParityTests
         sb.AppendLine("        };");
         sb.AppendLine("    }");
         sb.AppendLine("}");
-        var dir = AppContext.BaseDirectory;
-        while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir);
-        Assert.NotNull(dir);
+        var dir = TestRepo.Root;
         File.WriteAllText(Path.Combine(dir!, "FDP", "Toolkits", "Fdp.Toolkits", "Physics", "BodyParts", "VehicleBody.Tables.g.cs"), sb.ToString());
         GenerateWeapons(dir!);   // ⭐ CE-3214
     }

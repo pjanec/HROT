@@ -5,6 +5,7 @@ using System.Threading;
 using Fdp.Core;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Time.Domain;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -27,7 +28,7 @@ public sealed class ClusterMasterBootstrapTests
     public void OrchestratorPublishesIdleOnStartup()
     {
         var bus = new FdpEventBus();
-        using var exercise = new ClusterMaster(bus);
+        using var exercise = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
 
         // Constructor calls PublishStandby() (empty mandatory) → ClusterStateUpdateEvent in write buffer.
         bus.SwapBuffers();
@@ -49,6 +50,7 @@ public sealed class ClusterMasterBootstrapTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                = new[] { "SimHost" },
             HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
@@ -123,6 +125,7 @@ public sealed class ClusterMasterBootstrapTests
         // Use a very short timeout so we don't wait 5+ seconds.
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory               = new[] { "SimHost" },
             HeartbeatTimeoutSeconds = 0.1f,
         };
@@ -191,6 +194,7 @@ public sealed class ClusterMasterBootstrapTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory               = new[] { "SimHost" },
             Optional                = new[] { "CGF" },
             HeartbeatTimeoutSeconds = 0.1f,
@@ -264,6 +268,7 @@ public sealed class ClusterMasterBootstrapTests
         // No mandatory nodes → bootstrap immediately.
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = Array.Empty<string>(),
             TransactionHistoryCapacity = 10,
         };
@@ -306,6 +311,7 @@ public sealed class ClusterMasterBootstrapTests
         // No mandatory nodes → bootstrap immediately.
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = Array.Empty<string>(),
             TransactionHistoryCapacity = 10,
         };
@@ -366,6 +372,7 @@ public sealed class ClusterMasterBootstrapTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = new[] { "simhost" },  // lowercase in config
             HeartbeatTimeoutSeconds    = 60f,
             TransactionHistoryCapacity = 10,
@@ -404,6 +411,7 @@ public sealed class ClusterMasterBootstrapTests
     {
         var config = new ClusterConfiguration
         {
+            MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
             Mandatory                  = new[] { "simhost" },
             HeartbeatTimeoutSeconds    = 60f,
             TransactionHistoryCapacity = 10,
@@ -429,7 +437,9 @@ public sealed class ClusterMasterBootstrapTests
 
         bus.SwapBuffers();
         var events = bus.ReadManaged<ClusterStateTransitionedEvent>().ToList();
-        Assert.DoesNotContain(events, e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle);
+        // ⭐ CE-3344: while the latch is closed the master DOES announce its state — Idle, WITH what it is waiting for; a RELEASE would be an Idle with nothing missing.
+        Assert.DoesNotContain(events, e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle && string.IsNullOrEmpty(e.WaitingFor));
+        Assert.Contains(events, e => e.WaitingFor == "simhost");
     }
 
     // ══ P1 (Q91 §4-B, B1) — a node that leaves is removed from every in-flight round ══════════════════════════════
@@ -448,7 +458,7 @@ public sealed class ClusterMasterBootstrapTests
 
     private static (ClusterMaster Master, Guid Request, Guid Tx) TwoNodeCheckpoint(FdpEventBus bus)
     {
-        var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f });
+        var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f, MandatoryRoles = NodeRole.None });
         Beat(bus, 1, "SimHost");
         Beat(bus, 100, "IG");
         Step(bus, master);
@@ -509,7 +519,7 @@ public sealed class ClusterMasterBootstrapTests
         // ⭐ A transition from Idle to OperatingLive has TWO prepare steps (LoadingLive, OperatingLive) under ONE
         //   transaction, so a node owes two ACKs there — the per-node count, not a flat "minus one", is what must go.
         var bus = new FdpEventBus();
-        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f });
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f, MandatoryRoles = NodeRole.None });
         Beat(bus, 1, "SimHost");
         Beat(bus, 100, "IG");
         Step(bus, master);
@@ -536,6 +546,42 @@ public sealed class ClusterMasterBootstrapTests
         master.EjectNode(100);
         bus.SwapBuffers();
         Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4103</c> (R-4001: no silent forever-wait) — a node whose FIRST prepare of a multi-step transition answers an error has dropped the
+    /// rest of the transaction (its slave clears the pending steps), so the round must FAIL NOW with that code instead of waiting for the ACKs it will
+    /// never get. 📐 Measured in the editor: a scenario naming a terrain nobody has — the node's PrepareEdit threw, the master sat at the target
+    /// state with the request unanswered for good. Red-proof: drop the owed-ACK removal in <c>ClusterMaster.ProcessAcks</c> ⇒ no completion here.
+    /// </summary>
+    [Fact]
+    public void CE4103_A_failed_prepare_fails_the_whole_transition_without_waiting_for_the_steps_the_node_will_never_answer()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f, MandatoryRoles = NodeRole.None });
+        Beat(bus, 1, "SimHost");
+        Step(bus, master);
+
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+        });
+        Step(bus, master);
+        var prepares = bus.ReadManaged<ExecuteNodeOpIntent>()
+                          .Where(i => i.TargetNodeId == 1 && i.Operation != FdpNodeOpType.CommitState).ToList();
+        Assert.True(prepares.Count >= 2, $"the transition has several prepare steps for the node (saw {prepares.Count})");
+
+        // the node answers the FIRST prepare with an error and, like ClusterSlave after a faulted prepare, never answers the others
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = prepares[0].TransactionId, Operation = prepares[0].Operation, NodeId = 1,
+            StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true,
+        });
+        Step(bus, master);
+
+        var done = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+        Assert.Equal(OrchestrationStatusCode.Failure, done.StatusCode);
     }
 
     // == CE-4087 - the mandatory set's ROLES half, and a load that WAITS on the latch ============================
@@ -676,22 +722,34 @@ public sealed class ClusterMasterBootstrapTests
     }
 
     /// <summary>⭐ The gate is about SCENARIO loads. A transition that names none (a replay, a review, a branch, a dry run) is none of its business.</summary>
+    /// <summary>
+    /// A transition naming no scenario is not a LOAD: it is never HELD by the load wait. ⭐ CE-3344 (R-3069): the latch now includes the roles, so on a cluster that has not
+    /// reported its MuscleGround it is REJECTED (the cluster is not ready — ⛔ SUPERSEDED: it used to "go ahead"), and goes ahead the frame the muscle reports.
+    /// </summary>
     [Fact(Timeout = 10_000)]
-    public void G5_A_transition_naming_no_scenario_is_not_gated()
+    public void G5_A_transition_naming_no_scenario_is_not_held_by_the_load_wait()
     {
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, GateConfig());
         GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);   // no MuscleGround anywhere
 
-        master.HandleClusterOpRequest(new ClusterOpRequest
+        var id = Guid.NewGuid();
+        var request = new ClusterOpRequest
         {
-            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            RequestId = id, OperationType = ClusterOpType.TransitionState,
             PayloadJson = "{\"TargetState\":\"OperatingLive\"}",
-        });
+        };
+        master.HandleClusterOpRequest(request);
         Step(bus, master);
 
-        Assert.Null(master.HeldLoadRequestId);
-        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);   // it went ahead
+        Assert.Null(master.HeldLoadRequestId);                                   // not a load: no wait
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);             // the cluster is not ready (no muscle): refused …
+        Assert.Equal(OrchestrationStatusCode.Rejected, Assert.Single(StatusesOf(bus, id)).StatusCode);
+
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);         // … and ready the frame the muscle reports
+        master.HandleClusterOpRequest(request with { RequestId = Guid.NewGuid() });
+        Step(bus, master);
+        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);    // it went ahead
     }
 
     [Fact(Timeout = 10_000)]
@@ -739,6 +797,9 @@ public sealed class ClusterMasterBootstrapTests
         System.Threading.Thread.Sleep(200);
         Step(bus, master);
         Assert.Contains("refused", master.LoadNotice);
+
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);                    // ⭐ CE-3344: the cluster must be READY for any non-load request to be admitted
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
 
         master.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -827,5 +888,521 @@ public sealed class ClusterMasterBootstrapTests
         });
         RequestLoad(bus, master);
         Assert.Equal("waiting for: SimHost, Brain (CGF), MuscleGround (SimHost)", master.LoadNotice);
+    }
+
+    // -- R: CLUSTER READY (CE-3344, R-3069) — the latch over names AND roles, role loss, WaitingFor, ClusterView.CanOperate ------------
+
+    private static ClusterConfiguration ReadyConfig(float timeout = 60f) => new()
+    {
+        Mandatory = new[] { "Node" }, HeartbeatTimeoutSeconds = timeout, TransactionHistoryCapacity = 10,   // GateJoin's subsystem name is "Node"; roles = the default Brain | MuscleGround
+    };
+
+    private static List<ClusterStateUpdateEvent> StateUpdates(FdpEventBus bus) => bus.ReadManaged<ClusterStateUpdateEvent>().ToList();
+
+    /// <summary>
+    /// CE-3344 success 1 - every mandatory NAME is present (a node named "Node" is in Idle) but the roles' capability adverts have not all landed: the latch stays closed,
+    /// and releases the frame the LAST advert lands. 🔴 Mutation: <c>CheckBootstrapLatch</c> testing only <c>MissingMandatoryNames</c> => released at the first heartbeat.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void R1_The_latch_waits_for_the_roles_even_when_every_name_is_present_and_releases_the_frame_the_advert_lands()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, ReadyConfig());
+
+        GateJoin(bus, master, CgfNode, roleToken: null);          // the name is there (Idle); no role advert yet
+        Assert.False(master.BootstrapComplete);
+        AdvertLands(bus, master, CgfNode, NodeRoleTokens.Brain);   // Brain present, MuscleGround still missing
+        Assert.False(master.BootstrapComplete);
+        GateJoin(bus, master, SimHostNode, roleToken: null);
+        Assert.False(master.BootstrapComplete);                    // trap: a heartbeat without the advert counts for nothing
+
+        AdvertLands(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+        Assert.True(master.BootstrapComplete);                     // the same frame the last advert landed
+        Assert.Contains(StateUpdates(bus), e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Idle && string.IsNullOrEmpty(e.WaitingFor));   // released: Idle, nothing missing
+    }
+
+    /// <summary>
+    /// CE-3344 success 2 - losing the only node that holds a mandatory ROLE (its name is NOT mandatory, so the old name-only path never degraded) =>
+    /// Degraded, the latch re-engaged, the survivors told; the role's return releases it again through the same check.
+    /// 🔴 Mutation: <c>EjectNode</c> without the <c>lostRole</c> arm => no Degraded, the latch stays released.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void R2_Losing_the_only_node_of_a_mandatory_role_degrades_the_cluster_and_its_return_releases_it()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 0.3f, TransactionHistoryCapacity = 10 });   // roles only: Brain | MuscleGround
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+        Assert.True(master.BootstrapComplete);
+        bus.ReadManaged<ClusterStateUpdateEvent>().ToList();
+
+        // the SimHost goes silent; the CGF keeps beating
+        Thread.Sleep(450);
+        GateJoin(bus, master, CgfNode, roleToken: null);
+
+        Assert.False(master.BootstrapComplete);                                  // the latch is re-engaged
+        var degraded = Assert.Single(StateUpdates(bus), e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Degraded);
+        Assert.Contains("MuscleGround", degraded.WaitingFor);                    // and the broadcast says which role is gone
+        Assert.DoesNotContain("Brain", degraded.WaitingFor);
+        var told = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.TargetNodeId == CgfNode).Select(i => i.Operation).ToList();
+        Assert.Contains(FdpNodeOpType.AbortTransaction, told);                   // the survivors were aborted + sent to Idle, as for a lost name
+        Assert.Contains(FdpNodeOpType.PrepareState, told);
+
+        GateJoin(bus, master, SimHostNode, roleToken: NodeRoleTokens.MuscleGround);   // the SimHost is back
+        Assert.True(master.BootstrapComplete);
+        Assert.Contains(StateUpdates(bus), e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Idle && string.IsNullOrEmpty(e.WaitingFor));
+    }
+
+    /// <summary>
+    /// CE-3344 success 3 - while the latch is engaged the master PUBLISHES its state with what is missing (it used to publish nothing), a node's view says it and cannot operate;
+    /// after release the same view operates and says nothing. 🔴 Mutations: <c>PublishWaitingForIfChanged</c> not called => no WaitingFor before release; <c>ClusterView.CanOperate</c>
+    /// ignoring <c>WaitingFor</c> => <c>CanOperate</c> true while waiting.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void R3_A_nodes_view_names_what_is_missing_while_the_latch_is_engaged_and_operates_after_release()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, ReadyConfig());
+        var view = new ClusterView(bus, nodeId: 9);
+
+        GateJoin(bus, master, 9, roleToken: null);          // this node's heartbeat (a role-less advert-less node)
+        view.Update();
+        Assert.True(view.HasFollowedState);                  // the master DID publish its state while not ready
+        Assert.Contains("Brain", view.WaitingFor);
+        Assert.Contains("MuscleGround", view.WaitingFor);
+        Assert.False(view.CanOperate);
+        Assert.Contains("Brain", view.NotOperableReason);
+
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        view.Update();
+        Assert.DoesNotContain("Brain", view.WaitingFor);     // the text follows: only the muscle is left
+        Assert.Contains("MuscleGround", view.WaitingFor);
+        Assert.False(view.CanOperate);
+
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+        view.Update();
+        Assert.Equal(string.Empty, view.WaitingFor);
+        Assert.True(view.CanOperate);
+        Assert.Null(view.NotOperableReason);
+    }
+
+    /// <summary>
+    /// CE-3344 success 4 - a node the master has NOT put in its in-sync set (R-4006) cannot operate even when the cluster is ready; one that is, can (anti-vacuity: same cluster).
+    /// 🔴 Mutation: <c>ClusterView.IsInSync</c> returning true => the outsider's view operates.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void R4_A_node_outside_the_in_sync_set_cannot_operate_even_when_the_cluster_is_ready()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10 });
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+        var insider  = new ClusterView(bus, nodeId: CgfNode);
+        var outsider = new ClusterView(bus, nodeId: 77);   // never joined the roster, so never in sync
+        insider.Update(); outsider.Update();
+
+        Assert.True(master.BootstrapComplete);
+        Assert.Contains(CgfNode, master.InSyncNodeIds);
+        Assert.True(insider.CanOperate);
+        Assert.False(outsider.CanOperate);
+        Assert.Contains("in-sync", outsider.NotOperableReason);
+        Assert.Equal(string.Empty, outsider.WaitingFor);   // not the cluster that is not ready: this node is not in it
+    }
+
+    /// <summary>
+    /// CE-3344 success 5 - the editor alone (a one-node cluster whose host plays every role in-process, <c>LocalRoles</c>) is ready with no other node.
+    /// 🔴 Mutation: <c>CheckBootstrapLatch</c> not counting <c>LocalRoles</c> (RolePresent without it) => stays closed, <c>CanOperate</c> false.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void R5_The_editor_alone_is_ready_through_its_own_roles()
+    {
+        var bus = new FdpEventBus();
+        const int editorNode = 3;
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10 }.ForOneNodeCluster())
+        {
+            LocalRoles = NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver,
+        };
+        var view = new ClusterView(bus, nodeId: editorNode);
+
+        GateJoin(bus, master, editorNode, roleToken: null);   // the editor's own heartbeat — no other node anywhere
+        view.Update();
+
+        Assert.True(master.BootstrapComplete);
+        Assert.True(view.CanOperate, view.NotOperableReason);
+    }
+
+    /// <summary>The wire (CE-3344): <c>WaitingFor</c> crosses the cluster-state topic and its one decoder / encoder pair unchanged. Pinned in the ingress/translator suites; here: the
+    /// master's own Transitioned event carries it too (what the egress translator maps to the topic).</summary>
+    [Fact(Timeout = 10_000)]
+    public void R6_The_transitioned_event_the_egress_writes_to_the_wire_carries_the_waiting_text()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, ReadyConfig());
+        GateJoin(bus, master, 9, roleToken: null);
+        var transitioned = bus.ReadManaged<ClusterStateTransitionedEvent>().Last();
+        Assert.Contains("Brain (CGF)", transitioned.WaitingFor);
+    }
+
+    // -- E: THE CLUSTER ERROR STATE (CE-3345 part A, R-3073) — a required node / role lost while a scenario is loaded or running ----------------------
+
+    private static void SetField(ClusterMaster m, string field, object value)
+        => typeof(ClusterMaster).GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(m, value);
+
+    /// <summary>
+    /// A ready cluster (Brain on <see cref="CgfNode"/>, MuscleGround on <see cref="SimHostNode"/>, default roles mandatory) whose world is in <paramref name="state"/>, then the Brain's node goes
+    /// silent past the heartbeat timeout while the SimHost keeps beating — the master ejects it on that tick. The bus is drained of everything before the loss.
+    /// </summary>
+    private static ClusterMaster ClusterThatLosesItsBrain(FdpEventBus bus, ClusterState state)
+    {
+        var master = new ClusterMaster(bus, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 0.3f, TransactionHistoryCapacity = 10 });   // roles only: Brain | MuscleGround
+        master.SimSeconds = () => 751.0;   // 12:31
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        GateJoin(bus, master, SimHostNode, NodeRoleTokens.MuscleGround);
+        Assert.True(master.BootstrapComplete);
+        SetField(master, "_currentDsmState", state);
+        bus.ReadManaged<ClusterStateUpdateEvent>().ToList();
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Thread.Sleep(450);
+        GateJoin(bus, master, SimHostNode, roleToken: null);   // the Brain's node is ejected on this tick
+        return master;
+    }
+
+    /// <summary>
+    /// CE-3345 success 1 - losing the only Brain node while OperatingLive => Degraded + an error reason naming the node and the role + the sim time; the survivors are NOT aborted and NOT sent to Idle (their world
+    /// stays); the clock is paused (the ONE pause, <c>PauseTimeIntent</c>); the live recording is closed (<c>FinalizeLive</c>) and nothing else.
+    /// 🔴 Mutation: <c>EjectNode</c>'s error arm skipped (<c>HasWorldLoaded</c> false) => the old teardown: AbortTransaction + PrepareState to the survivor, no reason, no pause.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void E1_Losing_the_only_Brain_while_operating_live_is_an_error_not_a_teardown()
+    {
+        var bus = new FdpEventBus();
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.OperatingLive);
+
+        Assert.True(master.IsInError);
+        Assert.False(master.BootstrapComplete);
+        var degraded = Assert.Single(StateUpdates(bus), e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Degraded);
+        Assert.False(string.IsNullOrEmpty(degraded.ErrorReason));
+        Assert.Contains("Brain", degraded.ErrorReason);
+        Assert.Contains($"node {CgfNode}", degraded.ErrorReason);
+        Assert.Contains("00:12:31", degraded.ErrorReason);
+        Assert.Contains("Brain", degraded.WaitingFor);                           // WaitingFor still says what is missing (the error is beside it, not instead)
+
+        var told = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.TargetNodeId == SimHostNode).Select(i => i.Operation).ToList();
+        Assert.DoesNotContain(FdpNodeOpType.AbortTransaction, told);             // no abort ...
+        Assert.DoesNotContain(FdpNodeOpType.PrepareState, told);                 // ... no Idle: the world stays on every node
+        Assert.Contains(FdpNodeOpType.FinalizeLive, told);                       // the live recording is closed (and kept) through the one finalise
+        Assert.Single(bus.ReadManaged<PauseTimeIntent>());                       // the clock is paused
+    }
+
+    /// <summary>
+    /// CE-3345 success 2 - the same loss while IDLE is no error: only "not ready" (WaitingFor), the latch re-engaged, as CE-3344 built it (the survivors are still sent to Idle - there is nothing to keep).
+    /// 🔴 Mutation: the error arm without the <c>HasWorldLoaded</c> test => an Idle cluster reports an error.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void E2_The_same_loss_while_idle_is_only_not_ready_and_no_error()
+    {
+        var bus = new FdpEventBus();
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.Idle);
+
+        Assert.False(master.IsInError);
+        Assert.Equal(string.Empty, master.ErrorReason);
+        Assert.False(master.BootstrapComplete);
+        var degraded = Assert.Single(StateUpdates(bus), e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Degraded);
+        Assert.True(string.IsNullOrEmpty(degraded.ErrorReason));
+        Assert.Contains("Brain", degraded.WaitingFor);
+        Assert.Empty(bus.ReadManaged<PauseTimeIntent>());
+    }
+
+    /// <summary>
+    /// CE-3345 success 3 - the error is STICKY: the Brain's node coming back changes WaitingFor only, the cluster stays in error and refuses every request but the way back to Idle (Close);
+    /// Close is accepted and, when its round completes, the error is cleared and the master says Idle - after which readiness behaves as CE-3344 built it.
+    /// 🔴 Mutations: <c>CheckBootstrapLatch</c> without the <c>IsInError</c> return => the return releases the latch (a request is then ADMITTED during the error); <c>ClearClusterError</c> not called on
+    /// the round's success => the error outlives Idle; <c>LatchRefuses</c> without the leave exemption => Close is Rejected.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void E3_The_error_is_sticky_a_returning_node_does_not_clear_it_reaching_Idle_does()
+    {
+        var bus = new FdpEventBus();
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.OperatingLive);
+        Assert.True(master.IsInError);
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);                     // the Brain is back
+        Assert.True(master.IsInError);                                           // ... and the error stays
+        Assert.False(master.BootstrapComplete);
+        Assert.DoesNotContain(StateUpdates(bus), e => e.CurrentState != Fdp.Toolkit.Orchestration.ClusterState.Degraded);   // nothing but Degraded is announced while in error
+        Assert.Contains("Brain", master.ErrorReason);                           // the reason is the first loss, unchanged
+
+        // every request but the way back to Idle is refused, with the error as the reason - the ONE not-ready gate
+        var refused = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+            { RequestId = refused, OperationType = ClusterOpType.TransitionState, PayloadJson = "{\"TargetState\":\"OperatingEdit\",\"ScenarioId\":\"s1\"}" });
+        Step(bus, master);
+        Assert.Equal(OrchestrationStatusCode.Rejected, Assert.Single(StatusesOf(bus, refused)).StatusCode);
+
+        // Close: a transition to Idle is admitted ...
+        var close = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+            { RequestId = close, OperationType = ClusterOpType.TransitionState, PayloadJson = "{\"TargetState\":\"Idle\"}" });
+        Step(bus, master);
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList();
+        Assert.Contains(ops, i => i.Operation == FdpNodeOpType.FinalizeLive);   // the unload from the live run
+        Assert.True(master.IsInError);                                           // ... but the error ends only when Idle is REACHED
+        foreach (var op in ops.Where(o => o.TransactionId != Guid.Empty))
+            bus.PublishManaged(new NodeOpCompletedEvent
+                { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = op.TargetNodeId, StatusCode = OrchestrationStatusCode.Success, IsParticipating = true });
+        Step(bus, master);
+
+        Assert.False(master.IsInError);
+        Assert.Equal(string.Empty, master.ErrorReason);
+        var idle = StateUpdates(bus).Last();
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, idle.CurrentState);
+        Assert.True(string.IsNullOrEmpty(idle.ErrorReason));
+    }
+
+    /// <summary>
+    /// CE-3345 success 3b - after Close the cluster is "not ready, waiting for: Brain" until the Brain is back (CE-3344's behaviour, no error); its return then releases the latch.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void E3b_After_Close_the_latch_reports_WaitingFor_as_before_until_the_node_returns()
+    {
+        var bus = new FdpEventBus();
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.OperatingLive);
+        var close = Guid.NewGuid();
+        master.HandleClusterOpRequest(new ClusterOpRequest
+            { RequestId = close, OperationType = ClusterOpType.TransitionState, PayloadJson = "{\"TargetState\":\"Idle\"}" });
+        Step(bus, master);
+        foreach (var op in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList())
+            bus.PublishManaged(new NodeOpCompletedEvent
+                { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = op.TargetNodeId, StatusCode = OrchestrationStatusCode.Success, IsParticipating = true });
+        Step(bus, master);
+        Assert.False(master.IsInError);
+        Assert.False(master.BootstrapComplete);
+        Assert.Contains("Brain", StateUpdates(bus).Last().WaitingFor);
+
+        GateJoin(bus, master, CgfNode, NodeRoleTokens.Brain);
+        Assert.True(master.BootstrapComplete);
+        Assert.Contains(StateUpdates(bus), e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Idle && string.IsNullOrEmpty(e.WaitingFor) && string.IsNullOrEmpty(e.ErrorReason));
+    }
+
+    /// <summary>
+    /// CE-3345 success 4 - a node's ClusterView folds the error: <c>IsInError</c>, <c>CanOperate</c> false, <c>NotOperableReason</c> = the error (first, before the Degraded / waiting texts); cleared with Idle.
+    /// 🔴 Mutation: <c>NotOperableReason</c> without the error line => the reason is the Degraded / waiting text.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void E4_The_view_cannot_operate_while_in_error_and_says_why()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.OperatingLive);
+        view.Update();
+
+        Assert.True(view.IsInError);
+        Assert.False(view.CanOperate);
+        Assert.StartsWith("the cluster is in error", view.NotOperableReason);
+        Assert.Contains("Brain", view.NotOperableReason);
+        Assert.Equal(view.ErrorReason, master.ErrorReason);
+    }
+
+    /// <summary>
+    /// CE-3345 - a scenario save is refused while in error (the world may be inconsistent), with the error as the reason; the control (no error, editing) saves.
+    /// 🔴 Mutation: the <c>ProcessStorageOpIntent</c> error refusal removed => the save fans out.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void E5_A_scenario_save_is_refused_while_in_error()
+    {
+        var bus = new FdpEventBus();
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.OperatingEdit);
+        Assert.True(master.IsInError);
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var save = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = save, Operation = StorageOpType.SaveScenario, ScenarioName = "x" });
+        Step(bus, master);
+        var refused = Assert.Single(StatusesOf(bus, save));
+        Assert.Equal(OrchestrationStatusCode.Rejected, refused.StatusCode);
+        Assert.Contains(master.ErrorReason, (string)refused.ResultPayload!);
+        Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.SerializeLocal);
+    }
+
+    /// <summary>The error rides the wire: the master's own transitioned event carries it (what the egress translator writes to the topic).</summary>
+    [Fact(Timeout = 10_000)]
+    public void E6_The_transitioned_event_the_egress_writes_to_the_wire_carries_the_error()
+    {
+        var bus = new FdpEventBus();
+        using var master = ClusterThatLosesItsBrain(bus, ClusterState.OperatingLive);
+        var transitioned = bus.ReadManaged<ClusterStateTransitionedEvent>().Last();
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Degraded, transitioned.NewStateId);
+        Assert.Equal(master.ErrorReason, transitioned.ErrorReason);
+    }
+
+
+    // -- P: THE READINESS PROTOCOL (CE-3345 part B, R-3070 / R-3072, AQ110 A-C) — each node reports its phase, the master combines the participants, a failed load ends in Idle ------------
+
+    private static ClusterConfiguration NoRolesConfig() => new()
+        { Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10, MandatoryRoles = NodeRole.None };
+
+    /// <summary>A node's heartbeat carrying what it reports about ITSELF (phase / step / reason), and — once, when <paramref name="advert"/> is given — its capability advert (an empty array = a node with no role at all).</summary>
+    private static void PhaseBeat(FdpEventBus bus, ClusterMaster master, int nodeId, NodePhase phase, string? step = null, string[]? advert = null, string name = "Node")
+    {
+        if (advert != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = advert });
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = nodeId, SubsystemName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, Phase = phase, Step = step,
+        });
+        Step(bus, master);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success 3 (R-3070, AQ110 B/C) — <b>cluster play-ready combines the PARTICIPANTS only</b> (in sync ∧ not an observer, K6): false in Idle, while any participant loads (with <c>LoadProgress</c> naming the node and its step), true when all report
+    /// PlayReady; ⛔ a joiner outside the in-sync set that is still catching up does NOT hold it false, and neither does an observer that is still loading. What the master publishes is what every node's <c>ClusterView</c> reads.
+    /// 🔴 Mutations (each compiles): <c>Readiness</c> without the <c>_inSync</c> test ⇒ the joiner cell reds; without <c>IsObserver</c> ⇒ the observer cell reds; <c>all</c> never cleared by a non-PlayReady phase ⇒ the "one is loading" cell reds;
+    /// <c>PublishWaitingForIfChanged</c> not comparing the readiness ⇒ the first Loading cell reds (nothing is re-published).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P1_ClusterPlayReady_CombinesTheParticipantsOnly_AJoinerOutsideTheInSyncSetAndAnObserverNeverHoldItFalse()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        var view = new ClusterView(bus, nodeId: CgfNode);
+        string[] brain = { NodeRoleTokens.Brain }, muscle = { NodeRoleTokens.MuscleGround };
+
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: brain, name: "CGF");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: muscle, name: "SimHost");
+        // an OBSERVER (an advert with no simulation role) admitted at rest in Idle — IN SYNC, so only IsObserver keeps it out (below)
+        PhaseBeat(bus, master, 600, NodePhase.Ready, advert: Array.Empty<string>(), name: "Observer");
+        Assert.Contains(600, master.InSyncNodeIds);
+        view.Update();
+        Assert.False(view.ClusterPlayReady);                       // Idle: nobody has a world to play
+        Assert.False(view.IsClusterLoading);
+
+        PhaseBeat(bus, master, CgfNode, NodePhase.Loading, "Terrain", name: "CGF");
+        view.Update();   // (the view folds the frame's broadcast: read it before the next Step swaps it away)
+        PhaseBeat(bus, master, SimHostNode, NodePhase.PlayReady, name: "SimHost");
+        view.Update();
+        Assert.False(view.ClusterPlayReady);                       // one participant is still loading …
+        Assert.Contains("CGF (node 400): Terrain", view.LoadProgress);   // … and the view says who and on what
+        Assert.DoesNotContain("SimHost", view.LoadProgress);
+        Assert.True(view.IsClusterLoading);
+
+        PhaseBeat(bus, master, CgfNode, NodePhase.PlayReady, name: "CGF");
+        view.Update();
+        Assert.True(view.ClusterPlayReady);                        // all participants play
+        Assert.Equal(string.Empty, view.LoadProgress);
+
+        // a joiner that arrives while the cluster runs is NOT in the in-sync set (it is caught up first) — its loading holds nobody
+        SetField(master, "_currentDsmState", ClusterState.OperatingLive);
+        PhaseBeat(bus, master, 500, NodePhase.CatchingUp, "Terrain", advert: brain, name: "Joiner");
+        Assert.DoesNotContain(500, master.InSyncNodeIds);
+        view.Update();
+        Assert.True(view.ClusterPlayReady);
+        Assert.Equal(string.Empty, view.LoadProgress);
+
+        // the in-sync OBSERVER that is still loading holds nobody either (⛔ CE-3345 O2: it used to join here, while live — outside the in-sync set, so
+        //   the _inSync test excluded it and the IsObserver mutation survived)
+        PhaseBeat(bus, master, 600, NodePhase.Loading, "KnowledgeBase", name: "Observer");
+        Assert.Contains(600, master.InSyncNodeIds);
+        view.Update();
+        Assert.True(view.ClusterPlayReady);
+        Assert.Equal(string.Empty, view.LoadProgress);
+
+        // control (anti-vacuity): a PARTICIPANT's regression to loading does hold it
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Loading, "KnowledgeBase", name: "SimHost");
+        view.Update();
+        Assert.False(view.ClusterPlayReady);
+        Assert.Contains("SimHost (node 1): KnowledgeBase", view.LoadProgress);
+    }
+
+    /// <summary>Two nodes, a load request with no scenario (nothing parked) fanned out; returns the request id and the transaction of the load round.</summary>
+    private static (Guid Request, Guid Tx, List<ExecuteNodeOpIntent> Ops) StartLoadOnTwoNodes(FdpEventBus bus, ClusterMaster master)
+    {
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain }, name: "CGF");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost");
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        Step(bus, master);
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        return (request, ops.First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId, ops);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3345</c> success 4 and 5 (R-3070; AQ91 §4-H) — a LOAD round that fails on ONE node — the user's cancel, or a missing terrain: the node's Failure ack carries a reason — fails AT ONCE (the other node's still-owed ACKs do not hold it), the
+    /// request's status is Failure WITH that reason, every node is told to abort the transaction and to go to <b>Idle</b>, and when they answer, every node's <c>ClusterView</c> shows Idle and the reason on the request's outcome.
+    /// 🔴 Mutations (each compiles): <c>CompleteRound</c> without <c>AbortAndReturnToIdle</c> ⇒ no abort / no Idle fan-out (the cluster stays at the target); <c>PublishOpStatus</c> without <c>FailureReason</c> ⇒ the reason cell reds;
+    /// <c>tracker.Expected = tracker.Received</c> removed ⇒ the round waits for the other node (no Failure status yet); the master translator / <c>FailureReason ??=</c> capture removed ⇒ the reason cell reds.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData("cancelled by the user on node 400")]
+    [InlineData("terrain 'Alps' not found in the staged scenario")]
+    public void P2_ALoadRoundThatFailsOnOneNode_FailsAtOnce_WithTheNodesReason_AndTheClusterGoesToIdle(string reason)
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        var view = new ClusterView(bus, nodeId: SimHostNode);
+        var (request, loadTx, ops) = StartLoadOnTwoNodes(bus, master);
+        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);   // the optimistic advance: the master is already at the target
+
+        // node 400 FAILS its prepare (carrying its reason); node 1 has not answered anything — it is still loading
+        var failing = ops.First(i => i.TargetNodeId == CgfNode && i.Operation == FdpNodeOpType.PrepareLive);
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = failing.TransactionId, Operation = failing.Operation, NodeId = CgfNode,
+            StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true, ResultPayload = reason,
+        });
+        Step(bus, master);
+        view.Update();
+
+        var status = Assert.Single(StatusesOf(bus, request));                    // the round failed NOW …
+        Assert.Equal(OrchestrationStatusCode.Failure, status.StatusCode);
+        Assert.Equal(reason, status.ResultPayload);                              // … with the node's own reason
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);             // and the master is no longer at the load's target
+
+        var sent = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        foreach (var node in new[] { CgfNode, SimHostNode })
+        {
+            var abort = Assert.Single(sent, i => i.Operation == FdpNodeOpType.AbortTransaction && i.TargetNodeId == node);   // every node undoes the load …
+            Assert.Equal(loadTx, Assert.IsType<AbortTransactionPayload>(abort.DomainPayload).TargetTransactionId);
+            Assert.Contains(sent, i => i.Operation == FdpNodeOpType.PrepareState && i.TargetNodeId == node
+                                    && i.DomainPayload is Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload { TargetState: Fdp.Toolkit.Orchestration.ClusterState.Idle });   // … and goes to Idle
+        }
+
+        // the nodes answer the Idle round: every node's view shows Idle, and the reason on the request's outcome
+        foreach (var p in sent.Where(i => i.Operation == FdpNodeOpType.PrepareState))
+            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = p.TransactionId, Operation = p.Operation, NodeId = p.TargetNodeId, StatusCode = OrchestrationStatusCode.Success, IsParticipating = true });
+        Step(bus, master);
+        view.Update();
+        Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.Idle, view.State);
+        Assert.Equal((OrchestrationStatusCode.Failure, reason), view.OutcomeOf(request)!.Value);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3345</c> control for P2 — the return to Idle is for a failed LOAD only: a failing round to Idle itself ends there (no abort, no second Idle round — no loop), and the reason still reaches its status.
+    /// 🔴 Mutation: <c>IsLoadRound</c> true for every transition ⇒ the failing Idle round fans out another abort + Idle.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P3_AFailedRoundToIdle_IsNotLoopedBackToIdle()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost");
+        SetField(master, "_currentDsmState", ClusterState.OperatingLive);
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Step(bus, master);
+        var prepares = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList();
+        var first = prepares.First();
+        bus.PublishManaged(new NodeOpCompletedEvent
+            { TransactionId = first.TransactionId, Operation = first.Operation, NodeId = SimHostNode, StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true, ResultPayload = "boom" });
+        Step(bus, master);
+
+        var status = Assert.Single(StatusesOf(bus, request));
+        Assert.Equal((OrchestrationStatusCode.Failure, "boom"), (status.StatusCode, (string?)status.ResultPayload));
+        Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.AbortTransaction);
     }
 }

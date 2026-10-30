@@ -10,10 +10,10 @@ namespace Fdp.Toolkit.DER
     {
         private readonly ConcurrentDictionary<Tuple<Type, int>, object> _descriptors = new();
 
-        public int EntityId { get; }
+        public long EntityId { get; }
         public long TkbType { get; }
 
-        public DerEntity(int entityId, long tkbType)
+        public DerEntity(long entityId, long tkbType)
         {
             EntityId = entityId;
             TkbType = tkbType;

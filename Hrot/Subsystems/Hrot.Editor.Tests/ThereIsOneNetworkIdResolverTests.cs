@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -95,23 +96,18 @@ public sealed class ThereIsOneNetworkIdResolverTests
     [Fact]
     public void NoNewInlineNetworkIdLookupAppears()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var found = new List<string>();
 
-        foreach (var file in Directory.EnumerateFiles(root!, "*.cs", SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(root!))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
-                file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                continue;
-
             var rel = Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel == ResolverPath || AllowedNonResolverLookups.ContainsKey(rel)) continue;
 
             // ⚠ Test assemblies assert on ids constantly and legitimately; this rail is about production.
             if (rel.Contains(".Tests/")) continue;
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;   // agent worktrees: a second copy of the tree
 
             foreach (var line in File.ReadLines(file))
             {
@@ -151,17 +147,4 @@ public sealed class ThereIsOneNetworkIdResolverTests
         //   FollowRoute's route lookup moved into the behaviour (CgfNodes.TryFindRouteTrajectory), through NetworkIdResolver.
     };
 
-    /// <summary>⭐ Walks up to the checkout root, the same probe <c>CuratedScenarios</c> and
-    /// <c>LayoutPaths</c> use. ⚠ <c>null</c> outside a checkout, and the rail says so rather than
-    /// silently passing on an empty scan.</summary>
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (File.Exists(Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
-    }
 }

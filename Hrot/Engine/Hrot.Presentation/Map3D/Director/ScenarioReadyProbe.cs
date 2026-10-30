@@ -42,13 +42,15 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>One poll: <paramref name="stateIsTarget"/> (the cluster is in the load's target state), the world's count now, and the
         /// seconds since the request. True once the load is ready.</summary>
-        public bool Observe(bool stateIsTarget, int? count, double elapsedSeconds)
+        /// <param name="mapBuilt">⭐ <c>R-1046</c> (§11.9) — the shown map's 3-D build is built (<c>IMapBuildStatus.IsBuilt</c>; true for a host with no 3-D map): a take must not start over a map still
+        /// building, whose first 3-D frames would be 2-D (the switch waits in 2-D) or stall. ⭐ It gates readiness only — the edge / settle bookkeeping above still runs every poll.</param>
+        public bool Observe(bool stateIsTarget, int? count, double elapsedSeconds, bool mapBuilt = true)
         {
             Polls++;
             if (count != _countAtRequest) SawWorldChange = true;
             bool settled = count == _previous;
             _previous = count;
-            return stateIsTarget && settled && (SawWorldChange || !HadWorldAnchor || elapsedSeconds > EdgeGraceSeconds);
+            return stateIsTarget && settled && mapBuilt && (SawWorldChange || !HadWorldAnchor || elapsedSeconds > EdgeGraceSeconds);
         }
     }
 }

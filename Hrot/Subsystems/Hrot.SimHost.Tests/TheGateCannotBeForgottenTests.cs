@@ -1,4 +1,5 @@
 ﻿using System;
+using Fdp.Testing;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -228,7 +229,7 @@ public sealed class TheGateCannotBeForgottenTests
     [Fact]
     public void NoReplicationIngressTranslatorRoutesThroughTheGatedBuilder()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Assert.NotNull(root);
 
         var ingressDir = System.IO.Path.Combine(
@@ -247,18 +248,6 @@ public sealed class TheGateCannotBeForgottenTests
         }
 
         Assert.Empty(offenders);
-    }
-
-    /// <summary>⭐ Walks up to the checkout root, the same probe the other structural rails use.</summary>
-    private static string? RepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-        {
-            if (System.IO.File.Exists(System.IO.Path.Combine(dir, "HROT.sln"))) return dir;
-            dir = System.IO.Directory.GetParent(dir)?.FullName;
-        }
-        return null;
     }
 
     // ══ ③ the write router ═════════════════════════════════════════════════════

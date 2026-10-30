@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every fine-grained node in ONE process: orchestrator, simhost, ig (player), excon, cgf, traffic.
+# Every fine-grained node in ONE process: orchestrator, simhost, ig (player), cgf, traffic.
 # Usage: run_All.sh [DOMAIN]     (DDS domain, default 0)
 set -euo pipefail
 

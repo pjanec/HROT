@@ -4286,7 +4286,7 @@ failed — the stale-restore trap, proved by the same rail passing on a clean wo
 | ⭐ **AI-debug command group** | ✅ **ALREADY A SHARED REGISTRAR** both hosts call — `AiDebugCommands.Register` *(`CE-059`)* |
 | ⭐ **the File/save/open toolbar + menu table** | ✅ **ALREADY ONE** — `CgfEditorShellToolbar` via `ShellCommandCoreBundle`, one registration list *(ruling 58)* |
 | ⚠⚠ **the toolbar TIME-CONTROL group** | 🔴 **STILL DUPLICATED** — the only real one left. See `H1` |
-| ⚠ **the STATUS-BAR time section** | ⛔ **NOT a duplicate to collapse:** different section classes and per-host ids *(`editor_time_controls` vs `cgf_time_controls`)*, and the editor's takes four host services CGF has no analogue for. ⭐ Left alone, deliberately |
+| ⚠ **the STATUS-BAR time section** | ⛔ **SUPERSEDED `2026-10-29` — REMOVED outright by CE-4083 (AQ108 D13, `Architect_Question_108_Run_Mode_Picker.md` §2.9); no host has one.** Was: **NOT a duplicate to collapse:** different section classes and per-host ids *(`editor_time_controls` vs `cgf_time_controls`)*, and the editor's takes four host services CGF has no analogue for. ⭐ Left alone, deliberately |
 
 #### 5c.8.2 ⭐ WHAT ACTUALLY REMAINS — two items, both small
 
@@ -5508,6 +5508,12 @@ grew a fourth copy.
 
 ⭐⭐ **All three cluster hosts are now on the capability axis:** SimHost (§4.1s), IG (§4.1t), CGF (here).
 
+⛔⛔ **SUPERSEDED `2026-10-29` by R-1045 (user):** *"It must use the same bootstrapper as the other ECS node. That's the point of unification and sharing."* ⇒ the "optional, LAST" deferral below (and §4.1ae W3's *"keeps CGF off it
+deliberately"*) no longer stands: CGF — and the editor, which builds on CGF's node — derive from `SharedApplicationBootstrapper` like SimHost,
+IG, Stride and the traffic node. Tracked as [CE-1446](blueprints/Blueprint_Issues_Tracker.md) (backend). The orchestration/time-authority
+caution survives as a BUILD caution (measure what CGF's and the editor's orchestration phase does differently before moving it), not as a reason
+to stay off the base.
+
 ### ⛔⛔ WHAT THIS IS NOT — **and the distinction is the design's own**
 
 🔒 §4.1j's phase table marks **node-bootstrap adoption** *"optional, LAST"* — *"the only phase touching
@@ -6618,3 +6624,110 @@ graph TD
 | ⭐ `Hrot.NodeComposition` | ⚠ NOT a shared library: its one type is `StrideNodeBootstrapper`, the Stride host's own bootstrapper, kept apart from the `net8.0-windows` game so it builds and tests off Windows (`DESIGN_Stride_Port.md` §271). ⇒ game + NodeComposition = ONE host, and its SimHost/IG references are that host reaching into two others |
 | ⛔ debt | CGF→SimHost · Editor→SimHost/CGF/Orchestrator/IG · ExCon→Orchestrator · NodeComposition→SimHost/IG · ReplayBrowser→CGF/SimHost · Stride Game→NodeComposition/Editor/Orchestrator/CGF/SimHost — railed as a ratchet (`OneBootstrapImplementationRails.NoHost_ReferencesAnotherHost_BeyondTheRecordedDebt`) |
 | ⭐ D17 | `Hrot.EcsNode` is the natural home for the one `BuildContext` helper too, if it references NED |
+
+## ⭐⭐⭐ §4.1af — **`CE-1446` (R-1045): CGF AND THE EDITOR DERIVE FROM `SharedApplicationBootstrapper`** `build-state: BUILT` *(decisions A–D ✅ APPROVED by the user `2026-10-29`: "Approved." — R-3074)* *(`2026-10-29`, backend)*
+
+🔒 **User, `2026-10-29`:** *"Why is CGF not using shared bootstrapper? It must use the same bootstrapper as the other ECS node. That's the
+point of unification and sharing."* ⇒ R-1045 supersedes §4.1j's *"node-bootstrap adoption optional, LAST"* (and §4.1x / §4.1ae W3's restatements).
+⭐ The orchestration / time / ordering cautions those sections gave survive as **build** cautions — measured below.
+
+### INVENTORY — measured `2026-10-29` at `fd6d28f20`
+Queries: `search_graph` `.*Bootstrapper.*` (Class), `.*ClusterSlave.*` + grep over `CgfSubsystem.cs` / `EditorSubsystem.cs` / `SharedApplicationBootstrapper.cs` / `NodeBootstrapper.cs`;
+⚠ `check_index_coverage` unavailable through the CLI. Spot-verified by Opus: CGF's second slave (`CgfSubsystem.cs:1027`, `:1213`) and the editor's Brain-without-participant clash (`NodeBootstrapper.cs:226`).
+
+| base phase (`SharedApplicationBootstrapper.cs`) | SimHost · IG · Stride · Traffic | CGF today | editor today |
+|---|---|---|---|
+| 1 `BuildContext` :460 (all → `BuildReplicatedNode`, time **Slave**) | ✅ | inline `HrotNodeBuilder` :685 + replication by hand :762 — **(a) duplicate** | inline :1304, **offline factory, `Standalone` time** :1317 — needs a time-role input |
+| 2 components · 3 serializer · 3b resources · 3c capabilities · 4a groups · 4b modules | ✅ | same calls inline (:694, :906–953) — **(a)**; ⛔ no post-sim group (throws if a capability adds one, :943) | same calls inline (:1349–1874) — **(a)** |
+| 5 `BuildOrchestration` :498 (+ slave invariant :277) | SimHost → `NodeBootstrapper.BuildOrchestration` (`EcsHostClusterHandlers.Compose`) | ⛔ **a SECOND `ClusterSlave`** (:1027) replaces the builder's (:1213 — the builder's is orphaned); Compose without `LifecycleGroup`/`BypassLifecycle`/`PostSimGroup`, plus `CgfEpisodeLoadHandler` + `behaviorRemapper` | Compose on the builder's slave + `DryRunIncludesTransient`, `behaviorRemapper`; ⛔ `NodeBootstrapper.BuildOrchestration` THROWS for a Brain with no participant (:226) |
+| 6a spawning · 6a+ replication · 6b translators · 6c time-sync · 6d app systems | ✅ | same inline — **(a)**; ⚠ no `RegisterMigrationServices` (SimHost :367, IG :287 have it) — **(b) drift candidate** | same inline; no migration services, no time-sync (offline) |
+| 7 initialize · 7a join gate · 7+ post | ✅ | same — **(a)** | initialize; no join gate (offline); ⭐ **its in-process master** (`OrchestratorCore` + `ForOneNodeCluster()`, :2396) — **(c) host-specific** |
+| the frame (`HrotNodeContext.Tick` :56: translator → slave → kernel → swap) | ✅ | ✅ | ⛔ its own order (:2972–2997): kernel → `StepTimeline` → swap → `_orchestratorCore.Tick`; the slave ticked IN the kernel as a module (`OrchestrationLogicPack` :1827) |
+
+### The design — one base, three new hook inputs, two subclasses
+
+```mermaid
+classDiagram
+  class SharedApplicationBootstrapper {
+    <<existing>>
+    +BootstrapNode()
+    #BuildContext()*
+    #BuildOrchestration()*
+    #GetBehaviorRegistry()
+    #RegisterApplicationSystems()
+    #PostInitialize()
+    #TimeRole : NodeTimeRole NEW (default Slave)
+    #BuildsPostSimGroup : bool NEW (default true)
+  }
+  class SimHostNodeBootstrapper { <<existing>> }
+  class IgNodeBootstrapper { <<existing>> }
+  class StrideNodeBootstrapper { <<existing>> }
+  class TrafficNodeBootstrapper { <<existing>> }
+  class CgfNodeBootstrapper { NEW — CgfSubsystem's inline build moves here }
+  class EditorNodeBootstrapper { NEW — EditorSubsystem's inline build moves here }
+  class NodeBootstrapper {
+    <<existing>>
+    +BuildOrchestration(…, scenarioHandlers NEW, behaviorRemapper NEW, offline NEW)
+  }
+  class OrchestratorCore { <<existing>> the editor's in-process master }
+  SharedApplicationBootstrapper <|-- SimHostNodeBootstrapper
+  SharedApplicationBootstrapper <|-- IgNodeBootstrapper
+  SharedApplicationBootstrapper <|-- StrideNodeBootstrapper
+  SharedApplicationBootstrapper <|-- TrafficNodeBootstrapper
+  SharedApplicationBootstrapper <|-- CgfNodeBootstrapper
+  SharedApplicationBootstrapper <|-- EditorNodeBootstrapper
+  CgfNodeBootstrapper ..> NodeBootstrapper : BuildOrchestration on the builder's ONE slave
+  EditorNodeBootstrapper ..> NodeBootstrapper : BuildOrchestration(offline)
+  EditorNodeBootstrapper ..> OrchestratorCore : PostInitialize builds it
+```
+*What the picture shows that the prose hid: no host keeps a private build path — CGF and the editor become two more subclasses, and the three differences become INPUTS of the base (time role, post-sim group, orchestration extras), not copies of it.*
+
+```mermaid
+sequenceDiagram
+  participant H as CgfSubsystem / EditorSubsystem
+  participant B as Cgf/EditorNodeBootstrapper
+  participant S as SharedApplicationBootstrapper
+  participant N as NodeBootstrapper
+  H->>B: BootstrapNode(config)
+  B->>S: phases 1..4b (TimeRole, BuildsPostSimGroup)
+  S->>B: BuildOrchestration(context)
+  B->>N: BuildOrchestration(…, clusterSlave: context.ClusterSlave, scenarioHandlers, behaviorRemapper, offline)
+  S->>S: 6a..6d, 7 Initialize, 7a join gate (skipped offline)
+  S->>B: PostInitialize — editor: build OrchestratorCore (ForOneNodeCluster)
+  loop every frame
+    H->>H: HrotNodeContext.Tick (translator, slave, kernel, swap) — editor: then OrchestratorCore.Tick
+  end
+```
+*The editor's frame joins the one shared `HrotNodeContext.Tick`; only its in-process master's tick is appended — the order the core needs (it reads the bus after the swap) is kept.*
+
+```mermaid
+graph TD
+  CR[ClusterRunner / tests] -->|Initialize| CGF[CgfSubsystem]
+  CR -->|Initialize| ED[EditorSubsystem]
+  CGF --> CB[CgfNodeBootstrapper]
+  ED --> EB[EditorNodeBootstrapper]
+  CB --> SAB[SharedApplicationBootstrapper.BootstrapNode]
+  EB --> SAB
+  SAB --> HNC[HrotNodeContext — ticked by each host's Update]
+  ORPH[builder's ClusterSlave orphaned by CGF today]:::dead
+  classDef dead fill:#fdd,stroke:#c00
+```
+*Red: the orphaned slave CGF creates today disappears — the builder's slave is the one slave (D15).*
+
+### Decisions — ✅ APPROVED `2026-10-29` (R-3074) as leaned
+
+| # | question | ⭐ lean | rejected |
+|---|---|---|---|
+| **A** | CGF's missing `LifecycleGroup` / `BypassLifecycle` / migration services (drift (b)) | ⭐ **adopt the base's — by construction**, each proven by CGF's existing suites (`CgfSubsystemHeadlessTests`, `CgfHarness` users); a measured red reverts that one item with its reason recorded | keep CGF's subset — the drift R-1045 exists to end |
+| **B** | the editor's Brain-without-participant | ⭐ an explicit `offline` input to `BuildOrchestration` (skips the participant guard and DDS-only parts) — the editor is a one-node cluster by design (R-1043) | fake a participant — a lie in the composition |
+| **C** | the editor's frame order | ⭐ `HrotNodeContext.Tick` + `OrchestratorCore.Tick` appended; the slave leaves the kernel (`OrchestrationLogicPack`) | keep the editor's own loop — the CE-151 class of drift |
+| **D** | CGF's post-sim group | ⭐ `BuildsPostSimGroup` input (CGF false) until a capability needs it — a NECESSARY difference today (`CgfSubsystem.cs:943`) | build it and let it be empty — changes CGF's schedule for nothing |
+
+### Slices (one Sonnet task each, ≤ 15 min, in the main checkout)
+
+| # | slice | gates (the seam's classes) |
+|---|---|---|
+| **B0** | base inputs: `TimeRole`, `BuildsPostSimGroup`, `BuildOrchestration(scenarioHandlers, behaviorRemapper, offline)` — no host changes | `SharedApplicationBootstrapperTests`, `NodeBootstrapperMigrationTests`, `NodeBootstrapperReplayTests`, the 4 host bootstrapper tests ✅ **BUILT `2026-10-29`** (as-built: `TimeRole`/`BuildsPostSimGroup` are protected virtual INPUTS of the base; the ONE build path is `BuildReplicatedNode(…, timeRole = Slave)`, and the base verifies `HrotNodeContext.TimeRole` (new field) equals the declared one at boot; `BuildsPostSimGroup=false` registers no group, passes an empty unregistered placeholder to `BuildOrchestration`, and throws on a post-sim capability; `NodeBootstrapper.BuildOrchestration` gained `scenarioHandlers` (replaces the default episode handler), `behaviorRemapper` (→ `ScenarioLoadStep`), `offline`) |
+| **B1** | `CgfNodeBootstrapper`; `CgfSubsystem` calls it; ONE slave; decision A | `CgfSubsystemHeadlessTests` (both), `CgfSubsystemTests`, `CgfComponentRegistryTests`, `TheRunChoiceIsOnEveryHostTests`, `TheClusterAiDebugSurfaceAnswersTests`, `BreakpointSubsystemWiringTests`, `DebugApiCompositionTests`, `TheViewportInteractionIsSharedTests` ✅ **BUILT `2026-10-29`** (as-built: `Hrot.CGF/CgfNodeBootstrapper.cs` supplies CGF's inputs to the base — `GetBehaviorRegistry` (lazy, loads the AI assembly), `BuildContext`→`BuildReplicatedNode` (Slave), components, serializer (WarnAndSkip), the capability plan, `BuildOrchestration`→`NodeBootstrapper.BuildOrchestration` on the builder's ONE slave (+ `CgfEpisodeLoadHandler`, remapper, entity map), spawning pipeline (creation pack, genesis tail), translators; `BuildsPostSimGroup=false`; the participant stays caller-side; host glue = `CgfSubsystem.RegisterHostSystems` (the registrar, phase 6d). Base gained a protected `InputGroup`; `NodeBootstrapper` gained `entityMap` + `TerrainResidency`. ⚠ Measured drift fixed: each configured `NedNetworkFactory` made its OWN cluster cache while the node's replication module filled another — `ConfigureForNode(context)` now adopts the module's (`NedReplicationModule.ClusterCache`). Frame order: same 72 systems, different order inside a phase (base order) — pinned by `CgfSubsystemTests.CE1446_TheKernelRunsItsSystemsInTheSharedBootstrappersOrder`) |
+| **B2** | `EditorNodeBootstrapper`; `EditorSubsystem` calls it; decisions B, C | `EditorSubsystemBootTests`, `TheEditorRunsTheOrchestratorCoreTests`, `EditorCapabilitiesTests` (`ResolvedSet_ProducesTheSameSystemSequences…`), the MVP rail, `TheRunChoiceIsOnEveryHostTests` ✅ **BUILT `2026-10-29`** (as-built: `Hrot.Editor/EditorNodeBootstrapper.cs` — `BuildContext` is the PLAIN builder (offline: no replication, Standalone time, `OrchestratorEventRegistry`, Deterministic start, allocator reset), `TimeRole=Standalone`, `DeduplicateSystemsByType` (new opt-in base input, CE-165), a `TrajectoryPoolProvider` resource (the capability walk's `Needs` check demanded it), the capability plan (both arms), `GetAdditionalModules`=BehaviorDiagnostics, `BuildOrchestration`→`NodeBootstrapper.BuildOrchestration(offline:true, participant:null)` on the builder's ONE slave with `scenarioHandlers` empty + `dryRunIncludesTransient` (new input) + the dump handler, the creation pack/genesis/blueprint events in the pipeline, `PostInitialize` nav providers; host glue = `EditorSubsystem.RegisterHostSystems`. Frame (decision C): `HrotNodeContext.Tick` with the editor's per-frame work in `afterKernel`, then `OrchestratorCore.Tick`; `OrchestrationLogicPack` is no longer registered by the editor. Decision A: the Geographic module and the lifecycle module now come from `BaseModules` (the editor registered neither the builder's ELM nor Geographic before); 5 systems added — Geographic ×2 and the time-sync translators' Cyclone ingress/egress/cleanup (no-ops, no participant); the ScenarioLoadStep now gets the terrain service. `NodeBootstrapper` gained `dryRunIncludesTransient` and `Handlers`. Order pinned by `TheEditorRunsTheOrchestratorCoreTests.CE1446B2_*`) |
+| **B3** | the rail: every ECS host's node is built by a `SharedApplicationBootstrapper` subclass (no inline `HrotNodeBuilder` in a host) | new, in `SharedApplicationBootstrapperTests` ✅ **BUILT `2026-10-30`** (as-built: `SharedApplicationBootstrapperTests.CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline` — a SOURCE scan (Stride is net8.0-windows): the six hosts (CGF, SimHost, IG, Editor, Traffic, Stride) are named and each entry file calls `.BootstrapNode(` on a `: SharedApplicationBootstrapper` class; no production `.cs` outside `*NodeBootstrapper.cs` / `HrotNodeBuilder.cs` / `HrotNodeBuilderReplicationExtensions.cs` / `SharedApplicationBootstrapper.cs` (comments ignored) contains `new HrotNodeBuilder(` or `BuildReplicatedNode(`; it fails if fewer than 500 production files are scanned or HROT.sln is not found. ⚠ Stride needs NO allow-list entry: its node IS built by `StrideNodeBootstrapper` (`StrideNodeShell.cs:238`); CE-1449 is its hand-built RUN CONTROLS, not a node build) |

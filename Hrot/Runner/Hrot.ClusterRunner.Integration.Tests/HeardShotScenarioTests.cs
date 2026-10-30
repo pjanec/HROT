@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Numerics;
@@ -42,13 +43,6 @@ public sealed class HeardShotScenarioTests : IDisposable
 
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
-
     private static Entity ByName(EntityRepository world, string name)
     {
         for (int i = 0; i <= world.MaxEntityIndex; i++)
@@ -63,12 +57,12 @@ public sealed class HeardShotScenarioTests : IDisposable
     [Fact(Timeout = 240_000)]
     public async Task CE2106_ARiflemanHearsAHiddenShooter_AndTakesCoverFromWhereTheShotsCameFrom()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-heard-shot", "scenario.json"),
+        File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-heard-shot", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

@@ -7,7 +7,6 @@ using Fdp.Core;
 using Hrot.CGF;
 using Hrot.ClusterRunner.Services;
 using Hrot.Common;
-using Hrot.ExCon;
 using Hrot.IG;
 using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
@@ -54,16 +53,22 @@ public sealed class HrotRunnerHarness : IDisposable
 
     private static int _domainCounter = DomainIdBase - 1;
 
+    // ⭐ CE-3340 ③ — no seed here: the content seed runs inside SubsystemOrchestrator.Initialize, which this harness calls like every host.
+
     public int DomainId { get; }
     public SubsystemOrchestrator Orchestrator { get; }
     public OrchestratorSubsystem OrchestratorSvc { get; }
     public SimHostSubsystem SimHost { get; }
     public IgSubsystem Ig { get; }
-    public ExConSubsystem ExCon { get; }
     public CgfSubsystem? Cgf { get; private set; }
 
     // Shared DDS participant owned by the harness; disposed after Orchestrator.Shutdown().
     private readonly DdsParticipant _participant;
+
+    private readonly RunnerOptions _options;
+
+    // ⭐ A subsystem started AFTER boot (StartLate) — it runs in its own host loop, pumped with the rest (PumpFrames / PumpUntil).
+    private readonly System.Collections.Generic.List<SubsystemOrchestrator> _late = new();
 
     public HrotRunnerHarness()
     {
@@ -84,16 +89,15 @@ public sealed class HrotRunnerHarness : IDisposable
         OrchestratorSvc = new OrchestratorSubsystem(factory);  // HEXAG2-S009: factory required
         SimHost = new SimHostSubsystem(factory);
         Ig = new IgSubsystem(factory);
-        ExCon = new ExConSubsystem(factory);
         Cgf = new CgfSubsystem(factory);  // CGF processes CreateEntityRequest and sends ACKs
 
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
+        _options = options;
         Orchestrator = new SubsystemOrchestrator(new ISubsystem[]
         {
             OrchestratorSvc,   // must be first: starts DdsIdAllocatorServer before SimHost
             SimHost,
             Ig,
-            ExCon,
             Cgf,
         }, options);
 
@@ -103,7 +107,7 @@ public sealed class HrotRunnerHarness : IDisposable
     /// <summary>
     /// Creates a harness with a specific set of subsystem names and domain ID (for shared-domain tests).
     /// Typically used alongside <see cref="CgfHarness(int)"/> for IT-4 tests.
-    /// <para>Subsystem names are comma-separated and case-insensitive: simhost, ig, excon, cgf.</para>
+    /// <para>Subsystem names are comma-separated and case-insensitive: simhost, ig, cgf. ⛔ <c>excon</c> is REJECTED (R-3067, AQ109 X1): the node is retired and no list keeps it silently.</para>
     /// </summary>
     public HrotRunnerHarness(string modes, int domainId)
     {
@@ -112,6 +116,12 @@ public sealed class HrotRunnerHarness : IDisposable
         var requested = new System.Collections.Generic.HashSet<string>(
             modes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             StringComparer.OrdinalIgnoreCase);
+
+        // ⛔ R-3067 (AQ109 X1) — ExCon is being retired; a node list that still names it must fail loudly, never boot without it silently.
+        if (requested.Contains("excon"))
+            throw new ArgumentException(
+                $"[HrotRunnerHarness] the node list '{modes}' names 'excon' — the ExCon node is retired (R-3067, docs/blueprints/Architect_Question_109_Retire_ExCon.md §6 X1). Drop the token; drive the capability from CGF or the editor.",
+                nameof(modes));
 
         // Create a single shared DDS participant for the harness domain.
         _participant = HrotEnvironment.CreateParticipant(domainId);
@@ -123,16 +133,14 @@ public sealed class HrotRunnerHarness : IDisposable
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);
 
-        OrchestratorSvc = new OrchestratorSubsystem(factory);  // HEXAG2-S009: factory required
+        OrchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(requested.Contains("simhost"), requested.Contains("cgf")));  // ⭐ CE-3347 — the roles this cluster boots
         SimHost         = new SimHostSubsystem(factory);
         Ig              = new IgSubsystem(factory);
-        ExCon           = new ExConSubsystem(factory);
 
         // Always include Orchestrator; conditionally include other subsystems.
         var subsystems = new System.Collections.Generic.List<ISubsystem> { OrchestratorSvc };
         if (requested.Contains("simhost")) subsystems.Add(SimHost);
         if (requested.Contains("ig"))      subsystems.Add(Ig);
-        if (requested.Contains("excon"))   subsystems.Add(ExCon);
         if (requested.Contains("cgf"))
         {
             Cgf = new CgfSubsystem(factory);
@@ -140,6 +148,7 @@ public sealed class HrotRunnerHarness : IDisposable
         }
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };
+        _options = options;
         Orchestrator = new SubsystemOrchestrator(subsystems, options);
 
         BootOrCleanUp();
@@ -176,9 +185,30 @@ public sealed class HrotRunnerHarness : IDisposable
     public void PumpFrames(int frames)
     {
         for (int i = 0; i < frames; i++)
-        {
-            Orchestrator.RunFrames(1);
-        }
+            RunOneFrame();
+    }
+
+    private void RunOneFrame()
+    {
+        Orchestrator.RunFrames(1);
+        foreach (var late in _late) late.RunFrames(1);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3346</c> rail support — start a subsystem on THIS harness's domain and participant AFTER the cluster is running, the way a
+    /// Player's IG process joins a live exercise: it goes through the same <see cref="SubsystemOrchestrator.Initialize"/> every host uses
+    /// (so no second bootstrap), then is pumped with the others. Build the harness with a mode list that leaves it out
+    /// (<c>HrotRunnerHarness("simhost,cgf", domain)</c> — its <see cref="Ig"/> is constructed but never initialised).
+    /// ⚠ The content seed already ran with the first orchestrator, so it is not repeated.
+    /// ⚠ <paramref name="nodeId"/> is REQUIRED to be distinct: every default node id here is a per-subsystem constant and the IG's (300) is the Orchestrator's
+    /// own — a late IG on the default would merge into the master's own roster entry and prove nothing. A real Player process gets its own id the same way.
+    /// </summary>
+    public void StartLate(ISubsystem subsystem, int nodeId)
+    {
+        var options = new RunnerOptions { Headless = true, DomainId = _options.DomainId, NodeId = nodeId, SeedContent = false };
+        var host = new SubsystemOrchestrator(new[] { subsystem }, options);
+        _late.Add(host);
+        host.Initialize();
     }
 
     public bool PumpUntil(Func<bool> condition, int timeoutFrames = 300)
@@ -187,7 +217,7 @@ public sealed class HrotRunnerHarness : IDisposable
 
         for (int i = 0; i < timeoutFrames; i++)
         {
-            Orchestrator.RunFrames(1);
+            RunOneFrame();
             Thread.Sleep(PumpSleepMs);
 
             if (condition()) return true;
@@ -205,6 +235,12 @@ public sealed class HrotRunnerHarness : IDisposable
 
         // QA-002: this also runs from BootOrCleanUp on a HALF-BUILT harness, where a subsystem may
         // never have been initialised. Shutdown must not mask the original boot failure.
+        try
+        {
+            for (int i = _late.Count - 1; i >= 0; i--) _late[i].Shutdown();   // the late joiners first, as the reverse of start
+        }
+        catch (Exception) { /* as below */ }
+
         try
         {
             Orchestrator.Shutdown();

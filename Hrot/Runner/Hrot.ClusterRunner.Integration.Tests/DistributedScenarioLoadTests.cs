@@ -70,7 +70,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         // ── Phase 2: Live cluster boot & injection ────────────────────────────
         int domainId = NextDomainId();
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
 
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
 

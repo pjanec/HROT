@@ -22,6 +22,7 @@ public sealed class ClusterMasterBranchTests
 {
     private static ClusterConfiguration MandatorySimHostConfig() => new ClusterConfiguration
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory                  = new[] { "SimHost" },
         HeartbeatTimeoutSeconds    = 60f,
         TransactionHistoryCapacity = 10,
@@ -169,6 +170,93 @@ public sealed class ClusterMasterBranchTests
         Assert.NotEqual(Guid.Empty, minted);
         Assert.NotEqual(replayed, minted);
         Assert.Equal(minted, master.ActiveExerciseId);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4097 (AQ108 D5, success 1) — the REAL master branches a replay and the nodes answer PrepareLive with the parent and point of the recording
+    /// they start: the master's own inventory (<see cref="AssetInventoryProcessManager"/> on its bus) then lists the live run with that parent and
+    /// point — the inventory every host receives. 🔴 Mutation: the master dropping the answer's fields ⇒ empty ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4097_ALiveRunBranchedFromAReplay_ListsItsParentAndBranchPointOnTheMastersInventory()
+    {
+        var nas     = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "fdp_ce4097m_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "fdp_ce4097m_stg_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var bus       = new FdpEventBus();
+            var master    = new ClusterMaster(bus, MandatorySimHostConfig());
+            var inventory = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nas, staging, 400, scanInterval: TimeSpan.Zero);   // scan every tick
+            int nodeId    = BootstrapToOperatingReplay(bus, master);
+
+            master.RegisterAggregator(new LiveBranchAggregator());   // as OrchestratorCore registers it (CE-3312)
+
+            void Pump() { bus.SwapBuffers(); master.Tick(); inventory.Tick(); bus.SwapBuffers(); inventory.Tick(); }
+
+            master.HandleClusterOpRequest(new ClusterOpRequest
+            {
+                RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+                PayloadJson = ((int)ClusterState.OperatingLive).ToString(),
+            });
+            bus.SwapBuffers(); master.Tick(); inventory.Tick(); bus.SwapBuffers();
+
+            var parent = Guid.NewGuid();
+            const long point = 638_900_000_000_000_000L;
+            foreach (var intent in bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation != FdpNodeOpType.CommitState).ToList())
+                bus.PublishManaged(new NodeOpCompletedEvent
+                {
+                    TransactionId = intent.TransactionId, Operation = intent.Operation, NodeId = nodeId,
+                    StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
+                    ResultPayload = intent.Operation == FdpNodeOpType.PrepareLive
+                        ? (object?)new LiveBranchResult(new Fdp.Core.GlobalTime { TotalWallTicks = 7777L, TotalTime = 3.0 }, true, parent, point)
+                        : null,
+                });
+
+            AssetInventoryUpdateEvent? published = null;
+            for (int i = 0; i < 6; i++)
+            {
+                Pump();
+                foreach (var ev in bus.ReadManaged<AssetInventoryUpdateEvent>()) published = ev;   // the LAST one: the answer may land a frame after the state
+            }
+
+            Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);
+            var live = Assert.Single(published!.Value.LocalExercises!, e => e.ExerciseId == master.ActiveExerciseId);
+            Assert.Equal((parent, point), (live.ParentExerciseId, live.BranchWallTicks));
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(nas)) System.IO.Directory.Delete(nas, recursive: true);
+            if (System.IO.Directory.Exists(staging)) System.IO.Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4090 (AQ108 D14, §5a) — "the replay → live branch follows the setting like any live run": with <i>Record live runs</i> OFF the branch's
+    /// PrepareLive tells every node not to record (the exercise id is still minted — only the recording is not), and the master announces the run as
+    /// not recorded; with it ON (the control) the branch records exactly as before.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CE4090_ABranchFromAReplay_FollowsTheRecordLiveRunsSetting(bool recordLiveRuns)
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, MandatorySimHostConfig());
+        BootstrapToOperatingReplay(bus, master);
+        master.RecordLiveRuns = recordLiveRuns;
+
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\"}",
+        });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var prepare = bus.ReadManaged<ExecuteNodeOpIntent>().Single(i => i.Operation == FdpNodeOpType.PrepareLive);
+        var payload = Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(prepare.DomainPayload);
+        Assert.Equal(!recordLiveRuns, payload.RecordingOff);
+        Assert.NotEqual(Guid.Empty, payload.ExerciseId);              // the branch's id is minted either way
+        Assert.Equal(!recordLiveRuns, master.RunNotRecorded);
     }
 
     /// <summary>

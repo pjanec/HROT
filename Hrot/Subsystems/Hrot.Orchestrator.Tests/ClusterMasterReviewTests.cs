@@ -21,6 +21,7 @@ public sealed class ClusterMasterReviewTests
 {
     private static ClusterConfiguration Config() => new()
     {
+        MandatoryRoles = Fdp.Core.NodeRole.None,   // CE-3344: not a readiness suite — default roles would hold the latch closed with no nodes
         Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10,
     };
 
@@ -90,6 +91,57 @@ public sealed class ClusterMasterReviewTests
         Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == save && e.StatusCode == OrchestrationStatusCode.Rejected);
     }
 
+    /// <summary>⭐ CE-4090 (AQ108 D22) — a scenario save is refused in a LIVE run as well (the recording case above is CE-3329 P3's): that world is not
+    /// the scenario. The refusal names why; an EDIT session still saves (the control).</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4090_A_save_is_refused_in_a_live_run_too_but_not_while_editing()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        Set(master, "_currentDsmState", NedClusterState.OperatingLive);
+        var save = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = save, Operation = StorageOpType.SaveScenario, ScenarioName = "x" });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var refused = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>().Where(e => e.RequestId == save).ToList());
+        Assert.Equal(OrchestrationStatusCode.Rejected, refused.StatusCode);
+        Assert.Equal(RunRecordingGates.SaveRefusedInRunReason, refused.ResultPayload);
+        Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.SerializeLocal);
+
+        Set(master, "_currentDsmState", NedClusterState.OperatingEdit);
+        bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.SaveScenario, ScenarioName = "x" });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.SerializeLocal);
+    }
+
+    /// <summary>⭐⭐ CE-4090 (AQ108 D14, §5a) — DAR needs the run's recording: a review of a run that was not recorded is refused at the MASTER with
+    /// the reason, no <c>PrepareReview</c> reaches a node — and the review's CLOCK does not pause the live run under a review that will never open
+    /// (⛔ the old order paused first, then threw in every node's prepare).</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4090_A_review_of_a_run_that_was_not_recorded_is_refused_and_pauses_nothing()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWithOneNode(bus);
+        Set(master, "_currentDsmState", NedClusterState.OperatingLive);
+        Set(master, "_runNotRecorded", true);
+
+        var clock = new StillClock { Mode = TimeMode.Continuous, Now = new GlobalTime { TotalTime = 5 } };
+        var cmds  = new Commands();
+        var pm    = new ReviewProcessManager(bus, clock, cmds, () => ClusterState.OperatingLive, runNotRecorded: () => master.RunNotRecorded);
+
+        var review = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = review, TargetState = ClusterState.OperatingReview, TargetSimSeconds = 3 });
+        bus.SwapBuffers();
+        pm.Tick();                                                   // the clock first, as the orchestrator ticks it
+        master.Tick(); bus.SwapBuffers();
+
+        Assert.Equal(0, cmds.Pauses);                                // ⛔ the live clock was not paused …
+        Assert.False(pm.InReview);                                   // … and no review is "open"
+        var refused = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>().Where(e => e.RequestId == review).ToList());
+        Assert.Equal(OrchestrationStatusCode.Rejected, refused.StatusCode);
+        Assert.Equal(RunRecordingGates.NotRecordedReason, refused.ResultPayload);
+        Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.PrepareReview);
+    }
+
     /// <summary>⭐⭐ §3c, F3, F12, F19 — the review's clock: a BARRIER pause at entry (never a snap), L remembered once the pause lands,
     /// and the return puts the clock back to L and the live rate.</summary>
     [Fact]
@@ -125,6 +177,30 @@ public sealed class ClusterMasterReviewTests
         Assert.Equal(150, back.TotalWallTicks);                   // ⭐ F12 — the wall resumes where the recording stopped, never at L's (100)
         Assert.Equal(new[] { 2f }, cmds.Rates);                   // F19 — the live rate, not the review's
         Assert.False(pm.InReview);
+    }
+
+    /// <summary>⭐⭐ CE-1447 — the entry SEEK can land before the entry pause's barrier (a warm prepare+seek round inside the 200 ms the
+    /// seek's own pause re-arms); L is still the live time, never the DAR's position. 🔴 Red-proof: capturing L only on Deterministic ⇒ 0.3.</summary>
+    [Fact]
+    public void CE1447_The_live_point_is_the_live_time_even_when_the_entry_seek_lands_before_the_barrier()
+    {
+        var bus = new FdpEventBus();
+        var clock = new StillClock { Mode = TimeMode.Continuous, Now = new GlobalTime { TotalTime = 8.1, TotalWallTicks = 100 } };
+        var pm = new ReviewProcessManager(bus, clock, new Commands(), () => ClusterState.OperatingLive);
+
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.OperatingReview });
+        bus.SwapBuffers(); pm.Tick();
+        Assert.False(pm.HasLivePoint);                            // the barrier is pending: the clock still reports Continuous
+
+        bus.PublishManaged(new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = 3 });   // the master starts the entry seek
+        bus.SwapBuffers(); pm.Tick();
+        Assert.True(pm.HasLivePoint);
+        Assert.Equal(8.1, pm.LivePoint.TotalTime);
+
+        clock.Mode = TimeMode.Deterministic;                      // the seek's snap — Stepping at the DAR's position
+        clock.Now = new GlobalTime { TotalTime = 0.3, TotalWallTicks = 3 };
+        bus.SwapBuffers(); pm.Tick();
+        Assert.Equal(8.1, pm.LivePoint.TotalTime);                // ⛔ not 0.3
     }
 
     private sealed class StillClock : ITimeController

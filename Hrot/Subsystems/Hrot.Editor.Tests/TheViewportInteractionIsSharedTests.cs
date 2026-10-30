@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -467,6 +468,7 @@ public sealed class TheViewportInteractionIsSharedTests
         var (world, _, netId) = WorldWithEntity(x: 123f, y: 456f);
         var camera = new MapCamera();
         var system = new CenterOnEntitySystem(() => camera);
+        camera.Update(0f);   // ⭐ CE-4084 — the frame loop has anchored the camera at the visible centre before an operator can centre
 
         world.Bus.Publish(new CenterOnEntityCommand { NetworkId = netId });
         world.Bus.SwapBuffers();
@@ -1202,7 +1204,7 @@ public sealed class TheViewportInteractionIsSharedTests
     [Fact]
     public void NoExclusiveFocusGizmoForgetsToAskForRawInput()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
 
         // ⭐ Gizmos that legitimately route through the SPATIAL path — they anchor their drawn primitives
         //   to the capture token, so DebugGizmoLayer.cs:428 lets those primitives through. ⛔ Empty today:
@@ -1238,14 +1240,6 @@ public sealed class TheViewportInteractionIsSharedTests
           + "terminal delivers them NOTHING on either path — they draw and ignore every click "
           + $"(CE-259k): {string.Join(", ", offenders)}. Either declare WantsRawInput => true, or add "
           + "the gizmo to this rail's `spatiallyRouted` allow-list and say why it is safe.");
-    }
-
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "docs"))) dir = dir.Parent;
-        Assert.NotNull(dir);
-        return dir!.FullName;
     }
 
     private static string ReadHostSource(string project, string file)

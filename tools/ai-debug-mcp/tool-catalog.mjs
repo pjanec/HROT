@@ -221,6 +221,7 @@ export const TOOLS_CATALOG = [
     "notes": [
       "ALWAYS read `current` back — an unknown name is a no-op, so trusting the 200 would leave you reading the WRONG perspective's panels.",
       "A 400 names the claimed set; a 503 means perspective access is not wired on this host.",
+      "A 409 means the Start perspective is showing (the cluster rests in Idle, nothing loaded): a switch is refused whatever the name. LOAD FIRST (load_scenario_live / load_scenario_edit), then switch — leaving Idle restores the host's remembered perspective on its own. Read get_status.routedTo to see which perspective the reads are answered from meanwhile.",
       "The new perspective publishes its panels on the NEXT frame — step a tick before get_panels, or you read the previous one.",
       "In a cluster host (mode \"all\") this is how you choose which node subsequent commands act on."
     ],
@@ -287,9 +288,13 @@ export const TOOLS_CATALOG = [
       "path": "/status"
     },
     "params": [],
-    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording }",
+    "returns": "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode }",
     "notes": [
-      "Use this to verify the runner is alive and check current run state before driving the sim."
+      "⭐ CE-4097 (AQ108 D22) — `armedMode` is what the toolbar's ▶ would run from editing on this host: preview | live | aar (set_run_mode changes it); null when the host has no run choice. play / step never follow it.",
+      "Use this to verify the runner is alive and check current run state before driving the sim.",
+      "`recording` is whether the run the cluster shows is RECORDED: true in a live run, a review (DAR) or a recording (AAR) that has its recording; false in Idle / Edit / Preview and in a live run loaded with 'Record live runs' off (set_run_settings). When it is false in a live run, checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) answer 409 \"this run was not recorded\".",
+      "`scenarioDirty` is the LAST check round's verdict (check_unsaved): true = the scenario open for editing has unsaved changes, false = saved; null when no round ran, or the cluster left editing since. Reading it NEVER runs a round — call check_unsaved for a fresh answer.",
+      "`perspective` is the active perspective; `routedTo` is the perspective the reads here were answered from. They are equal EXCEPT while the cluster rests in Idle and every host shows the Start perspective: then `perspective` is \"Start\" and `routedTo` is the perspective the host will return to when a scenario or recording is opened (the world reads — entities, sim state, AI — keep answering from it)."
     ],
     "example": {
       "args": {},
@@ -560,6 +565,31 @@ export const TOOLS_CATALOG = [
   // ── Group E — Scenario ──────────────────────────────────────────────────────
 
   {
+    "name": "check_unsaved",
+    "group": "E — Scenario",
+    "summary": "Ask the cluster whether the scenario open for editing has unsaved changes (every node compares its whole world with its baseline).",
+    "http": {
+      "method": "POST",
+      "path": "/scenario/check-unsaved"
+    },
+    "params": [],
+    "returns": "ok:true envelope with changed (bool) and changedNodes (node ids whose world differs from its baseline, or that have none).",
+    "notes": [
+      "⭐ CE-4093 (AQ108 D20) — a CHECK ROUND on demand, never periodic: each node captures its whole world as a binary keyframe, hashes it and compares it with the baseline taken when the load committed or its slice was last saved; anything that changed counts (not only the scenario's parts). It can only err towards \"changed\" (an identical unit deleted and re-added), never report unchanged for a changed world. ~60 ms per node on a large scenario.",
+      "A save round that FAILED after the last load (the slice pull or the merge) makes the answer changed too — the files on disk are stale whatever the worlds say.",
+      "⭐ CE-3340 (R-4001) — NO deadline of its own: the master always ends the round (a node that stops its heartbeat is ejected, and the round then completes on the nodes that remain), so the answer can take up to the heartbeat timeout when a node died mid-round — never a 504. Give up by aborting the request.",
+      "Only an explicit \"unchanged\" from a node means saved: a node with no baseline counts as changed (and is named in changedNodes). A host with no ECS world does not take part.",
+      "get_status.scenarioDirty reports the LAST round's verdict without running one; load_scenario_live (and load_scenario_edit of another scenario) run this round themselves and answer 409 when it says changed."
+    ],
+    "example": {
+      "args": {},
+      "gist": "ask whether the open scenario has unsaved changes"
+    },
+    "hint": "No params. Answers 409 unless the cluster is open for editing (OperatingEdit). Example: check_unsaved({})",
+    "manualVerify": false
+  },
+
+  {
     "name": "load_scenario_edit",
     "group": "E — Scenario",
     "summary": "Load a scenario for AUTHORING (Edit state), cluster-wide.",
@@ -571,8 +601,14 @@ export const TOOLS_CATALOG = [
       {
         "name": "name",
         "type": "string",
-        "required": true,
-        "description": "Scenario name (relative path)"
+        "required": false,
+        "description": "Scenario name (relative path). Required unless recorded is sent; not with it."
+      },
+      {
+        "name": "recorded",
+        "type": "string",
+        "required": false,
+        "description": "⭐ CE-4091 — an exercise id (GET /exercises): opens THAT recording's scenario copy (the scenario as it ran, with its subfolders) as a NEW, UNSAVED scenario named opened/recorded/<id>, instead of name. The original scenario folder and the recording are never written; Save As to keep it."
       },
       {
         "name": "waitForReady",
@@ -580,10 +616,18 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Wait for the cluster to reach OperatingEdit before returning",
         "default": false
+      },
+      {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "Load even though the open scenario has unsaved changes (they are lost). Without it a load of ANOTHER scenario over unsaved edits answers 409.",
+        "default": false
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
     "notes": [
+      "⭐ CE-4093 (AQ108 D22) — a load of ANOTHER scenario while one is open for editing first asks the cluster to compare every node's whole world with its saved baseline (the check_unsaved round) and answers 409 \"the scenario has unsaved changes\" when it differs; save_scenario first, or send discardUnsaved:true. Reloading the scenario already open is not gated.",
       "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
       "Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).",
       "Edit state freezes sim time — nothing ticks until enter_preview or play.",
@@ -598,7 +642,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "load test-move for authoring and wait for ready"
     },
-    "hint": "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
+    "hint": "Req: name (string) OR recorded (an exercise id from list_exercises). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when ANOTHER scenario is loaded over unsaved edits, unless discardUnsaved:true. Example: load_scenario_edit({name:\"test-move\",waitForReady:true})",
     "manualVerify": false
   },
 
@@ -623,10 +667,18 @@ export const TOOLS_CATALOG = [
         "required": false,
         "description": "Wait for the cluster to reach OperatingLive before returning",
         "default": false
+      },
+      {
+        "name": "discardUnsaved",
+        "type": "boolean",
+        "required": false,
+        "description": "Go live even though the scenario open for editing has unsaved changes (they are lost). Without it such a load answers 409.",
+        "default": false
       }
     ],
     "returns": "ok:true envelope with loaded, target, entityCount, sawWorldChange, hadWorldAnchor, stoppedRun (CE-1025: \"a live run\" / \"a dry run\" / null).",
     "notes": [
+      "⭐ CE-4093 (AQ108 D22) — while a scenario is open for EDITING the cluster first compares every node's whole world with its saved baseline (the check_unsaved round); when it differs this answers 409 \"the scenario has unsaved changes\" — save_scenario first, or send discardUnsaved:true. From Idle, a preview, a live run or a replay nothing is asked.",
       "⭐ CE-1025 — a running live run or dry run is stopped first, with no prompt (HTTP is non-interactive): the dry run's restore point is FORGOTTEN, not rewound to; the answer's stoppedRun names the run (\"a live run\" / \"a dry run\") or is null.",
       "Set waitForReady:true to block until the cluster reaches OperatingLive (recommended).",
       "Every host has live-load handlers, so this is the mode that loads on ALL nodes — use it when the world must be the same everywhere.",
@@ -639,7 +691,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "load test-move live across the cluster and wait for ready"
     },
-    "hint": "Req: name (string). Optional: waitForReady (bool, use true). Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
+    "hint": "Req: name (string). Optional: waitForReady (bool, use true), discardUnsaved (bool). Answers 409 \"the scenario has unsaved changes\" when the scenario open for editing differs from its saved state, unless discardUnsaved:true. Example: load_scenario_live({name:\"test-move\",waitForReady:true})",
     "manualVerify": false
   },
 
@@ -666,7 +718,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "save current world as my-scenario"
     },
-    "hint": "Req: name (string). Example: save_scenario({name:\"my-scenario\"})",
+    "hint": "Req: name (string). Answers 409 in a live run and in a review / replay (AAR): that world is not the scenario — take a checkpoint, then make a scenario from it. Example: save_scenario({name:\"my-scenario\"})",
     "manualVerify": false
   },
 
@@ -902,7 +954,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "take a checkpoint before an experiment"
     },
-    "hint": "Optional: label (string). Requires a live run. Example: checkpoint({label:\"before-assault\"})",
+    "hint": "Optional: label (string). Requires a live RECORDED run (409 \"this run was not recorded\" otherwise). Example: checkpoint({label:\"before-assault\"})",
     "manualVerify": false
   },
 
@@ -929,7 +981,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "revert all changes since the last checkpoint"
     },
-    "hint": "Req: label (string, as checkpoint returned it). Requires a live run. Example: restore_checkpoint({label:\"before-assault\"})",
+    "hint": "Req: label (string, as checkpoint returned it). Requires a live RECORDED run (409 \"this run was not recorded\" otherwise). Example: restore_checkpoint({label:\"before-assault\"})",
     "manualVerify": false
   },
 
@@ -1208,6 +1260,43 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "set_run_mode",
+    "group": "D — Sim / preview / time",
+    "summary": "⭐ CE-4097 (AQ108 D22) — arm what the toolbar's ▶ will run from editing: preview | live | aar (the run-mode indicator's menu, for agents that drive the UI). It changes ONLY the armed mode; play, step and stop never follow it.",
+    "http": {
+      "method": "POST",
+      "path": "/run-mode"
+    },
+    "params": [
+      {
+        "name": "armed",
+        "type": "string",
+        "required": true,
+        "description": "preview | live | aar"
+      },
+      {
+        "name": "confirm",
+        "type": "boolean",
+        "required": false,
+        "description": "Accept the confirmation the indicator would ask (e.g. \"Ends the live session; you return to editing the scenario at its start\"); without it such a move answers 409 with that text and does nothing"
+      }
+    ],
+    "returns": "{ armedMode, mode }; 409 (with the confirmation's text) when the indicator would ask first and confirm was not sent; 409 when the move cannot be made.",
+    "notes": [
+      "From editing (or Idle) arming loses nothing and never asks. While a run goes, arming another mode ends the run and is confirmed — pass confirm:true to accept it.",
+      "get_status → armedMode reads the result. CGF / the all-in-one / the server default to live, the editor to preview."
+    ],
+    "example": {
+      "args": {
+        "armed": "live"
+      },
+      "gist": "arm live for the next play"
+    },
+    "hint": "Req: armed (preview | live | aar). Optional: confirm (bool) — accept the confirmation the indicator would show. Example: set_run_mode({armed:\"live\"})",
+    "manualVerify": false
+  },
+
+  {
     "name": "pause",
     "group": "D — Sim / preview / time",
     "summary": "Pause the simulation. Time freezes; commands queue until step/play.",
@@ -1241,7 +1330,8 @@ export const TOOLS_CATALOG = [
     "params": [],
     "returns": "ok:true envelope.",
     "notes": [
-      "Time advances after play (until pause or a breakpoint fires)."
+      "Time advances after play (until pause or a breakpoint fires).",
+      "⭐ CE-4097 (AQ108 D22) — EXPLICIT: from editing play is the DRY RUN (preview) on every host, whatever run mode the host has ARMED (get_status → armedMode). It never loads a live run. The toolbar's ▶ follows the armed mode; this route does not — to go live use load_scenario_live, to change what the toolbar's ▶ does use set_run_mode."
     ],
     "example": {
       "args": {},
@@ -1310,6 +1400,29 @@ export const TOOLS_CATALOG = [
       "gist": "advance 5 simulation ticks"
     },
     "hint": "No required params. Optional: count (number, def 1), dt (seconds per step, def 1/60). Example: step({count:5})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "stop",
+    "group": "D — Sim / preview / time",
+    "summary": "⭐ CE-4097 (AQ108 D22) — ■: the SAME stop as the toolbar's ■. A dry run goes back to editing; a live run ends and the scenario reopens for editing at its start (the armed mode stays Live); a DAR goes back to live; an AAR goes back to the recording's start.",
+    "http": {
+      "method": "POST",
+      "path": "/sim/stop"
+    },
+    "params": [],
+    "returns": "{ published, stoppedFrom, armedMode, state }; 409 where there is nothing to stop (editing, Idle).",
+    "notes": [
+      "It is ONE call with the toolbar's ■ — a request and a click do exactly the same thing.",
+      "Leaving editing is unloading the scenario, which is a load route's job: stop from editing answers 409.",
+      "The answer says what was published; the cluster state changes a frame or two later (get_status → clusterState)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "stop the run like the toolbar's stop button"
+    },
+    "hint": "No params. Example: stop({})",
     "manualVerify": false
   },
 
@@ -1553,7 +1666,7 @@ export const TOOLS_CATALOG = [
       "path": "/exercises"
     },
     "params": [],
-    "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds}] } newest first.",
+    "returns": "{ count, exercises:[{exerciseId, scenario, startUtc, durationSeconds, parentExerciseId (null = began at a load), branchWallTicks (the parent's wall ticks at the branch; 0 = none)}] } newest first.",
     "notes": [
       "Every host answers the same: each node keeps the master's inventory as it arrives over the cluster bus."
     ],
@@ -1562,6 +1675,37 @@ export const TOOLS_CATALOG = [
       "gist": "what can be replayed"
     },
     "hint": "No params. Example: list_exercises({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "delete_exercise",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4090 (AQ108 D15) — discard an UNARCHIVED recording: its ledger entry and its staging copies (the retention code's delete, CE-3218). A kept (archived) exercise and the run still recording are not deleted here.",
+    "http": {
+      "method": "DELETE",
+      "path": "/exercises/{id}"
+    },
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The exercise to discard (list_exercises)"
+      }
+    ],
+    "returns": "{ published, requestId, exerciseId }; 404 for an id GET /exercises does not list; 400 for a malformed id.",
+    "notes": [
+      "The master refuses (the request fails, nothing is deleted) while the exercise is the run still recording: stop the run first.",
+      "keep_exercise archives a recording for films; this is its opposite for a recording that should not pile up."
+    ],
+    "example": {
+      "args": {
+        "id": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "discard a recording"
+    },
+    "hint": "Req: id (path, an exerciseId from list_exercises). Example: delete_exercise({id:\"…\"})",
     "manualVerify": false
   },
 
@@ -1590,7 +1734,7 @@ export const TOOLS_CATALOG = [
       "args": {},
       "gist": "keep a recording for films"
     },
-    "hint": "Optional: exerciseId (string; the newest when omitted). Example: keep_exercise({})",
+    "hint": "Optional: exerciseId (string; the newest when omitted — 409 \"this run was not recorded\" when the last run was not recorded). Example: keep_exercise({})",
     "manualVerify": false
   },
 
@@ -2101,13 +2245,13 @@ export const TOOLS_CATALOG = [
         "name": "atSeconds",
         "type": "number",
         "required": false,
-        "description": "Where the review opens, seconds after the recording's zero (default: the live point)"
+        "description": "Where the review opens, seconds after the recording's zero — this or atSimSeconds is REQUIRED (AQ108 D9)"
       },
       {
         "name": "atSimSeconds",
         "type": "number",
         "required": false,
-        "description": "Or the recorded sim time to open at — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
+        "description": "Or the recorded sim time to open at (this or atSeconds is REQUIRED) — lands ON OR BEFORE: the master maps it to a wall moment (interpolated between frames) and every node lands on its last frame at or before that moment, so the landed simSeconds can be up to one frame early (measured: 10 → 9.895); compare at the landed simSeconds the status reports"
       },
       {
         "name": "waitForReady",
@@ -2128,7 +2272,7 @@ export const TOOLS_CATALOG = [
       },
       "gist": "look back at the live run"
     },
-    "hint": "Optional: atSeconds (wall, after the replay's zero) or atSimSeconds (the recorded sim time) — else the live point; waitForReady (bool). Example: enter_review({atSimSeconds:30, waitForReady:true})",
+    "hint": "Req: atSeconds (wall, after the replay's zero) OR atSimSeconds (the recorded sim time) — a review always has an explicit start (400 without one; ⭐ AQ108 D9: the live point is no longer implied); optional waitForReady (bool). 409 \"this run was not recorded\" for a run loaded with 'Record live runs' off. Example: enter_review({atSimSeconds:30, waitForReady:true})",
     "manualVerify": false
   },
 
@@ -2189,6 +2333,64 @@ export const TOOLS_CATALOG = [
       "gist": "move within the review"
     },
     "hint": "One of: atSeconds · atSimSeconds · frame · frames · cause · next. Example: seek_review({atSimSeconds:12})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "get_run_settings",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings as the master last broadcast them: recordLiveRuns (what the NEXT live load does) and ⭐ CE-3341 armed (preview | live | aar — the CLUSTER's armed mode, what ▶ runs next; ONE fact on every host, the default is live). The same answer on every host.",
+    "http": {
+      "method": "GET",
+      "path": "/run-settings"
+    },
+    "params": [],
+    "returns": "{ recordLiveRuns, armed }",
+    "notes": [
+      "A set_run_settings is visible here once the master has broadcast it (a frame or two)."
+    ],
+    "example": {
+      "args": {},
+      "gist": "will the next live run be recorded"
+    },
+    "hint": "No params. get_status → recording says whether the run on screen is recorded. Example: get_run_settings({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "set_run_settings",
+    "group": "I — Replay",
+    "summary": "⭐ CE-4090 (AQ108 D14) — the cluster-wide run settings, held by the master: recordLiveRuns (default true). With it OFF a live run writes no recording and no inventory entry; checkpoint, restore_checkpoint, enter_review, keep_exercise and enter_replay (of the last run) then answer 409 \"this run was not recorded\". Live does not imply recording. ⭐ CE-3341 (AQ108 D12a): also the cluster's ARMED mode (armed: preview | live | aar) — the same op the operator UI sends; every host's run-mode indicator follows it.",
+    "http": {
+      "method": "POST",
+      "path": "/run-settings"
+    },
+    "params": [
+      {
+        "name": "recordLiveRuns",
+        "type": "boolean",
+        "required": false,
+        "description": "Whether a live run starts a recording (the cluster's default is true); absent = unchanged"
+      },
+      {
+        "name": "armed",
+        "type": "string",
+        "required": false,
+        "description": "The cluster's armed run mode: preview | live | aar (default live); absent = unchanged. ⛔ No load route sends one (D22)"
+      }
+    ],
+    "returns": "{ published, requestId, recordLiveRuns?, armed?, note }",
+    "notes": [
+      "The scenario verifier always records, whatever this says.",
+      "A replay → live branch follows the setting like any live run."
+    ],
+    "example": {
+      "args": {
+        "recordLiveRuns": false
+      },
+      "gist": "run live without recording"
+    },
+    "hint": "At least one of: recordLiveRuns (bool), armed (preview|live|aar); an absent one changes nothing. recordLiveRuns applies from the NEXT live load; the run on screen keeps its mode (get_status → recording). Example: set_run_settings({recordLiveRuns:false})",
     "manualVerify": false
   },
 

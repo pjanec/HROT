@@ -59,8 +59,8 @@ public interface ITimeTransportFacade
     /// <summary>Switches the whole session's axis (no seek: the frame on screen stays).</summary>
     void SetAxis(Fdp.Toolkit.Orchestration.ReplayAxis axis);
 
-    /// <summary>Reviews the live run in place, at <paramref name="at"/> on the active axis — <see langword="null"/> = the live point.</summary>
-    void EnterReview(double? at = null);
+    /// <summary>Reviews the live run in place, at <paramref name="at"/> on the active axis. ⭐ CE-4100 ③ (AQ108 D9): a DAR always has an explicit start — never "the live end", so there is no default.</summary>
+    void EnterReview(double at);
 
     /// <summary>Back to the live run, exactly where it paused (R-3060: <see cref="Stop"/> in a review does the same).</summary>
     void ExitReview();
@@ -90,6 +90,14 @@ public interface ITimeTransportFacade
     /// <summary>Reviews the live run from <paramref name="simSeconds"/> of the run's own clock — from LIVE the host has no session yet (no map, no wall zero),
     /// and the master takes a sim target on either axis ("the sim target wins", <c>ReplaySessionIntents.EnterReview</c>).</summary>
     void EnterReviewAtSim(double simSeconds);
+
+    /// <summary>
+    /// ⭐ <c>CE-4097</c> part two (AQ108 D22) — this host's run-mode choice, or <see langword="null"/> when it has none. ⛔ The facade's own
+    /// <see cref="TogglePlayPause"/> / <see cref="Step"/> / <see cref="StepBy"/> stay RAW (from Edit: the dry run) — HTTP routes do what they
+    /// name and never follow the armed mode. A USER control (the toolbar's ▶, the timeline's Space) asks the choice through
+    /// <see cref="Hrot.UI.Common.RunMode.UserTransport"/>; <see cref="Stop"/> delegates to the choice itself (<c>POST /sim/stop</c> = ■).
+    /// </summary>
+    Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => null;
 }
 
 /// <summary>⭐ CE-3329 row 21 — what the cluster shows (the facade's <see cref="ITimeTransportFacade.Mode"/>).</summary>

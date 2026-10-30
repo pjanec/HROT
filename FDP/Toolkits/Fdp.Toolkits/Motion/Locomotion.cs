@@ -63,21 +63,37 @@ namespace Fdp.Toolkit.Motion
 
         /// <summary>The body's class: ⭐ airborne insertion D-1 — a <see cref="Descent"/> FIRST (it replicates, so every node agrees), then its
         /// <see cref="Locomotion"/>, else its <see cref="VehicleParams"/> preset, else Unknown.</summary>
-        public static LocomotionClass Of(EntityRepository view, Entity e)
+        public static LocomotionClass Of(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
-            if (view.IsComponentTypeRegistered<Descent>() && view.HasComponent<Descent>(e))
+            if (Has<Descent>(view, e))
             {
                 ref readonly var d = ref view.GetComponentRO<Descent>(e);
                 if (d.Kind != DescentKind.None) return d.Class;
             }
-            if (view.IsComponentTypeRegistered<Locomotion>() && view.HasComponent<Locomotion>(e))
+            if (Has<Locomotion>(view, e))
             {
                 var c = view.GetComponentRO<Locomotion>(e).Class;
                 if (c != LocomotionClass.Unknown) return c;
             }
-            if (view.IsComponentTypeRegistered<VehicleParams>() && view.HasComponent<VehicleParams>(e))
+            if (Has<VehicleParams>(view, e))
                 return FromVehicleClass(view.GetComponentRO<VehicleParams>(e).Class);
             return LocomotionClass.Unknown;
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1373</c> — <b>the ONE <c>IsVehicle</c></b>: a ground body that is not a person, read through <see cref="Of"/> (Descent, then <see cref="Locomotion"/>, then the <see cref="VehicleParams"/> preset) —
+        /// so a wheeled body with a <see cref="Locomotion"/> and NO <see cref="VehicleParams"/> is a vehicle too. A body with no class anywhere keeps the old fallback: a bare <see cref="VehicleState"/> is a vehicle.
+        /// <c>VehicleCover.IsVehicle</c> and <c>PathRequests.IsVehicle</c> forward here (they were two copies of the narrower rule).
+        /// </summary>
+        public static bool IsVehicle(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
+        {
+            var c = Of(view, e);
+            if (c != LocomotionClass.Unknown) return DomainOf(c) == MotionDomain.Ground && c != LocomotionClass.Pedestrian;
+            return Has<VehicleState>(view, e);
+        }
+
+        // a component read through the view: an unregistered type is "absent" (the repository answers by registration; any other view by its own HasComponent)
+        private static bool Has<T>(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e) where T : unmanaged
+            => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<T>()) && view.HasComponent<T>(e);
     }
 }

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Fdp.Toolkit.Terrain
 {
@@ -39,7 +41,30 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public static void Build(TerrainWorld world, out Vector3[] verts, out int[] indices, out TerrainTriangleTag[] tags, float cellSize = 0f)
         {
-            if (cellSize <= 0f) cellSize = DefaultCellSize(world);
+            // ⭐ CE-1452 — ONE build per terrain world at the default cell size: the 3-D mesh, its tags and the picker's grid all ask
+            //   for the same soup (the build took 45–60 s on demo-city, three times over). The arrays are SHARED — read-only for every
+            //   caller (measured: none mutates them). A non-default cell size builds directly, uncached.
+            if (cellSize <= 0f)
+            {
+                var m = Memo.GetValue(world, w => new Lazy<Result>(() => BuildCore(w, DefaultCellSize(w)), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+                verts = m.Verts; indices = m.Indices; tags = m.Tags;
+                return;
+            }
+            var r = BuildCore(world, cellSize);
+            verts = r.Verts; indices = r.Indices; tags = r.Tags;
+        }
+
+        private sealed record Result(Vector3[] Verts, int[] Indices, TerrainTriangleTag[] Tags);
+
+        private static readonly ConditionalWeakTable<TerrainWorld, Lazy<Result>> Memo = new();
+        private static readonly ConditionalWeakTable<TerrainWorld, StrongBox<int>> CoreBuilds = new();
+
+        /// <summary>How many times THIS world's soup has really been built (a rail counts it — the memo must make it one per world).</summary>
+        internal static int CoreBuildCount(TerrainWorld world) => CoreBuilds.TryGetValue(world, out var n) ? Volatile.Read(ref n.Value) : 0;
+
+        private static Result BuildCore(TerrainWorld world, float cellSize)
+        {
+            Interlocked.Increment(ref CoreBuilds.GetOrCreateValue(world).Value);
             var v = new List<Vector3>();
             var t = new List<int>();
             var g = new List<TerrainTriangleTag>();
@@ -57,9 +82,7 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
 
-            verts = v.ToArray();
-            indices = t.ToArray();
-            tags = g.ToArray();
+            return new Result(v.ToArray(), t.ToArray(), g.ToArray());
         }
 
         private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)

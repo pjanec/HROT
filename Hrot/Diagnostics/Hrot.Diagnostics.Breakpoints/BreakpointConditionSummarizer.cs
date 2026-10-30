@@ -44,7 +44,13 @@ public static class BreakpointConditionSummarizer
         };
         string what = st.Kind switch
         {
-            BehaviourStepKind.NodeRuns        => $"node {label} runs",
+            BehaviourStepKind.NodeRuns        => st.Outcome switch
+            {
+                BehaviourNodeOutcome.Running   => $"node {label} activates",
+                BehaviourNodeOutcome.Completes => $"node {label} completes",
+                BehaviourNodeOutcome.Aborted   => $"node {label} is interrupted",
+                _                              => $"node {label} runs",
+            },
             BehaviourStepKind.StateEnter      => $"{label} entered",
             BehaviourStepKind.StateExit       => $"{label} left",
             BehaviourStepKind.InsideEnter     => $"anything inside {label}{(st.Region >= 0 ? $" (region {st.Region})" : "")} entered",

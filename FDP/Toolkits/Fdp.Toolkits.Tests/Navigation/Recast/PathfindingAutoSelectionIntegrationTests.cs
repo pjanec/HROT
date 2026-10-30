@@ -328,9 +328,7 @@ public sealed class PathfindingAutoSelectionIntegrationTests : IDisposable
 
     private static string ShippedTerrain(string name)
     {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
-        return System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", name);
+        return System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), name);
     }
 
     /// <summary>

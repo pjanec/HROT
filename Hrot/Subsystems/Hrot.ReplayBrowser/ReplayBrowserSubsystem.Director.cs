@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Fdp.Core;
+using Fdp.Toolkit.Scenario;
 using Hrot.UI.Common.Map3D.Director;
 
 namespace Hrot.ReplayBrowser;
@@ -28,7 +29,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
         //   them through (TE-1's reverse: a promoted take plays on every later recording of its scenario)
         var scenarioTakes = new TakeStore(() => DirectorScenariosRoot, TakeStore.FindFilmsDirectory);
         var takes = new TakeStore(() => DirectorTakesRoot, TakeStore.FindFilmsDirectory,
-                                  scenario => PrimaryMetadata is { } m && m.ScenarioName == scenario ? m.ScenarioHash : null,
+                                  scenario => PrimaryMetadata is { } m && m.ScenarioName == scenario ? RecordedScenarioStamp.VersionOf(RecordingsRoot, m) : null,   // ⭐ CE-3340 ② — the go-live stamp, the one reader
                                   new ScenarioTakesSource(() => PrimaryMetadata?.ScenarioName, () => scenarioTakes));
         var host = new ReplayDirectorHost(
             world:         () => _activeRepo,

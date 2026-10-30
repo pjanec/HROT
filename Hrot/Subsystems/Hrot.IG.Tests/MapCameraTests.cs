@@ -206,7 +206,8 @@ public class MapCameraPanTests
         {
             MinZoom   = IgCameraConstants.MinZoom,
             MaxZoom   = IgCameraConstants.MaxZoom,
-            ZoomSpeed = IgCameraConstants.ZoomSpeedPerTick
+            ZoomSpeed = IgCameraConstants.ZoomSpeedPerTick,
+            ViewCentreSource = _ => Vector2.Zero   // ⭐ CE-4084 — these rails measure a pan from Offset (0,0); pin the anchor there
         };
         cam.Update(0f);
         return cam;

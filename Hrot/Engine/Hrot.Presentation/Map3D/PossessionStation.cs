@@ -373,7 +373,8 @@ namespace Hrot.UI.Common.Map3D
             if (MapPeek) { DrawPeekHint(); return; }   // ⭐ CE-1218 (§8k M-1) — the 2-D map, not his view
             var camera = _view.Camera3D;
             var size = camera.Viewport;
-            int cx = (int)(size.X / 2), cy = (int)(size.Y / 2);
+            var vc = camera.ViewCentre;   // ⭐ CE-4084 — drawn where Aim picks
+            int cx = (int)vc.X, cy = (int)vc.Y;
             Raylib.DrawLine(cx - 10, cy, cx - 3, cy, Color.White);
             Raylib.DrawLine(cx + 3, cy, cx + 10, cy, Color.White);
             Raylib.DrawLine(cx, cy - 10, cx, cy - 3, Color.White);
@@ -1818,7 +1819,7 @@ namespace Hrot.UI.Common.Map3D
         public static (Vector3 Point, long Target) Aim(MapCamera3D camera)
         {
             // ⭐ CE-1126 (§8g F-4) — the terrain and the entities' PARTS (the round's own boxes): the point is on his head, arm or hull
-            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.Aim);
+            var hit = camera.Pick(camera.ViewCentre, PickFilter.Aim);   // ⭐ CE-4084 — the crosshair is at the VISIBLE map's centre
             if (hit.Kind == PickKind.None || !float.IsFinite(hit.Distance) || hit.Distance > AimReach)
                 return (camera.Eye + camera.Forward * AimReach, 0L);
             return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0L);

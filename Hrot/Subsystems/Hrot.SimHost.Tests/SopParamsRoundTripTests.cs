@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -84,7 +85,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Hrot.AI.Behaviors.Brains.HsmChannelE2EParams", def!.JsonParamsDtoType?.FullName);
 
             // the scenario's own params text — the shape a mission sends, kept honest by reading the file
-            string scenario = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "scenarios", "hsm-channel-e2e", "scenario.json"));
+            string scenario = System.IO.File.ReadAllText(System.IO.Path.Combine(TestRepo.Root, "scenarios", "hsm-channel-e2e", "scenario.json"));
             string? json = null;
             foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(
                          scenario, "\"behaviorName\":\\s*\"HsmChannelE2E\",\\s*\"behaviorParams\":\\s*(\"(?:[^\"\\\\]|\\\\.)*\")"))
@@ -108,17 +109,6 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1002L, BitConverter.ToInt64(block, firing));
             Assert.Equal(0, block[guard]);
             Assert.Equal(3, new[] { driving, firing, guard }.Distinct().Count());   // three slices, not one window read three ways
-        }
-
-        private static string RepoRoot()
-        {
-            var dir = AppContext.BaseDirectory;
-            for (int i = 0; i < 12 && !string.IsNullOrEmpty(dir); i++)
-            {
-                if (System.IO.File.Exists(System.IO.Path.Combine(dir, "HROT.sln"))) return dir;
-                dir = System.IO.Directory.GetParent(dir)?.FullName;
-            }
-            throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory);
         }
 
         /// <summary>⭐ The PRODUCTION serialiser itself (a boxed value serialises as its runtime type).</summary>

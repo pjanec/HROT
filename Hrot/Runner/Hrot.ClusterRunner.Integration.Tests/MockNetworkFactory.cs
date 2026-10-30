@@ -26,8 +26,6 @@ internal class MockNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway() => new NullCommandGateway();
 
-    /// <inheritdoc/>
-    public IExConEgressWriters CreateExConEgressWriters() => new NullExConEgressWriters();
 
     /// <inheritdoc/>
     public ITimeControlGateway CreateTimeControlGateway() => new NullTimeControlGateway();
@@ -55,18 +53,6 @@ internal class MockNetworkFactory : INetworkFactory
     public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
         => NullIgNetworkAdapter.Instance;
 
-    /// <inheritdoc/>
-    public System.Collections.Generic.IEnumerable<Fdp.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
-        CycloneDDS.Runtime.DdsParticipant?                participant,
-        long                                              localNodeId,
-        Fdp.Toolkit.DER.IDerRepo                         repo,
-        Action<MapClickEventDto>                         onMapClick,
-        Action<SelectionChangedEventDto>                 onSelectionChanged,
-        Action<EntityLifecycleAckDto>                    onEntityLifecycleAck,
-        Action<MapCommandAckDto>                         onMapCommandAck)
-    {
-        yield break;
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(
@@ -113,9 +99,6 @@ internal class MockNetworkFactory : INetworkFactory
     public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(Fdp.Core.FdpEventBus bus, int nodeId)
         => new NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public IOrchestrationObserver CreateOrchestrationObserver(Fdp.Core.FdpEventBus bus)
-        => new NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(
@@ -157,15 +140,6 @@ internal class MockNetworkFactory : INetworkFactory
         public void Dispose() { }
     }
 
-    private sealed class NullExConEgressWriters : IExConEgressWriters
-    {
-        public void WriteMapConfig(MapConfigDto config) { }
-        public void WriteDeleteEntity(int entityId) { }
-        public void WriteCreateEntity(CreateEntityCommand cmd) { }
-        public void WriteMapCommand(MapCommandDto cmd) { }
-        public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
-        public void Dispose() { }
-    }
 
     private sealed class NullTimeControlGateway : ITimeControlGateway
     {

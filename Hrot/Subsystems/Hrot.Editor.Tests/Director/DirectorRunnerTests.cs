@@ -72,6 +72,8 @@ public sealed class DirectorRunnerTests : IDisposable
         public bool HasLoadedAScenario => Loads.Count > 0;
         public int? EntityCount => Repo.EntityCount;
         public bool InPreview { get; private set; }
+        /// <summary>⭐ R-1046 — the shown map's 3-D build (null: this host has none to wait for).</summary>
+        public Fdp.Toolkit.Vis3D.Map3DBuild? MapBuild { get; set; }
         public void EnterPreview(bool startPaused) { InPreview = true; Paused = startPaused; Enters++; }
         public void ExitPreview() { InPreview = false; Exits++; SimTime = 0d; _inFlight.Clear(); }
         public bool Paused { get; private set; }
@@ -867,6 +869,68 @@ public sealed class DirectorRunnerTests : IDisposable
         Assert.False(noWorld.Observe(false, null, 0.1));
         Assert.True(noWorld.Observe(true, null, 0.2));
         Assert.False(noWorld.HadWorldAnchor);
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-1046</c> (DESIGN_Cluster_Load_Phase §11.9) — the probe's <c>mapBuilt</c> input: a load that is otherwise ready (target state, world seen changing and settled) is NOT ready while the shown map's 3-D build is not built;
+    /// the default (a host with no 3-D map) is built. 🔴 Mutation: <c>mapBuilt</c> dropped from the return ⇒ the first cell reds.
+    /// </summary>
+    [Fact]
+    public void R1046_TheReadyProbe_AlsoWaitsForTheMapBuild()
+    {
+        var p = new ScenarioReadyProbe(8);
+        Assert.False(p.Observe(true, 0, 0.1, mapBuilt: false));
+        Assert.False(p.Observe(true, 8, 0.2, mapBuilt: false));
+        Assert.False(p.Observe(true, 8, 0.3, mapBuilt: false), "the world has changed and settled, the map is still building");
+        Assert.True(p.Observe(true, 8, 0.4, mapBuilt: true), "built: ready — the bookkeeping kept running while it waited");
+        var noMap = new ScenarioReadyProbe(8);
+        noMap.Observe(true, 0, 0.1); noMap.Observe(true, 8, 0.2);
+        Assert.True(noMap.Observe(true, 8, 0.3));                                    // no map to wait for: unchanged
+    }
+
+    /// <summary>A background-built layer with no GPU: its built flag is the test's to set; it counts the builds asked of it.</summary>
+    private sealed class HeldMapLayer : Fdp.Toolkit.Vis3D.IMeshLayer3D
+    {
+        public bool Built; public int Requests; public string? Failed;
+        public string BuildName => "terrain";
+        public bool HasSource => true;
+        public bool IsBuilt => Built;
+        public string? BuildFailure => Failed;
+        public void RequestBuild() => Requests++;
+        public void PumpBuild() { }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-1046</c> — <b>the director waits for the map</b>: the runner asks for the shown map's 3-D build when it requests the load, and a take does not start (the runner stays in Loading, the preview is not entered) while it is not built;
+    /// once built the take plays; a failed build fails the item with the message. A host with no map (<c>MapBuild</c> null) is unchanged.
+    /// 🔴 Mutation: the runner not passing <c>mapBuilt</c> to the probe ⇒ the preview is entered while the map builds.
+    /// </summary>
+    [Fact]
+    public void R1046_TheRunner_DoesNotStartATake_WhileTheMapIsBuilding()
+    {
+        var layer = new HeldMapLayer();
+        var host = new FakeEditor(Store()) { MapBuild = new Fdp.Toolkit.Vis3D.Map3DBuild(new Fdp.Toolkit.Vis3D.IMeshLayer3D[] { layer }, Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest, available: () => true) };
+        var runner = new DirectorRunner(host, new Cinema(), new Layers());
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        for (int f = 0; f < 600 && runner.Busy; f++) { runner.Tick(); host.EndFrame(); }   // the load completes in a few frames; the map does not
+        Assert.True(layer.Requests >= 1 || host.MapBuild.Requested, "the runner asked for the 3-D map");
+        Assert.True(host.MapBuild.Requested);
+        Assert.Equal(DirectorPhase.Loading, runner.Phase);                             // still waiting …
+        Assert.Equal(0, host.Enters);                                                  // … no take started
+
+        layer.Built = true;                                                            // the map is built
+        Run(runner, host);
+        Assert.Equal(DirectorPhase.Done, runner.Phase);
+        Assert.Equal(1, host.Enters);
+        Assert.Equal("ok", runner.Reports[0].Status);
+
+        var broken = new HeldMapLayer { Failed = "no GPU memory" };
+        var host2 = new FakeEditor(Store()) { MapBuild = new Fdp.Toolkit.Vis3D.Map3DBuild(new Fdp.Toolkit.Vis3D.IMeshLayer3D[] { broken }, Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest, available: () => true) };
+        var runner2 = new DirectorRunner(host2, new Cinema(), new Layers());
+        Assert.Empty(runner2.Play(new PlayRequest(Reel.Of("s-a", "main"))));
+        Run(runner2, host2);
+        Assert.Equal(0, host2.Enters);
+        Assert.Contains("no GPU memory", string.Join(" ", runner2.Reports.SelectMany(r => r.Problems)));
     }
 
     // ── CE-4042 — the Verify mode (docs/DESIGN_Scenario_Regression.md §2a) ──────────────────────────────────────────────────

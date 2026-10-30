@@ -270,6 +270,8 @@ public sealed class OrchestratorSubsystemTests
     private static void ResumeFromPausedBoot(OrchestratorSubsystem subsystem)
     {
         Assert.True(subsystem.UiCacheForTest!.IsPaused, "CE-101: the cluster boots paused.");
+        // ⭐ CE-3344 (R-3069): a cluster that has not reported its Brain and MuscleGround is not ready and rejects commands — this host plays the roles itself.
+        subsystem.TestHook_ClusterMaster!.LocalRoles = Fdp.Core.NodeRole.Brain | Fdp.Core.NodeRole.MuscleGround;
         subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),

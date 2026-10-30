@@ -16,6 +16,9 @@
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- ⭐ CE-1439 (AQ108 §2.12): the Orchestrator composes the SAME scenario session, menu registrar and pickers the editor and CGF do (EditorScenarioSession,
+         ScenarioMenuCommands, RecordingPickerLauncher …). Measured acyclic: Hrot.Editor.AiShared references neither this project nor anything that does. -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <!-- OrchestratorSubsystem, ClusterScenarioPanel, ClusterUiCache moved here -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
   </ItemGroup>

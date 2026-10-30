@@ -53,14 +53,6 @@ namespace Hrot.ScenarioEditor.Tools
         /// <summary>Zone obstacle placement — <c>IZoneAuthoringController.StartObstaclePlacementMode</c>.</summary>
         public const string PlaceObstacle = "scenario.place.obstacle";
 
-        /// <summary>
-        /// Entity placement driven by a REMOTE creation session (IG's <c>MapCommandController</c>).
-        /// ⚠ Deliberately distinct from <see cref="Spawn"/>: <c>Spawn</c> is the operator arming the
-        /// local spawn adapter, this is a request arriving from ExCon with its own session id and
-        /// lifetime. ⭐ Same gizmo, different owner — and the controller must be able to tell them apart
-        /// so cancelling one does not silently orphan the other's session.
-        /// </summary>
-        public const string PlaceRemoteEntity = "scenario.place.remote-entity";
 
         /// <summary>Area (polygon) authoring — <c>ISpawnController.StartAreaAuthoringMode</c>.</summary>
         public const string PlaceArea = "scenario.place.area";

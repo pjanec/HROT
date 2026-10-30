@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\..\FDP\TestShared\TickModeProbe.cs" Link="Shared\TickModeProbe.cs" />   <!-- CE-3293: every system and module declares its TickMode -->
+    <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
     <Compile Include="..\..\..\FDP\TestShared\WorldBoundaryProbe.cs" Link="Shared\WorldBoundaryProbe.cs" />   <!-- CE-3294: a system holding entities forgets them at the world boundary -->
     <Compile Include="..\..\..\FDP\TestShared\SystemStateProbe.cs" Link="Shared\SystemStateProbe.cs" />   <!-- R-3039 S4: every field a system, module or translator carries between frames is classified -->
     <Compile Include="..\..\..\FDP\TestShared\DataPolicyProbe.cs" Link="Shared\DataPolicyProbe.cs" />   <!-- CE-3299 D7: every registrable type declares its DataPolicy -->

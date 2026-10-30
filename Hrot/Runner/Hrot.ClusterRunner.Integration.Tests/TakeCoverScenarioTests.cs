@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.Linq;
 using System.IO;
@@ -41,15 +42,8 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
-
     private static string Recipe(string root)
-        => Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-take-cover", "scenario.json");
+        => Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-take-cover", "scenario.json");
 
     /// <summary>By name, as <c>SopDemoScenarioTests</c> — a load assigns network ids, so the file's are not the runtime's.</summary>
     private static Entity ByName(EntityRepository world, string name)
@@ -157,11 +151,11 @@ public sealed class TakeCoverScenarioTests : IDisposable
     [Fact(Timeout = 300_000)]
     public async Task CE2101_ASecondLiveLoad_StartsFromTheFile_OnEveryHost()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Recipe(root), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -267,11 +261,11 @@ public sealed class TakeCoverScenarioTests : IDisposable
     [Fact(Timeout = 300_000)] // ⭐ CE-3067's acceptance: the Stop rewind must restore the entity index whole (EntityIndex.SyncFrom)
     public async Task CE2101_PreviewFromEdit_PerceivesAndTakesCover_AndStopRewindsToTheEdit()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(Recipe(root), Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -364,7 +358,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
     private async Task RunOrderedAsync(string behaviour, int site, uint template, bool sideOn)
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         var staged = Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json");
         var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Recipe(root)))!;
@@ -373,7 +367,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
         unit["Roe"] = System.Text.Json.Nodes.JsonNode.Parse("{\"Fire\":\"HoldFire\",\"Reactions\":\"StayOnTask\",\"SetBy\":\"Superior\"}");
         File.WriteAllText(staged, doc.ToJsonString());
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -441,7 +435,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
 
     private async Task RunAsync(bool holdFire, string expectedReaction)
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         var staged = Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json");
         var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Recipe(root)))!;
@@ -452,7 +446,7 @@ public sealed class TakeCoverScenarioTests : IDisposable
         int site = holdFire ? Hrot.AI.Behaviors.Brains.EqsTacticsNodes.FallBackSite : Hrot.AI.Behaviors.Brains.EqsTacticsNodes.TakeCoverSite;
         uint template = holdFire ? FindSafeRetreatPoint.BlueprintId : FindCoverFromTarget.BlueprintId;
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

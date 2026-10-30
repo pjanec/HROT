@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "All (ExCon+IG+SIM+CGF)": {
+    "All (IG+SIM+CGF)": {
       "commandName": "Project",
       "commandLineArgs": "-m all"
     },
@@ -11,10 +11,6 @@
     "SimHost": {
       "commandName": "Project",
       "commandLineArgs": "-m simhost --no-wait"
-    },
-    "ExCon": {
-      "commandName": "Project",
-      "commandLineArgs": "-m excon --no-wait"
     },
     "Editor": {
       "commandName": "Project",

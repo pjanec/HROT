@@ -1,3 +1,4 @@
+using Fdp.Testing;
 using System;
 using System.IO;
 using System.Linq;
@@ -38,13 +39,6 @@ public sealed class SquadTacticsScenarioTests : IDisposable
 
     public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (Directory.Exists(Path.Combine(dir.FullName, "Hrot", "Subsystems"))) return dir.FullName;
-        throw new DirectoryNotFoundException("repo root not found above " + AppContext.BaseDirectory);
-    }
-
     private static Entity ByName(EntityRepository world, string name)
     {
         for (int i = 0; i <= world.MaxEntityIndex; i++)
@@ -59,12 +53,12 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     [Fact(Timeout = 240_000)]
     public async Task CE2123_ASquadSuppressesFromWhereItStands_FlanksWhereTheLeaderAsks_AndAssaultsThrough()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
-        File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-suppress-flank", "scenario.json"),
+        File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-suppress-flank", "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -153,15 +147,15 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     [Fact(Timeout = 600_000)]
     public async Task CE2123_ABoundingSquadMeetsTheEnemy_ItsLeaderReacts_HoldsThenAssaults_ThenTheBoundResumes()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         var scenarioId = "tt_react_contact_" + Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-react-contact", "scenario.json"),
+            File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-react-contact", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
-            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -260,15 +254,15 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     [Fact(Timeout = 600_000)]
     public async Task CE2123_ASquadMarchesInAWedge_EveryoneArrives_AndThePathRequestCostIsBounded()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         var scenarioId = "tt_squad_march_" + Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-squad-march", "scenario.json"),
+            File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-squad-march", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
-            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -359,18 +353,18 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     [Fact(Timeout = 600_000)]
     public async Task CE2141_AMoveOrder_WithAGeodeticPoint_MarchesTheSquadThere_AndReleasesItsMembersAtTheEnd()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         var scenarioId = "tt_squad_move_" + Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
             var doc = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(
-                Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-squad-march", "scenario.json")))!;
+                Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-squad-march", "scenario.json")))!;
             foreach (var (_, e) in doc["entities"]!.AsObject())
                 if ((string?)e!["EntityInfo"]?["Name"] == "Squad") e.AsObject().Remove("Behavior");   // the order comes at run time
             File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), doc.ToJsonString());
 
-            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -445,15 +439,15 @@ public sealed class SquadTacticsScenarioTests : IDisposable
     [Fact(Timeout = 600_000)]
     public async Task CE1056_AConvoyIsAmbushed_TheSquadDismounts_ThenReactsToContact()
     {
-        var root = RepoRoot();
+        var root = TestRepo.Root;
         var scenarioId = "tt_convoy_ambush_" + Guid.NewGuid().ToString("N");
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(root, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Scenarios", "tt-convoy-ambush", "scenario.json"),
+            File.Copy(Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "tt-convoy-ambush", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
 
-            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)
@@ -546,9 +540,9 @@ public sealed class SquadTacticsScenarioTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(scenarioId));
         try
         {
-            File.Copy(Path.Combine(RepoRoot(), "scenarios", "cc-platoon-bound", "scenario.json"),
+            File.Copy(Path.Combine(TestRepo.Root, "scenarios", "cc-platoon-bound", "scenario.json"),
                 Path.Combine(NasScenarioStaging.DirectoryOf(scenarioId), "scenario.json"), overwrite: true);
-            using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+            using var harness = new HrotRunnerHarness("simhost,ig,cgf", NextDomainId());
             var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
             var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
             while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

@@ -43,6 +43,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public bool IsComplete => true;
         public string? Error => null;
 
+        /// <summary>⭐ CE-1448 — the world frame number of the last frame indexed (<see cref="long.MinValue"/> before any): what a node waits for its world to catch up to after a review's return.</summary>
+        public long LastFrame => _lastFrame;
+
         /// <summary>Frames indexed in the current run.</summary>
         public int Frames => _scanner?.Frames ?? 0;
 
