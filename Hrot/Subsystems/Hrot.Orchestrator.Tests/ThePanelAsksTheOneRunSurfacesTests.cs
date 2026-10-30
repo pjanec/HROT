@@ -48,7 +48,7 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         public void Ask(Action<UnsavedAnswer> reply) { Asked++; reply(UnsavedAnswer.Unchanged); }
     }
 
-    private sealed record Rig(ClusterPanelRunControls Controls, ClusterTimeTransportAdapter Adapter, FdpEventBus Bus, FakeSession Session, CountingUnsaved Unsaved, RunModeChoice Choice);
+    private sealed record Rig(ClusterPanelRunControls Controls, ClusterTimeTransportAdapter Adapter, FdpEventBus Bus, FakeSession Session, CountingUnsaved Unsaved, RunModeChoice Choice, ClusterView View);
 
     /// <summary>The cluster is heard in <paramref name="state"/> (exercise <see cref="RunId"/>, recorded), the way the master's broadcast reaches the host's view.</summary>
     private static Rig With(ClusterState state)
@@ -61,10 +61,58 @@ public sealed class ThePanelAsksTheOneRunSurfacesTests
         var choice = adapter.AttachRunChoice(session, unsaved);
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, ExerciseId = RunId });
         bus.SwapBuffers(); view.Update(); adapter.Update(); bus.SwapBuffers();
-        return new Rig(new ClusterPanelRunControls(adapter, choice, session), adapter, bus, session, unsaved, choice);
+        return new Rig(new ClusterPanelRunControls(adapter, choice, session), adapter, bus, session, unsaved, choice, view);
     }
 
     private static List<T> Sent<T>(FdpEventBus bus) { bus.SwapBuffers(); return bus.ReadManaged<T>().ToList(); }
+
+    // ── ⭐ CE-4100 ① — the run settings toggles: Record live runs · Ask to keep recordings ─────────
+
+    /// <summary>
+    /// Both toggles READ the cluster's settings off the node's <c>ClusterView</c> (default: record ON, ask OFF; a broadcast flips them), and a click publishes ONE
+    /// <c>SetRunSettingsIntent</c> with ONLY that field set (the other, and <c>Armed</c>, null = no change).
+    /// 🔴 Mutations: <c>SetAskToKeepRecordings</c> publishing nothing ⇒ the single-intent assert; sending <c>(on, on)</c> ⇒ <c>RecordLiveRuns</c> not null; the reading returning a constant ⇒ the broadcast assert.
+    /// </summary>
+    [Fact]
+    public void TheRunSettingsToggles_ReadTheClusterView_AndPublishOnlyTheirOwnField()
+    {
+        var r = With(ClusterState.OperatingEdit);
+        Assert.True(r.Controls.RunSettingsEnabled);
+        Assert.True(r.Controls.RecordLiveRuns);
+        Assert.False(r.Controls.AskToKeepRecordings);
+
+        r.Controls.SetAskToKeepRecordings(true);
+        var ask = Assert.Single(Sent<SetRunSettingsIntent>(r.Bus));
+        Assert.True(ask.AskToKeepRecordings);
+        Assert.Null(ask.RecordLiveRuns);
+        Assert.Null(ask.Armed);
+
+        r.Controls.SetRecordLiveRuns(false);
+        var rec = Assert.Single(Sent<SetRunSettingsIntent>(r.Bus));
+        Assert.False(rec.RecordLiveRuns);
+        Assert.Null(rec.AskToKeepRecordings);
+        Assert.Null(rec.Armed);
+
+        // the master's broadcast flips what the toggles read
+        r.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingEdit, RecordLiveRunsOff = true, AskToKeepRecordings = true });
+        r.Bus.SwapBuffers(); r.View.Update(); r.Adapter.Update(); r.Bus.SwapBuffers();
+        Assert.False(r.Controls.RecordLiveRuns);
+        Assert.True(r.Controls.AskToKeepRecordings);
+    }
+
+    /// <summary>No cluster view on the host ⇒ the toggles are disabled and read null (never a silent default send).</summary>
+    [Fact]
+    public void TheRunSettingsToggles_AreDisabled_WithoutAClusterView()
+    {
+        var bus = new FdpEventBus();
+        var adapter = new ClusterTimeTransportAdapter(bus, () => null, () => 0.0);
+        var session = new FakeSession();
+        var choice = adapter.AttachRunChoice(session, new CountingUnsaved());
+        var controls = new ClusterPanelRunControls(adapter, choice, session);
+        Assert.False(controls.RunSettingsEnabled);
+        Assert.Null(controls.RecordLiveRuns);
+        Assert.Null(controls.AskToKeepRecordings);
+    }
 
     // ── pause / resume / step: the USER's ▶, not the raw toggle ───────────────────────────────
 

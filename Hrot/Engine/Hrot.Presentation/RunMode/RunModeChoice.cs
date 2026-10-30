@@ -54,6 +54,13 @@ public sealed class RunModeChoice
     /// <summary>⭐ CE-1442 (§11.7 ⑥) — the loading screen's Cancel: the host's slave cancels the load (it fails everywhere, the cluster returns to Idle).</summary>
     public void CancelLoad(string? reason) => _transport.CancelLoad(reason);
 
+    /// <summary>⭐ CE-4100 ① — the cluster's <i>Record live runs</i> setting (null = no cluster view here).</summary>
+    public bool? RecordLiveRunsSetting => _transport.RecordLiveRunsSetting;
+    /// <summary>⭐ CE-4100 ① — the cluster's <i>Ask to keep recordings</i> setting (null = no cluster view here).</summary>
+    public bool? AskToKeepSetting => _transport.AskToKeepSetting;
+    /// <summary>⭐ CE-4100 ① — set the cluster's run settings; a null argument leaves that one as it is.</summary>
+    public void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings) => _transport.SendRunSettings(recordLiveRuns, askToKeepRecordings);
+
     /// <summary>⭐ <c>CE-1437</c> — this host has a scenario session (an <i>operator</i> host: editor, CGF); false on SimHost / IG. Read by the run-controls pick rule.</summary>
     public bool HasScenarioControl => _control is not null;
 

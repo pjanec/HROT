@@ -84,6 +84,23 @@ public sealed class ClusterPanelRunControls
     /// <summary>The speed slider — the facade's one <c>SetTimeScale</c> (what <c>POST /sim/timescale</c> calls).</summary>
     public void SetTimeScale(float scale) => Transport.SetTimeScale(scale);
 
+    // ── run settings (⭐ CE-4100 ①: Record live runs · Ask to keep recordings) ─────────────────────
+
+    /// <summary>The cluster's <i>Record live runs</i> setting; null = no cluster view on this host (the toggles are then disabled).</summary>
+    public bool? RecordLiveRuns => Choice.RecordLiveRunsSetting;
+
+    /// <summary>The cluster's <i>Ask to keep recordings</i> setting; null = no cluster view.</summary>
+    public bool? AskToKeepRecordings => Choice.AskToKeepSetting;
+
+    /// <summary>Both toggles are enabled whenever the host has a cluster view.</summary>
+    public bool RunSettingsEnabled => Choice.RecordLiveRunsSetting is not null;
+
+    /// <summary>Set <i>Record live runs</i> — <c>SetRunSettingsIntent</c> with only that field.</summary>
+    public void SetRecordLiveRuns(bool on) => Choice.SendRunSettings(on, null);
+
+    /// <summary>Set <i>Ask to keep recordings</i> — <c>SetRunSettingsIntent</c> with only that field.</summary>
+    public void SetAskToKeepRecordings(bool on) => Choice.SendRunSettings(null, on);
+
     // ── scenario / recording ─────────────────────────────────────────────────────────
 
     /// <summary><i>Load into Edit</i> — the run choice's GUARDED open (<c>Stop &amp; Load</c> over a run; <i>Save / Discard / Cancel</i> over unsaved edits): the very call <c>File › Open Scenario</c> ends in.</summary>

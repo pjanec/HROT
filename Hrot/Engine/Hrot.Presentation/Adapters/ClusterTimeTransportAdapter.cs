@@ -312,6 +312,16 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
         Armed     = Enum.Parse<ClusterArmedMode>(armed.ToString()),   // ⭐ CE-3341 — one op; RecordLiveRuns null = unchanged
     });
 
+    bool? IRunTransport.RecordLiveRunsSetting => View is { } v ? !v.RecordLiveRunsOff : null;
+    bool? IRunTransport.AskToKeepSetting => View is { } v ? v.AskToKeepRecordings : null;
+
+    void IRunTransport.SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings) => _bus.PublishManaged(new SetRunSettingsIntent
+    {
+        RequestId = Guid.NewGuid(),
+        RecordLiveRuns = recordLiveRuns,
+        AskToKeepRecordings = askToKeepRecordings,   // null = unchanged; Armed stays null too (the intent's own default)
+    });
+
     void IRunTransport.DiscardRecording(Guid exerciseId) => _bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = Guid.NewGuid(), Operation = StorageOpType.Delete, ExerciseId = exerciseId });   // ⭐ CE-4100 — the ONE construction of the discard request
 
     void IRunTransport.BranchLive() => _bus.PublishManaged(ReplaySessionIntents.BranchLive());   // the ONE construction of the branch intent

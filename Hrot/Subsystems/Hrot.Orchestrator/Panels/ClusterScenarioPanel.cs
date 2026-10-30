@@ -598,6 +598,21 @@ public sealed class ClusterScenarioPanel
         ImGui.EndChild();
     }
 
+    /// <summary>⭐ CE-4100 ① — the cluster's run settings, through <see cref="ClusterPanelRunControls"/> (the ONE sender): <i>Record live runs</i> and <i>Ask to keep recordings</i>; enabled whenever this host has a cluster view.</summary>
+    private void RenderRunSettings(bool disableAll)
+    {
+        var controls = RunControls;
+        bool enabled = !disableAll && controls is { RunSettingsEnabled: true };
+        if (!enabled) ImGui.BeginDisabled();
+        bool record = controls?.RecordLiveRuns ?? true;
+        if (ImGui.Checkbox("Record live runs##OrcRecordLive", ref record)) controls!.SetRecordLiveRuns(record);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Cluster-wide; applies from the next live load. Off: a live run writes no recording.");
+        bool ask = controls?.AskToKeepRecordings ?? false;
+        if (ImGui.Checkbox("Ask to keep recordings##OrcAskKeep", ref ask)) controls!.SetAskToKeepRecordings(ask);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("At ■ in a recorded live run, ask: Keep / Discard. Off: keep silently.");
+        if (!enabled) ImGui.EndDisabled();
+    }
+
     private void RenderClusterControl(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Cluster Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
@@ -606,6 +621,7 @@ public sealed class ClusterScenarioPanel
         {
             if (disableAll) ImGui.BeginDisabled();
             ImGui.Checkbox("Start Paused (Live/Preview)##OrcStartPaused", ref _startPaused);
+            RenderRunSettings(disableAll);
             ImGui.Spacing();
 
             var reachable = EffectiveReachable;

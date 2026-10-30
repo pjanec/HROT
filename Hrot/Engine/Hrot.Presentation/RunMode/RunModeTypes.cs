@@ -400,6 +400,12 @@ public interface IRunTransport
     RunArmed? ClusterLastLoad { get; }
     /// <summary>⭐ CE-3341 — publish the armed mode as the cluster-wide setting (<c>SetRunSettingsIntent { Armed }</c> on the bus). The ONE caller is <see cref="RunModeChoice"/>'s <c>Arm</c>.</summary>
     void SendArmed(RunArmed armed);
+    /// <summary>⭐ CE-4100 ① — the cluster's <i>Record live runs</i> SETTING as this node last heard it (<c>!ClusterView.RecordLiveRunsOff</c>); <see langword="null"/> when no view. ⚠ Not <see cref="RecordsLiveRuns"/>: in a live run that is the RUN's flag.</summary>
+    bool? RecordLiveRunsSetting { get; }
+    /// <summary>⭐ CE-4100 ① — the cluster's <i>Ask to keep recordings</i> setting (<c>ClusterView.AskToKeepRecordings</c>); <see langword="null"/> when no view.</summary>
+    bool? AskToKeepSetting { get; }
+    /// <summary>⭐ CE-4100 ① — publish the run settings (<c>SetRunSettingsIntent</c>, the ONE intent <see cref="SendArmed"/> uses): a <see langword="null"/> argument is "no change".</summary>
+    void SendRunSettings(bool? recordLiveRuns, bool? askToKeepRecordings);
 
     /// <summary>⭐⭐⭐ <c>CE-1442</c> (U1, §11.7 ①) — the ONE run gate: built by the adapter from the node's <c>ClusterView</c> and the host's <see cref="HostGatePolicy"/> (<see cref="RunGate.From"/>); no view ⇒ <see cref="RunGate.AlwaysOpen"/>.</summary>
     RunGate Gate { get; }
