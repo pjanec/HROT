@@ -3239,6 +3239,70 @@ Rejected: real terrain (the navmesh and physics would grow) · a flat colour (th
 `TerrainHeightTests.TheApron_SitsOnTheClampedGround_MeetsTheGroundEdge_AndIsDrawnOnly` (sloped + flat) · `Map3DFrameRail.TheApron_BeyondTheTerrainsEdge_IsTexturedGround_NotEmptySky` (red without it: "0 of 9000 green").
 ⚠ It does not read the SUMO network's extent: 4 km past the terrain on every side.
 
+### 6ad-2. The apron, HILLY — one ground function beyond the terrain, meeting our edge and the SUMO ground *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+
+🔒 User, `2026-10-30`: *"could it be made a bit hilly? … some simple wave function … but still smoothly connected to our and SUMO terrain"* · lean
+approved (*"go"*): one function, three zones.
+
+**INVENTORY** *(graph + grep)*: `search_graph name_pattern=.*(TerrainMesh|GroundMesh|Skirt|GroundPlane|Backdrop|Horizon|OutsideTerrain|FarGround).* label=Class`
+→ 0 (no existing beyond-ground) · `grep TerrainField` → `Sim.Scene.TerrainField` (SumoSharp, the SUMO lanes' heights as a smooth deterministic field,
+clamped outside its lattice) and `AmbientGroundBuilder` (its mesh) · `TrafficRoadScene.Build:89` already draws that AMBIENT GROUND over the net's
+bounds minus our terrain's footprint (`TrafficLayer3D.ShowAmbientGround`) · `grep "\.GroundHeightAt("` → 32 production readers (the ONE clamp).
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainWorld { <<exists, grown>> GroundHeightAt(x,y) · Beyond NEW (set once) }
+  class TerrainHeightGrid { <<exists>> Sample — clamps outside }
+  class BeyondGround { <<NEW, Fdp.Toolkits>> HeightAt(x,y) · Excludes(x,y) · Hills(x,y) }
+  class TerrainWorldMesh { <<exists, grown>> BuildApron — a coarse grid + a collar }
+  class SumoNetTerrainLoader { <<exists, grown>> Prepare: the field in LOCAL metres · Commit: world.AttachBeyond }
+  class TerrainField { <<exists, SumoSharp>> HeightAt(sumoX, sumoY) }
+  class TrafficRoadScene { <<exists>> the SUMO ambient ground mesh }
+  TerrainWorld --> TerrainHeightGrid : inside the grid
+  TerrainWorld --> BeyondGround : outside the grid
+  BeyondGround ..> TerrainField : via the placement (optional)
+  TerrainWorldMesh --> TerrainWorld : GroundHeightAt
+  SumoNetTerrainLoader --> BeyondGround : builds
+  TrafficRoadScene ..> TerrainField : draws its own ground
+```
+*What the picture shows that prose hid:* the clamp (32 readers) and the apron mesh read ONE function, `GroundHeightAt`; SUMO's ground stays its own mesh
+from the SAME field, so where the apron meets it both evaluate `TerrainField` and agree by construction.
+
+```mermaid
+graph TD
+  P["outside our grid: GroundHeightAt(x, y)"] --> B{"Beyond set?"}
+  B -->|no: no SUMO net| E["edge clamp + Hills · ramp(dTerrain)"]
+  B -->|yes| F["lerp(edge clamp, SUMO field, ramp(dTerrain)) + Hills · ramp(dTerrain) · ramp(dSumo)"]
+  F --> Z1["at our edge: dTerrain = 0 ⇒ the edge height (seamless)"]
+  F --> Z2["at / inside the SUMO bounds: dSumo = 0 ⇒ the SUMO field (meets SUMO's ground)"]
+  F --> Z3["far from both: the field's level + hills"]
+```
+
+**Claim table**
+
+| the build rests on | code — how it IS | design |
+|---|---|---|
+| outside the grid the clamp is the edge height | ✅ `TerrainHeightGrid.cs:48` | ✅ §6ad-1 |
+| SUMO's field is defined everywhere (clamped) and smooth | ✅ `TerrainField.cs:332-337` | ✅ its header (§7.2) |
+| SUMO's ground is drawn over the net bounds minus our footprint | ✅ `TrafficRoadScene.cs:88-97` | — |
+| SUMO cars take the lanes' own heights (unchanged by this) | ✅ `TrafficMirror.cs:73` | — |
+| the content loader may attach to the world before it is used | ⚠ `ITerrainContentLoader.Prepare(…, TerrainWorld world)` runs before commit — ⛔ the publish ORDER is not measured: the builder measures it and says where `AttachBeyond` must happen | ⛔ none |
+| the navmesh is unaffected | ✅ it covers the grid only (`TerrainWorldMesh.Build`) | ✅ §6ad-1 |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **HB1** | `BeyondGround` (Fdp.Toolkits, pure, deterministic): `HeightAt(x,y)` per the graph above; `ramp(d) = smoothstep(0, 300 m, d)`; `Hills` = 3 octaves of smooth value noise / sines, amplitude ~10 m total, wavelengths ~250–900 m, seeded by nothing (a fixed function of x, y) | hills drawn only — units clamped out there would float or sink |
+| **HB2** | `TerrainWorld.GroundHeightAt` outside the grid = `Beyond?.HeightAt(x,y)`, else edge clamp + hills (no SUMO). Set ONCE (`AttachBeyond`, a second call throws) by `SumoNetTerrainLoader` when the net loads; a terrain without a net builds its own at parse | a mutable provider — the world is immutable after commit; set-once keeps that true |
+| **HB3** | the apron becomes a coarse GRID (40 m — SUMO's own lattice) out to 4 km, cells skipped inside our footprint and inside the SUMO bounds' interior; a COLLAR strip zips our fine edge vertices to the first coarse line (no crack); cells reaching under SUMO's ground are drawn 0.3 m lower so SUMO's mesh wins without a gap (its rectangle may be rotated by the placement) | flat strips (no hills possible) · zipping to SUMO's rotated lattice — the overlap is cheaper and invisible |
+| **HB4** | the apron rebuilds when `Beyond` is attached (the render geometry's `Identity` includes it) | — |
+
+**Rails:** `TerrainHeightTests` — at our edge the apron equals the edge (no crack, the collar's shared vertices); far away it is hilly (spread > 3 m);
+with a SUMO field, at the SUMO bounds `GroundHeightAt` equals the field; `GroundHeightAt` = the apron vertex heights everywhere (one function); a
+second `AttachBeyond` throws · `Map3DFrameRail` — the apron view shows relief (the horizon line is not straight) · red-proof each.
+
 ### 6ae. CE-1333 — the terrain's materials: brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — AS-BUILT `2026-10-25` (ui)
 
 🔒 User, `2026-10-25`: *"the grass texture looks great, pls add also textures to different materials (like the house walls from bricks,
