@@ -3259,7 +3259,7 @@ sends, read only while the terrain draws (`groundDetail` on), so every other lay
 | 248 | brick (walls) | 25 × 8.5 cm courses, half-bond, mortar, per-brick tint |
 | 247 | concrete, a wall with no material | 3 m × 2.9 m panel joints, stains, rain streaks |
 | 246 | sandbags | rows of 55 × 14 cm bulging bags, staggered |
-| 245 / 241 | a roof (concrete / brick) | tiles on its top (flat or pitched); its sides concrete / brick |
+| 245 / 241 | a roof (concrete / brick) — and a storey's FLOOR (the same upward faces, CE-1341) | ~~tiles on its top~~ ⭐ `2026-10-30` a grey noisy SCREED on its top (~3 m blotches, fine grain, a speckle near the eye — user: tiles read wrong on a floor; `LitShader` `screed`); its sides concrete / brick |
 | 244 | fence-wood, door-wood | planks with grain |
 | 243 / 242 | earth berm / hedge | mottled noise |
 | 255 | water, glass, metal, a car body | none |
