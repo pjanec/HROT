@@ -45,6 +45,15 @@ public sealed class Map3DFrameRail
         (TkbEntityTypes.Unit_TankPlatoon, StanceId.Standing, 6f, -9f),   // a unit: no body
     };
 
+    /// <summary>
+    /// ⭐ <c>CE-1394</c> — the 3-D layers build their meshes on a WORKER and upload them on a later frame (<c>R-1046</c>, <c>BackgroundMeshBuild</c>), so a rail that asserts on a layer's triangles (or on pixels
+    /// those triangles draw) steps frames until it is there — never one fixed frame. Bounded (≈ 12 s): a build that never lands fails the rail's own assertion with its own message.
+    /// </summary>
+    internal static void StepUntil(Hrot.Editor.UiFrameRail.UiFrameSession frame, MapCanvas canvas, Func<bool> done, int maxFrames = 600)
+    {
+        for (int i = 0; i < maxFrames && !done(); i++) { frame.Step(canvas.Draw); System.Threading.Thread.Sleep(20); }
+    }
+
     [SkippableFact]
     public void S1_TestTown_In3D_DrawsTheTerrainAndEveryKit_OnThisGL()
     {
@@ -100,6 +109,7 @@ public sealed class Map3DFrameRail
         // ① the swap pose: overhead, same centre and scale as the 2-D view
         sw.Set(true);
         frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 1000);   // ⭐ CE-1394 — the terrain mesh is built in the background
         frame.Screenshot(Path.Combine(shots, "map3d-1-overhead.png"));
         Assert.True(LitShader.Shared.IsValid, "the lit shader did not compile on this GL");
         Assert.True(terrainLayer.TriangleCount > 1000, $"terrain triangles: {terrainLayer.TriangleCount}");
@@ -4063,7 +4073,8 @@ public sealed class Map3DFrameRail
         var canvas = new MapCanvas(input: null);
         var two = new MapCamera();
         canvas.Camera = two;
-        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var terrain3D = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        canvas.AddLayer(terrain3D);
         var traffic = new TrafficLayer3D(() => world);
         canvas.AddLayer(traffic);
         var sw = new MapViewSwitch(canvas, two);
@@ -4072,6 +4083,7 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(new Vector3(mid.X, mid.Y, query.GroundHeightAt(mid.X, mid.Y)), 2000f, MathF.PI * 0.3f, -1.35f);   // near top-down
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrain3D.TriangleCount > 0 && traffic.TriangleCount > 1000);   // ⭐ CE-1394 — the meshes are built in the background
         string png = Path.Combine(shots, "map3d-ce1196-roads-from-afar.png");
         frame.Screenshot(png);
         Assert.True(traffic.TriangleCount > 1000, $"road triangles: {traffic.TriangleCount}");
@@ -4127,14 +4139,17 @@ public sealed class Map3DFrameRail
         var canvas = new MapCanvas(input: null);
         var two = new MapCamera();
         canvas.Camera = two;
-        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
-        canvas.AddLayer(new TrafficLayer3D(() => world));
+        var terrain3D = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        var traffic3D = new TrafficLayer3D(() => world);
+        canvas.AddLayer(terrain3D);
+        canvas.AddLayer(traffic3D);
         var sw = new MapViewSwitch(canvas, two);
         sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
         sw.Set(true, animate: false);
         sw.Camera3D.Pose = new CameraPose(new Vector3(at.X, at.Y, query.GroundHeightAt(at.X, at.Y)), 70f, MathF.PI * 0.3f, -0.9f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrain3D.TriangleCount > 0 && traffic3D.TriangleCount > 0);   // ⭐ CE-1394 — the meshes are built in the background
         string png = Path.Combine(shots, "map3d-ce1197-sidewalks.png");
         frame.Screenshot(png);
 
