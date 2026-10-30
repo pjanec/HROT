@@ -182,6 +182,18 @@ rewrite to this table → contact sheet of stills (`POST /director/stills`) → 
 recording → promote. ⭐ **Pilot** (`2026-10-30`): F-45 `ua-tank-ammo`, F-40 `ua-weapon-choice`, F-49 `ua-air-strike` — event cues only, so
 CE-4117 does not block them; the rest follow, one Sonnet agent at a time.
 
+### 1d. ⭐ What filming found — the defects each clip waits on, to REFILM once fixed *(user, `2026-10-30`)*
+
+🔒 User: *"These scenario behavior differences should be all noted as filming reveals lots of bugs in them. They will be solved later and
+refilmed then."* ⭐ **Every defect filming reveals gets a row here** (clip · what was seen · the tracker row) — ⛔ never only in a chat or a
+report. A clip is refilmed when its row closes.
+
+| clip | seen while filming | row | refilm when |
+|---|---|---|---|
+| F-45, F-40 (and every clip cut on a shot / hit / blast) | the Live recording loses the combat events: 0 shots, hits, blasts though the T-72 dies (F-40); F-49's bomb burst is there without its release | [CE-4118](blueprints/Blueprint_Issues_Tracker.md) | CE-4118 closes |
+| every clip with a state cue (22 of 54) | a cut BEFORE an arrival / a behaviour change is late on a recording | [CE-4117](blueprints/Blueprint_Issues_Tracker.md) | CE-4117 closes |
+| drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | (ui finding, pilot `2026-10-30`) | a hand pass meanwhile |
+
 ## 2. Gaps — what no clip can show yet
 
 | # | capability | why not | the change | lane | lean |
