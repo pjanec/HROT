@@ -9,6 +9,10 @@ using Hrot.UI.Common.Adapters;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.RunMode;
 using static Hrot.Presentation.Tests.RunChoiceRig;
+using System.IO;
+using ImGuiNET;
+using Hrot.Editor.UiFrameRail;
+using Raylib_cs;
 using Xunit;
 
 namespace Hrot.Presentation.Tests;
@@ -20,6 +24,7 @@ namespace Hrot.Presentation.Tests;
 /// retired <c>EditorTimeTransportFacade</c> (CE-4051 / CE-4052): the readout is the master's clock and a step reaches the master.
 /// 📄 docs/DESIGN_Replay_Time_Axis_And_Review.md §12m.
 /// </summary>
+[Collection(ImGuiTestCollection.Name)]   // ⭐ CE-4115: the loading-screen frame rails below drive real ImGui frames
 public sealed class TheOneTimeFacadeTests
 {
     private static (ClusterTimeTransportAdapter Facade, FdpEventBus Bus) In(ClusterState state, ReplayAxis axis = ReplayAxis.Sim,
@@ -1546,5 +1551,106 @@ public sealed class TheOneTimeFacadeTests
         Assert.True(opScreen.Visible);
         opScreen.Cancel();
         Assert.Equal(new[] { "cancelled by the user" }, calls);
+    }
+
+    // ── CE-4115: the splash ───────────────────────────────────────────────────────────────────────
+
+    private static (Color Corner, Color Centre) Sample(UiFrameSession frame, int w, int h)
+    {
+        var img = Raylib.LoadImageFromScreen();
+        try { return (Raylib.GetImageColor(img, 3, 3), Raylib.GetImageColor(img, w / 2 + 150, h / 2)); }
+        finally { Raylib.UnloadImage(img); }
+    }
+
+    private static string ShotsDir() => Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hrot-splash");
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4115</c> (DESIGN_Cluster_Load_Phase §11.7 ④) — the loading screen is a FULL-WINDOW splash: a dark veil (<c>VeilAlpha</c>) over the whole display (corners and centre darkened against the same scene without it), the text
+    /// block centred on the golden line (0.382·height), sized by the film subtitles' rule (<c>SubtitleBand.TextSizeFor</c>), and a window drawn UNDER it is not hovered (a modal swallows the click).
+    /// 🔴 Mutations: <c>VeilAlpha</c> 0 ⇒ the darkening cells red; <c>GoldenLine</c> 0.5 ⇒ the centre cell reds; the text size <c>s * 1.5f</c> ⇒ the size cell reds; the veil drawn without the modal (a plain window) ⇒ the hover cell reds.
+    /// </summary>
+    [SkippableFact]
+    public void CE4115_TheLoadingScreen_IsAFullWindowVeil_TextAtTheGoldenLine_AndSwallowsTheMouse()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        const int W = UiFrameHarness.DefaultWidth, H = UiFrameHarness.DefaultHeight;
+        var rig = With(ClusterState.OperatingLive, cancelLoad: _ => { });
+        var screen = new Hrot.UI.Common.Panels.LoadingScreen(rig.Choice);
+        using var frame = UiFrameHarness.Begin();
+        bool underHovered = false;
+        void Scene()
+        {
+            // something bright under the splash: a full-display window with a button at the display centre (where the pointer is)
+            ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero);
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(W, H));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, 0xFFE0E0E0u);
+            ImGui.Begin("scene##ce4115", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
+            ImGui.PopStyleColor();
+            ImGui.SetCursorPos(new System.Numerics.Vector2(W / 2f - 60, H / 2f - 20));
+            ImGui.Button("under##ce4115", new System.Numerics.Vector2(120, 40));
+            underHovered = ImGui.IsItemHovered();
+            ImGui.End();
+            screen.Render();
+        }
+
+        // ⚠ the X pointer sits at the window centre under Xvfb (Raylib.SetMousePosition does not move it): the button under the splash is AT the centre, and the control cell proves the pointer is there
+        frame.StepN(4, Scene);
+        var without = Sample(frame, W, H);
+        Assert.True(underHovered, "control: with no splash the button under the mouse IS hovered");
+        Assert.True(without.Corner.R > 200 && without.Centre.R > 200, "control: the scene is light");
+
+        HearGate(rig, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        Assert.True(screen.Visible);
+        frame.StepN(4, Scene);
+        var with = Sample(frame, W, H);
+        Assert.InRange(with.Corner.R, 1, 120);                      // darkened across the whole window …
+        Assert.InRange(with.Centre.R, 1, 120);                      // … yet the world is barely visible (not black)
+        Assert.False(underHovered, "a click at the button under the splash must not reach it");
+
+        var layout = screen.LastLayout!.Value;
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.SubtitleBand.TextSizeFor(H), layout.TextSize);   // ONE size rule (the film subtitles')
+        Assert.InRange(layout.BlockCenterY, H * Hrot.UI.Common.Panels.LoadingScreen.GoldenLine - 2f, H * Hrot.UI.Common.Panels.LoadingScreen.GoldenLine + 2f);
+
+        // the drawn text really sits there: the bright pixels' vertical band is centred on the golden line (a few px)
+        var img = Raylib.LoadImageFromScreen();
+        int top = int.MaxValue, bottom = -1;
+        try
+        {
+            for (int y = 0; y < H / 2 + 100; y++)
+                for (int x = W / 4; x < 3 * W / 4; x += 1)
+                    if (Raylib.GetImageColor(img, x, y).R > 200) { top = Math.Min(top, y); bottom = Math.Max(bottom, y); }
+        }
+        finally { Raylib.UnloadImage(img); }
+        Assert.True(bottom > top, "the text is drawn");
+        Assert.InRange((top + bottom) / 2f, H * 0.382f - 0.05f * H, H * 0.382f + 0.05f * H);
+
+        Directory.CreateDirectory(ShotsDir());
+        frame.Screenshot(System.IO.Path.Combine(ShotsDir(), "ce4115-splash.png"));
+    }
+
+    /// <summary>⭐ <c>CE-4115</c> — a multi-line text keeps one line per '\n', centred as a block on the golden line; the Cancel is under the block for an operator and ABSENT for a player (CE-1445).
+    /// 🔴 Mutation: <c>CanCancel</c> always true ⇒ the player cell reds; the Cancel drawn above the text ⇒ the order cell reds.</summary>
+    [SkippableFact]
+    public void CE4115_Cancel_SitsUnderTheText_ForTheOperator_AndIsAbsentForThePlayer()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var op = With(ClusterState.OperatingLive, cancelLoad: _ => { });
+        var opScreen = new Hrot.UI.Common.Panels.LoadingScreen(op.Choice);
+        HearGate(op, ClusterState.OperatingLive, loadProgress: "CGF (node 2): Terrain");
+        var player = With(ClusterState.Idle, gatePolicy: HostGatePolicy.Player);
+        var playerScreen = new Hrot.UI.Common.Panels.LoadingScreen(player.Choice, HostGatePolicy.Player);
+        HearGate(player, ClusterState.Idle, waitingFor: "Brain (CGF)");
+        Assert.Contains('\n', playerScreen.Text);   // a multi-line text
+
+        using var frame = UiFrameHarness.Begin();
+        frame.StepN(3, () => opScreen.Render());
+        var o = opScreen.LastLayout!.Value;
+        Assert.NotNull(o.CancelTop);
+        Assert.True(o.CancelTop > o.BlockCenterY, "Cancel is under the text block");
+
+        frame.StepN(3, () => playerScreen.Render());
+        var p = playerScreen.LastLayout!.Value;
+        Assert.Null(p.CancelTop);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.SubtitleBand.TextSizeFor(UiFrameHarness.DefaultHeight), p.TextSize);   // the player's splash looks the same
     }
 }

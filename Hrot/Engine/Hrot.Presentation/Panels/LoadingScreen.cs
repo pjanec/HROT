@@ -79,19 +79,62 @@ public sealed class LoadingScreen
         if (CanCancel) _choice.CancelLoad(CancelReason);
     }
 
-    /// <summary>Called each frame inside an active ImGui frame.</summary>
+    /// <summary>⭐ <c>CE-4115</c> — the veil's ONE alpha: black over the whole display, so the world stays barely visible under the splash.</summary>
+    public const float VeilAlpha = 0.65f;
+
+    /// <summary>⭐ <c>CE-4115</c> — where the text block's centre sits, as a fraction of the display height from the top (the golden section, 1 - 1/φ).</summary>
+    public const float GoldenLine = 0.382f;
+
+    /// <summary>⭐ <c>CE-4115</c> — a rail surface: the text size, the text block's vertical centre (px) and the Cancel button's top (px) of the last drawn frame; <see langword="null"/> before any.</summary>
+    public (float TextSize, float BlockCenterY, float? CancelTop)? LastLayout { get; private set; }
+
+    /// <summary>
+    /// ⭐ <c>CE-4115</c> — called each frame inside an active ImGui frame. A FULL-DISPLAY modal (so it is on top and swallows every click but its own Cancel), its background replaced by ONE dark veil
+    /// (<see cref="VeilAlpha"/>); the text is big — sized by the film subtitles' rule (<c>SubtitleBand.TextSizeFor</c>) — one line per
+    /// '\n', each centred, the block centred on <see cref="GoldenLine"/>; Cancel (operator only) is a modest button under the block. ⛔ The layout never follows the text's width: nothing wraps, nothing resizes.
+    /// </summary>
     public void Render()
     {
-        if (!Visible) { _popupOpen = false; return; }
+        if (!Visible) { _popupOpen = false; LastLayout = null; return; }
         if (!_popupOpen) { ImGui.OpenPopup(PopupId); _popupOpen = true; }
-        ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.Appearing, new System.Numerics.Vector2(0.5f, 0.5f));
-        if (!ImGui.BeginPopupModal(PopupId, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings)) return;
-        ImGui.TextWrapped(Text);
+
+        var vp = ImGui.GetMainViewport();
+        var size = vp.Size;
+        ImGui.SetNextWindowPos(vp.Pos);
+        ImGui.SetNextWindowSize(size);
+        ImGui.PushStyleColor(ImGuiCol.ModalWindowDimBg, 0u);   // the veil is ours (one alpha), not ImGui's own dim
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0f);
+        bool open = ImGui.BeginPopupModal(PopupId, ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoNav);
+        ImGui.PopStyleVar(2);
+        ImGui.PopStyleColor();
+        if (!open) return;
+
+        var dl = ImGui.GetWindowDrawList();
+        dl.AddRectFilled(vp.Pos, vp.Pos + size, (uint)Math.Round(VeilAlpha * 255f) << 24);
+
+        float s = Hrot.UI.Common.Map3D.Director.SubtitleBand.TextSizeFor(size.Y);   // ONE size rule: the film subtitles'
+        var font = ImGui.GetFont();
+        var lines = Text.Split('\n');
+        float step = s * 1.4f;
+        float block = (lines.Length - 1) * step + s;
+        float y = vp.Pos.Y + size.Y * GoldenLine - block / 2f;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            float w = font.CalcTextSizeA(s, float.MaxValue, 0f, lines[i]).X;
+            dl.AddText(font, s, new System.Numerics.Vector2(vp.Pos.X + (size.X - w) / 2f, y + i * step), i == 0 ? 0xFFFFFFFFu : 0xFFC8C8C8u, lines[i]);
+        }
+
+        float? cancelTop = null;
         if (CanCancel)
         {
-            ImGui.Separator();
-            if (ImGui.Button("Cancel")) Cancel();
+            const string label = "Cancel";
+            float bw = ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 4f;
+            cancelTop = y + block + s * 0.8f;
+            ImGui.SetCursorScreenPos(new System.Numerics.Vector2(vp.Pos.X + (size.X - bw) / 2f, cancelTop.Value));
+            if (ImGui.Button(label, new System.Numerics.Vector2(bw, 0))) Cancel();
         }
+        LastLayout = (s, y + block / 2f - vp.Pos.Y, cancelTop is { } t ? t - vp.Pos.Y : null);
         ImGui.EndPopup();
     }
 }

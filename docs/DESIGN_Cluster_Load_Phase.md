@@ -1668,6 +1668,13 @@ choice; a later slice with the admission policy (R4).
 
 *Rejected (replaces the earlier line):* **a NEW per-control check** — reuse `EditorCommandDescriptor.IsEnabled` / `DynamicDisplayName` (VC-3) through the one registration helper; **each control reads `ClusterView.CanOperate`** — N copies of the rule.
 
+#### 11.7b ✅ AS-BUILT `2026-10-30` (ui) — `CE-4115`: the loading screen is a full-window SPLASH
+🔒 User: *"…a full window size splash screen … the text big like the subtitles when filming and in the golden cut place of the screen, centered"*, amended: *"a semitransparent dark background so we can still barely see what is under it"*. ⛔ SUPERSEDED (§11.7 ④'s draw): the auto-sized modal that wrapped its text. The model (`Text` / `CanCancel` / `Cancel()`, the player's waiting text) is unchanged; only `LoadingScreen.Render` changed.
+- a FULL-DISPLAY modal (`PopupId` kept; no decoration, `ModalWindowDimBg` transparent) whose draw list paints black at ONE alpha — `LoadingScreen.VeilAlpha` = 0.65 — so it is on top and swallows the mouse;
+- the text is sized by `SubtitleBand.TextSizeFor(height)` (the film subtitles' one rule), one line per `'\n'` (the first white, the rest grey), each centred, the block centred on `LoadingScreen.GoldenLine` = 0.382 of the height; nothing wraps or resizes;
+- Cancel: a modest button centred under the block, only when `CanCancel` (operator); the player's screen has none. `LastLayout` is the rail surface.
+- Rails (`TheOneTimeFacadeTests`, beside the CE-1442/CE-1445 ones; the class joined `ImGuiTestCollection`): `CE4115_TheLoadingScreen_IsAFullWindowVeil_TextAtTheGoldenLine_AndSwallowsTheMouse` · `CE4115_Cancel_SitsUnderTheText_ForTheOperator_AndIsAbsentForThePlayer`. ⚠ The default font has no em dash, so a frame draws `Loading ? …` in the headless rail; the editor's own font is unchanged by this.
+
 ### 11.8 ⭐⭐ Every ECS node gets the run controls from the SHARED node frame; a role only PARAMETERISES them *(ui, `2026-10-29`; `build-state: BUILT` — §11.8a; CE-1445; R-1044)*
 
 🔒 **R-1044 (user, `2026-10-29`):** *"The ECS host should be unified, but they should be configurable. So without explicit suppressing some controls, they need to have all of them, because by construction they cannot avoid them, because they are using shared code for Bootstrap. The player node might look differently But just because it is parameterizing its bootstrap code to honor its player role, like for example showing the waiting in the lobby screen."* · ExCon is to be retired and is not an ECS host — ⛔ not touched.
