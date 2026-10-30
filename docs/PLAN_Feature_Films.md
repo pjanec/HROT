@@ -175,7 +175,7 @@ rethink how to do the takes so it ends up in a much better video."*
 | ⑤ replay | the moment again from the other side of the 180° line at **0.5×** (not 0.25× until smooth slow motion, CE-1401) — fast beats only, one per clip | `segments[]` going back, its key in that segment |
 | **no dead seconds** | ⭐ **speed through, don't cut out**: dead approach time plays at 3–4× (continuity kept), 1× from ~1 s before the moment | `segments[]` with `speed` |
 | **captions** | the caption is a SUBTITLE timed to the story (in at ①, out before ⑤), not burned in afterwards with ffmpeg | `subtitles[]` |
-| **anchors** | every key hangs on an event + an offset (F-4) so a promoted take holds on a later run; ⚠ until **CE-4117**, a STATE cue (`near`, `task` …) is not known ahead on a recording — cut before it with a fixed time and re-anchor after | `anchors{}` |
+| **anchors** | every key hangs on an event + an offset (F-4) so a promoted take holds on a later run; ✅ since CE-4117 (`2026-10-30`) a STATE cue is known ahead on a recording, like an event cue | `anchors{}` |
 
 ⭐ **The loop per clip:** record → read the moment from the index (`/director/moments`, `/timeline/events`) → draft (`POST /director/draft`) →
 rewrite to this table → contact sheet of stills (`POST /director/stills`) → the user adjusts in the Replay Browser → render the MP4 from the
@@ -190,11 +190,11 @@ report. A clip is refilmed when its row closes.
 
 | clip | seen while filming | row | refilm when |
 |---|---|---|---|
-| F-45, F-40 (and every clip cut on a shot / hit / blast) | the Live recording loses the combat events: 0 shots, hits, blasts though the T-72 dies (F-40); F-49's bomb burst is there without its release | [CE-4118](blueprints/Blueprint_Issues_Tracker.md) | CE-4118 closes |
-| every clip with a state cue (22 of 54) | a cut BEFORE an arrival / a behaviour change is late on a recording | [CE-4117](blueprints/Blueprint_Issues_Tracker.md) | CE-4117 closes |
-| any take anchored on an event, rendered from a recording | stills find the anchor, the render does not (every key unresolved, 45 frames) — the pilot rendered with fixed times | [CE-4119](blueprints/Blueprint_Issues_Tracker.md) | re-render with anchors when CE-4119 closes |
-| drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | [CE-4120](blueprints/Blueprint_Issues_Tracker.md) | a hand pass meanwhile |
-| every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | cosmetic — next render |
+| F-45, F-40 (and every clip cut on a shot / hit / blast) | the Live recording loses the combat events: 0 shots, hits, blasts though the T-72 dies (F-40); F-49's bomb burst is there without its release | [CE-4118](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (backend) — re-record and refilm |
+| every clip with a state cue (22 of 54) | a cut BEFORE an arrival / a behaviour change is late on a recording | [CE-4117](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) — refilm |
+| any take anchored on an event, rendered from a recording | stills find the anchor, the render does not (every key unresolved, 45 frames) — the pilot rendered with fixed times | [CE-4119](blueprints/Blueprint_Issues_Tracker.md) | 🔎 not reproduced by ui on the same code — being re-tried on the fixed build |
+| drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | [CE-4120](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
+| every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
 
 ## 2. Gaps — what no clip can show yet
 
