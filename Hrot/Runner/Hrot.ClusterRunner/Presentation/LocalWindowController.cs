@@ -169,7 +169,7 @@ internal sealed class LocalWindowController
         if (real.Count > 0 && real.All(s => s is Hrot.ReplayBrowser.ReplayBrowserSubsystem)) return;
 
         var gate = new StartGate(wm);
-        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant);
+        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => gate.Variant, () => wm.StatusBar.Height);
         wm.RegisterWindow(surface);
         // ⭐ Exit: the same path as the window's [X] (the frame loop asks every exit guard). Allowed in Idle — the Start surface offers it.
         wm.GlobalMenu.RegisterItem("File/Exit", RequestExit, allowedInIdle: true);
