@@ -19,7 +19,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     {
         private const uint Magic = 0x584C5448;   // "HTLX"
         /// <summary>Bumped whenever the layout or what an event means changes — an old sidecar then rebuilds.</summary>
-        public const int SchemaVersion = 3;   // ⭐ CE-4059 — 3 adds the position track after the lanes
+        public const int SchemaVersion = 4;   // ⭐ CE-4059 — 3 adds the position track after the lanes · ⭐ CE-4119 — 4 adds each frame's SIM time after it
+                                              //   (a v3 sidecar dropped FrameSim, so a reopened recording's director found no moment and no anchor)
 
         public static string PathFor(string fdpPath) => fdpPath + ".timeline";
 
@@ -84,6 +85,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                         w.Write(samples.Count);
                         foreach (var s in samples) { w.Write(s.Frame); w.Write(s.X); w.Write(s.Y); w.Write(s.Z); w.Write(s.Heading); }
                     }
+                    // ⭐ CE-4119 — each frame's sim time (the director's moments and anchors read it; the panel only frames)
+                    w.Write(index.FrameSim.Count);
+                    for (int i = 0; i < index.FrameSim.Count; i++) w.Write(index.FrameSim[i]);
                 }
                 File.Move(tmp, path, overwrite: true);
                 return true;
@@ -132,7 +136,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                         samples[i] = new PositionSample(r.ReadInt32(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
                     units[unit] = samples;
                 }
-                return (new TimelineIndex(lanes, ticks, ticks.Length, total, null, new PositionTrack(units)), hashes);
+                var frameSim = new double[r.ReadInt32()];
+                for (int i = 0; i < frameSim.Length; i++) frameSim[i] = r.ReadDouble();
+                var shared = new Dictionary<string, SharedList<TimelineEvent>>(lanes.Count, StringComparer.Ordinal);
+                foreach (var (id, events) in lanes) shared[id] = new SharedList<TimelineEvent>(events);
+                return (new TimelineIndex(shared, new SharedList<long>(ticks), ticks.Length, total, null, new SharedList<double>(frameSim), new PositionTrack(units)), hashes);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or OverflowException or OutOfMemoryException)
             {

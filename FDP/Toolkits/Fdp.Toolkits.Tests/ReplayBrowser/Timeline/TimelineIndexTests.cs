@@ -681,6 +681,34 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4119</c> — the sidecar keeps each frame's SIM time: a second open (from the sidecar) has the same <c>FrameSim</c> as the first
+        /// (built from the recording). A v3 sidecar dropped it, so a REOPENED recording's director found no moment and resolved no anchor, silently.
+        /// 🔴 Red-proof: the writer's FrameSim block written empty ⇒ the second open's FrameSim is empty.
+        /// </summary>
+        [Fact]
+        public void CE4119_TheSidecar_KeepsEachFramesSimTime()
+        {
+            using var harness = new FdpRecordingHarness();
+            int n = 1;
+            harness.Repository.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.5 });
+            string path = Record(harness, _ => { n++; harness.Repository.SetSingleton(new GlobalTime { FrameNumber = n, TotalTime = n * 0.5 }); });
+            try
+            {
+                using var first = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
+                Assert.False(first.FromSidecar);
+                Assert.Equal(new[] { 0.5, 1.0, 1.5, 2.0 }, first.Index.FrameSim.ToArray());
+
+                using var second = RecordingTimelineSource.Open(path, Lanes, Compiler(), background: false);
+                Assert.True(second.FromSidecar);
+                Assert.Equal(first.Index.FrameSim.ToArray(), second.Index.FrameSim.ToArray());
+            }
+            finally
+            {
+                try { File.Delete(TimelineSidecar.PathFor(path)); } catch { /* best effort */ }
+            }
+        }
+
         [Fact]
         public void CE1302_TheSecondOpen_ReadsTheSidecar_AndAChangedRecordingRebuilds()
         {
