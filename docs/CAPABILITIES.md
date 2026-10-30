@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -8,6 +8,9 @@ related-designs:
   - OVERVIEW_Rules_And_Demos.md — OWNS the rule-level index (every rule id → code → design §); this file is the reader's summary above it
   - OVERVIEW_Behaviour_Building_Blocks.md — OWNS the AI machinery (decision slots, sensors, EQS, library, groups, vehicles)
   - PLAN_Feature_Films.md — OWNS the clip list that films each chapter
+  - DESIGN_Film_Production.md — OWNS the film process behind §1a's director bullets
+  - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the reviews (DAR, AAR) and the sim time axis behind §1a
+  - blueprints/Architect_Question_108_Run_Mode_Picker.md — OWNS the run modes and the armed mode (§1a)
   - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
   - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
 -->
@@ -35,10 +38,38 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Time control:** play, pause, step one frame, change the timescale. All nodes stay in step. (README §10)
 - **AI authoring three ways:** behaviour trees, state machines (HSM) and blueprint visual scripts, with utility decisions and an
   environment query system (EQS). (README §4, §5, §7)
-- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (README §8)
+- **Flight recorder and Replay Browser:** record a run, then load, seek and step through it. (README §8) — what it is used for: §1a
 - **Tools:** the scenario editor (author, run, step and save in one process); missions and the order of battle (ORBAT) in panels; HTTP
-  diagnostics and an MCP server so an AI agent can drive the engine; **filming** to MP4 from planned camera shots
+  diagnostics and an MCP server so an AI agent can drive the engine; **filming** — the film director, §1a
   ([RUNBOOK_Filming.md](RUNBOOK_Filming.md)).
+
+## 1a. Running, reviewing and filming *(added `2026-10-30`; what people do with these: [USAGES.md](USAGES.md))*
+
+- **Run modes, one armed mode for the whole cluster:** Preview (a dry run, nothing kept), Live (recorded), and the reviews AAR and DAR. The
+  armed mode shows on every host the same. ([AQ108](blueprints/Architect_Question_108_Run_Mode_Picker.md)) ✅
+- **Every Live run is recorded** (a setting, on by default), and the recording keeps its own copy of the scenario, so it opens years later
+  as it ran. (CE-4090, CE-4091) ✅ — ⚠ the combat events are missing from a Live recording today (CE-4118)
+- **Review during the run (DAR):** pause a live exercise, go back to show what happened, and resume live where it paused — one continuous
+  recording. ([Replay Time Axis](DESIGN_Replay_Time_Axis_And_Review.md); CE-4104) ✅
+- **Review after the run (AAR) and branch from any moment:** a new exercise starts live from the chosen moment; the original recording
+  stays untouched. (CE-4104) ✅
+- **Edits are never lost by accident:** one guarded way in and out of a scenario asks before a step that would lose edits, checking every
+  node of the cluster. (CE-4093, CE-4101) ✅ · A start screen: nothing runs before a scenario is opened. (CE-4096) ✅
+- **Every node sees the same cluster facts** — state, armed mode, readiness — and controls wait until the cluster is ready.
+  ([DESIGN_Cluster_View](DESIGN_Cluster_View.md), CE-1436) ✅
+- **The timeline index of a run:** every shot, hit, blast, spawn, death, behaviour change, order, report and decision, plus every unit's
+  position, each with its sim time — a zoomable event timeline, seek to the next event, live or recorded.
+  ([Director Timeline §9](DESIGN_Director_Timeline_Editor.md)) ✅
+- **The film director**, the same in the editor and the Replay Browser: takes and reels; camera keys tied to events; speed ramps, skips and
+  instant replays; subtitles, on-screen graphics and the map view per moment; a drafter that proposes a shot sequence for an event; stills
+  and contact sheets; MP4 with sound rendered from a recording; promote a take back to its scenario.
+  ([Film Production](DESIGN_Film_Production.md), [PLAN_Feature_Films §1c](PLAN_Feature_Films.md)) ⚠ first clip from a Live recording
+  `2026-10-30`; gaps CE-4117, CE-4119
+- **Scenarios are tests:** each scenario carries machine-checkable conditions; a verify run checks them and records the run; a night run
+  covers all of them. ([DESIGN_Scenario_Regression](DESIGN_Scenario_Regression.md)) ✅ · Their documentation as stills per check ⏳ (the take
+  builder is built, the rendering is not wired)
+- **Players:** a player in an image generator takes over a unit; the server and two players play one scenario. ⚠ the acceptance run is open
+  (CE-4080)
 
 ## 2. The world
 
