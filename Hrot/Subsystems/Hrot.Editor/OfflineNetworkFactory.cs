@@ -52,18 +52,6 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
         => NullIgNetworkAdapter.Instance;
 
-    /// <inheritdoc/>
-    public System.Collections.Generic.IEnumerable<Fdp.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
-        CycloneDDS.Runtime.DdsParticipant?                participant,
-        long                                              localNodeId,
-        Fdp.Toolkit.DER.IDerRepo                         repo,
-        System.Action<MapClickEventDto>                  onMapClick,
-        System.Action<SelectionChangedEventDto>          onSelectionChanged,
-        System.Action<EntityLifecycleAckDto>             onEntityLifecycleAck,
-        System.Action<MapCommandAckDto>                  onMapCommandAck)
-    {
-        yield break;
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(
@@ -118,9 +106,6 @@ public sealed class OfflineNetworkFactory : INetworkFactory
     public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId)
         => new NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
-        => new NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(

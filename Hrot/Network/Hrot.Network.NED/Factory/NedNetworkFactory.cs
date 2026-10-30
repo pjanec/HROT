@@ -187,33 +187,6 @@ public sealed class NedNetworkFactory : INetworkFactory
            ? (IIgNetworkAdapter)Hrot.Core.Network.NullIgNetworkAdapter.Instance
            : new Hrot.Network.NED.IG.NedIgNetworkAdapter(participant, nodeId);
 
-    /// <inheritdoc/>
-    public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-        DdsParticipant?                   participant,
-        long                              localNodeId,
-        IDerRepo                          repo,
-        Action<MapClickEventDto>          onMapClick,
-        Action<SelectionChangedEventDto>  onSelectionChanged,
-        Action<EntityLifecycleAckDto>     onEntityLifecycleAck,
-        Action<MapCommandAckDto>          onMapCommandAck)
-    {
-        if (participant == null)
-            yield break;
-
-        yield return new NedMapClickIngressHandler(participant, onMapClick, localNodeId: localNodeId);
-        yield return new NedSelectionChangedIngressHandler(participant, onSelectionChanged);
-        yield return new NedEntityLifecycleAckIngressHandler(participant, onEntityLifecycleAck, localNodeId: localNodeId);
-        yield return new NedMapCommandAckIngressHandler(participant, onMapCommandAck, localNodeId: localNodeId);
-        yield return new MasterIngressHandler<EntityMaster>(
-            participant, repo,
-            master => checked((int)master.EntityId), master => master.TkbType, localNodeId: localNodeId);
-        yield return new DescriptorIngressHandler<WorldPos>(participant, repo, d => checked((int)d.EntityId));
-        yield return new NedEntityInfoBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<EntityDamage>(participant, repo, d => checked((int)d.EntityId));
-        yield return new NedEntityMissionBridgingHandler(participant, repo);
-        yield return new NedMapOverlayBridgingHandler(participant, repo);
-        yield return new DescriptorIngressHandler<MapRoute>(participant, repo, d => checked((int)d.EntityId));
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(HrotNodeContext context, NodeRole role, BehaviorRegistry? behaviorRegistry = null)
@@ -357,11 +330,6 @@ public sealed class NedNetworkFactory : INetworkFactory
             ? new NedSlaveOrchestrationTranslator(_participant, bus, nodeId)
             : new Hrot.Core.Network.NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public Hrot.Core.Network.IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus)
-        => _participant != null
-            ? new NedOrchestrationObserver(_participant, bus)
-            : new Hrot.Core.Network.NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(

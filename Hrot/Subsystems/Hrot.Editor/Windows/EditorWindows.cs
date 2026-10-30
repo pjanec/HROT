@@ -64,23 +64,6 @@ internal sealed class EditorToolbarWindow : ManagedWindow
     }
 }
 
-/// <summary>Editor ORBAT panel as a perspective-bound managed window.</summary>
-internal sealed class EditorOrbatWindow : ManagedWindow
-{
-    private readonly EditorOrbatPanel _panel;
-    private readonly IEditorLogic     _logic;
-
-    public EditorOrbatWindow(EditorOrbatPanel panel, IEditorLogic logic)
-        : base("editor_orbat", "Editor ORBAT", "Scenario", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _logic = logic;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-    }
-
-    protected override void DrawClientArea() => _panel.DrawContent(_logic);
-}
 
 /// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.
 /// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Preview"/>, shared with the

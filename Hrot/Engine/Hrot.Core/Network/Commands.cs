@@ -91,90 +91,12 @@ public sealed class EntityPropertyPatch
 
 // ── Neutral ingress event DTOs ────────────────────────────────────────────────
 
-/// <summary>
-/// Neutral DTO for a map click event from the IG. ⭐ <c>CE-4073</c>: the click position is LOCAL ENU METRES (<see cref="X"/> east,
-/// <see cref="Y"/> north, <see cref="Z"/> up) — a copy of the wire's <c>MapClickEvent.Position</c>, no conversion either side.
-/// </summary>
-public sealed class MapClickEventDto
-{
-    public Guid InteractionContextId { get; set; }
-    /// <summary>Local ENU east, metres.</summary>
-    public double X { get; set; }
-    /// <summary>Local ENU north, metres.</summary>
-    public double Y { get; set; }
-    /// <summary>Local ENU up, metres.</summary>
-    public double Z { get; set; }
-    /// <summary>Ordered list of entity IDs under the cursor (top to bottom).</summary>
-    public System.Collections.Generic.IReadOnlyList<int> HitEntityIds { get; set; }
-        = System.Array.Empty<int>();
-}
 
-/// <summary>Neutral DTO for a selection-changed event from the IG.</summary>
-public sealed class SelectionChangedEventDto
-{
-    public int MapId { get; set; }
-    public System.Collections.Generic.IReadOnlyList<int> SelectedEntityIds { get; set; }
-        = System.Array.Empty<int>();
-}
 
-/// <summary>Neutral DTO for an entity lifecycle ACK (create / delete).</summary>
-public sealed class EntityLifecycleAckDto
-{
-    public Guid RequestId { get; set; }
-    public int EntityId { get; set; }
-    /// <summary>0 = success, 1 = in-progress, >=2 = error (matches NED status codes).</summary>
-    public int StatusCode { get; set; }
 
-    // Status code constants matching NED protocol values.
-    public const int StatusSuccess    = 0;
-    public const int StatusInProgress = 1;
-    public const int StatusFailureMin = 2;
-}
 
-/// <summary>Neutral DTO for a map command ACK from the IG.</summary>
-public sealed class MapCommandAckDto
-{
-    public Guid RequestId { get; set; }
-    /// <summary>0 = finished, 1 = in-progress, 2 = cancelled.</summary>
-    public int StatusCode { get; set; }
-    public string? DataJson { get; set; }
-}
-
-/// <summary>Neutral DTO for a context-action invoked event from the IG.</summary>
-public sealed class ContextActionInvokedDto
-{
-    public int MapId { get; set; }
-    public int ActionId { get; set; }
-    public int EntityId { get; set; }
-}
 
 // ── Neutral DER descriptor types ─────────────────────────────────────────────
 
-/// <summary>Neutral descriptor pushed into the DER repo for entity identity data.</summary>
-public sealed class EntityInfoDescriptor
-{
-    public int EntityId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string Affiliation { get; set; } = string.Empty;
-    public int CommanderId { get; set; }
-}
 
-/// <summary>Neutral descriptor pushed into the DER repo for entity mission state.</summary>
-public sealed class EntityMissionDescriptor
-{
-    public int EntityId { get; set; }
-    public Hrot.Core.Mission.MissionPlan? Plan { get; set; }
-    public long Version { get; set; }
-}
 
-/// <summary>
-/// Neutral marker descriptor pushed into the DER repo to indicate an entity
-/// has an associated map visual overlay (polygon/polyline). Used by ExCon to
-/// decide whether to show the "Edit Polyline" context menu item.
-/// </summary>
-public sealed class MapOverlayDescriptor
-{
-    public int EntityId { get; set; }
-    /// <summary>True when the overlay can be dragged and re-shaped by the operator.</summary>
-    public bool IsEditable { get; set; }
-}

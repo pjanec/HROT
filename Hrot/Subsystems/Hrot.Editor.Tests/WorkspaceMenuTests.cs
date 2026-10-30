@@ -30,7 +30,6 @@ public sealed class WorkspaceMenuTests
         public IReadOnlyList<string> AvailableScenarios => Array.Empty<string>();
         public void ActivateTool(EditorTool tool) { }
         public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) { }
-        public IDerRepo View => null!;
         public void CenterOnEntity(long entityId) { }
         public void SelectEntity(long entityId) { }
         public void OpenRenameDialog(long entityId) { }

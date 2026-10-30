@@ -53,18 +53,6 @@ internal class MockNetworkFactory : INetworkFactory
     public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? participant, long nodeId = 0)
         => NullIgNetworkAdapter.Instance;
 
-    /// <inheritdoc/>
-    public System.Collections.Generic.IEnumerable<Fdp.Toolkit.DER.IIngressHandler> CreateExConIngressHandlers(
-        CycloneDDS.Runtime.DdsParticipant?                participant,
-        long                                              localNodeId,
-        Fdp.Toolkit.DER.IDerRepo                         repo,
-        Action<MapClickEventDto>                         onMapClick,
-        Action<SelectionChangedEventDto>                 onSelectionChanged,
-        Action<EntityLifecycleAckDto>                    onEntityLifecycleAck,
-        Action<MapCommandAckDto>                         onMapCommandAck)
-    {
-        yield break;
-    }
 
     /// <inheritdoc/>
     public INetworkFactory ConfigureForNode(
@@ -111,9 +99,6 @@ internal class MockNetworkFactory : INetworkFactory
     public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(Fdp.Core.FdpEventBus bus, int nodeId)
         => new NullSlaveOrchestrationTranslator();
 
-    /// <inheritdoc/>
-    public IOrchestrationObserver CreateOrchestrationObserver(Fdp.Core.FdpEventBus bus)
-        => new NullOrchestrationObserver();
 
     /// <inheritdoc/>
     public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.INetworkTranslator> CreateGizmoTranslators(

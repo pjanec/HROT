@@ -34,10 +34,4 @@ public sealed class OrchestrationInterfacesTests
         translator.Tick();
     }
 
-    [Fact]
-    public void NullOrchestrationObserver_ImplementsInterface_WithoutDdsReferences()
-    {
-        using IOrchestrationObserver observer = new NullOrchestrationObserver();
-        observer.Tick();
-    }
 }

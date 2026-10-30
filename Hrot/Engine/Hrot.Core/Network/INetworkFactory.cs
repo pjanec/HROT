@@ -85,18 +85,6 @@ public interface INetworkFactory : IGizmoNetworkFactory
         FdpEventBus bus,
         long nodeId);
 
-    /// <summary>
-    /// Creates DDS ingress handlers for ExCon (map-click, selection, entity lifecycle ACKs,
-    /// map command ACKs, entity master/descriptor bridging handlers).
-    /// </summary>
-    IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-        DdsParticipant?                   participant,
-        long                              localNodeId,
-        IDerRepo                          repo,
-        Action<MapClickEventDto>          onMapClick,
-        Action<SelectionChangedEventDto>  onSelectionChanged,
-        Action<EntityLifecycleAckDto>     onEntityLifecycleAck,
-        Action<MapCommandAckDto>          onMapCommandAck);
 
     /// <summary>
     /// Returns a new factory instance configured for a specific node context (participant, role, etc.).
@@ -191,11 +179,6 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// </summary>
     ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus bus, int nodeId);
 
-    /// <summary>
-    /// Creates the cluster observer translator (ClusterStateTopic, AssetInventoryTopic ingress).
-    /// Returns a no-op translator when there is no DDS participant.
-    /// </summary>
-    IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus bus);
     /// <summary>
     /// Creates the gizmo interaction network translators (ingress and/or egress) for
     /// remote UI interaction streaming. Each translator carries a <see cref="TranslatorDirection"/>

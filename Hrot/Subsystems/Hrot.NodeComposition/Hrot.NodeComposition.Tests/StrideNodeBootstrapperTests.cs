@@ -331,7 +331,6 @@ public sealed class StrideNodeBootstrapperTests
         public Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator CreateIdAllocator(string id, bool skip = false) => _base.CreateIdAllocator(id, skip);
         public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus b, int n) => _base.CreateMasterTimeTranslators(b, n);
         public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
-        public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus b) => _base.CreateOrchestrationObserver(b);
         public ICommandGateway CreateCommandGateway() => _base.CreateCommandGateway();
         public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
@@ -339,11 +338,6 @@ public sealed class StrideNodeBootstrapperTests
         public System.Collections.Generic.IReadOnlyList<IEcsModuleSystem> CreateSimHostAttributeUpdateSystems() => _base.CreateSimHostAttributeUpdateSystems();
         public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
         public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
-        public System.Collections.Generic.IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-            CycloneDDS.Runtime.DdsParticipant? p, long id, Fdp.Toolkit.DER.IDerRepo repo,
-            Action<MapClickEventDto> onMapClick, Action<SelectionChangedEventDto> onSelectionChanged,
-            Action<EntityLifecycleAckDto> onEntityLifecycleAck, Action<MapCommandAckDto> onMapCommandAck)
-            => _base.CreateExConIngressHandlers(p, id, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
         public System.Collections.Generic.IReadOnlyList<Fdp.Interfaces.IDescriptorTranslator> CreateIgEgressTranslators(
             CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, nodeId);
