@@ -759,6 +759,12 @@ public class IgApplication : IDisposable
             _cameraViewport,
             _fdpEventHistory,
             igConfig);
+        // ⭐ CE-4078 / CE-1446 (R-1046) — the profile says the load waits for the 3-D map: the chain gets the Map3D part, polled from this node's map build.
+        if (RunProfile.MapInLoad)
+        {
+            _igBootstrapper.ProfileLoadParts = new[] { Hrot.Map.Common.ClusterLoad.LoadPart.Map3D };
+            _igBootstrapper.MapBuildStatus   = () => MapBuildStatus;
+        }
 
         _igBootstrapper.ApplicationSystemsRegistrar = ctx =>
         {

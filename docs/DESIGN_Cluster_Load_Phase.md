@@ -1819,3 +1819,13 @@ step has something to wait for; on every other node it starts on the first 2-D �
 
 ⚠ **Found, not built:** `TerrainPicker.Build` (`Fdp.Presentation/Vis3D/Picking.cs:144-175`) is a third heavy frame-thread build (the whole terrain mesh + grid, on the first 3-D pick) · `TerrainWorldQuery.BuildTagged` builds the terrain mesh twice (`:166-170`) · the director's ready probe does not wait for the map (a take could start while it builds). The `TerrainWorld` read off-thread is safe: init-only properties (`TerrainWorld.cs:90-117`) + a pure static `TerrainWorldMesh.Build`.
 📌 Rails: `Map3DTests` (the helper off-thread, superseded never uploaded, failure; `Map3DBuild` per load + policy; the switch waits) · `TheRunChoiceIsOnEveryHostTests` (the constructed IG: `MapInLoad`, an Eager map, the status reachable) · `EveryMapHostAttachesTheSharedLayersTests` (only the IG passes a policy) — each red-proved.
+
+#### 11.9b ✅ AS-BUILT `2026-10-30` (backend) — the chain half of R-1046 *(CE-4078)*
+
+| §11.9 said | built | note |
+|---|---|---|
+| `LoadPart.Map3D`, appended after the role parts | ✅ `Map3D = 3`; `LoadPhaseChain.FromRoles(..., profileParts)` adds the requested profile parts AFTER `RoleLoadRequirements.PartsFor(roles)` (so after Terrain), de-duplicated; a requested part with no provider throws at composition like a role part | ⛔ never in `RoleLoadRequirements` — a profile choice |
+| `MapBuildLoadStep` over `Func<IMapBuildStatus?>` | ✅ `Hrot.Core/Services/LoadPhase/MapBuildLoadStep.cs`: resolved on `IsBuilt` (null status = headless = resolved); no work of its own | `ILoadPartProvider` gained two default members: `ProgressStep` (heartbeat label; the map's `Step`) and `Failure` |
+| failure through CE-3345's path, no second one | ✅ `DrainDeferredAcks` checks each step's `Failure` first: aborts the steps, clears the load and faults the hold ⇒ the slave's `FailPrepare(reason)` ⇒ Failed ⇒ round to Idle | the step also reports resolved on a failure so the poll never spins |
+| wiring: host record carries parts + status source; only the IG | ✅ `EcsHostClusterHandlerInputs.ProfileLoadParts` / `MapBuildStatus` (Compose adds the `MapBuildLoadStep` provider when `Map3D` is requested); `NodeBootstrapper.BuildOrchestration(profileLoadParts, mapBuildStatus)`; `IgNodeBootstrapper.ProfileLoadParts/MapBuildStatus` set by `IgApplication` iff `RunProfile.MapInLoad` | no other host passes them |
+📌 Rails (`LoadPhaseChainTests`, `CE4078_*`): holds until `IsBuilt` · fails with `Failure` · reports `Step` · absent without the profile part · no provider throws.

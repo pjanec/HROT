@@ -210,6 +210,12 @@ namespace Hrot.SimHost
         /// <param name="entityMap">
         /// ⭐ CE-1446 B1 — the node's entity map, so the world boundary clears it (CE-2101) and the load chain forgets network ids with it. Null = the map is found on the world (the dry run) and the chain holds none.
         /// </param>
+        /// <param name="profileLoadParts">
+        /// ⭐ CE-4078 (R-1046) — the load parts the node's PROFILE adds (the Player: <c>LoadPart.Map3D</c>), after its roles' parts. Null/empty = none.
+        /// </param>
+        /// <param name="mapBuildStatus">
+        /// ⭐ CE-4078 — where the 3-D map step reads the map's build status from (<see cref="Fdp.Toolkit.Orchestration.IMapBuildStatus"/>), resolved on every poll. Null result = nothing to build.
+        /// </param>
         /// <param name="dryRunIncludesTransient">
         /// ⭐ CE-1446 B2 — the dry run (preview) copies Transient components too (the editor's did, HN-016).
         /// </param>
@@ -257,7 +263,9 @@ namespace Hrot.SimHost
             Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper = null,
             bool offline = false,
             Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null,
-            bool dryRunIncludesTransient = false)
+            bool dryRunIncludesTransient = false,
+            IReadOnlyList<LoadPart>? profileLoadParts = null,
+            Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? mapBuildStatus = null)
         {
             if (!offline && participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -350,6 +358,8 @@ namespace Hrot.SimHost
                 IdAllocator        = scenarioIdAllocator,
                 EntityMap          = entityMap,
                 DryRunIncludesTransient = dryRunIncludesTransient,
+                ProfileLoadParts   = profileLoadParts ?? Array.Empty<LoadPart>(),
+                MapBuildStatus     = mapBuildStatus,
                 LoadProviders      = loadProviders,
                 ScenarioHandlers   = handlersToRegister,
                 ScenarioSaveHandler = scenarioSaveHandler,
