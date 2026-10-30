@@ -62,7 +62,7 @@ class Program
 
         // Parse CLI args
         HrotRunnerConfiguration? config = null;
-        var parseResult = Parser.Default.ParseArguments<HrotRunnerConfiguration>(args);
+        var parseResult = Parser.Default.ParseArguments<HrotRunnerConfiguration>(HrotRunnerConfiguration.NormaliseArgs(args));   // ⭐ CE-3354 ⑥ — a bare --map-in-load
 
         parseResult.WithParsed(c => config = c)
                    .WithNotParsed(_ => Environment.Exit(1));
@@ -179,6 +179,12 @@ class Program
             config.NodeId = 0;
         }
         int ResolveNodeId(string subsystemName, int baseNodeId) => grantedNodeId ?? ResolveAppNodeId(subsystemName, baseNodeId);
+        // ⭐ CE-3354 ⑥ — a node's name: the configured one, else the default <subsystem>-<nodeId> with the id the runner resolves for it. ⛔ The Editor is the exception: it fixes its own node id,
+        //   so it makes its own default (null here) — its name is read back from the subsystem (EditorSubsystem.NodeName).
+        string? NodeNameOf(string subsystemName)
+            => config.NodeNameFor(subsystemName)
+               ?? (subsystemName.Equals("Editor", StringComparison.OrdinalIgnoreCase) ? null
+                   : Fdp.Toolkit.Orchestration.ClusterSlave.DefaultNodeName(subsystemName, ResolveNodeId(subsystemName, config.NodeId)));
 
         // Add NLog file target when LogDirectory is configured
         string resolvedLogDir = string.IsNullOrWhiteSpace(config.LogDirectory)
@@ -346,7 +352,7 @@ class Program
             //   unwrap, and it agrees with it.
             ResetLayoutOnRun = config.ResetLayout ?? true,
             NodeIdResolver = ResolveNodeId,   // ⭐ C1
-            NodeNameResolver = config.NodeNameFor,   // ⭐ CE-3354 ② — the --node-name(s) of each subsystem; null ⇒ <subsystem>-<nodeId>
+            NodeNameResolver = NodeNameOf,   // ⭐ CE-3354 ② — the --node-name(s) of each subsystem; else <subsystem>-<nodeId> (made HERE, so --map-in-load can name this process' own nodes)
         };
 
         // ── Create + run orchestrator ─────────────────────────────────────────
@@ -356,9 +362,14 @@ class Program
         Hrot.Editor.DebugApi.MainThreadJobQueue? clusterApiQueue = null;
         Hrot.Editor.DebugApi.DebugApiHost?       clusterApiHost  = null;
         Hrot.Editor.DebugApi.DebugApiService?    clusterApiService = null;
+        Hrot.ClusterRunner.StartupScenarioLoad?  startupLoad = null;   // ⭐ CE-3354 ⑥
         try
         {
             orchestrator.Initialize();
+
+            // ⭐⭐ CE-3354 ⑥ — the command line's startup load: the SAME two messages HTTP sends, once, when this process' master is up (no timer: the master holds a scenario load until its required nodes joined).
+            //   Ticked every frame by both loops below until it has gone out.
+            startupLoad = Hrot.ClusterRunner.StartupScenarioLoad.For(config, subsystems, perspSubsystem, NodeNameOf);
 
             // WM-S703: Wire up PerspectiveCoordinatorSystem now that the orchestrator exists.
             // Maps perspective names to subsystem names used by SwitchMapOwner.
@@ -665,6 +676,7 @@ class Program
                     if (windowCtrl.ExitDue(Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest()))
                         break; // nothing (left) to ask → exit (skip this frame's render)
 
+                    startupLoad?.Tick();   // ⭐ CE-3354 ⑥
                     frameStats?.Begin();
                     orchestrator.Update(dt);
                     frameStats?.EndUpdate();
@@ -741,8 +753,10 @@ class Program
                 // Fallback to the internal headless simulation loop for CI/background tasks.
                 // ⭐ CE-3327 — the frame boundary ③ + ④ above, headless too: 🔴 before, nothing drained the API's jobs here, so a headless
                 //   node with no editor (-m cgf --headless, -m replaybrowser --headless) answered no main-thread route, ever.
-                orchestrator.Run(clusterApiQueue is null ? null : () =>
+                orchestrator.Run(clusterApiQueue is null && startupLoad is null ? null : () =>
                 {
+                    startupLoad?.Tick();   // ⭐ CE-3354 ⑥
+                    if (clusterApiQueue is null) return;
                     clusterApiQueue.DrainAll();
                     Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
                 });

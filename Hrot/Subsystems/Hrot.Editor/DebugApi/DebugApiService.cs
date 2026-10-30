@@ -1317,17 +1317,11 @@ namespace Hrot.Editor.DebugApi
                                         ["stoppedRun"] = stopped };
             }
 
-            var editRequest = Guid.NewGuid();
+            // ⭐ CE-3354 ⑥ — the ONE edit-load intent (ScenarioLoadSequence.EditLoadIntent: no ExerciseId — authoring is not an exercise run), shared with the command line's startup load
+            var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name);
+            var editRequest = editIntent.TransactionId;
             _lastLoad = (editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
-            ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-            {
-                TransactionId = editRequest,
-                TargetState   = ClusterState.OperatingEdit,
-                ScenarioId    = name,
-                // ⭐ Guid.Empty, mirroring the orchestrator panel's own "Load into Edit" button: authoring is
-                //   not an exercise run, so it gets no ExerciseId.
-                ExerciseId    = Guid.Empty,
-            });
+            ScenarioLoads.Request(editIntent);
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
                                     ["requestId"] = editRequest.ToString(),
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
@@ -1364,21 +1358,12 @@ namespace Hrot.Editor.DebugApi
         {
             var stopped = LeaveRunForLoad();
 
-            var liveRequest = Guid.NewGuid();
+            // ⭐ CE-3354 ⑥ — the ONE live-load intent (ScenarioLoadSequence.LiveLoadIntent: a fresh ExerciseId; Q86 §4-G startPaused ⇒ TimeMode "Deterministic" — the default keeps the documented
+            //   load → POST /sim/play flow; ForceRecording is the scenario verifier's, CE-4090 D14 §5a — ⛔ not reachable from HTTP), shared with the command line's startup load
+            var liveIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.LiveLoadIntent(name, startPaused, forceRecording);
+            var liveRequest = liveIntent.TransactionId;
             _lastLoad = (liveRequest, name);   // ⭐ CE-3354 ④
-            ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
-            {
-                TransactionId = liveRequest,
-                TargetState   = ClusterState.OperatingLive,
-                ScenarioId    = name,
-                ExerciseId    = Guid.NewGuid(),
-                // ⭐ Q86 §4-G — the clock is reset to 0 either way; startPaused (default true) decides whether it runs
-                //   once the load is done. The default keeps the documented load → POST /sim/play flow.
-                TimeMode      = startPaused ? "Deterministic" : null,
-                // ⭐ CE-4090 (AQ108 D14, §5a) — the scenario verifier compares the run's RECORDING against a golden: its live load records
-                //   whatever the cluster's "Record live runs" setting says. ⛔ Not reachable from HTTP — only the verifier's own load asks.
-                ForceRecording = forceRecording,
-            });
+            ScenarioLoads.Request(liveIntent);
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
                                     ["requestId"] = liveRequest.ToString(),
                                     ["startPaused"] = startPaused,

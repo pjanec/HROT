@@ -172,6 +172,7 @@ namespace Hrot.Editor
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Fdp.Toolkit.Runner.IWindowTitleSource,
         Hrot.Common.EntityCreation.IEntityCreationHost,
+        Hrot.Presentation.DebugApi.IHostsClusterMaster,
         Fdp.Presentation.WindowManager.IClusterRestSource,
         Hrot.UI.Common.RunMode.IProvidesRunControls
     {
@@ -190,6 +191,13 @@ namespace Hrot.Editor
         /// <summary>⭐ <c>CE-3354</c> ② — this editor node's unique name (<c>--node-name</c>); null ⇒ <c>Editor-1</c>.</summary>
         private string? _nodeName;
         /// <summary>⭐ <c>CE-3354</c> ② — the name the editor node heartbeats (the default when none was configured).</summary>
+        /// <summary>⭐ CE-3354 ⑥ — the master intents the runner's command-line startup load publishes: onto the editor's embedded core's bus (null before the core exists).</summary>
+        public Hrot.Presentation.DebugApi.IClusterMasterControl? ClusterMasterControl
+            => _orchestratorCore is null ? null : new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _orchestrationBus);
+
+        /// <summary>⭐ CE-3354 ⑥ — the cluster state the editor's node sees (null before the editor application exists).</summary>
+        public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow => _editorApp?.CurrentClusterState;
+
         public string NodeName => string.IsNullOrWhiteSpace(_nodeName) ? Fdp.Toolkit.Orchestration.ClusterSlave.DefaultNodeName("Editor", EditorNodeId) : _nodeName!;
 
         /// <summary>

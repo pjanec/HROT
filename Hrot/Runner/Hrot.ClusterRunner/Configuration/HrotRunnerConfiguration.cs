@@ -19,8 +19,48 @@ namespace Hrot.ClusterRunner.Configuration
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
-        [Option('s', "scenario", Required = false, HelpText = "Scenario name for --mode ci (e.g. MinimalCI_01)")]
+        [Option('s', "scenario", Required = false, HelpText = "Scenario to load at startup, on any host with the cluster master (editor, all, server, orchestrator); for --mode ci the CI scenario (e.g. MinimalCI_01)")]
         public string ScenarioName { get; set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3354</c> ⑥ — what the startup load (<c>--scenario</c>) opens: <c>edit</c> or <c>live</c>; empty = the default (<see cref="StartupLoadsLive"/>).</summary>
+        [Option("load", Required = false, HelpText = "With --scenario: edit | live. Default: edit when this process hosts the editor, else live (loaded paused).")]
+        public string LoadTarget { get; set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3354</c> ⑥ — load-and-run: the live load runs once every node's load succeeded (implies <c>--load live</c>).</summary>
+        [Option("play", Required = false, Default = false, HelpText = "With --scenario: load live and RUN when every node has loaded (implies --load live).")]
+        public bool Play { get; set; }
+
+        /// <summary>⭐ <c>CE-3354</c> ⑥ — node NAMES whose scenario load also waits for their built 3-D map (the cluster's map-in-load setting). Absent = not given; given with no name = this process' own nodes.</summary>
+        public IEnumerable<string>? MapInLoad { get; set; }
+
+        /// <summary>The raw <c>--map-in-load</c> value: comma-separated names, or <see cref="OwnNodes"/> (what <see cref="NormaliseArgs"/> makes of a bare <c>--map-in-load</c>). ⚠ The command-line parser has no optional-value option, hence the sentinel.</summary>
+        [Option("map-in-load", Required = false, HelpText = "These nodes' loads wait for their 3-D map (comma-separated node names); with no names: this process' own nodes.")]
+        public string? MapInLoadText { get; set; }
+
+        /// <summary>The sentinel a bare <c>--map-in-load</c> becomes: this process' own nodes.</summary>
+        public const string OwnNodes = "*";
+
+        /// <summary>⭐ <c>CE-3354</c> ⑥ — <c>--map-in-load</c> with no names (last, or followed by another option) becomes <c>--map-in-load=*</c>, because the parser cannot take an option's value as optional. Call before parsing.</summary>
+        public static string[] NormaliseArgs(string[] args)
+        {
+            var result = new List<string>(args.Length);
+            for (int i = 0; i < args.Length; i++)
+            {
+                bool bare = args[i] == "--map-in-load" && (i + 1 >= args.Length || args[i + 1].StartsWith('-'));
+                result.Add(bare ? "--map-in-load=" + OwnNodes : args[i]);
+            }
+            return result.ToArray();
+        }
+
+        /// <summary>⭐ CE-3354 ⑥ — this process hosts the cluster master (the editor's embedded core, or the orchestrator — which <c>all</c> / <c>server</c> include).</summary>
+        public bool HostsMaster => RequestedSubsystems.Contains("editor") || RequestedSubsystems.Contains("orchestrator");
+
+        /// <summary>⭐ CE-3354 ⑥ — a startup load was asked for (<c>--scenario</c> outside <c>--mode ci</c>, which keeps its own meaning).</summary>
+        public bool HasStartupLoad => !string.IsNullOrWhiteSpace(ScenarioName) && !RequestedSubsystems.Contains("ci");
+
+        /// <summary>⭐ CE-3354 ⑥ — the startup load goes live: <c>--play</c>, or <c>--load live</c>, or no <c>--load</c> and no editor in the process. Else it opens for editing.</summary>
+        public bool StartupLoadsLive => Play || string.Equals(LoadTarget?.Trim(), "live", StringComparison.OrdinalIgnoreCase)
+                                        || (string.IsNullOrWhiteSpace(LoadTarget) && !RequestedSubsystems.Contains("editor"));
 
         /// <summary>⭐ <c>CE-3354</c> ② — this process' ONE node's unique name (a process with one node); several nodes in one process use <see cref="NodeNames"/>.</summary>
         [Option("node-name", Required = false, HelpText = "The unique name of this process' node (default <subsystem>-<nodeId>). Several nodes in one process: use --node-names.")]
@@ -229,6 +269,39 @@ namespace Hrot.ClusterRunner.Configuration
         private const string ModeList =
             "Use: all, server, player, orchestrator, simhost, cgf, traffic, ig, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
 
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ⑥ — the startup load's flags, refused clearly where they cannot hold: no master in the process (a lone <c>simhost</c> / <c>cgf</c> / <c>ig</c> / <c>traffic</c>, <c>player</c>) · <c>--load</c> / <c>--play</c>
+        /// without <c>--scenario</c> · an unknown <c>--load</c> · <c>--play</c> with <c>--load edit</c> (a run needs a live load). <c>--map-in-load</c> alone is fine (it sets the cluster setting) but needs a master too.
+        /// <c>--mode ci</c> keeps <c>--scenario</c>'s old meaning and takes none of these.
+        /// </summary>
+        private void ValidateStartupLoad()
+        {
+            if (MapInLoad == null && MapInLoadText != null)   // the parsed text: names, or the sentinel = this process' own nodes (an empty list)
+                MapInLoad = MapInLoadText.Trim() == OwnNodes
+                    ? Array.Empty<string>()
+                    : MapInLoadText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            bool ci = RequestedSubsystems.Contains("ci");
+            bool other = RequestedSubsystems.Contains("migrate") || RequestedSubsystems.Contains("dump-api");
+            bool scenario = !string.IsNullOrWhiteSpace(ScenarioName);
+            string load = LoadTarget?.Trim() ?? string.Empty;
+            if (ci || other)
+            {
+                if (load.Length > 0 || Play || MapInLoad != null)
+                    throw new InvalidOperationException("--load, --play and --map-in-load apply to a cluster with a master, not to --mode ci / migrate / dump-api.");
+                return;
+            }
+            if (load.Length > 0 && !load.Equals("edit", StringComparison.OrdinalIgnoreCase) && !load.Equals("live", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"--load '{LoadTarget}' is not edit | live.");
+            if ((load.Length > 0 || Play) && !scenario)
+                throw new InvalidOperationException("--load / --play load a scenario: name it with --scenario <name>.");
+            if (Play && load.Equals("edit", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("--play runs a live load; it cannot be combined with --load edit.");
+            if ((scenario || MapInLoad != null) && !HostsMaster)
+                throw new InvalidOperationException(
+                    $"--scenario / --map-in-load are sent to the cluster master, and this process ({string.Join(", ", RequestedSubsystems)}) hosts none. "
+                    + "Run them where the master is (--mode editor | all | server | orchestrator), or load the scenario over HTTP / from the operator's panel.");
+        }
+
         /// <summary>⭐ <c>CE-3354</c> ② — <c>--node-name</c> names the process' ONE node (several ⇒ ambiguous, refused); <c>--node-names</c> keys must be hosted subsystems
         /// and no two nodes may take one name.</summary>
         private void ValidateNodeNames()
@@ -314,6 +387,7 @@ namespace Hrot.ClusterRunner.Configuration
                     $"Invalid mode: '{ModeString}'. {ModeList}");
 
             ValidateNodeNames();
+            ValidateStartupLoad();
 
             // Parse wait-for list -> WaitForPeers   ("player" is the user-facing name of "ig", normalised as the mode token is)
             if (!string.IsNullOrWhiteSpace(WaitForString))
