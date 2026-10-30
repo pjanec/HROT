@@ -60,6 +60,7 @@ namespace Hrot.SimHost
             => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "SimHost", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
             {
                 Drive       = () => _clusterTimeAdapter,
+                RunChoice   = () => _clusterTimeAdapter?.RunChoice,
                 GizmoBuffer = () => _app?.Visualization?.GizmoBuffer,
             });
 

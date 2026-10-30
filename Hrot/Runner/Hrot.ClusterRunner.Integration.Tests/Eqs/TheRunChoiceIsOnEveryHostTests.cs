@@ -309,6 +309,10 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Player, offer.GatePolicy);
             Assert.False(choice.HasScenarioControl);                 // a player is not an operator
             Assert.True(offer.SuppressTimeControl);                  // the role's explicit suppression
+            // ⭐ CE-1451 — the IG's DEBUG provider carries the same choice although it has NO drive (so GET /status.runGate shows the Player's gate)
+            var debug = ig.CreateDebugProvider()!;
+            Assert.Null(debug.Drive);
+            Assert.Same(choice, debug.RunChoice);
             choice.CancelLoad("x");                                  // a player owns no load: nothing to cancel, nothing throws
 
             var windows = MakeWindowManager();

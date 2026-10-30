@@ -250,6 +250,9 @@ public interface ISubsystemDebugProvider
     /// <see langword="null"/> when this node keeps none (then no gate refuses — the master's own refusal is the authority). A default member so a provider that predates it is unchanged.
     /// </summary>
     Fdp.Toolkit.Orchestration.ClusterView? ClusterView => null;
+
+    /// <summary>⭐ CE-1451 — this host's run choice (its gate, armed mode), independent of the time <see cref="Drive"/>: the IG (a Player) offers no drive and still has a gate to show. <see langword="null"/> where none is composed.</summary>
+    Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => null;
     /// <summary>⭐⭐ <c>CE-4093</c> (AQ108 D20) — how the unsaved-changes check round <paramref name="requestId"/> ended, from this node's cluster read model
     /// (the master's answer reaches every host's bus); <see langword="null"/> while it has not, or when this node keeps no such read model.</summary>
     Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId);
@@ -404,6 +407,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<bool?>? _recordLiveRunsOff;   // CE-4090
     private readonly Func<Fdp.Toolkit.Orchestration.ClusterArmedMode?>? _armedMode;   // CE-3341
     private readonly Func<Fdp.Toolkit.Orchestration.ClusterView?>? _clusterView;   // CE-3344
+    private readonly Func<Hrot.UI.Common.RunMode.RunModeChoice?>? _runChoice;   // CE-1451
     private readonly Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? _unsavedCheck;   // CE-4093
     private readonly Func<bool?>? _scenarioDirty;   // CE-4093
     private readonly Func<string?>? _replayRecording;
@@ -493,8 +497,11 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<Guid, Fdp.Toolkit.Orchestration.UnsavedCheckOutcome?>? unsavedCheck = null,
         Func<bool?>? scenarioDirty = null,
         // ⭐⭐ CE-3344 (R-3069) — this node's ONE cluster read model, whose CanOperate the HTTP cluster routes gate on
-        Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null)
+        Func<Fdp.Toolkit.Orchestration.ClusterView?>? clusterView = null,
+        // ⭐ CE-1451 — the host's run choice, read without a drive (a Player has none)
+        Func<Hrot.UI.Common.RunMode.RunModeChoice?>? runChoice = null)
     {
+        _runChoice = runChoice;
         _clusterView = clusterView;
         _followedClusterState = followedClusterState;
         _masterGone = masterGone;
@@ -668,6 +675,7 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public bool? RecordLiveRunsOff => _recordLiveRunsOff?.Invoke();
     public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedMode => _armedMode?.Invoke();
     public Fdp.Toolkit.Orchestration.ClusterView? ClusterView => _clusterView?.Invoke();
+    public Hrot.UI.Common.RunMode.RunModeChoice? RunChoice => _runChoice?.Invoke();
     public Fdp.Toolkit.Orchestration.UnsavedCheckOutcome? UnsavedCheck(Guid requestId) => _unsavedCheck?.Invoke(requestId);
     public bool? ScenarioDirty => _scenarioDirty?.Invoke();
     public bool ObservesUnsavedChecks => _unsavedCheck != null;

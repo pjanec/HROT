@@ -466,6 +466,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "Scenario", () => _context, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
         {
             Drive         = () => _clusterTimeAdapter,
+            RunChoice     = () => _clusterTimeAdapter?.RunChoice,
             GizmoBuffer   = () => _cgfGizmoBuffer,
             Extraction    = () => _fdpEntityInspector.ExtractionService,
             MissionEditor = () => _missionService,

@@ -122,6 +122,31 @@ public sealed class TheRunModeRoutesTests : IDisposable
         Assert.Null(bare["load"]); Assert.Null(bare["runGate"]); Assert.Null(bare["loadingScreen"]);   // a host with none reports none
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1451 — a Player host (the IG) offers NO time drive, and its <c>/status.runGate</c> / <c>loadingScreen</c> still report: the run choice comes from the provider's own
+    /// <c>runChoice</c>, not through the drive. 🔴 Red-proof: <c>RunChoiceOrNull</c> ignoring the provider's choice ⇒ both read null here.
+    /// </summary>
+    [Fact]
+    public void CE1451_ADriveLessPlayer_StillReportsItsRunGateAndLoadingScreen()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
+        facade.AttachRunChoice(new Control(), new Unchanged(), gatePolicy: HostGatePolicy.Player);
+        var screen = new LoadingScreen(facade.RunChoice!, HostGatePolicy.Player);
+        view.NoteLocalPhase(NodePhase.Loading, "3-D map: terrain", null);
+        bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => view, runChoice: () => facade.RunChoice) },   // ⛔ no drive: the IG issues no ticks
+            currentPerspective: () => "IG", acksPending: null);
+        var data = new DebugApiService(dispatcher, clusterState: () => ClusterState.LoadingLive).GetStatus();
+
+        Assert.False(data["runGate"]!["open"]!.GetValue<bool>());
+        Assert.Equal("loading: 3-D map: terrain", data["runGate"]!["reason"]!.GetValue<string>());
+        Assert.Equal("Loading — 3-D map: terrain", data["loadingScreen"]!["text"]!.GetValue<string>());
+    }
+
     private static StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
     private (DebugApiHost Host, MainThreadJobQueue Queue, string Url) Start(ClusterTimeTransportAdapter facade, ClusterState state, IClusterMasterControl? master = null,

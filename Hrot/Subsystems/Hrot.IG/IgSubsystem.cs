@@ -61,6 +61,7 @@ namespace Hrot.IG
             //    (it executes the master's — PARTICIPATE ≠ OBSERVE), so stepping from its perspective answers NOT_SUPPORTED_HERE.
             => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "IG", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
             {
+                RunChoice   = () => _app?.RunControls?.RunChoice,   // ⭐ CE-1451 — the Player's gate, read without a drive
                 GizmoBuffer = () => _app?.GizmoBuffer,
             });
 

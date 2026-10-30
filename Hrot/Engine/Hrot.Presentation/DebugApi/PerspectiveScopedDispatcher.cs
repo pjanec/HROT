@@ -309,6 +309,10 @@ public sealed class PerspectiveScopedDispatcher
     public Fdp.Toolkit.Orchestration.ClusterView? ClusterViewAnyNode
         => Active()?.ClusterView ?? _providers.Select(p => p.ClusterView).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐ CE-1451 — the run choice of the active node, else any node that has one (independent of the time drive).</summary>
+    public Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceAnyNode
+        => Active()?.RunChoice ?? _providers.Select(p => p.RunChoice).FirstOrDefault(x => x is not null);
+
     public bool? RunNotRecordedAnyNode
         => Active()?.RunNotRecorded ?? _providers.Select(p => p.RunNotRecorded).FirstOrDefault(x => x is not null);
 

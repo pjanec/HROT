@@ -29,6 +29,13 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public string? ClusterNotOperableReason => ClusterNotOperableReasonKnown()?.Reason;
 
+        /// <summary>⭐ CE-1451 — THE one read of the host's run choice: the provider's own (independent of any drive — the IG has none), else the time facade's.</summary>
+        private Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceOrNull
+        {
+            // ⛔ the fallback keeps its old refusal (NOT_SUPPORTED_HERE for a host with no time facade): /status reads it through TryRead, the routes answer 501
+            get => _dispatcher?.RunChoiceAnyNode ?? _time.RunChoice;
+        }
+
         /// <summary>⭐ CE-1451 — <c>GET /status.load</c>: THIS node's phase / load step / failure (<c>ClusterView.LocalPhase/LocalStep/LocalReason</c>, the heartbeat's) and the cluster's load progress; null with no view.</summary>
         private JsonNode? LoadStatusOrNull()
         {
@@ -45,13 +52,13 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ CE-1451 — <c>GET /status.runGate</c>: the run gate the host's controls read (<c>RunModeChoice.Gate</c>); null where the host has no run choice.</summary>
         private JsonNode? RunGateOrNull()
-            => _time.RunChoice?.Gate is { } g
+            => RunChoiceOrNull?.Gate is { } g
                 ? new JsonObject { ["open"] = g.Open, ["reason"] = g.Reason, ["loading"] = g.Loading, ["progress"] = g.Progress, ["inError"] = g.InError }
                 : null;
 
         /// <summary>⭐ CE-1451 — <c>GET /status.loadingScreen</c>: whether the node's loading screen is up and what it says; null where none is composed.</summary>
         private JsonNode? LoadingScreenOrNull()
-            => Hrot.UI.Common.Panels.LoadingScreen.Of(_time.RunChoice) is { } s ? new JsonObject { ["visible"] = s.Visible, ["text"] = s.Text } : null;
+            => Hrot.UI.Common.Panels.LoadingScreen.Of(RunChoiceOrNull) is { } s ? new JsonObject { ["visible"] = s.Visible, ["text"] = s.Text } : null;
 
         /// <summary>⭐ CE-3344 — the same, with "this host keeps no cluster read model" (<see langword="null"/>) told apart from "operable" (<c>Reason == null</c>).</summary>
         private (string? Reason, bool Known)? ClusterNotOperableReasonKnown()
@@ -86,7 +93,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>⭐ CE-4097 part two — the host's armed run mode as a word (<c>preview</c> | <c>live</c> | <c>aar</c>); <see langword="null"/> when this host has no run choice.</summary>
-        private string? ArmedModeText() => _time.RunChoice?.Armed.ToString().ToLowerInvariant();
+        private string? ArmedModeText() => RunChoiceOrNull?.Armed.ToString().ToLowerInvariant();
 
         /// <summary>
         /// ⭐⭐ <c>CE-4097</c> part two (AQ108 D22) — <c>POST /run-mode {armed: preview|live|aar, confirm?}</c>: a thin route over the indicator's <see cref="Hrot.UI.Common.RunMode.RunModeChoice.Choose"/>
@@ -95,7 +102,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory, int Status) SetRunMode(JsonNode? body)
         {
-            var choice = _time.RunChoice;
+            var choice = RunChoiceOrNull;
             if (choice is null)
                 return (null, "No run-mode choice on this host's time facade (the Replay Browser and a host with no time facade have none).", DebugApiHints.Panel, 503);
             var text = body?["armed"]?.GetValue<string>();
