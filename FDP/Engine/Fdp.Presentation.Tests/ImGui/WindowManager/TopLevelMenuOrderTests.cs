@@ -44,21 +44,22 @@ public class TopLevelMenuOrderTests
         Assert.Equal(new[] { "File", "Edit", "View", "Tools" }, reg.TopLevelMenus().Select(m => m.Name));
     }
 
+    /// <summary>⭐ CE-4114 — an UNLISTED root segment is drawn AFTER the rightmost listed non-Help menu (Debug), registration order among themselves,
+    /// and before Help. ⛔ SUPERSEDED: "an unlisted menu ranks just before Windows". ✅ Red-proof: <c>UnlistedRank</c> returning <c>TopLevelRank("Help") - 5</c> ⇒ Mission lands before Debug ⇒ red.</summary>
     [Fact]
-    public void CE1026_AnUnlistedMenu_LeadsBeforeWindows_AndTiesKeepRegistrationOrder()
+    public void CE4114_AnUnlistedMenu_LandsAfterTheRightmostListedNonHelpMenu_NotBesideHelp()
     {
         var reg = new GlobalMenuRegistry();
         reg.RegisterItem("Help/A", () => { });
-        reg.RegisterItem("Windows/A", () => { });
         reg.RegisterItem("Zeta/A", () => { });
         reg.RegisterItem("Alpha/A", () => { });
+        reg.RegisterItem("Mission/Brief", () => { });
+        reg.RegisterItem("Debug/D", () => { });
         reg.RegisterItem("File/A", () => { });
 
-        Assert.Equal(new[] { "File", "Zeta", "Alpha", "Windows", "Help" }, reg.TopLevelMenus().Select(m => m.Name));
-        Assert.True(GlobalMenuRegistry.IsLeadingMenu("Zeta"));
-        Assert.True(GlobalMenuRegistry.IsLeadingMenu("File"));
-        Assert.False(GlobalMenuRegistry.IsLeadingMenu("Windows"));
-        Assert.False(GlobalMenuRegistry.IsLeadingMenu("Help"));
+        Assert.Equal(new[] { "File", "Debug", "Zeta", "Alpha", "Mission", "Help" }, reg.TopLevelMenus().Select(m => m.Name));
+        Assert.False(GlobalMenuRegistry.IsRightAligned("Mission"));
+        Assert.True(GlobalMenuRegistry.IsRightAligned("Help"));
     }
 
     [Fact]
@@ -95,12 +96,59 @@ public class TopLevelMenuOrderTests
 
         var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective));
 
-        Assert.Equal(new[] { "File", "View", "Zeta", "Windows", "Help" }, bar.Select(m => m.Name));
+        Assert.Equal(new[] { "File", "View", "Zeta", "Help" }, bar.Select(m => m.Name));   // ⭐ CE-4114: Windows is under View; Zeta (unlisted) after the listed menus
         Assert.Equal("Help", bar.Last().Name);
         Assert.True(bar.Last().RightAligned);
         Assert.Equal(new[] { "Help" }, bar.Where(m => m.RightAligned).Select(m => m.Name));
         Assert.True(GlobalMenuRegistry.IsRightAligned("Help"));
-        Assert.False(GlobalMenuRegistry.IsRightAligned("Windows"));
+        Assert.False(GlobalMenuRegistry.IsRightAligned("Zeta"));
+    }
+
+    /// <summary>⭐ CE-4114 — <c>Windows</c> is a SUBMENU of <c>View</c>: no top-level Windows; <c>View/Windows/&lt;perspective&gt;/&lt;window&gt;</c> is reachable and nothing is lost.
+    /// ✅ Red-proof: <c>WindowsMenuDto</c> labelled "Windows" again (top-level) ⇒ red.</summary>
+    [Fact]
+    public void CE4114_Windows_IsASubmenuOfView_NotTopLevel()
+    {
+        var wm = WmWithPerspectives();
+        var bar = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective));
+        Assert.DoesNotContain(bar, m => m.Name == "Windows");
+
+        var view = bar.Single(m => m.Name == "View");
+        var windows = view.Parts.SelectMany(p => p.Item.Children ?? System.Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>())
+            .Single(c => c.Label == "Windows");
+        var leaves = windows.Children!.SelectMany(g => g.Children ?? System.Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>()).Select(c => c.Label);
+        Assert.Contains("w-IG", leaves);
+        Assert.Contains("w-Scn", leaves);
+        Assert.Equal("View/Windows", GlobalMenuRegistry.WindowsSubmenu);
+    }
+
+    /// <summary>⭐ CE-4114 — Help is ICON-ONLY: its draw label has no visible text, and a real frame asks the icon resolver for the question-mark key (and
+    /// not for the old info badge). ✅ Red-proof: <c>BarMenu.IconOnly</c> returning false ⇒ the label is "Help" ⇒ red; <c>HelpIconKey</c> back to "status/info" ⇒ red.
+    /// Display rail: needs the ImGui fixture (native cimgui); skipped-vs-run is reported by the runner.</summary>
+    [Fact]
+    public void CE4114_Help_IsAnIconOnlyEntry_ARealFrameDrawsTheQuestionMark()
+    {
+        var wm = WmWithPerspectives();
+        var seen = new System.Collections.Generic.List<string>();
+        using var fixture = new Fdp.Presentation.Tests.ImGuiTestFixture();
+        wm.MenuIcons = (string key, out nint tex, out System.Numerics.Vector2 uv0, out System.Numerics.Vector2 uv1) =>
+        {
+            seen.Add(key);
+            tex = ImGuiNET.ImGui.GetIO().Fonts.TexID; uv0 = System.Numerics.Vector2.Zero; uv1 = System.Numerics.Vector2.One;
+            return tex != 0;
+        };
+
+        var help = wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Single(m => m.Name == "Help");
+        Assert.True(help.IconOnly);
+        Assert.StartsWith("##", help.DrawLabel);                 // no visible text: ImGui hides everything after "##" and the label is empty
+        Assert.DoesNotContain(wm.GlobalMenu.BarMenus(wm.GlobalMenu.CollectContributions(wm.CurrentPerspective)).Where(m => m.Name != "Help"), m => m.IconOnly);
+
+        fixture.NewFrame();
+        wm.Render();
+        fixture.Render();
+
+        Assert.Contains(WM.HelpIconKey, seen);
+        Assert.Equal("help", WM.HelpIconKey);
     }
 
     /// <summary>⭐ CE-4085 cond. 2 — no top-level Settings, no top-level Perspective; View holds a Settings submenu (every item that was under
@@ -150,7 +198,7 @@ public class TopLevelMenuOrderTests
             "Windows/IG/w-IG", "Windows/Scenario/w-Scn",
             "Help/About",
         };
-        string Rehome(string p) => p.StartsWith("Settings/") || p.StartsWith("Perspective/") ? "View/" + p : p;
+        string Rehome(string p) => p.StartsWith("Settings/") || p.StartsWith("Perspective/") || p.StartsWith("Windows/") ? "View/" + p : p;   // ⭐ CE-4114: + Windows
 
         var after = wm.GlobalMenu.BuildViewModel(wm.CurrentPerspective).Items
             .Where(i => i.Kind == "item").Select(i => i.Path).ToHashSet();

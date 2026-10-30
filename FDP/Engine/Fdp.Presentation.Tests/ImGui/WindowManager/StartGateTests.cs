@@ -161,7 +161,7 @@ public class StartGateTests : IDisposable
         Assert.Contains("Help/About", idle);                                // Help stays (a contributed DTO carries the flag)
         Assert.DoesNotContain("File/Save Scenario", idle);
         Assert.DoesNotContain("Edit/Undo", idle);
-        Assert.DoesNotContain(idle, p => p.StartsWith("Windows/") || p.StartsWith("View/Perspective"));   // the shell's own contributors are pruned too
+        Assert.DoesNotContain(idle, p => p.StartsWith("View/Windows") || p.StartsWith("Windows/") || p.StartsWith("View/Perspective"));   // the shell's own contributors are pruned too
 
         gate.Tick(2.0, Rest(ClusterState.OperatingEdit));
         var full = VisibleItems(wm);

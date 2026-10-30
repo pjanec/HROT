@@ -33,6 +33,20 @@ public sealed class AIE002_SilkIconProviderTests
         Assert.True(found);
     }
 
+    /// <summary>⭐ CE-4114 — the Help menu's icon key (the window manager's <c>HelpIconKey</c>) resolves to the silk question-mark cell (v5), so the icon-only Help entry really draws.
+    /// ✅ Red-proof: removing the <c>help</c> map entry ⇒ red.</summary>
+    [Fact]
+    public void CE4114_TheHelpMenuIconKey_ResolvesToTheSilkQuestionMark()
+    {
+        var atlas = MakeAtlas(42);
+        var provider = new SilkIconProvider(atlas);
+
+        Assert.True(provider.TryGet(Fdp.Presentation.WindowManager.WindowManager.HelpIconKey, out var handle));
+        var (uv0, uv1) = atlas.GetUvCoordinates("v5");
+        Assert.Equal(uv0, handle.Uv0);
+        Assert.Equal(uv1, handle.Uv1);
+    }
+
     [Fact]
     public void SilkIconProvider_TryGet_KnownKey_ReturnsHandleWithAtlasTextureId()
     {

@@ -822,8 +822,8 @@ public class WindowManager
             if (rightAligned)
             {
                 // Flush with the bar's right edge, but never over what is already drawn (a narrow window keeps the flow position).
-                float width = Gui.CalcTextSize(menu.Name).X + Gui.GetStyle().FramePadding.X * 2f
-                              + (MenuIcons != null && !string.IsNullOrEmpty(TopIcon(menu)) ? Gui.GetFrameHeight() : 0f);
+                float width = (menu.IconOnly ? IconOnlyLabelWidth() : Gui.CalcTextSize(menu.Name).X + Gui.GetStyle().FramePadding.X * 2f
+                              + (MenuIcons != null && !string.IsNullOrEmpty(TopIcon(menu)) ? Gui.GetFrameHeight() : 0f));
                 float x = System.Math.Max(Gui.GetCursorPosX(), Gui.GetWindowWidth() - Gui.GetStyle().WindowPadding.X - width);
                 Gui.SameLine();
                 Gui.SetCursorPosX(x);
@@ -841,7 +841,8 @@ public class WindowManager
                 continue;
             }
 
-            if (!GizmoMap.Presentation.MenuRows.Submenu(menu.Name, TopIcon(menu), true, MenuIcons, reserveTop)) continue;
+            // ⭐ CE-4114: an icon-only menu (Help) has an EMPTY visible label — "##Name" keeps the ImGui id; the icon fills the gutter.
+            if (!GizmoMap.Presentation.MenuRows.Submenu(menu.DrawLabel, TopIcon(menu), true, MenuIcons, reserveTop || menu.IconOnly)) continue;
             bool reserve = MenuIcons != null
                 && ((menu.Node?.Children.Values.Any(c => !string.IsNullOrEmpty(c.Icon)) ?? false)
                     || menu.Parts.Any(p => p.Item.Children is { } cs && GizmoMap.Presentation.MenuIconRenderer.AnyHasIcon(cs)));
@@ -851,6 +852,13 @@ public class WindowManager
                     GizmoMap.Presentation.MenuRows.Dto(child, contributor.OnAction, MenuIcons, reserve);
             Gui.EndMenu();
         }
+    }
+
+    /// <summary>⭐ CE-4114 — the width of an icon-only top-level entry: the icon gutter plus the frame padding.</summary>
+    private static float IconOnlyLabelWidth()
+    {
+        GizmoMap.Presentation.MenuIconRenderer.Pad("", out float gutter);
+        return gutter + Gui.GetStyle().FramePadding.X * 2f;
     }
 
     private static string? TopIcon(BarMenu menu)
@@ -1017,12 +1025,19 @@ public class WindowManager
         }
         return new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
-            Label = "Windows",
-            Priority = 90,
-            Icon = "folder",
-            Children = winChildren.ToArray()
+            Label = "View",   // ⭐ CE-4114: a submenu of the top-level View (merged into the one View menu by BarMenus), like Perspective
+            Children = winChildren.Count == 0 ? Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>() : new[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                {
+                    Label = GlobalMenuRegistry.WindowsMenu, Priority = 90, Icon = "folder", Children = winChildren.ToArray()
+                }
+            }
         };
     }
+
+    /// <summary>⭐ CE-4114 — the silk atlas key of the Help icon (the famfamfam question mark; see SilkIconProvider's <c>help</c>).</summary>
+    public const string HelpIconKey = "help";
 
     /// <summary>⭐ CE-1243 — the Help menu: About. ⭐ CE-1332 (🔒 user, 2026-10-25: <i>"leaving just the About in the Help menu … if the
     /// Window → Global is same as the debug windows then lets remove the debug field from the View also"</i>) — the global (debug) windows are
@@ -1032,7 +1047,7 @@ public class WindowManager
         {
             Label = "Help",
             Priority = 100,
-            Icon = "status/info",
+            Icon = HelpIconKey,   // ⭐ CE-4114: the bar draws ONLY this icon (the silk question mark), no "Help" text
             Children = new[]
             {
                 new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About", Icon = "status/info", AllowedInIdle = true }   // ⭐ CE-4096: Help stays in Idle

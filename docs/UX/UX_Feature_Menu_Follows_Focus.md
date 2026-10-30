@@ -6,7 +6,7 @@ current-answer: PARTIAL. Mechanism built + railed (GlobalMenuRegistry.ResolveBin
   ⭐ 2026-10-22: §MB (CE-1243) — ONE menu bar BUILT: one tree with per-frame contributors, one row renderer; the 4 host blocks are gone
   and each host's map menus are a perspective-bound contributor (UXI-05 step 2 + UXI-13 closed). The STATUS line above predates it.
 updated: 2026-10-22
-known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope). MB.1's bar order ("Perspective ranked after the leading menus", top-level Settings) is SUPERSEDED by §MB.2 (CE-4085).
+known-rot: the "Out of scope" rows "Consolidating the four blocks" and "RenderPerspectiveMenu() and the host-menu DTOs" are SUPERSEDED by §MB (consolidating is now the scope). MB.1's bar order ("Perspective ranked after the leading menus", top-level Settings) is SUPERSEDED by §MB.2 (CE-4085); MB.2's "unlisted menu before Windows" + top-level Windows are SUPERSEDED by §MB.3 (CE-4114).
 related-designs:
   - ../designs/win-mgr-1/DESIGN.md — §4.3 the menu tree, §4.4.1 the shell's fixed Windows / Perspective / Help (what §MB folds into the tree)
   - ../designs/gizmos-1/canvas-context-menu-design.md — the map's context menu (the other user of ImGuiMenuRenderer's DTO walk; §MB keeps it)
@@ -259,3 +259,17 @@ contributor ⇒ two rails red). Existing `TopLevelMenuOrderTests`, `TheSettingsM
 | Perspective | the `wm/perspective` contributor returns a `View` DTO holding a `Perspective` submenu (checked state and icons kept); `BarMenus` merges it into the one View menu |
 
 📐 **Rails** (`TopLevelMenuOrderTests`, existing suite): `CE4085_HelpIsLast_AndMarkedRightAligned_OnTheOneTree` · `CE4085_SettingsAndPerspective_AreSubmenusOfView_NotTopLevel` · `CE4085_NoItemIsLost_TheLeafSetIsTheOldSetReparentedUnderView` · `CE4085_ARealFrame_DrawsTheReorderedBar`. ⚠ The pixel position of Help is not asserted (the model flag is); ⚠ not yet seen in the GUI.
+
+### MB.4 AS-BUILT — CE-4114: `Windows` under View; Help is the icon only; unlisted menus after Debug (`2026-10-30`, ui) — build-state: BUILT
+
+🔒 User: *"the \"Windows\" main menu should be moved under the 'View\" menu"* · *"unrecognized items should not go to the right, only the help is there … reduced to a single question mark icon from the famfamfam table … if their main menu root segment is not among the listed ones, it should [go] on the right of the rightmost non-help menu."*
+⛔ **SUPERSEDED (MB.2's order row):** `… Debug · Windows · Help` with an unlisted menu ranked "just before `Windows`" (`FirstTrailingMenu`, `IsLeadingMenu` — both deleted).
+
+| decision | as built |
+|---|---|
+| order | `TopLevelOrder` = File · Edit · View · Scenario · Tools · Debug · Help; `GlobalMenuRegistry.UnlistedRank` = just after the rightmost listed non-Help menu, so `File … Debug · <unlisted, registration order> … [?]` |
+| Windows | the `wm/windows` contributor returns a `View` DTO holding a `Windows` submenu (`GlobalMenuRegistry.WindowsSubmenu` = `View/Windows`); merged into the one View menu like Perspective; no top-level `Windows` |
+| Help | icon-only: `BarMenu.IconOnly`/`DrawLabel` (`##Help` = an id with no visible text); `WindowManager.HelpIconKey` = `help` -> silk cell `v5` (the question mark) in `SilkIconProvider`; still flush right and last; width = icon gutter + padding |
+
+📐 **Rails:** `TopLevelMenuOrderTests` — `CE4114_AnUnlistedMenu_LandsAfterTheRightmostListedNonHelpMenu_NotBesideHelp` · `CE4114_Windows_IsASubmenuOfView_NotTopLevel` · `CE4114_Help_IsAnIconOnlyEntry_ARealFrameDrawsTheQuestionMark` (frame rail); `TheMenuBarIsOneTreeTests` (View holds a Windows part); `AIE002_SilkIconProviderTests.CE4114_TheHelpMenuIconKey_ResolvesToTheSilkQuestionMark`. The CE-4085 leaf-set rail now re-homes `Windows/…` too.
+
