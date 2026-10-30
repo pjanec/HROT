@@ -32,7 +32,13 @@ public sealed class LoadingScreen
     {
         _choice = choice ?? throw new ArgumentNullException(nameof(choice));
         _policy = policy;
+        Composed.AddOrUpdate(_choice, this);
     }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<RunModeChoice, LoadingScreen> Composed = new();
+
+    /// <summary>⭐ CE-1451 — the loading screen composed over <paramref name="choice"/>, or <see langword="null"/> when none is (the debug API's <c>GET /status</c> reports what it says).</summary>
+    public static LoadingScreen? Of(RunModeChoice? choice) => choice is not null && Composed.TryGetValue(choice, out var s) ? s : null;
 
     /// <summary>Registers it on <paramref name="bar"/> (every perspective); the status bar is drawn every frame, which is where the modal is driven from.</summary>
     public static LoadingScreen Register(StatusBarManager bar, RunModeChoice choice, HostGatePolicy policy = HostGatePolicy.Operator)

@@ -87,6 +87,41 @@ public sealed class TheRunModeRoutesTests : IDisposable
         return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1451 — <c>GET /status</c> shows a node that is LOADING: its heartbeat's phase and step (<c>load</c>), the run gate its controls read (<c>runGate</c>) and the text of
+    /// its composed loading screen (<c>loadingScreen</c>); a host with none of them answers null for each. 🔴 Red-proof: drop <c>["load"]</c> from <c>GetStatus</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1451_Status_CarriesTheLoadStep_TheRunGate_AndTheLoadingScreenText()
+    {
+        var bus = new FdpEventBus();
+        var view = new ClusterView(bus);
+        var facade = new ClusterTimeTransportAdapter(bus, () => view, () => 0);
+        facade.AttachRunChoice(new Control(), new Unchanged(), gatePolicy: HostGatePolicy.Player);
+        var screen = new LoadingScreen(facade.RunChoice!, HostGatePolicy.Player);
+        view.NoteLocalPhase(NodePhase.Loading, "3-D map: terrain", null);
+        bus.SwapBuffers(); view.Update(); facade.Update(); bus.SwapBuffers();
+
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", drive: () => facade, clusterView: () => view) },
+            currentPerspective: () => "IG", acksPending: null);
+        var data = new DebugApiService(dispatcher, clusterState: () => ClusterState.LoadingLive).GetStatus();
+
+        Assert.Equal("Loading", data["load"]!["localPhase"]!.GetValue<string>());
+        Assert.Equal("3-D map: terrain", data["load"]!["localStep"]!.GetValue<string>());
+        Assert.False(data["runGate"]!["open"]!.GetValue<bool>());
+        Assert.True(data["runGate"]!["loading"]!.GetValue<bool>());
+        Assert.Equal("loading: 3-D map: terrain", data["runGate"]!["reason"]!.GetValue<string>());
+        Assert.Equal("3-D map: terrain", data["runGate"]!["progress"]!.GetValue<string>());
+        Assert.True(data["loadingScreen"]!["visible"]!.GetValue<bool>());
+        Assert.Contains("3-D map: terrain", data["loadingScreen"]!["text"]!.GetValue<string>());
+
+        var bare = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("SimHost", "SimHost", drive: () => new ClusterTimeTransportAdapter(new FdpEventBus(), () => null, () => 0)) },
+            currentPerspective: () => "SimHost", acksPending: null), clusterState: () => ClusterState.Idle).GetStatus();
+        Assert.Null(bare["load"]); Assert.Null(bare["runGate"]); Assert.Null(bare["loadingScreen"]);   // a host with none reports none
+    }
+
     private static StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
     private (DebugApiHost Host, MainThreadJobQueue Queue, string Url) Start(ClusterTimeTransportAdapter facade, ClusterState state, IClusterMasterControl? master = null,

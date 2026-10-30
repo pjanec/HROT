@@ -17,9 +17,9 @@ if [ "$WITH_IG" = 1 ]; then
   # every ~200 ms: the master's view of the IG (roster state), the IG's /status gate text and every step/loading/3-D-map string in the IG's /diagnostics/architecture (its heartbeat's load step)
   ( while :; do
       r=$(curl -s --noproxy '*' --max-time 5 localhost:8600/cluster/roster | python3 -c 'import sys,json;d=json.load(sys.stdin)["data"]["nodes"];print([n["reportedState"] for n in d if n["nodeId"]==100][0])' 2>/dev/null)
-      g=$(curl -s --noproxy '*' --max-time 5 localhost:8603/status | grep -oE '"(canOperate|notOperable)":("[^"]*"|[a-z]+)' | tr '\n' ' ')
-      d=$(curl -s --noproxy '*' --max-time 5 localhost:8603/diagnostics/architecture | grep -oiE '"[A-Za-z]*(step|loading|progress)[A-Za-z]*":("[^"]*"|[0-9a-z.]+)|3-D map[^"]*' | sort -u | tr '\n' ' ')
-      echo "$(date +%T.%N | cut -c1-12) igState=${r:-?} $g diag: $d" >> $ROSTER; sleep 0.2; done ) &
+      g=$(curl -s --noproxy '*' --max-time 5 localhost:8603/status | grep -oE '"(canOperate|localPhase|localStep|reason|text)":("[^"]*"|null|[a-z]+)' | tr '\n' ' ')   # CE-1451: load.localStep, runGate.reason, loadingScreen.text
+      d=$(curl -s --noproxy '*' --max-time 5 localhost:8603/view | grep -oE '"(pending3D|built|step)":("[^"]*"|null|[a-z]+)' | tr '\n' ' ')   # CE-1451: the IG's map build
+      echo "$(date +%T.%N | cut -c1-12) igState=${r:-?} $g view: $d" >> $ROSTER; sleep 0.2; done ) &
   SAMPLER=$!
   # the VRAM upload lines carry no timestamp of their own: stamp them as they appear (= when the IG's map meshes were built)
   rm -f /tmp/ce4078-vao.log; ( tail -n0 -F /tmp/n-ig-8603.log 2>/dev/null | grep --line-buffered "Mesh uploaded" | while read -r l; do echo "$(date +%T.%N | cut -c1-12) $l" >> /tmp/ce4078-vao.log; done ) &

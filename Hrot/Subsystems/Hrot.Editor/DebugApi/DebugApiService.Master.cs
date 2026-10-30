@@ -29,6 +29,30 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public string? ClusterNotOperableReason => ClusterNotOperableReasonKnown()?.Reason;
 
+        /// <summary>⭐ CE-1451 — <c>GET /status.load</c>: THIS node's phase / load step / failure (<c>ClusterView.LocalPhase/LocalStep/LocalReason</c>, the heartbeat's) and the cluster's load progress; null with no view.</summary>
+        private JsonNode? LoadStatusOrNull()
+        {
+            if ((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is not { } view) return null;
+            return new JsonObject
+            {
+                ["localPhase"] = view.LocalPhase.ToString(),
+                ["localStep"] = view.LocalStep,
+                ["localReason"] = view.LocalReason,
+                ["clusterProgress"] = view.LoadProgress,
+                ["playReady"] = view.IsLocalPlayReady,
+            };
+        }
+
+        /// <summary>⭐ CE-1451 — <c>GET /status.runGate</c>: the run gate the host's controls read (<c>RunModeChoice.Gate</c>); null where the host has no run choice.</summary>
+        private JsonNode? RunGateOrNull()
+            => _time.RunChoice?.Gate is { } g
+                ? new JsonObject { ["open"] = g.Open, ["reason"] = g.Reason, ["loading"] = g.Loading, ["progress"] = g.Progress, ["inError"] = g.InError }
+                : null;
+
+        /// <summary>⭐ CE-1451 — <c>GET /status.loadingScreen</c>: whether the node's loading screen is up and what it says; null where none is composed.</summary>
+        private JsonNode? LoadingScreenOrNull()
+            => Hrot.UI.Common.Panels.LoadingScreen.Of(_time.RunChoice) is { } s ? new JsonObject { ["visible"] = s.Visible, ["text"] = s.Text } : null;
+
         /// <summary>⭐ CE-3344 — the same, with "this host keeps no cluster read model" (<see langword="null"/>) told apart from "operable" (<c>Reason == null</c>).</summary>
         private (string? Reason, bool Known)? ClusterNotOperableReasonKnown()
             => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is { } view ? (view.NotOperableReason, true) : null;

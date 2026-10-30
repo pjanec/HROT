@@ -27,7 +27,11 @@ public sealed record ViewSnapshot(
     Entity Possessed,
     long AimTarget,
     float? ZoomFovDeg,
-    double PublishedAtSeconds);
+    double PublishedAtSeconds,
+    bool Pending3D = false,
+    string? Pending3DFailure = null,
+    bool? MapBuilt = null,
+    string? MapBuildStep = null);
 
 /// <summary>
 /// ⭐ <c>CE-1262</c> (AV-1) — the per-frame view publish, keyed by the WORLD the canvas draws, so two canvases in one process (the editor

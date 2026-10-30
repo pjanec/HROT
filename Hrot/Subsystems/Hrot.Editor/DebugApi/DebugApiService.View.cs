@@ -47,6 +47,11 @@ namespace Hrot.Editor.DebugApi
                         ["screen"] = new JsonArray(MathF.Round(u.Screen.X), MathF.Round(u.Screen.Y)),
                     });
                 result["inView"] = units;
+                // ⭐ CE-1451 (R-1046) — the 3-D map's build: a 3-D request waiting for it (the 2-D map shows "Building 3-D map…"), and the build's own state
+                result["pending3D"] = view.Pending3D;
+                if (view.Pending3DFailure is { } why) result["pending3DFailure"] = why;
+                if (view.MapBuilt is { } built)
+                    result["map"] = new JsonObject { ["built"] = built, ["step"] = view.MapBuildStep is { Length: > 0 } step ? step : null };
             }
             var (primary, all) = SelectionOf(_world, _entityMap);
             result["selection"] = all;

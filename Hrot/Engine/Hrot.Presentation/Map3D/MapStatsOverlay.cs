@@ -65,7 +65,9 @@ public sealed class MapStatsOverlay : IMapLayer
             cam.Yaw * 180f / MathF.PI, cam.Pitch * 180f / MathF.PI, cam.Distance,
             fps && p!.ZoomFovDegrees is { } zoom ? zoom : cam.FovyDegrees, cam.Viewport, rectMin, rectMax,
             fps ? p!.Unit : Entity.Null, fps ? p!.AimTarget : 0L, fps ? p!.ZoomFovDegrees : null,
-            world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d));
+            world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d,
+            // ⭐ CE-1451 — the 3-D map's build state, for GET /view (what "Building 3-D map…" says on screen)
+            _view.Pending3D, _view.Pending3DFailure, _view.Build?.IsBuilt, _view.Build?.Step));
     }
 
     /// <summary>The counter's text.</summary>

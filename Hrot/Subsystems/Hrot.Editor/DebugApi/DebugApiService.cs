@@ -744,6 +744,11 @@ namespace Hrot.Editor.DebugApi
                 //   absent when this host keeps no cluster read model. ⭐ What a test harness polls before it drives the cluster.
                 ["canOperate"]   = ClusterNotOperableReasonKnown() is { } known ? (JsonNode?)(known.Reason is null) : null,
                 ["notOperable"]  = ClusterNotOperableReasonKnown()?.Reason,
+                // ⭐⭐ CE-1451 — this node's LOAD as its heartbeat reports it (phase, step, failure) and the run gate + loading screen its controls read. Each is absent
+                //   (null) where the host has none: no cluster view ⇒ no `load`; no run choice ⇒ no `runGate`; no composed screen ⇒ no `loadingScreen`.
+                ["load"]         = TryRead(LoadStatusOrNull),
+                ["runGate"]      = TryRead(RunGateOrNull),
+                ["loadingScreen"] = TryRead(LoadingScreenOrNull),
             };
         }
 

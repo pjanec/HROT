@@ -51,8 +51,8 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_status",
             Group:   "A — Lifecycle & status",
             Summary: "Runner liveness + sim state summary.",
-            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode }",
-            Hint:    "No params. Example: get_status({})",
+            Returns: "{ scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording, perspective, routedTo, scenarioDirty, armedMode, canOperate, notOperable, load, runGate, loadingScreen }",
+            Hint:    "No params. Example: get_status({}). load = this node's heartbeat phase/step (e.g. \"3-D map: terrain\" while its map builds); runGate = the gate its controls read; loadingScreen = what its waiting screen says; each null where the host has none.",
             Notes: new[]
             {
                 "⭐ CE-4097 (AQ108 D22) — `armedMode` is what the toolbar's ▶ would run from editing on this host: preview | live | aar (set_run_mode changes it); null when the host has no run choice. play / step never follow it.",
