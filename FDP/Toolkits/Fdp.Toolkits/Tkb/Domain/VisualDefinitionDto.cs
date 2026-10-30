@@ -34,5 +34,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// DIS kind/domain. 📄 docs/DESIGN_Add_Entity_Picker.md D3.
         /// </summary>
         public string? IconName { get; init; }
+
+        /// <summary>
+        /// ⭐ CE-4123 (§6ad-3, TC1) — a wheeled road vehicle's body style: a <see cref="CarBodyStyle"/> name (Sedan, Estate, SmallHatch, Suv, Van,
+        /// Bus, BoxTruck). Null ⇒ the family's own kit. The size stays the type's (its vehicle parameters).
+        /// </summary>
+        public string? BodyStyle { get; init; }
     }
 }

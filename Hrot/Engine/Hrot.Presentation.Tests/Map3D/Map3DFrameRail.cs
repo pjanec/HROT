@@ -4433,6 +4433,61 @@ public sealed class Map3DFrameRail
         finally { Raylib.UnloadImage(image); }
     }
 
+    /// <summary>
+    /// ⭐ CE-4123 (§6ad-3) — one of EACH body style in a row (sedan, estate, hatchback, SUV, van, bus, box truck), each in the paint
+    /// <c>TrafficPaint</c> gives its id: <c>map3d-ce4123-traffic-styles.png</c> under <c>HROT_RAIL_SHOTS</c> (not in git).
+    /// </summary>
+    [SkippableFact]
+    public void CE4123_OneOfEachTrafficStyle_IsDrawnInARow_InItsOwnPaint()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float Z(float x, float y) => query.GroundHeightAt(x, y);
+        long[] types = { UrbanCombatTkbCatalog.TkbTrafficSedan, UrbanCombatTkbCatalog.TkbTrafficEstate, UrbanCombatTkbCatalog.TkbTrafficHatchback,
+                         UrbanCombatTkbCatalog.TkbTrafficSuv, UrbanCombatTkbCatalog.TkbTrafficVan, UrbanCombatTkbCatalog.TkbTrafficBus, UrbanCombatTkbCatalog.TkbTrafficTruck };
+        var cars = new List<Hrot.Traffic.TrafficCarPose>();
+        float x0 = spot.X - 20f;
+        for (int i = 0; i < types.Length; i++)
+        {
+            float x = x0 + new[] { 0f, 6f, 12f, 18f, 25f, 36f, 49f }[i], y = spot.Y + 5f;
+            tkb.TryGetByType(types[i], out var t);
+            var size = EntityBodyLayer3D.Resolve(t).Size;
+            string id = "veh" + (7 * i + 3);
+            cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, id, 3001 + i, types[i], Hrot.Traffic.TrafficPaint.Of(id, types[i]), x, y, Z(x, y), 0f, size.X, size.Y));
+        }
+        world.SetSingletonManaged(new Hrot.Traffic.TrafficFrame(cars, _ => false, new Dictionary<int, byte>(), new List<Hrot.Traffic.TrafficPedPose>(), _ => false));
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        var target = new Vector2(spot.X - 1280f / 8f, spot.Y + 800f / 8f);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = 4f, SmoothTarget = target, SmoothZoom = 4f });
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, ambient: Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => Z(x, y);
+        sw.Set(true);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        // from the street-side, a little above, looking along the row
+        sw.Camera3D.Pose = new CameraPose(new Vector3(x0 + 25f, spot.Y + 5f, Z(x0 + 25f, spot.Y + 5f) + 1f), 46f, -MathF.PI * 0.5f + 0.0f, -0.18f);
+        for (int k = 0; k < 8; k++) frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-ce4123-traffic-styles.png"));
+        Assert.Equal(types.Length, bodies.AmbientDrawn);
+        Assert.True(bodies.PartsDrawn > types.Length * 8, $"parts drawn: {bodies.PartsDrawn}");
+        Assert.True(cars.Select(c => c.Color).Distinct().Count() >= 3, "the row is painted in several colours");
+    }
+
     /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's FAR pedestrians and cars (no entities) are drawn as ours: civilians in their own clothes,
     /// faces and hair (typed and seeded by their network ids), walking; cars as their types' kits in their paint. 🔒 User, 2026-10-18:
     /// <i>"definitely not a gray uniform figures please"</i>. ⛔ Before: one grey box a person, one blue box a car (TrafficLayer3D).

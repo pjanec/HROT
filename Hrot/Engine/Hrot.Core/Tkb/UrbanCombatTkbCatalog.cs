@@ -55,6 +55,10 @@ namespace Hrot.Core.Tkb
         public const int TkbTrafficBus         = 1052;
         /// <summary>⭐ AQ93 T1 — a box truck.</summary>
         public const int TkbTrafficTruck       = 1053;
+        /// <summary>⭐ CE-4123 (§6ad-3 TC3) — a sedan, an estate and an SUV: the passenger mix's own body styles.</summary>
+        public const int TkbTrafficSedan       = 1054;
+        public const int TkbTrafficEstate      = 1055;
+        public const int TkbTrafficSuv         = 1056;
         /// <summary>TKB type code for the MilitaryAPC template.</summary>
         public const int TkbMilitaryApc        = 2001;
         /// <summary>TKB type code for the InfantrySoldier template.</summary>
@@ -189,15 +193,21 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
                 t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "passenger", Weight = 6f });   // ⭐ AQ93 T1 — SUMO drives it too
+                t.AddDescriptor(new VisualDefinitionDto { ColorHex = "", BodyStyle = "Sedan" });   // ⭐ CE-4123 — a sedan; no type colour
                 t.AddDescriptor(SoftSkinCar());   // ⭐ CE-4030 — it can be hit
                 tkb.Register(t);
             }
 
             // ⭐ AQ93 §12 T1 (R-4056) — the rest of the traffic: each its own type (its own model and size), SUMO's share by weight.
-            TrafficCar(tkb, "Hatchback", TkbTrafficHatchback, 3.9f, 1.75f, 1.45f, 22f, "passenger", 4f);
-            TrafficCar(tkb, "DeliveryVan", TkbTrafficVan, 5.3f, 2.0f, 2.3f, 20f, "delivery", 1.5f);
-            TrafficCar(tkb, "CityBus", TkbTrafficBus, 12.0f, 2.55f, 3.0f, 15f, "bus", 0.4f);
-            TrafficCar(tkb, "BoxTruck", TkbTrafficTruck, 8.0f, 2.5f, 3.4f, 18f, "truck", 0.6f);
+            // ⭐ CE-4123 (§6ad-3 TC3) — every traffic type names its BODY STYLE (a kit of its own in the 3-D map); the passenger mix is Sedan 3 · Estate 2 ·
+            //   Hatchback 3 · Suv 2 · CivilianCar (a Sedan, above) 6
+            TrafficCar(tkb, "Sedan", TkbTrafficSedan, 4.6f, 1.8f, 1.45f, 24f, "passenger", 3f, "Sedan");
+            TrafficCar(tkb, "Estate", TkbTrafficEstate, 4.7f, 1.82f, 1.5f, 24f, "passenger", 2f, "Estate");
+            TrafficCar(tkb, "Hatchback", TkbTrafficHatchback, 3.7f, 1.66f, 1.5f, 22f, "passenger", 3f, "SmallHatch");
+            TrafficCar(tkb, "Suv", TkbTrafficSuv, 4.6f, 1.9f, 1.75f, 23f, "passenger", 2f, "Suv");
+            TrafficCar(tkb, "DeliveryVan", TkbTrafficVan, 5.3f, 2.0f, 2.3f, 20f, "delivery", 1.5f, "Van");
+            TrafficCar(tkb, "CityBus", TkbTrafficBus, 12.0f, 2.55f, 3.0f, 15f, "bus", 0.4f, "Bus");
+            TrafficCar(tkb, "BoxTruck", TkbTrafficTruck, 8.0f, 2.5f, 3.4f, 18f, "truck", 0.6f, "BoxTruck");
 
             // MilitaryAPC (2001)
             {
@@ -407,7 +417,7 @@ namespace Hrot.Core.Tkb
         /// </summary>
         /// <summary>⭐ AQ93 T1 — a civilian road vehicle SUMO may drive: a car's descriptors at its own size, plus its SUMO class and weight.</summary>
         private static void TrafficCar(ITkbDatabase tkb, string name, int type, float length, float width, float height, float maxSpeed,
-                                       string vClass, float weight)
+                                       string vClass, float weight, string bodyStyle)
         {
             var t = new TkbTemplate(name, type);
             Master(t, name, new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
@@ -416,6 +426,7 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
             t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
             t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = vClass, Weight = weight });
+            t.AddDescriptor(new VisualDefinitionDto { ColorHex = "", BodyStyle = bodyStyle });   // ⭐ CE-4123 — no type colour (each car is painted per car), a body style
             t.AddDescriptor(SoftSkinCar());   // ⭐ CE-4030 — it can be hit
             tkb.Register(t);
         }

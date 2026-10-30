@@ -67,7 +67,7 @@ public sealed class TrafficRuntimeTests
     {
         long next = 5000;
         var types = TrafficVehicleCatalog.From(HrotEnvironment.CreateTkb());
-        Assert.Equal(new long[] { 1002, 1050, 1051, 1052, 1053 }, types.Select(t => t.TkbType));
+        Assert.Equal(new long[] { 1002, 1050, 1051, 1052, 1053, 1054, 1055, 1056 }, types.Select(t => t.TkbType));
         using var session = new TrafficSession(Key(), Options(() => Interlocked.Increment(ref next)), types, startTime: 0.0);
 
         session.StepTo(30.0);

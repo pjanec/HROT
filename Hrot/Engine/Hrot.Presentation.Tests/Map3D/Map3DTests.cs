@@ -4958,4 +4958,48 @@ public sealed class Map3DTests
         var player = new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Ig, MapInLoad: true);
         Assert.Equal(Map3DBuildPolicy.Eager, player.MapBuildPolicy);
     }
+
+    /// <summary>
+    /// ⭐ CE-4123 (§6ad-3, TC1/TC2) — the traffic cars are what they are: every body style is its OWN kit (distinct silhouettes, wheels and glass), and a
+    /// WheeledCar type that NAMES a style is drawn with it, one that names none keeps the family's kit. 🔴 Red-proof: <c>KitOf</c> ignores the style.
+    /// </summary>
+    [Fact]
+    public void CE4123_EachBodyStyle_IsItsOwnKit_AndATypeNamingOneGetsIt()
+    {
+        var styles = System.Enum.GetValues<CarBodyStyle>();
+        var kits = styles.Select(CarKits.For).ToList();
+        var silhouettes = kits.Select(k => string.Join("|", k.Parts.Select(p => $"{p.Shape}{p.Centre}{p.Extent}{p.Colour}{p.PitchDegrees}"))).Distinct().Count();
+        Assert.Equal(styles.Length, silhouettes);
+        Assert.All(kits, k =>
+        {
+            Assert.Contains(k.Parts, p => p.Colour == ColourRole.Glass);
+            Assert.Equal(4, k.Parts.Count(p => p.Shape == PartShape.Cylinder));   // four wheels
+        });
+        Assert.NotSame(ShapeKits.WheeledCar, CarKits.Bus);
+
+        var tkb = BuiltIn();
+        var expected = new (long Type, CarBodyStyle Style)[]
+        {
+            (UrbanCombatTkbCatalog.TkbCivilianCar, CarBodyStyle.Sedan), (UrbanCombatTkbCatalog.TkbTrafficSedan, CarBodyStyle.Sedan),
+            (UrbanCombatTkbCatalog.TkbTrafficEstate, CarBodyStyle.Estate), (UrbanCombatTkbCatalog.TkbTrafficHatchback, CarBodyStyle.SmallHatch),
+            (UrbanCombatTkbCatalog.TkbTrafficSuv, CarBodyStyle.Suv), (UrbanCombatTkbCatalog.TkbTrafficVan, CarBodyStyle.Van),
+            (UrbanCombatTkbCatalog.TkbTrafficBus, CarBodyStyle.Bus), (UrbanCombatTkbCatalog.TkbTrafficTruck, CarBodyStyle.BoxTruck),
+        };
+        foreach (var (type, style) in expected)
+        {
+            Assert.True(tkb.TryGetByType(type, out var t));
+            var look = EntityBodyLayer3D.Resolve(t);
+            Assert.Equal(VisualFamily.WheeledCar, look.Family);
+            Assert.Equal(style, look.Style);
+            Assert.Same(CarKits.For(style), EntityBodyLayer3D.KitOf(look));
+            Assert.False(look.TypeColoured, "no type colour: every car is painted per car");
+        }
+
+        // a car type naming no style keeps the family's kit
+        var plain = new TkbTemplate("plain", 9999);
+        plain.DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 81 };
+        var plainLook = EntityBodyLayer3D.Resolve(plain);
+        Assert.Null(plainLook.Style);
+        Assert.Same(ShapeKits.WheeledCar, EntityBodyLayer3D.KitOf(plainLook));
+    }
 }

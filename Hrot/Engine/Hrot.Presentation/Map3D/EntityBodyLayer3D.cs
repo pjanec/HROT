@@ -55,7 +55,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
                                            bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian,
-                                           bool Elderly = false, bool Toy = false);
+                                           bool Elderly = false, bool Toy = false, CarBodyStyle? Style = null);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = 1.5f;
@@ -259,7 +259,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             }
             else
             {
-                var kit = ShapeKits.For(look.Family);
+                var kit = KitOf(look);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
                 if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation);   // ⭐ CE-1089 (N-5)
@@ -384,7 +384,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             }
             else
             {
-                (parts, pivots) = PlacedKit(ShapeKits.For(look.Family), a.TkbType, tkb, size);
+                (parts, pivots) = PlacedKit(KitOf(look), a.TkbType, tkb, size);
                 if (look.Family == VisualFamily.WheeledCar) colour = Outfits.CarColour(a.Key, a.TkbType, own ?? (look.TypeColoured ? colour : null));
                 else if (own is { } c) colour = c;
             }
@@ -1714,6 +1714,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return look;
     }
 
+    /// <summary>⭐ CE-4123 (§6ad-3 TC1) — the kit a look is drawn with: its body style's when a wheeled car type names one, else its family's.</summary>
+    public static ShapeKit KitOf(in TypeLook look)
+        => look.Family == VisualFamily.WheeledCar && look.Style is { } style ? CarKits.For(style) : ShapeKits.For(look.Family);
+
     /// <summary>The look of a template (null ⇒ an unknown box). Pure — the rail runs it over the whole built-in catalog.</summary>
     public static TypeLook Resolve(TkbTemplate? t)
     {
@@ -1757,7 +1761,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                             // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
                             Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
                             // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
-                            Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true);
+                            Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true,
+                            Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null);   // ⭐ CE-4123
     }
 
     /// <summary>
