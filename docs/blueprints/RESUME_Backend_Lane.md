@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-29
-current-answer: ⭐ NOW (2026-10-29, late) — §NOW below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
+current-answer: ⭐ NOW (2026-10-30) — §NOW below (the 2026-10-30 one): the ECS-host bootstrap is unified, ExCon is retired, the reported bugs are fixed; what is open. (2026-10-29 late, kept below: the readiness work (R-3069–R-3073, R-1043) is BUILT; the standing Sonnet worker and what it holds; what is next. ⛔ The R-3066 unification pause is OVER (CE-1436, CE-3340, CE-3343 done).
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Replay_Time_Axis_And_Review.md — the NEXT build (handoff HANDOFF_Backend_Replay_Review_Build.md): sim axis, During Action Review, §12 the wire
@@ -14,6 +14,23 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — B5 (not started) gates CE-3006 / CE-524 / CE-513.
 -->
 # RESUME — backend lane
+
+## ⭐ NOW (`2026-10-30`) — user: *"unify the ecs host bootstrap, fix the bugs reported and also retire the excon, keep writing notes to ui and read theirs"*
+
+| done (all on `backend`) | |
+|---|---|
+| ⭐ **CE-1446** every ECS host builds its node through a `SharedApplicationBootstrapper` subclass | B0 `ed7538217` · B1 CGF `e405d3662` · B2 editor `31f8d1b2d` · B3 rail `3234e64ae` (widened to `new ClusterSlave(` by CE-3348) |
+| ⭐ **R-3067** ExCon retired, AQ109 §6 X1–X5 | X1 `fc65d1434` · X2 `7126a8a24` · X3 `49cdc382f` · X4 `08243c8cc` · X5 the Wire Entity Inspector `862d3c10f`+`2e14700ef` (57 entity-keyed wire types; DER ids `long`) |
+| ⭐ bugs fixed | CE-1447 a second DAR's live point · CE-3347 Brain-less clusters never released the latch (`TestDeployment`) · CE-3349 the script fixture pressed play too early · CE-3350 the HTTP test drain on xUnit's context · CE-3352 headless CGF/SimHost had no run controls · CE-3348 `CgfApplication` retired · the headless CGF mission service · O2 observer rail |
+| ⭐ ui asks done | R-1046 `MapBuildLoadStep` (live-verified by ui) · CE-4100 ① *Ask to keep recordings* (`514865f7a`) |
+
+| ⏳ open | |
+|---|---|
+| **CE-3351** | after a seek in a paused AAR the node's playhead reads ~0.3 s past the master (ui's CE-1444). ⛔ ruled out: a slave in BarrierPending does not advance. Next: instrument ui's switch-2 rail (node `TotalTime` vs master per frame after the snap) |
+| behaviors | `GrenadeDangerSystem._reacted/_seen` (class C, keeps `EverySystemStateFieldIsClassifiedTests` red) · `SopOrderUrgency` lacks Grenade/Break, relayed (`NOTE_Backend_To_Behaviors_Grenade_Danger_State.md`) |
+| parked | CE-3339 · CE-4095 · CE-4092 · CE-4099 · CE-4105 (plan §5) |
+
+⭐ Standing Sonnet worker `a5564dba0a9582e15`, warm, idle.
 
 ## ⭐ NOW (`2026-10-29`, late)
 
