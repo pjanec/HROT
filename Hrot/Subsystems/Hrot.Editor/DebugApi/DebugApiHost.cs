@@ -2140,19 +2140,29 @@ namespace Hrot.Editor.DebugApi
                 ? countBeforeLoad
                 : await _jobQueue.RunOnMainThread(() => Service().WorldEntityCountOrNull()).ConfigureAwait(false));
 
+            // ⭐⭐ CE-3354 ④ (R-3075, design §11.10a) — and the load REQUEST's outcome over the whole cluster: ready only once the master said Success
+            //   (every node's load chain resolved — a map-in-load node's 3-D map included); a failure answers 409 with the master's reason at once.
+            //   ⛔ The state alone is not "loaded": the master advances it at the round's start. A host with no cluster view keeps today's rule.
+            Guid? loadRequest = Guid.TryParse(requested?["requestId"]?.GetValue<string>(), out var rid) ? rid : null;
+            bool settled = false;
             while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
-                var (ready, count) = await _jobQueue
-                    .RunOnMainThread(() => (Service().PollClusterStateIs(target), Service().WorldEntityCountOrNull()))
+                var (ready, count, phase) = await _jobQueue
+                    .RunOnMainThread(() => (Service().PollClusterStateIs(target), Service().WorldEntityCountOrNull(),
+                                            loadRequest is { } lr ? Service().LoadPhaseOf(lr) : null))
                     .ConfigureAwait(false);
 
-                if (probe.Observe(ready, count, sw.Elapsed.TotalSeconds))
+                if (phase is { Phase: "Failed" } failed)
+                    return Fail(409, $"Scenario '{name}' failed to load: {failed.Reason}", DebugApiHints.Scenario);
+                settled |= probe.Observe(ready, count, sw.Elapsed.TotalSeconds);
+                if (settled && (phase is null || phase.Value.Phase == "Loaded"))
                     return Ok(new JsonObject
                     {
                         ["loaded"]      = name,
                         ["awaited"]     = true,
                         ["target"]      = target.ToString(),
                         ["entityCount"] = count,
+                        ["requestId"]   = loadRequest?.ToString(),   // ⭐ CE-3354 ④ — the request GET /status.load follows
                         // ⭐ Reported so a caller can tell a genuine edge from the grace fallback — a load
                         //   that only ever passed on grace is worth knowing about.
                         ["sawWorldChange"] = probe.SawWorldChange,

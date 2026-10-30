@@ -53,6 +53,12 @@ namespace Hrot.Editor.DebugApi
                 ["localReason"] = view.LocalReason,
                 ["clusterProgress"] = view.LoadProgress,
                 ["playReady"] = view.IsLocalPlayReady,
+                // ⭐⭐ CE-3354 ④ — the LAST load this API sent and its phase over the WHOLE cluster: Loaded only when every node's load chain resolved
+                //   (the master's Success for that request), Failed with the master's reason; null fields when this API sent no load yet
+                ["requestId"] = _lastLoad?.RequestId.ToString(),
+                ["scenario"]  = _lastLoad?.Scenario,
+                ["phase"]     = _lastLoad is { } last ? LoadPhaseOf(last.RequestId)?.Phase : null,
+                ["reason"]    = _lastLoad is { } last2 ? LoadPhaseOf(last2.RequestId)?.Reason : null,
             };
         }
 

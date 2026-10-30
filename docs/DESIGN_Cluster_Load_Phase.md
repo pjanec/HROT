@@ -1986,3 +1986,18 @@ Examples: `-m editor -s ua-air-strike` (open for editing) · `-m editor -s ua-ai
 
 ⛔ **Rejected:** a startup-only load path (two implementations of one load) · a fixed wait before the startup load (the master's own hold is the
 wait) · names = subsystem names (cannot single out one of two IGs).
+
+#### 11.10c ✅ AS-BUILT `2026-10-30` (backend, CE-3354 ①–⑤) — what changed against §11.10 / §11.10a / §11.10b
+
+| item | built | deviation from the text above, and why |
+|---|---|---|
+| ① the premise, as a rail | `ClusterMasterLoadAndRunTests.CE3354_TheLoadRequestsSuccess_WaitsForTheSlowestNode_WhileTheStateAlreadyReadsOperatingLive` | — |
+| ② node names | CLI `--node-name` / `--node-names Sub=n,…` (refused when ambiguous or malformed), `NodeHeartbeatEvent`/`NodeHeartbeat.NodeName` (one mapping, `NodeHeartbeatWire`), `ClusterSlave` default `<subsystem>-<nodeId>`, `NodeRoster.TryAdmit` refuses a name a different live node holds (`NameConflicts`), `GET /cluster/roster` → `name` + `nameConflicts`, `GET /status` → `node {name, nodeId}` | refused heartbeats ride the roster list as rows (no new provider seam); the Stride shell keeps the default name (it has no `SubsystemConfig`) |
+| ③ map-in-load | `SetRunSettingsIntent.MapInLoadNodes` → `ClusterMaster.MapInLoadNodes` (case-insensitive, de-duplicated) → broadcast (`ClusterStateTopic.MapInLoadNodes`, `ClusterView.MapInLoadNodes`); `ClusterMaster.FanOutLoadPrepare` stamps `EditLoadHandlerPayload.MapInLoad` per node (the catch-up too); `MapBuildLoadStep` composed whenever a host supplies a status, REQUIRED by the profile (IG) or `context.MapInLoad`, `IMapBuildStatus.Request3D()` at its commit; CGF, SimHost and the editor pass their `Map3DBuild`; `POST /run-settings {mapInLoadNodes \| mapInLoad}`, `GET /run-settings`, roster `mapInLoad` | **edit loads are stamped too** (a filming node may open for editing); the roster's `mapInLoad` reflects the set, not the IG profile |
+| ④ the requester's "loaded" | the load routes return the `requestId` they sent; `GET /status.load` → `requestId · scenario · phase (Loading│Loaded│Failed) · reason` from `ClusterView.OutcomeOf`; `waitForReady` = settled AND the request's Success, a failure ⇒ 409 with the master's reason | ⛔ **`run.startedAtSim` dropped**: a load resets the clock to 0 and the run starts there, so `isPaused` + `simTime` already say it |
+| ⑤ load-and-run | `GenericTransactionTracker.RunOnSuccess` (`ClusterMaster.RunsWhenLoaded`: a live scenario load unless `Deterministic`; a dry run with `Continuous`) ⇒ `ResumeTimeIntent` in the round's success branch; `GlobalContextProcessManager`'s two resumes retired (CE-4122) | — |
+| ⑥ CLI startup load | ⏳ next | — |
+
+📌 Found while building (not this item's): `EveryEcsHostComposesOneClusterHandlerSetRails` / `EveryEcsHostComposesTheLoadPhaseChainRails` scan
+`CgfSubsystem.cs` / `EditorSubsystem.cs` for strings that left them with CE-1446 B1 (the move to node bootstrappers) — stale source-text rails,
+red before CE-3354 → CE-3355.

@@ -136,6 +136,38 @@ public sealed class TheClusterMembershipRoutesTests
         Assert.False((bool)svc.GetClusterRoster().Result!["nodes"]![0]!["mapInLoad"]!);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3354</c> ④ (R-3075, design §11.10a) — a load request's phase over HTTP is the MASTER's answer for THAT request: Loading until it
+    /// answers (whatever state is announced meanwhile), Loaded on its Success (every node's load chain resolved), Failed with its reason — what
+    /// <c>waitForReady</c> waits for and <c>GET /status.load.phase</c> reports. Another request's answer is not this one's.
+    /// 🔴 Mutation (compiles): <c>LoadPhaseOf</c> answering "Loaded" when the state reads OperatingLive ⇒ the first cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_ALoadsPhase_IsTheMastersAnswerForThatRequest_NotTheAnnouncedState()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => view) },
+            currentPerspective: () => "IG", acksPending: null));
+        Guid load = Guid.NewGuid(), other = Guid.NewGuid();
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive });   // the master's optimistic state
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = other, StatusCode = OrchestrationStatusCode.Success });
+        bus.SwapBuffers(); view.Update();
+        Assert.Equal(("Loading", (string?)null), svc.LoadPhaseOf(load));
+
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = load, StatusCode = OrchestrationStatusCode.Success });
+        bus.SwapBuffers(); view.Update();
+        Assert.Equal(("Loaded", (string?)null), svc.LoadPhaseOf(load));
+
+        Guid failed = Guid.NewGuid();
+        bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = failed, StatusCode = OrchestrationStatusCode.Failure, ResultPayload = "node 2: the 'Map3D' part failed — no GPU" });
+        bus.SwapBuffers(); view.Update();
+        Assert.Equal(("Failed", "node 2: the 'Map3D' part failed — no GPU"), svc.LoadPhaseOf(failed));
+    }
+
     private static void Hear(Fdp.Core.FdpEventBus bus, ClusterView view, string[] names)
     {
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, MapInLoadNodes = names });

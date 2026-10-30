@@ -1317,9 +1317,11 @@ namespace Hrot.Editor.DebugApi
                                         ["stoppedRun"] = stopped };
             }
 
+            var editRequest = Guid.NewGuid();
+            _lastLoad = (editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
             {
-                TransactionId = Guid.NewGuid(),
+                TransactionId = editRequest,
                 TargetState   = ClusterState.OperatingEdit,
                 ScenarioId    = name,
                 // ⭐ Guid.Empty, mirroring the orchestrator panel's own "Load into Edit" button: authoring is
@@ -1327,6 +1329,7 @@ namespace Hrot.Editor.DebugApi
                 ExerciseId    = Guid.Empty,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingEdit), ["via"] = "cluster-intent",
+                                    ["requestId"] = editRequest.ToString(),
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
         }
 
@@ -1361,9 +1364,11 @@ namespace Hrot.Editor.DebugApi
         {
             var stopped = LeaveRunForLoad();
 
+            var liveRequest = Guid.NewGuid();
+            _lastLoad = (liveRequest, name);   // ⭐ CE-3354 ④
             ScenarioLoads.Request(new Fdp.Toolkit.Orchestration.TransitionStateIntent
             {
-                TransactionId = Guid.NewGuid(),
+                TransactionId = liveRequest,
                 TargetState   = ClusterState.OperatingLive,
                 ScenarioId    = name,
                 ExerciseId    = Guid.NewGuid(),
@@ -1375,8 +1380,27 @@ namespace Hrot.Editor.DebugApi
                 ForceRecording = forceRecording,
             });
             return new JsonObject { ["requested"] = name, ["target"] = nameof(ClusterState.OperatingLive), ["via"] = "cluster-intent",
+                                    ["requestId"] = liveRequest.ToString(),
                                     ["startPaused"] = startPaused,
                                     ["unloadFirst"] = ScenarioLoads.IsWaitingForIdle, ["stoppedRun"] = stopped };
+        }
+
+        // ⭐⭐ CE-3354 ④ (R-3075, DESIGN_Cluster_Load_Phase §11.10a) — the last load this API sent: "loaded" is ITS request's op status Success,
+        //   which the master publishes only when every node's load chain resolved (the filming node's 3-D map included) — ⛔ never the
+        //   announced state, which the master advances at the round's start.
+        private (Guid RequestId, string Scenario)? _lastLoad;
+
+        /// <summary>⭐ CE-3354 ④ — the phase of load <paramref name="requestId"/> from the cluster's op outcomes (<see cref="Fdp.Toolkit.Orchestration.ClusterView.OutcomeOf"/>):
+        /// Loading until the master answers, then Loaded or Failed (with its reason); <see langword="null"/> where this host keeps no cluster view.</summary>
+        public (string Phase, string? Reason)? LoadPhaseOf(Guid requestId)
+        {
+            if ((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is not { } view) return null;
+            return view.OutcomeOf(requestId) switch
+            {
+                null => ("Loading", null),
+                { Status: Fdp.Toolkit.Orchestration.OrchestrationStatusCode.Success } => ("Loaded", null),
+                { } o => ("Failed", o.Reason ?? o.Status.ToString()),
+            };
         }
 
         /// <summary>⭐ <c>CE-1025</c> (R-1031, load design §9.1) — the HTTP load is non-interactive (ruling 53): no prompt; a running dry run
