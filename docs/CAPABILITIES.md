@@ -8,6 +8,7 @@ related-designs:
   - OVERVIEW_Rules_And_Demos.md — OWNS the rule-level index (every rule id → code → design §); this file is the reader's summary above it
   - OVERVIEW_Behaviour_Building_Blocks.md — OWNS the AI machinery (decision slots, sensors, EQS, library, groups, vehicles)
   - PLAN_Feature_Films.md — OWNS the clip list that films each chapter
+  - USAGES.md — OWNS what PEOPLE use the engine for and what it saves them (demo films, QA bug illustration, reviews, scenarios as tests …)
   - ../README.md — OWNS the engine architecture (ECS, cluster, replication, replay, tools)
 -->
 
