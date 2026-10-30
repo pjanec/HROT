@@ -25,6 +25,13 @@ public interface ITimeTransportFacade
     /// <summary>Current simulation time in seconds.</summary>
     double TotalTime { get; }
 
+    /// <summary>
+    /// ⭐ <c>CE-3351</c> — the clock as the cluster runs it: equal to <see cref="TotalTime"/> except in a review / replay, where the cluster clock counts
+    /// WALL seconds after the session's zero (<c>PlaybackTickSystem</c> indexes the recording by anchor + it) and <see cref="TotalTime"/> is that moment's sim time.
+    /// ⭐ What a reader that places the playhead on wall ticks uses (<c>ClusterTimelineCursor.Now</c>).
+    /// </summary>
+    double ClockSeconds => TotalTime;
+
     /// <summary>Current time-scale multiplier (e.g. 1.0 = real-time, 2.0 = 2x).</summary>
     float TimeScale { get; }
 

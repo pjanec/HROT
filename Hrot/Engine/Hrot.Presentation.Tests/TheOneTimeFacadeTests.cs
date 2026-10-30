@@ -257,6 +257,34 @@ public sealed class TheOneTimeFacadeTests
         Assert.Equal(1f / 60f, Published<StepTimeIntent>(bus).DeltaSeconds, 5);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3351</c> — in a review / replay the cluster clock is WALL seconds after the session's zero; <c>TotalTime</c> (the run's sim clock, what the
+    /// readout, the branch question and the "behind live" count read) is the session's map at that moment, and <c>ClockSeconds</c> keeps the raw clock
+    /// (the timeline cursor's). 📐 Measured before the fix: a sim seek to 4.0 read 4.449. No map (a v6 recording) and outside a replay: the clock as is.
+    /// </summary>
+    [Fact]
+    public void CE3351_InAReplayOrReview_TotalTimeIsTheSimOfTheClocksWallMoment_ClockSecondsIsTheClock()
+    {
+        const long zero = 1_000_000L;
+        var map = Fdp.Core.FlightRecorder.ReplayTimeMap.FromFrames(
+            new[] { zero, zero + 10 * TimeSpan.TicksPerSecond }, new[] { 0.0, 5.0 },     // sim runs at half the wall's pace
+            new[] { Fdp.Core.FlightRecorder.FrameFlags.None, Fdp.Core.FlightRecorder.FrameFlags.None });
+        var session = new ReplaySession { Active = true, ZeroWallTicks = zero, TimeMap = map };
+
+        foreach (var state in new[] { ClusterState.OperatingReplay, ClusterState.OperatingReview })
+            foreach (var axis in new[] { ReplayAxis.Sim, ReplayAxis.Wall })   // the run's sim time whatever the timeline's axis
+            {
+                var facade = In(state, axis, session, clock: 8).Facade;
+                Assert.Equal(4.0, facade.TotalTime, 6);
+                Assert.Equal(8.0, facade.ClockSeconds, 6);
+            }
+
+        var v6 = In(ClusterState.OperatingReplay, ReplayAxis.Sim, new ReplaySession { Active = true, ZeroWallTicks = zero }, clock: 8).Facade;
+        Assert.Equal(8.0, v6.TotalTime, 6);
+        var live = In(ClusterState.OperatingLive, ReplayAxis.Sim, session, clock: 8).Facade;   // live: the kernel's clock IS sim
+        Assert.Equal(8.0, live.TotalTime, 6);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
     // ⭐⭐⭐ CE-4097 (AQ108 §2.8) — the run choice: ▶ / ■ from Edit follow the ARMED mode (R1–R3), through the ONE facade.
     // The scenario actions are the session's (IRunScenarioControl, faked here); the cluster is the real adapter on a real bus.

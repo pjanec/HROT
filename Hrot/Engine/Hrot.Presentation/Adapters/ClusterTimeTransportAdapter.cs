@@ -126,7 +126,23 @@ public sealed class ClusterTimeTransportAdapter : ITimeTransportFacade, IRunTran
     public bool IsPaused => !_seenAnyModeEvent || _clusterTime.PauseRequested;
 
     /// <inheritdoc/>
-    public double TotalTime =>
+    /// <remarks>⭐⭐ <c>CE-3351</c> — in a review / replay the clock is wall seconds after the session's zero, so the run's sim time is the session's map at that
+    /// wall moment (a map-less v6 recording has no sim axis: the clock as is). 📐 Was the raw clock: a sim seek to 4.0 s read 4.449 (the run's wall led its sim by the
+    /// load's paused frames), and the branch question named that moment while the branch started at 4.0.</remarks>
+    public double TotalTime
+    {
+        get
+        {
+            double clock = ClockSeconds;
+            return _currentState is ClusterState.OperatingReplay or ClusterState.OperatingReview
+                   && Session is { Active: true, TimeMap: { HasSimTime: true } map } s
+                ? map.SimAt(s.ZeroWallTicks + (long)Math.Round(clock * TimeSpan.TicksPerSecond))
+                : clock;
+        }
+    }
+
+    /// <inheritdoc/>
+    public double ClockSeconds =>
         _localSimTimeGetter != null ? _localSimTimeGetter() : _clusterTime.ResumeSimTime;
 
     /// <inheritdoc/>
