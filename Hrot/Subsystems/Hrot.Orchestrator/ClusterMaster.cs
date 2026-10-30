@@ -64,6 +64,9 @@ public sealed partial class ClusterMaster : IDisposable
         public string? FailureReason;
         /// <summary>⭐ <c>CE-3345</c> (R-3070, AQ91 §4-H) — this round is a scenario LOAD (it enters <c>LoadingLive</c> / <c>LoadingEdit</c>): a failure fails it AT ONCE and sends the cluster back to Idle.</summary>
         public bool IsLoadRound;
+        /// <summary>⭐⭐ <c>CE-3354</c> (R-3075, DESIGN_Cluster_Load_Phase §11.10) — LOAD AND RUN: when this round succeeds on EVERY node, the clock runs
+        /// (<see cref="Fdp.Toolkit.Time.Domain.ResumeTimeIntent"/>, the ▶ path). Set from the request's <c>TimeMode</c> (<see cref="RunsWhenLoaded"/>).</summary>
+        public bool RunOnSuccess;
         /// <summary>
         /// When <c>true</c>, the first node error immediately aborts and rejects the transaction
         /// (ManageEpisode policy).  When <c>false</c>, all ACKs are collected before publishing
@@ -1728,6 +1731,7 @@ public sealed partial class ClusterMaster : IDisposable
                     Targets                      = activeNodeIds,
                     ResyncsOnSuccess             = throughIdle,   // ⭐ C3
                     IsLoadRound                  = trajectory.OfType<TransitionStep>().Any(t => t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit),   // ⭐ CE-3345
+                    RunOnSuccess                 = RunsWhenLoaded(intent, trajectory, resolvedTarget),   // ⭐ CE-3354
                 };
             }
             else
@@ -1735,6 +1739,7 @@ public sealed partial class ClusterMaster : IDisposable
                 // No nodes registered or no prepare steps — complete immediately.
                 if (resolvedTarget == ClusterState.Idle && ClearClusterError()) PublishClusterState(ClusterState.Idle);   // ⭐ CE-3345 — Idle reached with no node to ask
                 PublishOpStatus(requestId, OrchestrationStatusCode.Success);
+                if (RunsWhenLoaded(intent, trajectory, resolvedTarget)) _eventBus.PublishManaged(new ResumeTimeIntent());   // ⭐ CE-3354 — no node to wait for
             }
         }
         else
@@ -2545,12 +2550,31 @@ public sealed partial class ClusterMaster : IDisposable
             if (tracker.RefineResult != null) aggregated = tracker.RefineResult(aggregated);   // ⭐ CE-4093
             NoteRoundCompletedForUnsavedCheck(txId, failed: false, aggregated);
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
+            // ⭐⭐ CE-3354 (R-3075) — LOAD AND RUN: the round succeeded on EVERY node (each acknowledged only when its load chain resolved — §11.10a),
+            //   so the clock runs now. ⛔ HISTORY: GlobalContextProcessManager resumed on the announced STATE, which the master advances at the round's
+            //   START and re-announces mid-round — a re-announce dropped the resume (CE-4122) and the state was never "every node loaded" anyway.
+            if (tracker.RunOnSuccess) _eventBus.PublishManaged(new ResumeTimeIntent());
             OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
             OnRoundSucceededForGeoReference(parkedGeo, aggregated);   // ⭐ AQ107 C — the NED wire's frame origin (load: terrain; replay: recording)
         }
 
         if (tracker.BroadcastClusterStateOnComplete)
             PublishClusterState(_currentDsmState);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3354</c> (R-3075; Q86 §4-G "running after a load is a property of the load") — does this request run the clock once its round
+    /// succeeds? A LIVE load of a scenario runs unless it asked to start paused (<c>TimeMode = "Deterministic"</c>); a DRY RUN runs when it asked to
+    /// (<c>TimeMode = "Continuous"</c>, the Play button from edit). The rules <c>GlobalContextProcessManager</c> applied, now on the round's success.
+    /// </summary>
+    internal static bool RunsWhenLoaded(TransitionStateIntent intent, IEnumerable<ISysOpStep> trajectory, ClusterState resolvedTarget)
+    {
+        if (resolvedTarget == ClusterState.OperatingPreview)
+            return intent.TimeMode == GlobalContextProcessManager.ContinuousTimeMode;
+        return resolvedTarget == ClusterState.OperatingLive
+            && !string.IsNullOrEmpty(intent.ScenarioId)
+            && trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.LoadingLive)
+            && intent.TimeMode != GlobalContextProcessManager.StartPausedTimeMode;
     }
 
     private void OweAck(Guid txId, int nodeId)

@@ -20,10 +20,11 @@ public sealed class GlobalContextProcessManager
     private readonly FdpEventBus _bus;
     private readonly GlobalContextClusterOpHandler _handler;
 
-    // ⭐ Q86 §4-G (R-215) — a load resets the clock to 0 and HOLDS it while the world is rebuilt; whether it then
-    //   runs is a property of the LOAD (TransitionStateIntent.TimeMode). True while a live load that did NOT ask to
-    //   start paused is in flight: the clock resumes when the cluster reports OperatingLive.
-    private bool _resumeWhenLive;
+    // ⭐ Q86 §4-G (R-215) — a load resets the clock to 0 and HOLDS it while the world is rebuilt; whether it then runs is a property of the
+    //   LOAD (TransitionStateIntent.TimeMode). ⭐⭐ CE-3354 (R-3075): the RUN is the MASTER's — ClusterMaster.RunsWhenLoaded, fired when the load
+    //   round succeeded on every node. ⛔ HISTORY: this manager resumed on the announced cluster STATE, which the master advances at the round's
+    //   start and re-announces mid-round (readiness, CE-3344/3345) — a re-announce dropped the resume (CE-4122). The two constants stay here: the
+    //   wire values every sender uses.
 
     /// <summary>The <see cref="TransitionStateIntent.TimeMode"/> value that asks a load to start paused.</summary>
     public const string StartPausedTimeMode = "Deterministic";
@@ -31,7 +32,6 @@ public sealed class GlobalContextProcessManager
     /// <summary>⭐ CE-3329 row 21 — the <c>TimeMode</c> a dry run asks for to start RUNNING (Play from edit); absent ⇒ paused.</summary>
     public const string ContinuousTimeMode = "Continuous";
 
-    private bool _resumeWhenPreview;
 
     public GlobalContextProcessManager(FdpEventBus bus, GlobalContextClusterOpHandler handler)
     {
@@ -51,33 +51,10 @@ public sealed class GlobalContextProcessManager
         // Reacts to any target state that implies a load step (e.g. OperatingLive implies LoadingLive).
         foreach (var intent in _bus.ReadManaged<TransitionStateIntent>())
         {
-            // ⭐ CE-3329 row 21 (one facade) — a DRY RUN asked to start RUNNING (the Play button from edit, on every host) runs once
-            //   the cluster reports OperatingPreview, through this same "run when it lands" path. A dry run starts paused otherwise.
-            if ((ClusterState)(int)intent.TargetState == ClusterState.OperatingPreview)
-                _resumeWhenPreview = intent.TimeMode == ContinuousTimeMode;
-
             var loadState = ResolveLoadState((ClusterState)(int)intent.TargetState);
             if (loadState == null || string.IsNullOrEmpty(intent.ScenarioId)) continue;
 
             CommitContextLoad(loadState.Value, intent.ScenarioId, intent.ExerciseId);   // jumps the clock to 0, paused
-            _resumeWhenLive = loadState == ClusterState.LoadingLive && intent.TimeMode != StartPausedTimeMode;
-        }
-
-        // ⭐ Q86 §4-G — the load is done when the cluster reports its operating state: run, unless it asked not to.
-        //   Any other state reached first (Idle after an abort, Degraded, Edit) drops the pending resume.
-        foreach (var ev in _bus.ReadManaged<ClusterStateTransitionedEvent>())
-        {
-            if (_resumeWhenPreview && ev.SubsystemName == "Cluster" && ev.NewStateId != Fdp.Toolkit.Orchestration.ClusterState.LoadingPreview)
-            {
-                if (ev.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.OperatingPreview)
-                    _bus.PublishManaged(new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
-                _resumeWhenPreview = false;
-            }
-            if (!_resumeWhenLive || ev.SubsystemName != "Cluster") continue;
-            if (ev.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.LoadingLive) continue;
-            if (ev.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive)
-                _bus.PublishManaged(new Fdp.Toolkit.Time.Domain.ResumeTimeIntent());
-            _resumeWhenLive = false;
         }
 
         // CE-278: the SaveScenario=2 SAVE branch (PrepareAsync + Commit + PublishManifestReady, which wrote
