@@ -562,6 +562,26 @@ public sealed class ClusterSlaveTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — the slave puts its configured node NAME on every heartbeat; with none it is <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>, and a blank one is none.
+    /// 🔴 Mutations (each compiles): the heartbeat not setting <c>NodeName</c> ⇒ both cells red; the default spelled differently ⇒ the default cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_TheSlave_HeartbeatsItsConfiguredNodeName_OrTheDefault()
+    {
+        var bus = new FdpEventBus();
+        using var named = new ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        using var plain = new ClusterSlave(8, "SimHost", bus);
+        using var blank = new ClusterSlave(9, "CGF", bus, nodeName: "  ");
+        Thread.Sleep(1100);
+        named.Tick(); plain.Tick(); blank.Tick();
+        var beats = Beats(bus).ToDictionary(b => b.NodeId, b => b.NodeName);
+        Assert.Equal("film-cam", beats[7]);
+        Assert.Equal("SimHost-8", beats[8]);
+        Assert.Equal("CGF-9", beats[9]);
+        Assert.Equal("film-cam", named.View.NodeName);   // the view the HTTP /status reads
+    }
+
+    /// <summary>
     /// ⭐⭐ A <see cref="ClusterSlave"/> registers the orchestration vocabulary on the bus it is
     /// handed, so it can always publish what it publishes — <b>without</b> its host having
     /// remembered to call <c>OrchestrationEventRegistry.RegisterAll</c>.

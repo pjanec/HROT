@@ -236,5 +236,38 @@ namespace Hrot.ClusterRunner.Tests.Configuration
             Assert.Contains("player", offered, StringComparison.Ordinal);
             Assert.Contains("traffic", offered, StringComparison.Ordinal);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ② — <c>--node-names IG=film-cam,SimHost=sim-1</c> names each subsystem's node (keys case-insensitive, <c>player</c> = IG); an unnamed one gets null ⇒
+        /// the default; <c>--node-name</c> names a process' single node. 🔴 Mutations (each compiles): the key compare made case-sensitive ⇒ the first cell reds; the map not filled ⇒ all red.
+        /// </summary>
+        [Fact]
+        public void CE3354_NodeNames_ResolvePerSubsystem_AndNodeNameNamesTheOneNode()
+        {
+            var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeNames = "IG=film-cam,simhost=sim-1" };
+            cfg.Validate();
+            Assert.Equal("film-cam", cfg.NodeNameFor("IG"));
+            Assert.Equal("sim-1", cfg.NodeNameFor("SimHost"));
+            Assert.Null(cfg.NodeNameFor("CGF"));                      // unnamed ⇒ <subsystem>-<nodeId>
+
+            var one = new HrotRunnerConfiguration { ModeString = "editor", NodeName = "my-editor" };
+            one.Validate();
+            Assert.Equal("my-editor", one.NodeNameFor("Editor"));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ② — refused at startup, clearly: <c>--node-name</c> with several nodes in one process (ambiguous), a <c>--node-names</c> key that is not a node of the process,
+        /// a malformed pair, and one name given to two nodes. 🔴 Mutation: the ambiguity check removed ⇒ the first cell does not throw.
+        /// </summary>
+        [Fact]
+        public void CE3354_NodeName_WithSeveralNodes_IsRefused_AndSoAreBadOrDuplicateNodeNames()
+        {
+            var ambiguous = Assert.Throws<InvalidOperationException>(() =>
+                new HrotRunnerConfiguration { ModeString = "all", NoWait = true, NodeName = "x" }.Validate());
+            Assert.Contains("--node-names", ambiguous.Message);
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "IG=a" }.Validate());
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "SimHost" }.Validate());
+            Assert.Throws<InvalidOperationException>(() => new HrotRunnerConfiguration { ModeString = "simhost,cgf", NoWait = true, NodeNames = "SimHost=a,CGF=A" }.Validate());
+        }
     }
 }

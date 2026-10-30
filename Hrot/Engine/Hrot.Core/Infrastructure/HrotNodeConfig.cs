@@ -17,12 +17,13 @@ public sealed class HrotNodeConfig
     /// where nothing is written for them). A host sets only what is genuinely its own afterwards (a geo transform, a skipped routing wait).
     /// </summary>
     /// <param name="stagingRoot">The staging root, when the host was given one; null/empty ⇒ <see cref="OrchestrationConstants.ResolveStagingRoot"/>.</param>
-    public static HrotNodeConfig ForNode(int domainId, int nodeId, string subsystemName, DdsParticipant? participant, string? stagingRoot = null)
+    public static HrotNodeConfig ForNode(int domainId, int nodeId, string subsystemName, DdsParticipant? participant, string? stagingRoot = null, string? nodeName = null)
         => new()
         {
             DomainId            = domainId,
             NodeId              = nodeId,
             SubsystemName       = subsystemName,
+            NodeName            = nodeName,
             Headless            = false,   // a networked host always has its participant; Headless here is not the window
             ExternalParticipant = participant,
             LocalTempRoot       = OrchestrationConstants.GetNodeStagingRoot(
@@ -38,6 +39,9 @@ public sealed class HrotNodeConfig
 
     /// <summary>Human-readable subsystem name published in heartbeats (e.g. "SimHost").</summary>
     public string SubsystemName { get; set; } = string.Empty;
+
+    /// <summary>⭐ <c>CE-3354</c> ② — the node's unique human-given name carried in its heartbeat; null/blank ⇒ <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.</summary>
+    public string? NodeName { get; set; }
 
     /// <summary>
     /// Root directory for scenario staging and checkpoint storage.

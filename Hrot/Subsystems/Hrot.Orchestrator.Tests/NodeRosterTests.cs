@@ -36,6 +36,35 @@ public sealed class NodeRosterTests
         Assert.Empty(roster.NodesWithRole(NodeRole.NavigationSolver));
     }
 
+    private static NodeHealthProfile Named(int id, string name, double at = 1.0) =>
+        new() { NodeId = id, NodeName = name, SubsystemName = "IG", LastHeartbeatUtcSeconds = at };
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — a node name is unique among LIVE nodes: a second node id taking a held name is refused (not added, reported once), the holder re-heartbeating is
+    /// fine, and once the holder's entry is pruned (heartbeat timeout) the name is free. 🔴 Mutations (each compiles): the name compare removed ⇒ the second node is admitted;
+    /// the node-id exemption removed ⇒ the holder's own heartbeat is refused; the conflict kept after the holder left ⇒ the last cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_ANameHeldByALiveNode_RefusesAnotherNode_TheHolderIsFine_AndAnExpiredHolderFreesIt()
+    {
+        var roster = new NodeRoster();
+        Assert.True(roster.TryAdmit(Named(100, "film-cam", 1.0), out _, out _));
+        Assert.True(roster.TryAdmit(Named(100, "film-cam", 2.0), out _, out _));            // the same node again: normal
+
+        Assert.False(roster.TryAdmit(Named(101, "Film-Cam", 2.0), out var c, out bool first));   // another node, the name case-insensitively
+        Assert.True(first);
+        Assert.Equal((100, 101), (c!.HolderNodeId, c.RefusedNodeId));
+        Assert.False(roster.ActiveNodes.ContainsKey(101));
+        Assert.False(roster.TryAdmit(Named(101, "film-cam", 3.0), out _, out first));
+        Assert.False(first);                                                                 // reported once per (name, node)
+        Assert.Single(roster.NameConflicts);
+
+        roster.PruneStale(nowUtcSeconds: 20.0, maxSilenceSeconds: 5.0);                      // the holder timed out
+        Assert.Empty(roster.NameConflicts);
+        Assert.True(roster.TryAdmit(Named(101, "film-cam", 20.0), out _, out _));            // the name is free
+        Assert.True(roster.ActiveNodes.ContainsKey(101));
+    }
+
     [Fact]
     public void NodesWithRole_MatchesAnyIntersectingFlag_NotAnExactMask()
     {

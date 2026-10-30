@@ -247,7 +247,7 @@ namespace Hrot.SimHost
             _headless = config.Headless;
             int? domainOverride = config.DomainId;
             _nodeId = config.NodeId;
-            _app = new SimHostApp(domainOverride, _role);
+            _app = new SimHostApp(domainOverride, _role) { NodeName = config.NodeName };   // ⭐ CE-3354 ②
             // QA-018: hand the queued test systems over BEFORE the boot, so they land in Phase 6d.
             foreach (var pending in _pendingTestSystems)
                 _app.TestHook_QueueSystem(pending);

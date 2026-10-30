@@ -74,5 +74,9 @@
         /// </para>
         /// </summary>
         public Func<string, int, int>? NodeIdResolver { get; set; }
+
+        /// <summary>⭐ <c>CE-3354</c> ② — resolves a subsystem's node NAME from its subsystem name (null result / null delegate ⇒ the default
+        /// <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>). The beside-twin of <see cref="NodeIdResolver"/>.</summary>
+        public Func<string, string?>? NodeNameResolver { get; set; }
     }
 }

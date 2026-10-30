@@ -994,7 +994,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             });
         }
         // ⭐ CE-4013 D13 — the one node config (Headless controls only the window here, never the network)
-        var nodeConfig = HrotNodeConfig.ForNode(config.DomainId, cgfNodeId, "CGF", shellParticipant);
+        var nodeConfig = HrotNodeConfig.ForNode(config.DomainId, cgfNodeId, "CGF", shellParticipant, nodeName: config.NodeName);
 
         _bootstrapper = new CgfNodeBootstrapper(_networkFactory, isolatedTempRoot, _fdpEventHistory, map => _stagingRemap.Publish(map));
         _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;

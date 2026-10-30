@@ -37,6 +37,12 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>⭐ CE-1451 — <c>GET /status.load</c>: THIS node's phase / load step / failure (<c>ClusterView.LocalPhase/LocalStep/LocalReason</c>, the heartbeat's) and the cluster's load progress; null with no view.</summary>
+        /// <summary>⭐ CE-3354 ② — <c>GET /status.node</c>: the answering node's <c>{name, nodeId}</c>, from its cluster view (the same view <c>load</c> reads).</summary>
+        private JsonNode? NodeOrNull()
+            => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is { NodeId: { } id } view
+                ? new JsonObject { ["name"] = view.NodeName ?? "", ["nodeId"] = id }
+                : null;
+
         private JsonNode? LoadStatusOrNull()
         {
             if ((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is not { } view) return null;

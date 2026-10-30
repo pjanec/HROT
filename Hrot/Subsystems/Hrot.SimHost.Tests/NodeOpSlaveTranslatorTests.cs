@@ -405,6 +405,21 @@ public sealed class NodeOpSlaveTranslatorTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — the node's NAME crosses the heartbeat topic both ways through the ONE mapping: a name round-trips, null is empty on the wire and empty reads back as
+    /// null (an older sender that sends none ⇒ the master derives the default).
+    /// 🔴 Mutations (each compiles): <c>ToTopic</c> not writing <c>NodeName</c> ⇒ the first cell reds; <c>ToEvent</c> not reading it ⇒ the round-trip cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_TheHeartbeat_CarriesTheNodeName_BothWays_NullIsEmpty()
+    {
+        var named = new NodeHeartbeatEvent { NodeId = 9, SubsystemName = "IG", NodeName = "film-cam" };
+        Assert.Equal("film-cam", NodeHeartbeatWire.ToTopic(named).NodeName);
+        Assert.Equal("film-cam", NodeHeartbeatWire.ToEvent(NodeHeartbeatWire.ToTopic(named)).NodeName);
+        Assert.Equal(string.Empty, NodeHeartbeatWire.ToTopic(new NodeHeartbeatEvent { NodeId = 9, SubsystemName = "IG" }).NodeName);   // null ⇒ empty
+        Assert.Null(NodeHeartbeatWire.ToEvent(new NodeHeartbeat { NodeId = 9, NodeName = string.Empty }).NodeName);                      // empty / an older sender ⇒ null
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-3345</c> success 7 (AQ110 A) — the node's phase, step and reason cross the heartbeat topic both ways through the ONE mapping (<c>NodeHeartbeatWire</c>: the slave's egress, the master's ingress and the observer's read it), and are written
     /// to the real DDS sample by the slave's translator; an older sender's omission reads as <c>Ready</c> with no step; a phase value this build does not know (a newer peer) reads as <c>Ready</c>.
     /// 🔴 Mutations (each compiles): <c>ToTopic</c> not writing <c>Phase</c> / <c>Step</c> / <c>Reason</c> ⇒ the DDS cells red; <c>ToEvent</c> not reading them ⇒ the round-trip cells red; the range check removed ⇒ the "unknown phase" cell reds.

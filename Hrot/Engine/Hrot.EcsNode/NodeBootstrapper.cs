@@ -265,7 +265,9 @@ namespace Hrot.SimHost
             Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null,
             bool dryRunIncludesTransient = false,
             IReadOnlyList<LoadPart>? profileLoadParts = null,
-            Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? mapBuildStatus = null)
+            Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? mapBuildStatus = null,
+            // ⭐ CE-3354 ② — the node's name for the slave built here (only when no slave is passed; a caller with a context passes ITS slave, which carries it).
+            string? nodeName = null)
         {
             if (!offline && participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -277,7 +279,7 @@ namespace Hrot.SimHost
             // P1/CE-285: advertise the full declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
             // ⭐ + the asset tokens derived from the role (docs/DESIGN_Asset_Management.md §7.3a, CE-3020).
             clusterSlave ??= new ClusterSlave(nodeId, subsystemName, eventBus, role,
-                capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(role));
+                capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(role), nodeName: nodeName);
             SlaveTranslator = slaveTranslator;
             if (SlaveTranslator == null && participant != null && eventBus != null)
             {

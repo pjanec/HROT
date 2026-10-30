@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Orchestration
     {
         private readonly int    _nodeId;
         private readonly string _subsystemName;
+        private readonly string _nodeName;
         private readonly NodeRole _roles;   // P1: the node's declared role mask (now the SOURCE of fdp.role.* tokens).
         private readonly FdpEventBus? _eventBus;
 
@@ -83,21 +84,30 @@ namespace Fdp.Toolkit.Orchestration
         /// <param name="nodeId">Node identifier published in heartbeats.</param>
         /// <param name="subsystemName">Subsystem name published in heartbeats.</param>
         /// <param name="eventBus">Optional event bus for heartbeat and operation event publication.</param>
+        /// <param name="nodeName">⭐ <c>CE-3354</c> ② — the node's unique human-given name, carried on every heartbeat; null/blank ⇒ <see cref="DefaultNodeName"/>.</param>
         public ClusterSlave(
             int    nodeId,
             string subsystemName,
             FdpEventBus? eventBus = null,
             NodeRole roles = NodeRole.None,
-            IReadOnlyList<string>? capabilities = null)
+            IReadOnlyList<string>? capabilities = null,
+            string? nodeName = null)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
+            _nodeName      = string.IsNullOrWhiteSpace(nodeName) ? DefaultNodeName(subsystemName, nodeId) : nodeName.Trim();
             _eventBus      = eventBus;
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
-            View = new ClusterView(eventBus, nodeId);
+            View = new ClusterView(eventBus, nodeId) { NodeName = _nodeName };
         }
+
+        /// <summary>⭐ <c>CE-3354</c> ② — the node's name as heartbeated.</summary>
+        public string NodeName => _nodeName;
+
+        /// <summary>⭐ <c>CE-3354</c> ② — the name a node gets when none is configured: <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.</summary>
+        public static string DefaultNodeName(string subsystemName, int nodeId) => $"{subsystemName}-{nodeId}";
 
         // ── Test-only constructor ─────────────────────────────────────────────
 
@@ -106,15 +116,16 @@ namespace Fdp.Toolkit.Orchestration
         /// Use <see cref="EnqueueIntentForTest"/> to inject intents directly.
         /// </summary>
         public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode",
-            NodeRole roles = NodeRole.None, IReadOnlyList<string>? capabilities = null)
+            NodeRole roles = NodeRole.None, IReadOnlyList<string>? capabilities = null, string? nodeName = null)
         {
             _nodeId        = nodeId;
             _subsystemName = subsystemName;
+            _nodeName      = string.IsNullOrWhiteSpace(nodeName) ? DefaultNodeName(subsystemName, nodeId) : nodeName.Trim();
             _eventBus      = eventBus;
             _roles         = roles;
             _capabilityTokens = BuildCapabilityTokens(roles, capabilities);
             EnsureOrchestrationEventsRegistered(eventBus);
-            View = new ClusterView(eventBus, nodeId);
+            View = new ClusterView(eventBus, nodeId) { NodeName = _nodeName };
         }
 
         /// <summary>
@@ -544,6 +555,7 @@ namespace Fdp.Toolkit.Orchestration
                 LocalStateId  = _localStateId,
                 WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                 SubsystemName = _subsystemName,
+                NodeName = _nodeName,
                 SessionId     = _followingSessionId,   // ⭐ C2
                 Phase         = phase,                 // ⭐ CE-3345 (AQ110 A)
                 Step          = step,

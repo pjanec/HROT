@@ -211,7 +211,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
         });
 
         // The orchestrator is also a cluster NODE (diagnostics dump) — host-only, not part of the core.
-        _clusterSlave = new ClusterSlave(orchestratorNodeId, "Orchestrator", _bus);
+        _clusterSlave = new ClusterSlave(orchestratorNodeId, "Orchestrator", _bus, nodeName: config.NodeName);
         string isolatedTempRoot = OrchestrationConstants.GetNodeStagingRoot(orchestratorNodeId);
         string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
         var orchestratorLogService = new LogArchiveExtractionService(

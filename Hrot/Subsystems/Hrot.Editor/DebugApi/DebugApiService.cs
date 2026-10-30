@@ -749,6 +749,8 @@ namespace Hrot.Editor.DebugApi
                 ["notOperable"]  = ClusterNotOperableReasonKnown()?.Reason,
                 // ⭐⭐ CE-1451 — this node's LOAD as its heartbeat reports it (phase, step, failure) and the run gate + loading screen its controls read. Each is absent
                 //   (null) where the host has none: no cluster view ⇒ no `load`; no run choice ⇒ no `runGate`; no composed screen ⇒ no `loadingScreen`.
+                // ⭐ CE-3354 ② — WHICH node answers: its unique name and id (the selected perspective's node in a multi-node process); null where the host keeps no cluster view.
+                ["node"]         = TryRead(NodeOrNull),
                 ["load"]         = TryRead(LoadStatusOrNull),
                 ["runGate"]      = TryRead(RunGateOrNull),
                 ["loadingScreen"] = TryRead(LoadingScreenOrNull),

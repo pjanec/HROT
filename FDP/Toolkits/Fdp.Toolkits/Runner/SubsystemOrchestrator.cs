@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Runner
         private readonly bool _deterministic;
         private readonly float _fixedDeltaSeconds;
         private readonly Func<string, int, int>? _nodeIdResolver;
+        private readonly Func<string, string?>? _nodeNameResolver;
         private volatile bool _running = true;
         private readonly bool _seedContent;
         private readonly string? _nasRoot;
@@ -67,6 +68,7 @@ namespace Fdp.Toolkit.Runner
             _deterministic     = options.Deterministic;
             _fixedDeltaSeconds = options.FixedDeltaSeconds;
             _nodeIdResolver    = options.NodeIdResolver;
+            _nodeNameResolver  = options.NodeNameResolver;
             _seedContent       = options.SeedContent;
             _nasRoot           = options.NasRoot;
             _subsystems        = new List<ISubsystem>(subsystems);
@@ -100,6 +102,7 @@ namespace Fdp.Toolkit.Runner
                     Deterministic     = _deterministic,
                     FixedDeltaSeconds = _fixedDeltaSeconds,
                     NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId,
+                    NodeName          = _nodeNameResolver?.Invoke(subsystem.Name),   // ⭐ CE-3354 ②
                     // GZH-016: inject active-map-owner predicate so subsystems can gate canvas input.
                     IsActiveMapOwner  = () => _activeMapOwner == captured,
                     // A subsystem's own control plane can ask the host to leave the frame loop.

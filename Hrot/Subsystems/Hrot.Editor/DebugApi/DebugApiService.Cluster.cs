@@ -37,23 +37,34 @@ namespace Hrot.Editor.DebugApi
             if (roster == null) return (null, NoClusterRoster, DebugApiHints.Panel);
 
             var nodes = new JsonArray();
+            var conflicts = new JsonArray();
             foreach (var r in roster)
+            {
+                // ⭐ CE-3354 ② — a row carrying NameConflict is a REFUSED heartbeat (its name is held by another live node), not a member
+                if (r.NameConflict != null)
+                {
+                    conflicts.Add(new JsonObject { ["nodeId"] = r.NodeId, ["subsystem"] = r.Subsystem, ["name"] = r.Name, ["reason"] = r.NameConflict });
+                    continue;
+                }
                 nodes.Add(new JsonObject
                 {
                     ["nodeId"]                = r.NodeId,
+                    ["name"]                  = r.Name,   // ⭐ CE-3354 ②
                     ["subsystem"]             = r.Subsystem,
                     ["reportedState"]         = r.ReportedState,
                     ["roles"]                 = r.Roles,
                     ["secondsSinceHeartbeat"] = r.SecondsSinceHeartbeat,
                 });
+            }
             // ⭐⭐ CE-4087 — what the master's LOAD GATE says: "waiting for: MuscleGround (SimHost)" while a load waits for a node
             //   holding a required role, the refusal reason after it was refused, null when no load is held. A load that is
             //   refused here is a FAILED load the operator can read — never a silent hang.
             var loadNotice = _editorClusterLoadNotice?.Invoke() ?? _dispatcher?.ClusterLoadNoticeAnyNode;
             return (new JsonObject
             {
-                ["count"] = roster.Count,
+                ["count"] = nodes.Count,
                 ["nodes"] = nodes,
+                ["nameConflicts"] = conflicts,   // ⭐ CE-3354 ② — heartbeats refused because another live node holds the name
                 ["load"]  = new JsonObject { ["notice"] = loadNotice },
                 ["note"]  = "reportedState is each node's OWN claim from its heartbeat, not the cluster's state. "
                           + "A node leaves this list after HeartbeatTimeoutSeconds of silence (default 5 s). "

@@ -607,6 +607,7 @@ public sealed partial class ClusterMaster : IDisposable
             {
                 NodeId                  = hb.NodeId,
                 SubsystemName           = hb.SubsystemName ?? string.Empty,
+                NodeName                = string.IsNullOrWhiteSpace(hb.NodeName) ? $"{hb.SubsystemName}-{hb.NodeId}" : hb.NodeName,   // ⭐ CE-3354 ② — an older peer sends none
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
                 SessionId               = hb.SessionId,   // ⭐ C2 — the session the node follows (telemetry)
@@ -616,7 +617,15 @@ public sealed partial class ClusterMaster : IDisposable
                 Capabilities            = new System.Collections.Generic.HashSet<string>(tokens),
                 Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };
-            _roster.Upsert(profile);
+            // ⭐ CE-3354 ② — a node name is unique among LIVE nodes: a second holder is refused (not added, not refreshed), once logged, listed on the roster route
+            if (!_roster.TryAdmit(profile, out var nameConflict, out bool firstRefusal))
+            {
+                if (firstRefusal)
+                    FdpLog<ClusterMaster>.Error(
+                        "[Orchestrator] Node {0} ({1}) refused: its name '{2}' is already held by live node {3}. Give it another name (--node-name / --node-names).",
+                        nameConflict!.RefusedNodeId, nameConflict.RefusedSubsystem, nameConflict.Name, nameConflict.HolderNodeId);
+                continue;
+            }
 
             // ⭐⭐ R-4018 / CE-4003 step 2 — a node ENTERING the roster gets the deployment's TKB synced (the saga does
             //   the copy). ⭐ Nothing is sent to the node: its first world build loads the file. 📄 tkb-1 DESIGN §0a.
@@ -2740,7 +2749,11 @@ public sealed partial class ClusterMaster : IDisposable
         foreach (var p in _roster.ActiveNodes.Values)
             rows.Add(new Hrot.Presentation.DebugApi.ClusterRosterEntry(
                 p.NodeId, p.SubsystemName, p.LocalClusterState.ToString(), p.Roles.ToString(),
-                Math.Round(now - p.LastHeartbeatUtcSeconds, 3)));
+                Math.Round(now - p.LastHeartbeatUtcSeconds, 3), p.NodeName));
+        foreach (var c in _roster.NameConflicts)   // ⭐ CE-3354 ② — refused heartbeats, as rows that carry NameConflict
+            rows.Add(new Hrot.Presentation.DebugApi.ClusterRosterEntry(
+                c.RefusedNodeId, c.RefusedSubsystem, "Refused", "None", Math.Round(now - c.LastSeenUtcSeconds, 3), c.Name,
+                $"name '{c.Name}' is held by live node {c.HolderNodeId}"));
         rows.Sort((a, b) => a.NodeId.CompareTo(b.NodeId));
         return rows;
     }

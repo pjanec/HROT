@@ -22,6 +22,27 @@ namespace Hrot.ClusterRunner.Configuration
         [Option('s', "scenario", Required = false, HelpText = "Scenario name for --mode ci (e.g. MinimalCI_01)")]
         public string ScenarioName { get; set; } = string.Empty;
 
+        /// <summary>⭐ <c>CE-3354</c> ② — this process' ONE node's unique name (a process with one node); several nodes in one process use <see cref="NodeNames"/>.</summary>
+        [Option("node-name", Required = false, HelpText = "The unique name of this process' node (default <subsystem>-<nodeId>). Several nodes in one process: use --node-names.")]
+        public string NodeName { get; set; } = string.Empty;
+
+        /// <summary>⭐ <c>CE-3354</c> ② — <c>Sub=name,Sub=name</c>: node names keyed by subsystem (several nodes in one process).</summary>
+        [Option("node-names", Required = false, HelpText = "Node names per subsystem for several nodes in one process: IG=film-cam,SimHost=sim-1 (default <subsystem>-<nodeId>).")]
+        public string NodeNames { get; set; } = string.Empty;
+
+        private Dictionary<string, string> _nodeNameMap = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>⭐ <c>CE-3354</c> ② — the node name configured for <paramref name="subsystemName"/> (<c>--node-name</c> for the process' one node, else the
+        /// <c>--node-names</c> entry, case-insensitive; <c>player</c> = <c>IG</c>), or <see langword="null"/> ⇒ the default <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>.
+        /// Valid after <see cref="Validate"/>.</summary>
+        public string? NodeNameFor(string subsystemName)
+        {
+            if (!string.IsNullOrWhiteSpace(NodeName)) return NodeName.Trim();
+            if (string.IsNullOrEmpty(subsystemName)) return null;
+            string key = subsystemName.Equals("player", StringComparison.OrdinalIgnoreCase) ? "ig" : subsystemName;
+            return _nodeNameMap.TryGetValue(key, out var n) ? n : null;
+        }
+
         /// <summary>Directory for NLog file target output. Defaults to <c>AppContext.BaseDirectory\logs</c>.</summary>
         [Option("log-dir", Required = false, HelpText = "Directory for log file output. Defaults to <AppBase>\\logs.")]
         public string LogDirectory { get; set; } = string.Empty;
@@ -208,6 +229,48 @@ namespace Hrot.ClusterRunner.Configuration
         private const string ModeList =
             "Use: all, server, player, orchestrator, simhost, cgf, traffic, ig, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
 
+        /// <summary>⭐ <c>CE-3354</c> ② — <c>--node-name</c> names the process' ONE node (several ⇒ ambiguous, refused); <c>--node-names</c> keys must be hosted subsystems
+        /// and no two nodes may take one name.</summary>
+        private void ValidateNodeNames()
+        {
+            _nodeNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var nodeSubsystems = RequestedSubsystems.Where(x => x is not ("ci" or "migrate" or "dump-api")).ToList();
+            if (!string.IsNullOrWhiteSpace(NodeName))
+            {
+                if (nodeSubsystems.Count > 1)
+                    throw new InvalidOperationException(
+                        $"--node-name is ambiguous: this process hosts {nodeSubsystems.Count} nodes ({string.Join(", ", nodeSubsystems)}). "
+                        + "Name them with --node-names Sub=name,Sub=name.");
+                CheckNodeName(NodeName.Trim());
+            }
+            if (string.IsNullOrWhiteSpace(NodeNames)) return;
+            var used = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(NodeName)) used[NodeName.Trim()] = "--node-name";
+            foreach (var pair in NodeNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                int eq = pair.IndexOf('=');
+                if (eq <= 0 || eq == pair.Length - 1)
+                    throw new InvalidOperationException($"--node-names: '{pair}' is not Subsystem=name (e.g. IG=film-cam,SimHost=sim-1).");
+                string sub = pair[..eq].Trim().ToLowerInvariant(), name = pair[(eq + 1)..].Trim();
+                if (sub == "player") sub = "ig";
+                CheckNodeName(name);
+                if (!nodeSubsystems.Contains(sub, StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"--node-names: '{pair[..eq].Trim()}' is not a node of this process (it hosts: {string.Join(", ", nodeSubsystems)}).");
+                if (_nodeNameMap.ContainsKey(sub))
+                    throw new InvalidOperationException($"--node-names: '{pair[..eq].Trim()}' is named twice.");
+                if (used.TryGetValue(name, out var other))
+                    throw new InvalidOperationException($"--node-names: the name '{name}' is given to both {other} and {pair[..eq].Trim()} — a node name is unique.");
+                used[name] = pair[..eq].Trim();
+                _nodeNameMap[sub] = name;
+            }
+        }
+
+        private static void CheckNodeName(string name)
+        {
+            if (name.Length == 0 || name.IndexOfAny(new[] { ',', '=', '"' }) >= 0 || name.Any(char.IsControl))
+                throw new InvalidOperationException($"Invalid node name '{name}': non-empty, without commas, '=' or quotes.");
+        }
+
         /// <summary>
         /// Parses <see cref="ModeString"/> into <see cref="RequestedSubsystems"/>,
         /// <see cref="Fdp.Toolkit.Runner.RunnerConfiguration.WaitForString"/> into
@@ -249,6 +312,8 @@ namespace Hrot.ClusterRunner.Configuration
             if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
                     $"Invalid mode: '{ModeString}'. {ModeList}");
+
+            ValidateNodeNames();
 
             // Parse wait-for list -> WaitForPeers   ("player" is the user-facing name of "ig", normalised as the mode token is)
             if (!string.IsNullOrWhiteSpace(WaitForString))

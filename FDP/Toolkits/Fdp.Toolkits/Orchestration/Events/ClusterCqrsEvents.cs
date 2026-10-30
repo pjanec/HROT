@@ -99,6 +99,8 @@ namespace Fdp.Toolkit.Orchestration
         public string? Step;
         /// <summary>⭐ <c>CE-3345</c> — why the node's last prepare failed (while <see cref="NodePhase.Failed"/>); <see langword="null"/> otherwise.</summary>
         public string? Reason;
+        /// <summary>⭐ <c>CE-3354</c> ② — the node's unique human-given NAME (default <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>); <see langword="null"/> from a sender that sends none (an old peer ⇒ the receiver derives the default).</summary>
+        public string? NodeName;
         // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.

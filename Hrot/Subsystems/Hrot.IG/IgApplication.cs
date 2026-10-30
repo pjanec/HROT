@@ -299,6 +299,9 @@ public class IgApplication : IDisposable
     /// </summary>
     private int _effectiveInstanceId;
 
+    /// <summary>⭐ <c>CE-3354</c> ② — the node's unique name (<c>--node-name(s)</c>), set by <see cref="IgSubsystem"/> before <c>InitializeEmbedded</c>; null ⇒ <c>IgApplication-&lt;nodeId&gt;</c>.</summary>
+    public string? NodeName { get; set; }
+
     /// <summary>
     /// ⭐⭐⭐ The node's LOCAL entity-creation request source (host (f)). IG's authoring tools enqueue
     /// INTENTS here instead of publishing <c>SpawnEntityCommand</c> ORDERS onto the event bus; the shared
@@ -668,7 +671,7 @@ public class IgApplication : IDisposable
             });
         }
         // ⭐ CE-4013 D13 — the one node config: IG now stages per node like every host (it took the BARE staging root)
-        var igConfig = HrotNodeConfig.ForNode(_domainOverride ?? IgNetworkConstants.DdsDomain, _effectiveInstanceId, "IgApplication", shellParticipant);
+        var igConfig = HrotNodeConfig.ForNode(_domainOverride ?? IgNetworkConstants.DdsDomain, _effectiveInstanceId, "IgApplication", shellParticipant, nodeName: NodeName);
         igConfig.SkipAllocatorRouting = true;   // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait
 
         // Create objects that do NOT need a world (so the ApplicationSystemsRegistrar lambda can capture them).
