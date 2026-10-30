@@ -144,6 +144,49 @@ public class MissionControlIntegrationTests
         Assert.Equal(0, ack.ErrorCode);
     }
 
+    /// <summary>
+    /// ⭐ R-3067 / AQ109 X1 — RE-HOMED from ExCon (Task 32B). The capability: a commit through the SHARED <see cref="Hrot.UI.Common.Facades.IMissionEditorService"/>
+    /// resolves with the ack, not a timeout. It used to be driven through ExCon's own second service; it now runs on the CGF node (the Brain, where plans live)
+    /// through the service its debug provider hands out — the HTTP/MCP mission-editing seam. 🔴 Mutation: build the service back inside CgfSubsystem's
+    /// `!_headless` block ⇒ `MissionEditor` is null on this headless harness ⇒ red.
+    /// </summary>
+    [Fact]
+    public async System.Threading.Tasks.Task Cgf_CommitMissionAsync_ResolvesWithAck_NotTimeout()
+    {
+        using var harness = new HrotRunnerHarness();
+
+        long networkId = harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
+
+        // The ghost must be on CGF first: MissionControlExecutionSystem waits only a few frames for the entity before it NACKs.
+        Assert.True(harness.PumpUntil(
+            () => harness.Cgf!.GhostEntityMap != null && harness.Cgf!.GhostEntityMap.TryGetEntity(networkId, out _), MissionSeedTimeoutFrames),
+            "CGF ghost entity was not created in time.");
+
+        var missions = harness.Cgf!.CreateDebugProvider()?.MissionEditor;
+        Assert.NotNull(missions);
+
+        var taskId = Guid.NewGuid();
+        var plan = new Hrot.Core.Mission.MissionPlan
+        {
+            ActiveTaskId = taskId,
+            Tasks = new List<Hrot.Core.Mission.MissionTask>
+            {
+                new Hrot.Core.Mission.MissionTask
+                {
+                    TaskId = taskId, ExecutingEngine = "CGFX", BehaviorId = "WanderMilitary", BehaviorParams = string.Empty,
+                    State = Hrot.Core.Mission.eTaskState.TASK_PLANNED, Triggers = new List<Hrot.Core.Mission.MissionTrigger>(),
+                }
+            }
+        };
+
+        var commit = missions!.CommitMissionAsync(networkId, plan, 0);
+        Assert.True(harness.PumpUntil(() => commit.IsCompleted, 200), "CommitMissionAsync did not complete — the ack never resolved the pending commit.");
+
+        var result = await commit;
+        Assert.True(result.Success, $"the commit completed but failed: {result.ErrorMessage}");
+        Assert.True(result.NewVersion > 0, $"a successful commit returns NewVersion > 0, got {result.NewVersion}.");
+    }
+
     private static bool TryGetMissionQueue(EntityRepository world, long networkId, out MissionPlanQueue queue)
     {
         var view = (ISimulationView)world;
