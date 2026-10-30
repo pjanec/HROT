@@ -1940,3 +1940,49 @@ gates play (a second readiness signal) · the 3-D map in every load (R-1046: the
 announced mid-round is not taken for it · ② `MapInLoadNodes` + the per-node stamp + `RequestBuild()` (ui) · ③ `waitForReady` and `GET /status`
 on the request's Success (`load` / `run` blocks) — what the director needs · ④ load-and-run on the same Success, `_resumeWhenLive` retired
 (CE-4122).
+
+#### 11.10b ⭐ NODE NAMES and the COMMAND LINE — the same load from a launch *(R-3075 extended, user `2026-10-30`; `build-state: READY-TO-BUILD`)*
+
+🔒 User: *"Can we give a name to the node on the command line … What if we are running multiple nodes in one single application?"* · *"this should
+be available from command line as well when starting either editor or '-m all' all-in-one cluster"* · *"from command line we should be able to
+open a scenario for editing. Also a server should be able to load a scenario from command line (paused or auto-running)."*
+
+📐 **Measured:** no node has a name today — the readiness "names" are SUBSYSTEM names (`ClusterMaster.MissingMandatoryNames`); a node is a
+`nodeId`, a fixed offset in one process (`Program.ResolveAppNodeId`) or granted in arrival order to a separate one (`NodeIdBroker.AwaitGrant`,
+no preferred id ⇒ may change on restart); `/status` does not say which node answers; a multi-node process has ONE debug port, routed to the
+selected perspective (AQ54). `-s/--scenario` exists for `--mode ci` only.
+
+| piece | as designed |
+|---|---|
+| **node name** | `--node-name <n>` (one node) · `--node-names IG=film-cam,SimHost=sim-1` (several in one process) · default `<subsystem>-<nodeId>`. In the heartbeat (a wire field: NED doc + `ned-wire-inventory.py --check`; an old peer sends none ⇒ the default), on the roster (`GET /cluster/roster` → `name`), in `/status` (`node: {name, nodeId}`). The master refuses a second LIVE node of one name |
+| **map-in-load set** | keyed by NAME (survives a restart and a new id; a name not present is kept and listed "not present") |
+| **startup load** | the SAME request HTTP sends, issued once the process' master is up — the master already holds a load until its required nodes joined (CE-4087), so nothing waits on a timer |
+
+```mermaid
+graph TD
+  CLI["CLI: --scenario · --load edit|live · --play · --node-name(s) · --map-in-load"] -->|"at startup, once"| RS["SetRunSettings (map-in-load names)"]
+  CLI -->|"at startup, once"| LD["the load request (TransitionStateIntent)"]
+  HTTP["HTTP: POST /run-settings · POST /scenario/load/edit|live"] --> RS
+  HTTP --> LD
+  RS --> M["ClusterMaster (in the editor, -m all, -m server, -m orchestrator)"]
+  LD --> M
+  M -->|"--play / startPaused:false: on the round's Success"| RUN["ResumeTimeIntent"]
+  PL["-m player / a lone simhost: no master"] -.->|"--scenario refused, named"| X["(error at startup)"]
+  style X stroke-dasharray: 5 5
+```
+*What it shows: the command line is a second SENDER of the same two messages, never a second load path; the dashed edge is the host that has
+no master to send them to.*
+
+| CLI | meaning | hosts |
+|---|---|---|
+| `-s/--scenario <name>` | load it at startup (extended beyond `ci`) | any host with the master |
+| `--load edit\|live` | the target; default **edit** in the editor, **live** elsewhere | editor: both · `-m all` / `-m server`: both (edit ⇒ the cluster in OperatingEdit for an editor that joins) |
+| `--play` | live + run when every node's load succeeded (load-and-run); implies `--load live` | any host with the master |
+| `--node-name` / `--node-names` | this process' node name(s) | every host |
+| `--map-in-load [names]` | these nodes' loads wait for their 3-D map; no names = this process' nodes | any host with the master (names may be of other nodes) |
+
+Examples: `-m editor -s ua-air-strike` (open for editing) · `-m editor -s ua-air-strike --play --map-in-load` (film in the editor) · `-m all -s X
+--play --node-names IG=film-cam --map-in-load film-cam` · `-m server -s X` (live, paused) · `-m server -s X --play` (live, running).
+
+⛔ **Rejected:** a startup-only load path (two implementations of one load) · a fixed wait before the startup load (the master's own hold is the
+wait) · names = subsystem names (cannot single out one of two IGs).
