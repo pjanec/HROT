@@ -129,12 +129,21 @@ public sealed class ClusterOpE2eScriptTests
             //   one non-zero frame in 14 000), so MovingEntitySystem never moves the tagged entity and
             //   RecordAndReplaySeek records a stationary x = 0. ResumeTime bypasses 2PC and publishes no
             //   op status, so it is fired here rather than as a script step the handler would wait on.
-            clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest
+            // ⭐⭐ CE-3349 — ⛔ NOT here, synchronously: AfterInitialize runs BEFORE the orchestrator loop starts (HeadlessTestExecutor),
+            //   so no node has advertised its roles yet and the CE-3344 latch refuses every cluster op — the resume was dropped and the
+            //   clock stayed paused (x = 0). ⇒ press play the moment the cluster reports ready, from the loop's own frames.
+            _ = System.Threading.Tasks.Task.Run(async () =>
             {
-                RequestId     = Guid.NewGuid(),
-                OperationType = ClusterOpType.ResumeTime,
-                PayloadJson   = string.Empty,
-            }).GetAwaiter().GetResult();
+                var deadline = DateTime.UtcNow.AddSeconds(30);
+                while (!clusterMaster.BootstrapComplete && DateTime.UtcNow < deadline)
+                    await System.Threading.Tasks.Task.Delay(20).ConfigureAwait(false);
+                await clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = ClusterOpType.ResumeTime,
+                    PayloadJson   = string.Empty,
+                }).ConfigureAwait(false);
+            });
         };
 
         int exitCode = await executor.RunAsync().ConfigureAwait(false);
