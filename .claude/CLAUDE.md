@@ -710,6 +710,12 @@ ever considered, which is what obligation ① exists to prevent.
     MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>   # parses every block
     ```
   - ⭐ Keep box labels short so text is not clipped.
+- ### ⛔⛔ NO SCREENSHOTS IN GIT *(user, `2026-10-30`)*
+  > 🔒 **User, verbatim:** *"no screenshots to repo please. to big and wastefull for git."*
+
+  ⛔ Never commit a rendered PNG/JPG (a rail's frame, a live still, a before/after) — it bloats every clone for good. ⭐ Render to the scratchpad and
+  show it in chat (`SendUserFile`); a doc names the rail that renders it (`HROT_RAIL_SHOTS=<dir>`) instead of linking an image. ⭐ Hand-authored SVG
+  diagrams (small text) are not screenshots and stay allowed.
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 
 ## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*
