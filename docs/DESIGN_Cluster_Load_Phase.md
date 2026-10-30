@@ -2008,3 +2008,10 @@ a scenario not staged fails at once with the master's reason (409), no hang.
 📌 Found while building (not this item's): `EveryEcsHostComposesOneClusterHandlerSetRails` / `EveryEcsHostComposesTheLoadPhaseChainRails` scan
 `CgfSubsystem.cs` / `EditorSubsystem.cs` for strings that left them with CE-1446 B1 (the move to node bootstrappers) — stale source-text rails,
 red before CE-3354 → CE-3355.
+
+⭐ **A LATE JOINER waits for its 3-D map too** *(measured `2026-10-30`)*: the C7 catch-up (`ClusterMaster.InSync.cs`) runs the same chain minus
+`ScenarioEntities` only (`LoadPhaseChain.StepsFor`), so a Player (profile) — or a joiner named in the map-in-load set — holds its catch-up answer,
+and therefore its in-sync mark, until its map is built. Rail: `LoadPhaseChainTests.CE3354_ALateJoinersCatchUp_HoldsUntilItsMapIsBuilt`
+(red-proved: `StepsFor` skipping `Map3D`). 📐 Live: `-m server` running `bc-house-defended`, then `-m player --node-name film-player` under Xvfb —
+`waits for the node's 3-D map (the node's profile)` 03.38 → `built after 0.1 s` 03.49 → master *"caught up — in sync"* 03.96.
+⚠ A map build FAILURE fails the catch-up, and K7 then leaves the Player out of sync until the next cluster commit or a restart.
