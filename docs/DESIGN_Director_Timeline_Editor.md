@@ -2131,6 +2131,75 @@ NEXT wrap), `ATakeLongerThanItsRecording_EndsWhereTheRecordingEnds`, `TheReplayB
 The RB's two window-inventory rails (`RegisterWindowsCore_*`) now expect the Director window too — and their "every window is in the
 ReplayBrowser perspective" check is what D11 satisfies.
 
+### 11n-1. CE-4120 — a blast is framed on its PLACE *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+
+⭐ The film pilot measured this on `ua-air-strike`. `POST /director/draft {lane: combat.blast, eventIndex: 0}` produced:
+- ③ looked at `[747, 300, 300]`, the A-10's height, while the burst is on the ground at `[606, 300, 0]`;
+- ④ followed the departing jet.
+
+None of the five stills shows the burst. **The cause** (`Drafter.MomentAt`, the blast case): the blast had a shooter (the A-10) and struck no
+unit, so `Subject` = null. `Scene.Focus` then falls back to the actor, and every beat is about the aircraft. ⇒ ⛔ the event's own point
+(`combat.blast` X / Y = `DetonationNotification.HitX/HitY`, `CombatTimelineLanes.cs:38`) is only used as `Scene._fallback` when no unit has samples.
+
+**INVENTORY** *(graph + grep)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=.*(TerrainHeight\|HeightAt\|GroundHeight\|ElevationAt).*` | 35 — the presentation's one reader is `CachedGroundHeight.At(x, y)` (`TerrainWorld.GroundHeightAt`); the rest are tests, SUMO, gizmo fields ⇒ the ground height comes from the terrain singleton; no second reader |
+| `grep "new DraftOptions\|new DirectorDrafts("` | ONE production builder of the drafter's inputs: `DirectorDrafts` (from `DirectorPack.cs:131`, which already passes `KindOf(world, id)`) ⇒ the ground height enters the same way `Kind` does |
+
+```mermaid
+classDiagram
+  direction LR
+  class DraftMoment { <<exists, grown>> Lane · Actor · Subject · Place NEW (Vector3?, a blast's ground point) }
+  class DraftOptions { <<exists, grown>> Kind · GroundAt NEW (Func of x,y to z; null = 0) }
+  class Scene { <<exists, grown>> Focus(s) = Subject, else Place, else Actor · HasFocus NEW }
+  class Framing { <<exists>> the 180 deg line actor to focus · TheMoment }
+  class DirectorDrafts { <<exists>> builds DraftOptions: Kind, GroundAt NEW }
+  class DirectorPack { <<exists>> passes the host world's terrain height }
+  DirectorPack --> DirectorDrafts
+  DirectorDrafts --> DraftOptions
+  Framing --> Scene
+  Scene --> DraftMoment : Place
+```
+*What the picture shows that prose hid:* a blast becomes a moment with a PLACE, and the ONE `Scene.Focus` returns it. Every beat (`Draft`'s,
+`MomentCamera`'s and `TemplateCamera`'s) goes through `Framing` / `Scene`, so all of them change together. There is no blast-specific camera code.
+
+```mermaid
+sequenceDiagram
+  participant D as DirectorDrafts
+  participant M as Drafter.MomentAt
+  participant F as Framing / Scene
+  D->>M: combat.blast #0
+  M-->>D: Actor A-10, Subject null, Place (606, 300, GroundAt(606, 300))
+  D->>F: Draft
+  F->>F: line A-10 to Place · pitch = the PLACE's (ground) pitch, not the aircraft's
+  F-->>D: 3 LookAt Place, fitted to the place (the jet may leave the frame) · 4 LookAt Place from above
+```
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the blast lane carries the burst's point | ✅ `CombatTimelineLanes.cs:38` (`HitX` / `HitY`) | ✅ §9 R0 ② |
+| `Scene.Focus` = subject, else actor | ✅ `Drafter.cs` `Scene.Focus` | ⛔ the grammar (PLAN_Feature_Films §1a: *"the moment — the consequence"*) frames what HAPPENED, not who caused it ⇒ the actor fallback is the defect |
+| the aircraft's pitch (+10°, from below) is applied to ③ | ✅ `Framing.MomentPitch = PitchOf(Kind(actor))` | ⛔ meant for filming the aircraft, not a ground point |
+| a camera's `LookAt.Z` is honoured as given | ⚠ by reading: `ShotEvaluator.cs:112` uses `LookAt` as the target; ⛔ not measured on a non-flat terrain ⇒ the rail checks with a terrain height ≠ 0 | ⛔ none |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **B1** | `DraftMoment.Place` (`Vector3?`): every `combat.blast` moment carries its point, z = `options.GroundAt(x, y)` (null ⇒ 0). `Scene.Focus` = Subject, else **Place**, else Actor; `HasSubject` becomes "has a focus" for the line and the framing | a blast-only branch in each template: the one-rule Framing (§11v T1) would split |
+| **B2** | ③ for a moment whose focus is a Place: look at the place, at the GROUND pitch (`PitchOf(Unknown)` = −20°), with the distance fitted to the place plus a burst half-width of 25 m. The actor is NOT fitted, so the jet may leave the frame | fit both: a jet 300 m up pulls the frame centre to 150 m up — the pilot's sky shots again |
+| **B3** | ④ consequence: a Subject (a struck unit) is followed as today; with only a Place, look at it from above (`ConsequencePitch`) | following the actor: the departing jet, the defect |
+| **B4** | ① establish and ② over-the-shoulder are unchanged (wide with both; set-up from the actor) | — |
+| **B5** | `GroundAt` comes from `DirectorDrafts`, which `DirectorPack` builds from the host's world terrain (`TerrainWorld.GroundHeightAt` through the world's singleton, as `CachedGroundHeight` reads it) — the same path as `Kind` | a terrain lookup in the drafter: it is pure (no world) by design (§11n) |
+
+**Rails** (`DrafterTests`, red-proved): a blast whose actor flies 300 m above its point, with no struck unit, on a ground at z = 40 — ③ and ④ look at
+(x, y, 40), the point is inside the view and below the horizon, and ③'s pitch ≤ 0 · a blast that struck a unit still follows that unit in ④ · the
+existing shot / hit drafts are unchanged (their current rails stay green).
+
 ### 11o. P2b detail — segments, subtitles, update key from view *(ui, `2026-10-27`, CE-1303 P2b; build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
 ⭐ Frame: [NOTE_Coordinator_To_Ui_Films_From_Recordings](blueprints/batches/NOTE_Coordinator_To_Ui_Films_From_Recordings.md) (P2 row), §11e CR-7 / CR-11,
