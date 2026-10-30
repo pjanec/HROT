@@ -194,6 +194,7 @@ report. A clip is refilmed when its row closes.
 | every clip with a state cue (22 of 54) | a cut BEFORE an arrival / a behaviour change is late on a recording | [CE-4117](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) — refilm |
 | any take anchored on an event, rendered from a recording | stills find the anchor, the render does not (every key unresolved, 45 frames) — the pilot rendered with fixed times | [CE-4119](blueprints/Blueprint_Issues_Tracker.md) | 🔎 not reproduced by ui on the same code — being re-tried on the fixed build |
 | drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | [CE-4120](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
+| F-45 `ua-tank-ammo` | the M1 needs three sabot rounds for the T-72; its HE round comes ~50 s in, at the technical's gunner, not the truck at ~22 s as described | [CE-4123](blueprints/Blueprint_Issues_Tracker.md) | filmed on what the run does; refilm if the beat changes |
 | every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
 
 ## 2. Gaps — what no clip can show yet
