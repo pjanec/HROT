@@ -56,6 +56,27 @@ namespace Hrot.Network.NED.Tests
         }
 
         [Fact]
+        public void TwoEntityIdsThatDifferOnlyAboveBit31AreTwoEntities()
+        {
+            // Network ids are long and allocated per node (AQ107 E): 5 and 5 + 2^32 must not merge into one inspector row.
+            const long low = 5, high = 5 + (1L << 32);
+            var keyed = TheEntityKeyedWireTypesAreReadableByReflectionTests.EntityKeyedTypes();
+            using var participant = new DdsParticipant(PrivateDomain + 3);
+            using var mirror = new WireEntityMirror(participant, keyed);
+            using var writer = new DdsWriter<EntityWeaponTaskStatus>(participant);
+
+            Thread.Sleep(400);   // DDS discovery
+            writer.Write(new EntityWeaponTaskStatus { ParentNetworkId = low, PartId = 1, RoundsFired = 1 });
+            writer.Write(new EntityWeaponTaskStatus { ParentNetworkId = high, PartId = 1, RoundsFired = 2 });
+
+            for (var i = 0; i < 100 && mirror.Repo.GetAllEntities().Count() < 2; i++) { Thread.Sleep(50); mirror.Poll(); }
+
+            Assert.Equal(new[] { low, high }, mirror.Repo.GetAllEntities().Select(e => e.EntityId).OrderBy(x => x).ToArray());
+            Assert.Equal((ushort)1, mirror.Repo.GetEntity(low)!.GetDescriptor<EntityWeaponTaskStatus>(1).RoundsFired);
+            Assert.Equal((ushort)2, mirror.Repo.GetEntity(high)!.GetDescriptor<EntityWeaponTaskStatus>(1).RoundsFired);
+        }
+
+        [Fact]
         public void DisposingTheMirrorDropsEveryEntityAndItsReaders()
         {
             var keyed = TheEntityKeyedWireTypesAreReadableByReflectionTests.EntityKeyedTypes();

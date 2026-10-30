@@ -64,6 +64,34 @@ public class ManagedWindowTests
         }
     }
 
+    /// <summary>⭐ AQ109 X5 — counts <see cref="OnRenderWhileClosed"/> calls (the hook an opt-in window releases its resources in).</summary>
+    private sealed class ClosedHookWindow : ManagedWindow
+    {
+        public int ClosedFrames { get; private set; }
+        public ClosedHookWindow(string id) : base(id, "Hook Window", "IG", WindowScope.Global) { }
+        protected override void OnRenderWhileClosed() => ClosedFrames++;
+        protected override void DrawClientArea() { ImGuiApi.Text("x"); }
+    }
+
+    /// <summary>⭐ AQ109 X5 — <c>OnRenderWhileClosed</c> runs on every CLOSED frame and never on an OPEN one.</summary>
+    [Fact]
+    public void Render_CallsOnRenderWhileClosed_OnClosedFramesOnly()
+    {
+        using var fixture = new ImGuiTestFixture();
+        using var atlas = CreateAtlas();
+        var window = new ClosedHookWindow("x5hook") { IsOpen = false };
+
+        window.Render("IG", atlas);
+        window.Render("IG", atlas);
+        Assert.Equal(2, window.ClosedFrames);
+
+        window.IsOpen = true;
+        fixture.NewFrame();
+        window.Render("IG", atlas);
+        fixture.Render();
+        Assert.Equal(2, window.ClosedFrames);   // the open frame did not call it
+    }
+
     /// <summary>
     /// Subclass that exposes <see cref="HasMenuBar"/> override but uses base
     /// <see cref="DrawLocalMenuBar"/> (default empty) — verifies WM-S203.4.

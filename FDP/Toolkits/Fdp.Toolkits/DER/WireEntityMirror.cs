@@ -84,7 +84,7 @@ namespace Fdp.Toolkit.DER
     ///
     /// <para>⭐ <b>Opt-in by construction:</b> the readers exist only between construction and <see cref="Dispose"/>; the owner (the
     /// "Wire Entity Inspector" window) creates it on open and disposes it on close. Nothing is read except in <see cref="Poll"/>.</para>
-    /// <para>⚠ Ids are narrowed to <c>int</c> (the DER repo's id type). Dispose notifications are not applied — the mirror shows the
+    /// <para>Entity ids are the wire's <c>long</c>, never narrowed. Dispose notifications are not applied — the mirror shows the
     /// last descriptor seen; <see cref="Dispose"/> drops everything.</para>
     /// </summary>
     public sealed class WireEntityMirror : IDisposable
@@ -172,7 +172,7 @@ namespace Fdp.Toolkit.DER
                 {
                     if (sample.Info.InstanceState != DdsInstanceState.Alive || !sample.IsValid) continue;
                     var data = sample.Data;
-                    int id = unchecked((int)_entityId(data));
+                    long id = _entityId(data);
                     var entity = _repo.GetEntity(id) ?? _repo.CreateEntity(id, _tkb?.Invoke(data) ?? 0L);
                     entity.SetDescriptor(data, _part is null ? 0 : unchecked((int)_part(data)));
                     n++;
