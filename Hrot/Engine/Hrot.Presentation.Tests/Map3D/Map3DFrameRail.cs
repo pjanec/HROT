@@ -1382,7 +1382,8 @@ public sealed class Map3DFrameRail
         canvas.AddLayer(bodies);
         var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = new Vector2(1280, 800) });
         sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
-        var station = new PossessionStation(sw, () => world);
+        // ⭐ CE-1454 — this rail asserts the view FROM HIS EYES; the station's default is over the shoulder since CE-1293 (UC-3, 2.27 m behind him), so the rail asks for the eyes view explicitly (as every other PossessionStation rail does)
+        var station = new PossessionStation(sw, () => world) { OverShoulder = false };
         canvas.AddLayer(station);
 
         station.Update(1f / 30f);
