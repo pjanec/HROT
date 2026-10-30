@@ -268,6 +268,12 @@ public sealed class FilmFrameRail
         var (canvas, layers, film, unit, area, world) = FilmSet();
         try
         {
+            // ⭐ CE-1394 — R-1046: a 3-D shot waits for the map's background build, so the build lands first (what the app's canvas does each frame: start it, upload what is finished) — then the shot goes
+            //   straight to 3-D and the one-shot gizmos the rail filled are still there for the frame
+            var build = layers.ViewSwitch.Build!;
+            build.Request3D();
+            for (int i = 0; i < 600 && !build.IsBuilt; i++) { build.Update(0.016f); System.Threading.Thread.Sleep(20); }
+            Assert.True(build.IsBuilt, "the film map's 3-D build landed: " + build.Failure);
             // 3-D: from above and south of the unit, looking at the area
             FilmStudio.Direct(FilmShot.Looking(area + new Vector3(-20f, -90f, 70f), area)!);
             var (window3, film3) = WindowAndFilm(frame, canvas, film, Path.Combine(Path.GetTempPath(), "hrot-film-rail", "film-3d-graphic.png"));

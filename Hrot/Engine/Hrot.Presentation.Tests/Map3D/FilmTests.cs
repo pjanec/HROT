@@ -149,6 +149,49 @@ public sealed class FilmTests : System.IDisposable
         Assert.Null(view.Camera3D.Driver);
     }
 
+    private sealed class FakeMeshLayer : Fdp.Toolkit.Vis3D.IMeshLayer3D
+    {
+        public string BuildName => "terrain";
+        public bool HasSource => true;
+        public bool IsBuilt { get; set; }
+        public string? BuildFailure => null;
+        public void RequestBuild() { }
+        public void PumpBuild() { }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1394</c> (R-1046) — a film shot in 3-D on a map whose 3-D build has NOT landed: the director waits (it takes no camera while the switch is pending), and when the build lands the switch completes
+    /// and the director then holds the camera — the map is never left "switching". 🔴 Red-proof: <c>FilmCaptureLayer.Direct</c> taking the camera while <c>Pending3D</c> ⇒ the camera is driven when the build
+    /// lands, its switch animation never advances and <c>IsSwitching</c> stays true.
+    /// </summary>
+    [Fact]
+    public void CE1394_AShotIn3D_WaitsForTheBuild_ThenTheSwitchLandsAndTheDirectorHoldsTheCamera()
+    {
+        FilmStudio.Reset();
+        using var world = new EntityRepository();
+        var canvas = new MapCanvas(input: null);
+        var layer = new FakeMeshLayer();
+        var view = new MapViewSwitch(canvas, canvas.Camera) { Build = new Fdp.Toolkit.Vis3D.Map3DBuild(new[] { layer }, available: () => true) };
+        var film = new FilmCaptureLayer(canvas, view, () => world);
+        try
+        {
+            FilmStudio.Direct(new FilmShot { Pose = new CameraPose(new Vector3(1f, 2f, 3f), 40f, 0.5f, -0.4f) });
+            film.Update(0.016f);
+            Assert.True(view.Pending3D);                                   // the build has not landed: the request waits
+            Assert.False(view.Is3D);
+            Assert.Null(view.Camera3D.Driver);                             // … and the director has NOT taken the camera
+
+            layer.IsBuilt = true;                                          // the build lands
+            view.Update();                                                 // the switch completes (the canvas's mode layer does this each frame)
+            Assert.True(view.Is3D);
+            for (int i = 0; i < 200 && view.IsSwitching; i++) { film.Update(0.016f); view.Camera3D.Update(0.016f); }
+            Assert.False(view.IsSwitching);                                // the move finished — never stuck
+            film.Update(0.016f);
+            Assert.Same(film.Director, view.Camera3D.Driver);              // and now the director holds the camera
+        }
+        finally { FilmStudio.Reset(); }
+    }
+
     /// <summary>
     /// ⭐ <c>CE-1303</c> P2b (docs/DESIGN_Director_Timeline_Editor.md §11o S11) — the pilot ⇄ program toggle: with <c>FilmStudio.Pilot</c> on, the capture
     /// layer gives the camera back to the operator although the director still holds a shot (the camera stays where the program left it), and takes it
