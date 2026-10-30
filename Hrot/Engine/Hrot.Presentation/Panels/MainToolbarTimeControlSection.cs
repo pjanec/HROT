@@ -163,11 +163,13 @@ public sealed class MainToolbarTimeControlSection
         {
             var target = move.Target;
             var label = move.DisabledReason is { } why ? $"{move.Label} — {why}" : move.Label;
-            items.Add(new(label, () => _choice.Choose(target), move.Enabled, Selected: move.IsArmed));
+            items.Add(new(label, move.IsShown ? () => { } : () => _choice.Choose(target), move.Enabled, Selected: move.IsShown));   // ⭐ CE-4111: the shown item does nothing (no Choose)
         }
         var header = legacy?.Header ?? (_facade.Mode is TransportMode.Edit or TransportMode.Idle
             ? $"▶ will start: {_choice.Armed}"
             : $"{_choice.Indicator.Word} · {TransportIcons.FormatTime(_facade.TotalTime)}");
+        // ⭐ CE-4111: during a run the armed mode is not lost — a load goes into it (R-1043)
+        if (_facade.Mode is not (TransportMode.Edit or TransportMode.Idle)) header += $" · loads go into: {_choice.Armed}";
         return new(header, items);
     }
 

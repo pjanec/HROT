@@ -356,7 +356,7 @@ public sealed record RunModeIndicator(string Glyph, Vector4 Color, string Word, 
 }
 
 /// <summary>One entry of the indicator's mode menu: the mode it arms, whether it can be chosen now (and why not), and the confirmation it asks first.</summary>
-public sealed record RunModeMove(RunArmed Target, string Label, string? ConfirmText, bool Enabled, string? DisabledReason, bool IsArmed);
+public sealed record RunModeMove(RunArmed Target, string Label, string? ConfirmText, bool Enabled, string? DisabledReason, bool IsShown);
 
 /// <summary>
 /// ⭐⭐ <c>CE-4097</c> (AQ108 §2.8) — the raw transport the <see cref="RunModeChoice"/> stands on: the cases that keep TODAY's behaviour (dry-run

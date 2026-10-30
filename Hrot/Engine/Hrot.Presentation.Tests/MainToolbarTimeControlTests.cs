@@ -433,7 +433,7 @@ public class MainToolbarTimeControlTests
         var live = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live).Choice.Moves();
         Assert.Equal("Ends the live session; you return to editing the scenario at its start", live.Single(m => m.Target == RunArmed.Preview).ConfirmText);
         Assert.Equal("Ends the live session; its recording opens for AAR", live.Single(m => m.Target == RunArmed.AAR).ConfirmText);
-        Assert.True(live.Single(m => m.Target == RunArmed.Live).IsArmed);
+        Assert.True(live.Single(m => m.Target == RunArmed.Live).IsShown);
         Assert.Null(live.Single(m => m.Target == RunArmed.Live).ConfirmText);   // the current mode is no move
 
         var notRecorded = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, runNotRecorded: true).Choice.Moves().Single(m => m.Target == RunArmed.AAR);
@@ -617,6 +617,70 @@ public class MainToolbarTimeControlTests
                      RunChoiceRig.Sent<TransitionStateIntent>(viaToolbar).Select(i => i.TargetState));
         Assert.Equal(viaFacade.Choice.LastExercise, viaToolbar.Choice.LastExercise);
         if (mode == TransportMode.Live) Assert.Equal(new[] { "OpenForEdit:hill-attack" }, viaToolbar.C.Calls);   // and it is R2, not a plain Idle
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4111</c> (AQ108 §2.16) — the indicator and its menu show ONE mode. (a) Armed Preview, a recording open (mode Replay): the icon says AAR, the AAR item is
+    /// checked AND enabled, Preview is not checked. (b) the same in Edit: Preview dim and checked. 🔴 Red-proof: <c>Moves()</c> putting back <c>Armed == target</c> ⇒ Preview checked / AAR unchecked under an AAR icon.
+    /// </summary>
+    [Fact]
+    public void CE4111_TheIconTheCheckAndTheEnabledState_AgreeOnTheShownMode()
+    {
+        var replay = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Preview);   // armed Preview, a recording opened (R-1043: the open does not arm AAR)
+        Assert.Equal("AAR", replay.Choice.Indicator.Word);
+        Assert.Equal(RunArmed.AAR, replay.Choice.Shown);
+        var moves = replay.Choice.Moves();
+        var aar = moves.Single(m => m.Target == RunArmed.AAR);
+        Assert.True(aar.IsShown);
+        Assert.True(aar.Enabled);
+        Assert.False(moves.Single(m => m.Target == RunArmed.Preview).IsShown);
+        Assert.Equal(1, moves.Count(m => m.IsShown));
+        var items = Bar(replay).ModeMenu()!.Items;
+        Assert.Equal(new[] { false, false, true }, items.Select(i => i.Selected));
+        Assert.True(items.Single(i => i.Label == "AAR").Enabled);
+
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        Assert.Equal("Preview", edit.Choice.Indicator.Word);
+        Assert.Equal(IndicatorLevel.Dim, edit.Choice.Indicator.Level);
+        Assert.Equal(new[] { true, false, false }, Bar(edit).ModeMenu()!.Items.Select(i => i.Selected));
+        Assert.True(edit.Choice.Moves().Single(m => m.Target == RunArmed.Preview).Enabled);
+    }
+
+    /// <summary>⭐ <c>CE-4111</c> (c) — choosing the SHOWN item does nothing: no <c>Choose</c> (nothing armed, nothing pending, no confirmation), no session call, no intent sent.
+    /// 🔴 Red-proof: the section invoking <c>_choice.Choose(target)</c> for the shown item ⇒ AAR would be armed / a confirmation pending.</summary>
+    [Fact]
+    public void CE4111_ChoosingTheShownItem_DoesNothing()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Preview);
+        var sentBefore = RunChoiceRig.Sent<TransitionStateIntent>(rig).Count();
+
+        Bar(rig).ModeMenu()!.Items.Single(i => i.Label == "AAR").Invoke!();
+
+        Assert.Equal(RunArmed.Preview, rig.Choice.Armed);   // nothing armed
+        Assert.Null(rig.Choice.Pending);                    // no confirmation asked
+        Assert.Empty(rig.C.Calls);
+        Assert.Equal(sentBefore, RunChoiceRig.Sent<TransitionStateIntent>(rig).Count());
+
+        // in Edit the shown item IS the armed one: choosing it publishes no run-settings intent (it would re-arm what is armed)
+        var edit = RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview);
+        var armedBefore = RunChoiceRig.Sent<SetRunSettingsIntent>(edit).Count();
+        Bar(edit).ModeMenu()!.Items.Single(i => i.Label == "Preview").Invoke!();
+        Assert.Equal(armedBefore, RunChoiceRig.Sent<SetRunSettingsIntent>(edit).Count());
+        Assert.Null(edit.Choice.Pending);
+        Assert.Empty(edit.C.Calls);
+    }
+
+    /// <summary>⭐ <c>CE-4111</c> (d) — a running menu's header also names the ARMED mode (a load during a run goes into it, R-1043); Edit keeps <c>▶ will start</c>.
+    /// 🔴 Red-proof: the header suffix dropped ⇒ no <c>loads go into: Preview</c>.</summary>
+    [Fact]
+    public void CE4111_TheRunningHeader_NamesTheArmedMode()
+    {
+        var replay = RunChoiceRig.With(ClusterState.OperatingReplay, RunArmed.Preview, clock: 12);
+        var header = Bar(replay).ModeMenu()!.Header;
+        Assert.StartsWith("AAR · ", header);
+        Assert.EndsWith(" · loads go into: Preview", header);
+        Assert.Contains("loads go into: Live", Bar(RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 90)).ModeMenu()!.Header);
+        Assert.Equal("▶ will start: Preview", Bar(RunChoiceRig.With(ClusterState.OperatingEdit, RunArmed.Preview)).ModeMenu()!.Header);
     }
 
     /// <summary>

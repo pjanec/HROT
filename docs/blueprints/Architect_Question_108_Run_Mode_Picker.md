@@ -1282,7 +1282,7 @@ classDiagram
 
 📌 **Rails** (each red-proved by a compiling mutation): `SaveCommandsTests.CE1443_B2_SaveAsRecipe_*` (no-overwrite loop removed ⇒ red) · `BTreeNewAssetTests.CE1443_B2_NewBTree_ListsTheRecipesOnDisk` (listing dropped ⇒ red) · `ScenarioMenuTests.CE1443_B2_SaveScenarioAsRecipe_SavesUnderTheRecipeName` (recipe name dropped ⇒ red) · Blueprint `DiscoverRecipesTests` unchanged and green.
 
-### 2.16 CE-4111 — the indicator and its menu show ONE mode *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+### 2.16 CE-4111 — the indicator and its menu show ONE mode *(ui, `2026-10-30`; build-state: BUILT)*
 
 🔒 User: *"when I open exercise recording right after hrot starts, i end up with the AAR armed mode indicated on the armed mode indicator, while when
 clicking it the "Preview" mode menu item is checked and "AAR" menu item is grayed out."*
@@ -1304,6 +1304,8 @@ clicking it the "Preview" mode menu item is checked and "AAR" menu item is graye
 
 Rejected: *arm AAR on a recording open* — R-1043 (the user withdrew it) · *sync the check mark to the icon in the draw code* — a second reader of the
 mode, the defect itself · *keep the current item greyed* — the user named it as part of the confusion.
+
+**As built (`2026-10-30`, ui):** `RunModeChoice.Shown` (= `ModeTarget(mode) ?? Armed`); `Indicator` and `RunModeMove.IsShown` (renamed from `IsArmed` with Roslyn, 3 files) both read it. The shown item is checked and enabled and `MainToolbarTimeControlSection.ModeMenu` gives it a no-op (no `Choose`); the running header gets `· loads go into: {Armed}` (the clock reads `AAR · 00:00:12.000 · …`, the section's own format, not `0:12`); the stale `:263` comment fixed. ⚠ **One deviation:** a CLOSED run gate (CE-1442) still disables every item, the shown one included (`IsShown` stays true) — the gate says the host takes no move at all, and the CE-1442 rail pins it. Rails (`MainToolbarTimeControlTests`): `CE4111_TheIconTheCheckAndTheEnabledState_AgreeOnTheShownMode` · `CE4111_ChoosingTheShownItem_DoesNothing` · `CE4111_TheRunningHeader_NamesTheArmedMode`.
 
 ## 3. Every move, with what the user is told
 

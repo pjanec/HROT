@@ -260,7 +260,7 @@ public sealed class RunModeChoice
     public void OpenRecording(Guid exerciseId, double? atSimSeconds = null)
     {
         if (_door is null || exerciseId == Guid.Empty) return;
-        _door.OpenRecording(exerciseId, atSimSeconds);   // ⭐ CE-4101 — the door asks (Stop & Load / Save-Discard-Cancel); its RecordingOpening hook arms AAR when the open goes out
+        _door.OpenRecording(exerciseId, atSimSeconds);   // ⭐ CE-4101 — the door asks (Stop & Load / Save-Discard-Cancel); its RecordingOpening hook only records LastExercise — ⛔ it arms nothing (R-1043: no open sends or sets an armed mode, the recording open too)
     }
 
     /// <summary>
@@ -466,19 +466,26 @@ public sealed class RunModeChoice
     {
         var mode = _transport.Mode;
         if (mode == TransportMode.Review) return Array.Empty<RunModeMove>();
-        var current = ModeTarget(mode);
         var closed = ClosedReason;   // ⭐ CE-1442 — every move is disabled with the gate's reason (Close is not a move)
         var moves = new List<RunModeMove>(3);
         foreach (var target in new[] { RunArmed.Preview, RunArmed.Live, RunArmed.AAR })
         {
             var label = target.ToString();
-            if (closed is not null) { moves.Add(new(target, label, null, false, closed, Armed == target)); continue; }
-            if (target == current) { moves.Add(new(target, label, null, false, null, Armed == target)); continue; }
+            // ⭐ CE-4111 — the SHOWN mode (what the indicator draws) is checked AND enabled; choosing it does nothing (the menu just closes). ⛔ No greyed "where you are" item.
+            //    (A CLOSED gate still disables every item, the shown one included — CE-1442: the host takes no move at all.)
+            if (closed is not null) { moves.Add(new(target, label, null, false, closed, target == Shown)); continue; }
+            if (target == Shown) { moves.Add(new(target, label, null, true, null, true)); continue; }
             var plan = Plan(target);
-            moves.Add(new(target, label, plan.ConfirmText, plan.Enabled, plan.DisabledReason, Armed == target));
+            moves.Add(new(target, label, plan.ConfirmText, plan.Enabled, plan.DisabledReason, false));
         }
         return moves;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4111</c> — THE one mode the indicator and its menu show: the CURRENT mode while a run is on (Preview / Live / AAR), else the <see cref="Armed"/> one
+    /// (Edit / Idle; a DAR has its own indicator and menu). <see cref="Indicator"/> and <see cref="RunModeMove.IsShown"/> both read it — ⛔ no second read of the mode.
+    /// </summary>
+    public RunArmed Shown => ModeTarget(_transport.Mode) ?? Armed;
 
     private static RunArmed? ModeTarget(TransportMode mode) => mode switch
     {
@@ -630,14 +637,9 @@ public sealed class RunModeChoice
             var level = mode is TransportMode.Edit or TransportMode.Idle
                 ? IndicatorLevel.Dim
                 : _transport.IsPaused ? IndicatorLevel.Bright : IndicatorLevel.Blink;
-            return mode switch
-            {
-                TransportMode.Preview => Of(RunArmed.Preview, level),
-                TransportMode.Live    => Of(RunArmed.Live, level),
-                TransportMode.Review  => new(IconsFontAwesome6.ClockRotateLeft, ColorOf(TransportMode.Review), "DAR", level),
-                TransportMode.Replay  => Of(RunArmed.AAR, level),
-                _                     => Of(Armed, level),
-            };
+            return mode == TransportMode.Review
+                ? new(IconsFontAwesome6.ClockRotateLeft, ColorOf(TransportMode.Review), "DAR", level)
+                : Of(Shown, level);   // ⭐ CE-4111: the one shown value
         }
     }
 
