@@ -2860,6 +2860,109 @@ passes it: a cut placed BEFORE a state cue still needs a bake (as live).
 · `ReplayBrowserSubsystemTests.CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes` · `DirectorPackTests.CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex`
 · `EventAnchoredKeysTests.CE1304_CR5_EveryNamedEvent_IsFoundAgain_ByTheResolver_AtItsOwnTime` · `DirectorDraftRoutesTests.CE1304_P4_Promote_CopiesTheRecordingsTake_RefusesAnOverwrite_UnlessAsked`.
 
+### 11s-1. CE-4117 — state cues answered before play on a recording: `near` first *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+
+⭐ Supersedes known edge (5) above for `near`. The pilot cut 22 of 54 takes on a state cue. On a recording, a state cue was only observed as the
+playhead passed it, so a cut placed BEFORE it had no time. 🔒 User, `2026-10-30`: *"Decision 1 lean approved, seek"*. The other five state cues
+(`task` `side` `health` `embark` `gesture`) need index lanes, which [backend is building](blueprints/batches/NOTE_Ui_To_Backend_State_Cue_Index_Lanes.md).
+Until those land, those five are observed during play as before, and the report says so ("awaits play").
+
+**INVENTORY** *(graph + grep; ⚠ `check_index_coverage` is not available through the CLI)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=.*Anchor.* label=Class` | unchanged since §11s: ONE resolver (`AnchorBook`), ONE namer (`EventAnchors`) ⇒ `near` goes into `AnchorBook`, no second resolver |
+| `search_graph name_pattern=.*(Probe\|Peek\|FrameReader\|ScratchWorld\|SeekTo\|FrameAt).* label=Class` | no recording frame reader apart from the shown world (`DebugProbe` / `GizmoLayerProbe` are unrelated) ⇒ refining means seeking the ONE shown recording |
+| `grep PositionTrack` | `PositionTrack` (`At`, `Samples`, `UnitsWithin`), sampled every `DefaultIntervalSeconds` = 0.5 s by `TimelineFrameScanner`, carried as `TimelineIndex.Positions` |
+| `grep "IDirectorHost"` | `CanSeek` / `Seek` / `StepBy` exist; `ReplayDirectorHost.Seek` → `MoveDirectorPlayhead` → `SetBaseWallTicks` (the one playhead move) |
+
+```mermaid
+classDiagram
+  direction LR
+  class AnchorBook { <<exists, grown>> TimeOf · Observe · ObserveEvents · NearWindows() NEW · Resolve(key, rel) NEW · HoldsFor }
+  class NearWindow { <<NEW record>> Anchor · From · To · Estimate (take seconds) }
+  class PositionTrack { <<exists>> Samples(unit) · At(unit, frame) }
+  class TimelineIndex { <<exists>> Positions · FrameSim }
+  class DirectorRunner { <<exists, grown>> TickEntering · TickResolving NEW }
+  class DirectorPhase { <<exists, grown>> Resolving NEW }
+  class IDirectorHost { <<exists>> CanSeek · Seek · StepBy · World }
+  class IShotWorld { <<exists>> Resolve(name) · Names }
+  AnchorBook --> PositionTrack : coarse crossing
+  AnchorBook ..> TimelineIndex
+  AnchorBook --> NearWindow : returns
+  DirectorRunner --> AnchorBook : NearWindows, then Resolve per window
+  DirectorRunner --> IDirectorHost : Seek(window.From) · StepBy(1/TickHz)
+  AnchorBook --> IShotWorld : names to network ids
+```
+*What the picture shows that prose hid:* the coarse answer and the exact one both end in `AnchorBook` (`NearWindows` and then `Resolve`). The runner only
+moves the playhead. ⇒ there is still one resolver, and the stills plan (`AnchorTimesOf`, which cannot seek) takes the coarse `Estimate` from the same method.
+
+```mermaid
+sequenceDiagram
+  participant R as DirectorRunner (RB, recording open)
+  participant B as AnchorBook
+  participant P as index.Positions (2 Hz)
+  participant H as ReplayDirectorHost
+  R->>B: NewBook + ObserveEvents (as §11s)
+  R->>B: NearWindows()
+  B->>P: samples of each unit the cue names, from t0
+  P-->>B: first sample inside the radius at frame f1 (previous f0)
+  B-->>R: [near:A, From = sim(f0), To = sim(f1), Estimate = linear crossing]
+  Note over R: Phase = Resolving (only if CanSeek and windows exist)
+  R->>H: Seek(From)
+  loop each tick until it holds or the playhead passes To
+    R->>B: HoldsFor(near:A, H.World)
+    alt holds
+      R->>B: Resolve(near:A, SimTime − t0)
+    else
+      R->>H: StepBy(1 / TickHz)
+    end
+  end
+  Note over R: never found inside: Resolve(near:A, Estimate)
+  R->>H: Seek(t0 + start)
+  R->>R: Replan() (TimeOf(near:A) = the resolved time, leading over a bake, as event cues do)
+```
+
+```mermaid
+graph TD
+  ENT["DirectorRunner.TickEntering (every host)"] -->|"CanSeek && NearWindows non-empty"| RES["TickResolving NEW: seek, step, HoldsFor, Resolve"]
+  ENT -->|"else: as today"| PLAN["Replan, then Playing"]
+  RES --> PLAN
+  ED["Editor host: CanSeek = false"]:::dead -.->|"near observed live, as today"| ENT
+  STILLS["AnchorTimesOf (stills plan, no play)"] -->|"coarse Estimate only"| B2["AnchorBook.NearWindows"]
+  classDef dead fill:#f6d6d6,stroke:#a33
+```
+*What the picture shows that prose hid:* the editor never enters Resolving, because a live index knows only the past, so nothing changes there. The stills
+plan never seeks, so its `near` keys are the coarse estimate (they follow the unit's straight-line motion between samples).
+
+**Claim table**
+
+| the build rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a position sample's `Frame` is an index frame, so `FrameSim[Frame]` is its sim second | ✅ `PositionTrack.cs:9-13` ("the index frame it was taken at") | ✅ §11 "P3 position track detail" |
+| samples every 0.5 s of sim, linear in between, never extrapolated | ✅ `PositionTrack.cs:58-63` (`At`), `:116` (`DefaultIntervalSeconds`) | ✅ CE-4059 |
+| `near` means 2-D distance ≤ `Within` from `Point` | ✅ `AnchorBook.cs:173-176` | ✅ §11s cue list |
+| the RB can seek, and a step is a playhead move | ✅ `ReplayDirectorHost.Seek` / `StepBy` → `MoveDirectorPlayhead` | ✅ §11m D1 |
+| the world shows a seek on the NEXT tick (seek, then read the following tick) | ⚠ by reading: `TickPlaying` already steps and then observes on the next tick (`DirectorRunner` `_book.Observe` after the step); ⛔ not measured for a backwards seek ⇒ the worker's rail measures it on a real recording | ⛔ searched §11m, none states it |
+| a unit can dip in and out of the radius between two samples | ✅ possible (0.5 s) ⇒ the coarse pass misses it; play still observes it (`Observe`) and the report names a mismatch | ⛔ none — a known limit, below |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **N1** | `AnchorBook.NearWindows()`: for each `near` anchor not yet seen, and each unit it names, the first position sample at or after t0 inside the radius gives the window (previous sample, that sample]; `Estimate` = where the straight line between the two samples crosses the circle. A unit already inside at its first sample: the window is that sample's interval before it, clamped to t0. Several units: the earliest | an index lane for `near`: the point and radius are chosen per take |
+| **N2** | **refine by seeking** (approved): a new phase `Resolving` on a seekable host scans each window one tick at a time with the existing `HoldsFor`. That is at most 0.5 s × TickHz ticks per `near` cue (30 at 60 Hz). The playhead then goes back to the take's start. Not found inside the window ⇒ `Estimate` | coarse only: a unit at 20 m/s moves 10 m in half a second, so the cut lands off by up to ½ s · a faster position track: every recording's sidecar grows for one cue · a scratch world: none exists (inventory) |
+| **N3** | `Resolve(key, rel)` records the time; on a recording it **leads over a bake**, as an event cue's index time does (§11s D3) | the bake leading: it may be another run's (A's on B) |
+| **N4** | the stills plan (`AnchorTimesOf`) uses `Estimate` and does not seek | seeking there: the stills planner runs outside a play and must not move the playhead |
+| **N5** | the five other state cues: when a plan on a recording needs one that is not seen yet, `Report.Unresolved` names it "`<anchor>`: awaits play (a state cue — observed as the playhead passes)", so the agent knows why its cut has no time | silence: that is what the pilot hit |
+
+**Known limit.** If a unit enters and leaves the radius between two samples, N1 finds nothing. Play still observes it, so the cut lands late and the
+mismatch is reported. Backend's future lanes do not change this (they cover other cues).
+
+**Rails** (in the feature's own suites; red-proved): `AnchorBookTests`-style unit rail on a synthetic `PositionTrack` (window, estimate, already-inside,
+`*part` earliest, a cue before t0 ignored) · `ReplayBrowserSubsystemTests` on a real recording: a `near` cue's planned time equals the first frame a
+frame-by-frame scan finds the unit inside, and a cut placed 1 s BEFORE it lands there; the playhead is back at the start once Playing begins.
+
 ### 11t. P6 — the View track and the Graphics track *(ui, `2026-10-27`, CE-1304 (View) + CE-1305 (Graphics, TE-9); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
 ⭐ Two of P6's items (§11f): a **View** track (the film switches the map 2-D ⇄ 3-D and the layer set at film times — §2's View row) and a **Graphics**
