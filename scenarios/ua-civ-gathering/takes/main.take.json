@@ -1,50 +1,91 @@
 {
   "title": "Onlookers",
-  "caption": "A hurt man draws a crowd: onlookers come from every street and form a ring",
-  "anchors": {},
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "9e6d6259681f55be",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 1,
-      "seconds": 4,
-      "lookAt": [
-        200,
-        200,
-        0
-      ],
-      "distance": 160,
-      "yaw": 45,
-      "pitch": -60,
-      "why": "high: four streets, one man down in the middle"
-    },
-    {
-      "at": 12,
-      "seconds": 5,
-      "follow": "Onlooker 1",
-      "distance": 10,
-      "pitch": -8,
-      "why": "with one of them as he walks up"
-    },
-    {
-      "at": 30,
-      "seconds": 6,
-      "lookAt": [
-        200,
-        200,
-        0
-      ],
-      "distance": 40,
-      "pitch": -30,
-      "orbit": 12,
-      "why": "the ring, circling it"
-    }
-  ],
+  "caption": "Twelve people come from four streets and ring a hurt man",
   "clip": "F-06",
   "chapter": 3,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+12",
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "Onlooker 3",
+      "point": [
+        200,
+        200
+      ],
+      "within": 18
+    }
+  },
+  "keys": [
+    {
+      "at": 0.2,
+      "follow": "Casualty",
+      "distance": 150,
+      "yaw": 0,
+      "pitch": -55,
+      "lift": 1,
+      "fov": 55,
+      "segment": "come"
+    },
+    {
+      "at": "m-8",
+      "follow": "Onlooker 3",
+      "distance": 30,
+      "yaw": 45,
+      "pitch": -25,
+      "lift": 1.5,
+      "fov": 45,
+      "segment": "close"
+    },
+    {
+      "at": "m+3",
+      "follow": "Casualty",
+      "distance": 28,
+      "yaw": 120,
+      "pitch": -30,
+      "lift": 1,
+      "fov": 45,
+      "segment": "ring"
+    },
+    {
+      "at": "m+10",
+      "follow": "Casualty",
+      "distance": 60,
+      "yaw": 0,
+      "pitch": -60,
+      "lift": 1,
+      "fov": 50,
+      "segment": "ring"
+    }
+  ],
+  "segments": [
+    {
+      "id": "come",
+      "from": 0.2,
+      "to": "m-9",
+      "speed": 3
+    },
+    {
+      "id": "close",
+      "from": "m-9",
+      "to": "m+2"
+    },
+    {
+      "id": "ring",
+      "from": "m+2",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.2,
+      "until": "m+2",
+      "text": "Twelve onlookers come up four streets"
+    },
+    {
+      "at": "m+2",
+      "until": "m+12",
+      "text": "They ring the hurt man"
+    }
+  ]
 }

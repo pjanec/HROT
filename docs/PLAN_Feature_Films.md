@@ -41,14 +41,14 @@ it is found the same night.*
 | # | clip | scenario | on screen (the beat, ~sim s) | state |
 |---|---|---|---|---|
 | | **2 · The world** | | | |
-| F-01 | weather | `ua-weather-regions` | an IFV drives east from clear weather into a fog bank, then under overcast | 🔧 the IFV has no order. Give it a move east (it now waits for an operator) |
+| F-01 | weather | `ua-weather-regions` | an IFV drives east from clear weather into a fog bank, then under overcast | ✅ the IFV now drives east by itself; fog and overcast show — clip made `2026-10-30` (`takes/main.take.json`) |
 | F-02 | city traffic turns to panic | `demo-city` (recipe) | cars and pedestrians flow; a burst of fire; nearby pedestrians become civilians and flee | 🔧 needs a shooter in the recipe, or a plan action that fires one |
 | | **3 · Civilians** | | | |
-| F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
-| F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
-| F-05 | fear spreads | `ua-civ-contagion` | a fight at one end; fear runs east down a street of 15 people (5–40 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
-| F-06 | onlookers | `ua-civ-gathering` | 12 people come from four streets and ring a hurt man (~25 s) | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
-| F-07 | protest, police, riot | `ua-civ-provocation` | placards and fists; police walk up (~30 s), baton charge (~90 s), some — not all — riot | ⛔ **blocked**: civilians no longer hear gunfire (CE-4039) / shelter (CE-4040) — backend regressions, bisected |
+| F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ✅ the block no longer holds (`2026-10-30` Live run: shots at ~1 s, four civilians inside House A by ~9 s, gone ~33 s) — clip made |
+| F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ✅ no longer blocked: they cower from ~2 s, stand up and walk on at ~25 s — clip made |
+| F-05 | fear spreads | `ua-civ-contagion` | a fight at one end; fear runs east down a street of 15 people (5–40 s) | ⚠ no longer blocked; the fear spreads as a crouch in place, nobody runs (CE-4133) — clip made |
+| F-06 | onlookers | `ua-civ-gathering` | 12 people come from four streets and ring a hurt man (~25 s) | ✅ no longer blocked: twelve onlookers converge and ring the casualty by ~45 s — clip made |
+| F-07 | protest, police, riot | `ua-civ-provocation` | placards and fists; police walk up (~30 s), baton charge (~90 s), some — not all — riot | ⚠ plays; one protester riots and the baton charge is at ~81 s (CE-4132) — clip made |
 | | **4 · Armed people, riots, police** | | | |
 | F-08 | drawn is not hostile; aimed is | `ua-armed-draw-aim` | a man draws a hidden pistol (~8 s) — no shot; he aims (~20–30 s) — shot | ✅ |
 | F-09 | no shot through bystanders | `ua-armed-shield` | civilians in the line; the rifleman waits; the insurgent steps clear; shot | ✅ |
@@ -202,6 +202,10 @@ report. A clip is refilmed when its row closes.
 | every clip (the five pilot re-renders) | 🔒 user: *"videos were a bit jerky (probably those 18Hz) but ok overall"* — a Live recording holds ~18 states/s against 30 fps | [CE-1401](blueprints/Blueprint_Issues_Tracker.md) | not blocking; re-render when smoothing lands |
 | any take on a recording | an anchor that does not resolve is silent in a stills plan (`problems: []`) | [CE-4125](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` — the plan says why (no such unit · too few events · never met · awaits play) |
 | every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
+| F-01, F-05, F-06, F-07 (any stills plan) | stills after a seek to a far camera show the 2-D map (black grid) instead of the 3-D scene; the MP4s do not | [CE-4130](blueprints/Blueprint_Issues_Tracker.md) | no refilm (stills only); fix before stills are used to review a take |
+| every clip filmed from a Live recording | a Live recording holds 9–26 states per sim second depending on the host's load (a render beside it halves it) | [CE-4131](blueprints/Blueprint_Issues_Tracker.md) | re-record on a quiet machine, or when the recorder samples per sim step; this pass records chapters 2–4 under load (13–26 states/s) and re-records the sparsest on a quiet machine |
+| F-07 | the baton charge is one man and three rounds in 0.13 s at ~81 s; 1 of 12 protesters riots (description: charge at ~90 s, some riot) | [CE-4132](blueprints/Blueprint_Issues_Tracker.md) | refilm if the charge becomes a longer baton charge with several rioters |
+| F-05 | fear spreads as `Cower` in place (30–88 m) and `Alarmed` (143 m); nobody runs east, they drift west after ~30 s | [CE-4133](blueprints/Blueprint_Issues_Tracker.md) | refilm if the crowd is meant to run from the fight (then the scenario or the description changes) |
 
 ## 2. Gaps — what no clip can show yet
 
