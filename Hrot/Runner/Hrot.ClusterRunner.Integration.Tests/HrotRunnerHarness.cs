@@ -133,14 +133,7 @@ public sealed class HrotRunnerHarness : IDisposable
             localNodeId:  0,
             role:         NodeRole.MuscleGround | NodeRole.Perception);
 
-        // ⭐ CE-3347 (R-3069) — the harness IS this cluster's deployment: it requires only the roles the nodes it boots provide. ⛔ The
-        //   default (Brain | MuscleGround) never released the latch on a cluster with no CGF, so ResumeTimeAfterBoot was refused and every
-        //   Brain-less harness pumped a STOPPED clock (measured: SimHost_WanderMission… red since CE-3344).
-        var roles = Fdp.Core.NodeRole.None;
-        if (requested.Contains("simhost")) roles |= Fdp.Core.NodeRole.MuscleGround;
-        if (requested.Contains("cgf"))     roles |= Fdp.Core.NodeRole.Brain;
-        var defaults = ClusterConfiguration.LoadFromWorkingDirectory();
-        OrchestratorSvc = new OrchestratorSubsystem(factory, defaults with { MandatoryRoles = defaults.MandatoryRoles & roles });  // HEXAG2-S009: factory required
+        OrchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(requested.Contains("simhost"), requested.Contains("cgf")));  // ⭐ CE-3347 — the roles this cluster boots
         SimHost         = new SimHostSubsystem(factory);
         Ig              = new IgSubsystem(factory);
 

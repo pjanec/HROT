@@ -77,7 +77,7 @@ public sealed class ClusterOpE2eScriptTests
             localNodeId:  0,
             role:         NodeRole.None);
 
-        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var orchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(simHost: true, cgf: false));   // ⭐ CE-3347 — no CGF here, so no Brain is required
         var simHostSvc      = new SimHostSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };

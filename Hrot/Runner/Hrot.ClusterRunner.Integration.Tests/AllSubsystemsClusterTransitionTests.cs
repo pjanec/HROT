@@ -69,7 +69,7 @@ public sealed class AllSubsystemsClusterTransitionTests
             localNodeId:  0,
             role:         NodeRole.None);
 
-        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var orchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(simHost: true, cgf: false));   // ⭐ CE-3347 — no CGF here, so no Brain is required
         var simHostSvc      = new SimHostSubsystem(factory);
         var igSvc           = new IgSubsystem(factory);
 
