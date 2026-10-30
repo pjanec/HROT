@@ -20,6 +20,12 @@ public sealed record AnchorMismatch(string Anchor, double Baked, double? Live)
 }
 
 /// <summary>
+/// ⭐ <c>CE-4117</c> (docs/DESIGN_Director_Timeline_Editor.md §11s-1) — where a <c>near</c> cue is first met on a recording, from its position track: the take-time window
+/// (<paramref name="From"/>, <paramref name="To"/>] it must lie in and the straight-line <paramref name="Estimate"/> inside it. All TAKE seconds (sim − t0).
+/// </summary>
+public sealed record NearWindow(string Anchor, double From, double To, double Estimate);
+
+/// <summary>
 /// ⭐ <c>CE-4038</c> (docs/DESIGN_Film_Director.md §2, §0; B7) — the take's anchors in this run. ⭐⭐ <c>CE-1304</c> P4 — CR-5
 /// (docs/DESIGN_Director_Timeline_Editor.md §11s): ONE resolver for a live run and a recording. EVENT cues (<c>shot</c> · <c>blast</c> · <c>hit</c>) are
 /// queries on the run's timeline INDEX (<see cref="EventAnchors.TimeOf"/> — the naming switch K and the Drafter use, in reverse): the live index on a live
@@ -42,6 +48,7 @@ public sealed class AnchorBook
     private readonly double _t0;
     private readonly bool _indexIsTheRun;
     private readonly Dictionary<string, double> _live = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _resolvedAhead = new(StringComparer.Ordinal);
 
     /// <param name="index">⭐ CR-5 — the run's timeline index (null, or none: the event cues stay unseen).</param>
     /// <param name="t0">The sim second the take's clock starts at: an index frame at sim <c>s</c> is take time <c>s − t0</c>; earlier frames are not this run's.</param>
@@ -68,7 +75,8 @@ public sealed class AnchorBook
     /// </summary>
     public double? TimeOf(string anchor)
     {
-        if (_indexIsTheRun && _live.TryGetValue(anchor, out var r) && _specs.TryGetValue(anchor, out var spec) && EventAnchors.IsEventCue(spec.On)) return r;
+        if (_indexIsTheRun && _live.TryGetValue(anchor, out var r) && _specs.TryGetValue(anchor, out var spec)
+            && (EventAnchors.IsEventCue(spec.On) || _resolvedAhead.Contains(anchor))) return r;   // ⭐ CE-4117: a cue answered ahead of play leads like an event cue
         return _baked.TryGetValue(anchor, out var t) ? t : _live.TryGetValue(anchor, out t) ? t : null;
     }
 
@@ -133,6 +141,79 @@ public sealed class AnchorBook
             if (_live.ContainsKey(key) || !EventAnchors.IsEventCue(a.On)) continue;
             if (EventAnchors.TimeOf(index, a, (who, id) => IsUnit(who, id, units), _t0) is { } sim) _live[key] = sim - _t0;
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> (§11s-1 N1) — for each unseen <c>near</c> anchor, the take-time window in which its unit first comes within the radius of the point on the
+    /// RECORDING's position track (sampled every 0.5 s of sim, linear in between): the first sample at or after t0 inside gives (previous sample, that sample], and
+    /// <see cref="NearWindow.Estimate"/> is where the straight line between the two crosses the circle. A unit already inside at its first sample at or after t0:
+    /// the window is [max(t0, s − 0.5), s] and the estimate that sample. Several units (<c>"*part"</c>): the earliest window. No index, no sample inside: no window.
+    /// </summary>
+    public IReadOnlyList<NearWindow> NearWindows(IShotWorld units)
+    {
+        var list = new List<NearWindow>();
+        if (_index() is not { } index) return list;
+        var fs = index.FrameSim;
+        foreach (var (key, a) in _specs)
+        {
+            if (a.On != "near" || a.Who == null || a.Point is not { } point || _live.ContainsKey(key)) continue;
+            NearWindow? best = null;
+            foreach (var id in UnitIdsNamed(a.Who, units))
+            {
+                if (NearWindowOf(key, a, point, id, index, fs) is { } w && (best is null || w.Estimate < best.Estimate)) best = w;
+            }
+            if (best != null) list.Add(best);
+        }
+        return list;
+    }
+
+    private NearWindow? NearWindowOf(string key, AnchorSpec a, Vector2 point, long id, TimelineIndex index, SharedList<double> fs)
+    {
+        var samples = index.Positions.Samples(id).Span;
+        double r2 = (double)a.Within * a.Within;
+        double? prevSim = null; double px = 0, py = 0;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            var s = samples[i];
+            if (s.Frame < 0 || s.Frame >= fs.Count || double.IsNaN(fs[s.Frame])) continue;
+            double sim = fs[s.Frame];
+            if (sim < _t0 - 1e-9) continue;   // before this run's start: not the take's
+            double dx = s.X - point.X, dy = s.Y - point.Y;
+            bool inside = dx * dx + dy * dy <= r2;
+            if (inside)
+            {
+                if (prevSim is not { } t0s) return new NearWindow(key, Math.Max(0d, sim - _t0 - 0.5), sim - _t0, sim - _t0);   // inside at its first usable sample
+                // the first crossing of the circle on the segment prev → s: solve |p + u (q − p) − c|² = r², the smaller root in [0, 1]
+                double ex = s.X - px, ey = s.Y - py, fx = px - point.X, fy = py - point.Y;
+                double qa = ex * ex + ey * ey, qb = 2 * (fx * ex + fy * ey), qc = fx * fx + fy * fy - r2;
+                double u = 1d;
+                if (qa > 1e-12)
+                {
+                    double disc = qb * qb - 4 * qa * qc;
+                    if (disc >= 0) { u = (-qb - Math.Sqrt(disc)) / (2 * qa); u = Math.Clamp(u, 0d, 1d); }
+                }
+                return new NearWindow(key, t0s - _t0, sim - _t0, t0s + u * (sim - t0s) - _t0);
+            }
+            prevSim = sim; px = s.X; py = s.Y;
+        }
+        return null;
+    }
+
+    /// <summary>⭐ CE-4117 — the network ids of the units <paramref name="who"/> names (an exact name, or <c>"*part"</c>: every name containing it), as <see cref="IsUnit"/> reads them.</summary>
+    private static IEnumerable<long> UnitIdsNamed(string who, IShotWorld units)
+    {
+        if (!who.StartsWith('*')) { if (units.Resolve(who) is { } id && id != 0) yield return id; yield break; }
+        var part = who[1..];
+        foreach (var n in units.Names.Where(n => n.Contains(part, StringComparison.Ordinal)).ToList())
+            if (units.Resolve(n) is { } id && id != 0) yield return id;
+    }
+
+    /// <summary>⭐ CE-4117 — records that <paramref name="anchor"/> was answered AHEAD of play at take time <paramref name="rel"/> (the refined crossing, or the coarse estimate):
+    /// on a recording it then leads over a bake (<see cref="TimeOf(string)"/>).</summary>
+    public void Resolve(string anchor, double rel)
+    {
+        _live[anchor] = rel;
+        _resolvedAhead.Add(anchor);
     }
 
     /// <summary>Looks at the run after a step: the event cues in its index (<see cref="ObserveEvents"/>), then each unseen STATE anchor whose cue holds now,

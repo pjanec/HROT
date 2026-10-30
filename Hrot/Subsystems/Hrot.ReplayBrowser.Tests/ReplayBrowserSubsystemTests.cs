@@ -1619,7 +1619,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
     /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
     private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false, double[]? alphaFires = null,
-                                        string scenarioHash = "0123456789abcdef", double[]? blasts = null)
+                                        string scenarioHash = "0123456789abcdef", double[]? blasts = null, Func<double, float>? alphaX = null)
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
@@ -1628,7 +1628,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
         var units = new Dictionary<string, Entity>();
-        if (named || alphaFires != null || blasts != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
+        if (named || alphaFires != null || blasts != null || alphaX != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
         {
             repo.RegisterComponent<EntityInfo>();
             foreach (var (id, name) in new[] { (1L, "Alpha"), (2L, "Bravo") })
@@ -1637,6 +1637,11 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 repo.AddComponent(e, new NetworkIdentity { Value = id });
                 repo.AddComponent(e, new EntityInfo { Name = new FixedString64(name) });
                 units[name] = e;
+            }
+            if (alphaX != null)   // ⭐ CE-4117 — Alpha MOVES along x (the unit a `near` cue waits for): its SimTransform is recorded every frame
+            {
+                repo.RegisterComponent<SimTransform>();
+                repo.AddComponent(units["Alpha"], new SimTransform { Position = new Vector3(alphaX(0d), 0f, 0f), Rotation = Quaternion.Identity });
             }
         }
         // ⭐ CE-1304 CR-5 — Alpha's rounds at Bravo, RECORDED as the bus carried them (a frame's events go with that frame): what the recording's index reads
@@ -1653,6 +1658,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             for (int f = 1; f <= n; f++)
             {
                 repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d });
+                if (alphaX != null) { repo.Tick(); repo.SetComponent(units["Alpha"], new SimTransform { Position = new Vector3(alphaX(f / 60d), 0f, 0f), Rotation = Quaternion.Identity }); }   // Tick: the recorder writes what changed since the last version
                 if (fireFrames.Contains(f))
                     repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = units["Alpha"], Target = units["Bravo"], Quantity = 1 });
                 if (blastFrames.Contains(f))
@@ -2598,6 +2604,74 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
             Raylib_cs.Raylib.CloseWindow();
         }
+    }
+
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4117</c> (§11s-1 N1–N2) — on a REAL recording in the Replay Browser, a <c>near</c> cue is answered BEFORE play: Alpha dashes in along x from 100 m, the cue is
+    /// <c>near Alpha, point (0,0), within 12</c>; the position track's 0.5 s samples give the window and the seek-and-step refinement finds the first FRAME the unit is inside — the rail scans the
+    /// recording's frames itself (the generator's x per frame) and the planned time must equal it within one step. A cut placed 1 s BEFORE the cue lands there (key 2 on screen from 1 s before it),
+    /// and the playhead is back at the take's start once <c>Phase == Playing</c>. 🔴 Mutations: <c>TickResolving</c> taking the coarse <c>Estimate</c> instead of stepping (off by up to 0.5 s) ⇒ the
+    /// planned-time cell reds; the seek back to t0 removed ⇒ the playhead cell reds; <c>NearWindows</c> not consulted in <c>TickEntering</c> ⇒ no anchor ⇒ <c>beat-missing</c>.
+    /// </summary>
+    [Fact]
+    public void CE4117_OnARecording_ANearCue_IsAnsweredBeforePlay_AtTheFirstFrameTheUnitIsInside()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        const float within = 12f;
+        // ⚠ NOT linear between the position track's 0.5 s samples: it waits at 100 m, then dashes in at 800 m/s from 5.1 s — the straight line between the samples (5.0 s: 100 m, 5.5 s: 0 m, where it stops) crosses the circle
+        //   at 5.44 s, the unit really does at 5.21 s, so only the refinement by seeking finds the frame
+        Func<double, float> x = t => t <= 5.1 ? 100f : Math.Max(0f, 100f - 800f * (float)(t - 5.1));
+        string dir = Path.Combine(_tempDir, "ce4117", "exercises", Guid.NewGuid().ToString());
+        string path = RecordFilmRun(dir, 9d, alphaX: x);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        var index = OpenAndIndex(path);
+        Assert.True(index.Positions.Has(1), "Alpha's positions are in the recording's index");
+
+        // the frame-by-frame scan of the RECORDING (what it holds at each frame): the first frame the unit is within the radius
+        int firstInside = -1;
+        for (int f = 0; f <= 540; f++) if (Math.Abs(x(f / 60d)) <= within) { firstInside = f; break; }
+        Assert.True(firstInside > 0);
+        double expected = firstInside / 60d;
+
+        var take = new Hrot.UI.Common.Map3D.Director.Take
+        {
+            Scenario = "s-film", Name = "main", Title = "Near",
+            Anchors = new Dictionary<string, Hrot.UI.Common.Map3D.Director.AnchorSpec> { ["near:A"] = new() { On = "near", Who = "Alpha", Point = new Vector2(0, 0), Within = within } },
+            Keys = new[]
+            {
+                new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(1d), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key1At, Distance = 20f } },
+                new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(-1d, "near:A"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key2At, Distance = 20f } },
+            },
+            EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(8d),
+        };
+        var pack = _subsystem.Director!;
+        pack.Takes.Save(take);
+        var runner = pack.Runner;
+        Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d)));
+
+        var seen = new List<(double Sim, Vector3? Camera)>();
+        double? simAtPlayingStart = null;
+        bool sawResolving = false;
+        for (int i = 0; i < 1500 && runner.Busy; i++)
+        {
+            sawResolving |= runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Resolving;
+            double sim = Frame();
+            if (runner.Phase == Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing) { simAtPlayingStart ??= sim; seen.Add((sim, Camera())); }
+        }
+        Assert.False(runner.Busy);
+        var report = runner.Reports[0];
+
+        Assert.True(sawResolving, "the runner went through Resolving on a seekable host");
+        Assert.True(report.Status == "ok", $"{report.Status}: missing {string.Join(", ", report.Missing)}; unresolved {string.Join(", ", report.Unresolved)}; {string.Join("; ", report.Problems)}");
+        Assert.Empty(report.Unresolved);
+        Assert.InRange(report.Found["near:A"], expected - 1d / 60 - 1e-6, expected + 1d / 60 + 1e-6);   // the first frame a scan finds the unit inside, ±1 step
+        Console.Error.WriteLine($"CE4117 measured: planned {report.Found["near:A"]:0.0000} s, first frame inside {expected:0.0000} s (frame {firstInside})");
+        Assert.InRange(simAtPlayingStart ?? double.NaN, -1e-9, 0.05);   // the playhead is back at the start once Playing begins
+        Assert.All(seen.Where(s => s.Sim > 1.02 && s.Sim < expected - 1d - 0.03), s => Assert.Equal(Key1At, s.Camera));
+        Assert.All(seen.Where(s => s.Sim > expected - 1d + 0.03 && s.Sim < 7.9), s => Assert.Equal(Key2At, s.Camera));   // the cut 1 s BEFORE the cue
+        Assert.Contains(seen, s => s.Sim > expected - 1d + 0.03 && s.Sim < expected - 0.2 && s.Camera == Key2At);
     }
 
     // ── ⭐ CE-4119 (REPRODUCTION) — a take anchored on an index EVENT, played with CAPTURE on a recording ───────────────────────────────────────

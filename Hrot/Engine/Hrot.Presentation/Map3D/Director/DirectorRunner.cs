@@ -30,8 +30,8 @@ namespace Hrot.UI.Common.Map3D.Director
     }
 
     /// <remarks><see cref="Extension"/>: ⭐ CE-4061 — the runner's extension has the frames (its own phases, named by
-    /// <see cref="IRunExtension.PhaseName"/>).</remarks>
-    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Extension }
+    /// <see cref="IRunExtension.PhaseName"/>). ⭐ <c>CE-4117</c> — <see cref="Resolving"/>: on a recording, the <c>near</c> cues are refined by seeking before the plan.</remarks>
+    public enum DirectorPhase { Idle, Loading, Entering, Playing, Encoding, Done, Stopped, Extension, Resolving }
 
     /// <summary>⭐ What one reel item did — the per-take report of §3a (missing beats, anchor mismatches, the realtime factor) and the
     /// stepping rule's own evidence (the most steps taken in one frame, steps the master had not retired by the next frame).</summary>
@@ -265,6 +265,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var book = new AnchorBook(take.Anchors, fresh ? take.Baked!.Times : null, _host.BehaviourName, Index, _host.CanSeek ? 0d : _host.SimTime,
                                       indexIsTheRun: _host.CanSeek);
             book.ObserveEvents(_units);
+            foreach (var w in book.NearWindows(_units)) book.Resolve(w.Anchor, w.Estimate);   // ⭐ CE-4117 N4: the coarse estimate; a stills plan never seeks
             return book.TimeOf;
         }
 
@@ -279,7 +280,7 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <see cref="Play"/> replaces it).</summary>
         public PlayRequest? Request => _request;
         public bool Busy => Phase is DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing or DirectorPhase.Encoding
-                                  or DirectorPhase.Extension;
+                                  or DirectorPhase.Extension or DirectorPhase.Resolving;
 
         // ── ⭐ CE-4061 — IRunContext: what the extension reads and asks ─────────────────────────────
         IDirectorHost IRunContext.Host => _host;
@@ -447,7 +448,7 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>Ends this item (reported as stopped) and goes on to the next.</summary>
         public void Next()
         {
-            if (Phase is not (DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Playing)) return;
+            if (Phase is not (DirectorPhase.Loading or DirectorPhase.Entering or DirectorPhase.Resolving or DirectorPhase.Playing)) return;
             if (_reports[_item].Status is "loading" or "playing") _reports[_item].Status = "stopped";
             FinishItem();
         }
@@ -485,6 +486,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 {
                     case DirectorPhase.Loading: TickLoading(); break;
                     case DirectorPhase.Entering: TickEntering(); break;
+                    case DirectorPhase.Resolving: TickResolving(); break;
                     case DirectorPhase.Playing: TickPlaying(); break;
                     case DirectorPhase.Encoding: TickEncoding(); break;
                     case DirectorPhase.Extension: _ext!.Tick(); break;
@@ -616,6 +618,21 @@ namespace Hrot.UI.Common.Map3D.Director
             _t0 = _host.CanSeek ? 0d : _host.SimTime;
             _book = NewBook(take, fresh ? baked!.Times : null);
             _book.ObserveEvents(_units);   // ⭐ CR-5 — a recording's index already holds the run: the plan below places every event anchor it names
+            // ⭐ CE-4117 (§11s-1 N2) — on a recording, the `near` cues are answered ahead of play: the coarse window from the position track, refined by seeking
+            if (_host.CanSeek && _book.NearWindows(_units) is { Count: > 0 } windows)
+            {
+                _resolveQueue = new Queue<NearWindow>(windows); _resolveCur = null; _resolveWait = 0; _resolveReturned = false; _resolveTicks = 0;
+                Phase = DirectorPhase.Resolving;
+                Report.Status = "resolving";
+                return;
+            }
+            FinishEntering();
+        }
+
+        /// <summary>⭐ CE-4117 — the rest of <see cref="TickEntering"/> (the plan, then Playing), run when the entering is done or, on a recording, when <see cref="TickResolving"/> is.</summary>
+        private void FinishEntering()
+        {
+            var take = _take!;
             _roundsAtStart = _host.World is { } w0 ? Fdp.Toolkit.Combat.ShotLog.Peek(w0)?.Count ?? 0 : 0;
             Replan();
             Report.SkippedReplays.AddRange(_timeline!.SkippedReplays);
@@ -642,6 +659,41 @@ namespace Hrot.UI.Common.Map3D.Director
             Phase = DirectorPhase.Playing;
             Report.Status = "playing";
             _clock.Start(_host.WallNow);
+        }
+
+
+        // ── ⭐ CE-4117 — the near cues, refined by seeking ─────────────────────────────────────────
+        private Queue<NearWindow> _resolveQueue = new();
+        private NearWindow? _resolveCur;
+        private int _resolveWait, _resolveTicks;
+        private bool _resolveReturned;
+
+        /// <summary>
+        /// ⭐ <c>CE-4117</c> (§11s-1 N2) — per window: seek to its start, wait a tick, then each tick: the cue holds ⇒ resolve at the sim time shown; the playhead is past the window ⇒ the
+        /// coarse estimate; else one step. Then the playhead goes back to the take's start and the entering finishes (plan, Playing).
+        /// </summary>
+        private void TickResolving()
+        {
+            if (_resolveWait > 0) { _resolveWait--; return; }
+            if (_resolveCur is null)
+            {
+                if (_resolveQueue.Count == 0)
+                {
+                    if (!_resolveReturned) { _host.Seek(_t0); _resolveReturned = true; _resolveWait = 1; return; }
+                    FinishEntering();
+                    return;
+                }
+                _resolveCur = _resolveQueue.Dequeue(); _resolveTicks = 0;
+                _host.Seek(_t0 + _resolveCur.From);
+                _resolveWait = 1;   // the world shows the seek on the NEXT tick
+                return;
+            }
+            var cur = _resolveCur;
+            double rel = _host.SimTime - _t0;
+            var spec = _take!.Anchors[cur.Anchor];
+            if (_host.World is { } world && AnchorBook.HoldsFor(spec, world, _units, _host.BehaviourName)) { _book!.Resolve(cur.Anchor, rel); _resolveCur = null; return; }
+            if (rel > cur.To + 1e-6 || ++_resolveTicks > 10 * Math.Max(1, _take.TickHz)) { _book!.Resolve(cur.Anchor, cur.Estimate); _resolveCur = null; return; }
+            _host.StepBy(1f / _take.TickHz);
         }
 
         /// <summary>⭐ CE-4061 — the extension's item: its take (no camera, no layers, no sound — a verify run leaves the editor as it is),
@@ -714,6 +766,28 @@ namespace Hrot.UI.Common.Map3D.Director
             Report.Unresolved.Clear();
             Report.Unresolved.AddRange(_timeline.Unresolved);
             Report.Unresolved.AddRange(_film.Unresolved);
+            NameStateCuesThatAwaitPlay();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4117</c> (§11s-1 N5) — on a recording, a STATE cue the plan hangs something on (<c>task side health embark gesture</c>; <c>near</c> is answered ahead, event cues by the index)
+        /// that is not seen yet is observed only as the playhead passes it: say so, so the agent knows why its cut has no time. Once per anchor.
+        /// </summary>
+        private void NameStateCuesThatAwaitPlay()
+        {
+            if (!_host.CanSeek || _take is null || _book is null) return;
+            var referenced = new HashSet<string>(StringComparer.Ordinal);
+            void Note(AtExpr? at) { if (at?.Anchor is { } a) referenced.Add(a); }
+            foreach (var k in _take.Keys) Note(k.At);
+            foreach (var sh in _take.Shots) Note(sh.At);
+            foreach (var g in _take.Segments) { Note(g.From); Note(g.To); }
+            Note(_take.EndAt);
+            foreach (var name in referenced)
+            {
+                if (!_take.Anchors.TryGetValue(name, out var spec) || spec.On == "near" || EventAnchors.IsEventCue(spec.On) || _book.Live.ContainsKey(name)) continue;
+                string line = $"{name}: awaits play (a state cue — observed as the playhead passes)";
+                if (!Report.Unresolved.Contains(line)) Report.Unresolved.Add(line);
+            }
         }
 
         /// <summary>

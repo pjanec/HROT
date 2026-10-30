@@ -1404,4 +1404,93 @@ public sealed class FilmDirectorTests
         }
     }
 
+    // ── ⭐ CE-4117 (docs/DESIGN_Director_Timeline_Editor.md §11s-1) — `near` answered before play, from the position track ───────────────────────────
+
+    /// <summary>A synthetic recording index: <paramref name="frames"/> frames, frame f at sim <c>f × step</c>; each unit's samples are <c>(frame, x(sim), 0)</c> from its first frame on.</summary>
+    private static Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex PositionIndex(int frames, double step, params (long Id, int FirstFrame, Func<double, double> X)[] units)
+    {
+        var sim = new double[frames];
+        for (int f = 0; f < frames; f++) sim[f] = f * step;
+        var tracks = new Dictionary<long, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]>();
+        foreach (var (id, first, x) in units)
+            tracks[id] = Enumerable.Range(first, frames - first).Select(f => new Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample(f, (float)x(sim[f]), 0f, 0f, 0f)).ToArray();
+        return new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex(
+            new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent>>(),
+            new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<long>(new long[frames]), frames, frames, null,
+            new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<double>(sim), new Fdp.Toolkit.ReplayBrowser.Timeline.PositionTrack(tracks));
+    }
+
+    private static AnchorBook NearBook(Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex index, string who, double t0 = 0d, IReadOnlyDictionary<string, double>? baked = null, bool isTheRun = true)
+        => new(new Dictionary<string, AnchorSpec> { ["near:A"] = new() { On = "near", Who = who, Point = new Vector2(0, 0), Within = 12f } }, baked, null, () => index, t0, indexIsTheRun: isTheRun);
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> N1 — a unit coming in at 15 m/s from 100 m crosses the 12 m circle at (100 − 12) / 15 = 5.8667 s; the samples every 0.5 s bracket it (5.5 outside, 6.0 inside): the window is
+    /// (5.5, 6.0] and the estimate is the straight-line crossing, within 1e-3. 🔴 Mutation: the estimate taken as the inside sample's time (6.0) ⇒ off by 0.133 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4117_NearWindow_BracketsTheCrossing_AndEstimatesItOnTheStraightLine()
+    {
+        var index = PositionIndex(20, 0.5, (1, 0, t => 100 - 15 * t));
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        var w = Assert.Single(NearBook(index, "Alpha").NearWindows(world));
+        Assert.Equal("near:A", w.Anchor);
+        Assert.Equal(5.5, w.From, 3);
+        Assert.Equal(6.0, w.To, 3);
+        Assert.Equal((100 - 12) / 15d, w.Estimate, 3);
+    }
+
+    /// <summary>⭐ <c>CE-4117</c> N1 — a unit already inside at its first sample: the window is the half second before that sample (clamped to t0), the estimate the sample itself.
+    /// 🔴 Mutation: the From not clamped / the first sample skipped ⇒ red.</summary>
+    [Fact]
+    public void CE4117_NearWindow_AUnitAlreadyInsideAtItsFirstSample_GivesTheIntervalBeforeIt()
+    {
+        var index = PositionIndex(20, 0.5, (1, 4, _ => 5d));   // first sample at 2.0 s, inside
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        var w = Assert.Single(NearBook(index, "Alpha").NearWindows(world));
+        Assert.Equal(1.5, w.From, 3); Assert.Equal(2.0, w.To, 3); Assert.Equal(2.0, w.Estimate, 3);
+        var early = Assert.Single(NearBook(PositionIndex(20, 0.5, (1, 0, _ => 5d)), "Alpha").NearWindows(world));
+        Assert.Equal(0d, early.From, 3); Assert.Equal(0d, early.Estimate, 3);   // clamped at t0
+    }
+
+    /// <summary>⭐ <c>CE-4117</c> N1 — <c>*part</c> covers every unit whose name contains it and the EARLIEST window wins (Alpha1 crosses at 5.87 s, Alpha2 at 3.2 s). 🔴 Mutation: the first unit instead of the earliest ⇒ red.</summary>
+    [Fact]
+    public void CE4117_NearWindow_APartName_PicksTheEarliestOfTheUnits()
+    {
+        var index = PositionIndex(20, 0.5, (1, 0, t => 100 - 15 * t), (2, 0, t => 60 - 20 * t));   // unit 2: 12 m at t = 2.4
+        var world = new Units(); world.Ids["Alpha1"] = 1; world.Ids["Alpha2"] = 2; world.Ids["Bravo"] = 3;
+        var w = Assert.Single(NearBook(index, "*Alpha").NearWindows(world));
+        Assert.Equal((60 - 12) / 20d, w.Estimate, 3);
+        Assert.Equal(2.0, w.From, 3);
+    }
+
+    /// <summary>⭐ <c>CE-4117</c> N1 — a sample before the take's t0 is not this run's: a unit inside from 0 to 2 s that leaves and comes back at 5.9 s, with t0 = 3 s, is met at the RETURN (take seconds = sim − 3).
+    /// 🔴 Mutation: the <c>sim &lt; t0</c> skip removed ⇒ the window is at the old visit ⇒ red.</summary>
+    [Fact]
+    public void CE4117_NearWindow_ASampleBeforeT0_IsIgnored()
+    {
+        Func<double, double> there = t => t < 2.25 ? 5d : t < 5.4 ? 200d : 100 - 15 * (t - 4.4);   // in until 2 s, away, then in from 4.4 s at 15 m/s: 12 m at 4.4 + 88/15 = 10.2667 s
+        var index = PositionIndex(30, 0.5, (1, 0, there));
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        var w = Assert.Single(NearBook(index, "Alpha", t0: 3d).NearWindows(world));
+        Assert.True(w.From >= 0d, "a take second");
+        Assert.True(w.Estimate > 5d, $"met at the return, not the first visit (estimate {w.Estimate})");
+        Assert.Empty(NearBook(PositionIndex(30, 0.5, (1, 0, _ => 200d)), "Alpha").NearWindows(world));   // never inside: no window
+        Assert.Empty(NearBook(null!, "Alpha").NearWindows(world));
+    }
+
+    /// <summary>⭐ <c>CE-4117</c> N3 — once resolved ahead, a near cue's time LEADS over a bake on a recording (another run's bake), exactly as an event cue's; a live run (the index is not the run) keeps the bake.
+    /// 🔴 Mutation: <c>_resolvedAhead</c> not consulted in <c>TimeOf</c> ⇒ the bake (1.0) leads ⇒ red.</summary>
+    [Fact]
+    public void CE4117_AResolvedNearCue_LeadsOverABake_OnARecording()
+    {
+        var index = PositionIndex(20, 0.5, (1, 0, t => 100 - 15 * t));
+        var baked = new Dictionary<string, double> { ["near:A"] = 1.0 };
+        var book = NearBook(index, "Alpha", baked: baked);
+        Assert.Equal(1.0, book.TimeOf("near:A"));   // not resolved yet: the bake
+        book.Resolve("near:A", 5.9);
+        Assert.Equal(5.9, book.TimeOf("near:A"));
+        var live = NearBook(index, "Alpha", baked: baked, isTheRun: false);
+        live.Resolve("near:A", 5.9);
+        Assert.Equal(1.0, live.TimeOf("near:A"));   // a live run: the bake leads (R-3038)
+    }
 }

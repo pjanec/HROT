@@ -2929,7 +2929,7 @@ passes it: a cut placed BEFORE a state cue still needs a bake (as live).
 · `ReplayBrowserSubsystemTests.CE1304_P4_ATakeAdjustedOnRecordingA_IsPromoted_AndPlaysItsBeatsOnRecordingB_AtBsTimes` · `DirectorPackTests.CE1304_CR5_OnALiveHost_AnEventAnchor_ResolvesWhenItsEventAppearsInTheLiveIndex`
 · `EventAnchoredKeysTests.CE1304_CR5_EveryNamedEvent_IsFoundAgain_ByTheResolver_AtItsOwnTime` · `DirectorDraftRoutesTests.CE1304_P4_Promote_CopiesTheRecordingsTake_RefusesAnOverwrite_UnlessAsked`.
 
-### 11s-1. CE-4117 — state cues answered before play on a recording: `near` first *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+### 11s-1. CE-4117 — state cues answered before play on a recording: `near` first *(ui, `2026-10-30`; build-state: BUILT — `near` as built `2026-10-30`; the other five: N6 below)*
 
 ⭐ Supersedes known edge (5) above for `near`. The pilot cut 22 of 54 takes on a state cue. On a recording, a state cue was only observed as the
 playhead passed it, so a cut placed BEFORE it had no time. 🔒 User, `2026-10-30`: *"Decision 1 lean approved, seek"*. The other five state cues
@@ -3031,6 +3031,8 @@ mismatch is reported. Backend's future lanes do not change this (they cover othe
 **Rails** (in the feature's own suites; red-proved): `AnchorBookTests`-style unit rail on a synthetic `PositionTrack` (window, estimate, already-inside,
 `*part` earliest, a cue before t0 ignored) · `ReplayBrowserSubsystemTests` on a real recording: a `near` cue's planned time equals the first frame a
 frame-by-frame scan finds the unit inside, and a cut placed 1 s BEFORE it lands there; the playhead is back at the start once Playing begins.
+
+**As built (`near`, `2026-10-30`, ui).** `NearWindow` + `AnchorBook.NearWindows` / `Resolve` (a `_resolvedAhead` set; `TimeOf` lets a resolved cue lead over a bake on a recording) · `DirectorPhase.Resolving` + `TickResolving` (seek to the window start, wait one tick, then `HoldsFor` / step; past `To`, or 10 s of ticks, takes the `Estimate`; then seek back to t0 and `FinishEntering` — the tail of `TickEntering`, run by both paths) · `AnchorTimesOf` resolves each window at its `Estimate` (N4) · `NameStateCuesThatAwaitPlay` adds the N5 line from `Replan`, once per anchor. ⭐ **Measured (the claim table's open ⚠ row): the world DOES show a backward seek on the next tick** — on a recording whose unit dashes in at 800 m/s the straight line between the samples says 5.44 s and the refined time is 5.2167 s = exactly the first frame a scan finds it inside (frame 313). **No deviation** from N1–N5. Rails: `FilmDirectorTests.CE4117_*` ×5 (window and estimate to 1e-3, already inside, `*part` earliest, a sample before t0, a resolved cue leading a bake) · `ReplayBrowserSubsystemTests.CE4117_OnARecording_ANearCue_IsAnsweredBeforePlay_AtTheFirstFrameTheUnitIsInside` (planned time = the scan's first frame ±1 step; the cut 1 s before lands there; the playhead is back at the start when Playing begins).
 
 ### 11t. P6 — the View track and the Graphics track *(ui, `2026-10-27`, CE-1304 (View) + CE-1305 (Graphics, TE-9); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
