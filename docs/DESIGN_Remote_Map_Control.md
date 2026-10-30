@@ -1,6 +1,8 @@
 <!--STATUS
-state: LIVE
-build-state: READY-TO-BUILD (§4 is the target; §6 the slice order.)
+state: SUPERSEDED
+superseded-by: docs/blueprints/Architect_Question_109_Retire_ExCon.md (R-3067, approved 2026-10-29; slice X3 built 2026-10-30 — the IG's remote-map receive path (MapCommandController, the MapCommandRequest / MapInteractionConfig / ContextActionsUpdate topics, the Parse* command handlers) is DELETED; §6.3 there is the as-built)
+stale-below: the whole file — it designs a module that no longer exists. Kept as the record of why the path existed.
+build-state: WITHDRAWN (the remote map-control role is gone with the ExCon node)
 updated: 2026-09-20 — ⚠ "Nothing is built yet" is NO LONGER TRUE and is corrected here. UXI-11 S-6
   (2026-09-20) built the ECHO-SUPPRESSION half exactly as §4/§2.6 ruled: suppression moved to the
   EGRESS (a new SelectionEgressSystem in Hrot.Presentation, consuming SelectionChangedNotification and

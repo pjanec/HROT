@@ -29,10 +29,6 @@ namespace Hrot.IG.Tests;
 ///     expires.
 ///   </item>
 ///   <item>
-///     <b>Context menu</b>: <see cref="ContextMenuSystem"/> opens a menu for an
-///     entity and reflects the state in <see cref="ContextMenuState"/>.
-///   </item>
-///   <item>
 ///     <b>Edit tool</b>: <see cref="EditTool"/> loads polyline vertices, accepts
 ///     a drag, and fires <see cref="EditTool.OnPolylineCommitted"/> on right-click.
 ///   </item>
@@ -53,8 +49,6 @@ public class AdvancedFeaturesIntegrationTests
     private const float ShooterY       = 0f;
     private const float TargetX        = 500f;
     private const float TargetY        = 500f;
-    private const float MenuScreenX    = 400f;
-    private const float MenuScreenY    = 300f;
     private const float PolyVertex0X   = 100f;
     private const float PolyVertex0Y   = 100f;
     private const float PolyVertex1X   = 200f;
@@ -79,7 +73,6 @@ public class AdvancedFeaturesIntegrationTests
         repo.RegisterComponent<TracerTarget>();
 
         // --- Managed components ---
-        repo.RegisterManagedComponent<ContextMenuState>();
         repo.RegisterManagedComponent<EditablePolyline>();
 
         // --- Events ---
@@ -107,7 +100,6 @@ public class AdvancedFeaturesIntegrationTests
     /// <list type="bullet">
     ///   <item>HistoryRecordingSystem accumulates trail samples.</item>
     ///   <item>EventToEffectSystem spawns effects; VisualEffectCleanupSystem destroys them.</item>
-    ///   <item>ContextMenuSystem opens and reflects the menu state.</item>
     ///   <item>EditTool loads, drags, and commits the polyline.</item>
     /// </list>
     /// </summary>
@@ -190,25 +182,7 @@ public class AdvancedFeaturesIntegrationTests
         foreach (var _ in afterCleanup) remaining++;
         Assert.Equal(0, remaining);
 
-        // â”€â”€ Step 3: Context menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-        var menuEntity = repo.CreateEntity();
-        var menuSystem = new ContextMenuSystem();
-
-        menuSystem.TestHook_TriggerContextMenu(menuEntity, MenuScreenX, MenuScreenY);
-        RunSystem(repo, menuSystem);
-
-        Assert.Equal(menuEntity, menuSystem.ActiveMenuEntity);
-
-        bool hasMenu = view.HasManagedComponent<ContextMenuState>(menuEntity);
-        Assert.True(hasMenu, "Entity must have ContextMenuState after trigger.");
-
-        var menuState = view.GetManagedComponentRO<ContextMenuState>(menuEntity);
-        Assert.True(menuState.IsOpen);
-
-        menuSystem.TestHook_CloseContextMenu(menuEntity);
-        RunSystem(repo, menuSystem);
-        Assert.Equal(Entity.Null, menuSystem.ActiveMenuEntity);
+        // ⛔ R-3067 / AQ109 X3 — Step 3 (ExCon's ContextMenuSystem opens/closes a menu and reflects ContextMenuState) went with the system.
 
         // -- Step 4: VertexEditGizmo drags and commits a polyline vertex -----------
 

@@ -27,11 +27,6 @@ namespace Hrot.Network.NED.IG
         private readonly DdsParticipant                          _participant;
         private readonly DdsWriter<MapClickEvent>              _clickWriter;
         private readonly DdsWriter<SelectionChangedEvent>      _selectionWriter;
-        private readonly DdsWriter<MapCommandAck>              _ackWriter;
-        private readonly DdsWriter<ContextMenuRequest>         _contextMenuWriter;
-        private readonly DdsReader<MapInteractionConfig>       _configReader;
-        private readonly DdsReader<MapCommandRequest>          _commandReader;
-        private readonly DdsReader<CreateUpdateDeleteEntityAck> _ackReader;
         private readonly ICommandGateway                       _commandGateway;
         private readonly int                                   _mapId;
         private readonly DdsWriterGizmoAdapter<GizmoInteractionBatch>  _gizmoInteractionWriter;
@@ -60,11 +55,6 @@ namespace Hrot.Network.NED.IG
             _mapId             = (int)nodeId;
             _clickWriter       = new DdsWriter<MapClickEvent>(participant);
             _selectionWriter   = new DdsWriter<SelectionChangedEvent>(participant);
-            _ackWriter         = new DdsWriter<MapCommandAck>(participant);
-            _contextMenuWriter = new DdsWriter<ContextMenuRequest>(participant);
-            _configReader      = new DdsReader<MapInteractionConfig>(participant);
-            _commandReader     = new DdsReader<MapCommandRequest>(participant);
-            _ackReader         = new DdsReader<CreateUpdateDeleteEntityAck>(participant);
             _commandGateway    = new NedCommandGateway(participant, nodeId);
             _gizmoInteractionWriter = new DdsWriterGizmoAdapter<GizmoInteractionBatch>(participant);
             _debugPrimitivesReader  = new DdsReaderGizmoAdapter<DebugPrimitivesBatch>(participant);
@@ -98,27 +88,7 @@ namespace Hrot.Network.NED.IG
             });
         }
 
-        /// <inheritdoc/>
-        public void WriteMapCommandAck(MapCommandAckDto dto)
-        {
-            _ackWriter.Write(new MapCommandAck
-            {
-                RequestId  = dto.RequestId,
-                StatusCode = dto.StatusCode,
-                DataJson   = dto.DataJson ?? string.Empty,
-            });
-        }
 
-        /// <inheritdoc/>
-        public void WriteContextMenuRequest(Guid requestId, int mapId, IReadOnlyList<int> forSelection)
-        {
-            _contextMenuWriter.Write(new ContextMenuRequest
-            {
-                RequestId    = requestId,
-                MapId        = mapId,
-                ForSelection = forSelection.Select(id => (long)id).ToList(),   // AQ107 E: neutral int32 → wire int64
-            });
-        }
 
         /// <inheritdoc/>
         public void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson)
@@ -141,117 +111,9 @@ namespace Hrot.Network.NED.IG
             }
         }
 
-        /// <inheritdoc/>
-        public MapConfigDto? PollMapConfig()
-        {
-            using var loan = _configReader.Take(1);
-            foreach (var sample in loan)
-            {
-                if (!sample.IsValid) continue;
-                var d = sample.Data;
-                return new MapConfigDto
-                {
-                    ActiveContextId = d.ActiveContextId,
-                    ConfigJson      = d.ConfigurationJson ?? string.Empty,
-                };
-            }
-            return null;
-        }
 
-        /// <inheritdoc/>
-        public MapCommandDto? PollMapCommand()
-        {
-            using var loan = _commandReader.Take(1);
-            foreach (var sample in loan)
-            {
-                if (!sample.IsValid) continue;
-                var d = sample.Data;
-                return new MapCommandDto
-                {
-                    RequestId       = d.RequestId,
-                    TargetMapId     = d.MapId,
-                    CommandType     = d.Type.ToString(),
-                    CommandArgsJson = d.CommandArgsJson ?? string.Empty,
-                };
-            }
-            return null;
-        }
 
-        /// <inheritdoc/>
-        public EntityLifecycleAckDto? PollEntityLifecycleAck()
-        {
-            using var loan = _ackReader.Take(1);
-            foreach (var sample in loan)
-            {
-                if (!sample.IsValid) continue;
-                var d = sample.Data;
-                return new EntityLifecycleAckDto
-                {
-                    RequestId  = d.RequestId,
-                    EntityId   = checked((int)d.EntityId),   // AQ107 E: wire int64 → neutral DTO int32
-                    StatusCode = d.StatusCode,
-                };
-            }
-            return null;
-        }
 
-        /// <inheritdoc/>
-        public async Task<int> CreateRouteEntityAsync(
-            long tkbRouteType,
-            IReadOnlyList<(double X, double Y, double Z)> waypoints,
-            double anchorX, double anchorY, double anchorZ,
-            int commanderEntityId,
-            CancellationToken ct = default)
-        {
-            var waypointStructs = waypoints.Select(w => new Waypoint
-            {
-                Position          = new Vec3d { X = w.X, Y = w.Y, Z = w.Z },   // CE-4073: local ENU metres, a copy
-                SpeedMetersPerSec = 0.0,
-            }).ToList();
-
-            var createReq = new CreateEntityRequest
-            {
-                RequestId = Guid.NewGuid(),
-                Owner     = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
-                Flags     = 0,
-                InitialDescriptors = new List<EntityDescriptorUnion>
-                {
-                    new EntityDescriptorUnion
-                    {
-                        _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = tkbRouteType },
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d       = EDescriptorType.dtWorldPos,
-                        WorldPos = new WorldPos { Position = new Vec3d { X = anchorX, Y = anchorY, Z = anchorZ } },   // CE-4073: local ENU metres; no rotation (zero = identity)
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d       = EDescriptorType.dtMapRoute,
-                        MapRoute = new MapRoute { Points = waypointStructs, IsLoop = false },
-                    },
-                    new EntityDescriptorUnion
-                    {
-                        _d         = EDescriptorType.dtEntityInfo,
-                        EntityInfo = new EntityInfo { CommanderId = commanderEntityId },
-                    },
-                },
-            };
-
-            try
-            {
-                var nedGateway = _commandGateway as NedCommandGateway;
-                if (nedGateway == null) return 0;
-                var ack = await nedGateway.CreateEntityAsync(createReq);
-                return (ack.StatusCode < 2) ? checked((int)ack.EntityId) : 0;   // AQ107 E: wire int64 → neutral int32
-            }
-            catch (Exception ex)
-            {
-                FdpLog<NedIgNetworkAdapter>.Error("CreateRouteEntityAsync failed: {0}", ex.Message);
-                return 0;
-            }
-        }
 
         /// <inheritdoc/>
         public void Dispose()
@@ -260,11 +122,6 @@ namespace Hrot.Network.NED.IG
             _disposed = true;
             _clickWriter.Dispose();
             _selectionWriter.Dispose();
-            _ackWriter.Dispose();
-            _contextMenuWriter.Dispose();
-            _configReader.Dispose();
-            _commandReader.Dispose();
-            _ackReader.Dispose();
             _commandGateway.Dispose();
             _gizmoInteractionWriter.Dispose();
             _debugPrimitivesReader.Dispose();

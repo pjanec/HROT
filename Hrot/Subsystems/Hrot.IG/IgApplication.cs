@@ -274,15 +274,7 @@ public class IgApplication : IDisposable
     private Func<bool> _isActiveMapOwner = () => true;
     /// <summary>Set by <see cref="IgSubsystem.Initialize"/> from <c>SubsystemConfig.IsActiveMapOwner</c>.</summary>
     internal Func<bool> IsActiveMapOwner { set => _isActiveMapOwner = value; }
-    private long?                        _activeSequenceId;
-    private PointSequenceGizmo?          _activeSequenceGizmo;
 
-    /// <summary>
-    /// ⭐ <c>E5</c> — the ONE area-authoring mechanism, shared with the editor's
-    /// <c>ScenarioSpawnAdapter</c>. Created lazily: it needs <see cref="_globalGizmoManager"/> and
-    /// <see cref="_geoTransform"/>, both of which arrive during bootstrap.
-    /// </summary>
-    private Hrot.ScenarioEditor.Tools.AreaAuthoringArm? _areaArm;
 
     // -- Optional IG translator provider (injected via InitializeEmbedded; null = no NED translators)
     private Hrot.Core.Network.IIgTranslators? _igTranslatorsProvider;
@@ -337,19 +329,11 @@ public class IgApplication : IDisposable
     /// </summary>
     private Hrot.Core.Network.ICommandGateway?   _commandGateway;
 
-    private Guid                             _activeContextId;
 
-    private bool                             _showGrid;
 
-    private Guid                             _lastPlacementContextId;
 
-    private Guid                             _lastAreaContextId;
 
-    /// <summary>Guard that prevents re-activating the location-picker for the same context ID.</summary>
-    private Guid _lastPickLocationContextId;
 
-    /// <summary>Guard that prevents re-activating the entity-picker for the same context ID.</summary>
-    private Guid _lastPickEntityContextId;
 
     /// <summary>
     /// Factory compiled once after the ECS world is created; translates layer-preset
@@ -361,26 +345,7 @@ public class IgApplication : IDisposable
 
     // _createEntityDdsWriter removed by D005 ? SpawnEntityCommandEgressTranslator owns the DDS writer.
 
-    /// <summary>
-    /// Test-only callback: when non-null, receives every <see cref="SpawnEntityCommand"/>
-    /// that would normally be forwarded to <see cref="_mapCommandController"/> or published on the bus.
-    /// Only set by <see cref="TestHook_SetSpawnCommandSink"/>.
-    /// </summary>
-    private Action<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? _testSpawnCommandSink;
-    /// <summary>
-    /// Orchestrator that manages tool-activation sessions for map commands
-    /// (<c>CMD_PLACE_ENTITY</c>, <c>CMD_START_AUTHORING</c>) and routes
-    /// entity-lifecycle ACKs back to ExCon.
-    /// </summary>
-    private MapCommandController?               _mapCommandController;
 
-    /// <summary>
-    /// Edge compiler built once at initialisation time and injected into every
-    /// <see cref="Hrot.IG.Tools.CreationTool"/> created by
-    /// <see cref="Hrot.IG.Systems.MapCommandController"/>.
-    /// Converts placement JSON property blobs to binary attribute records on the DDS wire (ATTR2-DEBT-07).
-    /// </summary>
-    private JsonToRecordCompiler? _edgeCompiler;
 
     /// <summary>
     /// Cached query for all entities that carry <see cref="SelectionState"/>.
@@ -429,21 +394,14 @@ public class IgApplication : IDisposable
     // ⭐ CE-1247 — the IG's "Entity Properties" card is the shared Details panel's Summary view now (EntitySummaryView).
     private Hrot.UI.Common.Panels.WaypointEditorPanel _waypointEditorPanel = null!;
 
-    private MiniExConPanelState     _miniIosState      = null!;
 
-    private MiniExConPanel          _miniIosPanel      = null!;
 
     private PerformanceMetrics    _performanceMetrics = null!;
 
     private PerformanceOverlay    _performanceOverlay = null!;
 
-    private GizmoMap.Presentation.ContextMenuAdapter _contextMenuAdapter = new();
 
-    private ContextMenuSystem     _contextMenuSystem  = null!;
 
-    // Tracks the last OpenSequence value for which Schedule() was called, so
-    // the adapter is only re-scheduled when the sequence advances.
-    private int _lastContextMenuOpenSequence;
 
     // Reference to the gizmo layer held here so DrawContextMenu can be called
     // from DrawUI inside the ImGui pass.
@@ -502,8 +460,6 @@ public class IgApplication : IDisposable
     public IgDebugPanel          DebugPanel          => _debugPanel;
     /// <summary>The IG waypoint editor panel.</summary>
     public Hrot.UI.Common.Panels.WaypointEditorPanel WaypointEditorPanel => _waypointEditorPanel;
-    /// <summary>The IG Mini ExCon spawner panel.</summary>
-    public MiniExConPanel        MiniExConPanel       => _miniIosPanel;
     /// <summary>The IG performance overlay panel.</summary>
     public PerformanceOverlay    PerformanceOverlay   => _performanceOverlay;
     /// <summary>The FDP entity inspector panel.</summary>
@@ -552,9 +508,6 @@ public class IgApplication : IDisposable
 
 
 
-    // -- Context menu state ---------------------------------------------------
-
-    private Entity _mapContextEntity = Entity.Null;
 
 
 
@@ -731,24 +684,13 @@ public class IgApplication : IDisposable
 
         _waypointEditorPanel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);   // ⭐ CE-1096 — moved to Presentation
 
-        _miniIosState       = new MiniExConPanelState(_effectiveInstanceId);
 
         _performanceMetrics = new PerformanceMetrics();
 
         _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
 
-        _contextMenuSystem  = new ContextMenuSystem();
 
         _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-
-        // ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances.
-        //
-        // ⭐⭐⭐ AX-018 — CALL THE FACTORY. This used to re-Register the five paths by hand, with a comment
-        //    saying they must stay in sync with AttributeCompilerFactory.BuildEdgeCompiler(). 🔴 That comment
-        //    WAS the enforcement, and it had already failed: `Heading` was added to the JSON→ECS table and to
-        //    the binary interpreter and to NEITHER edge table, so IG's creation tool could not send a heading
-        //    at all — silently, no exception, no log. ⛔ Ruling 9: one implementation per concept.
-        _edgeCompiler = AttributeCompilerFactory.BuildEdgeCompiler();
 
         _igBootstrapper = new IgNodeBootstrapper(
             _networkFactory,
@@ -774,10 +716,6 @@ public class IgApplication : IDisposable
             ctx.Kernel.RegisterGlobalSystem(
                 new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, ctx.EventBus));
 
-            // Map context entity (moved from InitializeEcs)
-            _mapContextEntity = ctx.World.CreateEntity();
-            ctx.World.AddComponent(_mapContextEntity, new NetworkIdentity(0));
-
             // E. SlaveSyncController - unified slave that handles Continuous/Stepping transitions.
             // Must use ctx.EventBus (the same bus as the time translators),
             // NOT ctx.World.Bus which is swapped internally by the kernel.
@@ -787,7 +725,6 @@ public class IgApplication : IDisposable
             // DO NOT call ctx.Kernel.RegisterModule(ctx.NedReplication) here.
             // Phase 6a+ already registered it. Double-registration corrupts the system schedule.
 
-            ctx.Kernel.RegisterGlobalSystem(_contextMenuSystem);
 
             // Gizmo subsystem (GZ020) - renders entity-bound diagnostic overlays.
             // ── UXI-23 S2b: the shared pack constructs the map's machinery ──────────────────────
@@ -861,8 +798,8 @@ public class IgApplication : IDisposable
                     //   the shared spawn adapter (also the toolbar's Spawn tool, which IG never serviced), the Add Entity
                     //   picker + submenu, the canvas menu. 📐 Equivalent to IG's own path: the shared adapter publishes
                     //   on the SAME bus (CE-3228) with OwnerAppInstanceId 0 — untargeted, exactly what
-                    //   IgEntityCreationRequests.FromSpawnCommand writes. MapCommandController stays for what is IG's
-                    //   alone: servicing ExCon's remote CMD_PLACE_ENTITY / CMD_START_AUTHORING and acking them.
+                    //   IgEntityCreationRequests.FromSpawnCommand writes. (R-3067 / AQ109 X3: the MapCommandController that serviced ExCon's
+                    //   remote CMD_PLACE_ENTITY / CMD_START_AUTHORING is retired.)
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => ctx.World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                             ? ctx.World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
@@ -880,9 +817,6 @@ public class IgApplication : IDisposable
             _igDataDrivenGizmoSystem = igMapInteraction.DataDrivenSystem;
             _igToolController        = igMapInteraction.Tools;
             _gizmoUndoStack         = new GizmoUndoStack();
-            // ⚠ _globalGizmoManager is deliberately assigned LATER, at its original position, so that
-            // MapCommandController below keeps receiving exactly what it received before this migration.
-            // (It receives null today; changing that is a behaviour change and belongs in its own change.)
 
             // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
             // Canvas no longer has a base tool for entity picking.
@@ -933,38 +867,17 @@ public class IgApplication : IDisposable
                             SelectedEntityIds = ids,
                         })));
 
-            // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
-            // ⭐⭐ CE-159 — assigned BEFORE the MapCommandController that takes it. ⛔ It used to be assigned
-            //   two statements AFTER being passed, so the controller always received null and every remote
-            //   placement request (ExCon "place entity") refused to arm with "this host composes no global
-            //   gizmo manager" — since UXI-23 S2b (measured 2026-10-01, MapPlacementIntegrationTests).
+            // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (picker, measure).
             _globalGizmoManager = igMapInteraction.GlobalManager;
 
-            // MapCommandController - created here when network is available.
-            if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)
-            {
-                _contextMenuSystem.SetCacheMissWriter(
-                    (reqId, mapId, sel) => _networkAdapter?.WriteContextMenuRequest(reqId, mapId, sel),
-                    _effectiveInstanceId);
-                // ⭐ CE-3228 — the tools publish requests on ctx.World.Bus; the creation pack must exist to read them.
-                if (EntityCreation is null)
-                    throw new InvalidOperationException(
-                        "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
-                        + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
-                        + ":111 vs :139); if that order changed, IG's authoring tools have no reader.");
-                _mapCommandController = new MapCommandController(
-                    _canvas,
-                    ctx.World.Bus,
-                    dto => _networkAdapter?.WriteMapCommandAck(dto),
-                    _effectiveInstanceId,
-                    globalGizmoManager: _globalGizmoManager,
-                    // 🔒 UXI-07 step 4a — the arbiter, so an incoming remote creation request
-                    //    DISPLACES the operator's armed tool instead of fighting it for raw input.
-                    tools: _igToolController);
-            }
+            // ⭐ CE-3228 — the shared spawn adapter publishes its requests on ctx.World.Bus; the creation pack must exist to read them.
+            if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null && EntityCreation is null)
+                throw new InvalidOperationException(
+                    "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
+                    + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
+                    + ":111 vs :139); if that order changed, IG's entity-authoring surface has no reader.");
 
-            // UXI-23 S2b: both come from the pack. (_globalGizmoManager is assigned ABOVE the
-            // MapCommandController — CE-159.)
+            // UXI-23 S2b: both come from the pack.
             // 🔒 UXI-07 step 4a — the arbiter is PASSED, so the settings checkbox ARMS THROUGH it and
             //    follows it back down when another tool displaces Measure (the dead-toggle fix, §4.9c).
             _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(
@@ -1043,15 +956,6 @@ public class IgApplication : IDisposable
         //    ⛔ Was `_igBootstrapper.IgSlaveTranslator` — a second, ingress-only translator on a second bus.
         //    📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
         _slaveTranslator     = _context.SlaveTranslator;
-
-        _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
-        // ⭐ CE-1017 S4 — the Mini ExCon's type picker opens in the map pack's picker (one registry per map).
-        _miniIosPanel.SetPicker(
-            () => _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
-                  ? _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
-            () => _igMapInteraction?.EntityAuthoring?.Pickers is { } pickers ? pickers.OpenPicker : null);
-        if (_networkEnabled)
-            _miniIosPanel.SetGateway(_commandGateway);
 
         _entityFilterFactory = new HrotEntityFilterFactory(_world);
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
@@ -1175,127 +1079,8 @@ public class IgApplication : IDisposable
 
 
 
-        // Task 5a: Poll instance-scoped tool-activation commands (CMD_*) -- preferred path.
-
-        if (_networkEnabled)
-
-        {
-
-            var cmdDto = _networkAdapter?.PollMapCommand();
-
-            if (cmdDto != null)
-
-            {
-
-                // Accept only broadcast (TargetMapId==0) or commands addressed to this IG instance.
-
-                if (cmdDto.TargetMapId == 0 || cmdDto.TargetMapId == _effectiveInstanceId)
-
-                {
-
-                    FdpLog<IgApplication>.Debug(
-
-                        "[Node-{0}] MapCommandRequest: Type={1} MapId={2}", _effectiveInstanceId, cmdDto.CommandType, cmdDto.TargetMapId);
-
-                    switch (cmdDto.CommandType)
-
-                    {
-
-                        case "CMD_START_AUTHORING":
-
-                            ParseCommandAndActivateAreaTool(cmdDto.RequestId, cmdDto.CommandArgsJson);
-
-                            break;
-
-                        case "CMD_PLACE_ENTITY":
-
-                            ParseCommandAndActivatePlacementTool(cmdDto.RequestId, cmdDto.CommandArgsJson);
-
-                            break;
-
-
-                        case "CMD_START_EDITING":
-
-                            ParseCommandAndActivateEditTool(cmdDto.CommandArgsJson);
-
-                            break;
-
-                        case "CMD_PICK_LOCATION":
-
-                            ParseCommandAndActivateLocationPicker(cmdDto.CommandArgsJson);
-
-                            break;
-
-                        case "CMD_PICK_ENTITY":
-
-                            ParseCommandAndActivateEntityPicker(cmdDto.CommandArgsJson);
-
-                            break;
-
-                        case "CMD_SET_SELECTION":
-
-                            ParseCommandAndSetSelection(cmdDto.CommandArgsJson);
-
-                            break;
-
-                        case "CMD_SET_VIEW":
-
-                            ParseCommandAndSetView(cmdDto.CommandArgsJson);
-
-                            break;
-
-                        case "CMD_DRAW_PERSONAL_ROUTE":
-
-                            ParseCommandAndActivatePersonalRoute(cmdDto.RequestId, cmdDto.CommandArgsJson);
-
-                            break;
-
-                    }
-
-                }
-
-            }
-
-        }
-
-        // Forward CreateUpdateDeleteEntityAck samples to the MapCommandController for session correlation.
-        if (_networkEnabled && _mapCommandController != null)
-        {
-            var ackDto = _networkAdapter?.PollEntityLifecycleAck();
-            if (ackDto != null)
-                _mapCommandController.OnCreateEntityAck(ackDto);
-        }
-
-
-        // Task 5b: Poll ExCon => IG interaction-config updates (legacy -- grid/view toggle).
-
-        if (_networkEnabled)
-
-        {
-
-            var cfgDto = _networkAdapter?.PollMapConfig();
-
-            if (cfgDto != null)
-
-            {
-
-                _activeContextId = cfgDto.ActiveContextId;
-
-                FdpLog<IgApplication>.Debug(
-
-                    "[Node-{0}] MapInteractionConfig: ActiveContextId={1}", _effectiveInstanceId, _activeContextId);
-
-
-
-                if (!string.IsNullOrWhiteSpace(cfgDto.ConfigJson))
-
-                    ParseAndApplyConfig(cfgDto.ConfigJson);
-
-            }
-
-        }
-
-
+        // ⛔ R-3067 / AQ109 X3 — the remote-map receive path is GONE: no MapCommandRequest poll (Task 5a), no MapInteractionConfig poll (Task 5b), and no
+        //   entity-ack forward to the retired MapCommandController. 📄 docs/blueprints/Architect_Question_109_Retire_ExCon.md §6.3.
 
         if (!_headless)
 
@@ -1346,10 +1131,6 @@ public class IgApplication : IDisposable
     {
 
         _canvas.Draw();
-
-        if (_showGrid)
-
-            DrawGrid();
 
         DrawDebugOverlay();
 
@@ -1430,11 +1211,9 @@ public class IgApplication : IDisposable
 
         if (!_panelsWindowManaged)
         {
-            _miniIosPanel.Draw();
             _performanceOverlay.Draw();
         }
 
-        DrawExConContextMenu();
         _gizmoLayer?.DrawContextMenu();
         _gizmoLayer?.DrawStructInspector();
 
@@ -1900,118 +1679,10 @@ public class IgApplication : IDisposable
 
 
 
-    /// <summary>
-    /// Returns <c>true</c> when the <see cref="GlobalGizmoManager"/> has an active
-    /// placement gizmo registered ? i.e. the operator is in placement mode (activated
-    /// by an ExCon <c>MapInteractionConfig</c>).
-    /// </summary>
-    internal bool TestHook_IsCreationToolActive => _globalGizmoManager?.ActiveCount > 0;
-
-    /// <summary>
-    /// Returns <c>true</c> when a <see cref="PointSequenceGizmo"/> is active.
-    /// </summary>
-    internal bool TestHook_IsPointSequenceToolActive => _activeSequenceGizmo != null;
-
-    /// <summary>
-    /// Publishes a left-click <see cref="GizmoMouseEvent"/> to the world bus and drives
-    /// one <see cref="GlobalGizmoManager.Execute"/> tick, simulating what happens when the
-    /// real operator clicks on the canvas while a placement gizmo is active.
-    /// No-op when no placement gizmo is registered.
-    /// </summary>
-    internal void TestHook_DirectCreationToolClick(Vector2 worldPos)
-    {
-        if (_globalGizmoManager == null || _globalGizmoManager.ActiveCount == 0)
-            return;
-
-        // ⭐ CE-501 — publish on the bus the manager READS: MapInteractionPack gives IG its own interaction bus
-        //   (GlobalGizmoManager(…, interactionBus)), so a click put on the world bus never reached the placement gizmo
-        //   and no creation request was ever posted — the hook was stale, not the routing.
-        var bus = _interactionBus ?? _world.Bus;
-        bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMouseEvent
-        {
-            Button    = Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left,
-            IsPressed = false,
-            WorldPos  = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f),
-        });
-        bus.SwapBuffers();
-        _globalGizmoManager.Execute(_world, 0f);
-    }
 
 
 
-    /// <summary>
 
-    /// Directly drives a <see cref="PointSequenceGizmo"/> with a list of points and commits
-
-    /// the sequence with a right-click. No-op if no point sequence gizmo is active.
-
-    /// </summary>
-
-    internal void TestHook_DirectPointSequenceToolCommit(IReadOnlyList<Vector2> points)
-
-    {
-
-        if (_activeSequenceGizmo is not PointSequenceGizmo gizmo)
-
-            return;
-
-
-
-        if (points == null || points.Count == 0)
-
-        {
-
-            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, Vector3.Zero);
-
-            return;
-
-        }
-
-
-
-        for (int i = 0; i < points.Count; i++)
-
-        {
-
-            gizmo.OnDragUpdate(new Vector3(points[i].X, points[i].Y, 0f));
-
-            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(points[i].X, points[i].Y, 0f));
-
-        }
-
-
-
-        gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, new Vector3(points[^1].X, points[^1].Y, 0f));
-
-    }
-
-
-
-    /// <summary>
-
-    /// Internal test hook: parses CMD_START_AUTHORING args JSON and activates the
-
-    /// appropriate authoring tool (area or route). Exposes
-
-    /// <see cref="ParseCommandAndActivateAreaTool"/> for unit tests.
-
-    /// </summary>
-
-    internal void TestHook_ParseCommandAndActivateAreaTool(Guid requestId, string argsJson)
-
-        => ParseCommandAndActivateAreaTool(requestId, argsJson);
-
-    /// <summary>
-
-    /// Internal test hook: injects a sink that captures every <see cref="SpawnEntityCommand"/>
-
-    /// emitted by route/area authoring tools. Bypasses the controller so tests work headless.
-
-    /// </summary>
-
-    internal void TestHook_SetSpawnCommandSink(Action<Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand>? sink)
-
-        => _testSpawnCommandSink = sink;
 
     /// <summary>
 
@@ -2037,86 +1708,6 @@ public class IgApplication : IDisposable
 
     /// <summary>
 
-    /// Internal test hook to submit a Mini ExCon spawn request via the DDS gateway.
-
-    /// </summary>
-
-    internal void TestHook_SubmitMiniExConSpawn(long tkbType, ForceId affiliation, float positionX, float positionY)
-
-    {
-
-        if (_commandGateway == null)
-
-            throw new InvalidOperationException("Mini ExCon gateway is not initialized.");
-
-
-
-        _miniIosState.TkbType                = tkbType;
-
-        _miniIosState.Affiliation            = affiliation;
-
-        _miniIosState.PositionX              = positionX;
-
-        _miniIosState.PositionY              = positionY;
-
-        // Ensure explicit coordinates are used (not random) when the caller supplies a position.
-
-        _miniIosState.UseSpecificCoordinates = true;
-
-        _miniIosState.SubmitViaGateway(_commandGateway);
-
-    }
-
-
-
-    /// <summary>
-
-    /// Internal test hook to submit a Mini ExCon spawn + WanderMilitary mission request
-
-    /// via the DDS gateway (network distributed path).
-
-    /// </summary>
-
-    internal Task<long> TestHook_SubmitMiniExConSpawnWithWanderMission(
-
-        long tkbType, ForceId affiliation, float positionX, float positionY)
-
-    {
-
-        if (_commandGateway == null)
-
-            throw new InvalidOperationException("Mini ExCon gateway is not initialized.");
-
-
-
-        _miniIosState.TkbType                = tkbType;
-
-        _miniIosState.Affiliation            = affiliation;
-
-        _miniIosState.PositionX              = positionX;
-
-        _miniIosState.PositionY              = positionY;
-
-        _miniIosState.UseSpecificCoordinates = true;
-
-        return _miniIosState.SubmitWithWanderMissionViaGateway(_commandGateway);
-
-    }
-
-
-
-    /// <summary>
-
-    /// Internal test hook to expose the latest interaction context ID.
-
-    /// </summary>
-
-    internal Guid TestHook_ActiveContextId => _activeContextId;
-
-
-
-    /// <summary>
-
     /// Internal test hook to expose the shared NetworkEntityMap.
 
     /// </summary>
@@ -2139,17 +1730,8 @@ public class IgApplication : IDisposable
     internal Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo? TestHook_ActiveRouteEditTool
         => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current;
 
-    /// <summary>Test hook: calls <see cref="ParseCommandAndSetSelection"/> directly.</summary>
-    internal void TestHook_ParseCommandAndSetSelection(string argsJson)
-        => ParseCommandAndSetSelection(argsJson);
 
-    /// <summary>Test hook: calls <see cref="ParseCommandAndSetView"/> directly.</summary>
-    internal void TestHook_ParseCommandAndSetView(string argsJson)
-        => ParseCommandAndSetView(argsJson);
 
-    /// <summary>Test hook: calls <see cref="ParseCommandAndActivatePersonalRoute"/> directly.</summary>
-    internal void TestHook_ParseCommandAndActivatePersonalRoute(Guid requestId, string argsJson)
-        => ParseCommandAndActivatePersonalRoute(requestId, argsJson);
 
     /// <summary>Test hook: the current camera keyboard-pan target (set by CenterCameraOn).</summary>
     internal Vector2 TestHook_KeyboardPanTarget => _keyboardPanTarget;
@@ -2259,7 +1841,7 @@ public class IgApplication : IDisposable
 
         {
 
-            InteractionContextId = _activeContextId,
+            InteractionContextId = Guid.Empty,   // ⛔ R-3067 / AQ109 X3 — the interaction context came from ExCon's map config / commands; none remains
 
             // ⭐ CE-4073 — the click is LOCAL ENU metres on the neutral DTO too (it was converted to geodetic here and back at the
             //   NED boundary). The map is 2D, so Z is the ground reference 0 — as the geodetic round trip of (x, y, 0) always gave.
@@ -2273,7 +1855,7 @@ public class IgApplication : IDisposable
 
         });
 
-FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hit={2}", _effectiveInstanceId, _activeContextId, hit.Index);
+FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. hit={1}", _effectiveInstanceId, hit.Index);
 
         // ⭐⭐⭐ UXI-11 S-6 — THE SELECTION EGRESS MOVED OUT OF THIS HANDLER, to SelectionEgressSystem.
         //    🔴 Hanging it here meant it fired for a MAP CLICK AND NOTHING ELSE: a selection changed by
@@ -2336,13 +1918,8 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
         }
 
-        var targetEntity = hit != Entity.Null ? hit : _mapContextEntity;
-
-        var mousePos = Raylib.GetMousePosition();
-
-
-
-        _contextMenuSystem.RequestOpen(targetEntity, mousePos.X, mousePos.Y);
+        // ⛔ R-3067 / AQ109 X3 — a plain right-click used to open ExCon's pushed menu here (ContextMenuSystem). The map's menu is the shared
+        //   MapEntityMenuHandler path, driven by the gizmo layer on every host (R-1019), so there is nothing left for this handler to open.
 
     }
 
@@ -2479,6 +2056,10 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         _networkEnabled = true;
     }
 
+    /// <summary>⭐ R-3067 / AQ109 X3 — the node's command gateway (create-entity / descriptor / mission requests), for the integration rails that drive the
+    /// IG's gateway directly now that the Mini ExCon panel that used to be the only UI for it is gone.</summary>
+    internal Hrot.Core.Network.ICommandGateway? TestHook_CommandGateway => _commandGateway;
+
     /// <summary>
     /// Test hook: injects a mock network adapter so unit tests can verify
     /// IgApplication behaviour without a live DDS participant.
@@ -2564,772 +2145,36 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-    // ?? ExCon context-menu rendering (DDS/ContextActionsUpdate path) ??????????
 
-    /// <summary>
-    /// Renders the context menu driven by the ExCon DDS path.
-    /// Schedules the generic <see cref="GizmoMap.Presentation.ContextMenuAdapter"/>
-    /// with the raw JSON stored in <see cref="ContextMenuState.MenuJson"/> whenever
-    /// the menu sequence advances, then calls DrawScheduled every frame.
-    /// </summary>
-    private void DrawExConContextMenu()
-    {
-        var activeEntity = _contextMenuSystem.ActiveMenuEntity;
-        if (activeEntity != Entity.Null)
-        {
-            bool freshOpen = _contextMenuSystem.OpenSequence != _lastContextMenuOpenSequence;
-            if (freshOpen)
-            {
-                var view = (ISimulationView)_world;
-                if (view.HasManagedComponent<ContextMenuState>(activeEntity))
-                {
-                    var state = view.GetManagedComponentRO<ContextMenuState>(activeEntity);
-                    if (!string.IsNullOrEmpty(state.MenuJson))
-                    {
-                        long networkId = view.HasComponent<NetworkIdentity>(activeEntity)
-                            ? view.GetComponentRO<NetworkIdentity>(activeEntity).Value
-                            : 0L;
-                        _contextMenuAdapter.Schedule(networkId, state.MenuJson);
-                    }
-                }
-                _lastContextMenuOpenSequence = _contextMenuSystem.OpenSequence;
-            }
-        }
 
-        _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
-        {
-            HandleContextMenuActionById(anchorId, actionId);
-            _contextMenuSystem.RequestClose(_contextMenuSystem.ActiveMenuEntity);
-        });
-    }
 
-    /// <summary>
-    /// Routes an integer action ID (from the generic ContextMenuAdapter callback)
-    /// to local IG execution or forwards it as a <see cref="Hrot.Common.Events.ContextActionTriggered"/>
-    /// managed event for ExCon.
-    /// </summary>
-    /// <param name="anchorId">Network entity ID of the target entity.</param>
-    /// <param name="actionId">Integer action ID from the JSON menu definition.</param>
-    private void HandleContextMenuActionById(long anchorId, int actionId)
-    {
-        // Map well-known ExCon IDs to local IG action strings.
-        // These match the ID conventions used by ContextMenuProjectorGizmo and ExCon.
-        string? localAction = actionId switch
-        {
-            GlobalActionIds.CenterOnEntity  => "IG_CenterOnEntity",
-            GlobalActionIds.Delete          => "IG_DeleteEntity",
-            GlobalActionIds.EditOverlay     => GlobalActionIds.EditOverlay.ToString(),
-            GlobalActionIds.EditRoute       => GlobalActionIds.EditRoute.ToString(),
-            GlobalActionIds.EditPersonalRoute => GlobalActionIds.EditPersonalRoute.ToString(),
-            GlobalActionIds.Measure         => GlobalActionIds.Measure.ToString(),
-            _   => null,
-        };
 
-        if (localAction != null)
-        {
-            if (_entityMap.TryGetEntity((int)anchorId, out var entity))
-                ExecuteLocalContextAction(entity, localAction);
-            return;
-        }
 
-        // ⭐ CE-3169 — an id the host's registry knows (Move Here · Engage · Stop, the pins, the AI trace…) runs HERE, as the
-        //   map menu's own clicks do. 📐 It used to fall through to the ContextActionTriggered below, which nothing on IG reads
-        //   and no translator sends — so these items did nothing from this menu. ⭐ CE-1150 (§12 HA-6) — REQUESTED, so the dispatch
-        //   system runs it like every other click. ⛔ SUPERSEDED: the handler fetched from the map's registry and called here.
-        if (HostActions.Actions.Has(actionId))
-        {
-            _entityMap.TryGetEntity(anchorId, out var target);
-            HostActions.Request(actionId, target);
-            return;
-        }
 
-        _world.Bus.PublishManaged(new Hrot.Common.Events.ContextActionTriggered
-        {
-            EntityNetworkId = (int)anchorId,
-            ActionName      = actionId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-    }
 
 
 
-    private void ExecuteLocalContextAction(Entity entity, string actionName)
 
-    {
 
-        switch (actionName)
 
-        {
 
-            case "IG_Center":
 
-            case "IG_CenterOnEntity":
 
-                CenterCameraOn(entity);
 
-                break;
 
-            case "IG_DeleteEntity":
 
-            {
 
-                if (_world.IsAlive(entity))
 
-                {
 
-                    if (_world.HasComponent<NetworkIdentity>(entity))
 
-                    {
 
-                        ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
 
-                        _world.Bus.PublishManaged(new DestroyEntityCommand
 
-                        {
 
-                            NetworkId = netId.Value,
 
-                            Reason    = "map-context-deleted"
 
-                        });
 
-                    }
 
-                    else
-
-                    {
-
-                        _world.DestroyEntity(entity);
-
-                    }
-
-                    if (_fdpInspectorState.SelectedEntity == entity)
-
-                        _fdpInspectorState.SelectedEntity = null;
-
-                }
-
-                break;
-
-            }
-
-            case "100": // EditOverlay ? activate area-editing tool on the selected entity
-
-            {
-
-                var view100 = (ISimulationView)_world;
-
-                if (view100.HasComponent<NetworkIdentity>(entity))
-
-                {
-
-                    ref readonly var netId = ref view100.GetComponentRO<NetworkIdentity>(entity);
-
-                    ActivateAreaEditingTool(netId.Value);
-
-                }
-
-                break;
-
-            }
-
-            case "101": // EditRoute ? activate route editing for the selected route entity
-
-            {
-
-                var view101 = (ISimulationView)_world;
-
-                if (view101.HasComponent<NetworkIdentity>(entity))
-
-                {
-
-                    ref readonly var netId = ref view101.GetComponentRO<NetworkIdentity>(entity);
-
-                    ActivateAreaEditingTool(netId.Value);
-
-                }
-
-                break;
-
-            }
-
-            case "102": // EditPersonalRoute ? locate the vehicle's personal route and edit it
-
-            {
-
-                if (_world.HasComponent<Hrot.Map.Common.Components.PersonalRouteRef>(entity))
-
-                {
-
-                    ref readonly var routeRef = ref _world.GetComponentRO<Hrot.Map.Common.Components.PersonalRouteRef>(entity);
-
-                    if (_world.IsAlive(routeRef.RouteEntity)
-
-                     && _entityMap.TryGetNetworkId(routeRef.RouteEntity, out long routeNetId))
-
-                    {
-
-                        ActivateAreaEditingTool(routeNetId);
-
-                    }
-
-                }
-
-                break;
-
-            }
-
-            case "200": // Measure ? activate the measurement gizmo
-
-                // ⭐⭐⭐ UXI-07 step 3b — ACTIVATE the shared Measure tool; do not rebuild it.
-                // 🔴 The NewId/MeasureGizmo/Register triple was a copy of the shared arm. ⭐ And going
-                //    through the controller fixes a real defect here: pressing Measure twice used to
-                //    REGISTER A SECOND gizmo (a fresh NewId each time), which could never take focus.
-                //    Now the first is cancelled first — Q27 ruling C, one modal per subsystem.
-                _igToolController?.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.Measure);
-
-                break;
-
-
-
-            default:
-
-                FdpLog<IgApplication>.Warn("[Node-{0}] Unhandled local context action: {1}", _effectiveInstanceId, actionName);
-
-                break;
-
-        }
-
-    }
-
-
-
-    /// <summary>
-
-    /// Exposes <see cref="ExecuteLocalContextAction"/> for unit tests that need to verify
-
-    /// the per-action routing logic without going through the full UI/DDS stack.
-
-    /// </summary>
-
-    internal void TestHook_ExecuteLocalContextAction(Entity entity, string actionName)
-
-        => ExecuteLocalContextAction(entity, actionName);
-
-
-
-    private void CenterCameraOn(Entity entity)
-
-    {
-
-        var view = (ISimulationView)_world;
-
-        if (!view.HasComponent<SimTransform>(entity))
-
-            return;
-
-
-
-        ref readonly var transform = ref view.GetComponentRO<SimTransform>(entity);
-
-        var target = new Vector2(transform.Position.X, transform.Position.Y);
-
-        _keyboardPanTarget = target;
-
-        _camera.FocusOn(target);
-
-    }
-
-
-
-    // -- Grid rendering --------------------------------------------------------
-
-
-
-    /// <summary>
-
-    /// Draws an adaptive world-space grid.  Call inside Raylib.BeginDrawing() but
-
-    /// outside any existing camera mode (this method manages its own BeginMode / EndMode).
-
-    /// </summary>
-
-    private void DrawGrid()
-
-    {
-
-        const float BaseSpacingMeters = 1000f;
-
-        const int   MaxGridLines      = 80;
-
-
-
-        var topLeft     = _camera.ScreenToWorld(Vector2.Zero);
-
-        var bottomRight = _camera.ScreenToWorld(new Vector2(WindowWidth, WindowHeight));
-
-
-
-        float worldLeft   = MathF.Min(topLeft.X, bottomRight.X);
-
-        float worldRight  = MathF.Max(topLeft.X, bottomRight.X);
-
-        float worldTop    = MathF.Min(topLeft.Y, bottomRight.Y);
-
-        float worldBottom = MathF.Max(topLeft.Y, bottomRight.Y);
-
-
-
-        // Select a spacing so we get at most MaxGridLines in each axis.
-
-        float spacing = BaseSpacingMeters;
-
-        float visW = worldRight  - worldLeft;
-
-        float visH = worldBottom - worldTop;
-
-        while (visW / spacing > MaxGridLines || visH / spacing > MaxGridLines)
-
-            spacing *= 10f;
-
-        while (spacing > BaseSpacingMeters
-
-            && visW / (spacing / 10f) <= MaxGridLines
-
-            && visH / (spacing / 10f) <= MaxGridLines)
-
-            spacing /= 10f;
-
-
-
-        float startX = MathF.Floor(worldLeft / spacing) * spacing;
-
-        float startY = MathF.Floor(worldTop  / spacing) * spacing;
-
-
-
-        var lineColor = new Color(200, 200, 200, 60);
-
-
-
-        _camera.BeginMode();
-
-
-
-        for (float x = startX; x <= worldRight + spacing; x += spacing)
-
-            Raylib.DrawLineV(new Vector2(x, worldTop    - spacing),
-
-                             new Vector2(x, worldBottom + spacing), lineColor);
-
-
-
-        for (float y = startY; y <= worldBottom + spacing; y += spacing)
-
-            Raylib.DrawLineV(new Vector2(worldLeft  - spacing, y),
-
-                             new Vector2(worldRight + spacing, y), lineColor);
-
-
-
-        _camera.EndMode();
-
-    }
-
-
-
-    // -- Config JSON parsing ---------------------------------------------------
-
-    // ??? CMD_* command handlers ????????????????????????????????????????????????
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_START_AUTHORING"/> command.
-    /// Extracts <c>contextId</c> and <c>styleOverrideJson</c> from the JSON args,
-    /// stores the context ID, then activates the area-authoring point-sequence tool.
-    /// </summary>
-    private void ParseCommandAndActivateAreaTool(Guid requestId, string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (root.TryGetProperty("contextId", out var ctxEl)
-             && Guid.TryParse(ctxEl.GetString(), out var ctx))
-            {
-                _activeContextId = ctx;
-            }
-
-            // ⭐ A route gets the route-specific tool; anything else is authored by the shared AREA arm
-            //   with the requested TkbType. ⭐⭐ E5: passing it through is what makes a TERRAIN ZONE
-            //   (B1) drawable from ExCon — the prior body read this value only to test it against
-            //   `TacGraphic_Route` and then hard-coded `TacGraphic_Area`, so a zone request silently
-            //   produced a tactical area.
-            long requestedTkbType = 0;
-            if (root.TryGetProperty("tkbType", out var tkbEl) && tkbEl.TryGetInt64(out var tkbType))
-            {
-                if (tkbType == TkbEntityTypes.TacGraphic_Route)
-                {
-                    ActivateRouteAuthoringTool(requestId);
-                    return;
-                }
-                requestedTkbType = tkbType;
-            }
-
-            string styleJson = string.Empty;
-            if (root.TryGetProperty("styleOverrideJson", out var styleEl)
-             && styleEl.ValueKind == JsonValueKind.String)
-            {
-                styleJson = styleEl.GetString() ?? string.Empty;
-            }
-
-            ActivateAreaAuthoringTool(requestId, styleJson, requestedTkbType);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] ParseCommandAndActivateAreaTool failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_PLACE_ENTITY"/> command.
-    /// Extracts <c>contextId</c>, <c>entityType</c>, <c>affiliation</c>, and
-    /// optional <c>initialPropertiesJson</c> from the JSON args, then delegates
-    /// to <see cref="MapCommandController"/> to activate the placement tool.
-    /// </summary>
-    private void ParseCommandAndActivatePlacementTool(Guid requestId, string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (root.TryGetProperty("contextId", out var ctxEl)
-             && Guid.TryParse(ctxEl.GetString(), out var ctx))
-            {
-                _activeContextId = ctx;
-            }
-
-            long    tkbType = 0;
-            string? initialPropertiesJson = null;
-
-            if (root.TryGetProperty("entityType", out var etEl))
-                tkbType = etEl.GetInt64();
-
-            if (root.TryGetProperty("initialPropertiesJson", out var propsEl)
-             && propsEl.ValueKind == JsonValueKind.String)
-            {
-                initialPropertiesJson = propsEl.GetString();
-            }
-
-            ActivatePlacementTool(requestId, tkbType, initialPropertiesJson);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] ParseCommandAndActivatePlacementTool failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-
-
-
-    // ??? EditTool activation from CMD_START_EDITING ??????????????????????????
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_START_EDITING"/> command.
-    /// Extracts <c>contextId</c> and <c>entityId</c> from the JSON args, then
-    /// activates the <see cref="EditTool"/> for the specified area entity.
-    /// </summary>
-    private void ParseCommandAndActivateEditTool(string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (root.TryGetProperty("contextId", out var ctxEl)
-             && Guid.TryParse(ctxEl.GetString(), out var ctx))
-            {
-                _activeContextId = ctx;
-            }
-
-            long networkEntityId = 0;
-            if (root.TryGetProperty("entityId", out var eidEl))
-                networkEntityId = eidEl.GetInt64();
-
-            ActivateAreaEditingTool(networkEntityId);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] ParseCommandAndActivateEditTool failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    // ??? OC1-G001: CMD_SET_SELECTION ??????????????????????????????????????????
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_SET_SELECTION"/> command — 🔒 §2.6's carve-out:
-    /// <i>"remote map control is JUST ANOTHER REQUESTER"</i>, so this publishes the same
-    /// <c>SelectionChangeRequest</c> a panel does and the one writer applies it.
-    ///
-    /// <para>⛔⛔ <b>THE OLD DOC COMMENT HERE WAS FALSE, AND HAD BEEN FOR TWO SLICES.</b> It read
-    /// <i>"without publishing a SelectionChangedEvent (to avoid ExCon→IG→ExCon echo loops)"</i> — 🔴 but
-    /// <c>S-2</c> routed this through <c>SelectionRequestSystem</c> and <c>S-3</c> made that system
-    /// announce for EVERY cause. ⇒ the suppression it described no longer existed, and the only reason
-    /// no echo appeared is that the egress happened to be GESTURE-driven, which was itself the bug
-    /// <c>S-6</c> fixes.</para>
-    ///
-    /// <para>⭐⭐ Suppression now lives where §2.6 says it belongs — at the EGRESS, keyed on this
-    /// reason's <c>Remote.</c> prefix. ⚠ The prefix is load-bearing: change it here without changing
-    /// <see cref="Hrot.ScenarioEditor.Systems.SelectionEgressSystem.RemoteOriginPrefix"/> and this host
-    /// starts echoing remote commands straight back to their sender.</para>
-    /// </summary>
-    private void ParseCommandAndSetSelection(string argsJson)
-    {
-        try
-        {
-            // ⭐⭐ Q73 §8 — a command with NO entity id (absent, 0, or no arguments at all) CLEARS the
-            //   selection. 🔒 User, 2026-09-30: "set selection without id means clear." Before this, a
-            //   remote controller (ExCon) could select on the IG map but never clear it. ⚠ Same Remote.
-            //   reason prefix as the select below, so the egress does not echo it back to its sender.
-            long entityId = 0;
-            if (!string.IsNullOrWhiteSpace(argsJson))
-            {
-                using var doc = JsonDocument.Parse(argsJson);
-                if (doc.RootElement.ValueKind == JsonValueKind.Object
-                    && doc.RootElement.TryGetProperty("entityId", out var eidEl)
-                    && eidEl.ValueKind == JsonValueKind.Number)
-                    entityId = eidEl.GetInt64();
-            }
-
-            if (entityId == 0)
-            {
-                _world.Bus.PublishManaged(
-                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll(
-                        Hrot.ScenarioEditor.Systems.SelectionEgressSystem.RemoteOriginPrefix + "ClearSelection"));
-                return;
-            }
-
-            if (!_entityMap.TryGetEntity(entityId, out var entity))
-            {
-                FdpLog<IgApplication>.Warn(
-                    "[Node-{0}] CMD_SET_SELECTION: entity {1} not found.", _effectiveInstanceId, entityId);
-                return;
-            }
-
-            // ⭐ NOT SelectEntityOnMap: that carries the LOCAL reason, and a local reason is echoed
-            //   outward by SelectionEgressSystem. This one must not be.
-            _world.Bus.PublishManaged(
-                Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(
-                    entity,
-                    Hrot.ScenarioEditor.Systems.SelectionEgressSystem.RemoteOriginPrefix + "SetSelection"));
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] ParseCommandAndSetSelection failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    // ??? OC1-G002: CMD_SET_VIEW ???????????????????????????????????????????????
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_SET_VIEW"/> command (entity-centric path).
-    /// Centers the camera on the entity identified by <c>entityId</c>.
-    /// The raw lat/lon path is deferred to a future batch.
-    /// </summary>
-    private void ParseCommandAndSetView(string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (!root.TryGetProperty("entityId", out var eidEl))
-                return;
-
-            long entityId = eidEl.GetInt64();
-
-            if (!_entityMap.TryGetEntity(entityId, out var entity))
-            {
-                FdpLog<IgApplication>.Warn(
-                    "[Node-{0}] CMD_SET_VIEW: entity {1} not found.", _effectiveInstanceId, entityId);
-                return;
-            }
-
-            CenterCameraOn(entity);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] ParseCommandAndSetView failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    // ??? OC1-G003: CMD_DRAW_PERSONAL_ROUTE ???????????????????????????????????
-
-    /// <summary>
-    /// Handles an incoming CMD_DRAW_PERSONAL_ROUTE command.
-    /// Pushes a <see cref="PointSequenceTool"/> requiring >= 2 points; on completion,
-    /// fire-and-forgets <see cref="OrchestratePersonalRouteAsync"/>.
-    /// </summary>
-    private void ParseCommandAndActivatePersonalRoute(Guid requestId, string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (!root.TryGetProperty("entityId", out var eidEl))
-                return;
-
-            int vehicleId = eidEl.GetInt32();
-
-            // Pop any stale PointSequenceGizmo to avoid accumulation.
-            if (_activeSequenceId.HasValue)
-            {
-                _globalGizmoManager?.Unregister(_activeSequenceId.Value);
-                _activeSequenceId    = null;
-                _activeSequenceGizmo = null;
-            }
-
-            var seqGizmo = new PointSequenceGizmo(
-                onFinish: points =>
-                {
-                    if (points.Length < 2)
-                    {
-                        // Too few points ? cancel the command.
-                        _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
-                        {
-                            RequestId  = requestId,
-                            StatusCode = (int)MapCommandController.StatusCancelled,
-                        });
-                        return;
-                    }
-
-                    _ = OrchestratePersonalRouteAsync(requestId, vehicleId, points);
-                },
-                onRemove: () =>
-                {
-                    _activeSequenceId    = null;
-                    _activeSequenceGizmo = null;
-                });
-
-            _activeSequenceId    = GlobalGizmoManager.NewId();
-            _activeSequenceGizmo = seqGizmo;
-            _globalGizmoManager?.Register(_activeSequenceId.Value, seqGizmo);
-            FdpLog<IgApplication>.Info(
-                "[Node-{0}] CMD_DRAW_PERSONAL_ROUTE: point-sequence tool activated for vehicle {1}.", _effectiveInstanceId, vehicleId);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] ParseCommandAndActivatePersonalRoute failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Fire-and-forget orchestration for CMD_DRAW_PERSONAL_ROUTE.
-    /// Converts canvas points to geodetic waypoints, creates a route entity via the
-    /// neutral adapter, and assigns a FollowRoute mission to <paramref name="vehicleId"/>.
-    /// No-op when required services are unavailable (e.g. headless tests without DDS).
-    /// </summary>
-    private async System.Threading.Tasks.Task OrchestratePersonalRouteAsync(
-        Guid requestId, int vehicleId, Vector2[] canvasPoints)
-    {
-        if (_networkAdapter == null || _commandGateway == null)
-            return;
-
-        // ⭐ CE-4073 — the waypoints are LOCAL ENU metres (they were converted to geodetic here and back at the NED boundary).
-        // ⚠ The mapping is unchanged from that round trip, quirk included: canvas X → X (east), canvas Y → Z (the third axis),
-        //   Y = 0 — a point (x, 0, y) was converted to lat/lon/alt and back, which is the identity. DrawPersonalRouteCommandTests pins it
-        //   ("canvas Y encoded as altitude, not latitude"); whether that is the intended frame for a 2D map is NOT decided here.
-        var waypoints = new List<(double X, double Y, double Z)>(canvasPoints.Length);
-        double anchorX = 0, anchorY = 0, anchorZ = 0;
-        for (int i = 0; i < canvasPoints.Length; i++)
-        {
-            double wx = canvasPoints[i].X, wy = 0.0, wz = canvasPoints[i].Y;
-            waypoints.Add((wx, wy, wz));
-            if (i == 0) { anchorX = wx; anchorY = wy; anchorZ = wz; }
-        }
-
-        // Create the route entity via the neutral adapter.
-        int routeEntityId;
-        try
-        {
-            routeEntityId = await _networkAdapter.CreateRouteEntityAsync(
-                TkbEntityTypes.TacGraphic_Route,
-                waypoints,
-                anchorX, anchorY, anchorZ,
-                vehicleId);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: CreateRouteEntityAsync failed: {1}", _effectiveInstanceId, ex.Message);
-            SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
-            return;
-        }
-
-        if (routeEntityId <= 0)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: CreateRouteEntityAsync returned id {1}.", _effectiveInstanceId, routeEntityId);
-            SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
-            return;
-        }
-
-        // Assign a FollowRoute mission using the newly-created route entity's network ID.
-        var taskId = Guid.NewGuid();
-        var missionCmd = new Hrot.Core.Network.MissionControlCommand
-        {
-            EntityId    = vehicleId,
-            CommandType = Hrot.Core.Mission.eMissionCommandType.CMD_REPLACE_MISSION,
-            Plan = new Hrot.Core.Mission.MissionPlan
-            {
-                ActiveTaskId = taskId,
-                Tasks = new System.Collections.Generic.List<Hrot.Core.Mission.MissionTask>
-                {
-                    new Hrot.Core.Mission.MissionTask
-                    {
-                        TaskId          = taskId,
-                        ExecutingEngine = string.Empty,
-                        BehaviorId      = "FollowRoute",
-                        BehaviorParams  = $"{{\"routeEntityId\":{routeEntityId}}}",
-                        Triggers        = new System.Collections.Generic.List<Hrot.Core.Mission.MissionTrigger>(),
-                        State           = Hrot.Core.Mission.eTaskState.TASK_PLANNED,
-                    }
-                }
-            }
-        };
-
-        try
-        {
-            await _commandGateway.SendMissionControlRequestAsync(missionCmd);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] OrchestratePersonalRoute: SendMissionControlRequestAsync failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-
-        SendPersonalRouteAck(requestId, MapCommandController.StatusFinished);
-    }
-
-    private void SendPersonalRouteAck(Guid requestId, long statusCode)
-    {
-        _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
-        {
-            RequestId  = requestId,
-            StatusCode = (int)statusCode,
-        });
-    }
 
     /// <summary>
     /// Activates gizmo-based editing for the entity identified by
@@ -3403,528 +2248,9 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             _effectiveInstanceId, isRoute ? "Route editing" : "Area editing", networkEntityId);
     }
 
-    /// <summary>
 
-    /// Parses a JSON Merge Patch from ExCon and applies client-side settings
 
-    /// (<c>view.layers.grid</c>, <c>interaction.activeTool</c>).
 
-    /// </summary>
-
-    private void ParseAndApplyConfig(string json)
-
-    {
-
-        try
-
-        {
-
-            using var doc  = JsonDocument.Parse(json);
-
-            var       root = doc.RootElement;
-
-
-
-            // view.layers.grid ?aa toggle grid rendering
-
-            if (root.TryGetProperty("view",   out var viewEl)
-
-             && viewEl.TryGetProperty("layers", out var layersEl)
-
-             && layersEl.TryGetProperty("grid",  out var gridEl))
-
-            {
-
-                _showGrid = gridEl.GetBoolean();
-
-            }
-
-            // view.layers.* ? update MapCanvas.ActiveLayerMask
-            // Missing keys leave their bits unchanged (forward-compatible with future ExCon versions).
-            if (root.TryGetProperty("view", out var viewLayersEl)
-             && viewLayersEl.TryGetProperty("layers", out var layerFlagsEl))
-            {
-                uint currentMask = _canvas.ActiveLayerMask;
-                foreach (var layerDef in MapLayerRegistry.All)
-                {
-                    if (layerFlagsEl.TryGetProperty(layerDef.Name, out var layerEl)
-                     && (layerEl.ValueKind == JsonValueKind.True
-                      || layerEl.ValueKind == JsonValueKind.False))
-                    {
-                        if (layerEl.GetBoolean())
-                            currentMask |=  layerDef.BitMask;
-                        else
-                            currentMask &= ~layerDef.BitMask;
-                    }
-                }
-                _canvas.ActiveLayerMask = currentMask;
-            }
-
-
-
-            // interaction.activeTool + toolConfig ?aa activate canvas tool
-
-            if (root.TryGetProperty("interaction", out var interactionEl)
-
-             && interactionEl.TryGetProperty("activeTool", out var toolEl))
-
-            {
-
-                string? toolName = toolEl.GetString();
-
-                if (toolName == "PLACEMENT"
-
-                 && interactionEl.TryGetProperty("toolConfig", out var toolConfigEl))
-
-                {
-
-                    long    tkbType              = 0;
-                    string? initialPropertiesJson = null;
-
-                    if (toolConfigEl.TryGetProperty("entityType", out var etEl))
-                        tkbType = etEl.GetInt64();
-
-                    if (toolConfigEl.TryGetProperty("affiliation", out var affEl)
-                     && affEl.ValueKind == JsonValueKind.String)
-                    {
-                        // Affiliation is just another property ? embed it into initialPropertiesJson
-                        // so CreationTool can consume it as part of the initial property blob.
-                        initialPropertiesJson = System.Text.Json.JsonSerializer.Serialize(
-                            new { affiliation = affEl.GetString() }, FdpJsonOptionsRegistry.DefaultRelaxed);
-                    }
-
-                    ActivatePlacementTool(Guid.Empty, tkbType, initialPropertiesJson);
-
-                }
-
-                else if (toolName == "AREA_AUTHORING")
-
-                {
-
-                    string styleJson = string.Empty;
-
-                    if (interactionEl.TryGetProperty("toolSettings", out var toolSettingsEl)
-
-                     && toolSettingsEl.TryGetProperty("styleOverrideJson", out var styleEl)
-
-                     && styleEl.ValueKind == JsonValueKind.String)
-
-                    {
-
-                        styleJson = styleEl.GetString() ?? string.Empty;
-
-                    }
-
-                    ActivateAreaAuthoringTool(Guid.Empty, styleJson);
-
-                }
-
-            }
-
-        }
-
-        catch (Exception ex)
-
-        {
-
-            FdpLog<IgApplication>.Warn("[Node-{0}] Failed to parse ConfigurationJson: {1}", _effectiveInstanceId, ex.Message);
-
-        }
-
-    }
-
-
-
-    /// <summary>
-
-    /// Pushes a <see cref="CreationTool"/> onto the canvas tool stack.
-
-    /// Guarded by <see cref="_lastPlacementContextId"/> so repeated keep-last
-
-    /// DDS deliveries do not re-activate the tool for the same interaction context.
-
-    /// </summary>
-
-    private void ActivatePlacementTool(Guid requestId, long tkbType, string? initialPropertiesJson = null)
-    {
-        if (_lastPlacementContextId == _activeContextId)
-            return;
-        _lastPlacementContextId = _activeContextId;
-
-        if (!_networkEnabled || _mapCommandController == null)
-            return;
-
-        // Build a session-scoped name generator when the patch requests auto-naming.
-        Func<string>? nameGenerator = null;
-        if (!string.IsNullOrWhiteSpace(initialPropertiesJson))
-        {
-            try
-            {
-                var patch = System.Text.Json.JsonSerializer.Deserialize<EntityPropertyPatch>(
-                    initialPropertiesJson, FdpJsonOptionsRegistry.DefaultRelaxed);
-
-                if (patch?.AutogenerateName == true)
-                {
-                    // Derive the prefix: prefer the explicit NamePrefix, fall back to the TKB
-                    // template name (e.g. "Tank-"), and finally fall back to "Unit-".
-                    string prefix = patch.NamePrefix ?? GetTkbPrefixForType(tkbType);
-                    nameGenerator = UniqueNameGenerator.CreateSessionGenerator(_world, prefix);
-                    FdpLog<IgApplication>.Info(
-                        "[Node-{0}] Auto-naming enabled for TkbType={1} prefix=\"{2}\".", _effectiveInstanceId, tkbType, prefix);
-                }
-            }
-            catch (Exception ex)
-            {
-                FdpLog<IgApplication>.Warn(
-                    "[Node-{0}] ActivatePlacementTool: could not parse EntityPropertyPatch: {1}", _effectiveInstanceId, ex.Message);
-            }
-        }
-
-        _mapCommandController.ActivatePlacementCommand(
-            requestId,
-            _activeContextId,
-            tkbType,
-            _geoTransform,
-            initialPropertiesJson,
-            nameGenerator);
-
-        FdpLog<IgApplication>.Info(
-            "[Node-{0}] Placement tool activated via controller. TkbType={1}", _effectiveInstanceId, tkbType);
-    }
-
-    /// <summary>
-    /// Returns a name prefix string derived from the TKB template for
-    /// <paramref name="tkbType"/>. Falls back to <c>"Unit-"</c> when the
-    /// template is not found.
-    /// </summary>
-    private string GetTkbPrefixForType(long tkbType)
-    {
-        var tkbDb = _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
-        if (tkbDb != null && tkbDb.TryGetByType(tkbType, out var template)
-         && !string.IsNullOrWhiteSpace(template.Name))
-        {
-            return template.Name + "-";
-        }
-        return "Unit-";
-    }
-
-
-
-    /// <summary>
-    /// Arms area (or ZONE) authoring on this host.
-    ///
-    /// <para>⭐⭐⭐ <c>E5</c> — 🔴 <b>this method used to carry ~135 lines that re-implemented
-    /// <c>ScenarioSpawnAdapter.ArmAreaAuthoring</c>:</b> the <see cref="PointSequenceGizmo"/>
-    /// lifecycle, the minimum-3-points rule, the centroid anchor, the entity-relative point loop and
-    /// the <c>SpawnEntityCommand</c> shape. 🔒 The user's <c>U6</c> ruling — *"area authoring should be
-    /// part of unified Map2d role features … nothing of it should be IG host only"* — and ruling 9
-    /// (*"no keeping two implementations for the same concept"*) ⇒ the mechanism MOVED into
-    /// <see cref="Hrot.ScenarioEditor.Tools.AreaAuthoringArm"/>. ⭐ This is the same trade
-    /// <c>ActivateAreaEditingTool</c> made at <c>UXI-07</c> step <c>3b</c>, one layer up.</para>
-    ///
-    /// <para>⭐ <b>What stays here is only what is TRUE OF THIS HOST:</b> the keep-last context
-    /// de-duplication (<see cref="_lastAreaContextId"/> — repeated DDS deliveries of one command must
-    /// not re-arm), the <c>_networkEnabled</c> gate, the <c>MapCommandController</c> request/ACK
-    /// session, and the geographic transform the arm projects through. ⛔ None of those belong in the
-    /// shared arm: the editor has no DDS session and no geo transform.</para>
-    ///
-    /// <para>⚠ <c>tkbType</c> is a parameter because a TERRAIN ZONE is authored by this very path —
-    /// 📄 design §2.1 makes <c>TkbType</c> THE discriminator, and <c>B1</c> allocated
-    /// <c>TerrainZone</c>. ⛔ The prior body hard-coded <c>TacGraphic_Area</c>, which is why a zone
-    /// could not be drawn from ExCon at all.</para>
-    /// </summary>
-    private void ActivateAreaAuthoringTool(Guid requestId, string styleJson = "", long tkbType = 0)
-    {
-        if (_lastAreaContextId == _activeContextId)
-            return;
-        _lastAreaContextId = _activeContextId;
-
-        if (!_networkEnabled && _testSpawnCommandSink == null)
-            return;
-
-        if (tkbType == 0)
-            tkbType = TkbEntityTypes.TacGraphic_Area;
-
-        // ⚠ The sequence fields are SHARED by this host's placement, area and route tools, so "one
-        //   sequence tool at a time" stays one fact. ⛔ Do not delegate this to the arm — the arm only
-        //   knows about the sequence IT armed.
-        if (_activeSequenceId.HasValue)
-        {
-            _globalGizmoManager?.Unregister(_activeSequenceId.Value);
-            _activeSequenceId    = null;
-            _activeSequenceGizmo = null;
-        }
-
-        _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
-
-        _areaArm ??= new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(_globalGizmoManager, _geoTransform);
-
-        _areaArm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
-            TkbType:     tkbType,
-            StyleJson:   styleJson,
-            OnCommit:    cmd =>
-            {
-                if (_testSpawnCommandSink != null)
-                    _testSpawnCommandSink(cmd);
-                else
-                    _mapCommandController?.OnAreaEntityCreated(cmd, isToolDone: true);
-            },
-            OnCancelled: () => _mapCommandController?.OnAreaToolCancelled(),
-            OnDisarmed:  () =>
-            {
-                // 🔴 Clears THIS host's mirror of the armed sequence. ⚠ Without it
-                //   TestHook_IsPointSequenceToolActive keeps reporting a live tool after a commit, and
-                //   the next arm believes one is held — measured RED on
-                //   AreaAuthoringTests.AreaTool_AfterCommit_ToolIsPopped.
-                _activeSequenceId    = null;
-                _activeSequenceGizmo = null;
-            }));
-
-        _activeSequenceId    = _areaArm.ActiveGizmoId;
-        _activeSequenceGizmo = _areaArm.ActiveGizmo;
-
-        FdpLog<IgApplication>.Info(
-            "[Node-{0}] Area authoring tool activated (tkbType={1}).", _effectiveInstanceId, tkbType);
-    }
-
-    /// <summary>
-    /// Registers a <see cref="PointSequenceGizmo"/> with <see cref="GlobalGizmoManager"/> for route authoring
-    /// (minimum 2 points). When finished, emits a <see cref="SpawnEntityCommand"/>
-    /// with <see cref="Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand.InitialComponents"/>
-    /// carrying a <see cref="Hrot.Map.Common.Components.RoutePlan"/>.
-    /// </summary>
-    private void ActivateRouteAuthoringTool(Guid requestId)
-    {
-        if (!_networkEnabled && _testSpawnCommandSink == null)
-            return;
-
-        if (_activeSequenceId.HasValue)
-        {
-            _globalGizmoManager?.Unregister(_activeSequenceId.Value);
-            _activeSequenceId    = null;
-            _activeSequenceGizmo = null;
-        }
-
-        _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
-
-        var _routeGizmoId = GlobalGizmoManager.NewId();
-        var routeGizmo = new PointSequenceGizmo(
-            onFinish: points =>
-        {
-            if (points.Length < 2)
-            {
-                _mapCommandController?.OnAreaToolCancelled();
-                return;
-            }
-
-            // ⭐ CE-4073 — no geodetic frame is needed: each canvas point is already a local position (it used to go through
-            //   ToGeodetic and straight back through ToCartesian, which is the identity, behind a "no geo transform" guard).
-            // Canvas is XZ: canvas Y = world Z. Altitude (Vector3.Y) is 0 for authoring — the same mapping as before.
-            Vector3 anchorCartesian = Vector3.Zero;
-
-            var routePlan = new Hrot.Map.Common.Components.RoutePlan { IsLoop = false }.WithWaypoints(wps =>
-            {
-                for (int i = 0; i < points.Length; i++)
-                {
-                    var cartPos = new Vector3(points[i].X, 0f, points[i].Y);
-
-                    wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = cartPos, TargetSpeed = 0f });
-
-                    if (i == 0) anchorCartesian = cartPos;
-                }
-            });
-
-            var cmd = new Fdp.Toolkit.NetworkSpawning.Events.SpawnEntityCommand
-            {
-                NetworkId        = 0,
-                TkbType          = TkbEntityTypes.TacGraphic_Route,
-                OwnerNodeId      = 0,
-                InitType         = ReliableInitType.AllPeers,
-                RequestId        = Guid.NewGuid(),
-                InitialTransform = new SimTransform { Position = anchorCartesian },
-                InitialComponents = new System.Collections.Generic.List<object> { routePlan },
-            };
-
-            if (_testSpawnCommandSink != null)
-                _testSpawnCommandSink(cmd);
-            else if (_mapCommandController != null)
-                _mapCommandController.OnAreaEntityCreated(cmd, isToolDone: true);
-
-        },
-
-            onRemove: () =>
-        {
-            _activeSequenceId    = null;
-            _activeSequenceGizmo = null;
-            _globalGizmoManager?.Unregister(_routeGizmoId);
-        });
-
-        _activeSequenceId    = _routeGizmoId;
-        _activeSequenceGizmo = routeGizmo;
-        _globalGizmoManager?.Register(_routeGizmoId, routeGizmo);
-
-        FdpLog<IgApplication>.Info("[Node-{0}] Route authoring tool activated.", _effectiveInstanceId);
-    }
-
-
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_PICK_LOCATION"/> command.
-    /// Extracts <c>contextId</c> from the JSON args, sets the active context ID,
-    /// then activates a <see cref="Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo"/>.
-    /// The gizmo publishes a <see cref="MapClickEvent"/> (via the existing
-    /// <c>OnCanvasClicked</c> pathway) when the operator left-clicks.
-    /// </summary>
-    private void ParseCommandAndActivateLocationPicker(string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (root.TryGetProperty("contextId", out var ctxEl)
-             && Guid.TryParse(ctxEl.GetString(), out var ctx))
-            {
-                _activeContextId = ctx;
-            }
-
-            ActivateLocationPickerTool();
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] ParseCommandAndActivateLocationPicker failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    private void ActivateLocationPickerTool()
-    {
-        if (_lastPickLocationContextId == _activeContextId)
-            return;
-        _lastPickLocationContextId = _activeContextId;
-
-        // ⭐⭐⭐ UXI-07 step 4b — PUSH through the arbiter instead of arming beside it.
-        //   🔴 This used to Register straight on _globalGizmoManager and keep its OWN
-        //   _activeLocationPickerId slot to unregister the previous one — a private one-slot arbiter
-        //   duplicating what ToolController already guarantees (§4.8's bypass). ⭐ Re-arming is now a
-        //   RE-TARGET handled by the controller, so the slot is gone.
-        _pickerTools.PushPicker(
-            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
-            remove => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
-                onPicked: worldPos =>
-                    OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null),
-                onRemove: () =>
-                {
-                    remove();
-                    FdpLog<IgApplication>.Debug("[Node-{0}] LocationPicker cancelled.", _effectiveInstanceId);
-                }));
-        FdpLog<IgApplication>.Info("[Node-{0}] Location picker gizmo activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
-    }
-
-    // ??? EntityPickerTool activation from CMD_PICK_ENTITY ????????????????????
-
-    /// <summary>
-    /// Handles an incoming <see cref="CommandType.CMD_PICK_ENTITY"/> command.
-    /// Extracts <c>contextId</c> and <c>filters</c> from the JSON args, then
-    /// activates the <see cref="Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo"/>.
-    /// When the operator clicks a valid entity the gizmo publishes a
-    /// <see cref="MapClickEvent"/> (via <c>OnCanvasClicked</c>) with the entity
-    /// in the <c>HitStack</c> so the ExCon can resolve its pending pick promise.
-    /// </summary>
-    private void ParseCommandAndActivateEntityPicker(string argsJson)
-    {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
-        try
-        {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
-
-            if (root.TryGetProperty("contextId", out var ctxEl)
-             && Guid.TryParse(ctxEl.GetString(), out var ctx))
-            {
-                _activeContextId = ctx;
-            }
-
-            string[] filters = Array.Empty<string>();
-            if (root.TryGetProperty("filters", out var filtersEl)
-             && filtersEl.ValueKind == JsonValueKind.Array)
-            {
-                var list = new List<string>();
-                foreach (var item in filtersEl.EnumerateArray())
-                {
-                    var s = item.GetString();
-                    if (!string.IsNullOrWhiteSpace(s))
-                        list.Add(s!);
-                }
-                filters = list.ToArray();
-            }
-
-            ActivateEntityPickerTool(filters);
-        }
-        catch (Exception ex)
-        {
-            FdpLog<IgApplication>.Warn(
-                "[Node-{0}] ParseCommandAndActivateEntityPicker failed: {1}", _effectiveInstanceId, ex.Message);
-        }
-    }
-
-    private void ActivateEntityPickerTool(string[] filters)
-    {
-        if (_lastPickEntityContextId == _activeContextId)
-            return;
-        _lastPickEntityContextId = _activeContextId;
-
-        if (_entityFilterFactory == null)
-        {
-            FdpLog<IgApplication>.Warn("[Node-{0}] EntityPickerGizmo requested but filter factory is not ready.", _effectiveInstanceId);
-            return;
-        }
-
-        var filter = _entityFilterFactory.CreateFilter(filters);
-
-        // ⭐⭐⭐ UXI-07 step 4b — see the location picker above: the private _activeEntityPickerId slot
-        //   is replaced by the controller's own one-modal-at-a-time guarantee.
-        _pickerTools.PushPicker(
-            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickEntity,
-            remove => new Fdp.Toolkit.Vis2D.Gizmos.EntityPickerGizmo(
-                hitTest:     pos => _canvas.PickTopmostEntity(pos) ?? Entity.Null,
-                filter:      filter,
-                onPicked:    entity =>
-                {
-                    // Re-use OnCanvasClicked to publish the MapClickEvent.
-                    // The entity will appear in HitStack so the ExCon receives the networkId.
-                    OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity);
-                    FdpLog<IgApplication>.Info("[Node-{0}] EntityPicker picked entity {1}", _effectiveInstanceId, entity.Index);
-                },
-                onCancelled: () => FdpLog<IgApplication>.Debug("[Node-{0}] EntityPicker cancelled.", _effectiveInstanceId),
-                onRemove:    remove));
-        FdpLog<IgApplication>.Info("[Node-{0}] Entity picker gizmo activated. ContextId={1} Filters=[{2}]",
-            _effectiveInstanceId, _activeContextId, string.Join(",", filters));
-    }
-
-
-
-    // -- Private adapter -------------------------------------------------------
-
-
-
-    /// <summary>
-    /// Bridges <see cref="CycloneDDS.Runtime.DdsWriter{T}"/> to the
-    /// <see cref="Hrot.IG.Abstractions.IDdsWriter{T}"/> interface,
-    /// keeping the IG tool and controller layers free of CycloneDDS assembly references.
-    /// </summary>
-    private sealed class CycloneDdsWriterIgAdapter<T> : Hrot.IG.Abstractions.IDdsWriter<T>
-    {
-        private readonly DdsWriter<T> _inner;
-
-        public CycloneDdsWriterIgAdapter(DdsWriter<T> inner)
-            => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-
-        public void Write(T sample) => _inner.Write(sample);
-    }
 
     // ?? Ghost entity cleanup ??????????????????????????????????????????????????????
 

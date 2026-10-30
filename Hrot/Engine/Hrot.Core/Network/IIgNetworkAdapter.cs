@@ -26,14 +26,7 @@ namespace Hrot.Core.Network
         /// <summary>Publishes a selection-changed event.</summary>
         void WriteSelectionChanged(SelectionChangedEventDto dto);
 
-        /// <summary>Publishes a map-command ACK (response to ExCon tool-activation commands).</summary>
-        void WriteMapCommandAck(MapCommandAckDto dto);
 
-        /// <summary>
-        /// Publishes a ContextMenuRequest so ExCon can push back an action list when
-        /// the IG has no cached actions for an entity.
-        /// </summary>
-        void WriteContextMenuRequest(Guid requestId, int mapId, IReadOnlyList<int> forSelection);
 
         /// <summary>
         /// Publishes the IG capabilities announcement (layer tree, supported tools).
@@ -42,39 +35,10 @@ namespace Hrot.Core.Network
         void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson);
 
         // ── Ingress (network -> IG) -- polled once per frame ─────────────────
+        // ⛔ R-3067 / AQ109 X3 — none left: ExCon's map-command, map-config and context-menu topics, and the entity-ack poll that fed the retired MapCommandController, are gone.
 
-        /// <summary>
-        /// Polls the MapInteractionConfig topic.
-        /// Returns null when there is no new sample.
-        /// </summary>
-        MapConfigDto? PollMapConfig();
 
-        /// <summary>
-        /// Polls the MapCommandRequest topic.
-        /// Returns null when there is no new command.
-        /// </summary>
-        MapCommandDto? PollMapCommand();
 
-        /// <summary>
-        /// Polls the CreateUpdateDeleteEntityAck topic.
-        /// Returns null when there is no new ACK.
-        /// </summary>
-        EntityLifecycleAckDto? PollEntityLifecycleAck();
-
-        // ── Route entity creation ─────────────────────────────────────────────
-
-        /// <summary>
-        /// Creates a route entity with the given waypoints and returns the assigned entity ID.
-        /// Returns 0 on failure.
-        /// <para>⭐ <c>CE-4073</c>: the waypoints and the anchor are LOCAL ENU METRES (X east, Y north, Z up), like every position on the wire
-        /// — they were geodetic latitude / longitude / altitude converted at the NED boundary.</para>
-        /// </summary>
-        Task<int> CreateRouteEntityAsync(
-            long tkbRouteType,
-            IReadOnlyList<(double X, double Y, double Z)> waypoints,
-            double anchorX, double anchorY, double anchorZ,
-            int commanderEntityId,
-            CancellationToken ct = default);
 
         // ── Command gateway ───────────────────────────────────────────────────
 
@@ -109,15 +73,7 @@ namespace Hrot.Core.Network
 
         public void WriteMapClick(MapClickEventDto dto) { }
         public void WriteSelectionChanged(SelectionChangedEventDto dto) { }
-        public void WriteMapCommandAck(MapCommandAckDto dto) { }
-        public void WriteContextMenuRequest(Guid requestId, int mapId, IReadOnlyList<int> forSelection) { }
         public void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson) { }
-        public MapConfigDto? PollMapConfig() => null;
-        public MapCommandDto? PollMapCommand() => null;
-        public EntityLifecycleAckDto? PollEntityLifecycleAck() => null;
-        public Task<int> CreateRouteEntityAsync(long tkbRouteType, IReadOnlyList<(double X, double Y, double Z)> waypoints,
-            double anchorX, double anchorY, double anchorZ, int commanderEntityId, CancellationToken ct = default)
-            => Task.FromResult(0);
         public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
         public IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;
         public IDdsReader<GizmoMap.Network.DebugPrimitivesBatch>? DebugPrimitivesReader => null;

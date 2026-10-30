@@ -47,38 +47,6 @@ internal sealed class IgDebugWindow : ManagedWindow
 // ⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor's window is the SHARED Hrot.Presentation.Windows.WaypointEditorWindow now
 //   (IgSubsystem registers it under the IG's historical id); IgWaypointEditorWindow is gone.
 
-/// <summary>IG Mini ExCon (entity spawner) panel as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No sibling host: single host, kind stays a local literal.</summary>
-internal sealed class IgMiniExConWindow : ManagedWindow
-{
-    internal const string Kind = "ig-mini-excon";
-
-    private readonly MiniExConPanel _panel;
-
-    public IgMiniExConWindow(MiniExConPanel panel)
-        : base("ig_mini_excon", "Mini ExCon", "IG", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        IsOpen = true;
-        TitleBarColor = IgWindowColor.TitleBar;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private MiniExConPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(Id, Kind);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    internal MiniExConPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent();
-    }
-}
 
 /// <summary>IG Performance Overlay as a perspective-bound managed window.</summary>
 internal sealed class IgPerformanceWindow : ManagedWindow

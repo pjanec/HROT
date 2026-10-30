@@ -36,8 +36,7 @@ public sealed class NedIgTranslators : IIgTranslators
             // ⛔ CE-3062 — the IG's AudioTargetDetected ingress is retired: nothing on the IG read what it published. The topic
             //   is the Brain's now (SimHostAuxiliaryTranslatorPack, AudioTargetDetectedIngressTranslator).
             // (⭐ CE-1148 S2 — the WeaponFire / MunitionDetonation / RoundImpact ingress is in SharedTranslatorPack, on every node.)
-            translators.Add(new ContextActionsUpdateTranslator(
-                participant, entityMap, bus, ghostCreationSystem, localNodeId));
+            // ⛔ R-3067 / AQ109 X3 — ContextActionsUpdateTranslator (ExCon's pushed context menu) is retired with its topic; the map's menu is the shared MapEntityMenuHandler path.
         }
 
         return translators;

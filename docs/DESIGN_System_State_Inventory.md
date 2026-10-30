@@ -400,6 +400,9 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `type:ThreatMatrixAssignmentSystem` | **K** | a system/module, classified on its own | FDP/Toolkits/Fdp.Toolkits/Utility/Group/ThreatMatrixAssignmentSystem.cs:27 |
 | `type:TogglableSimulationGroup` | **K** | a system/module, classified on its own | FDP/Engine/Fdp.ModuleHost/Scheduling/TogglableSimulationGroup.cs:14 |
 | `type:VisualEffectCleanupSystem` | **K** | a system/module, classified on its own | Hrot/Subsystems/Hrot.IG/Systems/EventToEffectSystem.cs:141 |
+| `type:ResumableCounter<NavigationHandleMark>` | **B** | protocol — the world carries a recorded copy and the counter RESUMES from it on a restore's first step (CE-3318/CE-3337, restore design §1m); that resume IS the re-derive | FDP/Toolkits/Fdp.Toolkits/Replay/ResumableCounter.cs:16 (the protocol owner; its adopters are TrajectoryRestoreSystem and BehaviorIngressSystem) |
+| `type:ResumableCounter<RunTokenMark>` | **B** | protocol — the world carries a recorded copy and the counter RESUMES from it on a restore's first step (CE-3318/CE-3337, restore design §1m); that resume IS the re-derive | FDP/Toolkits/Fdp.Toolkits/Replay/ResumableCounter.cs:16 (the protocol owner; its adopters are TrajectoryRestoreSystem and BehaviorIngressSystem) |
+| `type:DataBreakpointManager` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): the debugger's mounted breakpoints (the user's, not the world's) | Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints/ChangeBaselineSystem.cs:19 |
 
 ## 5. Fields — B (protocol), S (session), A (derived), K (not state)
 
@@ -903,6 +906,25 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.SimHost.SimHostCoreLogicPack.<SimulationSystems>k__BackingField` | **K** | system list assembled once in ctor | Hrot/Subsystems/Hrot.SimHost/SimHostCoreLogicPack.cs:150 |
 | `Hrot.SimHost.Systems.EqsSolverSystem.<BudgetUnits>k__BackingField` | **K** | work-unit budget configuration, default 150000 | Hrot/Subsystems/Hrot.SimHost/Systems/EqsSolverSystem.cs:72 |
 | `Hrot.Traffic.TrafficMirrorSystem.EmptyLights` | **K** | static empty sentinel dictionary | Hrot/Engine/Hrot.Traffic/TrafficModules.cs:87 |
+| `Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem._exitDiscardPending` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): one-shot request set by DiscardAtReplayExit and consumed on the next live frame (transport, not the world) | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:64 |
+| `Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.<ExitDiscards>k__BackingField` | **A** | diagnostic counter | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:67 |
+| `Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.<LastExitDiscardedSamples>k__BackingField` | **A** | diagnostic counter | FDP/Network/Fdp.Network.Cyclone/Systems/CycloneNetworkIngressSystem.cs:70 |
+| `Fdp.Toolkit.Replay.PlaybackTickSystem._heldWhileClockAt` | **S** | session state (the replay controller's own clock and mode, driven by its commands — not the world): the clock reading while a seek round completes; cleared once the clock moves (CE-4056) | FDP/Toolkits/Fdp.Toolkits/Replay/PlaybackTickSystem.cs:184 |
+| `Fdp.Toolkit.Behavior.Possession.PossessionSystem.<Refused>k__BackingField` | **A** | diagnostic counter | FDP/Toolkits/Fdp.Toolkits/Behavior/Possession/Possession.cs:181 |
+| `Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem._toAddLog` | **A** | scratch cleared at top of the pass (CE-1319) | FDP/Toolkits/Fdp.Toolkits/Behavior/Diagnostics/TraceBufferLifecycleSystem.cs:37 |
+| `Hrot.AI.Behaviors.Brains.GrenadeDangerSystem._rounds` | **A** | scratch — rebuilt every frame by GrenadeDanger.Lying (CE-2360) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/GrenadeReflex.cs:352 |
+| `Hrot.AI.Behaviors.Brains.GrenadeDangerSystem._near` | **A** | scratch cleared before each grenade's pass (CE-2360) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/GrenadeReflex.cs:355 |
+| `Hrot.AI.Behaviors.Brains.OneManCommandSystem._done` | **A** | scratch cleared at top of Execute (CE-2375) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/OneManCommand.cs:80 |
+| `Hrot.AI.Behaviors.Brains.OneManCommandSystem.<Assigned>k__BackingField` | **A** | diagnostic counter | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/OneManCommand.cs:85 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._registered` | **S** | session state, not the world — a restore leaves it (R-3039 S3, §8): the marked steps' breakpoints in the debugger manager, keyed by mark (the editor's open documents; CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:48 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._seen` | **A** | scratch cleared at top of each sync (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:49 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._gone` | **A** | scratch cleared before each use (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:50 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._btreePos` | **A** | ring cursors per unit; forgotten at the world boundary / a restore (WorldEpoch.Moved) and re-seeded at "first sight" (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:51 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._hsmPos` | **A** | ring cursors per unit; forgotten at the world boundary / a restore (WorldEpoch.Moved) and re-seeded at "first sight" (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:52 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._resolved` | **A** | cache of resolved steps, refilled on demand (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:53 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._armedHere` | **A** | units this evaluator armed, re-derived from the mounted steps each frame; forgotten at the world boundary (WorldEpoch.Moved) (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:54 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._forUnit` | **A** | scratch cleared per unit (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:56 |
+| `Hrot.Editor.Debugging.NodeBreakpointEvaluator._unresolved` | **A** | diagnostic: why a step resolves to nothing; refilled with the cache (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:60 |
 
 ## 6. ⭐ S1 — where each C field goes (design `2026-10-22`; build-state: BUILT `2026-10-22`)
 

@@ -12,9 +12,8 @@ using Xunit;
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="IgApplication"/> context-action routing (BUG2-E002).
-/// Uses <see cref="IgApplication.TestHook_ExecuteLocalContextAction"/> to invoke the
-/// private action handler without a Raylib window.
+/// Unit tests for <see cref="IgApplication"/> (headless).
+/// ⛔ R-3067 / AQ109 X3 — the context-action routing rail (IG_DeleteEntity) went with ExCon's pushed context menu.
 /// </summary>
 public class IgApplicationTests : System.IDisposable
 {
@@ -29,32 +28,6 @@ public class IgApplicationTests : System.IDisposable
 
     public void Dispose() => _app.Dispose();
 
-    /// <summary>
-    /// When <c>IG_DeleteEntity</c> is executed for an entity with <see cref="NetworkIdentity"/>,
-    /// a <see cref="DestroyEntityCommand"/> must be published to the event bus with the
-    /// correct <c>NetworkId</c>.
-    /// </summary>
-    [Fact]
-    public void ExecuteLocalContextAction_IgDeleteEntity_PublishesDestroyCommand()
-    {
-        // Arrange: entity with NetworkIdentity registered in the entity map.
-        const long networkId = 77L;
-        var entity = _app.World.CreateEntity();
-        _app.World.AddComponent(entity, new NetworkIdentity { Value = networkId });
-        _app.TestHook_EntityMap.Register(networkId, entity);
-
-        // Act: invoke the IG_DeleteEntity action.
-        _app.TestHook_ExecuteLocalContextAction(entity, "IG_DeleteEntity");
-
-        // Assert: DestroyEntityCommand published with the correct NetworkId.
-        _app.World.Bus.SwapBuffers();
-        DestroyEntityCommand? captured = null;
-        foreach (var cmd in ((ISimulationView)_app.World).ReadManagedEvents<DestroyEntityCommand>())
-            captured = cmd;
-
-        Assert.NotNull(captured);
-        Assert.Equal(networkId, captured!.NetworkId);
-    }
 
     // Route edit commit safety guard (CT-1, ROUTES1-BATCH-04)
 

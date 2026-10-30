@@ -85,9 +85,10 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
         // ── 1. Fire the gateway spawn+wander flow ─────────────────────────────
-        var spawnTask = igApp.TestHook_SubmitMiniExConSpawnWithWanderMission(
-            tkbType, ForceId.Friend, 100f, 200f);
-        _out.WriteLine("[A1] TestHook_SubmitMiniExConSpawnWithWanderMission fired.");
+        //    ⭐ R-3067 / AQ109 X3 — through the IG's own command gateway; the Mini ExCon panel that used to press this button is retired.
+        var spawnTask = RunnerTestHelpers.SpawnWithWanderMissionAsync(
+            igApp.TestHook_CommandGateway!, tkbType, (int)(byte)ForceId.Friend, 100f, 200f);
+        _out.WriteLine("[A1] gateway spawn+wander fired.");
 
         // ── 2. Capture the CreateEntityAck ───────────────────────────────────
         CreateUpdateDeleteEntityAck spawnAck = default;

@@ -123,12 +123,6 @@ public sealed class NedNetworkFactory : INetworkFactory
         return new Hrot.Map.Common.Commands.NedCommandGateway(_participant, _localNodeId);
     }
 
-    /// <inheritdoc/>
-    public IExConEgressWriters CreateExConEgressWriters()
-    {
-        if (_participant == null) return new NullExConEgressWriters();
-        return new Hrot.Network.NED.ExCon.NedExConEgressWriters(_participant);
-    }
 
     /// <inheritdoc/>
     public ITimeControlGateway CreateTimeControlGateway()
@@ -547,16 +541,6 @@ internal sealed class NullCommandGateway : ICommandGateway
     public void Dispose() { }
 }
 
-/// <summary>No-op stub for IExConEgressWriters until TASK-P4-001 wires the real implementation.</summary>
-internal sealed class NullExConEgressWriters : IExConEgressWriters
-{
-    public void WriteMapConfig(MapConfigDto config) { }
-    public void WriteDeleteEntity(int entityId) { }
-    public void WriteCreateEntity(CreateEntityCommand cmd) { }
-    public void WriteMapCommand(MapCommandDto cmd) { }
-    public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
-    public void Dispose() { }
-}
 
 /// <summary>No-op stub for ITimeControlGateway until TASK-P4-001 wires the real implementation.</summary>
 internal sealed class NullTimeControlGateway : ITimeControlGateway

@@ -52,6 +52,9 @@ public sealed class EverySystemForgetsTheLastWorldTests
         ["Hrot.UI.Common.Effects.EffectSpawnSystem._decals"] = "scratch — rebuilt from the query on every housekeeping pass",
         ["Hrot.SimHost.Systems.EqsResultUpdateSystem._byIndex"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Hrot.SimHost.Systems.EqsResultUpdateSystem._byKey"] = "scratch — cleared at the top of each run and filled from this frame's world",
+        ["Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem._toAddLog"] = "scratch — cleared at the top of each run and filled from this frame's world (CE-1319, the sibling of the other _toAdd/_toRemove lists)",
+        ["Hrot.AI.Behaviors.Brains.GrenadeDangerSystem._near"] = "scratch — cleared before each grenade's pass and filled from this frame's world",
+        ["Hrot.AI.Behaviors.Brains.OneManCommandSystem._done"] = "scratch — cleared at the top of each run and filled from this frame's world",
         ["Hrot.SimHost.Systems.EqsSolverSystem._lastSchedule"] = "this tick's schedule (cleared before it is built); read by diagnostics",
     };
 

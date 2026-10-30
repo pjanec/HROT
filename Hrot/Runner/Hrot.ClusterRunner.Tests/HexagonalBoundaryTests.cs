@@ -218,7 +218,6 @@ public sealed class HexagonalBoundaryTests
         public ISlaveOrchestrationTranslator    CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
         public IOrchestrationObserver           CreateOrchestrationObserver(FdpEventBus b)             => _base.CreateOrchestrationObserver(b);
         public ICommandGateway                  CreateCommandGateway()                                 => _base.CreateCommandGateway();
-        public IExConEgressWriters              CreateExConEgressWriters()                             => _base.CreateExConEgressWriters();
         public ITimeControlGateway              CreateTimeControlGateway()                             => _base.CreateTimeControlGateway();
         public ISimHostMissionSender            CreateSimHostMissionSender()                           => _base.CreateSimHostMissionSender();
         public ISimHostAuxiliaryTranslators     CreateSimHostAuxiliaryTranslators()                    => _base.CreateSimHostAuxiliaryTranslators();

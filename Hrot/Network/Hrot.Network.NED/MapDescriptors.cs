@@ -168,60 +168,6 @@ namespace Hrot.NED.Descriptors
     // - IG sends "Status" for its specific MapId (Instance).
     // ===================================================================================
 
-    // Configuration command sent from ExCon to a group of IGs.
-    // Uses JSON Merge Patch to support partial updates (e.g., just toggle one layer).
-    // Scope: Group-based (Role). All IGs in "Blue Force" group receive this.
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
-    [DdsManaged]
-    public partial struct MapInteractionConfig
-    {
-        /// <summary>
-        /// The Target Group ID (Logical Role).
-        /// Identifies a logical group of displays that share business logic, configuration, and 
-        /// styling (e.g., "Blue Force", "Instructor Station") [1].
-        /// 
-        /// Resolution Priority (Layer 3 - Group / Layer 2 - Global):
-        /// - Only evaluated if MapId == 0.
-        /// - If MapGroupId > 0, the configuration applies to all physical IG instances 
-        ///   assigned to this specific logical role [1, 3].
-        /// - If MapId == 0 AND MapGroupId == 0, the configuration applies to EVERYONE 
-        ///   as a Global baseline policy [2].
-        /// </summary>
-        [DdsKey]
-        public int MapGroupId;
-
-        /// <summary>
-        /// The Target Map ID (Concrete Instance / Hardware).
-        /// Identifies a specific physical application instance or window [1].
-        /// 
-        /// Resolution Priority (Layer 4 - Highest):
-        /// - If MapId > 0, this configuration serves as a strict local override for that specific screen.
-        /// - JSON settings defined here override any conflicting Group or Global settings.
-        /// - Omitted fields in the JSON payload are ignored, allowing the IG to safely inherit 
-        ///   the underlying Group or Global values for those specific fields.
-        /// - If MapId == 0, this instance-level tier is skipped entirely, and resolution falls back 
-        ///   to the MapGroupId [1, 2].
-        /// </summary>
-        [DdsKey]
-        public int MapId;
-
-        // The Correlation ID of the currently active tool on the ExCon side.
-        // Example: ExCon activates "Place Tank" tool -> Generates GUID "A".
-        // IG receives "A" -> Stores it.
-        // When user clicks map -> IG sends ClickEvent with ContextId "A".
-        // ExCon validates "A" matches current tool -> Executes logic.
-        public Guid ActiveContextId;
-
-        // Version number for the JSON schema, ensuring compatibility.
-        public int JsonSchemaVersion;
-
-        // The configuration payload (JSON Merge Patch - RFC 7396).
-        // Keys include: "view" (layers), "tools" (active cursor), "styles".
-        // Null values in JSON indicate "Reset to Default".
-        public string ConfigurationJson;
-    }
 
     // Feedback from a concrete IG instance reporting its current state.
     // Used by the ExCon to synchronize its UI (e.g., checkboxes) with the reality.
