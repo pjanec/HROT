@@ -33,6 +33,10 @@ public sealed record BrainChange(uint Seq, float At, string Kind, string Text);
 public sealed record BrainContact(long Id, bool Heard, string How, Vector3 Position, float Distance, float Freshness, float? AgeSeconds,
     float Radius, Entity? Unit);
 
+/// <summary>⭐ <c>CE-1282</c> — one member's current squad order, as the tab shows it: who, the behaviour that carries the order out (what
+/// the "Open graph" link opens), where, and since when. Live only — the trace it is read from is transient, so a replay shows none.</summary>
+public sealed record BrainMemberOrder(Entity Member, string Behaviour, byte Kind, Vector3 Point, bool Cover, double IssuedAt);
+
 /// <summary>
 /// ⭐⭐ <c>CE-1248</c> (R-1026, BV-1…BV-8) — what a unit is doing and why, from what the brain already records. ONE reader for the
 /// Brain tab, its panel dump and <c>GET /entities/{id}/brain</c> (BV-8); it reads a world, so the replay sandbox works the same
@@ -57,8 +61,12 @@ public sealed record BrainSnapshot(
     bool JournalOn,
     IReadOnlyList<BrainChange> Changes,
     bool Traced = false,
-    IReadOnlyList<BrainContact>? ContactList = null)
+    IReadOnlyList<BrainContact>? ContactList = null,
+    IReadOnlyList<BrainMemberOrder>? MemberOrderList = null)
 {
+    /// <summary>⭐ <c>CE-1282</c> — the commander's members' current orders (empty when none, or in a replay).</summary>
+    public IReadOnlyList<BrainMemberOrder> MemberOrders => MemberOrderList ?? Array.Empty<BrainMemberOrder>();
+
     /// <summary>⭐ <c>CE-1327</c> — every contact in the unit's memory, freshest first (empty without a memory).</summary>
     public IReadOnlyList<BrainContact> ContactRows => ContactList ?? Array.Empty<BrainContact>();
 
@@ -129,7 +137,16 @@ public sealed record BrainSnapshot(
         // ⭐ CE-4047 — from the RECORDED headline (SquadDrillState), so the section shows in a replay at any scrubbed frame; the transient
         //   trace it is written beside is not recorded
         if (Has<Fdp.Toolkit.Squad.SquadDrillState>(view, unit) && view.GetComponentRO<Fdp.Toolkit.Squad.SquadDrillState>(unit) is { Active: 1 } d)
-            squad = $"play {d.Kind}, phase {d.Phase} (GET /entities/{{id}}/squad for the members' orders)";
+            squad = $"play {d.Kind}, phase {d.Phase}";
+        var memberOrders = new List<BrainMemberOrder>();
+        if (squad is not null && view is EntityRepository squadRepo)
+            foreach (var o in Fdp.Toolkit.Squad.SquadDrillTrace.Of(squadRepo, unit).Orders)
+            {
+                if (o.Kind == 255 || !view.IsAlive(o.Member)) continue;
+                string how = Has<BehaviorState>(view, o.Member) && view.GetComponentRO<BehaviorState>(o.Member).ActiveBehaviorHash is var h
+                             && h != BehaviorIds.None ? Name(h) : "";
+                memberOrders.Add(new BrainMemberOrder(o.Member, how, o.Kind, o.Point, o.Cover, o.IssuedAt));
+            }
 
         var changes = new List<BrainChange>();
         uint seq = 0;
@@ -156,7 +173,7 @@ public sealed record BrainSnapshot(
             // ⭐ CE-1319 (BV-61) — the graph's trace rings are observe-only; the tab says whether this unit's are on (in replay: were)
             Has<BTreeTraceWorkingMemory1024>(view, unit) || Has<HsmTraceWorkingMemory1024>(view, unit)
             || Has<Fdp.Toolkit.Utility.UtilityTraceWorkingMemory1024>(view, unit),
-            contactList);
+            contactList, memberOrders);
     }
 
     /// <summary>⭐ <c>CE-1327</c> — the memory's contacts as rows, freshest first.</summary>
@@ -206,6 +223,16 @@ public sealed record BrainSnapshot(
     internal static bool Has<T>(ISimulationView view, Entity entity) where T : unmanaged
         => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<T>()) && view.HasComponent<T>(entity);
 
+    private JsonArray MemberOrdersJson()
+    {
+        var a = new JsonArray();
+        foreach (var o in MemberOrders)
+            a.Add(new JsonObject { ["member"] = o.Member.Index, ["behaviour"] = o.Behaviour, ["kind"] = o.Kind, ["cover"] = o.Cover,
+                                   ["issuedAt"] = Math.Round(o.IssuedAt, 2),
+                                   ["point"] = new JsonArray(Math.Round(o.Point.X, 1), Math.Round(o.Point.Y, 1), Math.Round(o.Point.Z, 1)) });
+        return a;
+    }
+
     /// <summary>The snapshot as JSON — the panel dump and the debug API share it.</summary>
     public JsonObject ToJson()
     {
@@ -225,7 +252,7 @@ public sealed record BrainSnapshot(
         {
             ["onBrainNode"] = OnBrainNode, ["doing"] = Doing, ["origin"] = Origin, ["urgency"] = Urgency, ["sinceSeconds"] = SinceSeconds,
             ["paused"] = Paused, ["sop"] = Sop, ["roe"] = Roe, ["rightNow"] = rows, ["regions"] = regions, ["squad"] = Squad,
-            ["choices"] = choices, ["contacts"] = Contacts, ["heardOnly"] = HeardOnly, ["contactList"] = ContactsJson(),
+            ["choices"] = choices, ["contacts"] = Contacts, ["heardOnly"] = HeardOnly, ["contactList"] = ContactsJson(), ["memberOrders"] = MemberOrdersJson(),
             ["journal"] = new JsonObject { ["on"] = JournalOn, ["seq"] = JournalSeq, ["changes"] = changes },
             ["traced"] = Traced,
         };
@@ -473,7 +500,11 @@ public sealed class EntityBrainView : IDetailsViewInstance
             ImGui.EndTable();
         }
 
-        if (b.Squad is { } squad && Section("Squad", "squad")) ImGui.TextWrapped(squad);
+        if (b.Squad is { } squad && Section("Squad", "squad"))
+        {
+            ImGui.TextWrapped(squad);
+            DrawMemberOrders(world, b.MemberOrders, idScope);
+        }
 
         if (Section("Why", "why"))
         {
@@ -782,13 +813,19 @@ public sealed class EntityBrainView : IDetailsViewInstance
     {
         if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { OpenGraph: { } open } c) return;
         ImGui.SameLine();
-        if (ImGui.SmallButton($"Open graph##{id}"))
-        {
-            bool pinned = IsPinnedScope(idScope);
-            bool ok = pinned && c.OpenGraphPinned is { } openPinned ? openPinned(behaviour, unit, PinLabelOf(w, unit)) : open(behaviour);
-            _breakNote = ok ? $"opened {behaviour}" : $"{behaviour} has no graph in this editor";
-        }
+        if (ImGui.SmallButton($"Open graph##{id}")) OpenGraph(w, unit, behaviour, idScope);
         if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Opens {behaviour}'s graph with this unit's live values.");
+    }
+
+    /// <summary>The click of every "Open graph" link (the SOP, a running behaviour, a member's order): opens <paramref name="behaviour"/>'s
+    /// graph — pinned to <paramref name="unit"/> from a pinned tab. Internal so a rail drives the link without a mouse.</summary>
+    internal bool OpenGraph(EntityRepository w, Entity unit, string behaviour, string idScope)
+    {
+        if (Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is not { OpenGraph: { } open } c) return false;
+        bool pinned = IsPinnedScope(idScope);
+        bool ok = pinned && c.OpenGraphPinned is { } openPinned ? openPinned(behaviour, unit, PinLabelOf(w, unit)) : open(behaviour);
+        _breakNote = ok ? $"opened {behaviour}" : $"{behaviour} has no graph in this editor";
+        return ok;
     }
 
     /// <summary>The SOP the unit runs, by its registered name; null when none.</summary>
@@ -862,6 +899,21 @@ public sealed class EntityBrainView : IDetailsViewInstance
             ImGui.PopID();
         }
         ImGui.EndTable();
+    }
+
+    /// <summary>⭐ <c>CE-1282</c> — each member's order: who, what carries it out (with the same "Open graph" link the running behaviours use), where.</summary>
+    private void DrawMemberOrders(EntityRepository? world, IReadOnlyList<BrainMemberOrder> orders, string idScope)
+    {
+        if (world is null || orders.Count == 0) return;
+        for (int i = 0; i < orders.Count; i++)
+        {
+            var o = orders[i];
+            ImGui.PushID(i);
+            string what = o.Behaviour.Length > 0 ? o.Behaviour : $"order {o.Kind}";
+            ImGui.TextUnformatted($"{NameOf(world, o.Member)}: {what} -> ({o.Point.X:0}, {o.Point.Y:0}){(o.Cover ? " cover" : "")}");
+            if (o.Behaviour.Length > 0) OpenGraphButton(world, o.Member, o.Behaviour, idScope, "ord_" + i);
+            ImGui.PopID();
+        }
     }
 
     /// <summary>A unit as the tab names it: its name and network id ("Rifleman #1004"), else the id.</summary>
