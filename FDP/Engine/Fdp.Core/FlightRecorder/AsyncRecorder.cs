@@ -165,7 +165,7 @@ namespace Fdp.Core.FlightRecorder
             // Auto-Recovery: If we dropped a frame previously, force a Keyframe now to restore state.
             if (_forceKeyframeNext)
             {
-                CaptureKeyframe(repo, wallClockTicks, blocking, eventBus);
+                CaptureKeyframe(repo, wallClockTicks, blocking, eventBus, readBuffer);   // ⭐ CE-4118 — the same buffer as the frame it replaces
                 _forceKeyframeNext = false;
                 return;
             }

@@ -20,7 +20,24 @@ related-designs:
 | ③ rail | `RecordingModuleTests.CE4118_ALiveRunsInputPhaseEvents_AreRecorded_EachOnce_AndACheckpointCarriesOnlyTheUnconsumed` (the recorder's suite): the kernel's publish → swap → publish → record order; replayed, every event exactly once; the keyframe's checkpoint holds only the unconsumed. ✅ red-proved: with the write buffer, all Input events missing |
 | ④ design | [Replay Time Axis §12z](../../DESIGN_Replay_Time_Axis_And_Review.md) (sequence diagram + as built); the checkpoint design's D2 row points at it |
 
-📐 **Live acceptance** — see the gate table in the commit / below; `ua-weapon-choice` re-recorded after the fix.
+📐 **Live acceptance** (your sequence, `-m editor` + Xvfb, 45 s each, a fresh editor per scenario; the recording indexed in the Replay Browser):
+
+| scenario | live index (shot · hit · blast) | the recording, after | before the fix |
+|---|---|---|---|
+| `ua-weapon-choice` | 4 · 4 · 4 | **4 · 4 · 4** | 0 · 0 · 0 |
+| `ua-tank-ammo` | 16 · 16 · 16 | **16 · 16 · 16** | 0 · 0 · 0 |
+| `ua-air-strike` | 1 · 1 · 1 | **1 · 1 · 1** — the release's shot with its blast | — |
+
+⚠ Stated honestly: one intermediate acceptance run still showed 0 · 0 · 0, and its keyframe had NO trailing section, i.e. it was not written
+by this code — my process cleanup between runs had failed, so an older editor answered. Every run since, with a verified clean start,
+is the table above.
+
+| gate | result |
+|---|---|
+| `Fdp.Toolkits.Tests --filter CE4118` (the new rail) | 1/1 ✅ · red-proved (write buffer ⇒ `[]`) |
+| `Fdp.ModuleHost.Tests` (incl. the CE-3316 checkpoint-restore rails) | 246/246 ✅ |
+| `Fdp.Toolkits.Tests` (whole) | ⚠ 17 `LockstepTranslatorTests` / `TimeSyncTranslatorTests` red — **pre-existing**: the same 17 of 21 fail at `a87c1d8b2` without this change |
+| `Fdp.Core.Tests` (whole) | 4 red — `OneSharedJsonOptionsTests` ×2 red at `a87c1d8b2` too; `ConcurrentReadWrite_DoesNotThrow`, `Benchmark_HotPathOptimization` timing (passed at base) — none in the recorder |
 
 ⭐ **Your side question — the Live load comes up paused:** intended. `POST /scenario/load/live` defaults to `startPaused: true`
 (`DebugApiHost.cs:2092`, Q86 §4-G *"running after a load is a property of the load"*, AQ108 row 4). Send `"startPaused": false` in the load
