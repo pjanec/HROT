@@ -25,7 +25,11 @@ namespace Fdp.Core.FlightRecorder
         /// <param name="reader">Binary reader to read from</param>
         /// <param name="eventBus">Optional event bus for event restoration</param>
         /// <param name="processEvents">If false, skips event processing (for seeking/fast-forward)</param>
-        public void ApplyFrame(EntityRepository repo, BinaryReader reader, FdpEventBus? eventBus = null, bool processEvents = true)
+        /// <param name="unconsumedEvents">⭐ <c>CE-4118</c> — inject what was still UNCONSUMED when a keyframe was written (its trailing section,
+        /// a checkpoint restore — <c>WorldKeyframes.ApplyKeepingUnconsumedEvents</c>) instead of the frame's own events (what its readers saw,
+        /// the replay's). A keyframe written before CE-4118 has no such section: its main block, which then held the unconsumed events.</param>
+        public void ApplyFrame(EntityRepository repo, BinaryReader reader, FdpEventBus? eventBus = null, bool processEvents = true,
+                               bool unconsumedEvents = false)
         {
             ulong tick = reader.ReadUInt64();
             repo.SetGlobalVersion((uint)tick);
@@ -60,7 +64,8 @@ namespace Fdp.Core.FlightRecorder
             }
             
             // 2. RESTORE EVENTS (if eventBus provided)
-            ReadAndInjectEvents(reader, eventBus, processEvents);
+            long eventsAt = reader.BaseStream.Position;
+            ReadAndInjectEvents(reader, unconsumedEvents ? null : eventBus, processEvents && !unconsumedEvents);
 
             
             // 3. RESTORE SINGLETONS
@@ -124,6 +129,19 @@ namespace Fdp.Core.FlightRecorder
             // delta frame contains a managed chunk update without a corresponding
             // EntityIndex update, masks could drift. This scan ensures correctness.
             RepairManagedComponentMasks(repo);
+
+            // ⭐ CE-4118 — the unconsumed events: the trailing section, else (a pre-CE-4118 keyframe) the main block
+            if (unconsumedEvents && eventBus != null && processEvents)
+            {
+                var stream = reader.BaseStream;
+                if (stream.Length - stream.Position >= sizeof(int) && reader.ReadInt32() == RecorderSystem.UnconsumedEventsMagic)
+                    ReadAndInjectEvents(reader, eventBus, processEvents: true);
+                else
+                {
+                    stream.Position = eventsAt;
+                    ReadAndInjectEvents(reader, eventBus, processEvents: true);
+                }
+            }
         }
 
         /// <summary>

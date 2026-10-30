@@ -159,7 +159,8 @@ namespace Fdp.Core.FlightRecorder
         /// and is never sampled inside the async recording path.</param>
         /// <param name="blocking">If true, waits for previous write to complete instead of dropping frame.</param>
         /// <param name="eventBus">Optional event bus to capture events from for this frame.</param>
-        public void CaptureFrame(EntityRepository repo, uint prevTick, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
+        public void CaptureFrame(EntityRepository repo, uint prevTick, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null,
+                                 bool readBuffer = false)
         {
             // Auto-Recovery: If we dropped a frame previously, force a Keyframe now to restore state.
             if (_forceKeyframeNext)
@@ -193,7 +194,7 @@ namespace Fdp.Core.FlightRecorder
             
             _frontStream.Position = 0;
             // Use the logic from FDP-DES-002
-            _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus);
+            _recorderSystem.RecordDeltaFrame(repo, prevTick, _frontWriter, wallClockTicks, eventBus, serializeReadBuffer: readBuffer);
             _frontWriter.Flush();
             StampIndex(repo);   // ⭐ CE-3329 P0 — SimTime + Flags for the v7 frame index
             bytesWritten = (int)_frontStream.Position;
@@ -224,7 +225,8 @@ namespace Fdp.Core.FlightRecorder
         /// Must be supplied by the caller — typically read from
         /// <c>GlobalTime.TotalWallTicks</c> so the stamp is constant across all PostSimulation systems.
         /// </param>
-        public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
+        public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null,
+                                    bool readBuffer = false)
         {
             // Wait for previous frame to complete
             WaitForWorker();
@@ -232,7 +234,7 @@ namespace Fdp.Core.FlightRecorder
             int bytesWritten = 0;
             
             _frontStream.Position = 0;
-            _recorderSystem.RecordKeyframe(repo, _frontWriter, wallClockTicks, eventBus);
+            _recorderSystem.RecordKeyframe(repo, _frontWriter, wallClockTicks, eventBus, serializeReadBuffer: readBuffer);
             _frontWriter.Flush();
             StampIndex(repo);   // ⭐ CE-3329 P0
             bytesWritten = (int)_frontStream.Position;

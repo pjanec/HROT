@@ -130,7 +130,7 @@ namespace Fdp.Toolkit.Replay
             if (keyframe)
             {
                 StampWorld(repo, _recorder.Metadata);   // CE-3126 — cheap; once per keyframe keeps it current
-                _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
+                _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus, readBuffer: true);
                 _framesSinceKeyframe = 0;   // ⭐ CE-3299 B3 — a checkpoint IS this interval's keyframe: the next periodic one moves on
                 _lastKeyframeSimTime = globalTime.TotalTime;   // D17 — the same in checkpointing mode
                 if (checkpoint)   // ⭐ CE-3316 — a periodic keyframe while a checkpoint waits is not that checkpoint
@@ -148,7 +148,11 @@ namespace Fdp.Toolkit.Replay
             }
             else
             {
-                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
+                // ⭐⭐ CE-4118 — the frame's events are its READ buffer: the kernel swaps the bus after BeforeSync, so by PostSimulation the
+                //   write buffer holds only what was published since — 📌 measured: every shot and hit (Input phase) was missing from the
+                //   recording while the editor's live index (which captures the read buffer) had them. Each event is recorded once, in the
+                //   frame its readers saw it; a keyframe also carries the unconsumed write buffer for a checkpoint restore.
+                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks, blocking: _blocking, eventBus: repo.Bus, readBuffer: true);
             }
 
             _prevTick = repo.GlobalVersion;

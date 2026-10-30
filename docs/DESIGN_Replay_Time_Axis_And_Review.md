@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — ⭐ PW BUILT 2026-10-26 (§12f; CE-3331 closed) · P0 BUILT (§12g) · P1 core BUILT (§12h) · ⏸ P2 STOPPED — module-level declaration cannot work, lean per-system (§12i) · P3 BUILT (§12j) · was READY-TO-BUILD — ✅ every decision answered (R-3057…R-3063; §11f: the full checkpoint, D-A OVERTURNED — the review is ON the wire, §12 disposes every potential zombie at entry, at every seek and at exit). ✅ READY-TO-BUILD (2026-10-26): M1 / M4 / M5 answered (§7) — PW, then P0…P4 when scheduled. ⭐ PW (the wire, §8 rows 35–39) goes first: it also fixes CE-3331, a zombie hole in today's replay seeks and checkpoint restores. Principles ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, any host; R-3060: the existing toolbar grown by two icons, the Replay Browser keeps its own controls; R-3061: the mode icon is an indicator)
-updated: 2026-10-28
+updated: 2026-10-30 (§12z — CE-4118: a live recording records the frame's READ buffer; a keyframe carries the unconsumed for a checkpoint) · 2026-10-28
 current-answer: ⭐ §12f–§12j what is built (PW, P0, P1, P3) and P2's stop · §12f PW as built · §11f the answers + §12 the wire · §0 the decision · §3 UML (§3a states, §3b classes, §3c the review's sequence) · §5 decisions · §7 build order · §8 the system changes · §9 the UI · §11 the review's findings (each now folded into a row of §8)
 stale-below: nothing
 known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010) · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (named beside `NedReplicationModule` as a mixed module) was removed with the BDC stack.
@@ -1547,3 +1547,36 @@ Rails: `LiveBranchProcessManagerTests.CE4067_*` · `ReplayBrowserSubsystemTests.
 **As built (nothing to change in code — measured, then pinned by rails).** Only Edit's Play / Step is the dry run (`ClusterTimeTransportAdapter.TogglePlayPause` / `StepBy`, the `OperatingEdit` guard). In OperatingLive, OperatingReplay and OperatingReview Play / Pause publish `ResumeTimeIntent` / `PauseTimeIntent` — the master's clock; no dry run is entered. `/status.inPreview` reads `EditorPreviewController.IsInPreviewMode` = `cluster state == OperatingPreview` (ONE source — the editor's dry run IS that cluster state; the director's `EnterPreviewMode` publishes the same `DryRunIntents.Enter`, so a take still lands there). ■ / Stop is unchanged (CE-4097's).
 
 Rails: `TheOneTimeFacadeTests.PlayAndPause_InARun_DriveTheClusterClock_NeverTheDryRun` (×3 states) · `DebugApiServiceTests.CE4054_GetStatus_InPreview_IsTrueOnlyInTheDryRun` (real `GetStatus`, ×5 states) · `TheEditorRunsTheOrchestratorCoreTests.CE4054_InPreview_*` (the controller, every `ClusterState`).
+
+### 12z. ✅ FIXED `2026-10-30` — a live recording carries EVERY event: the frame's READ buffer (CE-4118, R-4100 priority — it blocked filming)
+
+```mermaid
+sequenceDiagram
+  participant I as Input (FireProcessing, HitResolution)
+  participant B as FdpEventBus
+  participant S as Simulation / PostSimulation
+  participant R as RecorderTickSystem (PostSimulation)
+  I->>B: Publish(shot, hit) — write buffer
+  Note over B: kernel: SwapBuffers after BeforeSync<br/>(ModuleHostKernel.Update) — shots now in the READ buffer
+  S->>B: Publish(report, detonation) — write buffer
+  R->>B: ⛔ before: write buffer (only S's) · ✅ now: READ buffer (this frame's) + a keyframe's trailing UNCONSUMED section (the write buffer)
+```
+*What the picture shows that prose hid: the kernel swaps the bus in the MIDDLE of the frame, so "the frame's events" at PostSimulation are
+the READ buffer — the write buffer there holds only what came after the swap. Every Input-phase event (every shot, every hit) fell between.*
+
+📐 **Measured** (editor `-m editor`, Xvfb, RUNBOOK_Filming §0b, `ua-weapon-choice` Live 30 s): the editor's live index **4 shots · 4 hits ·
+4 blasts**; the same run's recording indexed in the Replay Browser **0 · 0 · 0**, while its behaviour lanes (5 · 5, published after the swap)
+matched. ⇒ not dropped frames (behaviour events survived), not a `NoReplay` filter (none on the three types) — the buffer.
+
+| as built | |
+|---|---|
+| `RecorderTickSystem` records with `readBuffer: true` (`AsyncRecorder.CaptureFrame/CaptureKeyframe` → `RecorderSystem.serializeReadBuffer`) | each event once, in the frame its readers saw it — Input's in their own frame, a post-swap event in the next: the editor's live index (`EventAccumulator`, captured right after the swap) makes the same choice, so a recording and the live index agree |
+| a keyframe written that way APPENDS a trailing section — `RecorderSystem.UnconsumedEventsMagic` + the write buffer — after its chunks | ⭐ the checkpoint restore's input (DESIGN_Checkpoint_And_Dry_Run_Restore D2: *"the keyframe's pending events"*) is unchanged: `PlaybackSystem.ApplyFrame(unconsumedEvents: true)` (only `WorldKeyframes.ApplyKeepingUnconsumedEvents`) injects that section; replay injects the main block only |
+| a recording written before CE-4118 | reads as before: no trailing section ⇒ the restore takes the main block (which then held the pending buffer); no format version moved |
+| `CheckpointFile.Write` | the same keyframe shape (`readBuffer: true`), as its comment always said: *"as RecorderTickSystem writes one"* |
+
+⚠ Not changed: a non-blocking recorder still DROPS a frame while its writer is busy (`AsyncRecorder.DroppedFrames`, never reported) — that
+frame's events go with it. Not what CE-4118 measured (the behaviour events survived), but a loss of the same kind → filed `CE-3353`.
+Rail: `RecordingModuleTests.CE4118_ALiveRunsInputPhaseEvents_AreRecorded_EachOnce_AndACheckpointCarriesOnlyTheUnconsumed` (the kernel's
+publish → swap → publish → record order; replayed, every event once; the keyframe's checkpoint carries only the unconsumed one) — red with
+`readBuffer: false`.
