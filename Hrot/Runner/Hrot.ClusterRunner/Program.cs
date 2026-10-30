@@ -794,43 +794,8 @@ class Program
         //   so the rail proves THIS pre-load (folder scan, Hrot.*/Fdp.* only, Hrot.AI.Behaviors kept out for hot reload).
         => Hrot.Common.Infrastructure.DeploymentAssemblies.LoadAll();
 
-    /// <summary>
-    /// Scans all loaded assemblies for non-abstract ISubsystem implementations
-    /// (excluding PerspectiveUpdateSubsystem and CiSubsystem, which are
-    /// runner-internal or handled separately).
-    ///
-    /// CE-218: EyesAndMuscleSubsystem used to be excluded here too. It was the
-    /// "tracer bullet" that proved the SoD async-module pattern before Stride
-    /// existed (docs/designs/eyes-and-muscle/DESIGN.md, "Why EyesAndMuscle first,
-    /// Stride later"); the patterns it proved now ship in EqsModule,
-    /// CognitiveSpatialModule, NavigationSolverModule and AutonomousPerceptionModule,
-    /// and it was never reachable from any --mode token. Retired.
-    /// </summary>
-    private static IEnumerable<Type> ScanForSubsystems()
-    {
-        var subsystemType = typeof(ISubsystem);
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(a => { try { return a.GetTypes(); } catch { return Array.Empty<Type>(); } })
-            .Where(t => t.IsClass && !t.IsAbstract
-                     && subsystemType.IsAssignableFrom(t)
-                     && t != typeof(PerspectiveUpdateSubsystem)
-                     && t != typeof(CiSubsystem));
-    }
+    private static IEnumerable<Type> ScanForSubsystems() => Hrot.ClusterRunner.SubsystemFactory.Scan();
 
-    /// <summary>
-    /// Attempts to instantiate an <see cref="ISubsystem"/> from its <see cref="Type"/>.
-    /// Requires a constructor accepting <see cref="INetworkFactory"/>.
-    /// Returns <c>null</c> when no suitable constructor is found.
-    /// </summary>
-    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory)
-    {
-        // Prefer constructor that accepts INetworkFactory.
-        var factoryCtor = type.GetConstructor(new[] { typeof(INetworkFactory) });
-        if (factoryCtor != null)
-            return (ISubsystem)factoryCtor.Invoke(new object[] { networkFactory });
-
-
-        return null;
-    }
+    private static ISubsystem? TryCreateSubsystem(Type type, INetworkFactory networkFactory) => Hrot.ClusterRunner.SubsystemFactory.TryCreate(type, networkFactory);
 }
 
