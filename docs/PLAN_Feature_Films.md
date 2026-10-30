@@ -157,6 +157,45 @@ caused.* The shot list in `clips.json` follows these rules; the `why` of each sh
 | **captions, not overlays** | each clip opens with its `caption` for 2 s, added in post (`ffmpeg drawtext`); the map draws nothing extra (F-4) |
 | **one beat per clip** | a scenario with two capabilities makes two clips (F-50/F-51 both come from `ua-air-attack`) |
 
+## 1c. ⭐ The grammar on a RECORDING — how every clip is cut now *(user, `2026-10-30`: approved; pilot running)*
+
+🔒 User, `2026-10-30`: *"now, when we can use the recording of the live scenario first, and then analyzing it in the replay to find out the exact
+time of those events, we can take much better clips of these events with correct time offset before the event happens. So please let's
+rethink how to do the takes so it ends up in a much better video."*
+
+⭐ **Every clip is reshot from ONE recording of its scenario** (an editor Live run, RUNBOOK §0b) — §1b's R-4064 workarounds (no negative lead,
+`engage` precursors, shots held `until` the next event) are SUPERSEDED for films. §1a's beats and craft rules stand; on a recording they gain:
+
+| §1a beat / rule | on a recording | the take field (Director Timeline §5, §11o, §11t) |
+|---|---|---|
+| ① establish | starts ~8 s before the moment, framed on where the actors WILL be (the index's positions over the shot) | `keys[]` at `<moment>-8` |
+| ② set-up | over the actor's shoulder ~4 s before; ≥ 2 s of run-up before any shot of walking people (a seek restarts the stride, Film Production §6a) | `keys[]` |
+| ③ the moment | cut in **exactly 0.7 s before** the event — the event's time comes from the index | `keys[]` at `<moment>-0.7`; the anchor is the event (F-4) |
+| ④ consequence | the result, ~2 s after, often from above | `keys[]` |
+| ⑤ replay | the moment again from the other side of the 180° line at **0.5×** (not 0.25× until smooth slow motion, CE-1401) — fast beats only, one per clip | `segments[]` going back, its key in that segment |
+| **no dead seconds** | ⭐ **speed through, don't cut out**: dead approach time plays at 3–4× (continuity kept), 1× from ~1 s before the moment | `segments[]` with `speed` |
+| **captions** | the caption is a SUBTITLE timed to the story (in at ①, out before ⑤), not burned in afterwards with ffmpeg | `subtitles[]` |
+| **anchors** | every key hangs on an event + an offset (F-4) so a promoted take holds on a later run; ⚠ until **CE-4117**, a STATE cue (`near`, `task` …) is not known ahead on a recording — cut before it with a fixed time and re-anchor after | `anchors{}` |
+
+⭐ **The loop per clip:** record → read the moment from the index (`/director/moments`, `/timeline/events`) → draft (`POST /director/draft`) →
+rewrite to this table → contact sheet of stills (`POST /director/stills`) → the user adjusts in the Replay Browser → render the MP4 from the
+recording → promote. ⭐ **Pilot** (`2026-10-30`): F-45 `ua-tank-ammo`, F-40 `ua-weapon-choice`, F-49 `ua-air-strike` — event cues only, so
+CE-4117 does not block them; the rest follow, one Sonnet agent at a time.
+
+### 1d. ⭐ What filming found — the defects each clip waits on, to REFILM once fixed *(user, `2026-10-30`)*
+
+🔒 User: *"These scenario behavior differences should be all noted as filming reveals lots of bugs in them. They will be solved later and
+refilmed then."* · *"If the block the filming we will solve them with priority"* (R-4100). ⭐ **Every defect filming reveals gets a row here** (clip · what was seen · the tracker row) — ⛔ never only in a chat or a
+report. A clip is refilmed when its row closes.
+
+| clip | seen while filming | row | refilm when |
+|---|---|---|---|
+| F-45, F-40 (and every clip cut on a shot / hit / blast) | the Live recording loses the combat events: 0 shots, hits, blasts though the T-72 dies (F-40); F-49's bomb burst is there without its release | [CE-4118](blueprints/Blueprint_Issues_Tracker.md) | CE-4118 closes |
+| every clip with a state cue (22 of 54) | a cut BEFORE an arrival / a behaviour change is late on a recording | [CE-4117](blueprints/Blueprint_Issues_Tracker.md) | CE-4117 closes |
+| any take anchored on an event, rendered from a recording | stills find the anchor, the render does not (every key unresolved, 45 frames) — the pilot rendered with fixed times | [CE-4119](blueprints/Blueprint_Issues_Tracker.md) | re-render with anchors when CE-4119 closes |
+| drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | [CE-4120](blueprints/Blueprint_Issues_Tracker.md) | a hand pass meanwhile |
+| every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | cosmetic — next render |
+
 ## 2. Gaps — what no clip can show yet
 
 | # | capability | why not | the change | lane | lean |

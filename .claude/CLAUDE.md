@@ -339,6 +339,15 @@ vehicles (passengers, formations). ⭐ **Read it before an INVENTORY**, so the i
 ⚠ It is a map, not canon: verify a box against code before building on it, and a FACT about the engine belongs here, never in
 `RULINGS.md` (the ledger holds decisions people made).
 
+## ⭐ USAGES — **record what the engine is USEFUL for** *(user, `2026-10-30`)*
+
+> 🔒 **User, verbatim:** *"As I would like to sell the benefits of this engine to my superiors I would like you to create a markdown file
+> where we will record such useful usages across the whole engine."*
+
+⭐ **[`docs/USAGES.md`](../docs/USAGES.md)** — one row per usage (who gains, what it replaces, status with evidence). ⭐ **When your work makes
+a usage real, or reveals a new one, add or update its row in the same commit.** ⛔ Never a status without an evidence link; ⛔ a feature list
+belongs in `CAPABILITIES.md`, not here.
+
 ## ⛔⛔ UNREFERENCED IS NOT UNINTENTIONAL — **search `docs/` FIRST, then `.dev/`, before proposing any deletion** *(user ruling, `2026-08-15`; corpus order corrected `2026-08-17` and again `2026-08-21`)*
 
 > ⭐⭐⭐ **User, verbatim:** *"what is not used does not mean it is existing without reason — a design doc

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 doc-type: runbook (how to film the 3-D map — not a design; the design and its UML are Map 3D Mode §6ab)
-updated: 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
+updated: 2026-10-30 (§0b traps from the film pilot: paused live load, launch order, wait for the index, CE-4118 / CE-4119) · 2026-10-29 (§0b record a live run in the editor, film it in the Replay Browser — the HTTP sequence, measured CE-4102) · 2026-10-21 (§0a the film director, CE-4038 — takes, reels, /director/*, film.py --take; the shot math is the engine's) · 2026-10-21 (§0 --mode editor; R-3034 — runs are not repeatable, load again for each)
 current-answer: this whole file — ⭐ §0a the film director (takes, reels, live or to film); ⭐ §0b record an exercise in the editor and film it in the Replay Browser; §0 film in --mode editor; §1 the quick start, §2 shots, §3 a plan with cuts, §4 finding when things happen, §5 checking the
   film, §6 the traps.
 stale-below: nothing.
@@ -141,6 +141,10 @@ above, played and never saved), a saved name (`"take":"main"`, `scenarios/<s>/ta
 | ⚠ **slow under Xvfb + Mesa**: a 16 s take at `speed: 4` took **82 s** (realtime factor ~0.2) | poll `/director/status`; don't block on it |
 | ⚠ before any scenario is opened the editor's `/status.armedMode` (its own default, Preview) may differ from the cluster's `/run-settings.armed` (Live) | they agree from the first open / arm (AQ108 §2.14) |
 | ⚠ `GET /exercises` listed `scenario: null` before `3f7785c24` | fixed: the scenario comes from the recording's sidecar |
+| ⚠ **the live load may come up PAUSED** (`isPaused: true`, sim 0 — measured `2026-10-30`) | send `POST /sim/play` after `/scenario/load/live`, then check `simTime` moves |
+| ⛔ **launching both in the same second crashed the editor** on the shared `imgui.ini` (CE-4116) | start one, wait for its `/status`, then the other |
+| ⚠ **wait for the recording's index** before drafting or playing: `GET /timeline/lanes` until `complete: true` — `/director/moments` answered `complete: true, count: 0` while the index was still at 0 % | — |
+| ⛔ **a Live recording has no shot / hit events and few blasts (CE-4118)**; a take anchored on an event renders unresolved on a recording (CE-4119) | until both close: find the moment from the world (health, positions) or the blasts there are, and render with FIXED times — PLAN_Feature_Films §1d |
 | ⚠ stop both processes after: `pkill -f 'ClusterRunner.dll -m editor'` · `… -m replaybrowser` (and their `xvfb-run` parents) | a leftover holds its port |
 
 ## 1. Quick start
