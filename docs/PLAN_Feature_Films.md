@@ -200,7 +200,7 @@ report. A clip is refilmed when its row closes.
 | long clips sped through (F-18) | a 12× segment renders at ~1.8 s per film frame (~7× the 1× cost) — a 4-minute source takes ~30 min to render | [CE-4126](blueprints/Blueprint_Issues_Tracker.md) | render cost only — overnight is fine meanwhile |
 | every clip with a moving camera (F-18 shown) | the camera stuttered against the unit it follows (each frame drawn one step past its camera) · the subtitles used raylib's bitmap font | [CE-4127](blueprints/Blueprint_Issues_Tracker.md), [CE-4128](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` — re-render; the residual ~18 Hz cadence is CE-1401 |
 | every clip (the five pilot re-renders) | 🔒 user: *"videos were a bit jerky (probably those 18Hz) but ok overall"* — a Live recording holds ~18 states/s against 30 fps | [CE-1401](blueprints/Blueprint_Issues_Tracker.md) | not blocking; re-render when smoothing lands |
-| any take on a recording | an anchor that does not resolve is silent in a stills plan (`problems: []`) | [CE-4125](blueprints/Blueprint_Issues_Tracker.md) | — |
+| any take on a recording | an anchor that does not resolve is silent in a stills plan (`problems: []`) | [CE-4125](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` — the plan says why (no such unit · too few events · never met · awaits play) |
 | every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
 
 ## 2. Gaps — what no clip can show yet

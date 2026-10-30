@@ -210,6 +210,53 @@ public sealed class AnchorBook
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4125</c> — WHY <paramref name="anchor"/> has no time on this run, so an agent drafting on a recording can tell <i>"never"</i> from <i>"not yet"</i>
+    /// from <i>"wrong name"</i>: no such unit (with the names that look alike) · no such event (how many the recording has) · the condition never met (a <c>near</c>'s
+    /// closest approach) · awaits play (a state cue the index cannot answer ahead). Null when the anchor HAS a time.
+    /// </summary>
+    public string? WhyUnseen(string anchor, IShotWorld units)
+    {
+        if (TimeOf(anchor) is not null) return null;
+        if (!_specs.TryGetValue(anchor, out var a)) return "the take defines no such anchor";
+        foreach (var who in a.Names())
+            if (!UnitIdsNamed(who, units).Any())
+            {
+                var key = (who.StartsWith('*') ? who[1..] : who).Split(' ')[0];
+                var alike = units.Names.Where(n => n.Contains(key, StringComparison.OrdinalIgnoreCase)).Take(5).ToList();
+                return $"no unit named '{who}' in the shown world" + (alike.Count > 0 ? $" (alike: {string.Join(", ", alike)})" : "");
+            }
+        if (_index() is not { } index) return "no timeline index is shown (open the recording)";
+        bool Is(string who, long id) => IsUnit(who, id, units);
+        double? SimOf(int f) => f >= 0 && f < index.FrameSim.Count && !double.IsNaN(index.FrameSim[f]) && index.FrameSim[f] >= _t0 - 1e-9 ? index.FrameSim[f] : null;
+        switch (a.On)
+        {
+            case "shot":
+            case "blast":
+            {
+                string lane = a.On == "shot" ? "combat.shot" : "combat.blast";
+                int k = index.Has(lane) ? index.Lane(lane).Count(e => SimOf(e.Frame) is not null && (a.On != "shot" || a.By == null || Is(a.By, e.Subject))) : 0;
+                string what = a.On == "shot" ? (a.By != null ? $"shots by '{a.By}'" : "shots") : "blasts";
+                return k == 0 ? $"no such event in the recording: 0 {what}" : $"the recording has {k} {what}; #{Math.Max(1, a.N)} asked";
+            }
+            case "hit":
+                return $"no such event in the recording: '{a.Target}' is never hit";
+            case "near":
+            {
+                if (a.Point is not { } p) return "a near cue with no point";
+                double best = double.PositiveInfinity;
+                foreach (var id in UnitIdsNamed(a.Who!, units))
+                    foreach (var s in index.Positions.Samples(id).Span)
+                        if (SimOf(s.Frame) is not null) best = Math.Min(best, Math.Sqrt((s.X - p.X) * (s.X - p.X) + (s.Y - p.Y) * (s.Y - p.Y)));
+                return double.IsInfinity(best) ? $"the recording has no positions for '{a.Who}'"
+                                               : $"never met in the recording: '{a.Who}' comes no closer than {best:0.#} m to ({p.X:0.#}, {p.Y:0.#}) — within {a.Within:0.#} asked";
+            }
+            default:
+                if (!IndexAnswers(anchor)) return "awaits play (a state cue — observed as the playhead passes)";
+                return $"never met in the recording: '{a.Who}' never has {a.On} {(a.On == "health" ? $"below {a.Below:0.##}" : Text(a.Is))}";
+        }
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-4117</c> follow-up — a re-read take (a loop wrap, <c>DirectorRunner.RefreshOpenTake</c>) gets a NEW book; the times the previous one resolved AHEAD of play (a <c>near</c> refined by seeking) are carried over for
     /// every anchor whose spec is UNCHANGED, so the loop does not fall back to observing during play. A changed spec is not carried.
     /// </summary>

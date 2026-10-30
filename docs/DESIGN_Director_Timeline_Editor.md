@@ -2663,6 +2663,12 @@ key's new scope and time are asserted by the new `CE4059_CR7_*` rail beside it.
 
 ### 11r. P3 — `recording=`, stills, render in the RB *(ui, `2026-10-27`, CE-4059 P3 (the routes' remaining half); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
+> ⭐ **CE-4125 (coordinator, `2026-10-30`; ui's `6a83ec363` did the segment half; as built):** an anchor with no time on the shown run
+> says WHY. `AnchorBook.WhyUnseen` (the ONE resolver's own book and names) answers: no unit named X (with the names alike) · the recording has
+> K such events, #n asked · a `near` never met (its closest approach) · a state cue that awaits play. `DirectorRunner.AnchorsOf` returns it
+> with the times; `DirectorStills.PlanOf` puts `anchor '<name>': <why>` in `problems` for each anchor the take hangs something on. Rail
+> `FilmDirectorTests.CE4125_AnUnresolvedAnchor_SaysWhy_AndTheStillsPlanCarriesIt`.
+>
 > ⭐ **CE-4127 / CE-4128 (coordinator, `2026-10-30`, found filming F-18; as built):**
 > - **A frame rendered from a recording is drawn at the moment it was framed.** A seeking host moves at once when stepped, and the map draws
 >   AFTER the runner's tick. `TickPlaying` used to step at the END of the tick, so every picture showed the world one step past the moment

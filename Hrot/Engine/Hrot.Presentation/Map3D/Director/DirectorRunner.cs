@@ -257,7 +257,10 @@ namespace Hrot.UI.Common.Map3D.Director
         /// play of it places them: the ONE resolver (<see cref="AnchorBook"/>: a bake made for this scenario file, the index's events — leading on a recording, CR-5).
         /// ⭐ What a stills plan maps keys through, so a verify run's recording gets its still keys at ITS events (a promoted take carries no bake, or another run's).
         /// </summary>
-        public Func<string, double?> AnchorTimesOf(Take take)
+        public Func<string, double?> AnchorTimesOf(Take take) => AnchorsOf(take).TimeOf;
+
+        /// <summary>⭐ <c>CE-4125</c> — <see cref="AnchorTimesOf"/>, with WHY an anchor has no time (<see cref="AnchorBook.WhyUnseen"/>, over the same book and the same names).</summary>
+        public (Func<string, double?> TimeOf, Func<string, string?> WhyUnseen) AnchorsOf(Take take)
         {
             if (take is null) throw new ArgumentNullException(nameof(take));
             if (!Busy) _units.Reset();   // a run that is not playing: the names are read from the world as it is now (another recording may be open)
@@ -266,7 +269,7 @@ namespace Hrot.UI.Common.Map3D.Director
                                       indexIsTheRun: _host.CanSeek);
             book.ObserveEvents(_units);
             foreach (var w in book.NearWindows(_units)) book.Resolve(w.Anchor, w.Estimate);   // ⭐ CE-4117 N4: the coarse estimate; a stills plan never seeks
-            return book.TimeOf;
+            return (book.TimeOf, a => book.WhyUnseen(a, _units));
         }
 
         /// <summary>⭐ CE-1303 P2a (§11m D6) — at the end of the shot on screen the source goes back to the shot's start (a seekable host) and the
