@@ -2756,7 +2756,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// open (<c>Session.Open</c>) so the runner plays the IN-MEMORY take. Asserts: no <c>Unresolved</c>, no <c>beat-missing</c>, the anchor found at 3 s, the expected frame count.
     /// Runs only with <c>HROT_FILM_WINDOW=1</c> and a display (Xvfb).
     /// </summary>
-    private void PilotPlay(string how, bool sessionOpen, bool pilotLike = false)
+    private void PilotPlay(string how, bool sessionOpen, bool pilotLike = false, bool reopen = false)
     {
         double blastAt = pilotLike ? 33.1d : 3.0d;
         Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — CE-4119 repro");
@@ -2839,6 +2839,26 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Assert.True(r.Unresolved.Count == 0 && r.Missing.Count == 0 && r.Status != "beat-missing", outcome);
             Assert.Equal(blastAt, r.Found["blast#1"], 3);
             if (how != "nocapture") Assert.True(status["frames"]!.GetValue<int>() > 45, outcome);
+
+            if (reopen)
+            {
+                // ⭐ CE-4119 (the coordinator's trigger) — AFTER the director has played: another recording opened through POST /replay keeps its moments,
+                //   and the same anchored take resolves on it
+                string dir2 = Path.Combine(_tempDir, "ce4119", Guid.NewGuid().ToString(), "exercises", Guid.NewGuid().ToString());
+                string path2 = RecordFilmRun(dir2, 6d, blasts: new[] { 4.0d });
+                PutTakeBeside(dir2, PilotTake());
+                var (oc, ob) = CallOnThisThread(http.PostAsync(url + "/replay", Json($"{{\"path\":{System.Text.Json.JsonSerializer.Serialize(path2)}}}")), Frame);
+                Assert.True(oc == 200, ob.ToJsonString());
+                for (int i = 0; i < 2000 && !(_subsystem.TimelineSource is { IsComplete: true, Index: { TotalFrames: > 0 } } s2 && s2.Path == path2); i++) { Frame(); System.Threading.Thread.Sleep(5); }
+                var (mc, mb) = CallOnThisThread(http.GetAsync(url + "/director/moments"), Frame);
+                var moments = mb["data"] ?? mb;
+                Assert.True(mc == 200 && moments["count"]!.GetValue<int>() > 0, $"{how}: the recording opened after the play has no moments: {mb.ToJsonString()}");
+                Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "pilot"), Speed: 1000d)));
+                for (int i = 0; i < 20_000 && runner.Busy; i++) Frame();
+                var r2 = runner.Reports[0];
+                Assert.True(r2.Unresolved.Count == 0 && r2.Missing.Count == 0, $"{how}: on the second recording: status={r2.Status}; unresolved=[{string.Join(", ", r2.Unresolved)}]; problems=[{string.Join(" | ", r2.Problems)}]");
+                Assert.Equal(4.0d, r2.Found["blast#1"], 3);
+            }
         }
         finally
         {
@@ -2865,6 +2885,16 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     [InlineData("http", true)]
     [InlineData("runner", false)]
     public void CE4119_Repro_ThePilotsShape_StaleBake_StillsFirst_ThenThePlay(string how, bool sessionOpen) => PilotPlay(how, sessionOpen, pilotLike: true);
+
+    /// <summary>⭐ <c>CE-4119</c> — the coordinator's trigger: a recording opened AFTER the director has played (a capture, a render, stills first) still has
+    /// its moments and resolves the take's anchors.</summary>
+    [FilmWindowTheory]
+    [Trait("Category", "Manual")]
+    [InlineData("runner", false, false)]
+    [InlineData("renders", false, false)]
+    [InlineData("http", false, true)]
+    public void CE4119_AfterTheDirectorPlayed_ARecordingOpenedNext_KeepsItsMomentsAndAnchors(string how, bool sessionOpen, bool pilotLike)
+        => PilotPlay(how, sessionOpen, pilotLike, reopen: true);
 
     // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the render queue in the Replay Browser ───────────────────────────────────
 
@@ -2904,6 +2934,65 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// item 2 through it, and each item reports ok over its own recording (B's take is only beside B). 🔴 Mutation: the browser's master transition opening the
     /// exercise's group itself (<c>_host.OpenGroup(group.Paths)</c>, the pre-CE-1391 body) ⇒ ③ never reaches the opener ⇒ red.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-4119</c> — the coordinator's reproduction (one Replay Browser process): once the director has PLAYED on a recording, the NEXT recording opened
+    /// must still give the director its moments (named units over a complete index) — ⛔ the pilot saw <c>complete: true, count: 0</c> there while
+    /// <c>/timeline/lanes</c> listed the events, and every event anchor then failed silently.
+    /// </summary>
+    [Fact]
+    public async Task CE4119_AfterTheDirectorPlayed_TheNextRecordingOpened_StillHasItsMoments()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        string root = Path.Combine(_tempDir, "staging");
+        var idA = Guid.NewGuid();
+        var idB = Guid.NewGuid();
+        string dirA = Path.Combine(root, "nodes", "node-1", "exercises", idA.ToString()), dirB = Path.Combine(root, "nodes", "node-1", "exercises", idB.ToString());
+        string pathA = RecordFilmRun(dirA, 6d, exerciseId: idA, alphaFires: new[] { 1.0, 2.0 }), pathB = RecordFilmRun(dirB, 6d, exerciseId: idB, alphaFires: new[] { 1.5, 2.5, 3.5 });
+        PutTakeBeside(dirA, TwoShotTake());
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.RecordingsRoot = root;
+        _subsystem.Initialize(HeadlessConfig());
+        var (host, queue, port) = DirectorHttp();
+        using var _ = host;
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        string url = $"http://localhost:{port}";
+        void Frame() { queue.DrainAll(); _subsystem.Update(1f / 60f); }
+        async Task<System.Text.Json.Nodes.JsonNode> Moments()
+        {
+            System.Text.Json.Nodes.JsonNode body = null!;
+            for (int i = 0; i < 200; i++)
+            {
+                (int code, body) = await Call(http.GetAsync(url + "/director/moments"), Frame);
+                Assert.True(code == 200, body.ToJsonString());
+                body = body["data"] ?? body;
+                if (body["complete"]!.GetValue<bool>()) return body;
+                for (int k = 0; k < 5; k++) Frame();
+                await Task.Delay(20);
+            }
+            return body;
+        }
+
+        var (c, b) = await Call(http.PostAsync(url + "/replay", Json($$"""{"path":{{System.Text.Json.JsonSerializer.Serialize(pathA)}}}""")), Frame);
+        Assert.True(c == 200, b.ToJsonString());
+        var before = await Moments();
+        Assert.True(before["count"]!.GetValue<int>() > 0, "A, before the director ran: " + before.ToJsonString());
+
+        // the director PLAYS on A
+        var pack = _subsystem.Director!;
+        Assert.Empty(pack.Runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(
+            new Hrot.UI.Common.Map3D.Director.Reel { Name = "one", Items = new[] { new Hrot.UI.Common.Map3D.Director.ReelItem { Scenario = "s-film" } } },
+            Speed: 1000d, Cinema: false)));
+        for (int i = 0; i < 20_000 && pack.Runner.Busy; i++) _subsystem.Update(1f / 60f);
+        Assert.False(pack.Runner.Busy);
+
+        // then ANOTHER recording opens: its moments are there, named
+        (c, b) = await Call(http.PostAsync(url + "/replay", Json($$"""{"path":{{System.Text.Json.JsonSerializer.Serialize(pathB)}}}""")), Frame);
+        Assert.True(c == 200, b.ToJsonString());
+        var after = await Moments();
+        Assert.True(after["complete"]!.GetValue<bool>(), "B's index read: " + after.ToJsonString());
+        Assert.True(after["count"]!.GetValue<int>() > 0, "B, after the director ran on A: " + after.ToJsonString());
+    }
+
     [Fact]
     public async Task CE1391_EveryRecordingOpen_EndsInTheOneOpener_AndTheRunnerReachesItWithoutHttp()
     {
