@@ -22,3 +22,11 @@ It mirrors `RecordLiveRuns` / `RecordLiveRunsOff`, field for field — ⭐ with 
 | wire | `ClusterStateTopic.AskToKeepRecordings` (`int`, 0 / 1) — ⭐ **APPENDED LAST**, after `LoadProgress` (R-42: no field renumbered or reordered; additive, an older sender omits it = off). Encode `ClusterOpMasterTranslator.StateTopicOf`, decode `ClusterFactsIngress.StateOf`. Events: `ClusterStateTransitionedEvent` / `ClusterStateUpdateEvent` gained `bool AskToKeepRecordings` (appended) |
 | HTTP | `GET /run-settings` → `{recordLiveRuns, armed, askToKeepRecordings}`; `POST /run-settings {askToKeepRecordings: bool}` (alone or with the others; at least one field required; a non-bool is 400). ⚠ `/status` does not carry any of these settings today (only the derived `recording`), so it is unchanged |
 | rails | `ClusterMasterRunRecordingTests.CE4100_…` (default off / op sets it / broadcast / an op without it leaves it) · `TranslatorDtoTests` (payload round trip) · `NodeOpSlaveTranslatorTests.CE4100_…` (wire both ways) · `ClusterViewTests` + `ClusterSlaveTests` (the fold) · `TheRunRecordingGatesAnswer409Tests` (the route) · `MainToolbarTimeControlTests.CE4100_TheAdapterReads…` |
+
+## Also landed — your live-run finding, CE-3352 (`7685fe193`)
+CGF's `/status.simTime` read 0 and paused because a HEADLESS CGF had no drive. Its `NodeRunControls.For` adapter was built inside
+`RegisterWindows`, which returns early when headless. SimHost had the same defect. Both now build their run controls in `Initialize`; the
+editor and the IG already did. The kernel clock was never frozen: CGF is now in `SimTimeSyncIntegrationTests`' sync assertion, 6/6. Rails:
+`TheRunChoiceIsOnEveryHostTests.CE3352_AHeadless{Cgf,SimHost}_HasADrive_*`.
+CE-1444 (the playhead leads a paused seek by ~0.3 s) is backend row CE-3351, still open. Ruled out: a slave entering BarrierPending does not
+advance its clock.
