@@ -452,6 +452,7 @@ public sealed partial class ClusterMaster : IDisposable
                 ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
                 return;
             }
+            if (req.OperationType == ClusterOpType.TransitionState) NoteLoadAccepted(ClusterOpRequestAdapter.ToTransitionStateIntent(req));   // ⭐ CE-3354 ⑦
             PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null);
             return;
         }
@@ -821,7 +822,7 @@ public sealed partial class ClusterMaster : IDisposable
         {
             // ⭐ CE-4087 — a scenario load WAITS on a closed latch (ProcessTransitionStateIntent holds it); anything else is rejected as before.
             //   ⭐ CE-3345 — and, while the cluster is in ERROR, a way back to Idle (Close): a way out is never gated.
-            if (LatchRefuses(intent)) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null); continue; }
+            if (LatchRefuses(intent)) { NoteLoadAccepted(intent); PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected, IsInError ? ErrorReason : null); continue; }   // ⭐ CE-3354 ⑦ — a refused load is still the current one (Rejected)
             try   { ProcessTransitionStateIntent(intent); }
             catch (InvalidOperationException ex)
             {
@@ -1354,7 +1355,7 @@ public sealed partial class ClusterMaster : IDisposable
     private void ProcessTransitionStateIntent(TransitionStateIntent intent)
     {
         var requestId = intent.TransactionId;
-
+        NoteLoadAccepted(intent);   // ⭐ CE-3354 ⑦ — a scenario load is the current load from the moment it is taken (held, parked, planned)
 
         // ⭐ CE-4087 — a newer request replaces a load that waits on the mandatory set (as ScenarioLoadSequence does caller-side) …
         SupersedeHeldLoad(requestId);
@@ -1645,6 +1646,11 @@ public sealed partial class ClusterMaster : IDisposable
         if (intent.ScenarioId != null && trajectory.OfType<TransitionStep>().Any(t =>
                 t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit))
         {
+            // ⭐ CE-3354 ⑦ — the current load's request, broadcast with the cluster state: told NOW (the round's state announcement above went out before this), so /status.load names it from the round's first frame
+            bool newLoad = LastLoadRequestId != intent.TransactionId;
+            LastLoadRequestId = intent.TransactionId;
+            LastLoadScenario  = intent.ScenarioId;
+            if (newLoad) PublishClusterState(_currentDsmState);
             _currentScenarioId = intent.ScenarioId;   // ⭐ C7 — what a late joiner's catch-up stages
             _currentExerciseId = intent.ExerciseId;
         }
@@ -1707,7 +1713,9 @@ public sealed partial class ClusterMaster : IDisposable
                             RecordingOff: _runNotRecorded
                                        && tStep.TargetState is ClusterState.LoadingLive or ClusterState.OperatingLive);
 
-                        FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
+                        // ⭐ CE-3354 ③ — a LOAD step's prepare is stamped per node: a node named in the map-in-load set also waits for its 3-D map
+                        if (isLoadStep) FanOutLoadPrepare(prepareOp, tx.TransactionId, preparePayload, activeNodeIds);
+                        else FanOutNodeOp(prepareOp,        tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
                             new CommitStatePayload((FdpClusterState)(int)tStep.TargetState), activeNodeIds);
                     }
@@ -2300,8 +2308,11 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
+            LastLoadRequestId = LastLoadRequestId,   // ⭐ CE-3354 ⑦
+            LastLoadScenario = LastLoadScenario,
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
             ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070
@@ -2316,8 +2327,11 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
+            LastLoadRequestId = LastLoadRequestId,   // ⭐ CE-3354 ⑦
+            LastLoadScenario = LastLoadScenario,
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
             ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070
@@ -2372,6 +2386,19 @@ public sealed partial class ClusterMaster : IDisposable
                 Operation     = (Fdp.Toolkit.Orchestration.NodeOpType)(int)operation,
                 DomainPayload = domainPayload,
             });
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ③ — fans out a LOAD step's PREPARE (LoadingLive / LoadingEdit), stamping <see cref="EditLoadHandlerPayload.MapInLoad"/> = true on the payload of each node
+    /// whose roster NAME is in <see cref="MapInLoadNodes"/> (case-insensitive); every other node gets the plain payload. Targets keep their order; CommitState is not touched.
+    /// </summary>
+    private void FanOutLoadPrepare(NodeOpType operation, Guid transactionId, EditLoadHandlerPayload payload, IEnumerable<int> targetNodeIds)
+    {
+        foreach (var nodeId in targetNodeIds)
+        {
+            bool map = _roster.ActiveNodes.TryGetValue(nodeId, out var p) && MapInLoadFor(p.NodeName);
+            FanOutNodeOp(operation, transactionId, map ? payload with { MapInLoad = true } : payload, new[] { nodeId });
         }
     }
 

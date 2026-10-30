@@ -143,7 +143,8 @@ public sealed class NodeOpMasterTranslator
                     IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
                     IsCatchUp:       p.IsCatchUp,          // C7
                     CheckpointingSeconds: p.CheckpointingSeconds,   // D17
-                    RecordingOff: p.RecordingOff),                  // CE-4090 D14
+                    RecordingOff: p.RecordingOff,                   // CE-4090 D14
+                    MapInLoad: p.MapInLoad),                        // CE-3354 ③
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(

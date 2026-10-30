@@ -17,5 +17,12 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary>What is building now (<i>"3-D map: terrain"</i>), or empty when nothing is.</summary>
         string Step { get; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3354</c> ③ (cross-lane: ui's interface) — ask for the 3-D map NOW: starts every layer's build for the terrain the map holds (idempotent). The load chain's map step calls it at its
+        /// commit — after the terrain step's — for a node whose load must wait for its map (the master's map-in-load set, or the node's profile); a node that does not wait never calls it.
+        /// <c>Map3DBuild.Request3D</c> already is this member.
+        /// </summary>
+        void Request3D();
     }
 }

@@ -31,8 +31,16 @@ namespace Hrot.Orchestrator;
 /// mandatory nodes are not yet ready (CGF1-S0105).
 /// </summary>
 public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.Presentation.DebugApi.IProvidesDebugSurface,
-    Hrot.UI.Common.RunMode.IProvidesRunControls
+    Hrot.UI.Common.RunMode.IProvidesRunControls, Hrot.Presentation.DebugApi.IHostsClusterMaster
 {
+    /// <summary>⭐ CE-3354 ⑥ — the master intents the runner's command-line startup load publishes: onto the bus the master reads directly.</summary>
+    public Hrot.Presentation.DebugApi.IClusterMasterControl? ClusterMasterControl
+        => _bus is null ? null : new Hrot.Presentation.DebugApi.OrchestrationBusMasterControl(() => _bus);
+
+    /// <summary>⭐ CE-3354 ⑥ — the master's own state (null before Initialize).</summary>
+    public Fdp.Toolkit.Orchestration.ClusterState? ClusterStateNow
+        => _core is null ? null : (Fdp.Toolkit.Orchestration.ClusterState)(int)_core.Master.CurrentClusterState;
+
     /// <summary>
     /// ⭐⭐ <c>CE-4002</c> — the orchestrator's debug surface: the MASTER's roster (only the node hosting the
     /// <c>ClusterMaster</c> can answer it), and cluster transitions and cancels published onto the bus the master reads

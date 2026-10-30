@@ -1986,3 +1986,32 @@ Examples: `-m editor -s ua-air-strike` (open for editing) · `-m editor -s ua-ai
 
 ⛔ **Rejected:** a startup-only load path (two implementations of one load) · a fixed wait before the startup load (the master's own hold is the
 wait) · names = subsystem names (cannot single out one of two IGs).
+
+#### 11.10c ✅ AS-BUILT `2026-10-30` (backend, CE-3354 ①–⑤) — what changed against §11.10 / §11.10a / §11.10b
+
+| item | built | deviation from the text above, and why |
+|---|---|---|
+| ① the premise, as a rail | `ClusterMasterLoadAndRunTests.CE3354_TheLoadRequestsSuccess_WaitsForTheSlowestNode_WhileTheStateAlreadyReadsOperatingLive` | — |
+| ② node names | CLI `--node-name` / `--node-names Sub=n,…` (refused when ambiguous or malformed), `NodeHeartbeatEvent`/`NodeHeartbeat.NodeName` (one mapping, `NodeHeartbeatWire`), `ClusterSlave` default `<subsystem>-<nodeId>`, `NodeRoster.TryAdmit` refuses a name a different live node holds (`NameConflicts`), `GET /cluster/roster` → `name` + `nameConflicts`, `GET /status` → `node {name, nodeId}` | refused heartbeats ride the roster list as rows (no new provider seam); the Stride shell keeps the default name (it has no `SubsystemConfig`) |
+| ③ map-in-load | `SetRunSettingsIntent.MapInLoadNodes` → `ClusterMaster.MapInLoadNodes` (case-insensitive, de-duplicated) → broadcast (`ClusterStateTopic.MapInLoadNodes`, `ClusterView.MapInLoadNodes`); `ClusterMaster.FanOutLoadPrepare` stamps `EditLoadHandlerPayload.MapInLoad` per node (the catch-up too); `MapBuildLoadStep` composed whenever a host supplies a status, REQUIRED by the profile (IG) or `context.MapInLoad`, `IMapBuildStatus.Request3D()` at its commit; CGF, SimHost and the editor pass their `Map3DBuild`; `POST /run-settings {mapInLoadNodes \| mapInLoad}`, `GET /run-settings`, roster `mapInLoad` | **edit loads are stamped too** (a filming node may open for editing); the roster's `mapInLoad` reflects the set, not the IG profile |
+| ④ the requester's "loaded" | the load routes return the `requestId` they sent; `GET /status.load` → `requestId · scenario · phase (Loading│Loaded│Failed) · reason` from `ClusterView.OutcomeOf`; `waitForReady` = settled AND the request's Success, a failure ⇒ 409 with the master's reason | ⛔ **`run.startedAtSim` dropped**: a load resets the clock to 0 and the run starts there, so `isPaused` + `simTime` already say it |
+| ⑤ load-and-run | `GenericTransactionTracker.RunOnSuccess` (`ClusterMaster.RunsWhenLoaded`: a live scenario load unless `Deterministic`; a dry run with `Continuous`) ⇒ `ResumeTimeIntent` in the round's success branch; `GlobalContextProcessManager`'s two resumes retired (CE-4122) | — |
+| ⑥ CLI startup load | `--scenario` (beyond `ci`) · `--load edit\|live` · `--play` · `--map-in-load [names]` (bare = this process' own nodes; `NormaliseArgs` turns a bare flag into `=*`), refused with a message where no master runs it; ONE intent builder `ScenarioLoadSequence.LiveLoadIntent/EditLoadIntent` used by HTTP and the CLI; `StartupScenarioLoad` (run settings first, then the load through a `ScenarioLoadSequence`, once) ticked by both runner loops; `IHostsClusterMaster` on the editor and the orchestrator subsystem | the IG's default name is now `IG-<id>` (was `IgApplication-<id>`); the editor makes its own `Editor-1` |
+| ⑦ `/status.load` for ANY load | the master broadcasts the current load's request id + scenario with the cluster state; `/status.load` reads them (this API's own load only as the fallback) | found live: after a CLI load `/status.load` was empty |
+
+📐 **Live acceptance `2026-10-30`** (editor and `-m all` under Xvfb, `scratchpad/accept3354.sh`): REST `waitForReady` → `load.phase = Loaded`, paused at 0 until `/sim/play`, then running ·
+`startPaused:false` runs by itself (CE-4122) · editor CLI `--play --map-in-load` runs · editor CLI `-s X` opens it in OperatingEdit (24 entities) ·
+`-m all --node-names IG=film-cam --play --map-in-load film-cam` runs, roster `film-cam` `mapInLoad: true` · with map-in-load the load logged
+*"this load waits for the node's 3-D map (map-in-load)"* then *"built after 0.1 s"*, step `Map3D` (`bc-house-defended`); without it, no wait ·
+a scenario not staged fails at once with the master's reason (409), no hang.
+
+📌 Found while building (not this item's): `EveryEcsHostComposesOneClusterHandlerSetRails` / `EveryEcsHostComposesTheLoadPhaseChainRails` scan
+`CgfSubsystem.cs` / `EditorSubsystem.cs` for strings that left them with CE-1446 B1 (the move to node bootstrappers) — stale source-text rails,
+red before CE-3354 → CE-3355.
+
+⭐ **A LATE JOINER waits for its 3-D map too** *(measured `2026-10-30`)*: the C7 catch-up (`ClusterMaster.InSync.cs`) runs the same chain minus
+`ScenarioEntities` only (`LoadPhaseChain.StepsFor`), so a Player (profile) — or a joiner named in the map-in-load set — holds its catch-up answer,
+and therefore its in-sync mark, until its map is built. Rail: `LoadPhaseChainTests.CE3354_ALateJoinersCatchUp_HoldsUntilItsMapIsBuilt`
+(red-proved: `StepsFor` skipping `Map3D`). 📐 Live: `-m server` running `bc-house-defended`, then `-m player --node-name film-player` under Xvfb —
+`waits for the node's 3-D map (the node's profile)` 03.38 → `built after 0.1 s` 03.49 → master *"caught up — in sync"* 03.96.
+⚠ A map build FAILURE fails the catch-up, and K7 then leaves the Player out of sync until the next cluster commit or a restart.

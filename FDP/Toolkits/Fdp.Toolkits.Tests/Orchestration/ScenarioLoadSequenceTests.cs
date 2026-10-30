@@ -101,6 +101,27 @@ public class ScenarioLoadSequenceTests
         Assert.Equal(1, sentWhenSeen);         // after the Idle request, before the load
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑥ — the ONE live / edit load intents (HTTP's routes and the command line's startup load build them here): live = a FRESH ExerciseId per load, <c>TimeMode "Deterministic"</c> when paused and null when it must
+    /// run, ForceRecording as asked; edit = NO ExerciseId, no time mode; each a fresh TransactionId. 🔴 Mutations (each compiles): the live ExerciseId left empty / reused ⇒ the first cells red; <c>startPaused</c> inverted ⇒ the time-mode cells red;
+    /// the edit intent given an ExerciseId ⇒ the edit cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_TheLiveAndEditIntents_AreBuiltOnce_WithTheRulesTheRoutesHad()
+    {
+        var a = ScenarioLoadSequence.LiveLoadIntent("scn");
+        var b = ScenarioLoadSequence.LiveLoadIntent("scn", startPaused: false, forceRecording: true);
+        Assert.Equal((ClusterState.OperatingLive, "scn", "Deterministic", false), (a.TargetState, a.ScenarioId, a.TimeMode, a.ForceRecording));   // paused is the default
+        Assert.Equal((ClusterState.OperatingLive, (string?)null, true), (b.TargetState, b.TimeMode, b.ForceRecording));                          // runs once loaded
+        Assert.NotEqual(Guid.Empty, a.ExerciseId);
+        Assert.NotEqual(a.ExerciseId, b.ExerciseId);                                                                                              // a live load IS a new exercise run
+        Assert.NotEqual(a.TransactionId, b.TransactionId);
+
+        var e = ScenarioLoadSequence.EditLoadIntent("scn");
+        Assert.Equal((ClusterState.OperatingEdit, "scn", Guid.Empty, (string?)null, false), (e.TargetState, e.ScenarioId, e.ExerciseId, e.TimeMode, e.ForceRecording));
+        Assert.NotEqual(Guid.Empty, e.TransactionId);
+    }
+
     [Fact]
     public void ALoadMustNameItsScenario()
         => Assert.Throws<ArgumentException>(() => New().Request(new TransitionStateIntent { TargetState = ClusterState.OperatingLive }));

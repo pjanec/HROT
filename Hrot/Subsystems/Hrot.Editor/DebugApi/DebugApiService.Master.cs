@@ -43,6 +43,20 @@ namespace Hrot.Editor.DebugApi
                 ? new JsonObject { ["name"] = view.NodeName ?? "", ["nodeId"] = id }
                 : null;
 
+        /// <summary>⭐ CE-3354 ⑦ — the load <c>/status.load</c> follows: the master's broadcast current load (the cluster view), else the last this API sent.</summary>
+        private (Guid RequestId, string? Scenario)? CurrentLoad
+        {
+            get
+            {
+                var view = _editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode;
+                // ⭐ CE-3354 ⑦ — just after this API SENT a load, the view still reports the load it reported at send time (the master has not announced the new one yet): show OURS (Loading), never the old one's outcome.
+                //   Once the view's id changes (normally to ours) the view is the truth again.
+                if (_lastLoad is { } mine && (view is null || view.LastLoadRequestId == _viewLoadAtSend || view.LastLoadRequestId == Guid.Empty))
+                    return (mine.RequestId, mine.Scenario);
+                return view is { LastLoadRequestId: var id } v && id != Guid.Empty ? (id, v.LastLoadScenario) : null;
+            }
+        }
+
         private JsonNode? LoadStatusOrNull()
         {
             if ((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is not { } view) return null;
@@ -53,6 +67,14 @@ namespace Hrot.Editor.DebugApi
                 ["localReason"] = view.LocalReason,
                 ["clusterProgress"] = view.LoadProgress,
                 ["playReady"] = view.IsLocalPlayReady,
+                // ⭐⭐ CE-3354 ④ — the LAST load this API sent and its phase over the WHOLE cluster: Loaded only when every node's load chain resolved
+                //   (the master's Success for that request), Failed with the master's reason; null fields when this API sent no load yet
+                //   ⭐ CE-3354 ⑦ — WHICH load is the MASTER's fact (the id it broadcasts with the cluster state — whoever sent it: this API, the command line, the operator panel, another node);
+                //   this API's own last load is only the fallback for a master that broadcasts none.
+                ["requestId"] = (CurrentLoad is { } cur ? cur.RequestId : (Guid?)null)?.ToString(),
+                ["scenario"]  = CurrentLoad?.Scenario,
+                ["phase"]     = CurrentLoad is { } c1 ? LoadPhaseOf(c1.RequestId)?.Phase : null,
+                ["reason"]    = CurrentLoad is { } c2 ? LoadPhaseOf(c2.RequestId)?.Reason : null,
             };
         }
 
@@ -144,8 +166,14 @@ namespace Hrot.Editor.DebugApi
                 return (null, "No subsystem on this host keeps the cluster's read model (a ClusterUiCache / ClusterSlave) that carries the run settings.", DebugApiHints.Panel);
             var armed = _editorArmedMode?.Invoke() ?? _dispatcher?.ArmedModeAnyNode ?? Fdp.Toolkit.Orchestration.ClusterArmedMode.Live;   // the same View fact as `off`; Live = the master's default
             var ask = _editorAskToKeepRecordings?.Invoke() ?? _dispatcher?.AskToKeepRecordingsAnyNode ?? false;   // ⭐ AQ108 D15 (CE-4100 ①) — the same View fact; OFF = the master's default
-            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant(), ["askToKeepRecordings"] = ask }, null, null);
+            var mapNodes = new JsonArray();
+            foreach (var n in MapInLoadNodesNow()) mapNodes.Add(n);   // ⭐ CE-3354 ③ — the same View fact
+            return (new JsonObject { ["recordLiveRuns"] = !off.Value, ["armed"] = armed.ToString().ToLowerInvariant(), ["askToKeepRecordings"] = ask, ["mapInLoadNodes"] = mapNodes }, null, null);
         }
+
+        /// <summary>⭐ CE-3354 ③ — the master's map-in-load set as this host's cluster view last heard it (empty where there is no view).</summary>
+        internal IReadOnlyList<string> MapInLoadNodesNow()
+            => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode)?.MapInLoadNodes ?? Array.Empty<string>();
 
         /// <summary>
         /// ⭐ <c>CE-4090</c> (AQ108 D14) — <c>POST /run-settings {recordLiveRuns: bool}</c>: the cluster-wide <i>Record live runs</i> setting (default ON),
@@ -155,7 +183,7 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public (JsonNode? Result, string? Error, string? HintCategory) SetRunSettings(JsonNode? body)
         {
-            const string usage = "recordLiveRuns (true | false), armed (preview | live | aar) and / or askToKeepRecordings (true | false) is required: {\"recordLiveRuns\": false}, {\"armed\": \"live\"} or {\"askToKeepRecordings\": true}.";
+            const string usage = "recordLiveRuns (true | false), armed (preview | live | aar), askToKeepRecordings (true | false), mapInLoad (true | false: this node) and / or mapInLoadNodes ([names]) is required: {\"recordLiveRuns\": false}, {\"armed\": \"live\"}, {\"askToKeepRecordings\": true}, {\"mapInLoad\": true} or {\"mapInLoadNodes\": [\"film-cam\"]}.";
             bool? record = null;
             if (body?["recordLiveRuns"] is { } rv)
             {
@@ -177,10 +205,35 @@ namespace Hrot.Editor.DebugApi
                 if (kv is not JsonValue k || !k.TryGetValue(out bool kb)) return (null, usage, DebugApiHints.Scenario);
                 ask = kb;
             }
-            if (record is null && armed is null && ask is null) return (null, usage, DebugApiHints.Scenario);
+            // ⭐ CE-3354 ③ — the map-in-load set: `mapInLoadNodes: [names]` REPLACES it; `mapInLoad: true|false` adds / removes THIS node's name (the one /status.node reports).
+            string[]? mapNodes = null;
+            if (body?["mapInLoadNodes"] is { } mv)
+            {
+                if (mv is not JsonArray arr) return (null, usage, DebugApiHints.Scenario);
+                var names = new List<string>();
+                foreach (var item in arr)
+                {
+                    if (item is not JsonValue iv || !iv.TryGetValue(out string? name) || string.IsNullOrWhiteSpace(name) || name.Contains(','))
+                        return (null, "mapInLoadNodes holds node names: non-empty strings without commas.", DebugApiHints.Scenario);
+                    names.Add(name.Trim());
+                }
+                mapNodes = names.ToArray();
+            }
+            if (body?["mapInLoad"] is { } ml)
+            {
+                if (ml is not JsonValue mlv || !mlv.TryGetValue(out bool on)) return (null, usage, DebugApiHints.Scenario);
+                if (mapNodes != null) return (null, "Send mapInLoad (this node) or mapInLoadNodes (the whole set), not both.", DebugApiHints.Scenario);
+                var view = _editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode;
+                if (view?.NodeName is not { Length: > 0 } mine)
+                    return (null, "This host has no node name to add (it keeps no cluster view). Name the nodes with mapInLoadNodes.", DebugApiHints.Panel);
+                var set = MapInLoadNodesNow().Where(n => !string.Equals(n, mine, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (on) set.Add(mine);
+                mapNodes = set.ToArray();
+            }
+            if (record is null && armed is null && ask is null && mapNodes is null) return (null, usage, DebugApiHints.Scenario);
             var master = MasterOrNull;
             if (master is null) return (null, NoMaster, DebugApiHints.Panel);
-            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask };
+            var intent = new SetRunSettingsIntent { RequestId = Guid.NewGuid(), RecordLiveRuns = record, Armed = armed, AskToKeepRecordings = ask, MapInLoadNodes = mapNodes };
             master.SetRunSettings(intent);
             var result = new JsonObject
             {
@@ -190,6 +243,7 @@ namespace Hrot.Editor.DebugApi
             if (record is { } r) result["recordLiveRuns"] = r;
             if (armed is { } a) result["armed"] = a.ToString().ToLowerInvariant();
             if (ask is { } k2) result["askToKeepRecordings"] = k2;
+            if (mapNodes != null) { var arr2 = new JsonArray(); foreach (var n in mapNodes) arr2.Add(n); result["mapInLoadNodes"] = arr2; }
             return (result, null, null);
         }
 
