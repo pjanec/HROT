@@ -150,16 +150,10 @@ public sealed class TheHaltCannotStopTheClockTests
 
         var declaring = new List<string>();
 
-        foreach (var file in System.IO.Directory.EnumerateFiles(root!, "*.cs", System.IO.SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(root!))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}") ||
-                file.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}"))
-                continue;
-
             var rel = System.IO.Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;
-            // ⚠ Agent worktrees live under .claude/worktrees/ — a second copy of the tree, not more declarations.
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;
 
             foreach (var line in System.IO.File.ReadLines(file))
             {

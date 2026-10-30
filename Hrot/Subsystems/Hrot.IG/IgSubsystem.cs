@@ -61,6 +61,7 @@ namespace Hrot.IG
             //    (it executes the master's — PARTICIPATE ≠ OBSERVE), so stepping from its perspective answers NOT_SUPPORTED_HERE.
             => Hrot.Presentation.DebugApi.EcsNodeDebugProvider.For(Name, "IG", () => _app?.NodeContext, new Hrot.Presentation.DebugApi.EcsNodeDebugExtras
             {
+                RunChoice   = () => _app?.RunControls?.RunChoice,   // ⭐ CE-1451 — the Player's gate, read without a drive
                 GizmoBuffer = () => _app?.GizmoBuffer,
             });
 
@@ -121,7 +122,7 @@ namespace Hrot.IG
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
         bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
 
-        /// <summary>⭐ CE-1446 (R-1046) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); null before the IG is initialised. The one place the node exposes it.</summary>
+        /// <summary>⭐ R-1046 (CE-4078) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); null before the IG is initialised. The one place the node exposes it.</summary>
         public Fdp.Toolkit.Orchestration.IMapBuildStatus? MapBuildStatus => _app?.MapBuildStatus;
 
         /// <summary>⭐ CE-1445 — the IG's run choice, for the wiring rail.</summary>

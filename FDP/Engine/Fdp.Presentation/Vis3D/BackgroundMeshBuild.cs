@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Vis3D
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-1446</c> (R-1046, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.9 ①) — <b>the ONE background mesh build</b> both 3-D layers use (<see cref="TerrainLayer3D"/>, the SUMO <c>TrafficLayer3D</c>):
+    /// ⭐⭐⭐ <c>R-1046</c> (CE-4078, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.9 ①) — <b>the ONE background mesh build</b> both 3-D layers use (<see cref="TerrainLayer3D"/>, the SUMO <c>TrafficLayer3D</c>):
     /// the CPU vertex streams are built on a WORKER keyed by an identity (the geometry / the net), and the FRAME thread takes the finished result and uploads it (<see cref="Pump"/>). Replaces the
     /// identity-check → build → <c>UploadMesh</c>-in-one-<c>Draw</c> that was CE-4078's ~40 s frame stall, in both layers.
     /// </summary>

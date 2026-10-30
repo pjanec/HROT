@@ -431,17 +431,29 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
     /// 🔴 Red-proofs: <c>EnterReviewAtSim</c> sending the live end ⇒ the position rows; ■ in a review stopping instead of exiting the review ⇒ the back-in-Live row.
     /// </summary>
     [Fact(Timeout = 600_000)]
-    public Task CE4104_LiveToDar_ByTheTimeline_AndBackToLiveByEject_OneContinuousRecording() => LiveToDarAndBack(viaTimeline: true);
+    public Task CE4104_LiveToDar_ByTheTimeline_AndBackToLiveByEject_OneContinuousRecording() => LiveToDarAndBack((Dar.Timeline, Back.Eject));
 
     /// <summary>Switch 3's other entry (the indicator's <i>DAR — the last 30 s</i>) and switch 4's ■ in a review. See <see cref="CE4104_LiveToDar_ByTheTimeline_AndBackToLiveByEject_OneContinuousRecording"/>.</summary>
     [Fact(Timeout = 600_000)]
-    public Task CE4104_LiveToDar_ByTheIndicatorsWindow_AndBackToLiveByStop_OneContinuousRecording() => LiveToDarAndBack(viaTimeline: false);
+    public Task CE4104_LiveToDar_ByTheIndicatorsWindow_AndBackToLiveByStop_OneContinuousRecording() => LiveToDarAndBack((Dar.Window, Back.Stop));
 
     /// <remarks>
     /// ⛔ <b>Production finding (reported, not fixed here — backend's master):</b> a SECOND DAR in the same live run (entered after a first DAR's return) reports <c>LivePointSimSeconds</c> = the DAR's own position (0.3 s) instead of the live end (8.1 s),
     /// and ■/⏏ then leaves live at that 0.3 s (<c>ReplaySessionProcessManager.cs:66-69</c> reads <c>_review.LivePoint</c>). Measured: the first DAR's live point is right in both orders.
     /// </remarks>
-    private async Task LiveToDarAndBack(bool viaTimeline)
+    private enum Dar { Timeline, Window }
+    private enum Back { Eject, Stop }
+
+    /// <summary>
+    /// ⭐⭐ <b>CE-1447 end to end (backend's fix, DESIGN_Replay_Time_Axis_And_Review §11c F22) — TWO DARs in ONE live run through the real editor.</b> The window item's DAR, ⏏ back, live on a few seconds, then the timeline's DAR at an EARLIER
+    /// moment, ■ back: after each the live point is the live end (never the DAR's position), live resumes at it, the live timeline index never loses a frame across both, and the run is one continuous recording.
+    /// The two facts above are the same helper with one step each. 📐 Before the master fix the second DAR (and the second editor in a process) reported its own position as the live point.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public Task CE1447_TwoDarsInOneLiveRun_EachKeepsTheLiveEnd_TheIndexNeverDrops_OneRecording()
+        => LiveToDarAndBack((Dar.Window, Back.Eject), (Dar.Timeline, Back.Stop));
+
+    private async Task LiveToDarAndBack(params (Dar Entry, Back Back)[] steps)
 {
         var editor = new EditorSubsystem();
         editor.Initialize(new SubsystemConfig { Headless = true, DomainId = 240 + Interlocked.Increment(ref _domain) });
@@ -468,7 +480,7 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
                 Assert.DoesNotContain(cursor.ModeMenuItems(transport.Session!.ZeroWallTicks, "0:03"), i => i.Label.StartsWith("Go live"));
                 return live;
             }
-            void BackInLive(double live, string how)
+            void BackInLive(double live, string how, int framesBefore)
             {
                 Pump(editor, () => transport.Mode == TransportMode.Live, 60, $"back in OperatingLive by {how}");
                 Assert.Equal(exercise, transport.ActiveExercise);                        // the same run: no branch, no new exercise
@@ -479,35 +491,42 @@ public sealed class TheEditorsRecordingIsFilmedInTheReplayBrowserTests : IDispos
                 Assert.True(transport.IsPaused, $"live is running after {how}: the design says it returns paused");
                 transport.TogglePlayPause();                                             // the user's ▶
                 Pump(editor, () => transport.TotalTime > live + 1, 20, $"live running on from the live point after ▶ (from {how})");
+                // ⭐ CE-1448 — the live timeline index is NOT restarted by the return: it holds at least the frames it held before the DAR (the node held its step until the world caught up)
+                Assert.True(editor.NodeForTest!.ShownTimeline!.Index.FrameSim.Count >= framesBefore,
+                    $"the live index restarted after {how}: {editor.NodeForTest.ShownTimeline.Index.FrameSim.Count} frames, {framesBefore} before the DAR");
             }
 
-            if (viaTimeline)
+            int framesAtStart = editor.NodeForTest!.ShownTimeline!.Index.FrameSim.Count;
+            foreach (var (entry, back) in steps)
             {
-            // ── the timeline's DAR at ~3 s, then ⏏ (the cursor reads the editor's own live index) ──
-            Assert.True(cursor.CanReview);
-            var index = editor.NodeForTest!.ShownTimeline!.Index;
-            int frame = 0; while (frame < index.FrameSim.Count - 1 && index.FrameSim[frame] < 3.0) frame++;
-            var asked = index.FrameSim[frame];
-            var liveB = transport.TotalTime;
-            cursor.EnterReview(index.FrameTicks[frame]);
-            var pausedAtB = EnteredDar(asked, "the timeline at 3 s");
-            Assert.InRange(pausedAtB, liveB - 0.5, liveB + 1.5);
-            var eject = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("⏏"));
-            eject.Invoke!();
-            BackInLive(pausedAtB, "⏏");
+                var liveBefore = transport.TotalTime;
+                int framesBefore = editor.NodeForTest!.ShownTimeline!.Index.FrameSim.Count;
+                double pausedAt;
+                if (entry == Dar.Timeline)
+                {
+                    // ── the timeline's DAR at ~3 s (the cursor reads the editor's own live index) ──
+                    Assert.True(cursor.CanReview);
+                    var index = editor.NodeForTest.ShownTimeline.Index;
+                    int frame = 0; while (frame < index.FrameSim.Count - 1 && index.FrameSim[frame] < 3.0) frame++;
+                    var asked = index.FrameSim[frame];
+                    cursor.EnterReview(index.FrameTicks[frame]);
+                    pausedAt = EnteredDar(asked, "the timeline at 3 s");
+                }
+                else
+                {
+                    // ── the indicator's window item ──
+                    var window = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("DAR — the last 30 s"));
+                    Assert.True(window.Enabled);
+                    window.Invoke!();
+                    pausedAt = EnteredDar(Math.Max(0, liveBefore - 30), "the last 30 s");
+                }
+                Assert.InRange(pausedAt, liveBefore - 0.5, liveBefore + 1.5);            // the live point = the live end when the DAR began, whatever the DAR's own position
+                if (back == Back.Eject) section.ModeMenu()!.Items.First(i => i.Label.StartsWith("⏏")).Invoke!();
+                else choice.Stop();                                                      // R-3060: ■ in a review = back to live
+                BackInLive(pausedAt, back == Back.Eject ? "⏏" : "■", framesBefore);
+                if (steps.Length > 1) PumpFor(editor, 3);                                // live runs on a few seconds before the next DAR
             }
-            else
-            {
-            // ── the indicator's window item, then ■ ──
-            var liveA = transport.TotalTime;
-            var window = section.ModeMenu()!.Items.First(i => i.Label.StartsWith("DAR — the last 30 s"));
-            Assert.True(window.Enabled);
-            window.Invoke!();
-            var pausedAtA = EnteredDar(Math.Max(0, liveA - 30), "the last 30 s");
-            Assert.InRange(pausedAtA, liveA - 0.5, liveA + 1.5);                         // the live point = where live was when the DAR began
-            choice.Stop();                                                               // R-3060: ■ in a review = back to live
-            BackInLive(pausedAtA, "■");
-            }
+            Assert.True(editor.NodeForTest!.ShownTimeline!.Index.FrameSim.Count >= framesAtStart, "the live index lost frames across the DARs");
 
             // ── ■ the run: ONE recording, covering the live time, no gap, no branch ──
             var totalLive = transport.TotalTime;

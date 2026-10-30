@@ -124,6 +124,20 @@ public sealed class TheBrainAndViewRoutesAnswerTests : IDisposable
         Assert.Equal(2000L, _svc.GetSelection()["primary"]!.GetValue<long>());
     }
 
+    /// <summary>⭐ CE-1451 — <c>GET /view</c> says a 3-D request is waiting on the map's background build and what that build is doing (what the 2-D map's "Building 3-D map…" shows).
+    /// 🔴 Red-proof: drop <c>["pending3D"]</c> from <c>GetView</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1451_TheView_SaysWhenA3DRequestWaitsForTheMapBuild()
+    {
+        ViewTelemetry.Publish(_world, new ViewSnapshot("2D", Vector3.Zero, Vector3.UnitY, 90f, 0f, 0f, 45f, new Vector2(1600, 900),
+            null, null, Entity.Null, AimTarget: 0, ZoomFovDeg: null, PublishedAtSeconds: 0,
+            Pending3D: true, Pending3DFailure: null, MapBuilt: false, MapBuildStep: "3-D map: terrain"));
+        var view = _svc.GetView(50);
+        Assert.True(view["pending3D"]!.GetValue<bool>());
+        Assert.False(view["map"]!["built"]!.GetValue<bool>());
+        Assert.Equal("3-D map: terrain", view["map"]!["step"]!.GetValue<string>());
+    }
+
     /// <summary>⭐ In 2-D the published rectangle decides, not <see cref="CullingState"/> — which reads visible wherever its host's viewport
     /// is unset (measured live on the editor: units 300 px off the bottom were listed). 🔴 Red-proof: test <c>CullingState</c> first in
     /// <c>ViewReader.InView</c> ⇒ red.</summary>

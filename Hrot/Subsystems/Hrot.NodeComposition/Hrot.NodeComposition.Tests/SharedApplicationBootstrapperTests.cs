@@ -271,13 +271,6 @@ public sealed class SharedApplicationBootstrapperTests
 
     private static readonly System.Text.RegularExpressions.Regex NewClusterSlave = new(@"new\s+(?:[\w.]+\.)?ClusterSlave\s*\(", System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private static string RepoRoot()
-    {
-        for (var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            if (System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "HROT.sln"))) return dir.FullName;
-        throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory + " — the source scan cannot run, and a rail that cannot run must not pass.");
-    }
-
     private static string CodeOf(string path)   // the file's code lines: comments (// and ///) dropped, so a doc mention is not a call
         => string.Join("\n", System.IO.File.ReadAllLines(path).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
 
@@ -291,7 +284,7 @@ public sealed class SharedApplicationBootstrapperTests
     [Fact]
     public void CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline()
     {
-        string root = RepoRoot();
+        string root = Fdp.Testing.TestRepo.Root;
 
         // ① the hosts are FOUND (a scan that finds nothing must fail) and each uses a bootstrapper subclass
         Assert.Equal(new[] { "CGF", "Editor", "IG", "SimHost", "Stride", "Traffic" }, EcsHosts.Select(h => h.Host).OrderBy(x => x, StringComparer.Ordinal).ToArray());
@@ -310,10 +303,10 @@ public sealed class SharedApplicationBootstrapperTests
         var slaveOffenders = new List<string>();
         int scanned = 0;
         foreach (string top in new[] { "Hrot", "Stride" })
-            foreach (string file in System.IO.Directory.EnumerateFiles(System.IO.Path.Combine(root, top), "*.cs", System.IO.SearchOption.AllDirectories))
+            foreach (string file in Fdp.Testing.RepoSources.CsFiles(System.IO.Path.Combine(root, top)))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
             {
                 string rel = System.IO.Path.GetRelativePath(root, file).Replace('\\', '/');
-                if (rel.Contains("/obj/") || rel.Contains("/bin/") || rel.Contains(".claude/worktrees") || rel.Contains("Tests/") || rel.Contains(".Tests") ) continue;   // production code only
+                if (rel.Contains("Tests/") || rel.Contains(".Tests") ) continue;   // production code only
                 string name = System.IO.Path.GetFileName(file);
                 if (allowed.Contains(name) || name.EndsWith("NodeBootstrapper.cs", StringComparison.Ordinal)) continue;
                 scanned++;

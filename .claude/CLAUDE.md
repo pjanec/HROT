@@ -947,6 +947,13 @@ artefact: the report **names the feature's suite and its result** before it name
 | **T2** minutes | ⭐⭐ **the BATCH gate, once** — the implementation session's table | ⭐ the **fast** everything *(unit suites of touched projects, `--no-build`)* + the batch's **new rails** + the **targeted rails that reproduce any bug found**. ⛔ **Not per fix.** ⛔⛔ **The E2E/system suite is NOT here — see T3** |
 | ⭐⭐ **T3** *(the E2E slow lane)* | ⛔⛔ **NEVER a foreground blocker** | ⭐ `run-system-tests.sh` *(boots the real editor headless per case)* runs **async** — backgrounded, or in CI/nightly — its result lands in the report or the next session. ⛔ **Never sit on it; never re-run it "to be sure"** |
 
+#### ⛔⛔ DISPLAY-ONLY RAILS SKIP SILENTLY — **a change to rendering code runs them under `xvfb-run -a`** *(`2026-10-30`)*
+
+📌 R-1046 moved the 3-D mesh build off the frame and its gates were green — ⛔ but `Map3DFrameRail` / `FilmFrameRail` **skip without a
+display**, so three of them sat red (a mesh now arrives a frame later) until a full Xvfb run found them. ⭐ Touching `Map3D`, `Vis3D`, a
+layer's `Draw`/`Draw3D`, the film or the canvas ⇒ run those classes with `xvfb-run -a dotnet test … --filter …FrameRail` and report the
+counts; ⛔ a "passed" that is really "skipped" is not a gate row.
+
 #### ⭐⭐ KNOWN-FLAKY TESTS RUN IN THEIR OWN LANE, NEVER IN THE USUAL RUN *(user, `2026-10-13`)*
 
 > 🔒 **User, verbatim:** *"can we always run the known flaky test separately to avoid failing the usual test run and wasting time on retesting?"*

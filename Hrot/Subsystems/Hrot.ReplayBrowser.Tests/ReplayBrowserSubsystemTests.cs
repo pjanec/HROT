@@ -274,6 +274,40 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1393</c> — the two test seams load a group THROUGH <c>OpenGroup</c> (the ONE open path), so a group they load is in the same state as one <c>OpenGroup</c> loaded: a new recording starts
+    /// unlooped, not playing, with an empty back/forward history. 🔴 Red-proof: a seam repeating part of <c>OpenGroup</c>'s body again (no resets) ⇒ its row.
+    /// </summary>
+    [Theory]
+    [InlineData("OpenGroup")]
+    [InlineData("LoadFdpGroupForTest")]
+    [InlineData("LoadFdpViaManager")]
+    public void CE1393_ASeamLoadedGroup_IsInTheSameStateAsAnOpenGroupLoadedOne(string how)
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var history = (Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker)typeof(ReplayBrowserSubsystem)
+            .GetField("_playbackHistory", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(_subsystem)!;
+
+        // a previous session's leftovers: playing, a loop set, a history to go back through
+        _subsystem.IsPlaying = true;
+        _subsystem.LocalLoop = (1.0, 2.0);
+        history.PushWaypoint(1, default);
+        history.PushWaypoint(2, default);
+        Assert.True(history.CanGoBack);
+
+        var path = MakeOneFrameRecording(nodeId: 1, Guid.NewGuid());
+        switch (how)
+        {
+            case "OpenGroup": Assert.Null(_subsystem.OpenGroup(new[] { path })); break;
+            case "LoadFdpGroupForTest": _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer())); break;
+            default: _subsystem.LoadFdpViaManager(path); break;
+        }
+
+        Assert.False(_subsystem.IsPlaying);
+        Assert.Null(_subsystem.LocalLoop);
+        Assert.False(history.CanGoBack);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>The whole point of this conversion</b> — the host is actually REGISTERED in the
     /// production composition root, live, when a replay group is (re)loaded.
     /// <see cref="ReplayBrowserSubsystem.LoadFdpGroupForTest"/> shares

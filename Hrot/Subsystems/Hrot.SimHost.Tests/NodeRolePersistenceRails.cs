@@ -164,10 +164,9 @@ namespace Hrot.SimHost.Tests
             var repoRoot = TestRepo.Root;
             var found    = new SortedSet<string>();
 
-            foreach (var file in System.IO.Directory.EnumerateFiles(repoRoot, "*.cs", System.IO.SearchOption.AllDirectories))
+            foreach (var file in RepoSources.CsFiles(repoRoot))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
             {
                 var normalised = file.Replace(System.IO.Path.DirectorySeparatorChar, '/');
-                if (normalised.Contains("/obj/") || normalised.Contains("/bin/")) continue;
                 if (normalised.Contains(".Tests/") || normalised.Contains(".Tests.")) continue;
 
                 var text = System.IO.File.ReadAllText(file);

@@ -1,7 +1,7 @@
 namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
-    /// ⭐⭐ <c>CE-1446</c> (R-1046, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.9 "the seam") — <b>what a node's 3-D map build tells its load chain</b>: a status the chain's map step POLLS on the frame thread
+    /// ⭐⭐ <c>R-1046</c> (CE-4078, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.9 "the seam") — <b>what a node's 3-D map build tells its load chain</b>: a status the chain's map step POLLS on the frame thread
     /// (the chain's existing shape, as <see cref="ILoadProgressSource"/> is read), beside it. ui's <c>Map3DBuild</c> implements it; backend's step resolves on <see cref="IsBuilt"/>, fails the prepare with <see cref="Failure"/>
     /// and feeds <see cref="Step"/> to the heartbeat.
     /// </summary>

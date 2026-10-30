@@ -37,7 +37,7 @@ public sealed class TrafficLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   //
     private readonly Func<EntityRepository?> _world;
     private Mesh _mesh, _ground, _cube;
     private bool _hasMesh, _hasGround, _hasCube;
-    /// <summary>⭐ CE-1446 — the road streams are built on a worker, keyed by (the net, the ambient-ground switch); the frame thread uploads them.</summary>
+    /// <summary>⭐ R-1046 — the road streams are built on a worker, keyed by (the net, the ambient-ground switch); the frame thread uploads them.</summary>
     private readonly BackgroundMeshBuild<Streams> _build = new();
 
     /// <summary>One mesh's un-indexed vertex streams.</summary>
@@ -58,7 +58,7 @@ public sealed class TrafficLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   //
     /// <summary>Triangles in the uploaded road mesh (0 before the first 3-D frame with a net).</summary>
     public int TriangleCount { get; private set; }
 
-    // ⭐ CE-1446 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
+    // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
     public void Update(float dt) { }
     public void Draw(RenderContext ctx) { }
 
@@ -119,7 +119,7 @@ public sealed class TrafficLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   //
         }
     }
 
-    /// <summary>⭐ CE-1446 — starts the CPU build for <paramref name="net"/> on a worker (<see cref="TrafficNetCache"/> is immutable; its <c>Roads</c> were built off the main thread already).</summary>
+    /// <summary>⭐ R-1046 — starts the CPU build for <paramref name="net"/> on a worker (<see cref="TrafficNetCache"/> is immutable; its <c>Roads</c> were built off the main thread already).</summary>
     private void RequestBuild(TrafficNetCache net)
     {
         bool ambient = ShowAmbientGround;

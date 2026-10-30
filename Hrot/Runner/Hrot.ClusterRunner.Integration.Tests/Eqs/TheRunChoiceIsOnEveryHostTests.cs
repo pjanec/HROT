@@ -97,7 +97,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var cgf = new CgfSubsystem(factory);
         try
         {
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             var windows = MakeWindowManager();
             cgf.RegisterWindows(windows);
 
@@ -138,7 +138,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         {
             editor.Initialize(new SubsystemConfig { Headless = true });
             editor.RegisterWindows(MakeWindowManager());
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             cgf.RegisterWindows(MakeWindowManager());
 
             AssertAsksStopAndLoadOverALiveRun("editor", editor.RunChoiceForTest, editor.NodeForTest);
@@ -173,7 +173,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         {
             editor.Initialize(new SubsystemConfig { Headless = true });
             editor.RegisterWindows(MakeWindowManager());
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             cgf.RegisterWindows(MakeWindowManager());
 
             var editorLogic = editor.EditorLogic;
@@ -301,7 +301,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var ig = new Hrot.IG.IgSubsystem();
         try
         {
-            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = 90 + Interlocked.Increment(ref _domain) });   // (a domain below CycloneDDS's default-port limit: 230+ cannot create a participant here, as the CGF rails above show)
+            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
             var offer = Assert.IsAssignableFrom<IProvidesRunControls>(ig);
             Assert.Equal(RunHostKind.Ig, offer.HostKind);
             Assert.NotNull(offer.Transport);
@@ -309,6 +309,10 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             Assert.Equal(Fdp.Toolkit.Orchestration.HostGatePolicy.Player, offer.GatePolicy);
             Assert.False(choice.HasScenarioControl);                 // a player is not an operator
             Assert.True(offer.SuppressTimeControl);                  // the role's explicit suppression
+            // ⭐ CE-1451 — the IG's DEBUG provider carries the same choice although it has NO drive (so GET /status.runGate shows the Player's gate)
+            var debug = ig.CreateDebugProvider()!;
+            Assert.Null(debug.Drive);
+            Assert.Same(choice, debug.RunChoice);
             choice.CancelLoad("x");                                  // a player owns no load: nothing to cancel, nothing throws
 
             var windows = MakeWindowManager();
@@ -327,17 +331,17 @@ public sealed class TheRunChoiceIsOnEveryHostTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-1446</c> (R-1046, DESIGN_Cluster_Load_Phase §11.9 ②) S4 — on the CONSTRUCTED IG: its profile puts the map in the load (<c>MapInLoad</c>) and ITS map is built <c>Eager</c> BECAUSE of that flag — one statement, the profile's;
+    /// ⭐⭐ <c>R-1046</c> (CE-4078, DESIGN_Cluster_Load_Phase §11.9 ②) S4 — on the CONSTRUCTED IG: its profile puts the map in the load (<c>MapInLoad</c>) and ITS map is built <c>Eager</c> BECAUSE of that flag — one statement, the profile's;
     /// the map's build is reachable from the node as <c>IgSubsystem.MapBuildStatus</c> (the load step's poll). Headless there is no window to upload into, so the status reads built (nothing to wait for).
     /// 🔴 Mutation: the IG's attach passing no policy (⇒ <c>OnFirst3DRequest</c>) ⇒ the policy cell reds.
     /// </summary>
     [Fact(Timeout = 60_000)]
-    public void CE1446_TheConstructedIgs_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
+    public void R1046_TheConstructedIgs_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
     {
         var ig = new Hrot.IG.IgSubsystem();
         try
         {
-            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = 90 + Interlocked.Increment(ref _domain) });
+            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
             Assert.True(Hrot.IG.IgApplication.RunProfile.MapInLoad);
             var status = ig.MapBuildStatus;
             var build = Assert.IsType<Fdp.Toolkit.Vis3D.Map3DBuild>(status);
@@ -399,12 +403,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.RegisterWindows(editorWindows);
             Assert.All(ScenarioMenuShape(editorWindows), line => Assert.Contains("MISSING", line));   // ⭐ CE-4101 follow-up: RegisterWindows registers NO scenario item any more
 
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             var cgfWindows = MakeWindowManager();
             cgf.RegisterWindows(cgfWindows);
             Assert.All(ScenarioMenuShape(cgfWindows), line => Assert.Contains("MISSING", line));
 
-            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+            orchestrator.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = true });
             var orchestratorWindows = MakeWindowManager();
 
             // ⭐ the ONE registration: each host alone in its process, composed by the runner's composition — it asks the picked owner to register
@@ -469,10 +473,10 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.RegisterWindows(MakeWindowManager());
             if (withCgf)
             {
-                cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+                cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
                 cgf.RegisterWindows(MakeWindowManager());
             }
-            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+            orchestrator.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = true });
 
             // (1) every combination: ONE scenario exit guard, over the owner's session door
             var sessions = new Dictionary<ISubsystem, Hrot.Editor.AiShared.Scenarios.IScenarioSession>
@@ -572,6 +576,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var ids = windows.StatusBar.SectionIds;
         Assert.DoesNotContain(ids, id => id.Contains("time", System.StringComparison.OrdinalIgnoreCase) || id.Contains("transport", System.StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// ⭐ The DDS domain block of this class: <c>11 … 10 + (the class's participant count)</c>, a block no other integration class uses (their bases: 39, 52–59, 70–71, 81, 91, 95, 100+; ids 1–38 are free).
+    /// 📐 It was <c>230</c>: the third host landed on 233, past CycloneDDS's default-port maximum of 232 — <c>CreateParticipant</c> fails there, which was the four "environment" reds (and the IG rails were put on 90 to dodge it).
+    /// </summary>
+    private const int DomainBase = 10;
 
     private static int _domain;
 }

@@ -492,6 +492,39 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-1434</c> — the hosted subtree's release of a FINISHED channel goes through the ONE <see cref="ChannelRelease"/></b> (no fourth copy of the two writes): for each of the three
+    /// channels, a TERMINAL action of THIS host instance is released (<c>ActiveAction</c> 0, <c>ActionInstanceId</c> + 1); a still <c>Running</c> one and another instance's are left alone.
+    /// 🔴 Red-proof: the <c>ChannelRelease.Release</c> call removed from one channel's arm ⇒ that channel's row.
+    /// </summary>
+    [Theory]
+    [InlineData(NodeStatus.Success)]
+    [InlineData(NodeStatus.Failure)]
+    public void CE1434_AHostedChildsFinishedChannels_AreReleasedThroughTheOneRelease(NodeStatus terminal)
+    {
+        using var world = TestWorldFactory.Create();
+        var e = world.CreateEntity();
+        const uint host = 7;
+        world.AddComponent(e, new LocomotionChannel { ActiveAction = 5, BehaviorInstanceId = host, Status = terminal, ActionInstanceId = 10 });
+        world.AddComponent(e, new WeaponChannel { ActiveAction = 6, BehaviorInstanceId = host, Status = terminal, ActionInstanceId = 20 });
+        world.AddComponent(e, new InteractionChannel { ActiveAction = 8, BehaviorInstanceId = host, Status = terminal, ActionInstanceId = 30 });
+
+        HostedSubtree.ReleaseFinishedChannels(world, e, host);
+
+        var l = world.GetComponent<LocomotionChannel>(e); var w = world.GetComponent<WeaponChannel>(e); var i = world.GetComponent<InteractionChannel>(e);
+        Assert.Equal((0, 11u), ((int)l.ActiveAction, l.ActionInstanceId));
+        Assert.Equal((0, 21u), ((int)w.ActiveAction, w.ActionInstanceId));
+        Assert.Equal((0, 31u), ((int)i.ActiveAction, i.ActionInstanceId));
+
+        // still Running, or another instance's: untouched
+        var f = world.CreateEntity();
+        world.AddComponent(f, new LocomotionChannel { ActiveAction = 5, BehaviorInstanceId = host, Status = NodeStatus.Running, ActionInstanceId = 10 });
+        world.AddComponent(f, new WeaponChannel { ActiveAction = 6, BehaviorInstanceId = host + 1, Status = terminal, ActionInstanceId = 20 });
+        HostedSubtree.ReleaseFinishedChannels(world, f, host);
+        Assert.Equal((5, 10u), ((int)world.GetComponent<LocomotionChannel>(f).ActiveAction, world.GetComponent<LocomotionChannel>(f).ActionInstanceId));
+        Assert.Equal((6, 20u), ((int)world.GetComponent<WeaponChannel>(f).ActiveAction, world.GetComponent<WeaponChannel>(f).ActionInstanceId));
+    }
+
+    /// <summary>
     /// ⭐⭐ <b><c>CE-2052</c> (S8n-2 ③) — two MoveTo-style children of ONE host, in sequence, each drive.</b> The rail plays the
     /// locomotion dispatcher (a new action ⇒ <c>Running</c>, two frames later ⇒ <c>Success</c>). 🔴 Before: the second child
     /// found the first one's <c>Success</c> on the shared channel (the host's instance never changed, so arbitration never

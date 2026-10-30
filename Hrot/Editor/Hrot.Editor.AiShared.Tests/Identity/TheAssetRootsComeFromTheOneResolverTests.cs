@@ -221,10 +221,8 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     // ── helpers ───────────────────────────────────────────────────────────────────
 
     private static IEnumerable<string> ProductionSources(string repoRoot)
-        => Directory.EnumerateFiles(repoRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                     && !f.Contains(".Tests" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+        => RepoSources.CsFiles(repoRoot)   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
+            .Where(f => !f.Contains(".Tests" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
                      && !f.Contains(Path.DirectorySeparatorChar + "examples" + Path.DirectorySeparatorChar,
                                     StringComparison.OrdinalIgnoreCase)
                      // ⭐ CE-3340 — never a hidden directory: `.claude/worktrees/*` holds other checkouts (agents' worktrees, old commits) whose

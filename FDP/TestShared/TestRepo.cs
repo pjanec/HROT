@@ -30,4 +30,36 @@ namespace Fdp.Testing
                 ContentLayout.RepositoryMarkerFileName + " beside an '" + ContentLayout.AssetsDirectoryName + "' folder. " +
                 "This test reads repository sources and cannot run without them.");
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1366</c> — <b>the ONE repo-wide source scan</b>: every file of a pattern under <paramref name="root"/>, skipping <c>obj/</c>, <c>bin/</c>, <c>.claude/</c> (agent worktrees hold FULL copies of the tree —
+    /// a scan that descends into them lists every file twice) and <c>.git/</c>. ⛔ Never a hand-rolled <c>Directory.EnumerateFiles(root, "*.cs", AllDirectories)</c> plus its own skips: nine copies each
+    /// carried a different subset. The skipped folders are pruned, never descended into. Linked beside <see cref="TestRepo"/> (the same file).
+    /// </summary>
+    internal static class RepoSources
+    {
+        /// <summary>Folder names never scanned, at any depth.</summary>
+        public static readonly string[] SkippedDirectories = { "obj", "bin", ".claude", ".git" };
+
+        /// <summary>Every <c>*.cs</c> under <paramref name="root"/> (see <see cref="Files"/>).</summary>
+        public static System.Collections.Generic.IEnumerable<string> CsFiles(string root, params string[] alsoSkip) => Files(root, "*.cs", alsoSkip);
+
+        /// <summary>Every file matching <paramref name="pattern"/> under <paramref name="root"/>, minus the <see cref="SkippedDirectories"/> (and any <paramref name="alsoSkip"/> folder names).</summary>
+        public static System.Collections.Generic.IEnumerable<string> Files(string root, string pattern, params string[] alsoSkip)
+        {
+            var stack = new System.Collections.Generic.Stack<string>();
+            stack.Push(root);
+            while (stack.Count > 0)
+            {
+                var dir = stack.Pop();
+                foreach (var f in System.IO.Directory.EnumerateFiles(dir, pattern)) yield return f;
+                foreach (var d in System.IO.Directory.EnumerateDirectories(dir))
+                {
+                    var name = System.IO.Path.GetFileName(d);
+                    if (System.Array.IndexOf(SkippedDirectories, name) >= 0 || System.Array.IndexOf(alsoSkip, name) >= 0) continue;
+                    stack.Push(d);
+                }
+            }
+        }
+    }
 }

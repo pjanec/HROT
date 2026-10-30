@@ -509,6 +509,73 @@ public sealed class HrotNodeBuilderTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's return does not restart the index: the state is <c>OperatingLive</c> a few frames BEFORE the master puts the clock back (measured on the real editor: the first live steps still read the
+    /// node's own last frame, then the clock snaps back to L, a few frames BEHIND it, and climbs). The node HOLDS (no step, no reset) until the world is past the index's last frame, then continues: the frame count never
+    /// drops, and runs on past where it was. 🔴 Red-proof: the hold removed ⇒ the snap-back reads as a rewind and the index restarts (count 1).
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_AfterAReviewsReturn_HoldsWhileTheWorldIsBehind_ThenContinues()
+    {
+        using var ctx = InitialisedNode(91);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);                                                             // the review plays an earlier moment
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);       // the world is put back; the clock follows a few frames later
+        SimFrame(ctx, 5);                                                             // the first live step: still the node's own last frame (not behind, not new)
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 3);                                                             // the clock snaps back to L: BEHIND the index's last (5) …
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 4);
+        Assert.Equal(5, ctx.Timeline.Frames);                                         // … the count never drops
+        SimFrame(ctx, 5);                                                             // caught up: the same frame, nothing new
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6); SimFrame(ctx, 7);
+        Assert.Equal(7, ctx.Timeline.Frames);                                         // continues past where it was
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // the run's first frame is still frame 0
+        Assert.Equal(0.7, ctx.Timeline.Index.FrameSim[6], 6);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1448</c> — the review's ENTRY does not restart the index either: the world is rewound to the review's moment while this node's state still reads <c>OperatingLive</c> (measured on the real editor: frame 314 → 299 under
+    /// a live state, the index reset to one frame). While a review is in flight (the handler holds the live point) the node steps nothing and resets nothing; the whole round trip keeps the index.
+    /// 🔴 Red-proof: the in-flight hold removed ⇒ the rewound frame under a live state reads as a rewind and the index restarts.
+    /// </summary>
+    [Fact]
+    public void CE1448_Node_StepTimeline_WhileAReviewIsInFlight_AnEarlierFrameUnderALiveState_DoesNotResetTheIndex()
+    {
+        using var ctx = InitialisedNode(90);
+        bool inFlight = false;
+        ctx.ReviewInFlightForTest = () => inFlight;
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        for (int f = 1; f <= 5; f++) SimFrame(ctx, f);
+        Assert.Equal(5, ctx.Timeline.Frames);
+
+        inFlight = true;                                                              // the review's prepare has committed: the handler holds the live point
+        SimFrame(ctx, 3);                                                             // the world is at the review's moment, the state still says live
+        Assert.Equal(5, ctx.Timeline.Frames);
+        Assert.Equal(5, ctx.Timeline.LastFrame);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingReview);
+        SimFrame(ctx, 2);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.UnloadingReview);
+        inFlight = false;                                                             // finalize committed
+        SimFrame(ctx, 0);
+        CommitState(ctx, Fdp.Toolkit.Orchestration.ClusterState.OperatingLive);
+        SimFrame(ctx, 5); SimFrame(ctx, 3);                                           // the return: stale, then the clock snaps back
+        Assert.Equal(5, ctx.Timeline.Frames);
+        SimFrame(ctx, 6);
+        Assert.Equal(6, ctx.Timeline.Frames);
+        ctx.Timeline.Step(ctx.World, System.DateTime.UtcNow.Ticks, force: true);
+        Assert.Equal(0.1, ctx.Timeline.Index.FrameSim[0], 6);                         // still the run's first frame
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> E1 — entering <c>OperatingLive</c> from anything but a review (here an edit session that indexed frames) starts the index
     /// AFRESH: frame 0 is the run's first frame. 🔴 Red-proof: the reset skipped (behind a runtime condition) ⇒ the edit's frames stay.
     /// </summary>

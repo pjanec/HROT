@@ -101,18 +101,13 @@ public sealed class ThereIsOneNetworkIdResolverTests
 
         var found = new List<string>();
 
-        foreach (var file in Directory.EnumerateFiles(root!, "*.cs", SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(root!))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
-                file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                continue;
-
             var rel = Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel == ResolverPath || AllowedNonResolverLookups.ContainsKey(rel)) continue;
 
             // ⚠ Test assemblies assert on ids constantly and legitimately; this rail is about production.
             if (rel.Contains(".Tests/")) continue;
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;   // agent worktrees: a second copy of the tree
 
             foreach (var line in File.ReadLines(file))
             {

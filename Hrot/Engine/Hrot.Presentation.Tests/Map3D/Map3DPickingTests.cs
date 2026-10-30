@@ -27,6 +27,59 @@ public sealed class Map3DPickingTests
         return (terrain, world, WorldQuery.Of(world)!);
     }
 
+    /// <summary>⭐ R-1046 — the picker's grid builds on a worker now (a pick never blocks): a rail that wants to HIT waits for it, as the frame loop would.</summary>
+    internal static TerrainPicker Ready(TerrainPicker picker)
+    {
+        var end = System.DateTime.UtcNow.AddSeconds(30);
+        while (!picker.Update())
+        {
+            Assert.True(System.DateTime.UtcNow < end, "the terrain picker's grid was not built in time");
+            System.Threading.Thread.Sleep(2);
+        }
+        return picker;
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-1046</c> — the terrain picker's grid is built on a WORKER, keyed by the geometry's identity: while it is unbuilt a pick returns no hit and never blocks (the first pick returns at once);
+    /// once built the same ray hits; a new geometry identity is a miss again until ITS grid is built (never the old terrain's).
+    /// 🔴 Mutation: the grid built synchronously inside the pick ⇒ the first pick hits, the "no hit while building" cell reds.
+    /// </summary>
+    [Fact]
+    public void R1046_TheTerrainPicker_MissesWhileItsGridBuilds_NeverBlocks_ThenHits()
+    {
+        var (terrain, world, q) = Town();
+        var (roof, roofZ, _, _) = Spots(terrain, q);
+        var ray = (new Vector3(roof, 500f), -Vector3.UnitZ);
+        var picker = new TerrainPicker(() => WorldQuery.RenderGeometryOf(world));
+
+        Assert.False(picker.IsBuilt);
+        Assert.False(picker.TryPick(ray.Item1, ray.Item2, 1000f, out _));      // the first pick starts the build and misses at once
+        Assert.Equal(0, picker.TriangleCount);
+
+        bool hit = false; PickResult result = default;
+        var end = System.DateTime.UtcNow.AddSeconds(30);
+        while (!hit && System.DateTime.UtcNow < end)
+        {
+            hit = picker.TryPick(ray.Item1, ray.Item2, 1000f, out result);
+            if (!hit) System.Threading.Thread.Sleep(2);
+        }
+        Assert.True(hit, "the grid never finished");
+        Assert.True(picker.IsBuilt);
+        Assert.InRange(result.Point.Z, roofZ - 0.05f, roofZ + 0.05f);
+
+        // another terrain (a new geometry identity): a miss until ITS grid is built — never a hit on the old terrain's triangles
+        var other = Map3DTests.WorldWith(Map3DTests.TestTown());
+        var current = world;
+        var swapping = new TerrainPicker(() => WorldQuery.RenderGeometryOf(current));
+        Ready(swapping);
+        Assert.True(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+        current = other;
+        Assert.False(swapping.IsBuilt);
+        Assert.False(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+        Ready(swapping);
+        Assert.True(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+    }
+
     /// <summary>A point on a roof (a second surface above the ground) and a point of open ground.</summary>
     private static (Vector2 Roof, float RoofZ, Vector2 Open, float GroundZ) Spots(TerrainWorld terrain, IWorldQuery q)
     {
@@ -54,7 +107,7 @@ public sealed class Map3DPickingTests
     {
         var (terrain, world, q) = Town();
         var (roof, roofZ, open, groundZ) = Spots(terrain, q);
-        var picker = new TerrainPicker(() => WorldQuery.RenderGeometryOf(world));
+        var picker = Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
 
         Assert.True(picker.TryPick(new Vector3(roof, 500f), -Vector3.UnitZ, 1000f, out var onRoof));
         Assert.InRange(onRoof.Point.Z, roofZ - 0.05f, roofZ + 0.05f);
@@ -72,7 +125,7 @@ public sealed class Map3DPickingTests
     {
         var (terrain, world, q) = Town();
         var (roof, roofZ, _, _) = Spots(terrain, q);
-        var picker = new TerrainPicker(() => WorldQuery.RenderGeometryOf(world));
+        var picker = Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
         // from above and to the side, aimed at the roof point: the first thing hit must be at or above the roof's height
         var from = new Vector3(roof.X - 60f, roof.Y - 60f, roofZ + 60f);
         var dir = Vector3.Normalize(new Vector3(roof, roofZ) - from);
@@ -121,7 +174,7 @@ public sealed class Map3DPickingTests
         var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
         Tank(world, at + new Vector3(0, 0, 0), 5);
         var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = at, Distance = 40f, Pitch = -0.9f, Yaw = 1.0f };
-        cam.Pickers.Add(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+        cam.Pickers.Add(Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world))));
         cam.Pickers.Add(new EntityBoxPicker(() => world, () => tkb, bodies));
 
         // The screen centre looks at the tank's footprint centre; aim a little up the hull to be sure to hit its box.
@@ -150,7 +203,7 @@ public sealed class Map3DPickingTests
         var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
         Tank(world, at, 77);
         var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = at + new Vector3(0f, 0f, 1.2f), Distance = 40f, Pitch = -0.05f, Yaw = 1.0f };
-        cam.Pickers.Add(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
+        cam.Pickers.Add(Ready(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world))));
         cam.Pickers.Add(new EntityBoxPicker(() => world, () => tkb, bodies));
         cam.Pickers.Add(new EntityPartPicker(() => world, () => tkb, bodies));   // ⭐ CE-1126 — the crosshair asks for the parts
         var own = Tank(world, cam.Eye - new Vector3(0f, 0f, 1.5f), 5);   // the operator's tank: the eye is inside its hull box

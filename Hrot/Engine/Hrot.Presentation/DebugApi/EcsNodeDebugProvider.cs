@@ -49,6 +49,7 @@ public static class EcsNodeDebugProvider
             runNotRecorded: () => node()?.ClusterSlave.RunNotRecorded,   // ⭐ CE-4090 D14 — the same broadcast
             recordLiveRunsOff: () => node()?.ClusterSlave.RecordLiveRunsOff,
             armedMode:         () => node()?.ClusterSlave.ArmedMode,   // ⭐ CE-3341 R-3068 — the same View
+            runChoice:         x.RunChoice,   // ⭐ CE-1451 — the host's run choice, independent of the drive (the IG has none)
             clusterView:       () => node()?.ClusterSlave.View,   // ⭐ CE-3344 R-3069 — the node's ONE read model: CanOperate gates the HTTP cluster routes
             // ⭐⭐⭐ CE-1436 (R-3066, design V5) — the check round's answer from the node's ONE cluster read model (ClusterSlave.View), the same on CGF, SimHost, IG and
             //    traffic: ObservesUnsavedChecks is true by construction here, so ▶ asks the round on every host. ⛔ Not the node's own world check — the MASTER's answer.
@@ -85,6 +86,9 @@ public sealed record EcsNodeDebugExtras
 {
     /// <summary>The node's time-drive adapter (a slave's cluster time adapter); <see langword="null"/> ⇒ it cannot step time.</summary>
     public Func<ITimeTransportFacade?>? Drive { get; init; }
+
+    /// <summary>⭐ CE-1451 — the node's run choice (<c>IProvidesRunControls.RunChoice</c>), so <c>GET /status.runGate</c> works on a host with no drive (the IG).</summary>
+    public Func<Hrot.UI.Common.RunMode.RunModeChoice?>? RunChoice { get; init; }
 
     /// <summary>The node's map/gizmo feed.</summary>
     public Func<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer?>? GizmoBuffer { get; init; }

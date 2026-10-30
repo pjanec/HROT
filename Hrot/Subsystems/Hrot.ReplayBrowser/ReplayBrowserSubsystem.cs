@@ -640,20 +640,10 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// </summary>
     internal void LoadFdpGroupForTest(string[] paths, TransientMasterBuilder builder)
     {
-        _manager?.Dispose();
-        _transientMaster?.Dispose();
-        _transientMaster = null;
-
+        // ⭐ CE-1393 — the ONE open path: the builder seam is set, then OpenGroup does the whole load (dispose, geo origin, terrain, panel, timeline, and the
+        //   LocalLoop / play-state / history reset). A refusal is thrown, as the seam always threw a bad group.
         _transientBuilder = builder;
-        _manager = FederatedReplayManager.LoadGroup(paths);
-        _manager.OnTimeChanged += OnManagerTimeChanged;
-        ApplyRecordingGeoOrigin();   // CE-3126
-        ApplyRecordingTerrain();     // CE-3118
-        _timelinePanel?.SetManager(_manager);
-
-        CreateOrReplaceFederationPanel();
-
-        OnManagerTimeChanged();
+        if (OpenGroup(paths) is { } refused) throw new LoadGroupException(refused);
     }
 
     /// <summary>⭐⭐⭐ U-obs-5 follow-up — creates (or replaces, on a subsequent group load) the
@@ -862,13 +852,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// </summary>
     internal void LoadFdpViaManager(string path)
     {
-        _manager?.Dispose();
-        _manager = FederatedReplayManager.LoadGroup(new[] { path });
-        _manager.OnTimeChanged += OnManagerTimeChanged;
-        ApplyRecordingGeoOrigin();   // CE-3126
-        ApplyRecordingTerrain();     // CE-3118
-        _timelinePanel?.SetManager(_manager);
-        OnManagerTimeChanged();
+        // ⭐ CE-1393 — the ONE open path (it used to repeat part of OpenGroup and keep the old transient master, with no LocalLoop / play-state / history reset).
+        if (OpenGroup(new[] { path }) is { } refused) throw new LoadGroupException(refused);
     }
 
     // ── IWindowRegistrar ──────────────────────────────────────────────────

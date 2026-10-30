@@ -681,6 +681,7 @@ namespace Hrot.Editor
         // ?? Context menu (ImGui popup trigger) ????????????????????????????????????
 
         private DebugGizmoLayer? _gizmoLayer;
+        private Fdp.Toolkit.Vis3D.Map3DBuild? _map3DBuild;   // ⭐ R-1046 — the shown map's 3-D build: the film director waits on it
 
         // ?? Rename dialog state ???????????????????????????????????????????????????
 
@@ -1432,7 +1433,8 @@ namespace Hrot.Editor
                     state: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
                     recordingPath: () => _clusterHandlers!.RecordReplayController?.ActiveRecordingModule?.FilePath,
                     openRecording: path => new Hrot.Editor.Director.RecordedRun(path, scenarioSerializer,
-                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null));
+                        hash => _behaviorRegistry != null && _behaviorRegistry.TryGetName(hash, out var n) ? n : null),
+                    mapBuild: () => _map3DBuild);   // ⭐ R-1046 — a take waits for the shown map's 3-D build
                 // ⭐ CE-1303 P1 (§11j) — the film director is ONE pack (Hrot.Presentation); the editor contributes its host, the verifier
                 //   (CE-4061: the runner's one extension seam — CE-4042: late-bound to the debug service 8b builds below) and the Verify tab
                 _directorPack = Hrot.UI.Common.Map3D.Director.DirectorPack.Attach(new Hrot.UI.Common.Map3D.Director.DirectorPackHost(
@@ -1772,9 +1774,11 @@ namespace Hrot.Editor
                 // ⭐ CE-1288 — the 2-D helper grid is the shared attach's now (the layer panel's "Grid (2-D)" row, on by default, and under
                 //   the entities — this host used to add its own above them). The Config window's "Grid" tick (MapViewConfig.ShowGrid) is
                 //   passed so it still forces the grid on rather than becoming a control that does nothing.
-                _gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                var editorMapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
                     _canvas!, _gizmoBuffer!, interactionBus, () => _world, () => _tkbDatabase,
-                    gridAlsoWhen: () => _mapViewConfig?.ShowGrid ?? false).GizmoLayer;
+                    gridAlsoWhen: () => _mapViewConfig?.ShowGrid ?? false);
+                _gizmoLayer = editorMapLayers.GizmoLayer;
+                _map3DBuild = editorMapLayers.Map3D;
 
 
                 // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)

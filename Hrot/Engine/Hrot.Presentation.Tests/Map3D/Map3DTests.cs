@@ -4695,7 +4695,7 @@ public sealed class Map3DTests
         return repo;
     }
 
-    // ══ ⭐⭐⭐ CE-1446 (R-1046, DESIGN_Cluster_Load_Phase §11.9) — the 3-D map built in the BACKGROUND, with a status the load waits on ═══════════════════════
+    // ══ ⭐⭐⭐ R-1046 (CE-4078, DESIGN_Cluster_Load_Phase §11.9) — the 3-D map built in the BACKGROUND, with a status the load waits on ═══════════════════════
 
     /// <summary>What a fake layer's worker "builds": it names the identity it was built for, so an upload shows which build it came from.</summary>
     private sealed record FakeStreams(object Identity);
@@ -4745,7 +4745,7 @@ public sealed class Map3DTests
     /// 🔴 Mutation: <c>Request</c> building synchronously ⇒ the thread and the "still building" cells red.
     /// </summary>
     [Fact]
-    public void CE1446_TheMeshBuild_RunsOffTheFrameThread_AndIsUploadedOnIt()
+    public void R1046_TheMeshBuild_RunsOffTheFrameThread_AndIsUploadedOnIt()
     {
         var frame = System.Environment.CurrentManagedThreadId;
         var layer = new FakeMeshLayer { Source = "A", Hold = new System.Threading.ManualResetEventSlim(false) };
@@ -4769,7 +4769,7 @@ public sealed class Map3DTests
     /// 🔴 Mutation: the worker keeping a superseded result (the generation check removed) ⇒ the uploads read A.
     /// </summary>
     [Fact]
-    public void CE1446_ASupersededBuild_IsNeverUploaded_AndAThrowingBuildReportsFailed()
+    public void R1046_ASupersededBuild_IsNeverUploaded_AndAThrowingBuildReportsFailed()
     {
         var layer = new FakeMeshLayer { Source = "A", Hold = new System.Threading.ManualResetEventSlim(false) };
         var holdA = layer.Hold;
@@ -4809,7 +4809,7 @@ public sealed class Map3DTests
     /// 🔴 Mutation: <c>BackgroundMeshBuild.IsBuiltFor</c> ignoring the identity ⇒ the per-load cell reads built for B at once.
     /// </summary>
     [Fact]
-    public void CE1446_Map3DBuild_IsPerLoad_AndFollowsItsPolicy()
+    public void R1046_Map3DBuild_IsPerLoad_AndFollowsItsPolicy()
     {
         // OnFirst3DRequest: nothing until the first request
         var lazyLayer = new FakeMeshLayer { Source = "A" };
@@ -4863,7 +4863,7 @@ public sealed class Map3DTests
     /// 🔴 Mutation: the switch swapping at once (the gate removed) ⇒ the first cells red.
     /// </summary>
     [Fact]
-    public void CE1446_TheSwitch_StaysIn2D_WhileTheMapBuilds_AndGoes3DWhenItIsBuilt()
+    public void R1046_TheSwitch_StaysIn2D_WhileTheMapBuilds_AndGoes3DWhenItIsBuilt()
     {
         MapViewSwitch Switch(FakeMeshLayer layer, out Map3DBuild build, out Fdp.Toolkit.Vis2D.MapCanvas canvas, out MapCamera two)
         {
@@ -4919,7 +4919,7 @@ public sealed class Map3DTests
     /// 🔴 Mutation: <c>MapInLoad ? Eager : OnFirst3DRequest</c> inverted ⇒ the profile cells red.
     /// </summary>
     [Fact]
-    public void CE1446_TheSharedAttach_DefaultsToTheFirstRequest_AndTheProfileDecidesEager()
+    public void R1046_TheSharedAttach_DefaultsToTheFirstRequest_AndTheProfileDecidesEager()
     {
         var world = new Fdp.Core.EntityRepository();
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });

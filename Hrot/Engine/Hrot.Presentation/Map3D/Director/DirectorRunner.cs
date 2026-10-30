@@ -574,11 +574,13 @@ namespace Hrot.UI.Common.Map3D.Director
                 if (LiveRun) _ext!.Load(Item.Scenario);   // ⭐ a live run records (R-3053); the preview never does
                 else _host.LoadScenario(Item.Scenario);
                 _probe = new ScenarioReadyProbe(before);
+                _host.MapBuild?.Request3D();   // ⭐ R-1046 — a take needs the 3-D map: ask for it now (it builds once the new terrain exists), and wait for it below
                 _phaseStartWall = _host.WallNow;
                 return;
             }
             double waited = _host.WallNow - _phaseStartWall;
-            if (_probe.Observe(LiveRun ? _ext!.IsLoaded : _host.IsOperatingEdit, _host.EntityCount, waited))
+            if (_host.MapBuild?.Failure is { } mapFailure) { Fail($"the 3-D map did not build: {mapFailure}"); return; }
+            if (_probe.Observe(LiveRun ? _ext!.IsLoaded : _host.IsOperatingEdit, _host.EntityCount, waited, mapBuilt: _host.MapBuild?.IsBuilt ?? true))
             {
                 Phase = DirectorPhase.Entering;
                 if (!LiveRun) _host.EnterPreview(startPaused: true);

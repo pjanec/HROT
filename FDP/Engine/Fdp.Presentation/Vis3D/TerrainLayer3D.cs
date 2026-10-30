@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Vis3D
     /// ⭐ CE-1033 S1 — the terrain in the map's 3-D mode (<c>docs/DESIGN_Map_3D_Mode.md</c> M4, M5): the triangles the world query
     /// hands out through <see cref="ITerrainRenderGeometry"/> (the stand-in: its navmesh soup, unchanged), one colour per kind, lit
     /// and fogged by <see cref="LitShader"/>. Flat shading by un-indexing (each triangle its own normal). The mesh is rebuilt only
-    /// when the geometry's <see cref="ITerrainRenderGeometry.Identity"/> changes — ⭐ CE-1446: built on a worker (<see cref="BackgroundMeshBuild{TStreams}"/>), uploaded on the frame. Nothing in 2-D.
+    /// when the geometry's <see cref="ITerrainRenderGeometry.Identity"/> changes — ⭐ R-1046: built on a worker (<see cref="BackgroundMeshBuild{TStreams}"/>), uploaded on the frame. Nothing in 2-D.
     /// 🔒 R-250/R-252: the map sees triangles and a kind, never how the terrain is modelled.
     /// </summary>
     public sealed class TerrainLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   // ⭐ CE-3289 — the world: filmed
@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Vis3D
         private readonly Func<ITerrainRenderGeometry?> _source;
         private Mesh _mesh;
         private bool _hasMesh;
-        /// <summary>⭐ CE-1446 — the CPU streams are built on a worker, keyed by the geometry's identity; the frame thread uploads them (<see cref="PumpBuild"/>).</summary>
+        /// <summary>⭐ R-1046 — the CPU streams are built on a worker, keyed by the geometry's identity; the frame thread uploads them (<see cref="PumpBuild"/>).</summary>
         private readonly BackgroundMeshBuild<Streams> _build = new();
 
         /// <summary>The terrain's un-indexed vertex streams.</summary>
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>Triangles in the uploaded mesh (0 before the first 3-D frame with a world).</summary>
         public int TriangleCount { get; private set; }
 
-        // ⭐ CE-1446 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
+        // ⭐ R-1046 — the upload is pumped by the map's Map3DBuild (every frame, 2-D too), not here
         public void Update(float dt) { }
         public void Draw(RenderContext ctx) { }
 
@@ -84,7 +84,7 @@ namespace Fdp.Toolkit.Vis3D
         }
 
         /// <summary>
-        /// ⭐ CE-1446 — starts the CPU build for <paramref name="geometry"/> on a worker. 📐 Safe off the frame thread: <see cref="ITerrainRenderGeometry.BuildTagged"/> of the terrain reads only its
+        /// ⭐ R-1046 — starts the CPU build for <paramref name="geometry"/> on a worker. 📐 Safe off the frame thread: <see cref="ITerrainRenderGeometry.BuildTagged"/> of the terrain reads only its
         /// <c>TerrainWorld</c> (init-only, never mutated after the terrain is committed — <c>TerrainWorldMesh.Build</c> is static and pure).
         /// </summary>
         private void RequestBuild(ITerrainRenderGeometry geometry)

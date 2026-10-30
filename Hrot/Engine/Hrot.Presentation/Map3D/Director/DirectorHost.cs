@@ -20,6 +20,12 @@ namespace Hrot.UI.Common.Map3D.Director
 
         int? EntityCount { get; }
 
+        /// <summary>
+        /// ⭐ <c>R-1046</c> (DESIGN_Cluster_Load_Phase §11.9) — the shown map's 3-D build (its <c>IMapBuildStatus</c>); <see langword="null"/>: this host has no 3-D map to wait for. The runner asks for the build when it
+        /// requests the load and does not start a take until it is built.
+        /// </summary>
+        Fdp.Toolkit.Vis3D.Map3DBuild? MapBuild => null;
+
         bool InPreview { get; }
         void EnterPreview(bool startPaused);
         void ExitPreview();

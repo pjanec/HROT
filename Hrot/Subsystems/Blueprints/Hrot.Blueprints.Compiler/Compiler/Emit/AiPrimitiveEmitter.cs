@@ -504,7 +504,7 @@ internal static class AiPrimitiveEmitter
             int n = 0;
             foreach (var channelFqn in derived.ChannelComponentFqns)
             {
-                var v = "__ch" + n++;
+                n++;
                 e.WriteLine($"if (__repo.HasComponent<global::{channelFqn}>(__bridge->Self))");
                 e.WriteLine("{");
                 e.Indent();
@@ -514,12 +514,8 @@ internal static class AiPrimitiveEmitter
                 if (kind >= 0)
                     e.WriteLine($"global::Fdp.Toolkit.Behavior.ChannelRelease.Release(__repo, __bridge->Self, (global::Fbt.Kernel.ChannelKind){kind});");
                 else
-                {
-                    // a channel component the runtime release does not know (a catalog entry outside the three engine channels)
-                    e.WriteLine($"ref var {v} = ref __repo.GetComponentRW<global::{channelFqn}>(__bridge->Self);");
-                    e.WriteLine($"{v}.ActiveAction     = 0;");
-                    e.WriteLine($"{v}.ActionInstanceId = unchecked({v}.ActionInstanceId + 1u);");
-                }
+                    // ⭐ CE-1435 — NO inline fallback: a channel outside the three engine channels has no release, and Stage 7 has already refused the asset (BP6001, `CheckChannelsAreEngineChannels`).
+                    e.WriteLine($"// CE-1435: '{channelFqn}' is not an engine channel — the compile is refused (BP6001); nothing is released here.");
                 e.Outdent();
                 e.WriteLine("}");
             }
@@ -531,6 +527,9 @@ internal static class AiPrimitiveEmitter
 
     /// <summary>⭐ <c>CE-1432</c> — the <c>Fbt.Kernel.ChannelKind</c> value of an engine channel component FQN (the runtime
     /// <c>ChannelRelease</c> switches on it), or -1 for any other component.</summary>
+    /// <summary>⭐ CE-1435 — whether <paramref name="channelFqn"/> is one of the three engine channels the runtime <c>ChannelRelease</c> knows.</summary>
+    internal static bool IsEngineChannel(string channelFqn) => ChannelKindOf(channelFqn) >= 0;
+
     private static int ChannelKindOf(string channelFqn) => channelFqn switch
     {
         "Fdp.Toolkit.Behavior.Components.LocomotionChannel"  => 0,
