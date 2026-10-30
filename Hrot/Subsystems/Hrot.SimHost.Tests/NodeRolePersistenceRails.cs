@@ -53,10 +53,7 @@ namespace Hrot.SimHost.Tests
             //   rail, but — unlike the two above — it is GATED (owner-only), so holding it is NOT a
             //   persistence-policy violation. IG holding it is CORRECT: its file is empty by the gate.
             "HrotScenarioSaveHandler",
-            // ⭐ CE-518 ② — ExCon's save handler (CE-277 c3): the no-ECS observer variant, writing a FOREIGN
-            //   `ExCon.Observer` document. 📄 DESIGN_Distributed_Scenario_Persistence.md (ExCon SAVE row).
-            //   ⛔ Not a checkpoint handler, so it is not in the passive-node list below.
-            "ExConScenarioSaveHandler",
+            // ⛔ `ExConScenarioSaveHandler` (CE-518 ②, the no-ECS observer's save handler) is GONE — the ExCon node was deleted (R-3067, AQ109 X2); the set is the three above.
         };
 
         /// <summary>
@@ -197,6 +194,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>CGF's composition root — host (c) onto the capability axis (CE-200).</summary>
         private const string CgfRoot        = "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs";
+        /// <summary>⭐ CE-1446 B1 — where CGF's capability plan and node composition now live.</summary>
+        private const string CgfBootstrapperRoot = "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs";
         private const string SimHostApp     = "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs";
         private const string SimHostSubsys  = "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs";
 
@@ -299,13 +298,18 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CgfDeclaresItsRoleOnce()
         {
-            var src = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(CgfRoot));
+            // ⭐ CE-1446 B1 — CGF's node is built by `CgfNodeBootstrapper`; the role is still declared ONCE, on the subsystem, and both files read it from there.
+            var subsystem   = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CgfRoot));
+            var bootstrapper = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CgfBootstrapperRoot));
 
-            // Exactly one spelling survives: the constant's own initializer.
-            Assert.Contains("public const NodeRole DefaultRole = NodeRole.Brain", src);
-            Assert.Single(System.Text.RegularExpressions.Regex.Matches(src, "NodeRole[.]Brain"));
-            Assert.Contains("DefaultRole)", src);
+            // Exactly one spelling survives, across BOTH files: the constant's own initializer.
+            Assert.Contains("public const NodeRole DefaultRole = NodeRole.Brain", subsystem);
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(subsystem, "NodeRole[.]Brain").Count
+                          + System.Text.RegularExpressions.Regex.Matches(bootstrapper, "NodeRole[.]Brain").Count);
+            // the subsystem hands that constant to the bootstrapper, and the bootstrapper resolves from it — neither names a second role
+            Assert.Contains("BootstrapNode(nodeConfig, DefaultRole,", subsystem);
+            Assert.Contains("CoreInfrastructureCapabilities.LiveSimulationPlan(CgfSubsystem.DefaultRole)", bootstrapper);
+            Assert.Contains(".Resolve(CgfSubsystem.DefaultRole)", bootstrapper);
         }
 
         /// <summary>
@@ -319,21 +323,31 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CgfComposesFromTheResolvedCapabilitySet()
         {
-            var src = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(CgfRoot));
+            // ⭐ CE-1446 B1 — the plan is CGF's (`CgfNodeBootstrapper`); the WALK over it is the ONE shared one in the base (`SharedApplicationBootstrapper`).
+            var subsystem    = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CgfRoot));
+            var bootstrapper = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(CgfBootstrapperRoot));
+            var baseSource   = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(SharedBaseRoot));
 
-            // ⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head (LiveSimulationPlanRails pins that no host bypasses it).
-            Assert.Contains("CoreInfrastructureCapabilities.LiveSimulationPlan(", src);
-            // ⭐ CE-4013 — through the ONE shared walk, every phase of it (it used to loop over two of the three hooks by hand).
-            Assert.Contains("new NodeCapabilityWalk(", src);
-            Assert.Contains("_capabilityWalk.PopulateSystems(", src);
-            Assert.Contains("_capabilityWalk.ProvideModules()", src);
-            Assert.Contains("_capabilityWalk.Register(", src);
-            Assert.Contains("_capabilityWalk!.AssertComplete(", src);
+            // ⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head (LiveSimulationPlanRails pins that no host bypasses it), and resolves.
+            Assert.Contains("ResolvedCapabilities = CoreInfrastructureCapabilities.LiveSimulationPlan(", bootstrapper);
+            Assert.Contains(".Resolve(CgfSubsystem.DefaultRole)", bootstrapper);
+            // ⭐ CE-4013 — through the ONE shared walk, every phase of it, owned by the base; CGF runs no walk of its own.
+            Assert.Contains("new NodeCapabilityWalk(ResolveCapabilities(", baseSource);
+            Assert.Contains("_walk!.PopulateSystems(", baseSource);
+            Assert.Contains("_walk!.ProvideModules()", baseSource);
+            Assert.Contains("_walk!.AssertComplete(", baseSource);
+            Assert.DoesNotContain("new NodeCapabilityWalk(", subsystem);
+            Assert.DoesNotContain("new NodeCapabilityWalk(", bootstrapper);
 
-            // ⛔ The groups must be built from the POPULATED lists, never from the pack directly.
-            Assert.DoesNotContain("cgfLogicPack.InputSystems", src);
-            Assert.DoesNotContain("cgfLogicPack.SimulationSystems", src);
+            // ⛔ No hand-written block: CGF's own PopulateSystems hook adds nothing to the three lists, and the groups are never built from the pack directly.
+            var populate = bootstrapper.Substring(bootstrapper.IndexOf("override void PopulateSystems(", System.StringComparison.Ordinal));
+            populate = populate.Substring(0, populate.IndexOf("\n    }", System.StringComparison.Ordinal));
+            Assert.DoesNotContain(".Add(", populate);
+            foreach (var src in new[] { subsystem, bootstrapper })
+            {
+                Assert.DoesNotContain("cgfLogicPack.InputSystems", src);
+                Assert.DoesNotContain("cgfLogicPack.SimulationSystems", src);
+            }
         }
 }
 }
