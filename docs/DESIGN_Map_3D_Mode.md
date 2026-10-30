@@ -3223,6 +3223,22 @@ live editor; the strength (`0.80 + 0.30·tufts`) may want tuning on a real scree
 
 ![grass at first-person height](assets/map3d/grass-first-person.png)
 
+### 6ad-1. The APRON — fake ground round the terrain — AS-BUILT `2026-10-30` (ui)
+
+🔒 User, `2026-10-30`: *"The empty space around our terrain is now shown really empty. Which looks extra weird when the cars are placed there and
+moving there … draw there some fake terrain surface, in some cheap and fast way"* · *"there needs to be some basic texture on it so when we move the
+camera we see that something is moving"*.
+
+| decision | why |
+|---|---|
+| `TerrainWorldMesh.BuildApron`: a ring of quads from the ground grid's own edge vertices out to 4 km, every vertex at `GroundHeightAt` | outside the grid `GroundHeightAt` clamps to the edge (`TerrainHeightGrid.Sample`), the height a car out there is clamped to ⇒ cars sit on it by construction; the shared `GroundLayout` makes its inner edge the ground's edge (no crack). Built once with the terrain mesh, on the worker |
+| drawn ONLY: appended in `TerrainWorldQuery.BuildTagged` (material `apron`) | ⛔ the navmesh is baked from `TerrainWorldMesh.Build`, so units never path onto it; the 3-D picker reads `Build` too, so it is not pickable |
+| the grass pattern (code 250, world-space noise) on a duller green `ApronColor` | the camera sees it slide past; the real terrain's edge stays visible |
+
+Rejected: real terrain (the navmesh and physics would grow) · a flat colour (the user: nothing would show the camera moving). Rails:
+`TerrainHeightTests.TheApron_SitsOnTheClampedGround_MeetsTheGroundEdge_AndIsDrawnOnly` (sloped + flat) · `Map3DFrameRail.TheApron_BeyondTheTerrainsEdge_IsTexturedGround_NotEmptySky` (red without it: "0 of 9000 green").
+⚠ It does not read the SUMO network's extent: 4 km past the terrain on every side.
+
 ### 6ae. CE-1333 — the terrain's materials: brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — AS-BUILT `2026-10-25` (ui)
 
 🔒 User, `2026-10-25`: *"the grass texture looks great, pls add also textures to different materials (like the house walls from bricks,

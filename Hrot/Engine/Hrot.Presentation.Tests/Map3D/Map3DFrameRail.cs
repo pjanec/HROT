@@ -54,6 +54,70 @@ public sealed class Map3DFrameRail
         for (int i = 0; i < maxFrames && !done(); i++) { frame.Step(canvas.Draw); System.Threading.Thread.Sleep(20); }
     }
 
+    /// <summary>
+    /// ⭐ The APRON (user, 2026-10-30: "the empty space around our terrain is now shown really empty … draw there some fake terrain surface" · "there
+    /// needs to be some basic texture on it so when we move the camera we see that something is moving"). From the town's east edge looking OUT, the
+    /// lower half beyond the edge is ground, not sky: green, and TEXTURED (the grass pattern on world position — it varies across the patch).
+    /// </summary>
+    [SkippableFact]
+    public void TheApron_BeyondTheTerrainsEdge_IsTexturedGround_NotEmptySky()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        var query = WorldQuery.Of(world)!;
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        canvas.AddLayer(terrainLayer);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true);
+        frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 1000);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+
+        // the eye just inside the east edge, looking east (yaw 0) and a little down: everything in the lower middle is past the edge
+        float midY = (terrain.BoundsMin.Y + terrain.BoundsMax.Y) / 2f, edge = terrain.BoundsMax.X;
+        sw.Camera3D.Pose = new CameraPose(new Vector3(edge + 120f, midY, query.GroundHeightAt(edge + 120f, midY)), 110f, 0f, -0.3f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-apron.png");
+        frame.Screenshot(png);
+
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int ground = 0, n = 0;
+            double sum = 0, sum2 = 0;
+            for (int y = 470; y < 560; y += 2)
+                for (int x = 440; x < 840; x += 2)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    n++;
+                    if (c.G > c.B + 10 && c.G >= c.R) ground++;
+                    double l = 0.3 * c.R + 0.59 * c.G + 0.11 * c.B;
+                    sum += l; sum2 += l * l;
+                }
+            double sd = Math.Sqrt(Math.Max(0, sum2 / n - (sum / n) * (sum / n)));
+            Assert.True(ground > n * 0.8, $"beyond the terrain's edge is ground ({ground} of {n} green) — not the empty sky");
+            Assert.True(sd > 2.0, $"and it is textured (luminance spread {sd:0.00}), so a moving camera sees it move");
+        }
+        finally { Raylib.UnloadImage(image); }
+
+        // and from out on the apron looking BACK at the town: the seam, for the eye (no assertion — the vertex rail pins that it meets the edge)
+        sw.Camera3D.Pose = new CameraPose(new Vector3(edge - 40f, midY, query.GroundHeightAt(edge - 40f, midY)), 260f, MathF.PI * 0.92f, -0.35f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-apron-seam.png"));
+    }
+
     [SkippableFact]
     public void S1_TestTown_In3D_DrawsTheTerrainAndEveryKit_OnThisGL()
     {
@@ -4272,8 +4336,10 @@ public sealed class Map3DFrameRail
         try
         {
             Assert.True(image.Width > 0, $"no screenshot at {png}");
-            var top = Raylib.GetImageColor(image, 4, 4);   // the tilted overview has sky across its top edge
-            if (png.Contains("tilted")) Assert.True(top.B > top.R, $"the top of {Path.GetFileName(png)} is not sky: {top.R},{top.G},{top.B}");
+            // the tilted overview's top edge is the far distance: sky — or, since the apron (2026-10-30) draws ground round the terrain out to the
+            //   horizon, that ground. ⛔ Never a blank (black / the clear colour).
+            var top = Raylib.GetImageColor(image, 4, 4);
+            if (png.Contains("tilted")) Assert.True(top.B > top.R || (top.G > top.R && top.G > top.B), $"the top of {Path.GetFileName(png)} is neither sky nor ground: {top.R},{top.G},{top.B}");
             int ground = 0, roof = 0, wall = 0, dark = 0;
             var shades = new HashSet<int>();
             for (int y = image.Height / 4; y < image.Height; y += 5)

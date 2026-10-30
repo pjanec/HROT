@@ -173,6 +173,16 @@ namespace Fdp.Toolkit.Terrain
             var m = new List<string?>(soupKinds.Length);
             for (int t = 0; t < soupKinds.Length; t++) m.Add(t < tags.Length ? tags[t].Material : null);
 
+            // ⭐ the APRON (TerrainWorldMesh.BuildApron) — fake ground round the terrain, drawn only: the navmesh reads TerrainWorldMesh.Build, never this
+            TerrainWorldMesh.BuildApron(World, out var apronVerts, out var apronIndices);
+            int apronBase = v.Count;
+            v.AddRange(apronVerts);
+            for (int i = 0; i < apronIndices.Length; i += 3)
+            {
+                idx.Add(apronBase + apronIndices[i]); idx.Add(apronBase + apronIndices[i + 1]); idx.Add(apronBase + apronIndices[i + 2]);
+                k.Add(TerrainSurfaceKind.Ground);
+                m.Add(TerrainWorldMesh.ApronMaterial);
+            }
             foreach (var s in World.Surfaces)
             {
                 if (s.Type != TerrainSurfaceType.Water || s.Polygon.Length < 3) continue;

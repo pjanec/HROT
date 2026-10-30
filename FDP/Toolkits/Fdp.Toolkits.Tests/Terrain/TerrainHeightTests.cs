@@ -62,6 +62,43 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(50f, w.Prisms.Single(p => p.Label == "Raised").BaseZ);   // an explicit base still wins
         }
 
+        /// <summary>
+        /// ⭐ The APRON (user, 2026-10-30: the space round the terrain drew empty while cars drove there) — fake ground drawn round the terrain:
+        /// every vertex at <c>GroundHeightAt</c> (the height a unit out there is clamped to), its inner edge ON the ground mesh's own edge vertices
+        /// (no crack), out to its extent — and ⛔ only in the RENDER geometry: the navmesh soup never reaches past the bounds.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void TheApron_SitsOnTheClampedGround_MeetsTheGroundEdge_AndIsDrawnOnly(bool sloped)
+        {
+            var w = sloped ? SlopeFixture.World()
+                           : TerrainWorldParser.Parse("""{ "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 40, 30], "groundZ": 1.5 }, "features": [] }""");
+            TerrainWorldMesh.BuildApron(w, out var av, out var ai, extent: 500f);
+            Assert.NotEmpty(ai);
+            foreach (var p in av) Assert.Equal(w.GroundHeightAt(p.X, p.Y), p.Z, 3);
+
+            TerrainWorldMesh.Build(w, out var gv, out _);
+            float minX = gv.Min(p => p.X), maxX = gv.Max(p => p.X), minY = gv.Min(p => p.Y), maxY = gv.Max(p => p.Y);
+            Assert.True(minX >= w.BoundsMin.X - 1e-3f || w.Height != null, "the navmesh soup stays on the terrain");
+            Assert.True(av.Min(p => p.X) <= minX - 499f && av.Max(p => p.Y) >= maxY + 499f, "the apron reaches its extent");
+            // ⭐ no crack: every ground vertex on the ground's outer edge is also an apron vertex, and every apron vertex on that edge is a ground vertex
+            static (int, int, int) Key(Vector3 p) => ((int)MathF.Round(p.X * 100f), (int)MathF.Round(p.Y * 100f), (int)MathF.Round(p.Z * 100f));
+            bool OnEdge(Vector3 p) => (MathF.Abs(p.X - minX) < 1e-3f || MathF.Abs(p.X - maxX) < 1e-3f) && p.Y >= minY - 1e-3f && p.Y <= maxY + 1e-3f
+                                   || (MathF.Abs(p.Y - minY) < 1e-3f || MathF.Abs(p.Y - maxY) < 1e-3f) && p.X >= minX - 1e-3f && p.X <= maxX + 1e-3f;
+            var groundEdge = gv.Where(OnEdge).Select(Key).ToHashSet();
+            var apronEdge = av.Where(OnEdge).Select(Key).ToHashSet();
+            Assert.NotEmpty(groundEdge);
+            Assert.Equal(groundEdge.OrderBy(k => k), apronEdge.OrderBy(k => k));
+
+            // drawn only: the render geometry carries it, tagged; the soup Build() hands the navmesh does not
+            var q = new TerrainWorldQuery(w);
+            ((Fdp.Toolkit.World.ITerrainRenderGeometry)q).BuildTagged(out var rv, out var ri, out var kinds, out var materials);
+            Assert.Contains(TerrainWorldMesh.ApronMaterial, materials);
+            q.Build(out var sv, out _, out _);
+            Assert.Equal(gv.Length, sv.Length);
+        }
+
         [Fact]
         public void H1_TheNavmeshSoup_FollowsTheGround_AndAFlatTerrainIsUnchanged()
         {

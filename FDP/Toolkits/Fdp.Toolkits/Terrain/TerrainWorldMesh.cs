@@ -85,7 +85,9 @@ namespace Fdp.Toolkit.Terrain
             return new Result(v.ToArray(), t.ToArray(), g.ToArray());
         }
 
-        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        /// <summary>The ground grid's layout: its corner, its far corner, its cell and its cell counts — the ONE rule <see cref="AddGround"/> lays the
+        /// ground out by and <see cref="BuildApron"/> meets its edge by (same edge vertices ⇒ no crack between them).</summary>
+        private static (Vector2 Min, Vector2 Max, float Cell, int Nx, int Ny) GroundLayout(TerrainWorld world, float cell)
         {
             var min = world.BoundsMin;
             var max = world.BoundsMax;
@@ -99,6 +101,62 @@ namespace Fdp.Toolkit.Terrain
             }
             int nx = Math.Max(1, (int)MathF.Ceiling((max.X - min.X) / cell));
             int ny = Math.Max(1, (int)MathF.Ceiling((max.Y - min.Y) / cell));
+            return (min, max, cell, nx, ny);
+        }
+
+        /// <summary>The material tag of the <see cref="BuildApron"/> ground.</summary>
+        public const string ApronMaterial = "apron";
+
+        /// <summary>
+        /// ⭐ The APRON — fake ground round the terrain, for DRAWING only. 🔒 User, 2026-10-30: <i>"The empty space around our terrain is now shown really
+        /// empty. Which looks extra weird when the cars are placed there and moving there … draw there some fake terrain surface, in some cheap and fast
+        /// way"</i> · <i>"there needs to be some basic texture on it so when we move the camera we see that something is moving"</i>.
+        /// <para>A ring of quads from the ground grid's edge (its own edge vertices — no crack) out to <paramref name="extent"/> metres, every vertex at
+        /// <see cref="TerrainWorld.GroundHeightAt"/> — which CLAMPS to the grid's edge outside it, the height a unit out there is clamped to ⇒ the cars
+        /// sit on it by construction. ⛔ Never in <see cref="Build"/>: the navmesh is baked from that soup, and units must not path onto the apron.</para>
+        /// </summary>
+        public static void BuildApron(TerrainWorld world, out Vector3[] verts, out int[] indices, float cellSize = 0f, float extent = 4000f)
+        {
+            if (cellSize <= 0f) cellSize = DefaultCellSize(world);
+            var (min, max, cell, nx, ny) = GroundLayout(world, cellSize);
+            // the edge's coordinates, exactly AddGround's: min + i·cell, the last one clipped to max
+            float X(int i) => MathF.Min(min.X + i * cell, max.X);
+            float Y(int j) => MathF.Min(min.Y + j * cell, max.Y);
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            Vector3 P(float x, float y) => new(x, y, world.GroundHeightAt(x, y));
+            void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d)   // counter-clockwise seen from above
+            {
+                int s = v.Count;
+                v.Add(a); v.Add(b); v.Add(c); v.Add(d);
+                t.Add(s); t.Add(s + 1); t.Add(s + 2);
+                t.Add(s); t.Add(s + 2); t.Add(s + 3);
+            }
+            float x0 = min.X, x1 = max.X, y0 = min.Y, y1 = max.Y, e = extent;
+            for (int i = 0; i < nx; i++)
+            {
+                float a = X(i), b = X(i + 1);
+                Quad(P(a, y0 - e), P(b, y0 - e), P(b, y0), P(a, y0));   // south
+                Quad(P(a, y1), P(b, y1), P(b, y1 + e), P(a, y1 + e));   // north
+            }
+            for (int j = 0; j < ny; j++)
+            {
+                float a = Y(j), b = Y(j + 1);
+                Quad(P(x0 - e, a), P(x0, a), P(x0, b), P(x0 - e, b));   // west
+                Quad(P(x1, a), P(x1 + e, a), P(x1 + e, b), P(x1, b));   // east
+            }
+            Quad(P(x0 - e, y0 - e), P(x0, y0 - e), P(x0, y0), P(x0 - e, y0));   // the four corners
+            Quad(P(x1, y0 - e), P(x1 + e, y0 - e), P(x1 + e, y0), P(x1, y0));
+            Quad(P(x1, y1), P(x1 + e, y1), P(x1 + e, y1 + e), P(x1, y1 + e));
+            Quad(P(x0 - e, y1), P(x0, y1), P(x0, y1 + e), P(x0 - e, y1 + e));
+            verts = v.ToArray();
+            indices = t.ToArray();
+        }
+
+        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        {
+            var (min, max, cellSize, nx, ny) = GroundLayout(world, cell);
+            cell = cellSize;
 
             for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx; ix++)
