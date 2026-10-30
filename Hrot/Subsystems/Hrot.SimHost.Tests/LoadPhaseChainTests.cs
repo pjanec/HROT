@@ -848,6 +848,37 @@ public sealed class LoadPhaseChainTests
         await hold;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> — a LATE JOINER waits for its 3-D map too: the master's catch-up (<c>IsCatchUp</c>, <c>ClusterMaster.InSync.cs</c> C7) skips only the scenario step, so a Player's
+    /// catch-up — and a joiner named in the map-in-load set — asks for the map at commit and holds its answer (⇒ the master marks it in sync) until the map reports built.
+    /// 🔴 Mutation (compiles): <c>StepsFor</c> skipping <see cref="LoadPart.Map3D"/> on a catch-up ⇒ both holds release at once and <c>Requests</c> stays 0.
+    /// </summary>
+    [Theory]
+    [InlineData(true,  false)]   // the Player: its profile always waits
+    [InlineData(false, true)]    // any node the master's map-in-load set names
+    public async Task CE3354_ALateJoinersCatchUp_HoldsUntilItsMapIsBuilt(bool profileAlways, bool mapInLoad)
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapInLoadChain(status, profileAlways);
+        var catchUp = new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload(null, false, ClusterState.LoadingLive, IsCatchUp: true, MapInLoad: mapInLoad),
+        };
+        await chain.PrepareAsync(catchUp, CancellationToken.None);
+        chain.Commit(catchUp, null);
+        Assert.Equal(1, status.Requests);
+
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.NotSame(hold, await Task.WhenAny(hold, Task.Delay(200)));
+        Assert.Equal("3-D map: terrain", chain.CurrentLoadStep);
+
+        status.IsBuilt = true;
+        chain.DrainDeferredAcks();
+        await hold;
+    }
+
     /// <summary>⭐ A requested profile part with no provider throws at composition, like a role part.</summary>
     [Fact]
     public void CE4078_AProfilePartWithNoProvider_ThrowsAtComposition()
