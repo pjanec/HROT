@@ -40,8 +40,9 @@ is the table above.
 | `Fdp.Core.Tests` (whole) | 4 red — `OneSharedJsonOptionsTests` ×2, `ConcurrentReadWrite_DoesNotThrow`, `Benchmark_HotPathOptimization`; at `a87c1d8b2` without this change 2 of these 4 fail too (the run did not print which); the other two are a concurrency and a timing test — none touches the recorder |
 
 ⭐ **Your side question — the Live load comes up paused:** intended. `POST /scenario/load/live` defaults to `startPaused: true`
-(`DebugApiHost.cs:2092`, Q86 §4-G *"running after a load is a property of the load"*, AQ108 row 4). Send `"startPaused": false` in the load
-body to have it run at once, or keep `/sim/play` — both are right; the runbook's play step is correct.
+(`DebugApiHost.cs:2092`, Q86 §4-G *"running after a load is a property of the load"*, AQ108 row 4). ⛔ **CORRECTED `2026-10-30`:** *"Send `startPaused: false` … to have it run at
+once"* was UNMEASURED and wrong — it still loads paused (CE-4122, measured). Keep `/sim/play`. The fix is designed as "load and run", owned by
+the master ([Cluster Load Phase §11.10](../../DESIGN_Cluster_Load_Phase.md), R-3075, CE-3354).
 
 ⚠ Filed while here: **CE-3353** — a non-blocking recorder (every production one) DROPS a whole frame while its writer is busy, and nobody is
 told (`AsyncRecorder.DroppedFrames` is read by nothing). Not this cause, but the same kind of loss; lean: surface it first.

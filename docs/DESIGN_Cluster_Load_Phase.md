@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29 (§11.7 NEW — U1, ui: ONE run gate on the run choice, the loading screen, the error indicator) · 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-30 (§11.10 NEW — R-3075: load-and-run is the master's; the filming node's 3-D map in its load by a per-node cluster setting; DESIGN) · 2026-10-29 (§11.7 NEW — U1, ui: ONE run gate on the run choice, the loading screen, the error indicator) · 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -1836,3 +1836,86 @@ step has something to wait for; on every other node it starts on the first 2-D �
 | failure through CE-3345's path, no second one | ✅ `DrainDeferredAcks` checks each step's `Failure` first: aborts the steps, clears the load and faults the hold ⇒ the slave's `FailPrepare(reason)` ⇒ Failed ⇒ round to Idle | the step also reports resolved on a failure so the poll never spins |
 | wiring: host record carries parts + status source; only the IG | ✅ `EcsHostClusterHandlerInputs.ProfileLoadParts` / `MapBuildStatus` (Compose adds the `MapBuildLoadStep` provider when `Map3D` is requested); `NodeBootstrapper.BuildOrchestration(profileLoadParts, mapBuildStatus)`; `IgNodeBootstrapper.ProfileLoadParts/MapBuildStatus` set by `IgApplication` iff `RunProfile.MapInLoad` | no other host passes them |
 📌 Rails (`LoadPhaseChainTests`, `CE4078_*`): holds until `IsBuilt` · fails with `Failure` · reports `Step` · absent without the profile part · no provider throws.
+
+### 11.10 ⭐⭐ "LOAD AND RUN" — the orchestrator runs the clock once every node's load succeeded; the FILMING node's 3-D map is in its load by a per-node cluster setting *(R-3075, user `2026-10-30`; CE-3354, fixes CE-4122; `build-state: READY-TO-BUILD`)*
+
+🔒 **R-3075, user verbatim:** *"the noded that should be subject of waiting for its 3D map load during scenario load needs to be part of the
+HTTP request for the load … Maybe we could create a new cluster operation that sets the config flag per selected nodes for always waiting for
+3D map during the scenario load. And the scenario load will include the 3D map weighting based on this config flag and not based on the load
+request, which remains simple as it is now … I think it should be the orchestrator who orchestrates this special scenario start playing after
+being loaded operation. And he's the one who runs the scenario clock only after all the nodes have responded with success."*
+⇒ extends §11.9 (R-1046: only the Player puts the 3-D map in its load) with a RUNTIME choice of further nodes — the one a film is shot on.
+
+📐 **INVENTORY** (graph `search_graph name_pattern='.*(LoadPhase|LoadStep|PlayReady|Readiness).*'` (Class / Interface) + grep `MapInLoad`,
+`SetRunSettingsIntent`, `RecordingOff`, `ResumeTimeIntent`; ⚠ coverage could not be checked — `check_index_coverage` is not in the CLI):
+the run-settings operation (`SetRunSettingsIntent` → wire `ClusterOpType.SetRunSettings = 24` → `ClusterMaster.ProcessSetRunSettingsIntent`,
+`ClusterMaster.RunSettings.cs`) · the per-load stamp (`RecordingOff` on `EditLoadHandlerPayload`, `ClusterMaster.cs:1695` /
+`ClusterMaster.InSync.cs:202` → `LoadPhaseContext`) · `MapBuildLoadStep` + `LoadPart.Map3D` (§11.9b) · `NodeRunProfile.MapInLoad` (the IG) ·
+today's resume `GlobalContextProcessManager._resumeWhenLive` (CE-4122: dropped by the master's re-announced state, §11's readiness repeats).
+
+```mermaid
+classDiagram
+  class SetRunSettingsIntent { <<existing, wire op 24>> +RecordLiveRuns? +Armed? +AskToKeepRecordings? +MapInLoadNodes? NEW }
+  class ClusterMaster { <<existing>> +RecordLiveRuns +ArmedMode +MapInLoadNodes NEW · ProcessSetRunSettingsIntent() · PublishClusterState() }
+  class EditLoadHandlerPayload { <<existing, per node>> +RecordingOff +MapInLoad NEW }
+  class LoadPhaseContext { <<existing>> +RecordingOff +MapInLoad NEW }
+  class LoadPhaseChain { <<existing>> requires Map3D when profile OR context says so CHANGED }
+  class MapBuildLoadStep { <<existing §11.9b>> resolves on IsBuilt }
+  class IMapBuildStatus { <<existing, ui>> +IsBuilt +Failure +Step · +RequestBuild() NEW }
+  class LoadAndRun { <<NEW, master-owned>> armed by the load; fires on the round's success on EVERY node }
+  class GlobalContextProcessManager { <<existing>> _resumeWhenLive REMOVED (CE-4122) }
+  SetRunSettingsIntent ..> ClusterMaster
+  ClusterMaster ..> EditLoadHandlerPayload : stamps MapInLoad for the nodes in the set
+  EditLoadHandlerPayload ..> LoadPhaseContext
+  LoadPhaseContext ..> LoadPhaseChain
+  LoadPhaseChain ..> MapBuildLoadStep
+  MapBuildLoadStep ..> IMapBuildStatus : RequestBuild() then polls IsBuilt
+  ClusterMaster *-- LoadAndRun
+```
+*What the picture shows that prose hid: every arrow but two is an existing path — the setting rides the run-settings op that already carries
+"Record live runs", and the per-node flag rides the load payload exactly as `RecordingOff` does. NEW: one field each, `RequestBuild()` (ui), and
+the master-owned run step.*
+
+```mermaid
+sequenceDiagram
+  participant H as HTTP / operator
+  participant M as ClusterMaster
+  participant F as filming node (in the set)
+  participant N as other nodes
+  H->>M: SetRunSettings { MapInLoadNodes: [film-node] } (once, sticky)
+  H->>M: load scenario, run when loaded (POST /scenario/load/live {startPaused:false})
+  M->>F: load round (payload MapInLoad = true)
+  M->>N: load round (payload MapInLoad = false)
+  N-->>M: success (no map step)
+  F->>F: terrain commit, RequestBuild(), wait IsBuilt
+  F-->>M: success (map built)
+  M->>M: round succeeded on EVERY node ⇒ ResumeTimeIntent (the same path as ▶)
+  Note over M: a failure / abort / another target ⇒ the round fails, nothing runs
+```
+*What it shows: the waiting is the load round's own completion — no second readiness signal; only the node in the set waits for a map.*
+
+```mermaid
+graph TD
+  OC["OrchestratorCore.Tick (every host that runs the master: editor, orchestrator)"] -->|each frame| CM["ClusterMaster.Tick"]
+  CM -->|round complete, success| LR["LoadAndRun (NEW) → ResumeTimeIntent"]
+  LR --> MSC["MasterSyncController (Phase 3) — runs the clock"]
+  SL["ClusterSlave on EVERY ECS node"] -->|each frame| LC["LoadPhaseChain"]
+  LC -->|"only when the payload says MapInLoad, or profile.MapInLoad (IG)"| MB["MapBuildLoadStep"]
+  GC["GlobalContextProcessManager"] -.->|"_resumeWhenLive REMOVED"| X["(no resume here any more)"]
+  style X stroke-dasharray: 5 5
+```
+*What it shows: who calls each piece every frame — the run step lives in the master's tick (one owner for pause AND run), the map step in each
+node's chain; the dashed edge is the resume that CE-4122 measured broken, retired.*
+
+| decision | why |
+|---|---|
+| ① the set of nodes is a **cluster setting held by the master**, sent with the existing run-settings op, broadcast with the others | R-3075: the load request stays plain; ONE holder, so two hosts cannot disagree (the CE-4090 rule for *Record live runs*) |
+| ② the master **stamps it per node on that node's load payload**; the chain requires `Map3D` when the payload OR the profile (IG) says so | the `RecordingOff` path; the IG keeps R-1046 as its default — the setting only ADDS nodes |
+| ③ nodes named by their **app-instance name**, not a numeric id | the same node across a restart |
+| ④ **"load and run" is the master's**: the run fires on the load round's success on every node | R-3075; a node acks only when its chain resolved (§11.9b), map step included. Replaces `_resumeWhenLive` (CE-4122) |
+| ⑤ `IMapBuildStatus.RequestBuild()` (ui) — the step starts the build at the terrain commit | on a non-IG node the map builds on the first 3-D switch (§11.9a); the load must start it |
+| ⑥ the HTTP live load's `startPaused:false` asks for load-and-run | the film scripts keep one call |
+
+⛔ **Rejected:** the request names who waits (R-3075) · resume on `OperatingLive` (CE-4122: re-announced states drop it) · the editor's 3-D view
+gates play (a second readiness signal) · the 3-D map in every load (R-1046: the editor would come up and load slowly for pure editing).
+⚠ **To measure before building:** that the master's round completes only after every node's commit acknowledgement (④'s premise) — a rail first.
