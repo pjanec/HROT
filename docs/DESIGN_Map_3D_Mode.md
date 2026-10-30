@@ -3303,6 +3303,48 @@ graph TD
 with a SUMO field, at the SUMO bounds `GroundHeightAt` equals the field; `GroundHeightAt` = the apron vertex heights everywhere (one function); a
 second `AttachBeyond` throws · `Map3DFrameRail` — the apron view shows relief (the horizon line is not straight) · red-proof each.
 
+### 6ad-3. Traffic cars as what they are — a body style per type, a paint per car *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+
+🔒 User, `2026-10-30`: *"The cars used as SUMO are one same model just scaled differently (for example a bus is a heavily scaled personal car).
+Could we rather have several different car shapes like a bus, a combi personal car, a van, a small car like nissan micra, SUV etc and assign them to
+sumo car classes somehow deterministically yet still looking randomly - different colors etc?"* · lean approved (*"go"*).
+
+**INVENTORY** *(graph + grep)*: SUMO's types = every TKB template with `TrafficVehicleDto` (`TrafficVehicleCatalog.From`): CivilianCar 6 · Hatchback 4 ·
+DeliveryVan 1.5 · CityBus 0.4 · BoxTruck 0.6 (`UrbanCombatTkbCatalog.cs:191, 197-200`) — all DIS 1.1.81 ⇒ `VisualFamily.WheeledCar` ⇒ ONE kit
+(`ShapeKits.For:492`) scaled to the type's size (`EntityBodyLayer3D.cs:1740-1747`). Colour: `TrafficSession.cs:68` hands SUMO `Color: 0u` ⇒ a car is its
+type's colour (`TrafficReplicas.cs:285` paints only a non-zero one). The presentation descriptor `VisualDefinitionDto` (`ColorHex`, `IconName`, …) exists.
+
+```mermaid
+classDiagram
+  direction LR
+  class VisualDefinitionDto { <<exists, grown>> ColorHex · BodyStyle NEW (string, null = the family's kit) }
+  class CarBodyStyle { <<NEW enum>> Sedan · Estate · SmallHatch · Suv · Van · Bus · BoxTruck }
+  class CarKits { <<NEW>> For(style) : ShapeKit }
+  class ShapeKits { <<exists>> For(family) — WheeledCar }
+  class EntityBodyLayer3D { <<exists>> TypeLook: the kit = CarKits.For(style) when the type names one }
+  class TrafficPaint { <<NEW, Hrot.Traffic>> Of(vehicleId, tkbType) : uint — a weighted palette, FNV-1a of the id }
+  class TrafficMirror { <<exists>> the pose's Color = tag.Color, else TrafficPaint.Of }
+  class UrbanCombatTkbCatalog { <<exists, grown>> + Sedan, Estate, Suv (passenger) · every traffic type names its BodyStyle }
+  VisualDefinitionDto --> CarBodyStyle
+  EntityBodyLayer3D --> CarKits : style named
+  EntityBodyLayer3D --> ShapeKits : otherwise
+  TrafficMirror --> TrafficPaint
+```
+*What the picture shows that prose hid:* the STYLE is type data (every node reads the same TKB) and the PAINT is a function of the vehicle's id in the
+ONE place a pose is made — so the 3-D body, the 2-D map, a replica and a replay all agree with no new state on the wire.
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **TC1** | `VisualDefinitionDto.BodyStyle` (a `CarBodyStyle` name); `EntityBodyLayer3D`'s kit = `CarKits.For(style)` when a WheeledCar type names one, else `ShapeKits.For(family)` as today. The size stays the type's (`VehicleParametersDto` / `SimVehicleDef`), so the sim footprint is unchanged | the style from the type's NAME — names are labels, not data · a separate DIS subcategory table — `EntityClassTable` models categories, not car subcategories |
+| **TC2** | `CarKits`: seven block kits in the `ShapeKit` vocabulary (fractions of the size, the existing `Box`/`Cyl` parts): **Sedan** (three-box: bonnet, cabin, boot) · **Estate** (long roof to the tail) · **SmallHatch** (short, tall, a steep tail) · **Suv** (high body, upright, big wheels) · **Van** (one box, a short bonnet) · **Bus** (long box, a window band, a flat front, four wheels per side spaced long) · **BoxTruck** (a cab and a separate cargo box). Wheels, glass (`ColourRole.Glass`) and lights as the WheeledCar kit has them | one kit with scaled proportions — the bus would still read as a stretched car |
+| **TC3** | catalogue: add **Sedan**, **Estate**, **Suv** traffic types (`passenger`, weights so the passenger mix is ~ Sedan 3 · Estate 2 · Hatchback 3 · Suv 2 · CivilianCar → Sedan), each with its size; every traffic type names its `BodyStyle` (CivilianCar Sedan, Hatchback SmallHatch, DeliveryVan Van, CityBus Bus, BoxTruck BoxTruck). SUMO's weighted vType draw picks a car's type (deterministic per run) | a second, ui-side random type per car — it would disagree with SUMO's own vType (its length) |
+| **TC4** | `TrafficPaint.Of(id, type)`: FNV-1a of the SUMO vehicle id → a weighted palette (white 22 · black 18 · grey 18 · silver 14 · blue 9 · red 8 · dark green 3 · beige 3 · yellow 2 · orange 1 · brown 2); a Bus / BoxTruck takes a fleet palette (a few livery colours). Applied in `TrafficMirror` where the pose is built when SUMO gave no colour | `Random` per car — differs per node and per replay · colour per TYPE — every hatchback the same |
+
+**Rails:** `Map3DTests` — each style's kit differs from the others (part count / silhouette), a type naming a style gets that kit, a type naming none keeps
+WheeledCar · `TrafficPaint` — the same id gives the same colour, 1 000 ids spread over the palette in its proportions (±5 %), a bus takes a fleet colour ·
+`TrafficVehicleCatalog` — the passenger mix includes the new types · a frame rail renders one of each side by side (to `HROT_RAIL_SHOTS`, not git) ·
+red-prove each. **Cross-lane:** `UrbanCombatTkbCatalog` and `VisualDefinitionDto` are backend's — name it in the commit.
+
 ### 6ae. CE-1333 — the terrain's materials: brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — AS-BUILT `2026-10-25` (ui)
 
 🔒 User, `2026-10-25`: *"the grass texture looks great, pls add also textures to different materials (like the house walls from bricks,
