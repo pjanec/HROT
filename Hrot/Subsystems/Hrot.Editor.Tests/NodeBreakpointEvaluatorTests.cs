@@ -278,5 +278,17 @@ public sealed class NodeBreakpointEvaluatorTests
         }, blob, meta, out _);
         Assert.Equal(new[] { S(meta, "Patrol") }, byId!.States);
     }
-}
 
+    /// <summary>⭐ <c>CE-1324</c> — the outcome of a BTree node step decides WHICH run stops it: activation = still Running, completion = Success or Failure, abort is a scope record (never an evaluation), Any = every run.</summary>
+    [Theory]
+    [InlineData(BehaviourNodeOutcome.Any, Fbt.NodeStatus.Running, true)]
+    [InlineData(BehaviourNodeOutcome.Any, Fbt.NodeStatus.Failure, true)]
+    [InlineData(BehaviourNodeOutcome.Running, Fbt.NodeStatus.Running, true)]
+    [InlineData(BehaviourNodeOutcome.Running, Fbt.NodeStatus.Success, false)]
+    [InlineData(BehaviourNodeOutcome.Completes, Fbt.NodeStatus.Success, true)]
+    [InlineData(BehaviourNodeOutcome.Completes, Fbt.NodeStatus.Failure, true)]
+    [InlineData(BehaviourNodeOutcome.Completes, Fbt.NodeStatus.Running, false)]
+    [InlineData(BehaviourNodeOutcome.Aborted, Fbt.NodeStatus.Running, false)]
+    public void CE1324_TheOutcome_DecidesWhichRunOfTheNodeStops(BehaviourNodeOutcome want, Fbt.NodeStatus status, bool matches)
+        => Assert.Equal(matches, NodeBreakpointEvaluator.OutcomeMatches(want, status));
+}

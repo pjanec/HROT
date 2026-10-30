@@ -153,12 +153,26 @@ public sealed class NodeBreakpointEvaluator : IEcsModuleSystem
             var rec = (BTreeTraceRecord*)(buf + pos);
             if (rec->OpCode == BTreeTraceOpCode.NodeEvaluated)
                 foreach (var (bp, step) in _forUnit)
-                    if (step.Kind == BehaviourStepKind.NodeRuns && step.Nodes.Contains(rec->NodeIndex)
+                    if (step.Kind == BehaviourStepKind.NodeRuns && step.Nodes.Contains(rec->NodeIndex) && OutcomeMatches(step.Outcome, rec->Status)
                         && Hit(bp, unit, $"node {Label(bp)} ran ({rec->Status})")) return true;
+            // ⭐ CE-1324 — an abort: the tree popped a scope (the record names no node, so any scope pop of this behaviour)
+            if (rec->OpCode == BTreeTraceOpCode.ScopePopped)
+                foreach (var (bp, step) in _forUnit)
+                    if (step.Kind == BehaviourStepKind.NodeRuns && step.Outcome == BehaviourNodeOutcome.Aborted
+                        && Hit(bp, unit, $"a scope was popped — {Label(bp)} (or a node beside it) was interrupted")) return true;
             pos = (ushort)((pos + BTreeTraceWorkingMemory1024.RecordStride) % BTreeTraceWorkingMemory1024.PayloadBytes);
         }
         return false;
     }
+
+    /// <summary>⭐ CE-1324 — whether an evaluation with <paramref name="status"/> is the run the step asked for (Aborted is a scope record, never an evaluation).</summary>
+    internal static bool OutcomeMatches(BehaviourNodeOutcome want, Fbt.NodeStatus status) => want switch
+    {
+        BehaviourNodeOutcome.Any       => true,
+        BehaviourNodeOutcome.Running   => status == Fbt.NodeStatus.Running,
+        BehaviourNodeOutcome.Completes => status is Fbt.NodeStatus.Success or Fbt.NodeStatus.Failure,
+        _                              => false,
+    };
 
     private unsafe bool ScanHsm(EntityRepository repo, Entity unit)
     {

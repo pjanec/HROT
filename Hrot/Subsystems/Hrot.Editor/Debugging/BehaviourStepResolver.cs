@@ -31,6 +31,9 @@ public sealed class ResolvedStep
     /// <summary>NodeRuns: the BTree node indices.</summary>
     public HashSet<ushort> Nodes { get; init; } = new();
 
+    /// <summary>⭐ CE-1324 — NodeRuns: which run of the node.</summary>
+    public BehaviourNodeOutcome Outcome { get; init; }
+
     /// <summary>Names for the hit's sentence.</summary>
     public MachineMetadata? Metadata { get; init; }
 
@@ -73,7 +76,7 @@ public static class BehaviourStepResolver
         for (int i = 0; i < nodes.Length; i++)
             if (nodes[i] is { } n && Guid.TryParse(n.VisualId, out var v) && v == step.Node) set.Add((ushort)i);
         if (set.Count == 0) { why = $"node {step.Node:N} is not in '{step.Behaviour}'"; return null; }
-        return new ResolvedStep { Kind = step.Kind, Nodes = set };
+        return new ResolvedStep { Kind = step.Kind, Nodes = set, Outcome = step.Outcome };
     }
 
     /// <summary>An HSM step against the machine's blob and metadata.</summary>

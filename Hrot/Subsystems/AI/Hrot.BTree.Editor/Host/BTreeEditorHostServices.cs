@@ -121,6 +121,7 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
         Action<IEditableAsset>? openAsset = null)
     {
         _nodeContextMenuProvider = new BTreeNodeContextMenuProvider(sink, model, asset, assetCatalog, openAsset);
+        if (_bpContextMenuProvider != null) _bpContextMenuProvider.Asset = asset;   // ⭐ CE-1324 — the gutter dot's menu finds the real node
     }
 
     /// <summary>
