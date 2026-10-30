@@ -172,6 +172,39 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                          Of(index, CombatTimelineLanes.GestureState.Id));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4117</c> — the value-change lane reads a component only when its table's chunk version moved, and still sees every write of the
+        /// normal path (<c>GetComponentRW</c>) when OTHER entities in the same chunk are unchanged: three units share a chunk; frame 1 writes only
+        /// B, frame 2 only A, frame 3 nothing — the lane holds exactly (0: A, B, C), (1: B), (2: A) and the quiet frame adds nothing.
+        /// (The CE4117 test above covers the same path too: frame 3 writes the unit's health while the bystander's chunk-mate is unchanged.)
+        /// 🔴 Red-proof: the version compare made always-equal ⇒ every change after frame 0 is missing.
+        /// </summary>
+        [Fact]
+        public void CE4117_AWriteByTheNormalPath_IsSeen_AmongUnchangedNeighboursInTheChunk_AndAQuietFrameAddsNothing()
+        {
+            using var harness = new FdpRecordingHarness();
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<Health>();
+            Entity[] units = new Entity[3];
+            for (int k = 0; k < 3; k++)
+            {
+                units[k] = repo.CreateEntity();
+                repo.AddComponent(units[k], new NetworkIdentity(301 + k));
+                repo.AddComponent(units[k], new Health { Current = 10, Max = 10 });
+            }
+            harness.Tick().RecordKeyframe(100_000L);
+            repo.GetComponentRW<Health>(units[1]).Current = 5;
+            harness.Tick().RecordDelta(200_000L);
+            repo.GetComponentRW<Health>(units[0]).Current = 7;
+            harness.Tick().RecordDelta(300_000L);
+            harness.Tick().RecordDelta(400_000L);
+            var index = TimelineIndexBuilder.Build(harness.BuildToTempFile(), Lanes, Compiler());
+
+            Assert.Equal(new[] { (0, 301L, 10f), (0, 302L, 10f), (0, 303L, 10f), (1, 302L, 5f), (2, 301L, 7f) },
+                         Of(index, CombatTimelineLanes.HealthState.Id).Select(e => (e.Frame, e.Subject, e.Value)).ToArray());
+        }
+
         /// <summary>⭐ <c>CE-4117</c> — the state lanes are LIVE = RECORDED too (CE-3330): the same run indexed frame by frame and rebuilt from its
         /// recording gives the same entries in every state lane (a lane the catalog holds that the scripted world never feeds would pass vacuously,
         /// so the lanes are asserted non-empty).</summary>

@@ -67,14 +67,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// projection of the component) against the previous frame's. Tracks entities by raw index + generation, as <see cref="StructuralScanner"/>
         /// does (an index reused with a new generation is a departure plus an arrival — the arrival's first state is a change); a departure
         /// is silent. States compare as payloads (all five fields), never by identity.
+        /// <para>⭐ The component is read and projected only when its table's version for the entity's CHUNK (<c>IComponentTable.GetVersionForEntity</c>
+        /// — per chunk, not per entity: a neighbour's write re-reads, never misses) differs from the one last read; the recorder's deltas rely on
+        /// the same versions (a playback restore bumps them too). First sight, a new generation and a removal never consult it.</para>
         /// </summary>
         private sealed class ValueChangeLane : ILaneScan
         {
             private readonly Type _component;
             private readonly CompiledProjection _projection;
             private readonly bool _presentIsOne;
+            private EntityRepository? _repo;
+            private IComponentTable? _table;
             private int[] _gen = Array.Empty<int>();                      // generation tracked per index, −1 = no state held
             private SearchResultPayload[] _state = Array.Empty<SearchResultPayload>();
+            private uint[] _version = Array.Empty<uint>();                // the chunk version the state was read at
             private readonly string _changed = "changed", _removed = "removed";
 
             public ValueChangeLane(ValueChangePredicateDto predicate, ResultProjectionDto? payload)
@@ -95,11 +101,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             {
                 int typeId = ComponentTypeRegistry.GetId(_component);
                 if (typeId < 0) return;
+                if (!ReferenceEquals(repo, _repo)) { _repo = repo; _table = repo.TryGetTable(_component, out var t) ? t : null; Array.Fill(_gen, -1); }
+                if (_table == null && repo.TryGetTable(_component, out var late)) _table = late;
                 int maxIdx = repo.MaxEntityIndex;
                 if (_gen.Length <= maxIdx)
                 {
                     int old = _gen.Length, size = Math.Max(maxIdx + 1, old * 2);
-                    Array.Resize(ref _gen, size); Array.Resize(ref _state, size);
+                    Array.Resize(ref _gen, size); Array.Resize(ref _state, size); Array.Resize(ref _version, size);
                     for (int k = old; k < size; k++) _gen[k] = -1;
                 }
                 for (int i = 0; i <= maxIdx; i++)
@@ -118,6 +126,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                         results.Add(new SearchResultDto(frame, ticks, entity, _removed, new SearchResultPayload(ResultIds.Of(repo, entity), 0, 0, 0, 0)));
                         continue;
                     }
+                    uint version = _table?.GetVersionForEntity(i) ?? 0;
+                    if (had && _table != null && version == _version[i]) continue;   // not written since it was read: the state is unchanged
+                    _version[i] = version;
                     object? boxed = ComponentBox.Read(repo, entity, _component);
                     var p = _projection.Apply(repo, boxed, entity, out _);
                     if (_presentIsOne) p = p with { Value = 1f };
