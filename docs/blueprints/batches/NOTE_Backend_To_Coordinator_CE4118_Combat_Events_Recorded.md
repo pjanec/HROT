@@ -37,7 +37,7 @@ is the table above.
 | `Fdp.Toolkits.Tests --filter CE4118` (the new rail) | 1/1 ✅ · red-proved (write buffer ⇒ `[]`) |
 | `Fdp.ModuleHost.Tests` (incl. the CE-3316 checkpoint-restore rails) | 246/246 ✅ |
 | `Fdp.Toolkits.Tests` (whole) | ⚠ 17 `LockstepTranslatorTests` / `TimeSyncTranslatorTests` red — **pre-existing**: the same 17 of 21 fail at `a87c1d8b2` without this change |
-| `Fdp.Core.Tests` (whole) | 4 red — `OneSharedJsonOptionsTests` ×2 red at `a87c1d8b2` too; `ConcurrentReadWrite_DoesNotThrow`, `Benchmark_HotPathOptimization` timing (passed at base) — none in the recorder |
+| `Fdp.Core.Tests` (whole) | 4 red — `OneSharedJsonOptionsTests` ×2, `ConcurrentReadWrite_DoesNotThrow`, `Benchmark_HotPathOptimization`; at `a87c1d8b2` without this change 2 of these 4 fail too (the run did not print which); the other two are a concurrency and a timing test — none touches the recorder |
 
 ⭐ **Your side question — the Live load comes up paused:** intended. `POST /scenario/load/live` defaults to `startPaused: true`
 (`DebugApiHost.cs:2092`, Q86 §4-G *"running after a load is a property of the load"*, AQ108 row 4). Send `"startPaused": false` in the load
