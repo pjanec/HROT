@@ -11,6 +11,9 @@ namespace Fdp.Toolkit.Replication
     /// <see cref="NetworkIdentity"/>: a unit APPEARS when an entity gains a network id and LEAVES when it loses it or is destroyed (structural
     /// predicates). ⚠ Only networked entities — rounds and other local helpers have none and would drown the lane. X / Y are where it
     /// appeared, or was last seen.
+    /// <para>⭐ <c>CE-4117</c> — one hidden STATE lane (group <c>State</c>, a value-change lane; the director's <c>side</c> cue reads it):
+    /// <c>state.side</c> — <see cref="EntityInfo"/>: Subject = the unit; Value = its <c>ForceId</c> number; an entry on the first seen frame and
+    /// whenever the force changes.</para>
     /// </summary>
     public sealed class ReplicationTimelineLanes : ITimelineLaneProvider
     {
@@ -18,15 +21,20 @@ namespace Fdp.Toolkit.Replication
         public static readonly TimelineLaneDescriptor Spawned = new("life.spawned", "Spawned", Group: Group, Priority: 0, Color: 0xFF66CC66);
         public static readonly TimelineLaneDescriptor Left = new("life.left", "Left", Group: Group, Priority: 6, Color: 0xFF3030C0);
 
+        public const string StateGroup = "State";
+        public static readonly TimelineLaneDescriptor Side = new("state.side", "Side", Group: StateGroup, Hidden: true);
+
         private static ResultProjectionDto Where() => new() { SourceComponent = typeof(SimTransform), XPath = "Position.X", YPath = "Position.Y" };
 
         private static readonly IndexedLaneDefinition[] Definitions =
         {
+            new(Side, new ValueChangePredicateDto { ComponentType = typeof(EntityInfo) },
+                new ResultProjectionDto { SourceComponent = typeof(EntityInfo), ValuePath = nameof(EntityInfo.ForceId) }),
             new(Spawned, new StructuralPredicateDto { ComponentType = typeof(NetworkIdentity), ModificationType = StructuralModification.Added }, Where()),
             new(Left, new StructuralPredicateDto { ComponentType = typeof(NetworkIdentity), ModificationType = StructuralModification.Removed }, Where()),
         };
 
-        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Spawned, Left };
+        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Spawned, Left, Side };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
         public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.ReplayBrowser.Timeline;
 using Fdp.Toolkit.Squad.Command;
@@ -18,6 +19,14 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// <item>Decisions — a <see cref="UtilityDecisionLog"/> slot whose switch count rose (key: decision + count, only counts above 0);
     ///   the winner; value: the decision id.</item>
     /// </list>
+    /// <para>⭐ <c>CE-4117</c> — two hidden STATE lanes (group <c>State</c>, value-change lanes: one entry when a unit's state changes, its
+    /// first seen state included — the director's <c>task</c> / <c>embark</c> cues read them):</para>
+    /// <list type="bullet">
+    /// <item><c>state.task</c> — <see cref="BehaviorState"/>: Subject = the unit; Other = <c>ActiveBehaviorHash</c> (EXACT, a 32-bit hash); Value = the
+    ///   same hash as a float (lossy — read Other); X / Y unused. 0 = idle. A removal of the component emits Other 0.</item>
+    /// <item><c>state.embark</c> — <see cref="IsEmbarkedTag"/>: Subject = the passenger; Other = the carrier's id; Value = 1 while aboard and 0 on the
+    ///   tag's removal (a change of carrier is a new entry with Value 1).</item>
+    /// </list>
     /// </summary>
     public sealed class BehaviourTimelineLanes : ITimelineLaneProvider
     {
@@ -27,8 +36,16 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public static readonly TimelineLaneDescriptor Reports = new("behaviour.reports", "Reports", Group: Group, Priority: 2, Color: 0xFFB0B040);
         public static readonly TimelineLaneDescriptor Decisions = new("behaviour.decisions", "Decisions", Group: Group, Priority: 1, Color: 0xFFE0E070);
 
+        public const string StateGroup = "State";
+        public static readonly TimelineLaneDescriptor Task = new("state.task", "Task", Group: StateGroup, Hidden: true);
+        public static readonly TimelineLaneDescriptor Embark = new("state.embark", "Embark", Group: StateGroup, Hidden: true);
+
         private static readonly IndexedLaneDefinition[] Definitions =
         {
+            new(Task, new ValueChangePredicateDto { ComponentType = typeof(BehaviorState) },
+                new ResultProjectionDto { SourceComponent = typeof(BehaviorState), OtherPath = nameof(BehaviorState.ActiveBehaviorHash), ValuePath = nameof(BehaviorState.ActiveBehaviorHash) }),
+            new(Embark, new ValueChangePredicateDto { ComponentType = typeof(IsEmbarkedTag) },
+                new ResultProjectionDto { SourceComponent = typeof(IsEmbarkedTag), OtherPath = nameof(IsEmbarkedTag.VehicleEntity) }),   // no ValuePath ⇒ Value 1 while present
             new(Changes,
                 new RingEntryPredicateDto { ComponentType = typeof(BrainJournal), ItemsPath = nameof(BrainJournal.Entries), CountPath = nameof(BrainJournal.Count),
                     KeyPaths = { nameof(BrainJournalEntry.Seq) } },
@@ -49,7 +66,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 new ResultProjectionDto { OtherPath = nameof(UtilityLogSlot.Winner), ValuePath = nameof(UtilityLogSlot.DecisionId) }),
         };
 
-        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Changes, Orders, Reports, Decisions };
+        public IReadOnlyList<TimelineLaneDescriptor> Lanes { get; } = new[] { Changes, Orders, Reports, Decisions, Task, Embark };
         public IReadOnlyList<IndexedLaneDefinition> Indexed => Definitions;
         public bool Applies(TimelineLaneContext context) => context.Indexing;   // ⭐ CE-3330 — a recording's index or the live one
     }

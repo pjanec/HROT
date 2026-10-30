@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.Replay
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             using var recorder = new AsyncRecorder(path, new RecordingMetadata(), appendAfterFrames: 0);
             RecorderTickSystem.StampWorld(world, recorder.Metadata);
-            recorder.CaptureKeyframe(world, wall, blocking: true, eventBus: world.Bus);   // as RecorderTickSystem writes one
+            recorder.CaptureKeyframe(world, wall, blocking: true, eventBus: world.Bus, readBuffer: true);   // as RecorderTickSystem writes one (CE-4118)
             return recorder.MarkCheckpoint(label, wall, time);
         }
 

@@ -141,7 +141,8 @@ namespace Fdp.Toolkit.Replay
             using var reader = new BinaryReader(new MemoryStream(bytes, writable: false));
             new PlaybackSystem().ApplyFrame(repo, reader,
                 eventBus: holding ?? (options.RestoreEvents ? repo.Bus : null),
-                processEvents: holding != null || options.RestoreEvents);
+                processEvents: holding != null || options.RestoreEvents,
+                unconsumedEvents: holding != null);   // ⭐ CE-4118 — a checkpoint resumes with what was unconsumed, never the frame's own
         }
     }
 

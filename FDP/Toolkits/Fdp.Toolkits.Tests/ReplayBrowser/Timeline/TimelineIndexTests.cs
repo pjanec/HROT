@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication;
@@ -89,6 +91,135 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.AddComponent(late, new NetworkIdentity(Late));
             harness.Tick().RecordDelta(400_000L); afterFrame?.Invoke(400_000L);                                                             // frame 3
             return harness.BuildToTempFile();
+        }
+
+        private const long Unit = 101, Bystander = 102, Carrier = 200;
+
+        /// <summary>
+        /// ⭐ <c>CE-4117</c> — six frames of STATE: 0 the unit starts with a task (0x1111), a force (Friend), health 80/100 and a gesture
+        /// (IdleStretch), a bystander with only a force (Hostile) · 1 nothing the lanes read changes (a field they do not project does) ·
+        /// 2 the task becomes 0x2222 and the unit boards the carrier · 3 force → Hostile, health 30, gesture → IdleLookAbout · 4 it leaves the
+        /// carrier, max health 120 · 5 the gesture component is removed.
+        /// </summary>
+        private static string RecordStates(FdpRecordingHarness harness, Action<long>? afterFrame = null)
+        {
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<BehaviorState>();
+            repo.RegisterComponent<EntityInfo>();
+            repo.RegisterComponent<Health>();
+            repo.RegisterComponent<IsEmbarkedTag>();
+            repo.RegisterComponent<Gesture>();
+
+            var carrier = repo.CreateEntity();
+            repo.AddComponent(carrier, new NetworkIdentity(Carrier));
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new NetworkIdentity(Unit));
+            repo.AddComponent(unit, new BehaviorState { ActiveBehaviorHash = 0x1111, InstanceId = 1 });
+            repo.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            repo.AddComponent(unit, new Health { Current = 80, Max = 100 });
+            repo.AddComponent(unit, new Gesture { Kind = GestureKind.IdleStretch });
+            var bystander = repo.CreateEntity();
+            repo.AddComponent(bystander, new NetworkIdentity(Bystander));
+            repo.AddComponent(bystander, new EntityInfo { ForceId = ForceId.Hostile });
+            harness.Tick().RecordKeyframe(100_000L); afterFrame?.Invoke(100_000L);                                    // frame 0
+
+            repo.GetComponentRW<BehaviorState>(unit).InstanceId = 2;                                                  // not projected: no entry
+            harness.Tick().RecordDelta(200_000L); afterFrame?.Invoke(200_000L);                                       // frame 1
+
+            repo.GetComponentRW<BehaviorState>(unit).ActiveBehaviorHash = 0x2222;
+            repo.AddComponent(unit, new IsEmbarkedTag { VehicleEntity = carrier });
+            harness.Tick().RecordDelta(300_000L); afterFrame?.Invoke(300_000L);                                       // frame 2
+
+            repo.GetComponentRW<EntityInfo>(unit).ForceId = ForceId.Hostile;
+            repo.GetComponentRW<Health>(unit).Current = 30;
+            repo.GetComponentRW<Gesture>(unit).Kind = GestureKind.IdleLookAbout;
+            harness.Tick().RecordDelta(400_000L); afterFrame?.Invoke(400_000L);                                       // frame 3
+
+            repo.RemoveComponent<IsEmbarkedTag>(unit);
+            repo.GetComponentRW<Health>(unit).Max = 120;
+            harness.Tick().RecordDelta(500_000L); afterFrame?.Invoke(500_000L);                                       // frame 4
+
+            repo.RemoveComponent<Gesture>(unit);
+            harness.Tick().RecordDelta(600_000L); afterFrame?.Invoke(600_000L);                                       // frame 5
+            return harness.BuildToTempFile();
+        }
+
+        private static List<(int Frame, long Subject, long Other, float X, float Value)> Of(TimelineIndex index, string lane)
+            => index.Lane(lane).OrderBy(e => e.Frame).ThenBy(e => e.Subject).Select(e => (e.Frame, e.Subject, e.Other, e.X, e.Value)).ToList();
+
+        /// <summary>
+        /// ⭐ <c>CE-4117</c> — each STATE lane (<c>state.task / side / health / embark / gesture</c>, value-change lanes declared as data by the
+        /// provider that owns the component) holds EXACTLY the changes of the scripted world, at their frames, with their values; the first
+        /// seen state of every unit is an entry at frame 0; an unchanged frame (and a change of a field the lane does not project) adds nothing;
+        /// a component removed while the unit lives is one entry with Value 0 (embark: the tag, gesture: absent = None).
+        /// 🔴 Red-proofs (measured): the <c>Task</c> definition removed from <c>BehaviourTimelineLanes.Definitions</c> ⇒ the task list is empty;
+        /// the lane skipping the first-seen frame ⇒ every frame-0 entry missing.
+        /// </summary>
+        [Fact]
+        public void CE4117_EachStateLane_HoldsExactlyItsChanges_AtTheirFrames_WithTheirValues_AndFrameZero()
+        {
+            using var harness = new FdpRecordingHarness();
+            string path = RecordStates(harness);
+            var index = TimelineIndexBuilder.Build(path, Lanes, Compiler());
+
+            Assert.Equal(new[] { (0, Unit, 0x1111L, 0f, (float)0x1111), (2, Unit, 0x2222L, 0f, (float)0x2222) }, Of(index, BehaviourTimelineLanes.Task.Id));
+            Assert.Equal(new[] { (0, Unit, 0L, 0f, (float)ForceId.Friend), (0, Bystander, 0L, 0f, (float)ForceId.Hostile), (3, Unit, 0L, 0f, (float)ForceId.Hostile) },
+                         Of(index, ReplicationTimelineLanes.Side.Id));
+            Assert.Equal(new[] { (0, Unit, 0L, 100f, 80f), (3, Unit, 0L, 100f, 30f), (4, Unit, 0L, 120f, 30f) }, Of(index, CombatTimelineLanes.HealthState.Id));
+            Assert.Equal(new[] { (2, Unit, Carrier, 0f, 1f), (4, Unit, 0L, 0f, 0f) }, Of(index, BehaviourTimelineLanes.Embark.Id));
+            Assert.Equal(new[] { (0, Unit, 0L, 0f, (float)GestureKind.IdleStretch), (3, Unit, 0L, 0f, (float)GestureKind.IdleLookAbout), (5, Unit, 0L, 0f, 0f) },
+                         Of(index, CombatTimelineLanes.GestureState.Id));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4117</c> — the value-change lane reads a component only when its table's chunk version moved, and still sees every write of the
+        /// normal path (<c>GetComponentRW</c>) when OTHER entities in the same chunk are unchanged: three units share a chunk; frame 1 writes only
+        /// B, frame 2 only A, frame 3 nothing — the lane holds exactly (0: A, B, C), (1: B), (2: A) and the quiet frame adds nothing.
+        /// (The CE4117 test above covers the same path too: frame 3 writes the unit's health while the bystander's chunk-mate is unchanged.)
+        /// 🔴 Red-proof: the version compare made always-equal ⇒ every change after frame 0 is missing.
+        /// </summary>
+        [Fact]
+        public void CE4117_AWriteByTheNormalPath_IsSeen_AmongUnchangedNeighboursInTheChunk_AndAQuietFrameAddsNothing()
+        {
+            using var harness = new FdpRecordingHarness();
+            var repo = harness.Repository;
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<Health>();
+            Entity[] units = new Entity[3];
+            for (int k = 0; k < 3; k++)
+            {
+                units[k] = repo.CreateEntity();
+                repo.AddComponent(units[k], new NetworkIdentity(301 + k));
+                repo.AddComponent(units[k], new Health { Current = 10, Max = 10 });
+            }
+            harness.Tick().RecordKeyframe(100_000L);
+            repo.GetComponentRW<Health>(units[1]).Current = 5;
+            harness.Tick().RecordDelta(200_000L);
+            repo.GetComponentRW<Health>(units[0]).Current = 7;
+            harness.Tick().RecordDelta(300_000L);
+            harness.Tick().RecordDelta(400_000L);
+            var index = TimelineIndexBuilder.Build(harness.BuildToTempFile(), Lanes, Compiler());
+
+            Assert.Equal(new[] { (0, 301L, 10f), (0, 302L, 10f), (0, 303L, 10f), (1, 302L, 5f), (2, 301L, 7f) },
+                         Of(index, CombatTimelineLanes.HealthState.Id).Select(e => (e.Frame, e.Subject, e.Value)).ToArray());
+        }
+
+        /// <summary>⭐ <c>CE-4117</c> — the state lanes are LIVE = RECORDED too (CE-3330): the same run indexed frame by frame and rebuilt from its
+        /// recording gives the same entries in every state lane (a lane the catalog holds that the scripted world never feeds would pass vacuously,
+        /// so the lanes are asserted non-empty).</summary>
+        [Fact]
+        public void CE4117_TheStateLanes_LiveEqualRebuilt()
+        {
+            using var harness = new FdpRecordingHarness();
+            var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
+            string path = RecordStates(harness, ticks => live.Step(harness.Repository, ticks, force: true));
+            var rebuilt = TimelineIndexBuilder.Build(path, Lanes, Compiler());
+            foreach (var id in new[] { "state.task", "state.side", "state.health", "state.embark", "state.gesture" })
+            {
+                Assert.NotEmpty(rebuilt.Lane(id));
+                Assert.Equal(Of(rebuilt, id), Of(live.Index, id));
+            }
         }
 
         /// <summary>
@@ -241,7 +372,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var shipped = ShippedTimelineLanes.Catalog();
 
             Assert.Equal(Shipped().Lanes(ctx).Select(l => l.Id), shipped.Lanes(ctx).Select(l => l.Id));
-            Assert.Equal(9, shipped.Lanes(ctx).Count);                     // the three toolkits' nine (the Replay Browser's rail asserts the same)
+            Assert.Equal(14, shipped.Lanes(ctx).Count);                    // the three toolkits' nine + the five hidden state lanes (CE-4117)
             Assert.Contains(CombatTimelineLanes.Shot.Id, shipped.Lanes(ctx).Select(l => l.Id));
             Assert.NotSame(shipped, ShippedTimelineLanes.Catalog());
             shipped.Register(new IndexedLaneDefinition(new TimelineLaneDescriptor("mine", "Mine"),

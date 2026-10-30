@@ -799,5 +799,66 @@ namespace Fdp.Toolkit.Replay.Tests
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system);
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { Systems.Add(system); return system; }
         }
+
+        // ── ⭐⭐ CE-4118 — every event of a live run reaches the recording, once, in the frame its readers saw it ──────────────
+
+        [EventId(99418)] private struct Ce4118InputPhaseEvent { public int Frame; }        // published before the kernel's swap (a shot)
+        [EventId(99419)] private struct Ce4118SimulationPhaseEvent { public int Frame; }   // published after it (a behaviour's report)
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4118</c> — the kernel's frame: Input publishes, the bus SWAPS (after BeforeSync), Simulation publishes, then the
+        /// recorder runs in PostSimulation. 🔴 The recorder wrote the WRITE buffer, which by then holds only what was published since the
+        /// swap, so every Input-phase event — every shot, every hit — was missing from a live recording (📐 measured, editor Live run of
+        /// ua-weapon-choice: the live index 4 shots / 4 hits / 4 blasts, the recording 0 / 0 / 0). ⭐ Replayed, every frame's events are
+        /// each exactly once, Input's in the frame they were published, Simulation's in the next (where their readers saw them — the
+        /// editor's live index makes the same choice); and the keyframe's checkpoint carries only what was still UNCONSUMED.
+        /// <para>✅ Red-proof: record the write buffer again (RecorderTickSystem, readBuffer: false) and the Input events are gone.</para>
+        /// </summary>
+        [Fact]
+        public void CE4118_ALiveRunsInputPhaseEvents_AreRecorded_EachOnce_AndACheckpointCarriesOnlyTheUnconsumed()
+        {
+            using var world = CreateWorld();
+            world.AddComponent(world.CreateEntity(), new SimTransform());
+            var config = new RecordingConfiguration { FilePath = Path.Combine(_tempDir, "ce4118.fdp"), ExerciseId = Guid.NewGuid(), NodeId = 3, Blocking = true };
+            var module = new RecordingModule(config);
+            var captured = new CapturingSystemRegistry();
+            module.RegisterSystems(captured);
+            const int Frames = 5;
+            try
+            {
+                for (int f = 0; f < Frames; f++)
+                {
+                    world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.25f, TimeScale = 1f, TotalTime = f * 0.25, TotalWallTicks = 1000 + f });
+                    world.Tick();
+                    world.Bus.Publish(new Ce4118InputPhaseEvent { Frame = f });        // Input
+                    world.Bus.SwapBuffers();                                           // the kernel's swap, after BeforeSync
+                    world.Bus.Publish(new Ce4118SimulationPhaseEvent { Frame = f });   // Simulation
+                    foreach (var sys in captured.Systems) sys.Execute(world, 0.25f);   // PostSimulation: the recorder
+                }
+            }
+            finally { module.Dispose(); }
+
+            using var replay = new EntityRepository();
+            using var playback = new PlaybackController(config.FilePath) { EventBus = replay.Bus };
+            var input = new System.Collections.Generic.List<(int Recorded, int Published)>();
+            var sim = new System.Collections.Generic.List<(int Recorded, int Published)>();
+            while (playback.StepForward(replay))
+            {
+                foreach (var e in replay.Bus.Read<Ce4118InputPhaseEvent>()) input.Add((playback.CurrentFrame, e.Frame));
+                foreach (var e in replay.Bus.Read<Ce4118SimulationPhaseEvent>()) sim.Add((playback.CurrentFrame, e.Frame));
+            }
+            Assert.Equal(Enumerable.Range(0, Frames).Select(f => (f, f)), input);              // every shot, once, in its own frame
+            Assert.Equal(Enumerable.Range(0, Frames - 1).Select(f => (f + 1, f)), sim);        // once, a frame later (the last is still pending)
+
+            // the keyframe (frame 0) as a checkpoint: only frame 0's Simulation event was unconsumed when it was written
+            var keyframe = WorldKeyframe.FromRecordedFrame(RecordingSlice.ReadFrame(config.FilePath, 0, out var type));
+            Assert.Equal(FrameType.Keyframe, type);
+            using var restored = new EntityRepository();
+            var holding = WorldKeyframes.ApplyKeepingUnconsumedEvents(restored, keyframe);
+            restored.Bus.PublishCurrentOf(holding, addMissingStreams: true);
+            restored.Bus.SwapBuffers();
+            Assert.Empty(restored.Bus.Read<Ce4118InputPhaseEvent>().ToArray());
+            Assert.Equal(new[] { 0 }, restored.Bus.Read<Ce4118SimulationPhaseEvent>().ToArray().Select(e => e.Frame));
+        }
     }
 }

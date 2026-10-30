@@ -421,7 +421,21 @@ namespace Fdp.Core.FlightRecorder
             
             // Force all chunks to be considered "dirty" by using prevTick = 0
             RecordAllChunks(repo, writer);
+
+            // ⭐⭐ CE-4118 — a keyframe that records the READ buffer (the kernel's frame: the bus swapped before PostSimulation) also
+            //   carries what is still UNCONSUMED — the write buffer at this moment — as a trailing section, for a checkpoint restore
+            //   (DESIGN_Checkpoint_And_Dry_Run_Restore D2: "the restore applies the keyframe's pending events"). Replay injects the main
+            //   block only; PlaybackSystem.ApplyFrame(unconsumedEvents: true) reads this one. ⚠ After the chunks, so a frame without it
+            //   (every recording before CE-4118) reads exactly as before.
+            if (serializeReadBuffer && eventBus != null)
+            {
+                writer.Write(UnconsumedEventsMagic);
+                WriteEvents(writer, eventBus, serializeReadBuffer: false);
+            }
         }
+
+        /// <summary>⭐ <c>CE-4118</c> — marks a keyframe's trailing UNCONSUMED-events section ("UNCN").</summary>
+        public const int UnconsumedEventsMagic = 0x4E434E55;
         
         private void RecordAllChunks(EntityRepository repo, BinaryWriter writer)
         {

@@ -11,6 +11,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// ⭐ One lane of the shared timeline. <c>R-4078</c> (docs/DESIGN_Director_Timeline_Editor.md §9c) — moved from <c>Hrot.Editor.AiShared</c>
     /// (it was <c>TraceLaneDescriptor</c>, renamed by Roslyn) and generalised: the group it collapses into, its priority in a cluster (§2b
     /// "priority on top"), its colour (0 = the panel picks one) and its glyph are DATA, so no lane is hard-coded anywhere (R-4079).
+    /// <para>⭐ <c>CE-4117</c> — <see cref="Hidden"/>: a lane that exists for a resolver (the director's state cues), not to be drawn; the panel
+    /// honours it.</para>
     /// </summary>
     public sealed record TimelineLaneDescriptor(
         string Id,
@@ -19,7 +21,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         string Group = "",
         int Priority = 0,
         uint Color = 0,
-        TimelineGlyph Glyph = TimelineGlyph.Dot);
+        TimelineGlyph Glyph = TimelineGlyph.Dot,
+        bool Hidden = false);
 
     /// <summary>
     /// ⭐ Where a timeline is being shown, for <see cref="ITimelineLaneProvider.Applies"/>: the asset being edited (a trace lane's key —
