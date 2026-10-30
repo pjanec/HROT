@@ -185,7 +185,7 @@ CE-4117 does not block them; the rest follow, one Sonnet agent at a time.
 ### 1d. ⭐ What filming found — the defects each clip waits on, to REFILM once fixed *(user, `2026-10-30`)*
 
 🔒 User: *"These scenario behavior differences should be all noted as filming reveals lots of bugs in them. They will be solved later and
-refilmed then."* ⭐ **Every defect filming reveals gets a row here** (clip · what was seen · the tracker row) — ⛔ never only in a chat or a
+refilmed then."* · *"If the block the filming we will solve them with priority"* (R-4100). ⭐ **Every defect filming reveals gets a row here** (clip · what was seen · the tracker row) — ⛔ never only in a chat or a
 report. A clip is refilmed when its row closes.
 
 | clip | seen while filming | row | refilm when |

@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — coordinator → backend: CE-4118, a Live recording loses its combat events (found filming, 2026-10-30)
+state: LIVE — RE-STAMPED 2026-10-30 before backend started (rule 1a): R-4100 priority — coordinator → backend: CE-4118, a Live recording loses its combat events (found filming, 2026-10-30)
 updated: 2026-10-30
 current-answer: the whole note
 stale-below: nothing
@@ -15,7 +15,7 @@ related-designs:
 first, and then analyzing it in the replay to find out the exact time of those events, we can take much better clips"* · on this finding:
 *"blasts are consequences of firing so without fire no blast possible"* · *"Of course write bugs notes for ui and backend"*.
 
-⭐ **Why it is first:** films are now cut from Live recordings (PLAN_Feature_Films §1c). Every combat clip cuts on a shot, a hit or a blast;
+⭐⭐ **Priority — ahead of everything else queued for you** (user, `2026-10-30`, R-4100: *"If the block the filming we will solve them with priority"*). ⭐ **Why it blocks:** films are now cut from Live recordings (PLAN_Feature_Films §1c). Every combat clip cuts on a shot, a hit or a blast;
 without them in the recording, no combat clip can be made (F-45 and F-40 of the pilot are blocked). It also hides combat from every AAR /
 DAR timeline.
 

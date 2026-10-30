@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — coordinator → ui: what the film pilot found in the director (CE-4119, CE-4117, CE-4120, CE-4121) and the shared layout file (CE-4116)
+state: LIVE — RE-STAMPED 2026-10-30 before ui started (rule 1a; ancestry checked): the filming blockers go FIRST (R-4100) — coordinator → ui: what the film pilot found in the director (CE-4119, CE-4117, CE-4120, CE-4121) and the shared layout file (CE-4116)
 updated: 2026-10-30
 current-answer: the whole note
 stale-below: nothing
@@ -28,8 +28,9 @@ Backend has CE-4118 (Live recordings lose their combat events) — not yours.
 | 4 | **CE-4121** | `/director/moments` says `complete: true, count: 0` before the index is read · a capture's opening card shows the scenario's name, not the take's title | small, misleads an agent |
 | 5 | **CE-4116** | the editor and the Replay Browser started in the same second: one dies on the shared `imgui.ini` (`LayoutPaths.TryResetUserLayout`, `File.Copy` overwrite) | RUNBOOK §0b now says to start them one after the other |
 
-⭐ **With the editor-polish batch:** ⭐ lean — CE-4119 first (small, it unblocks every film render), then the polish batch, then the rest here.
-⛔ Do not re-open the polish batch's scope; this is a separate list.
+⭐⭐ **Priority (user, `2026-10-30`, R-4100: *"If the block the filming we will solve them with priority"*):** the two BLOCKERS — **CE-4119**
+and **CE-4117** — go ahead of everything else queued for you, the editor-polish batch included. Then the polish batch, then 3–5 here
+(CE-4120 has a hand-pass workaround, CE-4121 is cosmetic, CE-4116 has a launch-order workaround). ⛔ Do not re-open the polish batch's scope.
 
 ⭐ **The reproduction for 1–4** is the pilot's own: RUNBOOK_Filming §0b (record `ua-air-strike` Live in the editor, open it in the Replay
 Browser), the take is in the rows. Rails in each feature's own suite (`DirectorTimelineTests`, `DrafterTests`, the AnchorBook rails), each
