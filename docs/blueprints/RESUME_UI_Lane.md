@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29
-current-answer: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
+updated: 2026-10-30
+current-answer: ⭐⭐⭐ 2026-10-30 — START AT "SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES" directly below this STATUS block.
+  ⛔ OLDER: ⭐⭐⭐ 2026-10-29 (b) — START AT "SESSION 2026-10-29 (b) — THE UNIFICATION PAUSE (R-3066)", then "SESSION 2026-10-28/29 — RUN MODES + EDITOR FIXES" directly below this STATUS block (the run-modes batch built, what waits on backend, the next item).
   ⛔ OLDER: ⭐⭐⭐ 2026-10-26 (c) — START AT "SESSION 2026-10-26 (c) — THE REVIEW UI + THE DIRECTOR'S TRACKS", then (b) "THE REVIEW TIMELINE" (the timeline's next steps), then "SESSION 2026-10-26 — RESUME HERE" directly below this STATUS block (state at ui@8d85ea7ba,
   what was built 10-25/26, what is open, the traps measured). Then the 10-25 Brain-tab section and the 10-23 plan for the rest.
   ⛔ OLDER: ⭐⭐⭐ 2026-10-25 — START AT "SESSION 2026-10-25 — THE BRAIN TAB PROGRAMME" (its build plan is Brain View §12h), then the 10-23 plan for the rest.
@@ -169,6 +170,25 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION 2026-10-30 — THE PLAYER, THE 3-D MAP IN THE LOAD, THE MODE SWITCHES *(state at `ui@8c3f2b902`, pushed; merged `backend@ad1e7118f`)*
+
+⚠ A STATE doc — verify against git before acting. The standing Sonnet worker is **`a01b228ca211f5b44`** (reuse with `SendMessage`).
+
+| done (ui) | where |
+|---|---|
+| R-1044 / R-1045 / R-1046 (user): ECS hosts unified + configurable; CGF + editor on the shared bootstrapper (backend built it, CE-1446); only the PLAYER loads the 3-D map in its chain | `RULINGS.md` · Cluster Load Phase §11.8 / §11.9 |
+| CE-1443 B1/B2 named saves + recipes | AQ108 §2.15b |
+| CE-4104 switches ①–④ in the real headless editor (+ CE-4100 ③ no live-end DAR) · CE-1447 (backend) proven end to end · CE-1448 the live index held around a DAR | `TheEditorsRecordingIsFilmedInTheReplayBrowserTests` |
+| CE-1445 one `NodeRunControls.For` for every ECS host; the IG offers Player run controls → the waiting screen | §11.8a |
+| R-1046 ui half: `BackgroundMeshBuild`, `Map3DBuild` / `IMapBuildStatus`, the switch waits in 2-D, the picker off the frame, the director waits for the map | §11.9a |
+| CE-4078 accepted LIVE (no ejection; the player's PlayReady waits for its map) · CE-1452 one terrain mesh per world (24.3 → 8.5 s) · CE-1451 the load + gate + waiting text on `/status` (live: "Loading — 3-D map: terrain") · CE-1450 the runner dropped the orchestrator (fixed) | `scripts/repro-ce4078.sh` (`WITH_IG=1`) |
+
+| open | |
+|---|---|
+| CE-1444 | likely refuted (sim text vs wall branch) — worker settling it |
+| CE-4104 | one live multi-process run of the four switches — worker writing `scripts/repro-mode-switches.sh` |
+| CE-1449 | Stride's hand-built run controls → `NodeRunControls.For` — needs a WINDOWS build |
 
 ## ⭐⭐⭐ SESSION 2026-10-29 (c) — ARMED-MODE MVP, READINESS (U1), THE FILE MENU (U2) *(state at `ui@60c55436f`, pushed)*
 
