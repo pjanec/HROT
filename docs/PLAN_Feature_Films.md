@@ -195,6 +195,9 @@ report. A clip is refilmed when its row closes.
 | any take anchored on an event, rendered from a recording | stills find the anchor, the render does not (every key unresolved, 45 frames) — the pilot rendered with fixed times | [CE-4119](blueprints/Blueprint_Issues_Tracker.md) | 🔎 not reproduced by ui on the same code — being re-tried on the fixed build |
 | drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | [CE-4120](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
 | F-45 `ua-tank-ammo` | the M1 needs three sabot rounds for the T-72; its HE round comes ~50 s in, at the technical's gunner, not the truck at ~22 s as described | [CE-4123](blueprints/Blueprint_Issues_Tracker.md) | filmed on what the run does; refilm if the beat changes |
+| F-13 `ua-civ-escalation` | the warning gesture resolves (4.12 s), but the police rifleman never fires — no lethal round at the gunman in 28 s | [CE-4124](blueprints/Blueprint_Issues_Tracker.md) | refilm when the lethal beat is back (or the description changes) |
+| F-18 `ua-danger-crossing` | the hold and the rush are not TASK changes (one BTree) — `task` cues never fire; cut on `near` (the crossing point) instead; the walk is ~1 m/s, so the beat needs ~3 min of run | (take change, no defect) | re-take with `near` anchors |
+| any take on a recording | an anchor that does not resolve is silent in a stills plan (`problems: []`) | [CE-4125](blueprints/Blueprint_Issues_Tracker.md) | — |
 | every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` (ui) |
 
 ## 2. Gaps — what no clip can show yet
