@@ -97,7 +97,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var cgf = new CgfSubsystem(factory);
         try
         {
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             var windows = MakeWindowManager();
             cgf.RegisterWindows(windows);
 
@@ -138,7 +138,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         {
             editor.Initialize(new SubsystemConfig { Headless = true });
             editor.RegisterWindows(MakeWindowManager());
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             cgf.RegisterWindows(MakeWindowManager());
 
             AssertAsksStopAndLoadOverALiveRun("editor", editor.RunChoiceForTest, editor.NodeForTest);
@@ -173,7 +173,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         {
             editor.Initialize(new SubsystemConfig { Headless = true });
             editor.RegisterWindows(MakeWindowManager());
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             cgf.RegisterWindows(MakeWindowManager());
 
             var editorLogic = editor.EditorLogic;
@@ -301,7 +301,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var ig = new Hrot.IG.IgSubsystem();
         try
         {
-            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = 90 + Interlocked.Increment(ref _domain) });   // (a domain below CycloneDDS's default-port limit: 230+ cannot create a participant here, as the CGF rails above show)
+            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
             var offer = Assert.IsAssignableFrom<IProvidesRunControls>(ig);
             Assert.Equal(RunHostKind.Ig, offer.HostKind);
             Assert.NotNull(offer.Transport);
@@ -337,7 +337,7 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var ig = new Hrot.IG.IgSubsystem();
         try
         {
-            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = 90 + Interlocked.Increment(ref _domain) });
+            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = DomainBase + Interlocked.Increment(ref _domain) });
             Assert.True(Hrot.IG.IgApplication.RunProfile.MapInLoad);
             var status = ig.MapBuildStatus;
             var build = Assert.IsType<Fdp.Toolkit.Vis3D.Map3DBuild>(status);
@@ -399,12 +399,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.RegisterWindows(editorWindows);
             Assert.All(ScenarioMenuShape(editorWindows), line => Assert.Contains("MISSING", line));   // ⭐ CE-4101 follow-up: RegisterWindows registers NO scenario item any more
 
-            cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+            cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
             var cgfWindows = MakeWindowManager();
             cgf.RegisterWindows(cgfWindows);
             Assert.All(ScenarioMenuShape(cgfWindows), line => Assert.Contains("MISSING", line));
 
-            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+            orchestrator.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = true });
             var orchestratorWindows = MakeWindowManager();
 
             // ⭐ the ONE registration: each host alone in its process, composed by the runner's composition — it asks the picked owner to register
@@ -469,10 +469,10 @@ public sealed class TheRunChoiceIsOnEveryHostTests
             editor.RegisterWindows(MakeWindowManager());
             if (withCgf)
             {
-                cgf.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = false });
+                cgf.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = false });
                 cgf.RegisterWindows(MakeWindowManager());
             }
-            orchestrator.Initialize(new SubsystemConfig { DomainId = 230 + Interlocked.Increment(ref _domain), Headless = true });
+            orchestrator.Initialize(new SubsystemConfig { DomainId = DomainBase + Interlocked.Increment(ref _domain), Headless = true });
 
             // (1) every combination: ONE scenario exit guard, over the owner's session door
             var sessions = new Dictionary<ISubsystem, Hrot.Editor.AiShared.Scenarios.IScenarioSession>
@@ -572,6 +572,12 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         var ids = windows.StatusBar.SectionIds;
         Assert.DoesNotContain(ids, id => id.Contains("time", System.StringComparison.OrdinalIgnoreCase) || id.Contains("transport", System.StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// ⭐ The DDS domain block of this class: <c>11 … 10 + (the class's participant count)</c>, a block no other integration class uses (their bases: 39, 52–59, 70–71, 81, 91, 95, 100+; ids 1–38 are free).
+    /// 📐 It was <c>230</c>: the third host landed on 233, past CycloneDDS's default-port maximum of 232 — <c>CreateParticipant</c> fails there, which was the four "environment" reds (and the IG rails were put on 90 to dodge it).
+    /// </summary>
+    private const int DomainBase = 10;
 
     private static int _domain;
 }
