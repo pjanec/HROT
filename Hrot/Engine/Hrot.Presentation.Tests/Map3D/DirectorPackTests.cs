@@ -983,4 +983,46 @@ public sealed class DirectorPackTests : IDisposable
         for (int i = 0; i < 30; i++) frame.Run(Tick);
         Assert.Equal((DirectorPhase.Stopped, -1), (pack.Runner.Phase, pack.Runner.CurrentItem));   // and it stays stopped
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4119</c> part 1 — a stills plan whose take hangs its SEGMENTS on an anchor the run does not show names it in <c>problems</c>, for <c>times:[…]</c> and for every key alike — never a silent 1:1 film map
+    /// (<c>FilmTimeMap.Of</c> falls back to identity when a segment's anchor is unresolved). 🔴 Mutation: the <c>film.Unresolved</c> forwarding removed from <c>DirectorStills.PlanOf</c> ⇒ no problem ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4119_AStillsPlan_NamesAnUnresolvedSegmentAnchor_InItsProblems_NeverASilentOneToOneMap()
+    {
+        var take = new Take
+        {
+            Scenario = "s", Name = "main",
+            Anchors = new Dictionary<string, AnchorSpec> { ["blast#1"] = new() { On = "blast", N = 1 } },
+            Keys = new[] { new CameraKey { At = new AtExpr(1d), Camera = new CameraSpec { LookAt = System.Numerics.Vector3.Zero, Distance = 20f } } },
+            Segments = new[] { new TimeSegment { From = new AtExpr(-2d, "blast#1"), To = new AtExpr(0.5d, "blast#1") } },
+            EndAt = new AtExpr(4d),
+        };
+
+        var (plan, problems) = DirectorStills.PlanOf(take, new double[] { 1d, 2d }, everyKey: false, anchors: _ => null);   // the run shows no blast
+        Assert.Contains(problems, p => p.Contains("blast#1") && p.Contains("1:1"));
+        Assert.Equal(2, plan.Count);                                                  // the plan is still made (1:1) — but it SAYS so
+        Assert.All(plan, p => Assert.Equal(-1, p.Segment));   // the identity map: no segment
+
+        var (_, keyed) = DirectorStills.PlanOf(take, null, everyKey: true, anchors: _ => null);
+        Assert.Contains(keyed, p => p.Contains("blast#1") && p.Contains("1:1"));
+
+        var (_, resolved) = DirectorStills.PlanOf(take, new double[] { 1d }, everyKey: false, anchors: n => n == "blast#1" ? 3d : null);   // the run shows it: nothing to say
+        Assert.DoesNotContain(resolved, p => p.Contains("1:1"));
+    }
+
+    /// <summary>⭐ <c>CE-4119</c> part 1 — <c>DirectorUnits.Census</c>: the shown world's entity count and how many carry a name (the figures <c>skippedWhy</c> quotes); null for no world. 🔴 Mutation: counting unnamed entities as named ⇒ red.</summary>
+    [Fact]
+    public void CE4119_TheCensus_CountsTheShownWorldsEntities_AndTheNamedOnes()
+    {
+        Assert.Null(DirectorUnits.Census(null));
+        using var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        world.RegisterComponent<Fdp.Core.EntityInfo>();
+        var named = world.CreateEntity(); world.AddComponent(named, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1 }); world.AddComponent(named, new Fdp.Core.EntityInfo { Name = "Alpha" });
+        var blank = world.CreateEntity(); world.AddComponent(blank, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2 }); world.AddComponent(blank, new Fdp.Core.EntityInfo());
+        world.CreateEntity();
+        Assert.Equal((3, 1), DirectorUnits.Census(world));
+    }
 }

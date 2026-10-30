@@ -94,6 +94,8 @@ namespace Hrot.UI.Common.Map3D.Director
             var times = take.Baked?.Times;
             anchors ??= n => times != null && times.TryGetValue(n, out var t) ? t : null;
             var film = FilmTimeMap.Of(take, anchors);
+            // ⭐ CE-4119 part 1 — a segment on an anchor this run does not show makes FilmTimeMap fall back to a 1:1 map: say so, for keys AND for times:[…]
+            foreach (var u in film.Unresolved) problems.Add($"{u} — this run does not show it, so film time is mapped 1:1 (segment null), not through the take's segments");
             var wanted = new List<(double Film, string? Name)>();
             if (filmTimes is { Count: > 0 })
                 foreach (var t in filmTimes)
