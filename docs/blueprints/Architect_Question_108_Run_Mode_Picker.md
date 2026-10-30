@@ -1282,6 +1282,29 @@ classDiagram
 
 📌 **Rails** (each red-proved by a compiling mutation): `SaveCommandsTests.CE1443_B2_SaveAsRecipe_*` (no-overwrite loop removed ⇒ red) · `BTreeNewAssetTests.CE1443_B2_NewBTree_ListsTheRecipesOnDisk` (listing dropped ⇒ red) · `ScenarioMenuTests.CE1443_B2_SaveScenarioAsRecipe_SavesUnderTheRecipeName` (recipe name dropped ⇒ red) · Blueprint `DiscoverRecipesTests` unchanged and green.
 
+### 2.16 CE-4111 — the indicator and its menu show ONE mode *(ui, `2026-10-30`; build-state: READY-TO-BUILD)*
+
+🔒 User: *"when I open exercise recording right after hrot starts, i end up with the AAR armed mode indicated on the armed mode indicator, while when
+clicking it the "Preview" mode menu item is checked and "AAR" menu item is grayed out."*
+
+| the claim | code — how it IS (measured `2026-10-30`) | design — how it was MEANT to be |
+|---|---|---|
+| the icon shows the CURRENT mode during a run | ✅ `RunModeChoice.Indicator` (`RunModeChoice.cs:625`): Preview / Live / Replay → that mode; only Edit / Idle → `Armed` | ✅ §2.8 — dim = armed (Edit), bright / blinking = the run |
+| the check mark shows the ARMED mode always | ✅ `Moves()` sets `IsArmed: Armed == target` (`RunModeChoice.cs` `Moves`), drawn as `Selected` (`MainToolbarTimeControlSection.cs:166`) | ⛔ nothing says the menu marks a different mode than the icon |
+| opening a recording does NOT arm AAR | ✅ `_door.RecordingOpening` only sets `LastExercise` (`RunModeChoice.cs:109`); ⚠ the comment at `:263` ("arms AAR") is stale | ✅ R-1043 / §2.15 table row 3: *no open sends ANY armed mode — the recording open too* |
+| the current mode's item is greyed | ✅ `Moves()`: `target == current` ⇒ `Enabled: false`, no reason | ⛔ not designed — an artefact of "a move to where you are" |
+| ⇒ "right after start" is incidental | the editor's armed mode is Preview (its bootstrap); ANY recording open shows AAR on the icon and Preview checked | — |
+
+**Decision (lean, follows the done-when *"one read of the run choice"*):**
+1. ONE value, `RunModeChoice.Shown` = the current mode while a run is on (Preview / Live / AAR; Review keeps its DAR menu), else `Armed`. `Indicator`
+   and the menu's check mark both read it — the move's flag becomes `IsShown` (⛔ not a second sync: the old `Armed == target` read goes).
+2. The shown item is **checked and enabled**; choosing it does nothing (closes the menu) — ⛔ no greyed "where you are" item.
+3. The armed mode is not lost during a run: the menu header says it (*"AAR · 0:12 · loads go into: Preview"*), since a load during a run goes into it (R-1043).
+4. The stale `:263` comment is corrected.
+
+Rejected: *arm AAR on a recording open* — R-1043 (the user withdrew it) · *sync the check mark to the icon in the draw code* — a second reader of the
+mode, the defect itself · *keep the current item greyed* — the user named it as part of the confusion.
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |
