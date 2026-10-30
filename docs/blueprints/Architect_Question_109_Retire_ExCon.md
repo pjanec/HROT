@@ -151,3 +151,20 @@ deleted with the capability, the deletion named in the report. ⛔ No test keeps
 | `SelectionAndMissionIntegrationTests` · selection | IG selection published to ExCon's read model | **deleted** (ExCon was the only DDS consumer of `SelectionChangedEvent`) |
 | `SelectionAndMissionIntegrationTests` · mission commit | commit through an `IMissionEditorService` resolves with the ack | ✅ **re-homed** to `MissionControlIntegrationTests.Cgf_CommitMissionAsync_ResolvesWithAck_NotTimeout`, driven through `harness.Cgf.CreateDebugProvider().MissionEditor` (the shared service). It first stopped on a production gap: `CgfSubsystem` built `ScenarioMissionService` only in the `!_headless` block, so a headless CGF's debug provider (the HTTP/MCP mission seam) had none. Fixed: built once outside the gate (`CgfSubsystem.cs` ~:1013); `PollAcks()` already ran every frame; the panel wiring stays window-only. Red-proved by putting the construction back behind `!_headless` |
 | `DistributedScenarioSaveTests` (2) *(not on the plan's list)* | the save routes ExCon's `ExCon.Observer` slice to `foreign/` | foreign assertions removed (no remaining node writes a foreign slice); canonical merge and the saved-file hash/stamp stay |
+
+### 6.2 ✅ AS-BUILT `2026-10-30` (backend) — slice X2, the node goes
+
+Deleted `Hrot/Subsystems/Hrot.ExCon` and `Hrot.ExCon.Tests` (+ their `HROT.sln` entries, the `Hrot.ClusterRunner` project reference, the `InternalsVisibleTo("Hrot.ExCon.Tests")` on `Hrot.Presentation`). The runner finds its subsystems by reflection, so there was no registration to delete; the `excon` mode and its legacy `ios` alias (and `ios` as a `--wait-for` peer) are now an **Invalid mode** (thrown, never silently dropped) — rail `RunnerConfigurationTests.ParseMode_ExCon_IsRejectedAsInvalid`, red-proved. Also: `Program.cs` (`["ExCon"]` perspective map, `EXCON => 200` node-id offset), `launchSettings.json`, `run_All.sh`, `scripts/composition-inventory.py`.
+
+| file | what was done |
+|---|---|
+| `ClusterRunner.Tests`: `ExConSubsystemTests`, `ExConSubsystemClusterTests`, `ExConHandlerRegistrationTests` | deleted (they tested ExCon itself) |
+| `HexagonalBoundaryTests` | T001 keeps the Orchestrator arm; T004 (`PauseIntent_ReachesSlaveTranslatorTick`, ExCon's own pipeline) deleted with its spy translator/factory |
+| `SubsystemOrchestratorTests` | the TitleBarColor-distinct rail uses CGF as the third concrete (was ExCon); `MockSubsystem("ExCon")` name-only mocks kept |
+| `RunModeTests`, `RunnerConfigurationTests`, `RunnerIntegrationTests`, `TheLayoutIsOneUnitTests` | `excon` expectations dropped (`all` = 5 nodes); `ios` / `editor,excon` become one rejection theory; wait-for `ios` rejected |
+| `Orchestrator/ClusterControlWindow` | id `excon_cluster_control` → `cluster_control`; `layout/default/imgui.ini`, `fdp_windows.json`, both `registered-windows.json` goldens updated to match (the `excon_*` windows leave the `all` golden; `ig_mini_excon` stays for X3) |
+| `SystemTests`: `ClusterConformanceRails` | removed the four `excon-*` cluster-only kinds **and `ExConObserver`** (also an ExCon-registered kind), the `"ExCon"` routable perspective, the ExCon honest-FALSE cells; `ig-mini-excon` stays (X3) |
+| `SystemTests`: `ModeStartupRails` | `all` banner without `excon`; the `excon` mode row dropped |
+| `SimHost.Tests`: `OneBootstrapImplementationRails`, `TheDebugProvidersDoNotUnderReportTests` | the ExCon host row / debt edge / provider path removed |
+
+⚠ Left for X3/X4, named: `ScenarioPanelWindows.ExConReports` (a now-unused id), the `Create*ExCon*` members of `INetworkFactory` and their test doubles, `MiniExConIntegrationTests`, `tools/ai-debug-mcp` skill text that still mentions the ExCon perspective.

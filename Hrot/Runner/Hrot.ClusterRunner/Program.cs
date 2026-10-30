@@ -378,7 +378,6 @@ class Program
             {
                 ["IG"]        = "IG",
                 ["SimHost"]   = "SimHost",
-                ["ExCon"]     = "ExCon",
                 ["Scenario"]  = "CGF",
             };
 
@@ -772,7 +771,6 @@ class Program
         {
             "SIMHOST"      => 1,
             "IG"           => 100,
-            "EXCON"        => 200,
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,

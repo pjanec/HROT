@@ -64,7 +64,6 @@ public class OneBootstrapImplementationRails
             ["Hrot.Editor"]           = "Hrot/Subsystems/Hrot.Editor/Hrot.Editor.csproj",
             ["Hrot.TrafficNode"]      = "Hrot/Subsystems/Hrot.TrafficNode/Hrot.TrafficNode.csproj",
             ["Hrot.Orchestrator"]     = "Hrot/Subsystems/Hrot.Orchestrator/Hrot.Orchestrator.csproj",
-            ["Hrot.ExCon"]            = "Hrot/Subsystems/Hrot.ExCon/Hrot.ExCon.csproj",
             ["Hrot.ReplayBrowser"]    = "Hrot/Subsystems/Hrot.ReplayBrowser/Hrot.ReplayBrowser.csproj",
             // ⭐ the Stride host's own bootstrapper (StrideNodeBootstrapper, its only type), split from the net8.0-windows game so it
             //   builds and tests off Windows — HALF of the Stride host, not a shared library (DESIGN_Stride_Port.md §271).
@@ -76,7 +75,6 @@ public class OneBootstrapImplementationRails
         {
             "Hrot.CGF -> Hrot.SimHost",
             "Hrot.Editor -> Hrot.SimHost", "Hrot.Editor -> Hrot.CGF", "Hrot.Editor -> Hrot.Orchestrator", "Hrot.Editor -> Hrot.IG",
-            "Hrot.ExCon -> Hrot.Orchestrator",
             "Hrot.NodeComposition -> Hrot.SimHost", "Hrot.NodeComposition -> Hrot.IG",
             "Hrot.ReplayBrowser -> Hrot.CGF", "Hrot.ReplayBrowser -> Hrot.SimHost",
             "HrotStrideApp.Game -> Hrot.NodeComposition", "HrotStrideApp.Game -> Hrot.Editor", "HrotStrideApp.Game -> Hrot.Orchestrator",

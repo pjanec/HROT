@@ -103,7 +103,6 @@ public sealed class TheLayoutIsOneUnitTests
             new NamedSubsystem("Orchestrator"),          // ⛔ Global windows only — claims nothing.
             new NamedSubsystem("SimHost", "SimHost"),
             new NamedSubsystem("IG", "IG"),
-            new NamedSubsystem("ExCon", "ExCon"),
             new NamedSubsystem("CGF", "Scenario"),       // ⭐ A9: CGF's perspective is "Scenario".
         };
 
