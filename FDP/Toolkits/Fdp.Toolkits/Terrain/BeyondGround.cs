@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Distance over which the hills (and the field's pull) fade in from the zone that owns the ground.</summary>
         public const float RampMetres = 300f;
         /// <summary>The hills' total amplitude (m): the three octaves sum to at most this, either way.</summary>
-        public const float HillAmplitude = 10f;
+        public const float HillAmplitude = 25f;   // ⭐ 2026-10-30 — 10 m read as flat under the haze (the user wanted "a bit hilly"); 25 m, the waves shorter
 
         /// <summary>No outside field: the edge height plus hills.</summary>
         public static readonly BeyondGround Default = new(null, null);
@@ -58,17 +58,18 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>
-        /// The relief: three octaves of travelling sines (wavelengths ~900, ~480, ~260 m, two directions each, amplitudes 5 + 3 + 2 m) — a fixed
+        /// The relief: three octaves of travelling sines (wavelengths ~585, ~310, ~170 m, two directions each, amplitudes 12.5 + 7.5 + 5 m) — a fixed
         /// function of (x, y), no seed, smooth, in [−<see cref="HillAmplitude"/>, +<see cref="HillAmplitude"/>].
         /// </summary>
         public static float Hills(float x, float y)
         {
             const float tau = 2f * MathF.PI;
             float h = 0f;
-            h += 2.5f * MathF.Sin(tau * (0.8f * x + 0.6f * y) / 900f + 0.7f) + 2.5f * MathF.Sin(tau * (-0.6f * x + 0.8f * y) / 760f + 2.1f);
-            h += 1.5f * MathF.Sin(tau * (0.28f * x + 0.96f * y) / 480f + 4.0f) + 1.5f * MathF.Sin(tau * (0.96f * x - 0.28f * y) / 410f + 1.3f);
-            h += 1.0f * MathF.Sin(tau * (0.6f * x - 0.8f * y) / 260f + 5.2f) + 1.0f * MathF.Sin(tau * (0.8f * x + 0.6f * y) / 290f + 3.3f);
-            return h;
+            const float w = 0.65f;   // the wavelengths' scale (1 = the first fit, 900 / 480 / 260 m)
+            h += 2.5f * MathF.Sin(tau * (0.8f * x + 0.6f * y) / (900f * w) + 0.7f) + 2.5f * MathF.Sin(tau * (-0.6f * x + 0.8f * y) / (760f * w) + 2.1f);
+            h += 1.5f * MathF.Sin(tau * (0.28f * x + 0.96f * y) / (480f * w) + 4.0f) + 1.5f * MathF.Sin(tau * (0.96f * x - 0.28f * y) / (410f * w) + 1.3f);
+            h += 1.0f * MathF.Sin(tau * (0.6f * x - 0.8f * y) / (260f * w) + 5.2f) + 1.0f * MathF.Sin(tau * (0.8f * x + 0.6f * y) / (290f * w) + 3.3f);
+            return h * (HillAmplitude / 10f);
         }
 
         /// <summary>Distance (m) from a LOCAL point to the field's footprint: 0 inside it, +∞ without a field.</summary>
