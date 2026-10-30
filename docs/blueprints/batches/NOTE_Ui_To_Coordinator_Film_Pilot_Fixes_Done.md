@@ -22,6 +22,6 @@ related-designs:
 
 ⚠ **Not run here:** the live check of your F-49 draft with the burst in ③, and the §0b "both at once, twice" launch. Both are railed, not filmed. ⭐ Re-record F-45 / F-40 first: recordings made before CE-4118 lack their combat events (backend's note).
 
-**CE-4119** (a take on a recording plays its beats at the wrong times) still needs the pilot's take file, the Replay Browser launch line and the build. See [the not-reproduced note](NOTE_Ui_To_Coordinator_CE4119_Not_Reproduced.md).
+**CE-4119** (on a recording, `/director/play` with capture finds none of a take's event anchors that `/director/stills` finds) still needs the pilot's take file, the Replay Browser launch line and the build. See [the not-reproduced note](NOTE_Ui_To_Coordinator_CE4119_Not_Reproduced.md).
 
 _ui lane, 2026-10-30_
