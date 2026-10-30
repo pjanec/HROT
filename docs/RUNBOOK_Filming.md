@@ -141,11 +141,12 @@ above, played and never saved), a saved name (`"take":"main"`, `scenarios/<s>/ta
 | ⚠ **slow under Xvfb + Mesa**: a 16 s take at `speed: 4` took **82 s** (realtime factor ~0.2) | poll `/director/status`; don't block on it |
 | ⚠ before any scenario is opened the editor's `/status.armedMode` (its own default, Preview) may differ from the cluster's `/run-settings.armed` (Live) | they agree from the first open / arm (AQ108 §2.14) |
 | ⚠ `GET /exercises` listed `scenario: null` before `3f7785c24` | fixed: the scenario comes from the recording's sidecar |
-| ⚠ **the live load may come up PAUSED** (`isPaused: true`, sim 0 — measured `2026-10-30`) | send `POST /sim/play` after `/scenario/load/live`, then check `simTime` moves |
+| ⚠ **a load sent before the cluster is ready is REFUSED** (`notOperable: "no cluster state has reached this node yet"`) — measured right after launch | wait for `GET /status` → `canOperate: true` before the first load (the readiness protocol, R-3072) |
+| ⚠ **the live load comes up PAUSED** by design (`startPaused` defaults to true, Q86 §4-G) | send `POST /sim/play` after `/scenario/load/live`, then check `simTime` moves — ⛔ `startPaused: false` does NOT run it today (CE-4122) |
 | ~~launching both in the same second crashed the editor on the shared `imgui.ini`~~ — ✅ fixed (CE-4116: the layout reset replaces the file by rename, retries, and keeps the existing layout if it still cannot) | the two may start together |
 | ⚠ **wait for the recording's index** before drafting or playing: `GET /timeline/lanes` until `complete: true` — `/director/moments` answered `complete: true, count: 0` while the index was still at 0 % | — |
-| ⛔ **a Live recording has no shot / hit events and few blasts (CE-4118)**; a take anchored on an event renders unresolved on a recording (CE-4119) | until both close: find the moment from the world (health, positions) or the blasts there are, and render with FIXED times — PLAN_Feature_Films §1d |
-| ⚠ stop both processes after: `pkill -f 'ClusterRunner.dll -m editor'` · `… -m replaybrowser` (and their `xvfb-run` parents) | a leftover holds its port |
+| ~~a Live recording has no shot / hit events (CE-4118); an event-anchored take renders unresolved on a recording (CE-4119)~~ — ✅ both fixed `2026-10-30` (the recorder writes the read buffer; the timeline sidecar keeps the sim times, so a REOPENED recording resolves) | ⚠ recordings made before the fixes lack their combat events — re-record; a `.timeline` sidecar of schema 3 rebuilds by itself |
+| ⚠ **stop both processes after** — and ⛔ never with `pkill -f '<pattern>'` from a command whose OWN text contains the pattern (it kills the calling shell, exit 144), nor a match on `dotnet …` (the process line is `/root/.dotnet/dotnet …`): kill by pid — `for p in $(pgrep -f ClusterRunner.dll); do case "$(tr '\\0' ' ' </proc/$p/cmdline)" in *replaybrowser*) kill $p;; esac; done` | 📌 `2026-10-30`: a stale Replay Browser kept its port, the relaunch died silently, and a fix was "tested" on the OLD binary — check `ps -o lstart` |
 
 ## 1. Quick start
 
