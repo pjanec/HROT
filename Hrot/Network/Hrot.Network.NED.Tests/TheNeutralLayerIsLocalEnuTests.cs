@@ -90,33 +90,6 @@ public class TheNeutralLayerIsLocalEnuTests
         return null;
     }
 
-    /// <summary>
-    /// ⭐ A map click, IG → wire → ExCon: <see cref="NedIgNetworkAdapter.WriteMapClick"/> then <see cref="NedMapClickIngressHandler"/>
-    /// on the other end. The DTO that comes out carries the metres that went in.
-    /// </summary>
-    [Fact]
-    public async Task AMapClick_RoundTripsThroughTheWire_AsTheSameLocalMetres()
-    {
-        using var participant = new DdsParticipant(DomainA);
-        using var igAdapter   = new NedIgNetworkAdapter(participant, nodeId: 5);
-
-        MapClickEventDto? received = null;
-        using var ingress = new NedMapClickIngressHandler(participant, dto => received = dto, localNodeId: 9);
-
-        await Task.Delay(1000);   // discovery
-        var ctx = Guid.NewGuid();
-        igAdapter.WriteMapClick(new MapClickEventDto
-        {
-            InteractionContextId = ctx, X = X, Y = Y, Z = Z, HitEntityIds = new List<int> { 3, 4 },
-        });
-
-        var got = await WaitFor(() => { ingress.Poll(); return received; });
-
-        Assert.NotNull(got);
-        Assert.Equal(ctx, got!.InteractionContextId);
-        Assert.Equal((X, Y, Z), (got.X, got.Y, got.Z));
-        Assert.Equal(new[] { 3, 4 }, got.HitEntityIds.ToArray());
-    }
 
 
 }

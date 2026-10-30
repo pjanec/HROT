@@ -77,10 +77,10 @@ namespace Hrot.Network.NED.Tests
         public void TheScanReachesEveryProductionAssemblyThatCarriesTopics()
         {
             var types = TopicTypes.Value;
-            Assert.True(types.Count >= 120, $"only {types.Count} [DdsTopic] types found — the assembly walk did not reach the production assemblies");
+            Assert.True(types.Count >= 114, $"only {types.Count} [DdsTopic] types found — the assembly walk did not reach the production assemblies");
             foreach (var anchor in new[]
                      {
-                         typeof(WorldPos), typeof(EntityMaster), typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce), typeof(IGCapabilitiesAnnounce),
+                         typeof(WorldPos), typeof(EntityMaster), typeof(Hrot.IG.Gizmos.IGCapabilitiesAnnounce),
                          typeof(Hrot.Animation.Replication.DdsStanceIntent),
                          typeof(Fdp.Network.Cyclone.Topics.OwnershipUpdate), typeof(Fdp.Toolkit.Time.Messages.TimeSyncRequest),
                          typeof(GizmoMap.Network.GizmoInteractionBatch),
@@ -120,11 +120,11 @@ namespace Hrot.Network.NED.Tests
         }
 
         [Fact]
-        public void TheTwoIGCapabilitiesAnnounceTypesAreTwoTopicsNow()
+        public void TheGizmoIGCapabilitiesAnnounceKeepsItsDerivedName()
         {
-            // The pair AQ107 A's ruling names: before it both wrote "IGCapabilitiesAnnounce".
+            // AQ107 A's pair: before it both wrote "IGCapabilitiesAnnounce". ⛔ R-3067 / AQ109 X4: the descriptors-namespace one is RETIRED (its name
+            //   Hrot_NED_Descriptors_IGCapabilitiesAnnounce is reserved, MapMessages.cs); the gizmo one stays under its derived name.
             Assert.Equal("Hrot_IG_Gizmos_IGCapabilitiesAnnounce", DdsTopicName.Of<Hrot.IG.Gizmos.IGCapabilitiesAnnounce>());
-            Assert.Equal("Hrot_NED_Descriptors_IGCapabilitiesAnnounce", DdsTopicName.Of<IGCapabilitiesAnnounce>());
         }
 
         [Fact]

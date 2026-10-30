@@ -4,8 +4,9 @@ using System.Collections.Generic;
 namespace Fdp.Toolkit.DER
 {
     /// <summary>
-    /// Non-ECS entity repository for ExCon Mock.
-    /// Thread-safe dictionary-based storage.
+    /// The DER mirror: a non-ECS (world-less) entity repository, thread-safe and dictionary-based, filled by DDS ingress handlers and read by
+    /// <c>DerEntityInspectorPanel</c>. ⭐ Kept on purpose (user, 2026-10-29: the DER inspector stays; AQ109 §5a/§5b makes it a generic wire inspector).
+    /// ⛔ Its first user, the ExCon node, is retired (R-3067).
     /// </summary>
     public interface IDerRepo
     {

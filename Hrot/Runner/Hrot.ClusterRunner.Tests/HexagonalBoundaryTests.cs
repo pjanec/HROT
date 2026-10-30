@@ -216,7 +216,6 @@ public sealed class HexagonalBoundaryTests
         public HrotCoreOrchTranslator           CreateOrchestratorTranslators(FdpEventBus b, int n)    => _base.CreateOrchestratorTranslators(b, n);
         public IMasterTimeTranslators           CreateMasterTimeTranslators(FdpEventBus b, int n)      => _base.CreateMasterTimeTranslators(b, n);
         public ISlaveOrchestrationTranslator    CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
-        public IOrchestrationObserver           CreateOrchestrationObserver(FdpEventBus b)             => _base.CreateOrchestrationObserver(b);
         public ICommandGateway                  CreateCommandGateway()                                 => _base.CreateCommandGateway();
         public ITimeControlGateway              CreateTimeControlGateway()                             => _base.CreateTimeControlGateway();
         public ISimHostMissionSender            CreateSimHostMissionSender()                           => _base.CreateSimHostMissionSender();
@@ -241,14 +240,5 @@ public sealed class HexagonalBoundaryTests
             Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer, long localNodeId)
             => _base.CreateGizmoPublisherSystem(buffer, localNodeId);
 
-        public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-            DdsParticipant?                  participant,
-            long                             localNodeId,
-            IDerRepo                         repo,
-            Action<MapClickEventDto>         onMapClick,
-            Action<SelectionChangedEventDto> onSelectionChanged,
-            Action<EntityLifecycleAckDto>    onEntityLifecycleAck,
-            Action<MapCommandAckDto>         onMapCommandAck)
-            => _base.CreateExConIngressHandlers(participant, localNodeId, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
     }
 }

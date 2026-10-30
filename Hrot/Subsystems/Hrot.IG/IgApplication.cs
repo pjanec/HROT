@@ -14,7 +14,6 @@ using Hrot.IG.Components;
 
 using Hrot.IG.Modules;
 
-using Hrot.IG.Services;
 
 using Hrot.IG.Systems;
 
@@ -753,13 +752,7 @@ public class IgApplication : IDisposable
                     IsSelectedPredicate = null,
                     // ⭐⭐⭐ UXI-11 — the pack builds this host's selection too.
                     Inspector = () => _fdpInspectorState,
-                    // ⭐ IG publishes its network click from the same gesture. ⛔ Not a selection
-                    //   write — the pack's request system owns that.
-                    OnMapSelectionChanged = _igBootstrapper!.NetworkEnabled
-                        ? (entity, worldPos) => OnCanvasClicked(
-                              new System.Numerics.Vector2(worldPos.X, worldPos.Y),
-                              MapMouseButton.Left, false, false, entity)
-                        : null,
+                    // ⛔ R-3067 / AQ109 X4 — the IG no longer publishes its map click / selection to remote observers (ExCon is gone; MapClickEvent and SelectionChangedEvent are retired).
                     // GZH-003: IG is interactive and always has a window at startup. It is not driven by
                     // PerspectiveCoordinatorSystem when run standalone, so starting disabled would shut
                     // its gate permanently (§3.2d ①).
@@ -846,26 +839,6 @@ public class IgApplication : IDisposable
             //    CONSTRUCTS; the host SCHEDULES" — untouched; what moved is the construction.
             foreach (var selectionSystem in igMapInteraction.SelectionSystemsInOrder)
                 ctx.Kernel.RegisterGlobalSystem(selectionSystem);
-
-            // ⭐⭐⭐ UXI-11 S-6 — TELL REMOTE OBSERVERS WHAT THE SELECTION BECAME, from the announcement.
-            // 🔒 §2.6: "IG → observers: the IG publishes when ITS OWN MAP selection changes." Under the
-            //    request/notify protocol that IS SelectionChangedNotification, so this is the faithful
-            //    reading rather than a new mechanism.
-            // 🔴 It replaces a publish that sat inside the MAP-CLICK handler and therefore fired for a
-            //    map click and nothing else — an inspector click, an orbat select or a remote command
-            //    left ExCon's panel showing a selection this host no longer had.
-            // ⚠ IG ONLY, deliberately: §2.6's carve-out is "remote map CONTROL, not a general selection
-            //   mechanism", and no other host has observers to tell. ⛔ This is why it is registered
-            //   here and not built by MapInteractionPack with the rest of the selection.
-            // ⚠ AFTER SelectionSystemsInOrder: the announcement must exist before anything egresses it.
-            ctx.Kernel.RegisterGlobalSystem(
-                new Hrot.ScenarioEditor.Systems.SelectionEgressSystem(
-                    ids => _networkAdapter?.WriteSelectionChanged(
-                        new Hrot.Core.Network.SelectionChangedEventDto
-                        {
-                            MapId             = _effectiveInstanceId,
-                            SelectedEntityIds = ids,
-                        })));
 
             // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (picker, measure).
             _globalGizmoManager = igMapInteraction.GlobalManager;
@@ -964,9 +937,6 @@ public class IgApplication : IDisposable
         var igEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
         _fdpEntityInspector.ExtractionService = igEntityService;
 
-        // Advertise this IG's capabilities so the ExCon can build its layer-control UI.
-        if (_networkEnabled)
-            IgCapabilitiesPublisher.Publish(_networkAdapter, _effectiveInstanceId);
 
     }
 
@@ -1409,27 +1379,6 @@ public class IgApplication : IDisposable
 
 
 
-    /// <summary>
-    /// Programmatically selects <paramref name="entity"/> on the map by updating ECS
-    /// <see cref="SelectionState"/> components directly ? mirroring the path used by
-    /// <see cref="StandardInteractionTool"/> when the user clicks on the canvas.
-    /// Also updates the FDP inspector and last-known-selection tracker so that the
-    /// one-directional chain (map ? inspector) does not immediately overwrite this choice.
-    /// </summary>
-    private void SelectEntityOnMap(Entity entity)
-    {
-        // ⭐⭐⭐ UXI-11 S-2 — this was the THIRD hand-rolled SetSelected named in
-        //    UX_Feature_Selection.md §2.7.4. It now REQUESTS; SelectEntitySystem (registered on this
-        //    host by the same slice) is the only thing that writes.
-        //
-        // ⭐⭐ THE HAND-SYNC IS GONE TOO, and dropping it is what makes the deferral CORRECT rather
-        //    than merely tolerable. 📐 Steps 2-3 used to pre-set _fdpInspectorState and
-        //    a map-selection tracker so DrawUI's change-detector would see "no change". ⭐ S-3 deleted
-        //    both the pre-set AND the detector: SelectionNotificationSystem points the inspector at
-        //    whatever the selection became, from the announcement, for every cause.
-        _world.Bus.PublishManaged(
-            Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(entity, "Ig.SelectEntityOnMap"));
-    }
 
 
 
@@ -1642,11 +1591,6 @@ public class IgApplication : IDisposable
     /// map). Same handle as the test hook above, under a production-appropriate name.</summary>
     internal Hrot.Common.Abstractions.INedReplicationModule? NedReplication => _context?.NedReplication;
 
-    /// <summary>
-    /// Internal test hook to simulate a map click without Raylib input.
-    /// </summary>
-    internal void TestHook_SimulateMapClick(Vector2 worldPos)
-        => OnCanvasClicked(worldPos, MapMouseButton.Left, false, false, Entity.Null);
 
 
 
@@ -1660,22 +1604,6 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    internal void TestHook_SimulateEntityClick(long networkId)
-
-    {
-
-        if (!TestHook_EntityMap.TryGetEntity(networkId, out var entity))
-
-            return;
-
-        // ⭐ A real click does BOTH: the pack's SelectionInteractionSystem requests the selection (a LOCAL
-        //   reason, which SelectionEgressSystem forwards to ExCon) and then reports the gesture. ⛔ Since
-        //   UXI-11 S-6 OnCanvasClicked only reports the gesture, so this hook selected nothing and the
-        //   selection never reached ExCon (measured 2026-10-01).
-        SelectEntityOnMap(entity);
-        OnCanvasClicked(Vector2.Zero, MapMouseButton.Left, false, false, entity);
-
-    }
 
 
 
@@ -1809,66 +1737,6 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    // ⚠ `bool updateSelection = true` REMOVED at S-6: it gated ONLY the selection egress that moved to
-    //   SelectionEgressSystem, so it now decides nothing. ⛔ Keeping it would be exactly "a parameter
-    //   nobody reads is a claim nobody checks" — the note DebugGizmoLayer's R3 constructor already
-    //   carries, and the reason that constructor was collapsed.
-    private void OnCanvasClicked(Vector2 worldPos, MapMouseButton button, bool shift, bool ctrl, Entity hit)
-
-    {
-
-        if (!_networkEnabled || _networkAdapter == null)
-
-            return;
-
-
-
-        var hitEntityIds = new List<int>();
-
-        if (hit != Entity.Null && _world.HasComponent<NetworkIdentity>(hit))
-
-        {
-
-            ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(hit);
-
-            hitEntityIds.Add((int)netId.Value);
-
-        }
-
-
-
-        _networkAdapter.WriteMapClick(new Hrot.Core.Network.MapClickEventDto
-
-        {
-
-            InteractionContextId = Guid.Empty,   // ⛔ R-3067 / AQ109 X3 — the interaction context came from ExCon's map config / commands; none remains
-
-            // ⭐ CE-4073 — the click is LOCAL ENU metres on the neutral DTO too (it was converted to geodetic here and back at the
-            //   NED boundary). The map is 2D, so Z is the ground reference 0 — as the geodetic round trip of (x, y, 0) always gave.
-            X                    = worldPos.X,
-
-            Y                    = worldPos.Y,
-
-            Z                    = 0.0,
-
-            HitEntityIds         = hitEntityIds,
-
-        });
-
-FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. hit={1}", _effectiveInstanceId, hit.Index);
-
-        // ⭐⭐⭐ UXI-11 S-6 — THE SELECTION EGRESS MOVED OUT OF THIS HANDLER, to SelectionEgressSystem.
-        //    🔴 Hanging it here meant it fired for a MAP CLICK AND NOTHING ELSE: a selection changed by
-        //       the entity inspector, the orbat, a context-menu Select, or a remote CMD_SET_SELECTION
-        //       never reached ExCon, so its "Selection & Mission" panel showed a selection this host no
-        //       longer had. ⭐ Exactly the defect S-3 fixed on the INBOUND side, and the same cause — a
-        //       consequence hung off ONE cause instead of the announcement.
-        //    ⭐ The system consumes SelectionChangedNotification, so every cause propagates AND the echo
-        //       suppression finally has a home. 📄 UX_Feature_Selection.md §2.6 / §2.7.17.
-        //    ⚠ The MapClickEvent above is UNTOUCHED — it reports a GESTURE, which is a different fact
-        //      from "the selection changed", and the two picker call sites rely on exactly that.
-
-    }
 
 
 

@@ -503,66 +503,16 @@ public sealed class NodeOpSlaveTranslatorTests
 
     private static void DrainBus(FdpEventBus bus) => bus.SwapBuffers();
 
-    /// <summary>
-    /// ⭐⭐ CE-1436 condition 1 — the same <c>ClusterStateTopic</c> and <c>ClusterOpStatus</c> samples through a NODE's slave translator and through ExCon's
-    /// observer yield IDENTICAL bus events: both own the one <see cref="ClusterFactsIngress"/>, so there is one decoder per fact (state, an unsaved-check
-    /// answer, a replay result, a refusal's text). 🔴 Mutation: the slave's op-status reader left out of its ingress (<c>opStatusReader</c> not forwarded) ⇒
-    /// the slave bus holds no <c>ClusterOpCompletedEvent</c> ⇒ the equality assertion fails.
-    /// </summary>
-    [Fact(Timeout = 20_000)]
-    public void CE1436_TheSlaveAndTheObserver_FeedTheSameFactsThroughOneIngress()
-    {
-        using var participant     = new DdsParticipant(TestDomain);
-        using var cmdReader       = new DdsReader<NodeOpCommand>(participant);
-        using var statusWriter    = new DdsWriter<NodeOpStatus>(participant);
-        using var heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
-        using var stateReader     = new DdsReader<ClusterStateTopic>(participant);
-        using var opReader        = new DdsReader<ClusterOpStatus>(participant);
-        using var stateWriter     = new DdsWriter<ClusterStateTopic>(participant);
-        using var opWriter        = new DdsWriter<ClusterOpStatus>(participant);
-
-        var nodeBus = new FdpEventBus();
-        var exBus   = new FdpEventBus();
-        var slave   = new NodeOpSlaveTranslator(cmdReader, statusWriter, heartbeatWriter, nodeBus, nodeId: 5,
-            clusterStateReader: stateReader, opStatusReader: opReader);
-        using var observer = new OrchestrationObserverTranslator(participant, exBus);
-        Thread.Sleep(500);
-
-        var exercise = Guid.NewGuid();
-        stateWriter.Write(new ClusterStateTopic { CurrentState = NedClusterState.OperatingEdit, ExerciseId = exercise, SessionId = Guid.NewGuid(), RunNotRecorded = 1 });
-        var check = Guid.NewGuid(); var replay = Guid.NewGuid(); var refused = Guid.NewGuid();
-        opWriter.Write(new ClusterOpStatus { RequestId = check, StatusCode = (int)OrchestrationStatusCode.Success,
-            ResultJson = JsonSerializer.Serialize(new UnsavedCheckResult(true, new[] { 4, 9 }), FdpJsonOptionsRegistry.DefaultRelaxed) });
-        opWriter.Write(new ClusterOpStatus { RequestId = replay, StatusCode = (int)OrchestrationStatusCode.Success,
-            ResultJson = JsonSerializer.Serialize(new ReplayPrepareResult(), FdpJsonOptionsRegistry.DefaultRelaxed) });
-        opWriter.Write(new ClusterOpStatus { RequestId = refused, StatusCode = (int)OrchestrationStatusCode.Failure, ResultJson = UnsavedCheckOutcome.NotEditingReason });
-        Thread.Sleep(500);
-
-        slave.Tick(); observer.Tick();
-        DrainBus(nodeBus); DrainBus(exBus);
-
-        string Show(FdpEventBus bus) => string.Join("|",
-            bus.ReadManaged<ClusterStateUpdateEvent>().Select(e => $"S:{e.CurrentState}/{e.ExerciseId}/{e.SessionId != Guid.Empty}/{e.RunNotRecorded}/{e.MasterGone}")
-            .Concat(bus.ReadManaged<ClusterOpCompletedEvent>().OrderBy(e => e.RequestId)
-                .Select(e => $"O:{e.RequestId}/{e.StatusCode}/{e.ResultPayload?.GetType().Name}/{(e.ResultPayload is UnsavedCheckResult r ? $"{r.Changed}:{string.Join(',', r.ChangedNodes)}" : e.ResultPayload)}")));
-
-        var onNode = Show(nodeBus);
-        Assert.Contains($"O:{check}/Success/UnsavedCheckResult/True:4,9", onNode);                 // the check round's answer decoded to its typed result …
-        Assert.Contains($"O:{replay}/Success/ReplayPrepareResult/", onNode);                       // … a replay result NOT swallowed by it …
-        Assert.Contains($"O:{refused}/Failure/String/{UnsavedCheckOutcome.NotEditingReason}", onNode);   // … and a refusal's text kept as text
-        Assert.Equal(onNode, Show(exBus));                                                         // ⭐ identical on both paths — one decoder
-    }
 
     /// <summary>
     /// ⭐⭐ CE-1436 condition 2 (V2's measured hazard, pinned) — a node's slave translator publishes NO monitoring events: another node's heartbeat,
     /// capabilities, node-op status and node-op COMMAND, all on the wire, never appear on its bus — they would drive its own egress / execution (its
-    /// heartbeat egress re-sending another node's heartbeat as its own; an <c>ExecuteNodeOpIntent</c> run by the wrong node). The observer, on the
-    /// same wire, DOES publish them (the positive control: the samples really crossed). 🔴 Mutations: the slave's command filter
+    /// heartbeat egress re-sending another node's heartbeat as its own; an <c>ExecuteNodeOpIntent</c> run by the wrong node). (The observer, retired with ExCon in X4, was the positive control that the samples really crossed.) 🔴 Mutations: the slave's command filter
     /// (<c>cmd.TargetNodeId != _nodeId</c>) removed ⇒ an <c>ExecuteNodeOpIntent</c> for node 6 appears; a monitoring publish added to the ingress ⇒ the
     /// heartbeat assertion fails.
     /// </summary>
     [Fact(Timeout = 20_000)]
-    public void CE1436_TheSlaveBus_CarriesNoMonitoringEvents_WhileTheObserverDoes()
+    public void CE1436_TheSlaveBus_CarriesNoMonitoringEvents()
     {
         using var participant     = new DdsParticipant(TestDomain);
         using var cmdReader       = new DdsReader<NodeOpCommand>(participant);
@@ -576,10 +526,8 @@ public sealed class NodeOpSlaveTranslatorTests
         using var otherCommand    = new DdsWriter<NodeOpCommand>(participant);
 
         var nodeBus = new FdpEventBus();
-        var exBus   = new FdpEventBus();
         var slave   = new NodeOpSlaveTranslator(cmdReader, statusWriter, heartbeatWriter, nodeBus, nodeId: 5,
             clusterStateReader: stateReader, opStatusReader: opReader);
-        using var observer = new OrchestrationObserverTranslator(participant, exBus);
         Thread.Sleep(500);
 
         otherHeartbeat.Write(new NodeHeartbeat { NodeId = 6, SubsystemName = "Other", WallTicksUtc = 1L });
@@ -588,16 +536,11 @@ public sealed class NodeOpSlaveTranslatorTests
         otherCommand.Write(new NodeOpCommand { TargetNodeId = 6, TransactionId = Guid.NewGuid(), Operation = NedNodeOpType.PrepareLive, PayloadJson = "{}" });
         Thread.Sleep(500);
 
-        slave.Tick(); observer.Tick();
-        DrainBus(nodeBus); DrainBus(exBus);
+        slave.Tick();
+        DrainBus(nodeBus);
 
-        // positive control: the samples reached the observer's bus
-        Assert.Contains(exBus.ReadManaged<NodeHeartbeatEvent>().ToArray(), e => e.NodeId == 6);
-        Assert.Contains(exBus.ReadManaged<NodeCapabilitiesEvent>().ToArray(), e => e.NodeId == 6);
-        Assert.Contains(exBus.ReadManaged<NodeOpCompletedEvent>().ToArray(), e => e.NodeId == 6);
-        Assert.Contains(exBus.ReadManaged<ExecuteNodeOpIntent>().ToArray(), e => e.TargetNodeId == 6);
-
-        // … and none of them reached the node's
+        // ⛔ R-3067 / AQ109 X4 — the observer translator (the positive control: it published all four on ExCon's bus) is retired with ExCon; the four samples
+        //   above are on the wire, and none may reach the node's bus:
         Assert.Empty(nodeBus.ReadManaged<NodeHeartbeatEvent>());
         Assert.Empty(nodeBus.ReadManaged<NodeCapabilitiesEvent>());
         Assert.Empty(nodeBus.ReadManaged<NodeOpCompletedEvent>());

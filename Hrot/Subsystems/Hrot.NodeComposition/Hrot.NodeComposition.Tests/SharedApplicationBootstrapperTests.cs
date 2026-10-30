@@ -404,7 +404,6 @@ public sealed class SharedApplicationBootstrapperTests
         public INetworkIdAllocator CreateIdAllocator(string id, bool skip = false) => _base.CreateIdAllocator(id, skip);
         public IMasterTimeTranslators CreateMasterTimeTranslators(FdpEventBus b, int n) => _base.CreateMasterTimeTranslators(b, n);
         public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
-        public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus b) => _base.CreateOrchestrationObserver(b);
         public ICommandGateway CreateCommandGateway() => _base.CreateCommandGateway();
         public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
@@ -413,13 +412,6 @@ public sealed class SharedApplicationBootstrapperTests
         public IIgTranslators CreateIgTranslators() => _base.CreateIgTranslators();
         public IIgNetworkAdapter CreateIgNetworkAdapter(CycloneDDS.Runtime.DdsParticipant? p, long n = 0) => _base.CreateIgNetworkAdapter(p, n);
         public ICgfEntityLifecycleAdapters? CreateCgfEntityLifecycleAdapters() => _base.CreateCgfEntityLifecycleAdapters();
-        public IEnumerable<IIngressHandler> CreateExConIngressHandlers(
-            CycloneDDS.Runtime.DdsParticipant?   p, long id, IDerRepo repo,
-            Action<MapClickEventDto>              onMapClick,
-            Action<SelectionChangedEventDto>      onSelectionChanged,
-            Action<EntityLifecycleAckDto>         onEntityLifecycleAck,
-            Action<MapCommandAckDto>              onMapCommandAck)
-            => _base.CreateExConIngressHandlers(p, id, repo, onMapClick, onSelectionChanged, onEntityLifecycleAck, onMapCommandAck);
         public IReadOnlyList<IDescriptorTranslator> CreateIgEgressTranslators(
             CycloneDDS.Runtime.DdsParticipant participant, FdpEventBus bus, long nodeId)
             => _base.CreateIgEgressTranslators(participant, bus, nodeId);

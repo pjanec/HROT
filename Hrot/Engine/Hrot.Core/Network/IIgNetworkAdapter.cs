@@ -20,19 +20,10 @@ namespace Hrot.Core.Network
     {
         // ── Egress (IG -> network) ────────────────────────────────────────────
 
-        /// <summary>Publishes a map-click event.</summary>
-        void WriteMapClick(MapClickEventDto dto);
-
-        /// <summary>Publishes a selection-changed event.</summary>
-        void WriteSelectionChanged(SelectionChangedEventDto dto);
 
 
 
-        /// <summary>
-        /// Publishes the IG capabilities announcement (layer tree, supported tools).
-        /// Called once on startup.
-        /// </summary>
-        void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson);
+
 
         // ── Ingress (network -> IG) -- polled once per frame ─────────────────
         // ⛔ R-3067 / AQ109 X3 — none left: ExCon's map-command, map-config and context-menu topics, and the entity-ack poll that fed the retired MapCommandController, are gone.
@@ -71,9 +62,6 @@ namespace Hrot.Core.Network
 
         private NullIgNetworkAdapter() { }
 
-        public void WriteMapClick(MapClickEventDto dto) { }
-        public void WriteSelectionChanged(SelectionChangedEventDto dto) { }
-        public void PublishCapabilities(int mapId, string layerTreeJson, string configSchemasJson) { }
         public ICommandGateway CommandGateway => NullIgCommandGateway.Instance;
         public IDdsWriter<GizmoMap.Network.GizmoInteractionBatch>? GizmoInteractionWriter => null;
         public IDdsReader<GizmoMap.Network.DebugPrimitivesBatch>? DebugPrimitivesReader => null;

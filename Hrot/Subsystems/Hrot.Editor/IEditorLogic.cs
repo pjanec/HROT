@@ -80,8 +80,6 @@ public interface IEditorLogic
     /// </summary>
     void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents);
 
-    /// <summary>Read-only non-ECS view of the current entity set (for panels).</summary>
-    IDerRepo View { get; }
 
     /// <summary>
     /// Pans and zooms the map canvas to centre on the entity identified by

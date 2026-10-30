@@ -57,8 +57,8 @@ namespace Hrot.Network.NED.Tests
         public void TheScanFindsTheDescriptorTopics()
         {
             int descriptors = TheTopicNamesAreDerivedFromTypesTests.TopicTypes.Value.Count(IsDescriptor);
-            // The inventory (docs/reference/NED_DDS_Protocol.md) lists 66 (67 before R-3067 / AQ109 X3 retired MapInteractionConfig); a few more may be added, never silently lost.
-            Assert.True(descriptors >= 66, $"only {descriptors} descriptor topics found — the scan did not reach the production assemblies");
+            // The inventory (docs/reference/NED_DDS_Protocol.md) lists 64 (67 before R-3067 / AQ109 X3+X4 retired MapInteractionConfig, MapConfigStatus, IGCapabilitiesAnnounce); a few more may be added, never silently lost.
+            Assert.True(descriptors >= 64, $"only {descriptors} descriptor topics found — the scan did not reach the production assemblies");
         }
 
         [Fact]
