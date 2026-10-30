@@ -1175,6 +1175,10 @@ public sealed class Map3DFrameRail
             cam.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
         }
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(Hrot.ScenarioEditor.Map.MapInteractionContext.DefaultBufferCapacity);
+        // ⭐ CE-1453 — the production map now carries its 2-D GRID (CE-1380/1420: a layer of its own, ON by default through the buffer's Grid bit). The reference is the TERRAIN's old path alone, so the
+        //   comparison turns the grid off — every other layer stays on (≈ 10 k grid-line samples were the "only the layer" difference)
+        var noGrid = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Grid = false } }.ToMask();
+        buffer.SetActiveLayers(noGrid);
         var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, buffer, new FdpEventBus(), () => world);
         var terrain = layers.Terrain2D!;
         Assert.True(canvas.Layers.ToList().IndexOf(terrain) < canvas.Layers.ToList().IndexOf(layers.GizmoLayer), "the terrain is drawn UNDER the gizmos");
@@ -1261,7 +1265,7 @@ public sealed class Map3DFrameRail
         finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
 
         // ② "Terrain (2-D)" unticked: the city goes, the gizmo stays
-        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Terrain2D = false } }.ToMask());
+        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Map = { Terrain2D = false, Grid = false } }.ToMask());
         frame.StepN(2, canvas.Draw);
         string off = Path.Combine(shots, "terrain2d-2-off.png");
         frame.Screenshot(off);
@@ -1270,7 +1274,7 @@ public sealed class Map3DFrameRail
         Assert.True(hidden.Red > 20, $"the gizmo box stays (red pixels {hidden.Red})");
 
         // ③ close up: outlines and labels in view only
-        buffer.SetActiveLayers(new Hrot.Common.Diagnostics.Gizmos.LayerControlDto().ToMask());
+        buffer.SetActiveLayers(noGrid);
         Look(centre, 6f);
         frame.StepN(2, canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "terrain2d-3-close.png"));
