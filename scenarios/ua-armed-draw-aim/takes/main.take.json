@@ -21,13 +21,13 @@
     {
       "at": "aim-17",
       "eye": [
-        150,
-        232,
-        22
+        100,
+        235,
+        40
       ],
       "target": [
-        110,
-        196,
+        112,
+        195,
         0
       ],
       "fov": 50,
@@ -156,5 +156,5 @@
       "text": "Aimed at him: he fires"
     }
   ],
-  "needs": "cut from a Live recording on the SIDE cue (PLAN_Feature_Films §1c, 2026-10-30); the opening shot is half blocked by a roof — re-frame"
+  "needs": "cut from a Live recording on the SIDE cue (PLAN_Feature_Films \u00a71c, 2026-10-30); opening shot re-framed 2026-10-30 (high, from the open road side \u2014 the roof no longer blocks)"
 }
