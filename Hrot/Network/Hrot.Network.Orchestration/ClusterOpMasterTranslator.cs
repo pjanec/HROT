@@ -39,6 +39,7 @@ public sealed class ClusterOpMasterTranslator
         ErrorReason      = ev.ErrorReason ?? string.Empty,   // ⭐ CE-3345 R-3073
         ClusterPlayReady = ev.ClusterPlayReady,              // ⭐ CE-3345 R-3070
         LoadProgress     = ev.LoadProgress ?? string.Empty,
+        AskToKeepRecordings = ev.AskToKeepRecordings ? 1 : 0,   // ⭐ AQ108 D15 (CE-4100 ①)
     };
 
     private readonly DdsReader<ClusterOpRequest>    _requestReader;

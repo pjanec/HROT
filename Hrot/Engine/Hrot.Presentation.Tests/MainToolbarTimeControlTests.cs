@@ -565,6 +565,22 @@ public class MainToolbarTimeControlTests
         }
     }
 
+    /// <summary>⭐ CE-4100 ① (AQ108 D15) — the REAL adapter wires the seam to the cluster's <i>Ask to keep recordings</i> setting off the master's broadcast (<c>ClusterView.AskToKeepRecordings</c>):
+    /// with it OFF (the default) ■ in Live does not ask; once the master broadcasts it ON, the same ■ asks. 🔴 Mutation: the adapter's <c>AskToKeep</c> back to <c>() =&gt; false</c> ⇒ red.</summary>
+    [Fact]
+    public void CE4100_TheAdapterReadsTheAskToKeepSettingOffTheClusterView()
+    {
+        var rig = RunChoiceRig.With(ClusterState.OperatingLive, RunArmed.Live, clock: 754);
+        Assert.False(rig.Choice.AskToKeep());                                       // nothing broadcast: keep silently
+
+        rig.Bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = RunChoiceRig.RunId, ArmedMode = rig.View.ArmedMode, AskToKeepRecordings = true });
+        rig.Bus.SwapBuffers(); rig.View.Update(); rig.F.Update(); rig.Bus.SwapBuffers();
+        Assert.True(rig.Choice.AskToKeep());
+
+        rig.F.Stop();
+        Assert.Equal("Keep this recording? (12:34, hill-attack)", rig.Choice.Pending!.Text);
+    }
+
     /// <summary>A confirmation resolves once: a second press is ignored (no second action), a foreign button is refused.</summary>
     [Fact]
     public void CE4097_AConfirmationResolvesOnce()

@@ -264,6 +264,19 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(mode, ClusterFactsIngress.StateOf(topic).ArmedMode);
     }
 
+    /// <summary>⭐ CE-4100 (AQ108 D15) — Ask to keep recordings rides the cluster-state topic both ways (the master's <c>StateTopicOf</c>, every node's <c>StateOf</c>); an older
+    /// sender's topic (the field never set = 0) reads OFF. ⭐ The field is APPENDED last on <c>ClusterStateTopic</c> (R-42). 🔴 Mutation: <c>StateOf</c> not mapping it ⇒ red.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void CE4100_TheClusterStateBroadcast_CarriesAskToKeepRecordings_BothWays(bool on, int wire)
+    {
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, AskToKeepRecordings = on });
+        Assert.Equal(wire, topic.AskToKeepRecordings);
+        Assert.Equal(on, ClusterFactsIngress.StateOf(topic).AskToKeepRecordings);
+        Assert.False(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).AskToKeepRecordings);
+    }
+
     /// <summary>⭐ R-1043 — the mode of the last scenario load rides the cluster-state broadcast both ways; an older sender's (field never set) reads Live.</summary>
     [Fact]
     public void R1043_TheLastLoadMode_RidesTheBroadcastBothWays_AndAnOlderSenderReadsLive()

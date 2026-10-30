@@ -177,6 +177,38 @@ public sealed class ClusterMasterRunRecordingTests
         Assert.False(Last()!.Value.RecordLiveRunsOff);
     }
 
+    /// <summary>⭐ CE-4100 (AQ108 D15) — the cluster's <i>Ask to keep recordings</i> setting: OFF by default (keep silently), set by the op, broadcast at once on every state
+    /// publication, and left alone by an op that does not carry it (null = no change) — and it is independent of <c>RecordLiveRuns</c>.
+    /// 🔴 Mutation: the master not copying <c>AskToKeepRecordings</c> into the broadcast ⇒ the second assertion fails.</summary>
+    [Fact(Timeout = 10_000)]
+    public void CE4100_AskToKeepRecordings_DefaultsOff_IsSetByTheOp_RidesTheBroadcast_AndAnOpThatDoesNotCarryItLeavesItAlone()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, TestClusterConfig.NothingMandatory());
+        ClusterStateUpdateEvent? Last()
+        {
+            ClusterStateUpdateEvent? last = null;
+            foreach (var e in bus.ReadManaged<ClusterStateUpdateEvent>()) last = e;
+            return last;
+        }
+        Assert.False(master.AskToKeepRecordings);
+
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AskToKeepRecordings = true });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.True(master.AskToKeepRecordings);
+        Assert.True(Last()!.Value.AskToKeepRecordings);          // told at once, no load needed
+        Assert.True(master.RecordLiveRuns);                      // the other setting did not move
+
+        SetSetting(master, bus, false);                          // an op carrying only RecordLiveRuns
+        Assert.True(master.AskToKeepRecordings);
+        Assert.True(Last()!.Value.AskToKeepRecordings);
+
+        bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), AskToKeepRecordings = false });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.False(Last()!.Value.AskToKeepRecordings);
+        Assert.False(master.RecordLiveRuns);
+    }
+
     // ── 4 — the verifier ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>⭐ §5a — the scenario verifier compares a RECORDING against a golden: its live load (<c>ForceRecording</c>) records even with the

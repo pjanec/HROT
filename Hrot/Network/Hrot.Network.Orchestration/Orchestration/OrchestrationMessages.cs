@@ -181,6 +181,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         public bool ClusterPlayReady;
         /// <summary>⭐ CE-3345 — which participants are still loading and on what step (<i>"CGF (node 2): Terrain"</i>); empty = none is. Held by the master, the same on every node. Additive on the wire.</summary>
         [DdsManaged] public string LoadProgress;
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — 1 = the cluster's <i>Ask to keep recordings</i> SETTING is ON; 0 = OFF, or an older sender (the default). ⭐ APPENDED LAST (R-42: never renumber / reorder); additive on the wire.</summary>
+        public int AskToKeepRecordings;
     }
 
     /// <summary>

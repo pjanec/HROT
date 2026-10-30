@@ -36,6 +36,9 @@ public sealed partial class ClusterMaster
     /// <summary>⭐ CE-4090 D14 — the cluster-wide <i>Record live runs</i> setting. Default ON. Read at the next live load.</summary>
     public bool RecordLiveRuns { get; set; } = true;
 
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster-wide <i>Ask to keep recordings</i> setting: when a live run ends, the operator UI asks Keep / Discard (default OFF — keep silently). Read by the UI off the broadcast; the master never acts on it.</summary>
+    public bool AskToKeepRecordings { get; set; }
+
     /// <summary>
     /// ⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode: what ▶ runs next, ONE fact held HERE and broadcast with every cluster-state
     /// publication (every node reads it through its <c>ClusterView</c>). ⭐ <c>CE-1443</c> (R-1043): its INITIAL value is a BOOTSTRAP parameter (<c>ClusterConfiguration.InitialArmedMode</c>, default <see cref="ClusterArmedMode.Live"/>;
@@ -65,8 +68,9 @@ public sealed partial class ClusterMaster
         // ⭐ CE-3341: a field the op does not carry (null) is "no change" — an older sender, or one that sets only the other setting.
         if (intent.RecordLiveRuns is { } record) RecordLiveRuns = record;
         if (intent.Armed is { } armed) ArmedMode = armed;
+        if (intent.AskToKeepRecordings is { } ask) AskToKeepRecordings = ask;   // ⭐ AQ108 D15 (CE-4100 ①)
         PublishClusterState(_currentDsmState);   // every host reads the settings off the broadcast, so tell them now
-        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}.", RecordLiveRuns, ArmedMode);
+        FdpLog<ClusterMaster>.Info("[Orchestrator] CE-4090/CE-3341: run settings now: Record live runs {0} (from the next live load), armed mode {1}, ask to keep recordings {2}.", RecordLiveRuns, ArmedMode, AskToKeepRecordings);
         PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
     }
 

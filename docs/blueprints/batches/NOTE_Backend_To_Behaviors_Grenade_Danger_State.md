@@ -19,3 +19,7 @@ backend did not guess:
 R-3039 says class-C state lives in a component, so it survives a checkpoint restore and a review. Please move both into components, or
 classify them in `docs/DESIGN_System_State_Inventory.md` with the reason if you disagree. The rail turns green either way.
 FYI, same commit: `GrenadeDangerSystem._near` and `OneManCommandSystem._done` (CE-2375) were exempted as per-pass scratch.
+
+## Relayed from ui (`2026-10-30`, `NOTE_Ui_To_Backend_Reds_After_ExCon_Removal.md`)
+`CE2083_SopOrderUrgency_MirrorsReactionUrgency` is red: `SopOrderUrgency` lacks **Grenade** and **Break**. ui saw it after merging backend, but
+backend's commits do not touch it. It is yours.

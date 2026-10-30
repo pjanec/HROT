@@ -2285,6 +2285,7 @@ public sealed partial class ClusterMaster : IDisposable
             ReplayAxis       = _replayAxis,        // ⭐ CE-3329 R-3058
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
+            AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
@@ -2300,6 +2301,7 @@ public sealed partial class ClusterMaster : IDisposable
             ReplayAxis   = _replayAxis,
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
+            AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069

@@ -57,6 +57,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-4090</c> — the cluster's <i>Record live runs</i> setting is OFF (false = ON, also before a broadcast).</summary>
         public bool RecordLiveRunsOff { get; private set; }
 
+        /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, as the master's last broadcast said (false = OFF, also before a broadcast and for a sender that does not set it).</summary>
+        public bool AskToKeepRecordings { get; private set; }
+
         /// <summary>⭐⭐ <c>CE-3341</c> (AQ108 D12a, R-3068) — the cluster's ARMED run mode, as the master's last broadcast said: ONE fact, the same on every node
         /// (<see cref="ClusterArmedMode.Live"/> before a broadcast arrives and for a sender that does not set it).</summary>
         public ClusterArmedMode ArmedMode { get; private set; } = ClusterArmedMode.Live;
@@ -236,6 +239,7 @@ namespace Fdp.Toolkit.Orchestration
                     ReplayAxis = ev.ReplayAxis;                // ⭐ CE-3329 R-3058
                     RunNotRecorded = ev.RunNotRecorded;        // ⭐ CE-4090 D14
                     RecordLiveRunsOff = ev.RecordLiveRunsOff;
+                    AskToKeepRecordings = ev.AskToKeepRecordings;   // ⭐ AQ108 D15 (CE-4100 ①)
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043
                     WaitingFor = ev.WaitingFor ?? string.Empty; // ⭐ CE-3344 R-3069

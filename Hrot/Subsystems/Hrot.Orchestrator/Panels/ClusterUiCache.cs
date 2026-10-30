@@ -49,6 +49,8 @@ public sealed class ClusterUiCache : IDisposable
 
     /// <summary>⭐ CE-4090 — the cluster's <i>Record live runs</i> setting is OFF, as the master's last broadcast said.</summary>
     public bool        RecordLiveRunsOff      => _view.RecordLiveRunsOff;
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, as the master's last broadcast said.</summary>
+    public bool        AskToKeepRecordings    => _view.AskToKeepRecordings;
     /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode, from the node's one <see cref="ClusterView"/> (the master's broadcast).</summary>
     public Fdp.Toolkit.Orchestration.ClusterArmedMode ArmedMode => _view.ArmedMode;
 

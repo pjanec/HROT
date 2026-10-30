@@ -300,6 +300,10 @@ public sealed class PerspectiveScopedDispatcher
     public bool? RecordLiveRunsOffAnyNode
         => Active()?.RecordLiveRunsOff ?? _providers.Select(p => p.RecordLiveRunsOff).FirstOrDefault(x => x is not null);
 
+    /// <summary>⭐ AQ108 D15 (CE-4100 ①) — the cluster's <i>Ask to keep recordings</i> setting is ON, from the active node else any node (one cluster, one fact).</summary>
+    public bool? AskToKeepRecordingsAnyNode
+        => Active()?.AskToKeepRecordings ?? _providers.Select(p => p.AskToKeepRecordings).FirstOrDefault(x => x is not null);
+
     /// <summary>⭐ CE-3341 (R-3068) — the cluster's armed run mode from the active node else any node (one cluster, one fact).</summary>
     public Fdp.Toolkit.Orchestration.ClusterArmedMode? ArmedModeAnyNode
         => Active()?.ArmedMode ?? _providers.Select(p => p.ArmedMode).FirstOrDefault(x => x is not null);

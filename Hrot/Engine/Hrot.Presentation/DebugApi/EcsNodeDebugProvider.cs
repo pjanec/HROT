@@ -48,6 +48,7 @@ public static class EcsNodeDebugProvider
             replayAxis:    () => node()?.ClusterSlave.ReplayAxis,   // ⭐ CE-3329 R-3058 — the master's broadcast, on every node
             runNotRecorded: () => node()?.ClusterSlave.RunNotRecorded,   // ⭐ CE-4090 D14 — the same broadcast
             recordLiveRunsOff: () => node()?.ClusterSlave.RecordLiveRunsOff,
+            askToKeepRecordings: () => node()?.ClusterSlave.AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
             armedMode:         () => node()?.ClusterSlave.ArmedMode,   // ⭐ CE-3341 R-3068 — the same View
             runChoice:         x.RunChoice,   // ⭐ CE-1451 — the host's run choice, independent of the drive (the IG has none)
             clusterView:       () => node()?.ClusterSlave.View,   // ⭐ CE-3344 R-3069 — the node's ONE read model: CanOperate gates the HTTP cluster routes

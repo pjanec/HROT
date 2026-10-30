@@ -123,6 +123,14 @@ public sealed class TranslatorDtoTests
         }
         // an OLD sender's payload (only RecordLiveRuns): the armed mode is absent => no change
         Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false}").Armed);
+
+        // ⭐ CE-4100 (AQ108 D15) — Ask to keep recordings crosses whole (null / true / false), and an older sender's payload (the field absent) leaves it unchanged
+        foreach (bool? ask in new bool?[] { null, true, false })
+        {
+            var sent = new Fdp.Toolkit.Orchestration.SetRunSettingsIntent { RequestId = Guid.NewGuid(), AskToKeepRecordings = ask };
+            Assert.Equal(sent, SetRunSettingsPayloadDto.Decode(sent.RequestId, JsonSerializer.Serialize(SetRunSettingsPayloadDto.From(sent), Options)));
+        }
+        Assert.Null(SetRunSettingsPayloadDto.Decode(Guid.Empty, "{\"RecordLiveRuns\":false,\"Armed\":1}").AskToKeepRecordings);
     }
 
     // ── Test 4: Unknown enum string should throw ──────────────────────────────
