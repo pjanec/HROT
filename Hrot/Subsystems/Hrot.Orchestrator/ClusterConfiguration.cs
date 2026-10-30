@@ -10,7 +10,7 @@ namespace Hrot.Orchestrator;
 /// Static cluster topology read at Orchestrator startup from <c>orchestrator-config.json</c>.
 /// Only subsystem names are listed; node IDs are discovered dynamically via heartbeats.
 /// </summary>
-public sealed class ClusterConfiguration
+public sealed record ClusterConfiguration
 {
     /// <summary>Subsystem NAMES that must reach <c>Standby</c> before the bootstrap latch clears. ⭐ The ROLES half of the mandatory set is <see cref="MandatoryRoles"/>.</summary>
     public string[] Mandatory { get; init; } = Array.Empty<string>();
@@ -96,18 +96,13 @@ public sealed class ClusterConfiguration
     /// <summary>
     /// ⭐ Q86 §4-E — the same configuration for a ONE-NODE cluster (the editor): nothing is mandatory, because the
     /// host is the only node. Every other value — the NAS root above all — is kept, so both hosts store in one place.
+    /// <para>⭐ CE-3347 — a COPY (<c>with</c>), so every other value is kept by construction. ⛔ The hand-listed copy it replaces had already
+    /// dropped <see cref="AdmissionPolicy"/> (CE-3346).</para>
     /// </summary>
-    public ClusterConfiguration ForOneNodeCluster() => new()
+    public ClusterConfiguration ForOneNodeCluster() => this with
     {
-        Mandatory                  = Array.Empty<string>(),
-        Optional                   = Optional,
-        HeartbeatTimeoutSeconds    = HeartbeatTimeoutSeconds,
-        TransactionHistoryCapacity = TransactionHistoryCapacity,
-        NasBasePath                = NasBasePath,
-        TkbName                    = TkbName,   // ⭐ R-4018 — the one-node cluster syncs the same TKB
-        MandatoryRoles             = MandatoryRoles,    // ⭐ CE-4087 — the editor's own in-process roles satisfy it (ClusterMaster.LocalRoles)
-        LoadWaitSeconds            = LoadWaitSeconds,
-        InitialArmedMode           = ClusterArmedMode.Preview,   // ⭐ R-1043 — the editor is the Preview-armed host; ForOneNodeCluster is its only factory
+        Mandatory        = Array.Empty<string>(),
+        InitialArmedMode = ClusterArmedMode.Preview,   // ⭐ R-1043 — the editor is the Preview-armed host; ForOneNodeCluster is its only factory
     };
 
     private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;

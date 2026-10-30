@@ -62,6 +62,12 @@ namespace Hrot.SimHost
         /// <para>⚠ In slice 1 its tile loader is the ANNOUNCING FAKE, which logs its stub-ness on every
         /// round. Nothing advertises a terrain capability (design §8.3 ruled: declare none).</para>
         /// </summary>
+        /// <summary>⭐ CE-1446 B1 — this node's terrain residency, built by <see cref="BuildOrchestration"/> (null before it runs).</summary>
+        public TerrainResidency? TerrainResidency { get; private set; }
+
+        /// <summary>⭐ CE-1446 B2 — the handlers <see cref="BuildOrchestration"/> composed (recorder, dry run, change check, view), for a host that drives them (the editor's preview).</summary>
+        public EcsHostClusterHandlers? Handlers { get; private set; }
+
         public TerrainLoadService TerrainLoadService { get; } =
             new TerrainLoadService(new AnnouncingZoneTileLoader());
 
@@ -201,6 +207,12 @@ namespace Hrot.SimHost
         /// <param name="offline">
         /// ⭐ CE-1446 B0 — an OFFLINE node (the editor): no DDS participant by design, so a Brain role does not need one. Skips the participant guard; the DDS-only parts already key on the participant.
         /// </param>
+        /// <param name="entityMap">
+        /// ⭐ CE-1446 B1 — the node's entity map, so the world boundary clears it (CE-2101) and the load chain forgets network ids with it. Null = the map is found on the world (the dry run) and the chain holds none.
+        /// </param>
+        /// <param name="dryRunIncludesTransient">
+        /// ⭐ CE-1446 B2 — the dry run (preview) copies Transient components too (the editor's did, HN-016).
+        /// </param>
         /// <param name="ghostCreationSystem">
         /// Optional <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem"/> whose
         /// <see cref="Fdp.Toolkit.Replication.Systems.GhostCreationSystem.BypassLifecycle"/>
@@ -243,7 +255,9 @@ namespace Hrot.SimHost
             Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null,
             IReadOnlyList<IClusterStateHandler>? scenarioHandlers = null,
             Fdp.Toolkit.Behavior.ScenarioBehaviorRemapper? behaviorRemapper = null,
-            bool offline = false)
+            bool offline = false,
+            Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null,
+            bool dryRunIncludesTransient = false)
         {
             if (!offline && participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -276,6 +290,7 @@ namespace Hrot.SimHost
             // ⭐ CE-4013 (§4.1ae T2) — the knowledge base and the terrain from the ONE shared factory every ECS host uses.
             var (loadProviders, residency) = HrotUniversalLoadParts.Build(tkbDb, localTempRoot, RoadNetworkHolder, terrainContent);
             if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
+            TerrainResidency = residency;   // ⭐ CE-1446 B1 — held so a host's terrain picker / save can read it (CGF did, from its own Build call)
 
             IClusterStateHandler? scenarioSaveHandler = null;
             var handlersToRegister = new List<IClusterStateHandler>();
@@ -333,6 +348,8 @@ namespace Hrot.SimHost
                     : null,
                 EventAccumulator   = eventAccumulator,
                 IdAllocator        = scenarioIdAllocator,
+                EntityMap          = entityMap,
+                DryRunIncludesTransient = dryRunIncludesTransient,
                 LoadProviders      = loadProviders,
                 ScenarioHandlers   = handlersToRegister,
                 ScenarioSaveHandler = scenarioSaveHandler,
@@ -340,6 +357,7 @@ namespace Hrot.SimHost
                 TerrainStagingRoot = localTempRoot,
             });
             RecordReplayController = handlers.RecordReplayController;
+            Handlers = handlers;
 
             // Wire DiagnosticsDumpClusterOpHandler for cluster-wide diagnostic dumps.
             if (diagnosticsDumpHandler != null)

@@ -114,3 +114,22 @@ diagnostic windows, pls check it and evaluate it."*
 | keep the hand-written bridging handlers | per-descriptor code that covers 3 of 125 types — the opposite of unified |
 | point the panel at the ECS world | duplicates the ECS `EntityInspectorPanel` and loses the wire view (before translation) |
 | a DER mirror always on | a second entity repository on every node, all the time, for a debugging view |
+
+## 6. The build plan — slices (backend, `2026-10-29`; after CE-1446 B1–B3 per the one-worker rule)
+
+📐 **Measured for the plan:** one production `.csproj` references `Hrot.ExCon` (`Hrot.ClusterRunner`); `HROT.sln` carries `Hrot.ExCon` +
+`Hrot.ExCon.Tests`; **22** test files name `excon` in a harness node list (`HrotRunnerHarness("simhost,ig,excon,cgf", …)`) and use it for nothing
+else; **11** test files drive ExCon itself (`harness.ExCon.Logic`, `TestHook_ClusterSlave`, `new ExConSubsystem`). The DER/inspector items are §5a/§5b.
+
+| slice | what | proves it |
+|---|---|---|
+| **X1** the tests off ExCon | `HrotRunnerHarness` loses the ExCon node (its `excon` token REJECTED, so no list keeps it silently); the 22 node lists drop it; each ExCon-DRIVING test is re-homed or deleted per the rule below; `SimTimeSyncIntegrationTests` drops the ExCon column; `CheckpointClusterTests` drops its debug provider; `PlayerJoinsARunningScenarioTests` reads the cluster level from CGF's `ClusterView` | the touched classes green |
+| **X2** the node goes | delete `Hrot.ExCon`, `Hrot.ExCon.Tests`, the ClusterRunner `excon` mode/registration and its `ClusterRunner.Tests` classes (`ExConSubsystemTests`, `ExConSubsystemClusterTests`, `ExConHandlerRegistrationTests`, the ExCon arms of `HexagonalBoundaryTests` / `SubsystemOrchestratorTests`), the sln entries; the Cluster Control window id `excon_cluster_control` renamed (§3 row 1); `ClusterConformanceRails`' ExCon panel names | the full solution builds; ClusterRunner.Tests green |
+| **X3** IG's remote-map half | `MapCommandController`, `ContextMenuSystem`'s ExCon arm, `MiniExConPanel`, `ContextActionsUpdateTranslator`, `NedExConEgressWriters`; the `MapCommandRequest` / `MapCommandAck` / `ContextActionsUpdate` topics retired with their wire values RESERVED (R-42) | IG.Tests green; the wire inventory script agrees |
+| **X4** the world-less mirrors | the observer-only cluster translator (ClusterView V2's difference, §4 E); ExCon's second `IMissionEditorService`; the editor's never-written DER (`EditorApplication._view`, `EditorOrbatPanel`, `EntityPropertyInspector`); `CreateExConIngressHandlers` + the three bridging handlers | the touched classes green |
+| **X5** the generic wire inspector | §5b steps 1–6 — ⛔ step 1's gate first (a reflective `DdsReader<T>` for every keyed generated type); if it fails, the inspector is dropped and §5b says so | §5b step 6's rails |
+
+⭐ **The re-home rule for an ExCon-driving test:** name the capability it proves. Shared surface (mission commit through `IMissionEditorService`,
+entity selection, placement through `SpawnerPanel`) ⇒ drive the same flow from CGF / the editor, in the feature's own suite (T-1), never a new
+class. ExCon-only capability (the remote IG map: `MapPlacementIntegrationTests`' "ExCon starts placement mode → IG activates CreationTool") ⇒
+deleted with the capability, the deletion named in the report. ⛔ No test keeps an ExCon stand-in.

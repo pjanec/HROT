@@ -108,6 +108,10 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ⭐ The cache, the capability-ingest system, and the wait-set provider all sit on ONE cache instance the
     // factory shares with the gateway's C2 self-heal callback.
     private readonly Hrot.Network.Routing.SimpleClusterStateCache? _clusterCache;
+
+    /// <summary>⭐ CE-1446 B1 — the node's cluster-state cache (membership ingest + reliable-init wait-set). The node's network factory adopts THIS one when it is configured for the node, so the
+    /// ownership strategy / wait-set the entity-creation pack reads and the module that FILLS the cache are the same object.</summary>
+    public Hrot.Network.Routing.SimpleClusterStateCache? ClusterCache => _clusterCache;
     private readonly Hrot.Network.Routing.ClusterCapabilityIngestSystem? _capabilityIngest;
     private readonly Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? _expectedPeers;
 

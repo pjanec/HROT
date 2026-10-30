@@ -179,6 +179,30 @@ public sealed class ClusterMasterReviewTests
         Assert.False(pm.InReview);
     }
 
+    /// <summary>⭐⭐ CE-1447 — the entry SEEK can land before the entry pause's barrier (a warm prepare+seek round inside the 200 ms the
+    /// seek's own pause re-arms); L is still the live time, never the DAR's position. 🔴 Red-proof: capturing L only on Deterministic ⇒ 0.3.</summary>
+    [Fact]
+    public void CE1447_The_live_point_is_the_live_time_even_when_the_entry_seek_lands_before_the_barrier()
+    {
+        var bus = new FdpEventBus();
+        var clock = new StillClock { Mode = TimeMode.Continuous, Now = new GlobalTime { TotalTime = 8.1, TotalWallTicks = 100 } };
+        var pm = new ReviewProcessManager(bus, clock, new Commands(), () => ClusterState.OperatingLive);
+
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = ClusterState.OperatingReview });
+        bus.SwapBuffers(); pm.Tick();
+        Assert.False(pm.HasLivePoint);                            // the barrier is pending: the clock still reports Continuous
+
+        bus.PublishManaged(new SeekReplayIntent { RequestId = Guid.NewGuid(), TargetWallTicks = 3 });   // the master starts the entry seek
+        bus.SwapBuffers(); pm.Tick();
+        Assert.True(pm.HasLivePoint);
+        Assert.Equal(8.1, pm.LivePoint.TotalTime);
+
+        clock.Mode = TimeMode.Deterministic;                      // the seek's snap — Stepping at the DAR's position
+        clock.Now = new GlobalTime { TotalTime = 0.3, TotalWallTicks = 3 };
+        bus.SwapBuffers(); pm.Tick();
+        Assert.Equal(8.1, pm.LivePoint.TotalTime);                // ⛔ not 0.3
+    }
+
     private sealed class StillClock : ITimeController
     {
         public GlobalTime Now;

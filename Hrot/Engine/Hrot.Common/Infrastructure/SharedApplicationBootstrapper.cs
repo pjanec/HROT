@@ -244,7 +244,18 @@ public abstract class SharedApplicationBootstrapper
             // ⭐ CE-4013 — the capabilities' systems, after the host's own (where every host already walked them).
             _walk!.PopulateSystems(context, inputSystems, simSystems, postSimSystems);
 
+            // ⭐ CE-1446 B2 (CE-165) — a node that composes BOTH the Brain and the MuscleGround packs (the editor) gets each shared system once: opt in with
+            //   DeduplicateSystemsByType; the FIRST in plan order wins. Off by default — every other host's lists are untouched.
+            if (DeduplicateSystemsByType)
+            {
+                var distinctInput = SystemComposition.DistinctByType(inputSystems, Array.Empty<IEcsModuleSystem>()).ToList();
+                var distinctSim   = SystemComposition.DistinctByType(simSystems, Array.Empty<IEcsModuleSystem>()).ToList();
+                inputSystems.Clear(); inputSystems.AddRange(distinctInput);
+                simSystems.Clear();   simSystems.AddRange(distinctSim);
+            }
+
             var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);
+            InputGroup     = inputGroup;
             simGroup       = new TogglableSimulationGroup($"{config.SubsystemName}Sim", simSystems);
             // ⭐ CE-1446 B0 — a host that builds no post-simulation group (CGF) refuses a capability that would put systems in it, rather than drop them silently.
             if (!BuildsPostSimGroup && postSimSystems.Count > 0)
@@ -543,6 +554,12 @@ public abstract class SharedApplicationBootstrapper
         INetworkFactory? configuredFactory);
 
     // ── Virtual hooks (subclasses may override) ──────────────────────────────
+
+    /// <summary>⭐ CE-1446 B2 (CE-165) — deduplicate the input and simulation system lists by concrete type before the groups are built (default false). The editor composes both the Brain and MuscleGround packs, which share systems.</summary>
+    protected virtual bool DeduplicateSystemsByType => false;
+
+    /// <summary>⭐ CE-1446 B1 — the node's togglable INPUT group (built in phase 4a, so readable from <c>BuildOrchestration</c> on): a host's replay load disables network input through it.</summary>
+    protected TogglableInputGroup? InputGroup { get; private set; }
 
     /// <summary>⭐ CE-1446 B0 — the node's TIME role (default <see cref="TimeRole.Slave"/>: the Orchestrator owns the cluster clock). A subclass that owns its clock (the editor: Standalone)
     /// overrides it AND passes it to <c>BuildReplicatedNode(…, timeRole)</c>; the base verifies the built context carries it.</summary>

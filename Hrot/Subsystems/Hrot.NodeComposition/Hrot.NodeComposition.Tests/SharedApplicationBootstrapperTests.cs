@@ -256,6 +256,73 @@ public sealed class SharedApplicationBootstrapperTests
     }
 
     /// <summary>⭐⭐ CE-4013 — the base asks every hook, in its step order, on every subclass: no host can drop one.</summary>
+    // ── CE-1446 B3: no ECS host builds its node inline ───────────────────────────────────────
+
+    /// <summary>The ECS hosts and the file each one calls <c>BootstrapNode</c> from, plus the bootstrapper subclass it builds with. Stride targets net8.0-windows, so every host is reached by SOURCE.</summary>
+    private static readonly (string Host, string EntryFile, string BootstrapperFile)[] EcsHosts =
+    {
+        ("CGF",     "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                  "Hrot/Subsystems/Hrot.CGF/CgfNodeBootstrapper.cs"),
+        ("SimHost", "Hrot/Subsystems/Hrot.SimHost/SimHostApp.cs",                "Hrot/Subsystems/Hrot.SimHost/SimHostNodeBootstrapper.cs"),
+        ("IG",      "Hrot/Subsystems/Hrot.IG/IgApplication.cs",                  "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs"),
+        ("Editor",  "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",            "Hrot/Subsystems/Hrot.Editor/EditorNodeBootstrapper.cs"),
+        ("Traffic", "Hrot/Subsystems/Hrot.TrafficNode/TrafficSubsystem.cs",      "Hrot/Subsystems/Hrot.TrafficNode/TrafficNodeBootstrapper.cs"),
+        ("Stride",  "Stride/HrotStrideApp.Game/StrideNodeShell.cs",              "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs"),
+    };
+
+    private static string RepoRoot()
+    {
+        for (var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+            if (System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "HROT.sln"))) return dir.FullName;
+        throw new InvalidOperationException("HROT.sln not found above " + AppContext.BaseDirectory + " — the source scan cannot run, and a rail that cannot run must not pass.");
+    }
+
+    private static string CodeOf(string path)   // the file's code lines: comments (// and ///) dropped, so a doc mention is not a call
+        => string.Join("\n", System.IO.File.ReadAllLines(path).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1446</c> B3 (R-1045) — <b>no ECS host builds its node inline.</b> Every host (CGF, SimHost, IG, the editor, the traffic node, Stride) calls <c>BootstrapNode</c> on a
+    /// <c>SharedApplicationBootstrapper</c> subclass, and NO production source outside those bootstrappers and the builder's own files calls <c>new HrotNodeBuilder(</c> or
+    /// <c>BuildReplicatedNode(</c>. A SOURCE scan (Stride targets net8.0-windows, out of reflection's reach); it cannot pass empty — it names the six hosts and fails if one is missing.
+    /// ⚠ Stride's hand-built RUN CONTROLS (CE-1449) are not a node build — Stride's node IS built by <c>StrideNodeBootstrapper</c> (<c>StrideNodeShell.cs</c>) — so no allow-list entry is needed here.
+    /// 🔴 Red-proof: a <c>new HrotNodeBuilder(…)</c> added to <c>CgfSubsystem.Initialize</c> ⇒ the first assertion names it.
+    /// </summary>
+    [Fact]
+    public void CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline()
+    {
+        string root = RepoRoot();
+
+        // ① the hosts are FOUND (a scan that finds nothing must fail) and each uses a bootstrapper subclass
+        Assert.Equal(new[] { "CGF", "Editor", "IG", "SimHost", "Stride", "Traffic" }, EcsHosts.Select(h => h.Host).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+        foreach (var (host, entry, bootstrapper) in EcsHosts)
+        {
+            string entryPath = System.IO.Path.Combine(root, entry), bootPath = System.IO.Path.Combine(root, bootstrapper);
+            Assert.True(System.IO.File.Exists(entryPath), $"{host}: host file '{entry}' not found — update the rail with the host's new home.");
+            Assert.True(System.IO.File.Exists(bootPath), $"{host}: bootstrapper file '{bootstrapper}' not found.");
+            Assert.Contains(".BootstrapNode(", CodeOf(entryPath));
+            Assert.Matches(@"class\s+\w+\s*:\s*SharedApplicationBootstrapper", CodeOf(bootPath));
+        }
+
+        // ② no production file outside the bootstrappers and the builder's own files builds a node itself
+        var allowed = new HashSet<string>(StringComparer.Ordinal) { "HrotNodeBuilder.cs", "HrotNodeBuilderReplicationExtensions.cs", "SharedApplicationBootstrapper.cs" };
+        var offenders = new List<string>();
+        int scanned = 0;
+        foreach (string top in new[] { "Hrot", "Stride" })
+            foreach (string file in System.IO.Directory.EnumerateFiles(System.IO.Path.Combine(root, top), "*.cs", System.IO.SearchOption.AllDirectories))
+            {
+                string rel = System.IO.Path.GetRelativePath(root, file).Replace('\\', '/');
+                if (rel.Contains("/obj/") || rel.Contains("/bin/") || rel.Contains(".claude/worktrees") || rel.Contains("Tests/") || rel.Contains(".Tests") ) continue;   // production code only
+                string name = System.IO.Path.GetFileName(file);
+                if (allowed.Contains(name) || name.EndsWith("NodeBootstrapper.cs", StringComparison.Ordinal)) continue;
+                scanned++;
+                string code = CodeOf(file);
+                if (code.Contains("new HrotNodeBuilder(") || code.Contains("BuildReplicatedNode(")) offenders.Add(rel);
+            }
+
+        Assert.True(scanned > 500, $"the scan saw only {scanned} production files — it is not looking where the hosts are.");
+        Assert.True(offenders.Count == 0,
+            "These production files build a node inline (new HrotNodeBuilder / BuildReplicatedNode) instead of through a SharedApplicationBootstrapper subclass (CE-1446 / R-1045): " + string.Join(", ", offenders));
+    }
+
     [Fact]
     public void CE4013_TheBaseWalksEveryCapabilityHook_InStepOrder()
     {
@@ -537,6 +604,7 @@ public sealed class SharedApplicationBootstrapperTests
             "ResolveCapabilities",   // ⭐ CE-4013 — the base owns the capability walk
             "get_TimeRole",          // ⭐ CE-1446 B0 — the two new INPUTS (property getters): a time role and whether a post-sim group is built
             "get_BuildsPostSimGroup",
+            "get_DeduplicateSystemsByType",   // ⭐ CE-1446 B2 — opt-in CE-165 dedupe (the editor)
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);

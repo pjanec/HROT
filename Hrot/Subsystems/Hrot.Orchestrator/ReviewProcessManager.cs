@@ -75,7 +75,15 @@ public sealed class ReviewProcessManager
             FdpLog<ReviewProcessManager>.Info("[Orchestrator] CE-3329: review {0} — pausing the live run on the barrier.", intent.TransactionId);
         }
 
-        if (_awaitingLivePoint && _clock.GetMode() == TimeMode.Deterministic)
+        // ⭐⭐ CE-1447 — L is also taken the moment the review's ENTRY SEEK is requested, if the barrier has not landed by then. The pause froze
+        //   the sim time already (BarrierPending does not advance it), and the seek's snap is still a round away. ⛔ Waiting for Deterministic
+        //   alone raced the seek: its own PauseTimeIntent re-arms the 200 ms barrier, and a warm prepare+seek round finished inside it, so the
+        //   SEEK's SnapAndPause produced the Deterministic mode and L was read at the DAR's own position (measured: a second DAR, 0.3 s vs 8.1 s).
+        bool entrySeekRequested = false;
+        if (_awaitingLivePoint)
+            foreach (var _ in _bus.ReadManaged<SeekReplayIntent>()) { entrySeekRequested = true; break; }
+
+        if (_awaitingLivePoint && (entrySeekRequested || _clock.GetMode() == TimeMode.Deterministic))
         {
             _livePoint = _clock.GetCurrentState();
             _awaitingLivePoint = false;

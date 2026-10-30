@@ -165,4 +165,121 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         try { Assert.False(editor.PreviewControllerForTest!.IsInPreviewMode); }
         finally { editor.Shutdown(); }
     }
+
+    /// <summary>The editor kernel's systems in EXECUTION order, as type names.</summary>
+    private static System.Collections.Generic.List<string> SystemSequence(EditorSubsystem editor)
+    {
+        var seq = new System.Collections.Generic.List<string>();
+        foreach (var sys in editor.NodeForTest!.Kernel.SystemScheduler.GetAllSystems()) seq.Add(sys.GetType().FullName ?? sys.GetType().Name);
+        return seq;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1446</c> B2 (R-3074 decisions B, C) — <b>the editor is an OFFLINE node on the shared bootstrapper</b>: no DDS participant (a Brain with none — decision B, nothing faked), its own
+    /// clock (Standalone ⇒ a master-type controller), and ONE slave (the builder's, ticked by the shared frame — not a kernel module).
+    /// 🔴 Red-proof: the <c>SwitchToDeterministic</c> line removed from <c>EditorNodeBootstrapper.BuildContext</c> ⇒ the authoring-starts-paused row.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1446B2_TheEditorIsAnOfflineStandaloneNode_WithOneSlave()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try
+        {
+            var node = editor.NodeForTest!;
+            Assert.Null(node.Participant);
+            Assert.Equal(Fdp.Toolkit.Time.Controllers.TimeRole.Standalone, node.TimeRole);
+            Assert.IsType<Fdp.Toolkit.Time.Controllers.MasterSyncController>(node.TimeController);
+            Assert.Null(node.SlaveTranslator);
+            // authoring starts PAUSED (Deterministic: dt == 0 every frame): frames over real time do not advance the clock
+            var clock = editor.TimeControllerForTest!;
+            for (int i = 0; i < 3; i++) { editor.Update(0.016f); System.Threading.Thread.Sleep(80); }
+            Assert.True(clock.GetCurrentState().TotalTime < 0.001, $"a fresh editor must not advance its clock ({clock.GetCurrentState().TotalTime})");
+        }
+        finally { editor.Shutdown(); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1446</c> B2 (decision C) — <b>the editor's frame order, pinned.</b> The editor boots through <c>SharedApplicationBootstrapper</c> (the base's phase order) and ticks through the
+    /// shared frame, so the kernel's systems run in the base's order. 📐 Measured against the inline build: the editor gains 5 systems — the Geographic module's two (CoordinateTransform,
+    /// GeodeticSmoothing; the base registers <c>BaseModules</c>, which this host never did) and the time-sync translators' Cyclone ingress / egress / cleanup (no-ops with no participant);
+    /// the rest is the same set, ordered by the base (the input group and the request / genesis / blueprint systems now lead; the simulation group, which holds the Brain and muscle systems,
+    /// now precedes the editor's perception / zone-authoring and animation dispatchers). A change here is a change to what an editor frame does first — review it, do not just re-pin it.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1446B2_TheEditorsKernelRunsItsSystemsInTheSharedBootstrappersOrder()
+    {
+        var editor = new EditorSubsystem();
+        editor.Initialize(new SubsystemConfig { Headless = true });
+        try { Assert.Equal(ExpectedSystemSequence, SystemSequence(editor)); }
+        finally { editor.Shutdown(); }
+    }
+
+    private static readonly string[] ExpectedSystemSequence =
+    {
+        "Fdp.ModuleHost.Scheduling.TogglableInputGroup",
+        "Hrot.Common.Systems.CreateEntityRequestSystem",
+        "Hrot.Common.EntityCreation.SeatPresetSystem",
+        "Hrot.SimHost.Systems.GenesisMaterializationSystem",
+        "Hrot.SimHost.Systems.InitialBrainMaterializationSystem",
+        "Hrot.SimHost.Systems.BlueprintMaterializationSystem",
+        "Fdp.Toolkit.Blueprints.Systems.BlueprintEventIngressSystem",
+        "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",
+        "Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem",
+        "Fdp.Modules.Geographic.Systems.GeodeticSmoothingSystem",
+        "Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathResponseSystem",
+        "Fdp.Toolkit.Navigation.Systems.PathfindingResultMaterializationSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.AnimationCapabilityChangeReactorSystem",
+        "Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup",
+        "Hrot.Common.Systems.EntityRequestFinalizationSystem",
+        "Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem",
+        "Fdp.ModuleHost.Diagnostics.EventHistoryCaptureSystem",
+        "Fdp.ModuleHost.Diagnostics.EventHistoryCaptureSystem",
+        "Hrot.Presentation.Map.MapLayerAssignmentSystem",
+        "Hrot.Diagnostics.Breakpoints.DataBreakpointSystem",
+        "Hrot.Editor.Debugging.NodeBreakpointEvaluator",
+        "Fdp.ModuleHost.Diagnostics.EventHistoryCaptureSystem",
+        "Hrot.Presentation.Systems.CanvasMenuUpdateSystem",
+        "Fdp.Modules.Geographic.Systems.CoordinateTransformSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.NotifyEventEmitterSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.AnimationStateReporterSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.AnimationBackendCleanupSystem",
+        "Hrot.ScenarioEditor.Systems.SelectionRequestSystem",
+        "Hrot.ScenarioEditor.Systems.SelectionNotificationSystem",
+        "Hrot.ScenarioEditor.Systems.ToolActivationDrainSystem",
+        "Hrot.ScenarioEditor.Systems.CenterOnEntitySystem",
+        "Hrot.IG.Systems.MapCullingSystem",
+        "Hrot.IG.Systems.StyleResolutionSystem",
+        "Fdp.Toolkit.Replication.Systems.GhostPromotionSystem",
+        "Hrot.Map.Common.Services.StaticObstacleBakeSystem",
+        "Hrot.Diagnostics.Breakpoints.DebugSnapshotProvider",
+        "Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem",
+        "Fdp.Toolkit.Lifecycle.Systems.BlueprintApplicationSystem",
+        "Fdp.Toolkit.Lifecycle.Systems.LifecycleSystem",
+        "Fdp.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem",
+        "Fdp.Network.Cyclone.Systems.CycloneEgressSystem",
+        "Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem",
+        "Hrot.Diagnostics.Breakpoints.ChangeBaselineSystem",
+        "Fdp.ModuleHost.Time.ResumeAndDrainSystem",
+        "Fdp.ModuleHost.Scheduling.TogglableSimulationGroup",
+        "Hrot.MuscleCharacter.Animation.Systems.AnimationDispatcherSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.LookAtDispatcherSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.MontageQueueAdvanceSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.AnimationRuntimeBridgeSystem",
+        "Hrot.MuscleCharacter.Animation.Systems.StanceTransitionSystem",
+        "Hrot.Editor.Systems.EditorPerceptionSetupSystem",
+        "Hrot.Editor.Systems.EditorZoneAuthoringSystem",
+        "Fdp.Toolkit.Perception.Systems.LocalGridBuilderSystem",
+        "Hrot.SimHost.Systems.EqsSolverSystem",
+        "Fdp.Toolkit.Navigation.Systems.PathfindingSolverSystem",
+        "Hrot.Common.Systems.ContextActionIngressSystem",
+        "Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem",
+        "Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup",
+        "Hrot.UI.Common.Effects.EffectSpawnSystem",
+        "Hrot.UI.Common.Effects.WreckSpawnSystem",
+        "Fdp.Toolkit.Time.LifespanSystem",
+        "Hrot.ScenarioEditor.Map.MenuOrders",
+        "Hrot.ScenarioEditor.Map.MenuShortcuts",
+        "Hrot.Common.Systems.GlobalActionDispatchSystem"
+    };
 }

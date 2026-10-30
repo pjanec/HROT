@@ -1533,6 +1533,13 @@ sequenceDiagram
 
 ⛔ **SUPERSEDED by this block:** the CE-3344 row *"`EjectNode` … the same path (Degraded, abort + Idle to survivors, latch re-engaged)"* holds **only in Idle** now; the `ClusterMaster.Bootstrap.cs` header's "abort + Idle to the survivors" the same.
 
+- ⭐ **`CE-3347` (`2026-10-29`) — the required roles are a DEPLOYMENT parameter, and a composition root declares them.** 📐 Measured: with the
+  default (Brain | MuscleGround) a cluster with no Brain node never releases the latch, so EVERY cluster op is refused — including
+  `ResumeTime` — and an in-process test harness without CGF ran a stopped clock (the Wander rail, red since this slice). ⇒
+  `OrchestratorSubsystem(factory, ClusterConfiguration?)` takes the deployment's configuration (null = `orchestrator-config.json`, else the
+  default — the ONE source, unchanged for production); `HrotRunnerHarness` requires only the roles its node list provides.
+  `ClusterConfiguration` is a `record`, so a variant is a `with` copy — ⛔ the hand-listed `ForOneNodeCluster` copy had dropped `AdmissionPolicy`.
+
 ### 11.6 ✅ AS-BUILT `CE-3345` part B (slice R2 — the readiness report, progress, cancel, a failed load ⇒ Idle, the gate policy), `2026-10-29`, backend *(obligation ⑤: where the build deviated from §11.2 / §11.3 the prior state is marked SUPERSEDED; the loading screen and the greyed controls are the ui lane's)*
 
 | §11.2 / §11.3 said | as built | why it deviated |

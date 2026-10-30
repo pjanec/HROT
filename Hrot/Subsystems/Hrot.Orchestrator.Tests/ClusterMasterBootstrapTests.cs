@@ -1272,6 +1272,9 @@ public sealed class ClusterMasterBootstrapTests
 
         PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: brain, name: "CGF");
         PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: muscle, name: "SimHost");
+        // an OBSERVER (an advert with no simulation role) admitted at rest in Idle — IN SYNC, so only IsObserver keeps it out (below)
+        PhaseBeat(bus, master, 600, NodePhase.Ready, advert: Array.Empty<string>(), name: "Observer");
+        Assert.Contains(600, master.InSyncNodeIds);
         view.Update();
         Assert.False(view.ClusterPlayReady);                       // Idle: nobody has a world to play
         Assert.False(view.IsClusterLoading);
@@ -1298,8 +1301,10 @@ public sealed class ClusterMasterBootstrapTests
         Assert.True(view.ClusterPlayReady);
         Assert.Equal(string.Empty, view.LoadProgress);
 
-        // an OBSERVER (an advert with no simulation role) that is still loading holds nobody either
-        PhaseBeat(bus, master, 600, NodePhase.Loading, "KnowledgeBase", advert: Array.Empty<string>(), name: "Observer");
+        // the in-sync OBSERVER that is still loading holds nobody either (⛔ CE-3345 O2: it used to join here, while live — outside the in-sync set, so
+        //   the _inSync test excluded it and the IsObserver mutation survived)
+        PhaseBeat(bus, master, 600, NodePhase.Loading, "KnowledgeBase", name: "Observer");
+        Assert.Contains(600, master.InSyncNodeIds);
         view.Update();
         Assert.True(view.ClusterPlayReady);
         Assert.Equal(string.Empty, view.LoadProgress);
