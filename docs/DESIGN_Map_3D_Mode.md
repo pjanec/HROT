@@ -2248,7 +2248,7 @@ right door gun):
 
 ⭐ **CE-1106 — found by this rail:** the doors-off UH-60's door gunner (seats 8 / 10) sat 0.95 m off the centreline, INSIDE the fuselage box —
 only his legs and arms showed, below his gun. His seat moved into the door like the riders' (|Y| 1.05, `SitLegsOut`), and his station in front
-of him with its pivot at his chest (`NedTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
+of him with its pivot at his lap — ⭐ `2026-10-30` lowered 40 cm (station Z −0.7 → −1.1) at the user's ruling: at his chest it blocked a possessed gunner's view (`NedTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
 
 | ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
 |---|---|---|

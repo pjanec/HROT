@@ -2796,7 +2796,7 @@ public sealed class Map3DTests
 
     /// <summary>
     /// ⭐ CE-1106 — the doors-off Black Hawk's DOOR GUNNERS sit in the doors like its riders (at 0.95 m off the centreline his body was drawn
-    /// inside the fuselage, only his legs and arms showing), legs out, and his M134 stands in front of him, its pivot at his chest.
+    /// inside the fuselage, only his legs and arms showing), legs out, and his M134 stands in front of him, its pivot at his lap (below his eyes).
     /// </summary>
     [Fact]
     public void CE1106_ADoorGunnerSitsInHisDoor_HisGunInFrontOfHim()
@@ -2812,7 +2812,9 @@ public sealed class Map3DTests
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, man.Pose);
             Assert.True(MathF.Abs(gun.Y) > MathF.Abs(man.Y) && MathF.Sign(gun.Y) == MathF.Sign(man.Y), "the gun outboard of him");
             Assert.InRange(gun.X - man.X, -0.3f, 0.3f);
-            Assert.InRange(gun.Z + 0.3f - man.Z, 0.3f, 0.6f);   // the pintle pivot 0.3 m above the station: at his chest
+            // 🔒 user, 2026-10-30 — 40 cm lower than the first fit (chest): the pivot (0.3 m above the station) at his LAP, so the gun is below his
+            //   eyes and a possessed gunner sees past it (⛔ was 0.3…0.6 m above the seat — the gun sat in front of his face)
+            Assert.InRange(gun.Z + 0.3f - man.Z, -0.1f, 0.15f);
         }
     }
 

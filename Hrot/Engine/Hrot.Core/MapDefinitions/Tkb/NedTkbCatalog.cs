@@ -1338,7 +1338,9 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Door,
                     OperatedBy = gunnerSeat, NeedsGunner = true, StartWith = TkbEntityTypes.WeaponSystem_M134Minigun,
-                    X = 3.0f, Y = 1.35f * side, Z = -0.7f, FacingDegrees = 90f * side,   // ⭐ CE-1106 — in front of him; its pivot (0.3 m up) at his chest
+                    // ⭐ CE-1106 — in front of him. 🔒 User, 2026-10-30: "mounted too high for a gunner sitting on the helicopter floor … the view is
+                    //   obstructed by the minigun … placed about 40cm lower" ⇒ Z −0.7 → −1.1: its pivot (0.3 m up) at his lap, below his line of sight
+                    X = 3.0f, Y = 1.35f * side, Z = -1.1f, FacingDegrees = 90f * side,
                     TraverseMinDeg = side > 0 ? 20f : -160f, TraverseMaxDeg = side > 0 ? 160f : -20f,
                 });
             }
