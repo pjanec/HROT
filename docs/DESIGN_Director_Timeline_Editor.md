@@ -3683,6 +3683,6 @@ director. Templates and stills exist on every host the pack attaches to; a templ
 (`DrawTemplates`, `AddTemplateKey`) · `DirectorStills.cs` (`PlanOf(…, anchors)`, `Prepare` through `AnchorTimesOf`, `IndexStillReading`) · `DirectorRenders.cs`
 (the index wait).
 
-**Known edges:** (1) the RB's own transport rate (no film playing) is not heard by the rule — CE-1400. (2) A one-shot's speed-of-sound delay is still counted
+**Known edges:** (1) ~~the RB's own transport rate (no film playing) is not heard by the rule — CE-1400.~~ ✅ **FIXED `2026-10-31` (CE-1400):** `ReplayBrowserSubsystem.Update` hands its transport to the same seam (`AudioDirector.HostTransport(filmPlays, playing, rate)`): playing at 4× ⇒ rate 4, paused ⇒ 0 (the one `SoundAtRate.Gain` rule, as a film's pause); while a film plays the runner still owns the rate. Rails `AudioTests.CE1400_*`, `ReplayBrowserSubsystemTests.CE1400_*`. ⚠ Edge 2 below is unchanged: the speed-of-sound delay stays WALL time, a paused recording's late one-shots still count down. (2) A one-shot's speed-of-sound delay is still counted
 in wall seconds (at 0.5× a far shot is heard half as late in film time) — small, not filed. (3) Live, a sound already waiting for its delay when the film pauses
 still starts. (4) The Director window's template controls are ImGui (no frame rail); the rails drive `AddTemplateKey` (the window's model).

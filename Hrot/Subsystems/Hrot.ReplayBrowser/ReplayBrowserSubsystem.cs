@@ -406,6 +406,8 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
             director.Tick();
             if (director.Runner.Busy) IsPlaying = false;
         }
+        // ⭐ CE-1400 TE-11 — what the browser's own transport plays at is what the ear hears (4× / paused), unless a film plays and owns the rate
+        Hrot.UI.Common.Audio.AudioDirector.HostTransport(_directorPack?.Runner.Busy == true, IsPlaying, PlaybackRate);
 
         // ⭐ RB-1 — playback runs on a headless host too (POST /sim/play): the one play state, the panel's or the headless host's.
         if (IsPlaying)

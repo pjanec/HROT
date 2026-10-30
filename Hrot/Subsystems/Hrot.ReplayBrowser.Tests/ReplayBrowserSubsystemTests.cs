@@ -274,6 +274,29 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-1400</c> TE-11 — the Replay Browser's own playback rate is HEARD: playing at 4× with no film running, the scene's audio rate is 4; paused, 0. (The film runner owns the rate while a film plays —
+    /// <c>AudioDirector.HostTransport</c>, in the audio rails.) 🔴 Red-proof: the <c>HostTransport</c> line removed from <c>ReplayBrowserSubsystem.Update</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE1400_TheBrowsersOwnPlaybackRate_IsTheAudioRate_WhenNoFilmPlays()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        try
+        {
+            Hrot.UI.Common.Audio.AudioDirector.Rate = null;
+            _subsystem.PlaybackRate = 4f;
+            _subsystem.IsPlaying = true;
+            _subsystem.Update(0.016f);
+            Assert.Equal(4d, Hrot.UI.Common.Audio.AudioDirector.Rate);
+
+            _subsystem.IsPlaying = false;
+            _subsystem.Update(0.016f);
+            Assert.Equal(0d, Hrot.UI.Common.Audio.AudioDirector.Rate);
+        }
+        finally { Hrot.UI.Common.Audio.AudioDirector.Rate = null; }
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-1393</c> — the two test seams load a group THROUGH <c>OpenGroup</c> (the ONE open path), so a group they load is in the same state as one <c>OpenGroup</c> loaded: a new recording starts
     /// unlooped, not playing, with an empty back/forward history. 🔴 Red-proof: a seam repeating part of <c>OpenGroup</c>'s body again (no resets) ⇒ its row.
     /// </summary>
