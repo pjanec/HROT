@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343 / CE-1366: the one repo root + the one source scan -->
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Library under test -->
     <ProjectReference Include="..\Hrot.NodeComposition.csproj" />
     <!-- NodeBootstrapper and HrotScenarioSerializerFactory -->

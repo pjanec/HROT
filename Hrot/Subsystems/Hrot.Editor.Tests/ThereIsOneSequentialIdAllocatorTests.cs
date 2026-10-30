@@ -98,16 +98,11 @@ public sealed class ThereIsOneSequentialIdAllocatorTests
 
         var found = new List<string>();
 
-        foreach (var file in Directory.EnumerateFiles(root!, "*.cs", SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(root!))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
-                file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-                continue;
-
             var rel = Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel == SharedAllocatorPath) continue;
             if (rel.Contains(".Tests/")) continue;   // test doubles are not production implementations
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;   // agent worktrees: a second copy of the tree
 
             foreach (var line in File.ReadLines(file))
             {

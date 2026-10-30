@@ -197,10 +197,8 @@ namespace Synthetic
 
         private static IEnumerable<Entry> ScanDirectory(string dir, string projectName)
         {
-            foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+            foreach (var file in Fdp.Testing.RepoSources.CsFiles(dir))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
             {
-                if (IsBuildOutput(file)) continue;
-
                 var tree = CSharpSyntaxTree.ParseText(File.ReadAllText(file));
                 foreach (var method in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
                 {
@@ -246,13 +244,6 @@ namespace Synthetic
                 && attr.ArgumentList is { Arguments.Count: > 0 };
         }
 
-        private static bool IsBuildOutput(string path)
-        {
-            var normalised = path.Replace('\\', '/');
-            return normalised.Contains("/obj/", StringComparison.Ordinal)
-                || normalised.Contains("/bin/", StringComparison.Ordinal);
-        }
-
         // ---- deriving the generator-bearing set --------------------------------
 
         /// <summary>
@@ -268,9 +259,8 @@ namespace Synthetic
                 RegexOptions.Compiled);
 
             var result = new List<string>();
-            foreach (var csproj in Directory.EnumerateFiles(repoRoot, "*.csproj", SearchOption.AllDirectories))
+            foreach (var csproj in Fdp.Testing.RepoSources.Files(repoRoot, "*.csproj"))   // ⭐ CE-1366 — the one scan
             {
-                if (IsBuildOutput(csproj)) continue;
                 var text = File.ReadAllText(csproj);
                 foreach (Match m in refPattern.Matches(text))
                 {

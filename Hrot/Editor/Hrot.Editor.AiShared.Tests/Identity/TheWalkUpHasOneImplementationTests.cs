@@ -49,10 +49,8 @@ public sealed class TheWalkUpHasOneImplementationTests
 
         var offenders = new List<string>();
 
-        foreach (var file in Directory.EnumerateFiles(repoRoot, "*.cs", SearchOption.AllDirectories))
+        foreach (var file in RepoSources.CsFiles(repoRoot))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
         {
-            if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")) continue;
-            if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")) continue;
             if (Path.GetFileName(file) == TheOneImplementation) continue;
             if (!IsProductionSource(file)) continue;
 
@@ -76,9 +74,7 @@ public sealed class TheWalkUpHasOneImplementationTests
     {
         var repoRoot = TestRepo.Root;
 
-        var assetRoots = Directory
-            .EnumerateFiles(repoRoot, TheOneImplementation, SearchOption.AllDirectories)
-            .FirstOrDefault(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"));
+        var assetRoots = RepoSources.Files(repoRoot, TheOneImplementation).FirstOrDefault();
 
         Assert.NotNull(assetRoots);
         Assert.Matches(WalkUpStep, File.ReadAllText(assetRoots!));
@@ -151,16 +147,7 @@ public sealed class TheWalkUpHasOneImplementationTests
         Assert.Equal(new List<string>(), offenders.OrderBy(x => x, StringComparer.Ordinal).ToList());
     }
 
-    /// <summary>⭐ <c>*.cs</c> under <paramref name="dir"/>, skipping hidden folders (<c>.claude/worktrees</c> holds whole checkouts), <c>bin</c>, <c>obj</c>, <c>node_modules</c> and <c>ExtDeps</c>.</summary>
+    /// <summary>⭐ <c>*.cs</c> under <paramref name="dir"/> through the one scan (<see cref="RepoSources"/>: skips <c>obj</c>, <c>bin</c>, <c>.claude</c>, <c>.git</c>), and here also <c>node_modules</c> and <c>ExtDeps</c>.</summary>
     private static IEnumerable<string> EnumerateSources(string dir)
-    {
-        if (!Directory.Exists(dir)) yield break;
-        foreach (var f in Directory.EnumerateFiles(dir, "*.cs")) yield return f;
-        foreach (var sub in Directory.EnumerateDirectories(dir))
-        {
-            var name = Path.GetFileName(sub);
-            if (name.StartsWith('.') || name is "bin" or "obj" or "node_modules" or "ExtDeps") continue;
-            foreach (var f in EnumerateSources(sub)) yield return f;
-        }
-    }
+        => Directory.Exists(dir) ? RepoSources.CsFiles(dir, "node_modules", "ExtDeps") : Enumerable.Empty<string>();
 }
