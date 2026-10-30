@@ -2663,6 +2663,19 @@ key's new scope and time are asserted by the new `CE4059_CR7_*` rail beside it.
 
 ### 11r. P3 — `recording=`, stills, render in the RB *(ui, `2026-10-27`, CE-4059 P3 (the routes' remaining half); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
 
+> ⭐ **CE-4127 / CE-4128 (coordinator, `2026-10-30`, found filming F-18; as built):**
+> - **A frame rendered from a recording is drawn at the moment it was framed.** A seeking host moves at once when stepped, and the map draws
+>   AFTER the runner's tick. `TickPlaying` used to step at the END of the tick, so every picture showed the world one step past the moment
+>   its camera, subtitle and graphics were placed for. 📐 Measured on F-18: an over-the-shoulder camera and the soldier it follows jumped
+>   ±20 px against each other at 30 fps on an ~18 Hz recording. ⭐ Now a seeking host's step is OWED to the next tick and taken at its start
+>   (`_seekStepDue`); a live run keeps the end-of-tick step (its master steps a frame later anyway). Rail
+>   `DirectorPackTests.CE4127_OnASeekingHost_EachCapturedFrame_IsDrawnAtTheMomentItWasFramed` (red-proved). ⚠ What remains: the recording's
+>   ~18 Hz states still reach a 30 fps film in uneven steps (1–2 film frames each) — the camera and the body now move TOGETHER, the residual is
+>   CE-1401 (interpolated drawn poses).
+> - **The burned-in film text is the editor's face (Roboto), not raylib's bitmap font:** `FilmText` (captions, title cards, graphic labels)
+>   draws through `HudText` — the ONE raylib text path, already the HUD's (CE-1140) — now with size overloads, a 64 px bake and Latin-1 +
+>   dashes/quotes. 🔒 User: *"the font used for subtitles looks terrible, it is the default ugly raylib font. pls use same font as imgui is using"*.
+
 ⭐ Frame: [NOTE_Coordinator_To_Ui_RB_Director_Routes_Done](blueprints/batches/NOTE_Coordinator_To_Ui_RB_Director_Routes_Done.md) "Still yours" — `recording=`
 (TE-15), `/director/stills`, MP4 in the RB, the MCP catalog. Basis: CR-10 (stills + contact sheet, the night's documentation), CR-12 (rendering is the
 RB's), [Film Production](DESIGN_Film_Production.md) §3 ④ *"a still is one seek and one frame"*, §4a (the documentation take's still keys render through

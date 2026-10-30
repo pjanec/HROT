@@ -681,6 +681,56 @@ public sealed class DirectorPackTests : IDisposable
         }
     }
 
+    /// <summary>A sink that notes, for every captured film frame, the host's sim time when the frame was ASKED for (the moment it was framed).</summary>
+    private sealed class MomentSink : IFrameSink
+    {
+        private readonly Func<double> _sim;
+        public MomentSink(Func<double> sim) => _sim = sim;
+        public readonly List<double> AskedAt = new();
+        public System.Threading.Tasks.Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle)
+        {
+            AskedAt.Add(_sim());
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+        public System.Threading.Tasks.Task Card(string path, int width, int height, string text)
+        {
+            File.WriteAllText(path, "");
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4127</c> (PLAN_Feature_Films §1d, F-18) — on a SEEKING host each captured frame is DRAWN at the moment it was framed. The map draws after the
+    /// runner's tick; a recording moves at once when stepped, so a step taken at the END of the tick drew every picture one step past the moment its camera
+    /// was placed for — an over-the-shoulder camera and the body it follows jumped against each other (measured ±20 px at 30 fps on an ~18 Hz recording).
+    /// Here: after the tick that asked for a frame, the host is still at that frame's sim time.
+    /// 🔴 Mutation: <c>DirectorRunner.TickPlaying</c> stepping at the end of the tick again (<c>StepOnce(paced)</c> for a seeking host) ⇒ the host is one step on ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4127_OnASeekingHost_EachCapturedFrame_IsDrawnAtTheMomentItWasFramed()
+    {
+        FilmStudio.Reset();
+        var (a, _) = TwoRecordingsWithTheirTakes();
+        var recordings = new FakeRecordings(a);
+        Assert.Null(recordings.Open(Hrot.Presentation.DebugApi.RecordingName.Files(new[] { a }), 0d));
+        var host = new RecordingHost(recordings, _root);
+        var sink = new MomentSink(() => host.SimTime);
+        var runner = new DirectorRunner(host, new WindowCinema(() => null), new MapLayerOverride(() => null), sink) { Recordings = recordings };
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"), Capture: new CaptureOptions(Path.Combine(_root, "film-4127"), Fps: 30, Encode: false))));
+
+        var drawnAt = new List<double>();
+        for (int i = 0; i < 5000 && runner.Busy; i++)
+        {
+            int before = sink.AskedAt.Count;
+            runner.Tick();
+            if (sink.AskedAt.Count > before) drawnAt.Add(host.SimTime);   // what the map would draw after this tick
+        }
+        Assert.True(drawnAt.Count >= 20, $"{drawnAt.Count} frames captured");
+        for (int i = 0; i < drawnAt.Count; i++)
+            Assert.True(Math.Abs(drawnAt[i] - sink.AskedAt[sink.AskedAt.Count - drawnAt.Count + i]) < 1e-9,
+                        $"frame {i}: framed at {sink.AskedAt[sink.AskedAt.Count - drawnAt.Count + i]:0.####} s, drawn at {drawnAt[i]:0.####} s");
+    }
+
     private static readonly System.Numerics.Vector3 AAt = new(1f, 0f, 0f), BAt = new(0f, 2f, 0f);
 
     /// <summary>Recording folders A and B under <see cref="_root"/>, each with its take s-a/main BESIDE it: A's looks at <see cref="AAt"/> for 1 s, B's at

@@ -429,14 +429,15 @@ public static class FilmText
     public static void Caption(Director.SubtitleFrame sub, int w, int h)
     {
         int size = (int)Director.SubtitleBand.TextSizeFor(h);
-        var lines = Wrap(sub.Text, size, (int)(w * 0.86f));
+        var font = HudText.Font();   // ⭐ CE-4128 — the editor's face, not raylib's bitmap font
+        var lines = Wrap(font, sub.Text, size, (int)(w * 0.86f));
         int lineH = (int)(size * 1.25f);
         var band = Director.SubtitleBand.Of(sub, h, lineH * lines.Count);
         Raylib.DrawRectangle(0, (int)band.Top, w, (int)band.Height, new Color((byte)0, (byte)0, (byte)0, band.BandAlpha));
         for (int i = 0; i < lines.Count; i++)
         {
-            int tw = Raylib.MeasureText(lines[i], size);
-            Raylib.DrawText(lines[i], (w - tw) / 2, (int)band.Top + size / 2 + i * lineH, size, new Color((byte)245, (byte)245, (byte)245, band.TextAlpha));
+            float tw = HudText.Measure(font, lines[i], size);
+            HudText.Draw(font, lines[i], (w - tw) / 2f, (int)band.Top + size / 2 + i * lineH, size, new Color((byte)245, (byte)245, (byte)245, band.TextAlpha));
         }
     }
 
@@ -445,6 +446,7 @@ public static class FilmText
     {
         Raylib.DrawRectangle(0, 0, w, h, Color.Black);
         var lines = text.Split('\n');
+        var font = HudText.Font();   // ⭐ CE-4128
         int big = Math.Max(16, h / 14), small = Math.Max(12, h / 24);
         int total = 0;
         for (int i = 0; i < lines.Length; i++) total += (int)((i == lines.Length - 1 ? big : small) * 1.4f);
@@ -453,8 +455,8 @@ public static class FilmText
         {
             int size = i == lines.Length - 1 ? big : small;
             var color = i == lines.Length - 1 ? Color.RayWhite : new Color(200, 200, 200, 255);
-            int tw = Raylib.MeasureText(lines[i], size);
-            Raylib.DrawText(lines[i], (w - tw) / 2, y, size, color);
+            float tw = HudText.Measure(font, lines[i], size);
+            HudText.Draw(font, lines[i], (w - tw) / 2f, y, size, color);
             y += (int)(size * 1.4f);
         }
     }
@@ -483,25 +485,26 @@ public static class FilmText
                 if (plot.TextAt is { } at && !string.IsNullOrEmpty(plot.Text))
                 {
                     int size = (int)plot.TextSize;
-                    int tw = Raylib.MeasureText(plot.Text, size);
+                    var font = HudText.Font();   // ⭐ CE-4128
+                    int tw = (int)HudText.Measure(font, plot.Text, size);
                     int pad = size / 3;
                     Raylib.DrawRectangle((int)(at.X - tw / 2f) - pad, (int)(at.Y - size / 2f) - pad, tw + 2 * pad, size + 2 * pad,
                                          new Color((byte)0, (byte)0, (byte)0, (byte)(plot.Alpha * 0.6f)));
-                    Raylib.DrawText(plot.Text, (int)(at.X - tw / 2f), (int)(at.Y - size / 2f), size, colour);
+                    HudText.Draw(font, plot.Text, at.X - tw / 2f, at.Y - size / 2f, size, colour);
                 }
             }
         }
         finally { Rlgl.EnableBackfaceCulling(); }
     }
 
-    private static List<string> Wrap(string text, int size, int width)
+    private static List<string> Wrap(Font? font, string text, int size, int width)
     {
         var lines = new List<string>();
         var line = "";
         foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             var next = line.Length == 0 ? word : line + " " + word;
-            if (line.Length > 0 && Raylib.MeasureText(next, size) > width) { lines.Add(line); line = word; }
+            if (line.Length > 0 && HudText.Measure(font, next, size) > width) { lines.Add(line); line = word; }
             else line = next;
         }
         if (line.Length > 0) lines.Add(line);

@@ -524,6 +524,7 @@ namespace Hrot.UI.Common.Map3D.Director
             _startAt = index == 0 && _request!.Mode is DirectorMode.Live or DirectorMode.Capture ? Math.Max(0d, _request.StartAt) : 0d;
             _loopRefused = false;
             _film = FilmTimeMap.Identity; _seg = -1; _filmOver = false; _fastForwarding = false; _gapCard = false; _skippedBack.Clear();
+            _seekStepDue = false;   // ⭐ CE-4127 — a step owed by the last item is not this one's
             _subs = Array.Empty<Subtitle>(); _subNow = null;
             _views = Array.Empty<ViewChange>(); _viewNow = null; _graphics = Array.Empty<FilmGraphic>(); _graphicsNow = Array.Empty<GraphicFrame>();
             _ext?.Reset();
@@ -829,6 +830,23 @@ namespace Hrot.UI.Common.Map3D.Director
 
         private void TickPlaying()
         {
+            // ⭐ CE-4127 — on a SEEKING host the step of the last frame is taken HERE, at the start of the next one: a recording moves at once
+            //   when stepped, and the map draws AFTER this tick — stepped at the end, every picture showed the world one step past the moment its
+            //   camera, subtitle and graphics were framed for (the body jumped against an over-the-shoulder camera whenever the step crossed one of
+            //   the recording's ~18 Hz states). A live run steps a frame later by itself, so it keeps the end-of-tick step.
+            if (_seekStepDue)
+            {
+                _seekStepDue = false;
+                StepOnce(_seekStepPaced);
+                // ⭐ CE-1303 P2a — a seekable source that did not move has ENDED (a take longer than its recording): the item ends there, said in
+                //   the report — ⛔ not a run that waits forever on a clock that cannot advance
+                if (Rel <= _seekStepFrom + 1e-9)
+                {
+                    Report.Problems.Add($"the source ends at {_seekStepFrom:0.###} s, before the take does ({_timeline!.End:0.###} s)");
+                    FinishItem();
+                    return;
+                }
+            }
             var mode = _request!.Mode;
             double rel = Rel;
 
@@ -919,15 +937,13 @@ namespace Hrot.UI.Common.Map3D.Director
                 _host.Hold(_clock!.HoldFor(_host.WallNow));
             }
             if (plan) _ext!.BeforeStep(rel);   // ⭐ CE-4061 — e.g. R1's checkpoint, an action due on this exact step
-            StepOnce(paced);
-            // ⭐ CE-1303 P2a — a seekable source steps at once; one that did not move has ENDED (a take longer than its recording): the item ends
-            //   there, said in the report — ⛔ not a run that waits forever on a clock that cannot advance
-            if (_host.CanSeek && Rel <= rel + 1e-9)
-            {
-                Report.Problems.Add($"the source ends at {rel:0.###} s, before the take does ({_timeline!.End:0.###} s)");
-                FinishItem();
-            }
+            if (_host.CanSeek) { _seekStepDue = true; _seekStepPaced = paced; _seekStepFrom = rel; }   // ⭐ CE-4127 — taken at the next tick's start, after this frame is drawn
+            else StepOnce(paced);
         }
+
+        /// <summary>⭐ <c>CE-4127</c> — a seeking host's step of this frame, owed to the next tick (taken there, before anything is framed).</summary>
+        private bool _seekStepDue, _seekStepPaced;
+        private double _seekStepFrom;
 
         /// <summary>The ONE place a step is taken. ⛔ A second in the same frame is a defect of the director, not of the run.</summary>
         private void StepOnce(bool paced)

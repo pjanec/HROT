@@ -782,6 +782,7 @@ public sealed class FilmDirectorTests
         var repo = TestRepo.Root;
         var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         int count = 0, withTo = 0;
+        var recordingEra = new List<(string Scenario, string Name, Take Take)>();
         foreach (var root in roots)
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
@@ -791,6 +792,7 @@ public sealed class FilmDirectorTests
                     var loaded = store.Load(scenario, t);
                     Assert.True(loaded.Ok, $"{scenario}/{t}: {string.Join("; ", loaded.Problems)}");
                     var take = loaded.Value!;
+                    if (IsRecordingEra(take)) { recordingEra.Add((scenario, t, take)); count++; continue; }   // ⭐ CE-4127 — v2: checked below
                     var keys = CameraKeys.Of(take);
                     int plain = take.Shots.Count(s => s.Replay == null), flies = take.Shots.Count(s => s.Replay == null && s.To is { Count: > 0 });
                     withTo += flies;
@@ -807,6 +809,17 @@ public sealed class FilmDirectorTests
         }
         Assert.True(count >= 55, $"{count} seeded takes");
         Assert.True(withTo > 0, "no seeded take has a `to` — the fly derivation went unexercised");
+        // ⭐ CE-4127 (user 2026-10-30: "replace the main takes") — the recording-era takes (PLAN_Feature_Films §1c) write back exactly what they read
+        Assert.True(recordingEra.Count >= 5, $"{recordingEra.Count} recording-era takes");
+        foreach (var (scenario, name, take) in recordingEra)
+        {
+            var problems = new List<string>();
+            var again = TakeJson.ParseTake(TakeJson.WriteTake(take), scenario, name, problems);
+            Assert.Empty(problems);
+            Assert.Equal(take.Keys, again.Keys);
+            Assert.Equal(take.Segments, again.Segments);
+            Assert.Equal(take.Subtitles, again.Subtitles);
+        }
     }
 
     private static CameraKey Key(AtExpr at, string follow, KeyTransition? @in = null) =>
@@ -935,7 +948,8 @@ public sealed class FilmDirectorTests
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
-                foreach (var n in names) takes.Add(($"{scenario}/{n}", store.Load(scenario, n).Value!));
+                foreach (var n in names)
+                    if (store.Load(scenario, n).Value! is var t && !IsRecordingEra(t)) takes.Add(($"{scenario}/{n}", t));   // ⭐ CE-4127 — v1 takes only
         }
         takes.Add(("hand-made", new Take
         {
@@ -946,7 +960,7 @@ public sealed class FilmDirectorTests
                 Shot("""{"at":8,"seconds":2,"eye":[0,0,5],"target":[10,10,0]}"""),
             },
         }));
-        Assert.True(takes.Count >= 56);
+        Assert.True(takes.Count >= 45, $"{takes.Count} v1 takes");
 
         var units = new HashUnits();
         int compared = 0;
@@ -1089,6 +1103,7 @@ public sealed class FilmDirectorTests
                 {
                     var loaded = store.Load(scenario, n);
                     Assert.True(loaded.Ok, $"{scenario}/{n}: {string.Join("; ", loaded.Problems)}");
+                    if (IsRecordingEra(loaded.Value!)) { count++; continue; }   // ⭐ CE-4127 — a v2 take carries its subtitles
                     Assert.Empty(loaded.Value!.Subtitles);
                     Assert.False(TakeJson.WriteTake(loaded.Value).ContainsKey("subtitles"), $"{scenario}/{n} wrote subtitles");
                     count++;
@@ -1140,6 +1155,7 @@ public sealed class FilmDirectorTests
                 foreach (var n in names)
                 {
                     var loaded = store.Load(scenario, n).Value!;
+                    if (IsRecordingEra(loaded)) { count++; continue; }   // ⭐ CE-4127 — a v2 take scopes keys to its segments
                     Assert.All(CameraKeys.Of(loaded), k => Assert.Null(k.Segment));
                     Assert.All(loaded.Segments, s => Assert.Null(s.Id));
                     var keys = CameraKeys.Of(loaded);
@@ -1169,6 +1185,7 @@ public sealed class FilmDirectorTests
                 foreach (var n in names)
                 {
                     var take = store.Load(scenario, n).Value!;
+                    if (IsRecordingEra(take)) continue;   // ⭐ CE-4127 — a v2 take's subtitles are its own, not its captions
                     var baked = take.Baked?.Times;
                     Func<string, double?> anchors = baked != null ? a => baked.TryGetValue(a, out var bt) ? bt : null : a => 5d + 3d * (a.Sum(c => c) % 7);
                     var plan = TakeTimeline.Plan(take, anchors);
@@ -1393,6 +1410,10 @@ public sealed class FilmDirectorTests
         Assert.Equal(new Vector2(700, 150), arrow.Head[0]);                                    // the head's tip is on the head unit
         Assert.Null(GraphicLayout.Of(at3[2] with { Points = new[] { new Vector3(0, 0, 0), new Vector3(0, 0, 500) } }, project, 500));   // behind the camera
     }
+
+    /// <summary>⭐ <c>CE-4127</c> — a seeded take rewritten for films from recordings (PLAN_Feature_Films §1c): keys, segments or subtitles of its own.
+    /// ⛔ Not a v1 take — the rails that pin how an OLD take still reads skip it.</summary>
+    private static bool IsRecordingEra(Take take) => take.Keys.Count > 0 || take.Segments.Count > 0 || take.Subtitles.Count > 0;
 
     private static IEnumerable<(TakeStore Store, string Scenario, string Name)> SeededTakes()
     {
