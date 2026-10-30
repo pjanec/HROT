@@ -40,7 +40,7 @@ the data-breakpoint field paths, the wire inspector). ⛔ Do not touch those. Th
 | ④ | `"Hrot.AI.Behaviors"` found by name **four times** (CGF, editor ×2, the blueprint editor) | one resolver |
 | ⑤ | **two** `AiHotReloadCoordinator` classes (Fdp.Toolkits and Hrot.Editor) | measure whether one concept is built twice — **behaviors** |
 
-Order: CE-4107 first (it is on the replay / DAR path); CE-4108 ① ③ ④ after it; ② ⑤ to behaviors with this note. Each with a rail in its
+Order: CE-4107 first (it is on the replay / DAR path); CE-4108 ① ③ ④ after it. ⭐ ② and ⑤ are tracked separately as **CE-4109** for the behaviors lane — not yours. Each with a rail in its
 feature's suite; report with the gate contract.
 
 _coordinator lane, 2026-10-30_
