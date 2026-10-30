@@ -191,16 +191,16 @@ namespace Hrot.ClusterRunner.Tests
             // Each concrete subsystem colour must be non-zero and distinct.
             var sim = new Hrot.SimHost.SimHostSubsystem();
             var ig  = new Hrot.IG.IgSubsystem();
-            var ios = new Hrot.ExCon.ExConSubsystem();
+            var cgf = new Hrot.CGF.CgfSubsystem();
 
             Assert.NotEqual(default(Vector4), sim.TitleBarColor);
             Assert.NotEqual(default(Vector4), ig.TitleBarColor);
-            Assert.NotEqual(default(Vector4), ios.TitleBarColor);
+            Assert.NotEqual(default(Vector4), cgf.TitleBarColor);
 
-            // All three colours must be distinct.
+            // All three colours must be distinct. (R-3067 / AQ109 X2: ExCon, the third concrete here, is retired; CGF replaces it.)
             Assert.NotEqual(sim.TitleBarColor, ig.TitleBarColor);
-            Assert.NotEqual(ig.TitleBarColor, ios.TitleBarColor);
-            Assert.NotEqual(sim.TitleBarColor, ios.TitleBarColor);
+            Assert.NotEqual(ig.TitleBarColor, cgf.TitleBarColor);
+            Assert.NotEqual(sim.TitleBarColor, cgf.TitleBarColor);
         }
 
         // ── MapCameraProvider toggle (MOD1-P9T2) ──────────────────────────────

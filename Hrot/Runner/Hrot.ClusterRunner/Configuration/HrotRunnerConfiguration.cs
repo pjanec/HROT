@@ -14,8 +14,8 @@ namespace Hrot.ClusterRunner.Configuration
     {
         // -- Hrot-specific CLI options ----------------------------------------
 
-        /// <summary>Mode string supplied via --mode.  Examples: all, server, player, simhost, ig, ios, orchestrator, cgf, traffic, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all (every node in one process)|server (orchestrator,simhost,cgf,traffic)|player (a client joining a server; the IG node)|orchestrator|simhost|cgf|traffic|ig|ios|ci|editor|migrate|replaybrowser or comma-separated combination")]
+        /// <summary>Mode string supplied via --mode.  Examples: all, server, player, simhost, ig, orchestrator, cgf, traffic, ci, simhost,ig, orchestrator,cgf</summary>
+        [Option('m', "mode", Required = true, HelpText = "all (every node in one process)|server (orchestrator,simhost,cgf,traffic)|player (a client joining a server; the IG node)|orchestrator|simhost|cgf|traffic|ig|ci|editor|migrate|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -189,9 +189,9 @@ namespace Hrot.ClusterRunner.Configuration
         /// The fine-grained nodes, in start order (the orchestrator first: the id allocator needs it serving before SimHost
         /// bootstraps). Each is a mode of its own; the shorthands below only combine them.
         /// </summary>
-        private static readonly string[] AllNodes = { "orchestrator", "simhost", "ig", "excon", "cgf", "traffic" };
+        private static readonly string[] AllNodes = { "orchestrator", "simhost", "ig", "cgf", "traffic" };
 
-        /// <summary>The server side of a networked game — everything except the nodes a player brings along (ig, excon).</summary>
+        /// <summary>The server side of a networked game — everything except the node a player brings along (ig).</summary>
         private static readonly string[] ServerNodes = { "orchestrator", "simhost", "cgf", "traffic" };
 
         /// <summary>
@@ -206,7 +206,7 @@ namespace Hrot.ClusterRunner.Configuration
         };
 
         private const string ModeList =
-            "Use: all, server, player, orchestrator, simhost, cgf, traffic, ig, ios, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
+            "Use: all, server, player, orchestrator, simhost, cgf, traffic, ig, editor, ci, migrate, dump-api, replaybrowser, or comma-separated combination.";
 
         /// <summary>
         /// Parses <see cref="ModeString"/> into <see cref="RequestedSubsystems"/>,
@@ -228,8 +228,9 @@ namespace Hrot.ClusterRunner.Configuration
             RequestedSubsystems.Clear();
             foreach (var name in expandedMode.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                // "ios" is a legacy alias for "excon"; "player" is the user-facing name of the IG node (the internal key stays "ig").
-                var normalized = name switch { "ios" => "excon", "player" => "ig", _ => name };
+                // "player" is the user-facing name of the IG node (the internal key stays "ig").
+                // ⛔ R-3067 / AQ109 X2 — the ExCon node and its legacy "ios" alias are gone: both are now an Invalid mode (thrown below), never silently dropped.
+                var normalized = name switch { "player" => "ig", _ => name };
                 // ST-015: "stridemock" is gone with the mock subsystem. Dropping it from this set is
                 // what makes `--mode stridemock` throw again instead of composing a subsystem that no
                 // longer exists.
@@ -237,7 +238,7 @@ namespace Hrot.ClusterRunner.Configuration
                 //   tools/ai-debug-mcp generates its tool catalog from. It composes NO subsystem (see
                 //   Program.cs), which is why it sits beside "ci" and "migrate" rather than in the roster.
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor",
+                    { "simhost", "ig", "orchestrator", "cgf", "ci", "editor",
                       "replaybrowser", "migrate", "dump-api",
                       "traffic" };   // ⭐ AQ93 N1 — the SUMO traffic node; part of "all" and "server" since 2026-10-28 (AQ93 §12.2)
                 if (!validNames.Contains(normalized))
@@ -258,12 +259,12 @@ namespace Hrot.ClusterRunner.Configuration
                                  .Select(s => s == "player" ? "ig" : s));
 
                 // Validate each peer name
-                var validPeers = new HashSet<string> { "simhost", "ig", "ios" };
+                var validPeers = new HashSet<string> { "simhost", "ig" };
                 foreach (var peer in WaitForPeers)
                 {
                     if (!validPeers.Contains(peer))
                         throw new InvalidOperationException(
-                            $"Invalid wait-for peer: '{peer}'. Valid values: simhost, ig, player, ios.");
+                            $"Invalid wait-for peer: '{peer}'. Valid values: simhost, ig, player.");
                 }
             }
 
@@ -275,11 +276,11 @@ namespace Hrot.ClusterRunner.Configuration
 
             // Editor mode is always standalone - must not be combined with distributed flags.
             if (RequestedSubsystems.Contains("editor") &&
-                (RequestedSubsystems.Contains("ig") || RequestedSubsystems.Contains("excon") ||
+                (RequestedSubsystems.Contains("ig") ||
                  RequestedSubsystems.Contains("orchestrator") || RequestedSubsystems.Contains("cgf")))
             {
                 throw new InvalidOperationException(
-                    "Editor must not be combined with distributed flags (IG, ExCon, Orchestrator, CGF).");
+                    "Editor must not be combined with distributed flags (IG, Orchestrator, CGF).");
             }
 
             // ReplayBrowser mode is always standalone - must not be combined with distributed flags.

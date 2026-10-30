@@ -41,7 +41,7 @@ internal static class ScenarioTwin
         File.Copy(Path.Combine(TestRepo.Root, "scenarios", scenario, "scenario.json"),
             Path.Combine(NasScenarioStaging.DirectoryOf(id), "scenario.json"), overwrite: true);
 
-        var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline)

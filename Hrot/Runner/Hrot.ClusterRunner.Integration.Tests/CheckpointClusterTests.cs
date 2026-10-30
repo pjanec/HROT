@@ -55,7 +55,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -146,7 +146,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -240,7 +240,7 @@ public sealed class CheckpointClusterTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐⭐ CE-4090 — with <i>Record live runs</i> OFF a live run on a REAL cluster (orchestrator, SimHost, IG, ExCon, CGF over DDS): (1) writes NO
+    /// ⭐⭐⭐ CE-4090 — with <i>Record live runs</i> OFF a live run on a REAL cluster (orchestrator, SimHost, IG, CGF over DDS): (1) writes NO
     /// <c>exercises/&lt;id&gt;</c> directory on any node and creates NO inventory ledger entry; (2) the "not recorded" fact reaches EVERY node on the load
     /// (the payload) and the master's broadcast; (3) checkpoint, restore and review are refused AT THE MASTER with the reason — not one TakeSnapshot /
     /// PrepareRestore / PrepareReview reaches any node (so no node throws), the live clock is not paused and the cluster stays live.
@@ -252,7 +252,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var bus    = harness.OrchestratorSvc.TimeBusForTest!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
@@ -279,7 +279,7 @@ public sealed class CheckpointClusterTests : IDisposable
         foreach (var (name, provider) in new[]
         {
             ("simhost", harness.SimHost.CreateDebugProvider()), ("ig", harness.Ig.CreateDebugProvider()),
-            ("cgf", harness.Cgf!.CreateDebugProvider()), ("excon", harness.ExCon.CreateDebugProvider()),
+            ("cgf", harness.Cgf!.CreateDebugProvider()),
         })
             Assert.True(provider?.RunNotRecorded, $"{name} must know the run is not recorded");
 
@@ -339,7 +339,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }
@@ -371,7 +371,7 @@ public sealed class CheckpointClusterTests : IDisposable
         Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
         File.Copy(recipe, Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
 
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", DomainId);
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", DomainId);
         var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
         var deadline = DateTime.UtcNow.AddSeconds(10.0);
         while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < deadline) { harness.PumpFrames(1); Thread.Sleep(10); }

@@ -1007,6 +1007,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    arrive. ⚠ AFTER Kernel.Initialize() on purpose: modules register their ingress systems from RegisterSystems(). (The R-4007 join gate is the base's, phase 7a.)
         WireWorldStateFreezeGate();
 
+        // ⭐ R-3067 / AQ109 X1 — the shared mission service is UI-free (bus, world, behaviour registry), so it is built for EVERY CGF, headless included, once.
+        //   📐 Measured: it sat in the `!_headless` block below, so a headless CGF's debug provider (`MissionEditor`, the HTTP/MCP mission-editing seam) handed out
+        //   null. Its `PollAcks()` already runs every frame (afterKernel); only the mission PANEL wiring stays window-only.
+        _missionService = new Hrot.UI.Common.Adapters.ScenarioMissionService(_context.World.Bus, _context.World, _behaviorRegistry!);
+
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
         {
@@ -1058,8 +1063,6 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ CE-1017 — THE shared spawn adapter, built by the map pack (EntityAuthoring), arbiter passed.
             _spawnAdapter      = _cgfMapInteraction.EntityAuthoring?.Spawn
                 ?? throw new InvalidOperationException("The map's entity-authoring surface has no spawn adapter (no creation request queue).");
-            _missionService    = new Hrot.UI.Common.Adapters.ScenarioMissionService(
-                _context.World.Bus, _context.World, _behaviorRegistry!);
             _mapConfigAdapter  = new Hrot.UI.Common.Adapters.ScenarioMapConfigAdapter(_mapViewConfig, _canvas);
             // ⭐ CE-060 made this ctor host-agnostic: its one `IEditorLogic.ActivateTool` call is now the
             //   shared ActivateEditorToolEvent + SelectEntityCommand that E3's systems drain on BOTH hosts.

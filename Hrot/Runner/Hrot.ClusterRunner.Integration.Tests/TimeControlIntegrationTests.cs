@@ -6,7 +6,6 @@ using Fdp.Toolkit.Time.Controllers;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.ExCon;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

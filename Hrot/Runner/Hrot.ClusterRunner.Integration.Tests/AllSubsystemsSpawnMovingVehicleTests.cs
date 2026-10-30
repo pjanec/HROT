@@ -64,8 +64,8 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         _out.WriteLine($"[A0] Domain: {domainId}");
 
         // ── Boot all five subsystems in one fully-headless orchestrator ───────
-        // all == orchestrator,simhost,ig,excon,cgf
-        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", domainId);
+        // all == orchestrator,simhost,ig,cgf
+        using var harness = new HrotRunnerHarness("simhost,ig,cgf", domainId);
 
         // Extra settle: wait for the first 1 Hz NodeHeartbeat from SimHost to reach CGF.
         // RoleGroupOwnershipStrategy delegates WorldPos to SimHost only after SimHost is

@@ -21,12 +21,11 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         [Fact]
         public void ParseModeString_Demo_ReturnsDemoFlags()
         {
-            // "demo" is an alias for "all" (orchestrator, simhost, ig, excon, cgf, traffic)
+            // "demo" is an alias for "all" (orchestrator, simhost, ig, cgf, traffic)
             var cfg = new HrotRunnerConfiguration { ModeString = "demo", NoWait = true };
             cfg.Validate();
             Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
             Assert.True(cfg.RequestedSubsystems.Contains("ig"));
-            Assert.True(cfg.RequestedSubsystems.Contains("excon"));
             Assert.True(cfg.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(cfg.RequestedSubsystems.Contains("cgf"));
             Assert.True(cfg.RequestedSubsystems.Contains("traffic"));
@@ -99,7 +98,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         public void Validate_EditorWithSimHost_IsAllowed()
         {
             // editor + simhost: SimHost is NOT in the forbidden distributed flags
-            // (the guard only blocks IG, ExCon, Orchestrator, CGF).
+            // (the guard only blocks IG, Orchestrator, CGF).
             // This test documents the current boundary.
             var cfg = new HrotRunnerConfiguration { ModeString = "editor,simhost", NoWait = true };
             // Should not throw (editor + simhost is not an explicitly forbidden combo)
@@ -151,7 +150,7 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         public void Validate_ExistingModes_StillParseWithoutError()
         {
             // SC_SM007_3 — no regression for established subsystem names
-            foreach (var mode in new[] { "simhost", "ig", "excon", "orchestrator", "cgf" })
+            foreach (var mode in new[] { "simhost", "ig", "orchestrator", "cgf" })
             {
                 var cfg = new HrotRunnerConfiguration { ModeString = mode, NoWait = true };
                 cfg.Validate(); // must not throw
@@ -159,19 +158,19 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void Validate_AllMode_ExpandsToTheSixSubsystems()
+        public void Validate_AllMode_ExpandsToTheFiveSubsystems()
         {
             // ST-015: replaces Validate_AllMode_DoesNotContainStrideMock, which asserted that "all"
             // omits a token that no longer exists anywhere -- trivially true, and it would have read
             // like a live guard. The invariant worth holding is what "all" DOES expand to: every
             // fine-grained node in one process, and there is no "--mode cluster".
             // 2026-10-28: the traffic node joined "all" (user ruling: "all" = orchestrator, simhost,
-            // cgf, traffic, player, excon ... all the fine-grained nodes together).
+            // cgf, traffic, player ... all the fine-grained nodes together).
             var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true };
             cfg.Validate();
 
             Assert.Equal(
-                new[] { "cgf", "excon", "ig", "orchestrator", "simhost", "traffic" },
+                new[] { "cgf", "ig", "orchestrator", "simhost", "traffic" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
         }
 
@@ -208,13 +207,13 @@ namespace Hrot.ClusterRunner.Tests.Configuration
         }
 
         [Fact]
-        public void Validate_PlayerWithExcon_NormalisesPlayerToIg()
+        public void Validate_PlayerWithSimHost_NormalisesPlayerToIg()
         {
-            var cfg = new HrotRunnerConfiguration { ModeString = "player,excon", NoWait = true };
+            var cfg = new HrotRunnerConfiguration { ModeString = "player,simhost", NoWait = true };
             cfg.Validate();
 
             Assert.Equal(
-                new[] { "excon", "ig" },
+                new[] { "ig", "simhost" },
                 cfg.RequestedSubsystems.OrderBy(s => s, StringComparer.Ordinal).ToArray());
         }
 

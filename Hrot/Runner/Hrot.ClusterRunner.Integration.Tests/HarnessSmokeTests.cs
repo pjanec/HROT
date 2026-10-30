@@ -1,3 +1,4 @@
+using System;
 ﻿using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
@@ -7,6 +8,19 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// </summary>
 public class HarnessSmokeTests
 {
+    /// <summary>
+    /// ⭐ R-3067 / AQ109 X1 — the ExCon node is retired: a node list that still names it THROWS (citing R-3067) instead of booting without it silently, so no test
+    /// keeps a stale <c>excon</c> token. 🔴 Mutation: delete the harness's <c>requested.Contains("excon")</c> guard ⇒ no exception ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData("simhost,ig,excon,cgf")]
+    [InlineData("EXCON")]
+    public void ANodeListNamingExCon_IsRejected_NamingR3067(string modes)
+    {
+        var ex = Assert.Throws<ArgumentException>(() => new HrotRunnerHarness(modes, 215));
+        Assert.Contains("R-3067", ex.Message);
+    }
+
     [Fact]
     public void EditorHarness_Initializes_WithoutException()
     {

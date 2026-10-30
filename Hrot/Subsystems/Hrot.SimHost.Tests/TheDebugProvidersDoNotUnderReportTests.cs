@@ -102,7 +102,6 @@ namespace Hrot.SimHost.Tests
             { "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",                         "Scenario" },
             { "Hrot/Subsystems/Hrot.SimHost/SimHostSubsystem.cs",                 "SimHost" },
             { "Hrot/Subsystems/Hrot.IG/IgSubsystem.cs",                           "IG" },
-            { "Hrot/Subsystems/Hrot.ExCon/ExConSubsystem.cs",                     "ExCon" },
             { "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.DebugSurface.cs",     "ReplayBrowser" },
         };
 

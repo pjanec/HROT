@@ -11,7 +11,6 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Network.NED.Factory;
 using Hrot.Orchestrator;
 using Hrot.SimHost;
-using Hrot.ExCon;
 using Hrot.ClusterRunner.Testing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -78,7 +77,7 @@ public sealed class ClusterOpE2eScriptTests
             localNodeId:  0,
             role:         NodeRole.None);
 
-        var orchestratorSvc = new OrchestratorSubsystem(factory);
+        var orchestratorSvc = new OrchestratorSubsystem(factory, TestDeployment.For(simHost: true, cgf: false));   // ⭐ CE-3347 — no CGF here, so no Brain is required
         var simHostSvc      = new SimHostSubsystem(factory);
 
         var options = new RunnerOptions { Headless = true, DomainId = domainId };

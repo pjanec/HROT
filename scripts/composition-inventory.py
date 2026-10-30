@@ -26,7 +26,6 @@ ROOTS = {
  "CGF(inline)"     : "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
  "Editor(inline)"  : "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
  "StrideEd(inline)": "Stride/HrotStrideApp.Game/EditorStrideSubsystem.cs",
- "ExCon"           : "Hrot/Subsystems/Hrot.ExCon/ExConSubsystem.cs",
  "ReplayBrowser"   : "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs",
  "EditorHarness(T)": "Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/EditorHarness.cs",
 }

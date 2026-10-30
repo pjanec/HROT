@@ -24,7 +24,6 @@ namespace Hrot.ClusterRunner.Tests
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
             Assert.True(config.RequestedSubsystems.Contains("ig"));
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
             Assert.True(config.RequestedSubsystems.Contains("traffic"));
@@ -48,14 +47,20 @@ namespace Hrot.ClusterRunner.Tests
             Assert.Equal(1, config.RequestedSubsystems.Count);
         }
 
-        [Fact]
-        public void ParseMode_Ios_ReturnsSingleFlag()
+        /// <summary>
+        /// ⭐ R-3067 / AQ109 X2 — the ExCon node is retired: <c>excon</c> and its legacy alias <c>ios</c> are an INVALID mode (thrown), never a silent drop.
+        /// 🔴 Mutation: put "excon" back into the valid-names set ⇒ the <c>excon</c> case goes red.
+        /// </summary>
+        [Theory]
+        [InlineData("excon")]
+        [InlineData("ios")]
+        [InlineData("simhost,excon")]
+        [InlineData("editor,excon")]
+        public void ParseMode_ExCon_IsRejectedAsInvalid(string mode)
         {
-            // "ios" is a legacy alias for "excon"
-            var config = new RunnerConfiguration { ModeString = "ios", NoWait = true };
-            config.Validate();
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
-            Assert.Equal(1, config.RequestedSubsystems.Count);
+            var config = new RunnerConfiguration { ModeString = mode, NoWait = true };
+            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
+            Assert.Contains("Invalid mode", ex.Message);
         }
 
         [Fact]
@@ -69,15 +74,14 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_ComboAllFive_ParsesEachToken()
+        public void ParseMode_ComboAllFour_ParsesEachToken()
         {
-            // The five explicit tokens each parse (ios normalised to excon). Since 2026-10-28 this is "all" MINUS traffic:
+            // The explicit tokens each parse. Since 2026-10-28 this is "all" MINUS traffic:
             // "all" also hosts the traffic node.
-            var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator,cgf", NoWait = true };
+            var config = new RunnerConfiguration { ModeString = "simhost,ig,orchestrator,cgf", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
             Assert.True(config.RequestedSubsystems.Contains("ig"));
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
         }
@@ -173,11 +177,11 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration
             {
                 ModeString    = "simhost",
-                WaitForString = "ig,ios"
+                WaitForString = "ig,simhost"
             };
             config.Validate();
             Assert.Contains("ig",  config.WaitForPeers);
-            Assert.Contains("ios", config.WaitForPeers);
+            Assert.Contains("simhost", config.WaitForPeers);
             Assert.Equal(2, config.WaitForPeers.Count);
         }
 
@@ -188,7 +192,7 @@ namespace Hrot.ClusterRunner.Tests
             var config = new RunnerConfiguration
             {
                 ModeString    = "simhost",
-                WaitForString = "player,ios"
+                WaitForString = "player,simhost"
             };
             config.Validate();
             Assert.Contains("ig",  config.WaitForPeers);
@@ -197,15 +201,11 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void WaitFor_ThreePeers_AllParsed()
+        public void WaitFor_Ios_IsNoLongerAPeer()
         {
-            var config = new RunnerConfiguration
-            {
-                ModeString    = "simhost",
-                WaitForString = "simhost,ig,ios"
-            };
-            config.Validate();
-            Assert.Equal(3, config.WaitForPeers.Count);
+            // R-3067 / AQ109 X2 — "ios" named the ExCon node; it is not a peer any more.
+            var config = new RunnerConfiguration { ModeString = "simhost", WaitForString = "simhost,ig,ios" };
+            Assert.Throws<InvalidOperationException>(() => config.Validate());
         }
 
         [Fact]
@@ -286,18 +286,17 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_AllMode_HasAllSixFlags()
+        public void ParseMode_AllMode_HasAllFiveFlags()
         {
-            // "all" includes all six subsystems: Orchestrator, SimHost, IG, ExCon, CGF and Traffic.
+            // "all" includes all five subsystems: Orchestrator, SimHost, IG, CGF and Traffic.
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.RequestedSubsystems.Contains("simhost"));
             Assert.True(config.RequestedSubsystems.Contains("ig"));
-            Assert.True(config.RequestedSubsystems.Contains("excon"));
             Assert.True(config.RequestedSubsystems.Contains("orchestrator"));
             Assert.True(config.RequestedSubsystems.Contains("cgf"));
             Assert.True(config.RequestedSubsystems.Contains("traffic"));
-            Assert.Equal(6, config.RequestedSubsystems.Count);
+            Assert.Equal(5, config.RequestedSubsystems.Count);
         }
 
         [Fact]
@@ -370,14 +369,6 @@ namespace Hrot.ClusterRunner.Tests
         public void ParseMode_EditorWithIg_ThrowsInvalidOperation()
         {
             var config = new RunnerConfiguration { ModeString = "editor,ig", NoWait = true };
-            var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
-            Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ParseMode_EditorWithExCon_ThrowsInvalidOperation()
-        {
-            var config = new RunnerConfiguration { ModeString = "editor,excon", NoWait = true };
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
             Assert.Contains("Editor", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
