@@ -72,6 +72,47 @@ namespace Fdp.Toolkit.Terrain.Tests
             return (v, i);
         }
 
+        /// <summary>
+        /// ⭐ CE-1452 — the soup is built ONCE per terrain world at the default cell size (the 3-D mesh, its tags and the picker's grid all asked
+        /// for it: 45–60 s on demo-city, three times). Same world ⇒ the same arrays; a new world ⇒ a fresh build; concurrent callers share one build;
+        /// a non-default cell size still builds directly.
+        /// </summary>
+        [Fact]
+        public void CE1452_TheSoupIsBuiltOncePerWorld_SharedByEveryCaller()
+        {
+            var w = Parse();
+            TerrainWorldMesh.Build(w, out var v1, out var i1, out var t1);
+            TerrainWorldMesh.Build(w, out var v2, out var i2);
+            TerrainWorldMesh.Build(w, out _, out _, out var t2);
+            Assert.Same(v1, v2); Assert.Same(i1, i2); Assert.Same(t1, t2);
+            Assert.Equal(1, TerrainWorldMesh.CoreBuildCount(w));
+
+            var other = Parse();                                             // a new world ⇒ its own build
+            TerrainWorldMesh.Build(other, out var ov, out _);
+            Assert.NotSame(v1, ov);
+            Assert.Equal(1, TerrainWorldMesh.CoreBuildCount(other));
+
+            TerrainWorldMesh.Build(w, out var c1, out _, cellSize: 2f);      // non-default ⇒ direct, never the memo
+            TerrainWorldMesh.Build(w, out var c2, out _, cellSize: 2f);
+            Assert.NotSame(c1, c2); Assert.NotSame(v1, c1);
+            Assert.Equal(3, TerrainWorldMesh.CoreBuildCount(w));
+        }
+
+        [Fact]
+        public void CE1452_ConcurrentCallers_ShareOneBuild()
+        {
+            var w = Parse();
+            var results = new Vector3[8][];
+            using var gate = new System.Threading.Barrier(8);
+            System.Threading.Tasks.Parallel.For(0, 8, new System.Threading.Tasks.ParallelOptions { MaxDegreeOfParallelism = 8 }, k =>
+            {
+                gate.SignalAndWait();
+                TerrainWorldMesh.Build(w, out results[k], out _);
+            });
+            Assert.Equal(1, TerrainWorldMesh.CoreBuildCount(w));
+            Assert.All(results, r => Assert.Same(results[0], r));
+        }
+
         private static Vector3 Normal(Vector3[] v, int[] idx, int t)
             => Vector3.Cross(v[idx[t + 1]] - v[idx[t]], v[idx[t + 2]] - v[idx[t]]);
 
