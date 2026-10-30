@@ -101,6 +101,13 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
                 ProfilerId(h.IdPrefix), $"{h.TitlePrefix} System Profiler", h.Perspective,
                 h.ExecutionStats,
                 h.TitleBarColor));
+
+        // ⭐⭐ AQ109 X5 (R-3067) — THE generic wire inspector: every host that composes this bundle offers it, closed by default (its DDS
+        //    readers exist only while it is open). ⚠ A host with no participant gets the window and a one-line explanation.
+        ctx.Windows.RegisterWindow(new WireEntityInspectorWindow(
+            WireEntitiesId(h.IdPrefix), $"{h.TitlePrefix} Wire Entity Inspector", h.Perspective,
+            h.WireParticipant,
+            h.TitleBarColor));
     }
 
     // ⭐ The id scheme, in one place and PUBLIC — so the equivalence rail asserts against the same
@@ -109,6 +116,7 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
     public static string EventsId(string idPrefix)       => $"{idPrefix}fdp_events";
     public static string ArchitectureId(string idPrefix) => $"{idPrefix}architecture_diagnostics";
     public static string ProfilerId(string idPrefix)     => $"{idPrefix}system_profiler";
+    public static string WireEntitiesId(string idPrefix) => $"{idPrefix}wire_entities";
 }
 
 /// <summary>
@@ -151,6 +159,8 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
 /// <param name="World">⭐ CE-1150 — the world the inspected entities live in (the menu is computed from it).</param>
 /// <param name="ArchitecturePanel">⛔ null ⇒ the window is NOT registered (ruling 49, and <c>G1</c>).</param>
 /// <param name="ExecutionStats">⛔ null ⇒ the profiler is NOT registered.</param>
+/// <param name="WireParticipant">⭐ AQ109 X5 — this host's DDS participant for the generic wire inspector; null/absent (or returning null) ⇒ the window
+/// says the host has no wire. ⛔ The inspector never creates a participant of its own.</param>
 /// <param name="TitleBarColor">
 /// ⭐⭐ <b>The subsystem's ONE colour</b>, applied to every window this bundle registers AND to the
 /// spawned "Inspect…" watch windows. 📌 <c>CE-083</c>: there used to be a second parameter for the
@@ -170,4 +180,5 @@ public sealed record DiagnosticsHostServices(
     Func<Fdp.Core.EntityRepository?> World,
     ArchitectureDiagnosticsPanel? ArchitecturePanel = null,
     Func<List<ModuleStats>?>? ExecutionStats = null,
-    MapPickBroker? PickBroker = null);
+    MapPickBroker? PickBroker = null,
+    Func<CycloneDDS.Runtime.DdsParticipant?>? WireParticipant = null);

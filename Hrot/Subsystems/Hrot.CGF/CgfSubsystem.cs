@@ -1307,7 +1307,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
                     // BP-327 — the module/system execution-stats profiler.
                     ExecutionStats: () => _context?.Kernel?.GetExecutionStats(),
-                    PickBroker:     cgfPickBroker)),
+                    PickBroker:     cgfPickBroker,
+                    WireParticipant: () => _context?.Participant)),   // ⭐ AQ109 X5
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

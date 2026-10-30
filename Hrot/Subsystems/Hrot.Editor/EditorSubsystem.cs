@@ -4825,7 +4825,8 @@ namespace Hrot.Editor
                         ExecutionStats:    editorExecutionStats,
                         PickBroker: _mapPickAdapter != null
                             ? new MapPickBroker(_mapPickAdapter)
-                            : null)),
+                            : null,
+                        WireParticipant: () => _networkFactory.Participant)),   // ⭐ AQ109 X5 — null offline
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

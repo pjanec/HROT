@@ -226,7 +226,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         //   (rb_fdp_inspector / rb_fdp_events, which replaced this host's own rb_inspector / rb_events copies).
         // ⭐ CE-1302 R1-c — and the event timeline (rb_event_timeline) over the primary node's recording.
         // ⭐ CE-1303 P2a — and the ONE film director's window (DirectorPack's, in this host's perspective — §11m D11).
-        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline" },
+        // ⭐ AQ109 X5 — and the generic wire inspector (rb_wire_entities, closed; this host has no participant, so it says so).
+        Assert.Equal(new[] { Hrot.UI.Common.Map3D.Director.DirectorWindow.WindowId, "rb_details", "rb_diff", "rb_event_timeline", "rb_fdp_events", "rb_fdp_inspector", "rb_search", "rb_timeline", "rb_wire_entities" },
                      windows.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
 
         foreach (var (_, win) in windows)
@@ -268,7 +269,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var windowsField = typeof(WindowManager).GetField("_windows", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var windows = (Dictionary<string, ManagedWindow>)windowsField.GetValue(wm)!;
 
-        Assert.Equal(8, windows.Count);   // ⭐ CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a (the Director) — see the rail above
+        Assert.Equal(9, windows.Count);   // ⭐ AQ109 X5 (+ rb_wire_entities) · CE-1150 / CE-1244 / CE-1302 / CE-1303 P2a (the Director) — see the rail above
         Assert.False(windows.ContainsKey("rb_federation"));
     }
 
