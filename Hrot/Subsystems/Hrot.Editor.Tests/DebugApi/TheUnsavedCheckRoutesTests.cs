@@ -33,22 +33,6 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
     private string? _refusal;                                              // …or this refusal
     private bool? _lastVerdictInReadModel;                                 // GET /status.scenarioDirty reads this
 
-    private static int FreePort()
-    {
-        var l = new TcpListener(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port;
-    }
-
-    private static async Task<(HttpStatusCode Status, JsonNode Body)> Send(MainThreadJobQueue queue, Task<HttpResponseMessage> request)
-    {
-        for (int i = 0; i < 4000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
-        var response = await request;
-        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
-    }
-
     private int Rounds => _master.Sent.OfType<CheckUnsavedIntent>().Count();
 
     /// <summary>The cluster read model: a round the master was asked for is answered as the test set it up (an answer to the id it was asked under).</summary>
@@ -70,7 +54,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
     {
         var (host, queue, url) = Start();
         using var h = host;
-        var (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
+        var (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
         Assert.Equal(HttpStatusCode.OK, status);
         var asked = Assert.Single(_master.Sent.OfType<CheckUnsavedIntent>());
         Guid[] reads; lock (_readIds) reads = _readIds.ToArray();
@@ -101,7 +85,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
             currentPerspective: () => "CGF", acksPending: null);
         // the unload before a load is "reached" the moment the route asked for it
         var service = new DebugApiService(dispatcher, clusterState: () => _master.Transitions.Any(t => t.TargetState == ClusterState.Idle) ? ClusterState.Idle : _state);
-        int port = FreePort();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         var host = new DebugApiHost(port, queue, () => { });
         host.AttachDispatcher(dispatcher);
@@ -119,7 +103,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         using var h = host;
 
         // unchanged
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.False(body["data"]!["changed"]!.GetValue<bool>());
         Assert.Empty(body["data"]!["changedNodes"]!.AsArray());
@@ -127,7 +111,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
         // changed, with the nodes named
         _verdict = new UnsavedCheckResult(true, new[] { 2, 5 });
-        (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.True(body["data"]!["changed"]!.GetValue<bool>());
         Assert.Equal(new[] { 2, 5 }, body["data"]!["changedNodes"]!.AsArray().Select(n => n!.GetValue<int>()).ToArray());
@@ -135,7 +119,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
         // the master refuses outside editing: a state conflict
         _refusal = UnsavedCheckOutcome.NotEditingReason;
-        (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/check-unsaved", Json("{}")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("editing", body["error"]!.GetValue<string>());
     }
@@ -173,7 +157,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
         // ── changed ⇒ 409, nothing sent to the master but the check itself ───────────────────────────────────────────────────────────
         _verdict = new UnsavedCheckResult(true, new[] { 3 });
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("the scenario has unsaved changes", body["error"]!.GetValue<string>());
         Assert.Contains("discardUnsaved", body["error"]!.GetValue<string>());
@@ -181,7 +165,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         Assert.Empty(_master.Transitions);                                        // ⭐ the load was NOT published
 
         // ── discardUnsaved ⇒ no round at all, the load goes out ────────────────────────────────────────────────────────────────────────
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack","discardUnsaved":true}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack","discardUnsaved":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(1, Rounds);                                                  // the gate did not even ask
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions.Last().TargetState);
@@ -189,7 +173,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
         // ── unchanged ⇒ the load goes out after exactly one round ────────────────────────────────────────────────────────────────────
         _verdict = UnsavedCheckResult.Unchanged;
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(1, Rounds);
         Assert.Equal(ClusterState.OperatingLive, _master.Transitions.Last().TargetState);
@@ -208,7 +192,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         using var h = host;
 
         _verdict = new UnsavedCheckResult(true, new[] { 2, 5 });
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         var error = body["error"]!.GetValue<string>();
         Assert.Contains("the scenario has unsaved changes (nodes: 2,5)", error);
@@ -216,7 +200,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         Assert.Equal(1, Rounds);
         Assert.Empty(_master.Transitions);                                        // ⭐ nothing was published
 
-        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("""{"discardUnsaved":true}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/replay/stop", Json("""{"discardUnsaved":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(1, Rounds);                                                  // the discard asked no round
         var idle = Assert.Single(_master.Transitions);
@@ -226,14 +210,14 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
 
         _master.Sent.Clear(); _master.Transitions.Clear();
         _verdict = UnsavedCheckResult.Unchanged;
-        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(1, Rounds);                                                  // a clean scenario: one round, then it goes
         Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
 
         _master.Sent.Clear(); _master.Transitions.Clear();
         _state = ClusterState.OperatingLive;
-        (status, _) = await Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/replay/stop", Json("{}")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(0, Rounds);                                                  // a run holds no scenario: nothing is asked
         Assert.Equal(ClusterState.Idle, Assert.Single(_master.Transitions).TargetState);
@@ -247,12 +231,12 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         using var h = host;
 
         _verdict = new UnsavedCheckResult(true, new[] { 3 });
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"name":"other"}""")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"name":"other"}""")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Contains("the scenario has unsaved changes", body["error"]!.GetValue<string>());
         Assert.Empty(_master.Transitions);
 
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"name":"other","discardUnsaved":true}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"name":"other","discardUnsaved":true}""")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(ClusterState.OperatingEdit, _master.Transitions.Last().TargetState);
     }
@@ -272,7 +256,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         using var h = host;
 
         // the open scenario is unchanged ⇒ the load goes out, naming the recorded copy — and ONLY a transition (no save, no storage op, no delete)
-        var (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(RecordedScenarioNames.ForExercise(known.ExerciseId), body["data"]!["loading"]!.GetValue<string>());
         var transition = _master.Transitions.Last();                                // (the unload to Idle goes first when a scenario is open)
@@ -282,23 +266,23 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         _master.Sent.Clear(); _master.Transitions.Clear();
 
         // refusals — nothing reaches the master
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{Guid.NewGuid()}\"}}")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{Guid.NewGuid()}\"}}")));
         Assert.Equal(HttpStatusCode.NotFound, status);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"recorded":"not-a-guid"}""")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json("""{"recorded":"not-a-guid"}""")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"name\":\"other\"}}")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"name\":\"other\"}}")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Empty(_master.Transitions);
         Assert.Empty(_master.Sent);
 
         // the unsaved-changes gate is the ordinary one: edits in the open scenario ⇒ 409 until discardUnsaved
         _verdict = new UnsavedCheckResult(true, new[] { 3 });
-        (status, body) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
+        (status, body) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\"}}")));
         Assert.Equal(HttpStatusCode.Conflict, status);
         Assert.Empty(_master.Transitions);
-        (status, _) = await Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"discardUnsaved\":true}}")));
+        (status, _) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/edit", Json($"{{\"recorded\":\"{known.ExerciseId}\",\"discardUnsaved\":true}}")));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("opened/recorded/" + known.ExerciseId, _master.Transitions.Last().ScenarioId);
     }
@@ -316,7 +300,7 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         var (host, queue, url) = Start(observesChecks: observes);
         using var h = host;
 
-        var (status, _x) = await Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
+        var (status, _x) = await DebugApiTestHost.Send(queue, _client.PostAsync(url + "/scenario/load/live", Json("""{"name":"hill-attack"}""")));
 
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal(0, Rounds);
@@ -353,15 +337,15 @@ public sealed class TheUnsavedCheckRoutesTests : IDisposable
         var (host, queue, url) = Start();
         using var h = host;
 
-        var (status, body) = await Send(queue, _client.GetAsync(url + "/status"));
+        var (status, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/status"));
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Null(body["data"]!["scenarioDirty"]);                               // none ran
 
         _lastVerdictInReadModel = true;
-        (_, body) = await Send(queue, _client.GetAsync(url + "/status"));
+        (_, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/status"));
         Assert.True(body["data"]!["scenarioDirty"]!.GetValue<bool>());
         _lastVerdictInReadModel = false;
-        (_, body) = await Send(queue, _client.GetAsync(url + "/status"));
+        (_, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/status"));
         Assert.False(body["data"]!["scenarioDirty"]!.GetValue<bool>());
 
         Assert.Equal(0, Rounds);                                                  // ⭐ reading it asked nobody

@@ -130,6 +130,10 @@ public abstract class ManagedWindow
     /// <summary>⭐ <c>CE-4096</c> — a hook run just before <c>Gui.Begin</c> (the place for <c>SetNextWindowPos/Size</c>). Default: nothing.</summary>
     protected virtual void BeforeBegin() { }
 
+    /// <summary>⭐ AQ109 X5 — a hook run each frame the window is CLOSED (no ImGui calls may be made). The place for an opt-in window to release what it only
+    /// holds while open (the wire inspector's DDS readers). Default: nothing.</summary>
+    protected virtual void OnRenderWhileClosed() { }
+
     // ── Construction ───────────────────────────────────────────────────────────
 
     /// <summary>Initialises a new managed window.</summary>
@@ -161,7 +165,7 @@ public abstract class ManagedWindow
     public void Render(string currentPerspective, IconAtlas atlas)
     {
         // Step 1 — open gate.
-        if (!_isOpen) return;
+        if (!_isOpen) { OnRenderWhileClosed(); return; }
 
         // Step 2 — visibility gate.
         var isVisible = Scope == WindowScope.Global

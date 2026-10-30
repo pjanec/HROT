@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.DER
         /// <summary>
         /// Retrieve entity by ID. Returns null if not found.
         /// </summary>
-        IDerEntity? GetEntity(int entityId);
+        IDerEntity? GetEntity(long entityId);
         
         /// <summary>
         /// Get all entities currently in repository.
@@ -29,12 +29,12 @@ namespace Fdp.Toolkit.DER
         /// Create new entity with specified ID and TKB type.
         /// Throws if entity ID already exists.
         /// </summary>
-        IDerEntity CreateEntity(int entityId, long tkbType);
+        IDerEntity CreateEntity(long entityId, long tkbType);
         
         /// <summary>
         /// Delete entity by ID. No-op if entity doesn't exist.
         /// </summary>
-        void DeleteEntity(int entityId);
+        void DeleteEntity(long entityId);
         
         /// <summary>
         /// Raised when new entity is created.

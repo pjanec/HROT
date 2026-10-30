@@ -20,7 +20,7 @@ namespace Hrot.CGF.Debug;
 ///
 /// <para>⛔⛔ <b>It does NOT hold a <c>MasterSyncController</c>, and cannot.</b> The slice-4
 /// <c>classDiagram</c> draws one, but 📐 CGF's kernel time controller is a
-/// <c>SlaveSyncController</c> *(<c>CgfApplication.cs:127</c>)* and the only production
+/// <c>SlaveSyncController</c> *(built by the shared node builder; the retired <c>CgfApplication</c> had the same, CE-3348)* and the only production
 /// <c>MasterSyncController</c> lives on the orchestrator *(<c>OrchestratorSubsystem.cs:176</c>)*.
 /// ⭐ That is not an oversight in the owning design — §3a states it outright: *"CGF is a <b>slave</b>:
 /// it cannot switch modes, only <b>request</b>."</para>
@@ -81,7 +81,7 @@ public sealed class CgfClusterDebugTimeController : IEngineDebugTimeController
     /// <param name="simGroup">CGF's togglable simulation group — the other half.</param>
     /// <param name="hasCluster">
     ///   ⭐ Is there anyone to answer a freeze request? <c>false</c> in the documented no-DDS mode
-    ///   (<c>CgfApplication.cs:107</c>), where a purely local halt is the complete and correct
+    ///   (the headless / no-DDS node), where a purely local halt is the complete and correct
     ///   behaviour and <c>DQ30-E</c> forbids a warning.
     /// </param>
     /// <param name="log">Where an unanswered freeze is reported. ⛔ Never a modal — ruling 53.</param>

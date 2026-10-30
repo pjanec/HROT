@@ -31,7 +31,7 @@ namespace Hrot.Common.Infrastructure;
 /// <para>📐 <b>Measured, 2026-08-26:</b> the four consumers that receive a world through this record
 /// (<c>SimHostApp</c>, <c>IgApplication</c>, <c>CgfSubsystem</c>, <c>EditorSubsystem</c>) all
 /// disposed the kernel and none disposed the world; the three that build their own world directly
-/// (<c>CgfApplication</c>, <c>EditorSubsystem</c>, <c>ScenarioSubsystem</c>) all dispose it. ⇒ the
+/// (the former <c>CgfApplication</c> — deleted, CE-3348 — <c>EditorSubsystem</c>, <c>ScenarioSubsystem</c>) all dispose it. ⇒ the
 /// defect was the MISSING OWNERSHIP CONTRACT on this record, not four independent oversights.
 /// One leaked <see cref="EntityRepository"/> holds an <c>int[1_000_000]</c> free list plus one
 /// <c>NativeChunkTable</c> per registered component; accumulated across an integration run it

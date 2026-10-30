@@ -293,7 +293,7 @@ namespace Hrot.SimHost.Tests
         ///
         /// <para>📐 Measured before the change: <c>NodeRole.Brain</c> was spelled in THREE places —
         /// <c>CgfSubsystem</c>'s <c>WithRole</c>, its <c>ConfigureForNode</c>, and
-        /// <c>CgfApplication</c>'s. That is the drift <c>CE-197</c> measured on SimHost, where the
+        /// the former <c>CgfApplication</c>'s (deleted, CE-3348). That is the drift <c>CE-197</c> measured on SimHost, where the
         /// copies had already diverged from what the node actually composed.</para>
         /// </summary>
         [Fact]

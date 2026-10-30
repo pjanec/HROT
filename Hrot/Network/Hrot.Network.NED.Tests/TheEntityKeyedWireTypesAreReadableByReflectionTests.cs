@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema;
+using Fdp.Toolkit.DER;
 using Xunit;
 
 namespace Hrot.Network.NED.Tests
@@ -20,17 +21,8 @@ namespace Hrot.Network.NED.Tests
     {
         private const uint PrivateDomain = 123;
 
-        /// <summary>The first <c>[DdsKey]</c> field of a type, in declaration order; null when the type is unkeyed.</summary>
-        internal static string? FirstKeyName(Type t)
-            => t.GetFields(BindingFlags.Public | BindingFlags.Instance)
-                .Where(f => f.GetCustomAttribute<DdsKeyAttribute>() is not null)
-                .OrderBy(f => f.MetadataToken)
-                .Select(f => f.Name).FirstOrDefault();
-
-        internal static bool IsEntityKeyed(Type t) => FirstKeyName(t) is "EntityId" or "ParentNetworkId";
-
-        internal static IReadOnlyList<Type> EntityKeyedTypes()
-            => TheTopicNamesAreDerivedFromTypesTests.TopicTypes.Value.Where(IsEntityKeyed).OrderBy(t => t.FullName, StringComparer.Ordinal).ToList();
+        /// <summary>⭐ The SAME helper the inspector uses (<see cref="WireTypeCatalog"/>) — the rail and the mirror cannot disagree.</summary>
+        internal static IReadOnlyList<Type> EntityKeyedTypes() => WireTypeCatalog.EntityKeyed(TheTopicNamesAreDerivedFromTypesTests.TopicTypes.Value);
 
         private static string ProtocolDoc()
         {

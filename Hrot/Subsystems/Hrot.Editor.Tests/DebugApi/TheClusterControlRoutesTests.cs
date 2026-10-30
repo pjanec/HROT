@@ -288,7 +288,7 @@ public sealed class TheClusterControlRoutesTests
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
 
-        var l = new TcpListener(IPAddress.Loopback, 0); l.Start(); int port = ((IPEndPoint)l.LocalEndpoint).Port; l.Stop();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         using var host = new DebugApiHost(port, queue, () => { });
         host.AttachDispatcher(dispatcher);
@@ -297,12 +297,7 @@ public sealed class TheClusterControlRoutesTests
         string url = $"http://localhost:{port}";
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         StringContent Json(string t) => new(t, Encoding.UTF8, "application/json");
-        async Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request)
-        {
-            for (int i = 0; i < 2000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
-            var response = await request;
-            return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
-        }
+        Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request) => DebugApiTestHost.Send(queue, request);
 
         // ── not operable: the cluster waits for its Brain ───────────────────────────────────────────────────────────────────────
         foreach (var (method, path, body) in new[]
@@ -381,7 +376,7 @@ public sealed class TheClusterControlRoutesTests
             currentPerspective: () => "CGF", acksPending: null);
         var service = new DebugApiService(dispatcher, clusterState: () => _state);
 
-        var l = new TcpListener(IPAddress.Loopback, 0); l.Start(); int port = ((IPEndPoint)l.LocalEndpoint).Port; l.Stop();
+        int port = DebugApiTestHost.FreePort();
         var queue = new MainThreadJobQueue();
         using var host = new DebugApiHost(port, queue, () => { });
         host.AttachDispatcher(dispatcher);
@@ -390,12 +385,7 @@ public sealed class TheClusterControlRoutesTests
         string url = $"http://localhost:{port}";
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         StringContent Json(string t) => new(t, Encoding.UTF8, "application/json");
-        async Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request)
-        {
-            for (int i = 0; i < 2000 && !request.IsCompleted; i++) { queue.DrainAll(); await Task.Delay(5); }
-            var response = await request;
-            return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync())!);
-        }
+        Task<(HttpStatusCode Status, JsonNode Body)> Send(Task<HttpResponseMessage> request) => DebugApiTestHost.Send(queue, request);
         static bool RefusedByTheGate(JsonNode body) => body["data"]?["notOperable"] is not null;
 
         async Task AssertTheGateRefusesAndTheExitsWork(string phase)

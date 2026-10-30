@@ -46,6 +46,7 @@
   "cgf_spawner",
   "cgf_system_profiler",
   "cgf_waypoint_editor",
+  "cgf_wire_entities",
   "cluster_control",
   "fdp_message_log",
   "global_menu",
@@ -57,6 +58,7 @@
   "ig_performance",
   "ig_system_profiler",
   "ig_waypoint_editor",
+  "ig_wire_entities",
   "main_toolbar",
   "orchestrator_diagnostics",
   "orchestrator_main",
@@ -66,5 +68,6 @@
   "simhost_fdp_events",
   "simhost_fdp_inspector",
   "simhost_reports",
-  "simhost_system_profiler"
+  "simhost_system_profiler",
+  "simhost_wire_entities"
 ]

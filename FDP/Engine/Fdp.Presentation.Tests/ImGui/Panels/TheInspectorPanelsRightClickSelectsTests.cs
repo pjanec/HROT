@@ -135,7 +135,7 @@ public sealed class TheInspectorPanelsRightClickSelectsTests
     [Fact]
     public void TheDerPanel_RightClickingAnUnselectedRow_RequestsIt_AndASelectedOneRequestsNothing()
     {
-        var asked = new List<int>();
+        var asked = new List<long>();
         int hostSelected = 7;
         var panel = new DerEntityInspectorPanel
         {
@@ -147,7 +147,7 @@ public sealed class TheInspectorPanelsRightClickSelectsTests
         Assert.Empty(asked);
 
         panel.RightClick(9);                                // ⭐ §2.3 row 2 — not selected
-        Assert.Equal(new[] { 9 }, asked.ToArray());
+        Assert.Equal(new[] { 9L }, asked.ToArray());
     }
 
     /// <summary>

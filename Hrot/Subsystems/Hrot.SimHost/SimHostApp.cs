@@ -228,7 +228,7 @@ namespace Hrot.SimHost
         ///
         /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, on the
         /// same argument as <see cref="OrchestrationBus"/> directly above. ⭐ Named and shaped to match
-        /// <c>CgfApplication.ClusterSlave</c> and <c>IgApplication.ClusterSlave</c>, so the three ECS nodes
+        /// <c>CgfSubsystem</c>'s node <c>ClusterSlave</c> and <c>IgApplication.ClusterSlave</c>, so the three ECS nodes
         /// present one member to the one shared projection. ⚠ <see langword="null"/> before
         /// <c>Initialize</c> and after <c>Shutdown</c>; read it, never latch it.</para>
         /// </summary>

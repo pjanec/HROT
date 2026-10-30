@@ -1525,7 +1525,7 @@ public class IgApplication : IDisposable
     ///
     /// <para>⛔ <b>Not a test hook</b> — <c>CE-163</c> makes the debug API read it in production, exactly
     /// as it reads <see cref="OrchestrationBus"/>. ⭐ Named and shaped to match
-    /// <c>CgfApplication.ClusterSlave</c> and <c>SimHostApp.ClusterSlave</c>, so the three ECS nodes
+    /// <c>CgfSubsystem</c>'s node <c>ClusterSlave</c> and <c>SimHostApp.ClusterSlave</c>, so the three ECS nodes
     /// present one member to the one shared projection. ⚠ Read it, never latch it: <see langword="null"/>
     /// before <c>InitializeNetwork</c> *(e.g. headless tests without DDS)* and after <c>Shutdown</c>.</para>
     /// </summary>

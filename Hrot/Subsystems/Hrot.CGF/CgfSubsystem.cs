@@ -71,7 +71,7 @@ namespace Hrot.CGF;
 
 /// <summary>
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.
-/// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
+/// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of the former <c>CgfApplication</c> (deleted, CE-3348).
 /// </summary>
 public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider,
     Hrot.Presentation.DebugApi.IProvidesDebugSurface, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
@@ -1308,7 +1308,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _context?.Kernel)),
                     // BP-327 — the module/system execution-stats profiler.
                     ExecutionStats: () => _context?.Kernel?.GetExecutionStats(),
-                    PickBroker:     cgfPickBroker)),
+                    PickBroker:     cgfPickBroker,
+                    WireParticipant: () => _context?.Participant)),   // ⭐ AQ109 X5
             },
             new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 
@@ -2667,7 +2668,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _toggleSim = null;
         // QA-001: dispose the whole node context — kernel THEN world. This used to be
         // `_context?.Kernel.Dispose()`, which leaked the EntityRepository on every CGF teardown.
-        // (CgfApplication, which builds its own world, already disposed it — this path did not.)
+        // (The former CgfApplication, which built its own world, already disposed it — this path did not; CE-3348 deleted it.)
         _context?.Dispose();
         // QA-005: the breakpoint machinery owns TWO more repositories — the pre-tick snapshot built
         // here and the post-tick snapshot the manager builds for itself. Both leaked until now.

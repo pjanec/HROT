@@ -269,6 +269,8 @@ public sealed class SharedApplicationBootstrapperTests
         ("Stride",  "Stride/HrotStrideApp.Game/StrideNodeShell.cs",              "Hrot/Subsystems/Hrot.NodeComposition/StrideNodeBootstrapper.cs"),
     };
 
+    private static readonly System.Text.RegularExpressions.Regex NewClusterSlave = new(@"new\s+(?:[\w.]+\.)?ClusterSlave\s*\(", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private static string CodeOf(string path)   // the file's code lines: comments (// and ///) dropped, so a doc mention is not a call
         => string.Join("\n", System.IO.File.ReadAllLines(path).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
 
@@ -277,7 +279,7 @@ public sealed class SharedApplicationBootstrapperTests
     /// <c>SharedApplicationBootstrapper</c> subclass, and NO production source outside those bootstrappers and the builder's own files calls <c>new HrotNodeBuilder(</c> or
     /// <c>BuildReplicatedNode(</c>. A SOURCE scan (Stride targets net8.0-windows, out of reflection's reach); it cannot pass empty — it names the six hosts and fails if one is missing.
     /// ⚠ Stride's hand-built RUN CONTROLS (CE-1449) are not a node build — Stride's node IS built by <c>StrideNodeBootstrapper</c> (<c>StrideNodeShell.cs</c>) — so no allow-list entry is needed here.
-    /// 🔴 Red-proof: a <c>new HrotNodeBuilder(…)</c> added to <c>CgfSubsystem.Initialize</c> ⇒ the first assertion names it.
+    /// 🔴 Red-proof: a <c>new HrotNodeBuilder(…)</c> added to <c>CgfSubsystem.Initialize</c> ⇒ the first assertion names it; ⭐ CE-3348: a <c>new ClusterSlave(…)</c> in any host file (it was <c>CgfApplication.cs</c>) ⇒ the slave assertion names it.
     /// </summary>
     [Fact]
     public void CE1446_EveryEcsHostBuildsItsNodeThroughASharedBootstrapperSubclass_AndNoneInline()
@@ -298,6 +300,7 @@ public sealed class SharedApplicationBootstrapperTests
         // ② no production file outside the bootstrappers and the builder's own files builds a node itself
         var allowed = new HashSet<string>(StringComparer.Ordinal) { "HrotNodeBuilder.cs", "HrotNodeBuilderReplicationExtensions.cs", "SharedApplicationBootstrapper.cs" };
         var offenders = new List<string>();
+        var slaveOffenders = new List<string>();
         int scanned = 0;
         foreach (string top in new[] { "Hrot", "Stride" })
             foreach (string file in Fdp.Testing.RepoSources.CsFiles(System.IO.Path.Combine(root, top)))   // ⭐ CE-1366 — the one scan: skips obj/ bin/ .claude/ .git/
@@ -309,11 +312,17 @@ public sealed class SharedApplicationBootstrapperTests
                 scanned++;
                 string code = CodeOf(file);
                 if (code.Contains("new HrotNodeBuilder(") || code.Contains("BuildReplicatedNode(")) offenders.Add(rel);
+                // ⭐ CE-3348 — and NO host builds a ClusterSlave itself either: the node's ONE slave is made by the builder / bootstrapper, so every host
+                //   gets the shared handler set (EcsHostClusterHandlers.Compose) by construction. That was the shape `CgfApplication` had (a second root with its
+                //   own `new ClusterSlave(`) and the rail above missed it. ⚠ The orchestrator is not an ECS host (no world, no node): its slave is its own.
+                if (NewClusterSlave.IsMatch(code) && name != "OrchestratorSubsystem.cs") slaveOffenders.Add(rel);   // ⚠ matches a qualified `new Fdp.Toolkit.Orchestration.ClusterSlave(` too — CgfApplication wrote it that way
             }
 
         Assert.True(scanned > 500, $"the scan saw only {scanned} production files — it is not looking where the hosts are.");
         Assert.True(offenders.Count == 0,
             "These production files build a node inline (new HrotNodeBuilder / BuildReplicatedNode) instead of through a SharedApplicationBootstrapper subclass (CE-1446 / R-1045): " + string.Join(", ", offenders));
+        Assert.True(slaveOffenders.Count == 0,
+            "These production files build a ClusterSlave themselves (new ClusterSlave) instead of getting the node's one slave from the builder / bootstrapper (CE-3348): " + string.Join(", ", slaveOffenders));
     }
 
     [Fact]

@@ -324,7 +324,8 @@ namespace Hrot.SimHost
                         // BP-327 — the module/system execution-stats profiler.
                         ExecutionStats: () => _app?.Kernel?.GetExecutionStats(),
                         // ⭐ CE-083 — no second colour: TitleBarColor IS SimHostWindowColor.TitleBar.
-                        PickBroker:     vis.GetMapPickBroker())),
+                        PickBroker:     vis.GetMapPickBroker(),
+                        WireParticipant: () => _app?.NodeContext?.Participant)),   // ⭐ AQ109 X5
                     // ⭐⭐⭐ CE-1150 (canvas-context-menu-design §12 HA-4) — THE Details panel, the same shared one every ECS host builds:
                     //   the Components view, and Properties… / View ▸ Details on this host's actions. 📐 Before: none on SimHost.
                     //   ⭐ The world ticks from boot (no planning state, as on CGF); frozen = the clock is halted.

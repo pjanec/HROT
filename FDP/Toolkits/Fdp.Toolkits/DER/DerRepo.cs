@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.DER
 {
     public class DerRepo : IDerRepo
     {
-        private readonly ConcurrentDictionary<int, DerEntity> _entities = new();
+        private readonly ConcurrentDictionary<long, DerEntity> _entities = new();
 
         public int LocalNodeId { get; }
 
@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.DER
         public event Action<IDerEntity>? EntityCreated;
         public event Action<IDerEntity>? EntityDeleted;
 
-        public IDerEntity? GetEntity(int entityId)
+        public IDerEntity? GetEntity(long entityId)
         {
             if (_entities.TryGetValue(entityId, out var entity))
             {
@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.DER
             return _entities.Values.ToList(); // Return snapshot to avoid modification while iterating
         }
 
-        public IDerEntity CreateEntity(int entityId, long tkbType)
+        public IDerEntity CreateEntity(long entityId, long tkbType)
         {
             var entity = new DerEntity(entityId, tkbType);
             if (!_entities.TryAdd(entityId, entity))
@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.DER
             return entity;
         }
 
-        public void DeleteEntity(int entityId)
+        public void DeleteEntity(long entityId)
         {
             if (_entities.TryRemove(entityId, out var entity))
             {
