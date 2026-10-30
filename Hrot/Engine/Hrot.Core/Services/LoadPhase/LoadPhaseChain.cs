@@ -113,12 +113,17 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         string? storageDirectory = null,
         string hostLabel = "node",
         Fdp.Toolkit.Replication.Services.NetworkEntityMap? entityMap = null,
-        Fdp.Toolkit.Replay.WorldChangeCheck? changeCheck = null)
+        Fdp.Toolkit.Replay.WorldChangeCheck? changeCheck = null,
+        IReadOnlyList<LoadPart>? profileParts = null)
     {
         if (providers == null) throw new ArgumentNullException(nameof(providers));
 
         var available = providers.Where(p => p != null).ToList();
-        var required  = RoleLoadRequirements.PartsFor(roles);
+        // ⭐ CE-4078 (R-1046) — what the node's PROFILE adds (the Player's 3-D map): AFTER the role parts, so it runs after the terrain. Not a role requirement, but a missing provider is the same defect.
+        var required  = RoleLoadRequirements.PartsFor(roles).ToList();
+        if (profileParts != null)
+            foreach (var part in profileParts)
+                if (!required.Contains(part)) required.Add(part);
         var ordered   = new List<ILoadPartProvider>(required.Count);
 
         foreach (var part in required)
@@ -126,7 +131,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             var provider = available.FirstOrDefault(p => p.Part == part);
             if (provider == null)
                 throw new InvalidOperationException(
-                    $"[LoadPhase] {hostLabel} has roles [{roles}], which require the '{part}' part of the "
+                    $"[LoadPhase] {hostLabel} has roles [{roles}] (profile parts [{string.Join(", ", profileParts ?? Array.Empty<LoadPart>())}]), which require the '{part}' part of the "
                   + $"load phase, but no provider for it was supplied. Composed providers: "
                   + $"[{string.Join(", ", available.Select(p => p.Part))}]. "
                   + "A host may choose HOW it satisfies a part; it may not satisfy fewer parts than its "
@@ -248,7 +253,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         foreach (var step in steps)
             if (!step.PreparesOffFrameThread)
             {
-                _currentStep = step.Part.ToString();
+                _currentStep = step.ProgressStep ?? step.Part.ToString();
                 await step.PrepareAsync(context, ct).ConfigureAwait(false);
             }
 
@@ -258,7 +263,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             {
                 foreach (var step in offFrame)
                 {
-                    _currentStep = step.Part.ToString();
+                    _currentStep = step.ProgressStep ?? step.Part.ToString();
                     await step.PrepareAsync(context, ct).ConfigureAwait(false);
                 }
             }, ct).ConfigureAwait(false);
@@ -343,7 +348,19 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         if (_holdTcs == null) return;
 
         foreach (var step in _loadContext is { } held ? StepsFor(held) : _steps)
-            if (!step.IsResolved(_world)) { _currentStep = step.Part.ToString(); return; }   // ⭐ CE-3345 — the first step still draining is the one the node reports
+        {
+            // ⭐ CE-4078 — a step that failed in the background fails the LOAD, through the one failure path: the hold faults, the slave's FailPrepare reports the reason, the round ends in Idle.
+            if (step.Failure is { } failure)
+            {
+                var hold = _holdTcs;
+                if (_loadContext is { } failedLoad)
+                    foreach (var undo in StepsFor(failedLoad)) undo.Abort(failedLoad);   // free what the other steps built, as an abort does
+                _holdTcs = null; _currentStep = null; _loadTransactionId = Guid.Empty; _loadContext = null; _pendingExerciseId = Guid.Empty;
+                hold.TrySetException(new InvalidOperationException($"[LoadPhase] {_hostLabel}: the '{step.Part}' part failed — {failure}"));
+                return;
+            }
+            if (!step.IsResolved(_world)) { _currentStep = step.ProgressStep ?? step.Part.ToString(); return; }
+        }   // ⭐ CE-3345 — the first step still draining is the one the node reports
 
         // ⭐⭐ CE-4093 (AQ108 D20) — THE baseline of the unsaved-changes check STARTS here: the world the load just built IS the saved one — but it
         //   SETTLES first (a world just loaded still gets one frame of initial work: WorldChangeCheck.BeginSettling), so the baseline is the first

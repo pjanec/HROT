@@ -57,6 +57,12 @@ namespace Hrot.SimHost.Modules.Orchestration
 
         // ── the load phase ──
         public required List<ILoadPartProvider> LoadProviders { get; init; }
+
+        /// <summary>⭐ CE-4078 (R-1046) — the load parts this node's PROFILE adds to its roles' (the Player: <see cref="LoadPart.Map3D"/>). A part with no provider is composed here from <see cref="MapBuildStatus"/> (Map3D) or throws in the chain.</summary>
+        public IReadOnlyList<LoadPart> ProfileLoadParts { get; init; } = Array.Empty<LoadPart>();
+
+        /// <summary>⭐ CE-4078 — where the 3-D map step reads the map's build from (resolved each poll: the map is attached after the node is composed). Null result ⇒ nothing to build (headless).</summary>
+        public Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; init; }
         /// <summary>The host's own scenario handlers (episode load), placed after the shared ones and before the chain.</summary>
         public IReadOnlyList<IClusterStateHandler> ScenarioHandlers { get; init; } = Array.Empty<IClusterStateHandler>();
         public IClusterStateHandler? ScenarioSaveHandler { get; init; }
@@ -151,8 +157,13 @@ namespace Hrot.SimHost.Modules.Orchestration
             slave.RegisterHandler(new WorldChangeCheckHandler(changeCheck, h.World));
 
             // 7. The load-phase chain (L2) — once, after every provider is known; before live load, which keeps FinalizeLive.
+            // ⭐ CE-4078 — the profile's 3-D map part is composed here, once, for any host that asks (only the Player does).
+            if (h.ProfileLoadParts.Contains(LoadPart.Map3D) && !h.LoadProviders.Any(p => p.Part == LoadPart.Map3D))
+                h.LoadProviders.Add(new MapBuildLoadStep(h.MapBuildStatus ?? (() => null)));
+
             slave.RegisterHandler(LoadPhaseChain.FromRoles(
                 h.Role, h.LoadProviders, h.World,
+                profileParts:        h.ProfileLoadParts,
                 recordingController: controller,
                 storageDirectory:    h.StagingRoot,
                 hostLabel:           h.HostLabel,

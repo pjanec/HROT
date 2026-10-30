@@ -705,6 +705,98 @@ public sealed class LoadPhaseChainTests
                 ScenarioId: "scn", TargetState: target),
         };
 
+    // ── ⭐ CE-4078 / CE-1446 (R-1046, DESIGN_Cluster_Load_Phase §11.9b) — the player's load waits for its 3-D map ────────────────────────────
+
+    private sealed class FakeMapStatus : IMapBuildStatus
+    {
+        public bool IsBuilt { get; set; }
+        public string? Failure { get; set; }
+        public string Step { get; set; } = "";
+    }
+
+    private static LoadPhaseChain MapChain(FakeMapStatus? status, NodeRole roles = NodeRole.Map2D, bool withProfilePart = true)
+        => LoadPhaseChain.FromRoles(
+            roles,
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new MapBuildLoadStep(() => status) },
+            world: null,
+            profileParts: withProfilePart ? new[] { LoadPart.Map3D } : null);
+
+    /// <summary>⭐ The map step HOLDS the load until the map reports built — and a headless node (no status) is resolved at once.</summary>
+    [Fact]
+    public async Task CE4078_TheLoadHoldsUntilTheMapIsBuilt()
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapChain(status);
+        var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+
+        chain.DrainDeferredAcks();
+        Assert.NotSame(hold, await Task.WhenAny(hold, Task.Delay(200)));   // (the hold's continuation is asynchronous: IsCompleted alone could read false right after a release)
+
+        status.IsBuilt = true;
+        chain.DrainDeferredAcks();
+        await hold;
+
+        // headless: no map attached ⇒ nothing to wait for
+        var headless = MapChain(null);
+        var h2 = headless.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        headless.DrainDeferredAcks();
+        await h2;
+    }
+
+    /// <summary>⭐ A map build failure FAILS the load with the map's reason, through the chain's one failure path (the hold faults).</summary>
+    [Fact]
+    public async Task CE4078_AMapBuildFailureFailsTheLoadWithItsReason()
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapChain(status);
+        var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+
+        status.Failure = "mesh upload exploded";
+        chain.DrainDeferredAcks();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => hold);
+        Assert.Contains("mesh upload exploded", ex.Message);
+        Assert.Null(chain.CurrentLoadStep);
+    }
+
+    /// <summary>⭐ While the map is the step still draining, the node reports the map's OWN step, not "Map3D".</summary>
+    [Fact]
+    public void CE4078_WhileWaiting_TheReportedStepIsTheMapsOwn()
+    {
+        var status = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain  = MapChain(status);
+        _ = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+
+        Assert.Equal("3-D map: terrain", chain.CurrentLoadStep);
+    }
+
+    /// <summary>⭐ A node whose profile does not ask for the part does not wait for it — even when a provider is registered.</summary>
+    [Fact]
+    public async Task CE4078_WithoutTheProfilePart_TheMapStepIsAbsent()
+    {
+        var status = new FakeMapStatus { IsBuilt = false };
+        var chain  = MapChain(status, withProfilePart: false);
+        var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;   // the never-built map did not hold it
+    }
+
+    /// <summary>⭐ A requested profile part with no provider throws at composition, like a role part.</summary>
+    [Fact]
+    public void CE4078_AProfilePartWithNoProvider_ThrowsAtComposition()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            LoadPhaseChain.FromRoles(
+                NodeRole.Map2D,
+                new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) },
+                world: null,
+                profileParts: new[] { LoadPart.Map3D }));
+        Assert.Contains("Map3D", ex.Message);
+    }
+
     private sealed class FakeStep : ILoadPartProvider
     {
         private readonly List<LoadPart>? _order;
