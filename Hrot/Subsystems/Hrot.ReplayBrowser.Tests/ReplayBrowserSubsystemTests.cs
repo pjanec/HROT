@@ -1619,7 +1619,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     /// <summary>A recording of <paramref name="seconds"/> of a run at 60 Hz (v7: each frame's sim time from <see cref="GlobalTime"/>, sim 0 at the
     /// keyframe) whose meta names its scenario <c>s-film</c>, under <paramref name="dir"/>.</summary>
     private static string RecordFilmRun(string dir, double seconds, Guid? exerciseId = null, bool named = false, double[]? alphaFires = null,
-                                        string scenarioHash = "0123456789abcdef")
+                                        string scenarioHash = "0123456789abcdef", double[]? blasts = null)
     {
         Directory.CreateDirectory(dir);
         string path = Path.Combine(dir, "node_1.fdp");
@@ -1628,7 +1628,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         repo.RegisterComponent<NetworkIdentity>();
         repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = 100 });
         var units = new Dictionary<string, Entity>();
-        if (named || alphaFires != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
+        if (named || alphaFires != null || blasts != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
         {
             repo.RegisterComponent<EntityInfo>();
             foreach (var (id, name) in new[] { (1L, "Alpha"), (2L, "Bravo") })
@@ -1642,6 +1642,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         // ⭐ CE-1304 CR-5 — Alpha's rounds at Bravo, RECORDED as the bus carried them (a frame's events go with that frame): what the recording's index reads
         if (alphaFires != null) repo.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
         var fireFrames = new HashSet<int>((alphaFires ?? Array.Empty<double>()).Select(s => (int)Math.Round(s * 60d)));
+        if (blasts != null) repo.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();   // ⭐ CE-4119 repro — bursts, as a Live recording carries them
+        var blastFrames = new HashSet<int>((blasts ?? Array.Empty<double>()).Select(s => (int)Math.Round(s * 60d)));
         using (var rec = new AsyncRecorder(path, meta))
         {
             long t0 = TimeSpan.FromSeconds(1).Ticks;
@@ -1653,6 +1655,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
                 repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = f / 60d });
                 if (fireFrames.Contains(f))
                     repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification { Shooter = units["Alpha"], Target = units["Bravo"], Quantity = 1 });
+                if (blastFrames.Contains(f))
+                    repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = units["Alpha"], Target = units["Bravo"], HitX = 5f, HitY = 5f });
                 rec.CaptureFrame(repo, (uint)(f - 1), t0 + f * TimeSpan.TicksPerSecond / 60, blocking: true, eventBus: repo.Bus);
                 repo.Bus.SwapBuffers();
             }
@@ -2502,6 +2506,15 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         }
     }
 
+    private sealed class FilmWindowTheoryAttribute : TheoryAttribute
+    {
+        public FilmWindowTheoryAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("HROT_FILM_WINDOW") != "1")
+                Skip = "a windowed Replay Browser (CE-4119 repro): set HROT_FILM_WINDOW=1 and DISPLAY (Xvfb :99)";
+        }
+    }
+
     /// <summary>
     /// ⭐ <c>CE-4059</c> P3 (§11r R2, R3; success conditions 1 and 3) — a WINDOWED Replay Browser (the live proof's minimal raylib + ImGui loop), a recording
     /// opened by <c>recording=</c>: <c>POST /director/stills {recording, take, times:[0.5, 3.0, 4.5], width 320, height 180}</c> writes THREE PNGs of 320 × 180
@@ -2586,6 +2599,144 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Raylib_cs.Raylib.CloseWindow();
         }
     }
+
+    // ── ⭐ CE-4119 (REPRODUCTION) — a take anchored on an index EVENT, played with CAPTURE on a recording ───────────────────────────────────────
+
+    /// <summary>The pilot's take: keys and segments at <c>blast#1 ± x</c> (anchor <c>{on: blast, n: 1}</c>), no bake.</summary>
+    private static Hrot.UI.Common.Map3D.Director.Take PilotTake() => new()
+    {
+        Scenario = "s-film", Name = "pilot", Title = "The burst",
+        Anchors = new Dictionary<string, Hrot.UI.Common.Map3D.Director.AnchorSpec> { ["blast#1"] = new() { On = "blast", N = 1 } },
+        Keys = new[]
+        {
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(-1.5d, "blast#1"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key1At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0d, "blast#1"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key2At, Distance = 20f } },
+            new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(1d, "blast#1"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key3At, Distance = 20f } },
+        },
+        Segments = new[]
+        {
+            new Hrot.UI.Common.Map3D.Director.TimeSegment { From = new Hrot.UI.Common.Map3D.Director.AtExpr(-2d, "blast#1"), To = new Hrot.UI.Common.Map3D.Director.AtExpr(0.5d, "blast#1") },
+            new Hrot.UI.Common.Map3D.Director.TimeSegment { From = new Hrot.UI.Common.Map3D.Director.AtExpr(0.5d, "blast#1"), To = new Hrot.UI.Common.Map3D.Director.AtExpr(2d, "blast#1") },
+        },
+        EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(2d, "blast#1"),
+    };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4119</c> REPRODUCTION (do not fix here) — the film pilot's play: a take hung on <c>blast#1</c> over a real recording whose index holds one burst (3.0 s), the take's file BESIDE
+    /// the recording, played in a WINDOWED Replay Browser. <paramref name="how"/>: <c>nocapture</c> (the control — the CR-5 path) · <c>runner</c> (<c>PlayRequest</c> with <c>Capture</c>) · <c>http</c>
+    /// (<c>POST /director/play {take, capture}</c>, the pilot's call) · <c>reelrec</c> (the runner, the reel's item naming the recording). <paramref name="sessionOpen"/>: the editor session holds the take
+    /// open (<c>Session.Open</c>) so the runner plays the IN-MEMORY take. Asserts: no <c>Unresolved</c>, no <c>beat-missing</c>, the anchor found at 3 s, the expected frame count.
+    /// Runs only with <c>HROT_FILM_WINDOW=1</c> and a display (Xvfb).
+    /// </summary>
+    private void PilotPlay(string how, bool sessionOpen, bool pilotLike = false)
+    {
+        double blastAt = pilotLike ? 33.1d : 3.0d;
+        Raylib_cs.Raylib.InitWindow(1280, 720, "HROT Replay Browser — CE-4119 repro");
+        Fdp.Toolkit.Vis3D.LitShader.Reset();
+        try
+        {
+            rlImGui_cs.rlImGui.Setup(true);
+            Hrot.UI.Common.Map3D.FilmStudio.Reset();
+            string dir = Path.Combine(_tempDir, "ce4119", Guid.NewGuid().ToString(), "exercises", Guid.NewGuid().ToString());
+            string path = RecordFilmRun(dir, pilotLike ? 45d : 6d, blasts: new[] { blastAt });
+            // pilotLike: the pilot\'s shape — a bake with NO scenario hash (stale), the burst at 33.1 s of a 45 s recording, the contact sheets made BEFORE the play
+            PutTakeBeside(dir, pilotLike ? PilotTake() with { Baked = new Hrot.UI.Common.Map3D.Director.BakedAnchors { Times = new Dictionary<string, double> { ["blast#1"] = 33.1 }, TickHz = 60, ScenarioHash = "" } } : PilotTake());
+            _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+            _subsystem.Initialize(new SubsystemConfig { DomainId = 0, Headless = false, OwnWindow = false, NodeId = 0, SubsystemName = "ReplayBrowser" });
+            var (host, queue, port) = DirectorHttp();
+            using var _ = host;
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(300) };
+            string url = $"http://localhost:{port}";
+            void Frame()
+            {
+                queue.DrainAll();
+                _subsystem.Update(1f / 60f);
+                Raylib_cs.Raylib.BeginDrawing();
+                Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+                _subsystem.DrawWorld();
+                rlImGui_cs.rlImGui.Begin();
+                _subsystem.DrawUI();
+                rlImGui_cs.rlImGui.End();
+                Raylib_cs.Raylib.EndDrawing();
+            }
+            Assert.Null(_subsystem.CreateDebugProvider()!.ReplayBrowser!.Open(new[] { path }, 0));
+            var index = OpenAndIndex(path);   // ⭐ the index is COMPLETE before the play (as after GET /timeline/lanes said complete: true)
+            var pack = _subsystem.Director!;
+            if (sessionOpen) Assert.Empty(pack.Session.Open("s-film", "pilot"));
+            var runner = pack.Runner;
+            if (pilotLike)
+            {
+                var (sc, sb) = CallOnThisThread(http.PostAsync(url + "/director/stills", Json("""{"take":"pilot","everyKey":true,"width":160,"height":90}""")), Frame);
+                Assert.True(sc == 200 && sb["data"]!["state"]!.GetValue<string>() == "done", sb.ToJsonString());
+            }
+            string captureDir = Path.Combine(dir, "s-film", "takes", "pilot.render");
+            string diag = $"index complete={_subsystem.TimelineSource?.IsComplete}, blast lane rows={(index.Has("combat.blast") ? index.Lane("combat.blast").Count : -1)}, sessionOpen={sessionOpen}, OpenTakeOf={(pack.Session.OpenTakeOf("s-film", "pilot") is null ? "null (the file plays)" : "the in-memory take")}";
+
+            switch (how)
+            {
+                case "nocapture":
+                case "runner":
+                case "reelrec":
+                {
+                    var capture = how == "nocapture" ? null : new Hrot.UI.Common.Map3D.Director.CaptureOptions(captureDir, 10, 320, 180, Encode: false);
+                    var reel = how == "reelrec"
+                        ? new Hrot.UI.Common.Map3D.Director.Reel { Items = new[] { new Hrot.UI.Common.Map3D.Director.ReelItem { Scenario = "s-film", Take = "pilot", Recording = path } } }
+                        : Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "pilot");
+                    Assert.Empty(runner.Play(new Hrot.UI.Common.Map3D.Director.PlayRequest(reel, Speed: 1000d, Capture: capture)));
+                    break;
+                }
+                case "http":
+                {
+                    var (code, body) = CallOnThisThread(http.PostAsync(url + "/director/play", Json("""{"take":"pilot","capture":{"fps":10,"size":"320x180","encode":false}}""")), Frame);
+                    Assert.True(code == 200, body.ToJsonString());
+                    break;
+                }
+                case "renders":   // the queue: the one place a recording= rides on the request
+                {
+                    string recJson = System.Text.Json.JsonSerializer.Serialize(path);
+                    var (code, body) = CallOnThisThread(http.PostAsync(url + "/director/renders", Json($"{{\"recording\":{recJson},\"take\":\"pilot\",\"capture\":{{\"fps\":10,\"size\":\"320x180\",\"encode\":false}}}}")), Frame);
+                    Assert.True(code == 200, body.ToJsonString());
+                    for (int i = 0; i < 40_000 && !pack.Renders.Jobs.All(j => j.Ended); i++) Frame();
+                    diag += "; job=" + string.Join(" / ", pack.Renders.Jobs.Select(j => $"{j.State} frames={j.Frames} problems=[{string.Join(" | ", j.Problems)}]"));
+                    break;
+                }
+                default: throw new ArgumentException(how);
+            }
+            for (int i = 0; i < 20_000 && runner.Busy; i++) Frame();
+            Assert.False(runner.Busy);
+            var r = runner.Reports[0];
+            var status = runner.Status();
+            string outcome = $"{how}: status={r.Status}; unresolved=[{string.Join(", ", r.Unresolved)}]; missing=[{string.Join(", ", r.Missing)}]; found={{{string.Join(", ", r.Found.Select(f => f.Key + "=" + f.Value))}}}; frames={status["frames"]}; "
+                             + $"problems=[{string.Join(" | ", r.Problems)}]; {diag}";
+            Assert.True(r.Unresolved.Count == 0 && r.Missing.Count == 0 && r.Status != "beat-missing", outcome);
+            Assert.Equal(blastAt, r.Found["blast#1"], 3);
+            if (how != "nocapture") Assert.True(status["frames"]!.GetValue<int>() > 45, outcome);
+        }
+        finally
+        {
+            try { rlImGui_cs.rlImGui.Shutdown(); } catch { }
+            Raylib_cs.Raylib.CloseWindow();
+        }
+    }
+
+    [FilmWindowTheory]
+    [Trait("Category", "Manual")]
+    [InlineData("nocapture", false)]
+    [InlineData("runner", false)]
+    [InlineData("runner", true)]
+    [InlineData("http", false)]
+    [InlineData("http", true)]
+    [InlineData("reelrec", false)]
+    [InlineData("renders", false)]
+    public void CE4119_Repro_AnEventAnchoredTake_PlayedWithCapture_OnARecording_ResolvesItsAnchors(string how, bool sessionOpen) => PilotPlay(how, sessionOpen);
+
+    /// <summary>The pilot's shape in full: a stale bake, the burst at 33.119 s, stills of every key first, then the play. (<c>http</c> and the runner, each with the session open or not.)</summary>
+    [FilmWindowTheory]
+    [Trait("Category", "Manual")]
+    [InlineData("http", false)]
+    [InlineData("http", true)]
+    [InlineData("runner", false)]
+    public void CE4119_Repro_ThePilotsShape_StaleBake_StillsFirst_ThenThePlay(string how, bool sessionOpen) => PilotPlay(how, sessionOpen, pilotLike: true);
 
     // ── ⭐ CE-1306 R4 (docs/DESIGN_Director_Timeline_Editor.md §11u) — the render queue in the Replay Browser ───────────────────────────────────
 
