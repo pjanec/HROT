@@ -1631,4 +1631,23 @@ public sealed class FilmDirectorTests
         }
         Assert.Equal(6, holds);   // task Wander · side Hostile · health 0.3 · health 50 · embark true · gesture Waving — the others do not
     }
+
+    /// <summary>⭐ <c>CE-4117</c> follow-up — a re-read take's new book keeps the times resolved ahead for UNCHANGED anchors, not for a changed one (which takes its coarse estimate from <c>NearWindows</c>).
+    /// 🔴 Mutation: <c>SameSpec</c> always true ⇒ the changed near keeps the old refined time ⇒ red; never carried ⇒ the unchanged one is lost ⇒ red.</summary>
+    [Fact]
+    public void CE4117_AReReadTake_CarriesTheResolvedTimes_OfUnchangedAnchorsOnly()
+    {
+        var index = PositionIndex(20, 0.5, (1, 0, t => 100 - 15 * t));
+        var world = new Units(); world.Ids["Alpha"] = 1;
+        var first = NearBook(index, "Alpha"); first.Resolve("near:A", 5.9);
+
+        var same = NearBook(index, "Alpha"); same.CarryOverResolved(first);
+        Assert.Equal(5.9, same.TimeOf("near:A"));                                   // unchanged: the refined time survives
+
+        var moved = new AnchorBook(new Dictionary<string, AnchorSpec> { ["near:A"] = new() { On = "near", Who = "Alpha", Point = new Vector2(0, 0), Within = 30f } }, null, null, () => index, 0d, indexIsTheRun: true);
+        moved.CarryOverResolved(first);
+        Assert.Null(moved.TimeOf("near:A"));                                         // changed (a wider radius): not carried
+        var w = Assert.Single(moved.NearWindows(world));
+        Assert.Equal((100 - 30) / 15d, w.Estimate, 3);                               // it gets the coarse estimate of the NEW spec
+    }
 }

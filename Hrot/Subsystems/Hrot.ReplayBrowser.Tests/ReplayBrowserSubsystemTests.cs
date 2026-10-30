@@ -2674,6 +2674,60 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Contains(seen, s => s.Sim > expected - 1d + 0.03 && s.Sim < expected - 0.2 && s.Camera == Key2At);
     }
 
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> follow-up — a LOOPED shot re-reads the take at each wrap; when its anchors moved (here: a key with a new event anchor is added mid-pass) the runner builds a new <c>AnchorBook</c>, and the
+    /// <c>near</c> time Resolving found (5.2167 s, the first frame the unit is inside) is CARRIED OVER for the unchanged anchor — so shot 1 (key 1 at 1 s … the cut 1 s before the cue) keeps ending at 4.2167 s
+    /// on every pass. 🔴 Mutation: <c>CarryOverResolved</c> not called ⇒ the new book has only the coarse estimate (5.44 s) ⇒ the pass wraps at 4.44 s ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4117_ALoopedShot_KeepsItsRefinedNearTime_WhenTheTakeIsReRead()
+    {
+        Hrot.UI.Common.Map3D.FilmStudio.Reset();
+        Func<double, float> x = t => t <= 5.1 ? 100f : Math.Max(0f, 100f - 800f * (float)(t - 5.1));   // the dash of CE4117_OnARecording_…: refined 5.2167 s, coarse estimate 5.44 s
+        string dir = Path.Combine(_tempDir, "ce4117loop", "exercises", Guid.NewGuid().ToString());
+        string path = RecordFilmRun(dir, 9d, alphaX: x);
+        _subsystem.TerrainCatalog = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(null, null);
+        _subsystem.Initialize(HeadlessConfig());
+        OpenAndIndex(path);
+        var pack = _subsystem.Director!;
+        pack.Takes.Save(new Hrot.UI.Common.Map3D.Director.Take
+        {
+            Scenario = "s-film", Name = "main", Title = "Near",
+            Anchors = new Dictionary<string, Hrot.UI.Common.Map3D.Director.AnchorSpec> { ["near:A"] = new() { On = "near", Who = "Alpha", Point = new Vector2(0, 0), Within = 12f } },
+            Keys = new[]
+            {
+                new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(1d), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key1At, Distance = 20f } },
+                new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(-1d, "near:A"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key2At, Distance = 20f } },
+            },
+            EndAt = new Hrot.UI.Common.Map3D.Director.AtExpr(8d),
+        });
+        var runner = pack.Runner;
+        Assert.Empty(pack.Session.Open("s-film", "main"));
+        runner.LoopShot = true;
+        Assert.Empty(runner.PlayFrom(new Hrot.UI.Common.Map3D.Director.PlayRequest(Hrot.UI.Common.Map3D.Director.Reel.Of("s-film", "main"), Speed: 1000d, Cinema: false), 1.5));
+        for (int i = 0; i < 300 && runner.Phase != Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing; i++) _subsystem.Update(1f / 60f);
+        Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorPhase.Playing, runner.Phase);
+
+        var wraps = new List<double>();
+        double last = Frame();
+        bool edited = false;
+        for (int i = 0; i < 2000 && wraps.Count < 3; i++)
+        {
+            double sim = Frame();
+            if (sim < last - 0.5) wraps.Add(last);
+            if (wraps.Count == 1 && !edited)   // after the first wrap: the take's anchors move (a key with a NEW event anchor); the next wrap re-reads it
+            {
+                var key = new Hrot.UI.Common.Map3D.Director.CameraKey { At = new Hrot.UI.Common.Map3D.Director.AtExpr(0d, "blast#9"), Camera = new Hrot.UI.Common.Map3D.Director.CameraSpec { LookAt = Key3At, Distance = 20f } };
+                Assert.True(pack.Session.Editor!.Apply(new Hrot.UI.Common.Map3D.Director.TakeEdit.AddKey(key, new Hrot.UI.Common.Map3D.Director.EventAnchor("blast#9", new Hrot.UI.Common.Map3D.Director.AnchorSpec { On = "blast", N = 9 }, 8.5d))));   // its event is far after the shot
+                edited = true;
+            }
+            last = sim;
+        }
+        Assert.True(wraps.Count >= 3, $"wraps: {wraps.Count} ({string.Join(", ", wraps.Select(w => w.ToString("0.###")))})");
+        Assert.All(wraps, w => Assert.InRange(w, 5.2167 - 1d - 0.05, 5.2167 - 1d + 0.05));   // every pass, before and after the re-read, ends at the cut 1 s before the refined cue
+    }
+
     // ── ⭐ CE-4119 (REPRODUCTION) — a take anchored on an index EVENT, played with CAPTURE on a recording ───────────────────────────────────────
 
     /// <summary>The pilot's take: keys and segments at <c>blast#1 ± x</c> (anchor <c>{on: blast, n: 1}</c>), no bake.</summary>

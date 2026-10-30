@@ -185,7 +185,7 @@ namespace Hrot.Editor.DebugApi
                     ["subject"] = m.Subject, ["subjectName"] = m.Subject is { } s ? drafts.NameOf(s) : null, ["score"] = Math.Round(m.Score, 3),
                 });
             // ⭐ §11r — a recording's index is read in the background after it opens: complete false = more moments may come (ask again)
-            return Ok(new JsonObject { ["scenario"] = drafts.Scenario, ["complete"] = drafts.Index.IsComplete, ["count"] = arr.Count, ["moments"] = arr });
+            return Ok(new JsonObject { ["scenario"] = drafts.Scenario, ["complete"] = drafts.IndexComplete, ["count"] = arr.Count, ["moments"] = arr });
         }
 
         private RouteResult DirectorDraft(JsonNode? body)

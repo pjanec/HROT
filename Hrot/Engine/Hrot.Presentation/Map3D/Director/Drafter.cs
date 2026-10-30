@@ -12,9 +12,10 @@ public enum SubjectKind { Person, Vehicle, Aircraft, Group, Unknown }
 /// <summary>
 /// ⭐ <c>CE-4059</c> / <c>CR-8</c> (docs/DESIGN_Director_Timeline_Editor.md §11n) — one candidate moment of a recording: the index event
 /// (<see cref="Lane"/>, <see cref="EventIndex"/>, <see cref="Frame"/>, <see cref="Sim"/>), who acted and at whom (network ids; <see cref="Subject"/> is null
-/// when the moment has no second party) and how film-worthy it is (<see cref="Score"/>).
+/// when the moment has no second party) and how film-worthy it is (<see cref="Score"/>). ⭐ <c>CE-4120</c> (§11n-1) — <see cref="Place"/>: a blast's ground point (its X / Y, z = the ground there),
+/// what the framing looks at when the blast struck no unit (the shooter may be 300 m up).
 /// </summary>
-public sealed record DraftMoment(string Lane, int EventIndex, int Frame, double Sim, long Actor, long? Subject, double Score);
+public sealed record DraftMoment(string Lane, int EventIndex, int Frame, double Sim, long Actor, long? Subject, double Score, Vector3? Place = null);
 
 /// <summary>
 /// ⭐ <c>CE-1305</c> (docs/DESIGN_Director_Timeline_Editor.md §11v T1; §2 "shot templates from a marker") — ONE camera of the drafter's grammar, picked by the person
@@ -38,6 +39,8 @@ public sealed record DraftOptions
     /// <summary>The (vertical) lens of every key but a telephoto.</summary>
     public float FovDeg { get; init; } = 45f;
     public int TickHz { get; init; } = 60;
+    /// <summary>⭐ <c>CE-4120</c> — the ground height at (x, y), for a blast's <see cref="DraftMoment.Place"/>; null = 0 (the drafter is pure: the host reads its terrain).</summary>
+    public Func<float, float, float>? GroundAt { get; init; }
 }
 
 /// <summary>
@@ -58,6 +61,8 @@ public static class Drafter
     private const double ReplayFrom = -1d, ReplayTo = 1.5d, ReplaySpeed = 0.4d;
     private const double MergeWithin = 2d, ShooterLookback = 5d;
     private const double TelephotoMetres = 100d;
+    /// <summary>⭐ CE-4120 — the half-width of a burst a ground-point framing holds (metres).</summary>
+    private const float BurstHalfWidth = 25f;
     private const float TelephotoFov = 18f, EstablishPitch = -40f, ConsequencePitch = -35f, TopDownPitch = -85f;
     private const float SetUpFollowDistance = 12f;
     private const double TemplateHold = 4d;
@@ -72,17 +77,17 @@ public static class Drafter
     /// <c>combat.hit</c> (2) · <c>combat.blast</c> (3 + damage / 100). A moment within 2 s AFTER another merges into it (the earlier one is the cause and
     /// anchors the take; the merged score is the better of the two). ⏭ Behaviour lanes join when CR-5 grows the anchor cues.
     /// </summary>
-    public static IReadOnlyList<DraftMoment> Moments(TimelineIndex index, Func<long, string?> unitName)
+    public static IReadOnlyList<DraftMoment> Moments(TimelineIndex index, Func<long, string?> unitName, Func<float, float, float>? groundAt = null)
     {
         var found = new List<DraftMoment>();
 
         var shots = index.Lane(Shot);
         var seen = new HashSet<(long, long)>();
         for (int i = 0; i < shots.Count; i++)
-            if (seen.Add((shots[i].Subject, shots[i].Other)) && MomentAt(index, Shot, i, unitName) is { } m) found.Add(m);
+            if (seen.Add((shots[i].Subject, shots[i].Other)) && MomentAt(index, Shot, i, unitName, groundAt) is { } m) found.Add(m);
         foreach (var lane in new[] { Hit, Blast })
             for (int i = 0; i < index.Lane(lane).Count; i++)
-                if (MomentAt(index, lane, i, unitName) is { } m) found.Add(m);
+                if (MomentAt(index, lane, i, unitName, groundAt) is { } m) found.Add(m);
 
         var merged = new List<DraftMoment>();
         foreach (var moment in found.OrderBy(m => m.Sim))   // stable: events at one time keep their lane order
@@ -104,7 +109,7 @@ public static class Drafter
     /// unit that shot at it within 5 s; a blast with no shooter is about what it hit); null when the event is not one <see cref="EventAnchors"/> can name. ⭐ The ONE
     /// event → moment rule: <see cref="Moments"/> calls it for every candidate.
     /// </summary>
-    public static DraftMoment? MomentAt(TimelineIndex index, string lane, int eventIndex, Func<long, string?> unitName)
+    public static DraftMoment? MomentAt(TimelineIndex index, string lane, int eventIndex, Func<long, string?> unitName, Func<float, float, float>? groundAt = null)
     {
         var events = index.Lane(lane);
         if ((uint)eventIndex >= (uint)events.Count) return null;
@@ -121,9 +126,10 @@ public static class Drafter
                     : new DraftMoment(Hit, eventIndex, e.Frame, anchor.EventSim, e.Subject, null, 2d);
             case Blast:
                 double score = 3d + e.Value / 100d;
+                var place = new Vector3(e.X, e.Y, groundAt?.Invoke(e.X, e.Y) ?? 0f);   // ⭐ CE-4120 B1: the burst's own point, on the ground
                 return e.Subject > 0
-                    ? new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, score)
-                    : new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, Math.Max(e.Other, 0L), null, score);
+                    ? new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, score, place)
+                    : new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, Math.Max(e.Other, 0L), null, score, place);
             default:
                 return null;
         }
@@ -277,7 +283,7 @@ public static class Drafter
     {
         var scene = framing.Scene;
         string? actorName = framing.ActorName, subjectName = framing.SubjectName;
-        string? focusName = subjectName ?? (scene.HasSubject ? null : actorName);
+        string? focusName = subjectName ?? (scene.HasFocus ? null : actorName);   // ⭐ CE-4120: a Place is a focus too
         float pitch = framing.MomentPitch;
         switch (template)
         {
@@ -294,6 +300,7 @@ public static class Drafter
             case ShotTemplate.Reverse:
                 return framing.TheMoment(from, to, Wrap(framing.Across(AcrossMoment) + 180f));
             case ShotTemplate.Consequence:
+                if (scene.PlaceOnly) return AtPlace(scene, framing.Across(AcrossConsequence), ConsequencePitch, null, options);   // ⭐ CE-4120 B3: the burst's place from above, not the departing jet
                 return focusName is not null
                     ? Followed(scene, focusName, from, to, framing.Across(AcrossConsequence), ConsequencePitch, null, options)
                     : Midpoint(scene, from, to, framing.Across(AcrossConsequence), ConsequencePitch, options);
@@ -348,6 +355,18 @@ public static class Drafter
         var centre = (lo + hi) * 0.5f;
         float distance = FitDistance(points.Select(p => (p, centre)), yaw, pitch, o.FovDeg, o.AspectRatio);
         return new CameraSpec { LookAt = centre, Distance = distance, Yaw = yaw, Pitch = pitch };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4120</c> (§11n-1 B2/B3) — a camera that LOOKS AT the scene's place (a blast's ground point), at the distance that holds a burst half-width of <see cref="BurstHalfWidth"/> metres of it — the actor is
+    /// NOT fitted (an aircraft 300 m up would drag the frame into the sky). Reuses <see cref="FitDistance"/>.
+    /// </summary>
+    private static CameraSpec AtPlace(Scene scene, float yaw, float pitch, float? fov, DraftOptions o)
+    {
+        var place = scene.Place!.Value;
+        var right = new Vector3((float)Math.Sin(yaw * Rad), (float)-Math.Cos(yaw * Rad), 0f);
+        float distance = FitDistance(new[] { (place + right * BurstHalfWidth, place), (place - right * BurstHalfWidth, place) }, yaw, pitch, fov ?? o.FovDeg, o.AspectRatio);
+        return new CameraSpec { LookAt = place, Distance = distance, Yaw = yaw, Pitch = pitch, Fov = fov };
     }
 
     /// <summary>
@@ -413,14 +432,14 @@ public static class Drafter
         {
             _t = moment.Sim;
             _options = options;
-            Scene = new Scene(index, moment, everyone);
+            Scene = new Scene(index, moment, everyone, options.GroundAt);
             ActorName = unitName(moment.Actor);
             SubjectName = moment.Subject is { } sj ? unitName(sj) : null;
             MomentPitch = PitchOf(options.Kind?.Invoke(moment.Actor) ?? SubjectKind.Unknown);
 
             // the 180° line: actor → subject (or the way the actor faces); the side is chosen ONCE, ①③④ stay on it, only ⑤ crosses
             var a0 = Scene.Actor(_t);
-            var s0 = Scene.HasSubject ? Scene.Focus(_t) : a0;
+            var s0 = Scene.HasFocus ? Scene.Focus(_t) : a0;
             _actorAt = new Vector2(a0.X, a0.Y);
             _subjectAt = new Vector2(s0.X, s0.Y);
             var line = _subjectAt - _actorAt;
@@ -441,6 +460,8 @@ public static class Drafter
         /// <summary>The moment's framing over any window and yaw — ⑤ the replay frames it again from the other side.</summary>
         public CameraSpec TheMoment(double from, double to, float yaw)
         {
+            // ⭐ CE-4120 B2: a blast with only a PLACE is framed at the place, from the ground's pitch (not the aircraft's), the actor not fitted
+            if (Scene.PlaceOnly) return AtPlace(Scene, yaw, PitchOf(SubjectKind.Unknown), null, _options);
             bool far = Scene.HasSubject && Vector2.Distance(_actorAt, _subjectAt) > TelephotoMetres;
             if (!far) return Midpoint(Scene, from, to, yaw, MomentPitch, _options);
             yaw = Wrap(yaw + (_side > 0 ? -1 : 1) * (AcrossTelephoto - AcrossMoment));   // more along the line: from the actor's side, over his shoulder
@@ -457,15 +478,17 @@ public static class Drafter
         private readonly long _actor;
         private readonly long? _subject;
         private readonly Vector3 _fallback;
+        private readonly Vector3? _place;
         private readonly IReadOnlyList<long>? _everyone;
 
         /// <summary><paramref name="everyone"/> (⭐ <c>CE-4060</c>): frame these units instead of the moment's actor and subject.</summary>
-        public Scene(TimelineIndex index, DraftMoment moment, IReadOnlyList<long>? everyone = null)
+        public Scene(TimelineIndex index, DraftMoment moment, IReadOnlyList<long>? everyone = null, Func<float, float, float>? groundAt = null)
         {
             _index = index;
             _everyone = everyone;
             _actor = moment.Actor;
             _subject = moment.Subject;
+            _place = moment.Place is { } pl ? (groundAt is null ? pl : new Vector3(pl.X, pl.Y, groundAt(pl.X, pl.Y))) : null;   // ⭐ CE-4120: the host's terrain wins over a moment built without it
             var events = index.Lane(moment.Lane);
             // a unit with no samples is where its event says (the muzzle of a shot, the point of a blast)
             _fallback = (uint)moment.EventIndex < (uint)events.Count ? new Vector3(events[moment.EventIndex].X, events[moment.EventIndex].Y, 0f) : Vector3.Zero;
@@ -473,10 +496,19 @@ public static class Drafter
 
         public bool HasSubject => _subject.HasValue;
 
+        /// <summary>⭐ CE-4120 — the moment has something to be ABOUT besides its actor: a struck unit, else a place.</summary>
+        public bool HasFocus => _subject.HasValue || _place.HasValue;
+
+        /// <summary>⭐ CE-4120 — a place and no struck unit (a blast with no subject): the framing looks at the place, not the actor.</summary>
+        public bool PlaceOnly => !_subject.HasValue && _place.HasValue;
+
+        /// <summary>The blast's ground point (null for a moment that has none).</summary>
+        public Vector3? Place => _place;
+
         public Vector3 Actor(double sim) => PositionOf(_actor, sim);
 
-        /// <summary>The unit the camera is about: the subject, else the actor.</summary>
-        public Vector3 Focus(double sim) => PositionOf(_subject ?? _actor, sim);
+        /// <summary>What the camera is about: the subject, else the PLACE (⭐ CE-4120), else the actor.</summary>
+        public Vector3 Focus(double sim) => _subject.HasValue ? PositionOf(_subject.Value, sim) : _place ?? PositionOf(_actor, sim);
 
         public float HeadingOf(long unit, double sim)
             => _index.PositionAt(unit, Math.Max(0, EventAnchors.FrameAt(_index, sim))) is { } p ? p.Heading : 0f;
@@ -508,7 +540,7 @@ public static class Drafter
                     continue;
                 }
                 points.Add(Actor(s));
-                if (_subject.HasValue) points.Add(Focus(s));
+                if (HasFocus) points.Add(Focus(s));
             }
             if (points.Count == 0) points.Add(_fallback);   // a scene of no units: where the event says
             return points;

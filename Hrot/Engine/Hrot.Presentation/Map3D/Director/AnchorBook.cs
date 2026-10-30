@@ -209,6 +209,23 @@ public sealed class AnchorBook
             if (units.Resolve(n) is { } id && id != 0) yield return id;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> follow-up — a re-read take (a loop wrap, <c>DirectorRunner.RefreshOpenTake</c>) gets a NEW book; the times the previous one resolved AHEAD of play (a <c>near</c> refined by seeking) are carried over for
+    /// every anchor whose spec is UNCHANGED, so the loop does not fall back to observing during play. A changed spec is not carried.
+    /// </summary>
+    public void CarryOverResolved(AnchorBook previous)
+    {
+        foreach (var key in previous._resolvedAhead)
+        {
+            if (_live.ContainsKey(key) || !_specs.TryGetValue(key, out var now) || !previous._specs.TryGetValue(key, out var was) || !previous._live.TryGetValue(key, out var rel)) continue;
+            if (SameSpec(now, was)) Resolve(key, rel);
+        }
+    }
+
+    private static bool SameSpec(AnchorSpec a, AnchorSpec b)
+        => a.On == b.On && a.Who == b.Who && a.By == b.By && a.Target == b.Target && a.N == b.N && a.Point == b.Point && a.Within == b.Within && a.Below == b.Below
+           && a.Is?.ToJsonString() == b.Is?.ToJsonString();
+
     /// <summary>⭐ CE-4117 — records that <paramref name="anchor"/> was answered AHEAD of play at take time <paramref name="rel"/> (the refined crossing, or the coarse estimate):
     /// on a recording it then leads over a bake (<see cref="TimeOf(string)"/>).</summary>
     public void Resolve(string anchor, double rel)

@@ -66,13 +66,19 @@ public sealed class DirectorDrafts
     private readonly Func<long, SubjectKind> _kindOf;
     private readonly Func<string?> _scenario;
     private readonly DirectorTakeSession _session;
+    private readonly Func<float, float, float>? _groundAt;
+    private readonly Func<bool>? _indexComplete;
 
+    /// <param name="groundAt">⭐ <c>CE-4120</c> (§11n-1 B5) — the host world's ground height at (x, y), for a blast's place; null = 0.</param>
+    /// <param name="indexComplete">⭐ <c>CE-4121</c> — whether the shown recording's index has been READ (the host's timeline SOURCE says, the one <c>GET /timeline/lanes</c> reports); null = the index's own flag.</param>
     /// <param name="index">The index the host's Event Timeline shows (null: none yet).</param>
     /// <param name="nameOf">A network id to the unit's name (<see cref="DirectorUnits.NameOf"/> over the host's world).</param>
     /// <param name="kindOf">A network id to the unit's kind (<see cref="DirectorUnits.KindOf"/>).</param>
     /// <param name="scenario">The scenario the shown run belongs to (the editor's loaded one; the recording's) — the draft's take is that scenario's.</param>
-    public DirectorDrafts(Func<TimelineIndex?> index, Func<long, string?> nameOf, Func<long, SubjectKind> kindOf, Func<string?> scenario, DirectorTakeSession session)
+    public DirectorDrafts(Func<TimelineIndex?> index, Func<long, string?> nameOf, Func<long, SubjectKind> kindOf, Func<string?> scenario, DirectorTakeSession session,
+                           Func<float, float, float>? groundAt = null, Func<bool>? indexComplete = null)
     {
+        _groundAt = groundAt; _indexComplete = indexComplete;
         _index = index ?? throw new ArgumentNullException(nameof(index));
         _nameOf = nameOf ?? throw new ArgumentNullException(nameof(nameOf));
         _kindOf = kindOf ?? throw new ArgumentNullException(nameof(kindOf));
@@ -83,11 +89,17 @@ public sealed class DirectorDrafts
     /// <summary>The index the drafts read now (null: the host shows none).</summary>
     public TimelineIndex? Index => _index();
 
+    /// <summary>
+    /// ⭐ <c>CE-4121</c> — whether the index is COMPLETE: the host's timeline source says (a recording's is read in the background: <c>Completion.IsCompleted</c> and the index scanned; a live one is always complete).
+    /// ⛔ Not <c>TimelineIndex.IsComplete</c> alone — that is <c>ScannedFrames &gt;= TotalFrames</c>, true (0 ≥ 0) before a single frame is read.
+    /// </summary>
+    public bool IndexComplete => _indexComplete?.Invoke() ?? (_index()?.IsComplete ?? false);
+
     /// <summary>The scenario a draft belongs to now.</summary>
     public string? Scenario => _scenario();
 
     /// <summary>The candidate moments of the shown index, scored, in time order (<see cref="Drafter.Moments"/>); empty when there is no index.</summary>
-    public IReadOnlyList<DraftMoment> Moments() => _index() is { } index ? Drafter.Moments(index, _nameOf) : Array.Empty<DraftMoment>();
+    public IReadOnlyList<DraftMoment> Moments() => _index() is { } index ? Drafter.Moments(index, _nameOf, _groundAt) : Array.Empty<DraftMoment>();
 
     /// <summary>A unit's name by network id (what a moment's actor / subject are called).</summary>
     public string? NameOf(long networkId) => _nameOf(networkId);
@@ -102,11 +114,11 @@ public sealed class DirectorDrafts
         if (index is null) return (null, new[] { "this host shows no timeline index to draft from" });
         if (string.IsNullOrWhiteSpace(_scenario())) return (null, new[] { "no scenario is shown (load a scenario, or open a recording that names one)" });
         if (!Drafter.Lanes.Contains(lane)) return (null, new[] { $"lane '{lane}' cannot be drafted from (the lanes: {string.Join(", ", Drafter.Lanes)})" });
-        if (Drafter.MomentAt(index, lane, eventIndex, _nameOf) is not { } moment)
+        if (Drafter.MomentAt(index, lane, eventIndex, _nameOf, _groundAt) is not { } moment)
             return (null, new[] { $"event {eventIndex} of '{lane}' is not a moment the drafter can name (no such event, or its unit has no name)" });
         string scenario = _scenario()!;
         // the title names the moment (not the caption: a take's caption is READ AS its subtitle, §11o S8 — it would be on screen for the whole film)
-        var take = Drafter.Draft(index, moment, _nameOf, new DraftOptions { Scenario = scenario, Name = FreeName(scenario), Replay = replay, Kind = _kindOf })
+        var take = Drafter.Draft(index, moment, _nameOf, new DraftOptions { Scenario = scenario, Name = FreeName(scenario), Replay = replay, Kind = _kindOf, GroundAt = _groundAt })
                    with { Title = Title(moment) };
         var problems = _session.OpenDraft(take);
         return problems.Count > 0 ? (null, problems) : (take, problems);
@@ -121,8 +133,8 @@ public sealed class DirectorDrafts
     public CameraSpec? TemplateCamera(EventAnchor anchor, ShotTemplate template, double keySim)
     {
         if (anchor?.Lane is not { } lane || _index() is not { } index) return null;
-        if (Drafter.MomentAt(index, lane, anchor.EventIndex, _nameOf) is not { } moment) return null;
-        return Drafter.TemplateCamera(index, moment, _nameOf, new DraftOptions { Scenario = _scenario() ?? "", Kind = _kindOf }, template, keySim);
+        if (Drafter.MomentAt(index, lane, anchor.EventIndex, _nameOf, _groundAt) is not { } moment) return null;
+        return Drafter.TemplateCamera(index, moment, _nameOf, new DraftOptions { Scenario = _scenario() ?? "", Kind = _kindOf, GroundAt = _groundAt }, template, keySim);
     }
 
     /// <summary>

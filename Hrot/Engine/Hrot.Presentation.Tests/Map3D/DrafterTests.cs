@@ -382,4 +382,70 @@ public sealed class DrafterTests
         public bool Equals(double x, double y) => Math.Abs(x - y) < 1e-6;
         public int GetHashCode(double obj) => 0;
     }
+
+    // ── ⭐ CE-4120 (§11n-1) — a blast is framed on its PLACE ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A recording where Alpha FLIES 300 m up (east at 2 m/s, z = 300) and a blast at 10 s lands at (60, 30): <paramref name="struck"/> — Bravo, 60 m off — or no unit at all.</summary>
+    private static TimelineIndex AirStrike(bool struck)
+    {
+        int frames = FrameOf(25d) + 1;
+        var blast = new TimelineEvent(FrameOf(10d), Blast, Alpha, struck ? Bravo : 0, 60f, 30f, 100f);
+        var lanes = new Dictionary<string, SharedList<TimelineEvent>> { [Blast] = new SharedList<TimelineEvent>(new[] { blast }) };
+        var ticks = Enumerable.Range(0, frames).Select(f => (long)f * 1_000_000).ToArray();
+        var sim = Enumerable.Range(0, frames).Select(f => f * Dt).ToArray();
+        var alpha = new List<PositionSample>(); var bravo = new List<PositionSample>();
+        for (int f = 0; f < frames; f += 5)
+        {
+            alpha.Add(new PositionSample(f, (float)(2 * f * Dt), 0f, 300f, 0f));
+            bravo.Add(new PositionSample(f, 60f, 30f, 0f, 0f));
+        }
+        var positions = new PositionTrack(new Dictionary<long, PositionSample[]> { [Alpha] = alpha.ToArray(), [Bravo] = bravo.ToArray() });
+        return new TimelineIndex(lanes, new SharedList<long>(ticks), frames, frames, null, new SharedList<double>(sim), positions);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4120</c> B1–B3 — a blast whose shooter flies 300 m above its point and struck no unit: the moment carries the PLACE (60, 30, ground 40); ③ and ④ look at it (not at the jet's height), the pitch of ③ is
+    /// the ground's (≤ 0), and the place ± a 25 m burst half-width is inside the view (the distance is fitted to the place, not dragged out to the aircraft).
+    /// 🔴 Mutations: <c>Scene.Focus</c> without the place (the actor fallback) ⇒ ③ looks at the jet (z 300); <c>PitchOf(Unknown)</c> → the aircraft's +10° in ③ ⇒ the pitch cell reds; <c>BurstHalfWidth</c> 25 → 5 ⇒ the fit cell reds.
+    /// </summary>
+    [Fact]
+    public void CE4120_ABlastWithNoStruckUnit_IsFramedOnItsPlace_NotOnTheAircraft()
+    {
+        var index = AirStrike(struck: false);
+        Func<float, float, float> ground = (x, y) => 40f;
+        var moment = Drafter.MomentAt(index, Blast, 0, NameOf, ground)!;
+        Assert.Equal(new Vector3(60f, 30f, 40f), moment.Place);
+        Assert.Null(moment.Subject);
+
+        var take = Drafter.Draft(index, moment, NameOf, new DraftOptions { Scenario = "sc", GroundAt = ground, Kind = _ => SubjectKind.Aircraft });
+        Assert.Equal(4, take.Keys.Count);
+        var place = new Vector3(60f, 30f, 40f);
+        var moments = take.Keys[2].Camera; var consequence = take.Keys[3].Camera;
+        Assert.Equal(place, moments.LookAt);                 // ③ at the place, not [x, y, 300]
+        Assert.Equal(place, consequence.LookAt);             // ④ at the place, from above
+        Assert.True(moments.Pitch <= 0f, $"③ looks down at the ground ({moments.Pitch}°), not up at the aircraft");
+        Assert.Equal(-35f, consequence.Pitch);
+        Assert.Null(consequence.Follow);                     // ④ does not follow the departing jet
+        double tanHalf = Math.Tan(45d * Math.PI / 360d) * (16d / 9d);
+        foreach (var cam in new[] { moments, consequence })
+        {
+            Assert.True(cam.Distance * tanHalf >= 25d, $"the burst's 25 m half-width is inside the view at {cam.Distance} m");
+            Assert.True(cam.Distance < 100f, $"fitted to the place alone (not to a jet 300 m up): {cam.Distance} m");
+        }
+
+        // the host's terrain wins over a moment built without it (z 0 → 40)
+        var viaOptions = Drafter.Draft(index, Drafter.MomentAt(index, Blast, 0, NameOf)!, NameOf, new DraftOptions { Scenario = "sc", GroundAt = ground });
+        Assert.Equal(place, viaOptions.Keys[2].Camera.LookAt);
+    }
+
+    /// <summary>⭐ <c>CE-4120</c> B3 — a blast that STRUCK a unit still follows it in ④ (the place is only the fallback). 🔴 Mutation: <c>Scene.Focus</c> preferring the place over the subject ⇒ ④ does not follow Bravo ⇒ red.</summary>
+    [Fact]
+    public void CE4120_ABlastThatStruckAUnit_StillFollowsIt_InTheConsequence()
+    {
+        var index = AirStrike(struck: true);
+        var moment = Drafter.MomentAt(index, Blast, 0, NameOf, (x, y) => 40f)!;
+        Assert.Equal(Bravo, moment.Subject);
+        var take = Drafter.Draft(index, moment, NameOf, new DraftOptions { Scenario = "sc", GroundAt = (x, y) => 40f });
+        Assert.Equal("Bravo", take.Keys[3].Camera.Follow);
+    }
 }

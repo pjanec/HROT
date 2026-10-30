@@ -343,4 +343,37 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.False(runner.Busy);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4121</c> — <c>GET /director/moments</c> says <c>complete</c> by the host's timeline SOURCE (<c>DirectorDrafts.IndexComplete</c>, the same figure <c>/timeline/lanes</c> reports), not by the index's own flag
+    /// (<c>ScannedFrames &gt;= TotalFrames</c>, true as 0 ≥ 0 before a frame is read): while the recording's index is unread the route answers <c>complete: false</c>, then <c>true</c>.
+    /// 🔴 Mutation: the route reading <c>drafts.Index.IsComplete</c> again ⇒ an index that claims itself complete shows <c>true</c> while the source says no ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task CE4121_TheMomentsRoute_SaysCompleteBy_TheSource_NotTheIndexsOwnZeroOfZero()
+    {
+        var store = new TakeStore(() => _root, () => null);
+        var runner = new DirectorRunner(new Host(store), new NoCinema(), new NoLayers());
+        var session = new DirectorTakeSession(() => store, () => runner, () => null);
+        var index = ShotIndex();
+        Assert.True(index.IsComplete);   // the index itself claims it (scanned ≥ total) — as an UNREAD one does with 0 ≥ 0
+        bool sourceDone = false;
+        var drafts = new DirectorDrafts(() => index, id => id switch { 1 => "Alpha", 2 => "Bravo", _ => null }, _ => SubjectKind.Vehicle, () => "s-a", session, indexComplete: () => sourceDone);
+
+        int port = DebugApiTestHost.FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDirector(runner, store, () => null, drafts);
+        host.AttachService(new DebugApiService(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+            Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>(), () => "Scenario", null)));
+        host.Start();
+        string url = $"http://localhost:{port}";
+
+        var (_, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/director/moments"));
+        Assert.False(body["data"]!["complete"]!.GetValue<bool>(), "the source has not finished reading the recording");
+        sourceDone = true;
+        (_, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/director/moments"));
+        Assert.True(body["data"]!["complete"]!.GetValue<bool>());
+        Assert.True(new DirectorDrafts(() => index, _ => null, _ => SubjectKind.Vehicle, () => "s", session).IndexComplete);   // no source given: the index's own flag
+    }
 }

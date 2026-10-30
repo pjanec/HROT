@@ -1453,7 +1453,8 @@ namespace Hrot.Editor
                     TitleBarColor: Hrot.Editor.Windows.EditorWindowColor.TitleBar,
                     // ⭐ CE-4059 (§11q D1) — the drafter over the index the Event Timeline shows, a take of the loaded scenario
                     Index:     () => _node?.ShownTimeline?.Index,
-                    Scenario:  () => _editorLogic?.LoadedScenarioName));
+                    Scenario:  () => _editorLogic?.LoadedScenarioName,
+                    IndexComplete: () => _node?.ShownTimeline?.IsComplete ?? false));   // ⭐ CE-4121 — the live source: always complete
                 _commandLineVerify = Hrot.Editor.Director.CommandLineVerify.FromEnvironment();
             }
 

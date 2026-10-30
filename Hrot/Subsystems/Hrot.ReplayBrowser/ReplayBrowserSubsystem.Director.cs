@@ -54,6 +54,8 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDirector
             // ⭐ CE-4059 §11r — synced first: a recording= open in the same request reads ITS index (empty while scanned), never the last one's
             Index:         () => { SyncTimelineSource(); return _timelineSource?.Index; },
             Scenario:      () => PrimaryMetadata?.ScenarioName,
+            // ⭐ CE-4121 — "complete" is the SOURCE's (the one GET /timeline/lanes reports), not the index's own 0 >= 0 before a frame is read
+            IndexComplete: () => { SyncTimelineSource(); return _timelineSource?.IsComplete ?? false; },
             // ⭐ CE-1304 P4 (§11s) — promote copies a take from beside the recording into the SHARED scenarios root (the one every host lists)
             ScenarioTakes: () => scenarioTakes,
             // ⭐⭐ CE-1391 (§11u "as built: CE-1391") — THE opener (the one POST /replay ends in): render jobs and reel items open their recordings through

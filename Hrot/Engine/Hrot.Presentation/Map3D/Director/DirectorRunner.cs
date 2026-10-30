@@ -531,7 +531,8 @@ namespace Hrot.UI.Common.Map3D.Director
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
-            var card = Item.ChapterCard is { } chapter ? chapter + "\n" + (Item.Title ?? Item.Scenario) : Item.Title ?? Item.Scenario;
+            var title = Item.Title ?? TakeTitleOf(_request!, Item) ?? Item.Scenario;   // ⭐ CE-4121: the opening card says the take's title, not the scenario's name
+            var card = Item.ChapterCard is { } chapter ? chapter + "\n" + title : title;
             _cinema.Card(card);
             _cinema.Caption(null);
             if (_request!.Mode == DirectorMode.Capture) WriteCard(card);
@@ -641,8 +642,7 @@ namespace Hrot.UI.Common.Map3D.Director
             _viewNow = null;
             ApplyView(Rel);
             _sound?.SetTakeSound(take.Sound);
-            if (_request.Mode == DirectorMode.Capture && Item.Title != null) _chapters.Add((_frameNo, Item.Title));
-            else if (_request.Mode == DirectorMode.Capture) _chapters.Add((_frameNo, Item.Scenario));
+            if (_request.Mode == DirectorMode.Capture) _chapters.Add((_frameNo, Item.Title ?? take.Title ?? Item.Scenario));   // ⭐ CE-4121: the take's title, not the scenario's name
             // ⭐ CE-1303 D5 — play from a film second: a recording is sought there (the shot, camera and layers of that moment follow from the
             //   first frame's EnterShot); a live run fast-forwards (TickPlaying)
             //   ⭐ CE-1303 P2b — CR-7 (§11o S5): through the FILM map — the segment that plays film second t, at its source second
@@ -712,6 +712,13 @@ namespace Hrot.UI.Common.Map3D.Director
             _clock.Start(_host.WallNow);
         }
 
+        /// <summary>⭐ CE-4121 — the take's own title (the open take, an inline one, or the file), for the opening card; null when it has none or cannot be read yet.</summary>
+        private string? TakeTitleOf(PlayRequest request, ReelItem item)
+        {
+            try { return LoadTake(request, item).Value?.Title is { Length: > 0 } t ? t : null; }
+            catch (Exception) { return null; }
+        }
+
         private Loaded<Take> LoadTake(PlayRequest request, ReelItem item)
         {
             if (request.Inline != null && request.Inline.TryGetValue(item.Scenario + "/" + item.Take, out var inline))
@@ -735,7 +742,15 @@ namespace Hrot.UI.Common.Map3D.Director
             if (OpenTakeFor(_request!, Item) is not { } now || ReferenceEquals(now, _take)) return;
             bool anchorsMoved = !ReferenceEquals(now.Anchors, _take!.Anchors) || !ReferenceEquals(now.Baked, _take.Baked);
             _take = now;
-            if (anchorsMoved) { _book = NewBook(now, BakeIsFresh(now) ? now.Baked!.Times : null); _book.ObserveEvents(_units); }
+            if (anchorsMoved)
+            {
+                var previous = _book;
+                _book = NewBook(now, BakeIsFresh(now) ? now.Baked!.Times : null);
+                _book.ObserveEvents(_units);
+                // ⭐ CE-4117 — keep what Resolving found for an UNCHANGED anchor; a changed `near` gets the coarse estimate (no seeking mid-loop)
+                if (previous != null) _book.CarryOverResolved(previous);
+                if (_host.CanSeek) foreach (var w in _book.NearWindows(_units)) _book.Resolve(w.Anchor, w.Estimate);
+            }
             Replan();
         }
 

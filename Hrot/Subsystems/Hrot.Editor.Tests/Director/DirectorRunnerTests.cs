@@ -784,9 +784,30 @@ public sealed class DirectorRunnerTests : IDisposable
         // and runs to its end (1.7 s): ~8 frames. A scouted take would give 15 (the scout rail shows the bake placing it).
         Assert.InRange(sink.Frames.Count, 2 * 22 - 2, 2 * 23 + 2);
         Assert.Equal(sink.Frames.Count, runner.Reports.Sum(r => r.Frames));
-        Assert.Equal(new[] { "One", "s-b" }, sink.Cards);
+        Assert.Equal(new[] { "One", "S-B" }, sink.Cards);   // ⭐ CE-4121: an item with no title of its own opens on its TAKE's title (S-B), not the scenario's name
         Assert.All(host.StepsPerFrame, n => Assert.Equal(1, n));
         Assert.Empty(host.Holds.Where(h => h > 0));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4121</c> — a single-take capture whose take is titled "Level bomb" opens on a card that says so and names its chapter so (not the scenario's name, <c>s-a</c>); an item's own title still wins.
+    /// 🔴 Mutation: <c>Item.Title ?? take.Title ?? Item.Scenario</c> → <c>Item.Title ?? Item.Scenario</c> (and the card likewise) ⇒ "s-a" ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4121_ACaptureOfOneTake_IsCalledByTheTakesTitle_NotTheScenariosName()
+    {
+        var store = Store();
+        store.Save(new Take { Scenario = "s-a", Name = "bomb", Title = "Level bomb", Shots = new[] { new ShotSpec { At = new AtExpr(0.5), Seconds = 0.5, Camera = new CameraSpec { Follow = "Runner", Distance = 10 } } } });
+        var host = new FakeEditor(store);
+        var sink = new Sink();
+        var runner = new DirectorRunner(host, new Cinema(), new Layers(), sink);
+        var dir = Path.Combine(_root, "film-title");
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "bomb"), Capture: new CaptureOptions(dir, Fps: 30))));
+        for (int f = 0; f < 20000 && runner.Busy && runner.Phase != DirectorPhase.Encoding; f++) { runner.Tick(); host.EndFrame(); }   // to the encoding: chapters.txt is written as it starts
+        Assert.Equal("Level bomb", sink.Cards[0]);                                              // the opening card
+        string chapters = File.ReadAllText(Path.Combine(dir, "chapters.txt"));
+        Assert.Contains("title=Level bomb", chapters);                                          // the movie's chapter
+        Assert.DoesNotContain("title=s-a\n", chapters);   // (the movie's own title is the reel name, s-a/bomb)
     }
 
     /// <summary>

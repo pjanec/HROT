@@ -44,7 +44,8 @@ namespace Hrot.UI.Common.Map3D.Director
         Func<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineIndex?>? Index = null,
         Func<string?>? Scenario = null,
         Func<TakeStore?>? ScenarioTakes = null,
-        Hrot.Presentation.DebugApi.IRecordingOpener? Recordings = null);
+        Hrot.Presentation.DebugApi.IRecordingOpener? Recordings = null,
+        Func<bool>? IndexComplete = null);
 
     /// <summary>
     /// ⭐ <c>CE-1303</c> P1 (§11j, CR-2) — the ONE registrar of the film director: builds the runner (with the window / layer / audio / frame
@@ -129,7 +130,10 @@ namespace Hrot.UI.Common.Map3D.Director
             if (h.Index != null)
             {
                 drafts = new DirectorDrafts(h.Index, id => DirectorUnits.NameOf(h.Host.World, id), id => DirectorUnits.KindOf(h.Host.World, id),
-                                            h.Scenario ?? (() => null), session);
+                                            h.Scenario ?? (() => null), session,
+                                            // ⭐ CE-4120 (§11n-1 B5) — a blast's ground point: the host world's terrain, read the way the map reads it (ONE reader, CachedGroundHeight)
+                                            groundAt: new Hrot.UI.Common.Map3D.CachedGroundHeight(() => h.Host.World).At,
+                                            indexComplete: h.IndexComplete);   // ⭐ CE-4121
                 h.Timeline.EventMenu = drafts.MenuItems;
                 session.Templates = drafts.TemplateCamera;   // ⭐ CE-1305 (§11v T2) — the shot templates: the drafter's rule, through the ONE drafts object
             }
