@@ -39,6 +39,29 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>True while an animated switch runs (a second request is ignored until it ends).</summary>
         public bool IsSwitching => _toggling;
 
+        /// <summary>
+        /// ⭐ <c>CE-1446</c> (R-1046, DESIGN_Cluster_Load_Phase §11.9 ③) — the map's 3-D build. A request for 3-D while it is NOT built starts it and leaves the map in 2-D (<see cref="Pending3D"/>) — the camera is not swapped, so the
+        /// 2-D map stays usable instead of freezing for the build — and <see cref="Update"/> goes to 3-D when it is done. Null (a bare switch, a rail): 3-D is always immediate.
+        /// </summary>
+        public Map3DBuild? Build { get; set; }
+
+        /// <summary>⭐ CE-1446 — a 3-D request is waiting for the map's 3-D build (the map is still 2-D). Drawn as a small "building 3-D map…" note.</summary>
+        public bool Pending3D { get; private set; }
+
+        /// <summary>⭐ CE-1446 — why the last pending 3-D request was dropped: the build failed (its message); null otherwise.</summary>
+        public string? Pending3DFailure { get; private set; }
+
+        private bool _pendingAnimate;
+        private Vector3? _pendingCentre;
+
+        /// <summary>⭐ CE-1446 — once per frame (the map's mode layer calls it): completes a pending request into 3-D when the build is done; drops it, with the message, when the build failed.</summary>
+        public void Update()
+        {
+            if (!Pending3D) return;
+            if (Build is null || Build.IsBuilt) { Pending3D = false; Set(true, _pendingAnimate, _pendingCentre); return; }
+            if (Build.Failure is { } failure) { Pending3D = false; Pending3DFailure = failure; }
+        }
+
         public void Toggle() => Set(!Is3D);
 
         /// <summary>⭐ <c>CE-1342</c> — the switch, landing centred on <paramref name="centreOn"/> (the selected unit; null = where the map looks).</summary>
@@ -48,7 +71,16 @@ namespace Fdp.Toolkit.Vis3D
         /// <paramref name="centreOn"/> set = the new view is centred there (⭐ <c>CE-1342</c>).</summary>
         public void Set(bool on, bool animate = true, Vector3? centreOn = null)
         {
+            if (!on && Pending3D) Pending3D = false;   // ⭐ CE-1446 — going back to 2-D cancels a waiting 3-D request
             if (_toggling || on == Is3D) return;
+            if (on && Build is { IsBuilt: false } build)
+            {
+                // ⭐ CE-1446 — the 3-D map is not built: start it, stay in 2-D (no camera swap), and complete in Update
+                Pending3D = true; Pending3DFailure = null; _pendingAnimate = animate; _pendingCentre = centreOn;
+                build.Request3D();
+                return;
+            }
+            Pending3D = false;
             float seconds = animate ? Seconds : 0.0001f;
             if (on)
             {

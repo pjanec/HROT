@@ -43,6 +43,7 @@ public sealed class MapViewModeLayer : IMapLayer
 
     public void Update(float dt)
     {
+        _switch.Update();   // ⭐ CE-1446 — a 3-D request waiting for the map's build completes into 3-D the frame it is built
         if (World?.Invoke() is { } w && !ReferenceEquals(w, _registered)) { ViewControl.Register(w, this); _registered = w; }
         foreach (ref readonly var _ in _bus.Read<ToggleMap3DEvent>())
             _switch.Toggle();

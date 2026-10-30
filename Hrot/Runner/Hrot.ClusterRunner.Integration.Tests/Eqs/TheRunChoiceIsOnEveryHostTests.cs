@@ -326,6 +326,34 @@ public sealed class TheRunChoiceIsOnEveryHostTests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1446</c> (R-1046, DESIGN_Cluster_Load_Phase §11.9 ②) S4 — on the CONSTRUCTED IG: its profile puts the map in the load (<c>MapInLoad</c>) and ITS map is built <c>Eager</c> BECAUSE of that flag — one statement, the profile's;
+    /// the map's build is reachable from the node as <c>IgSubsystem.MapBuildStatus</c> (the load step's poll). Headless there is no window to upload into, so the status reads built (nothing to wait for).
+    /// 🔴 Mutation: the IG's attach passing no policy (⇒ <c>OnFirst3DRequest</c>) ⇒ the policy cell reds.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void CE1446_TheConstructedIgs_MapIsEager_BecauseItsProfilePutsTheMapInTheLoad()
+    {
+        var ig = new Hrot.IG.IgSubsystem();
+        try
+        {
+            ig.Initialize(new SubsystemConfig { Headless = true, DomainId = 90 + Interlocked.Increment(ref _domain) });
+            Assert.True(Hrot.IG.IgApplication.RunProfile.MapInLoad);
+            var status = ig.MapBuildStatus;
+            var build = Assert.IsType<Fdp.Toolkit.Vis3D.Map3DBuild>(status);
+            Assert.Equal(Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager, build.Policy);
+            Assert.Equal(Hrot.IG.IgApplication.RunProfile.MapBuildPolicy, build.Policy);
+            Assert.True(status!.IsBuilt);                              // headless: no window, nothing to build
+            Assert.Null(status.Failure);
+            Assert.Equal(string.Empty, status.Step);
+        }
+        finally
+        {
+            ig.Shutdown();
+        }
+        Assert.Null(ig.MapBuildStatus);                                // after Shutdown the node holds none
+    }
+
     /// <summary>The scenario menu items the ONE registrar owns (AQ108 §3a / CE-4097 part two) — pinned by path so the three hosts are compared on the same leaves.</summary>
     private static readonly string[] ScenarioMenuPaths =
     {

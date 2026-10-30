@@ -121,6 +121,9 @@ namespace Hrot.IG
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
         bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
 
+        /// <summary>⭐ CE-1446 (R-1046) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); null before the IG is initialised. The one place the node exposes it.</summary>
+        public Fdp.Toolkit.Orchestration.IMapBuildStatus? MapBuildStatus => _app?.MapBuildStatus;
+
         /// <summary>⭐ CE-1445 — the IG's run choice, for the wiring rail.</summary>
         internal Hrot.UI.Common.RunMode.RunModeChoice? RunChoiceForTest => _app?.RunControls?.RunChoice;
 

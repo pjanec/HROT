@@ -968,8 +968,10 @@ public class IgApplication : IDisposable
             //   primitives instead (.dev/_DONE/gizmos-1/feedback2.md:798). Named arguments because the
             //   two constructors collapsed into one.
             // ⭐ CE-1033 — the shared attach: gizmo layer + draw buffer + the 3-D mode, the same on every host.
-            var gizmoLayer = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
-                _canvas, _gizmoBuffer!, _interactionBus, () => _world).GizmoLayer;
+            var mapLayers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(
+                _canvas, _gizmoBuffer!, _interactionBus, () => _world, map3DBuildPolicy: RunProfile.MapBuildPolicy);   // ⭐ CE-1446 — Eager because the profile says MapInLoad
+            var gizmoLayer = mapLayers.GizmoLayer;
+            _map3D = mapLayers.Map3D;
             _gizmoLayer = gizmoLayer;
             // Route gizmo interaction translators and publisher through the network factory
             // so that IgApplication has no direct dependency on Hrot.Network.NED.
@@ -1018,8 +1020,7 @@ public class IgApplication : IDisposable
         _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.Map2D, _networkFactory);
         // ⭐⭐⭐ CE-1445 (R-1044, §11.8) — the player's run controls come from the SAME factory as every ECS host's: the Player gate (waits only on ITS OWN readiness), a loading / waiting screen over it, no Cancel.
         //   ⭐ SuppressTimeControl is the role's EXPLICIT suppression: the IG issues no ticks (Q54/D4), so the composer registers no toolbar time control over it.
-        RunControls = Hrot.UI.Common.RunMode.NodeRunControls.For(_context, new Hrot.UI.Common.RunMode.NodeRunProfile(
-            Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true));
+        RunControls = Hrot.UI.Common.RunMode.NodeRunControls.For(_context, RunProfile);
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;
@@ -1076,6 +1077,10 @@ public class IgApplication : IDisposable
         if (!_headless)
 
         {
+
+            // ⭐ CE-1446 (R-1046) — the 3-D map's build is pumped HERE, ungated: the canvas update below runs only for the active map owner and only while ImGui is not capturing the mouse
+            //   (the waiting screen's modal does), and the player's load waits on this build.
+            _map3D?.Update(dt);
 
             // Gate map input when ImGui is consuming the mouse (TASK-IF008).
 
@@ -1749,6 +1754,7 @@ public class IgApplication : IDisposable
         }
 
         RunControls = null;
+        _map3D = null;
         _clusterSlave?.Dispose();
         _clusterSlave = null;
 
@@ -1810,6 +1816,21 @@ public class IgApplication : IDisposable
     /// genuinely independent.</para>
     /// </summary>
     internal Fdp.Core.FdpEventBus? OrchestrationBus => _context?.EventBus;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1445</c> / <c>CE-1446</c> — what makes the IG a PLAYER (R-1044): its kind (Player gate), the toolbar time control suppressed, and — R-1046 — <c>MapInLoad</c>: its load waits for the 3-D map, so the map builds eagerly.
+    /// ONE statement: the map's policy below and the run controls both read this profile.
+    /// </summary>
+    internal static readonly Hrot.UI.Common.RunMode.NodeRunProfile RunProfile = new(
+        Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true, MapInLoad: true);
+
+    private Fdp.Toolkit.Vis3D.Map3DBuild? _map3D;
+
+    /// <summary>
+    /// ⭐ CE-1446 (R-1046) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); <see langword="null"/> before the map is attached. Reached from the node as
+    /// <c>IgSubsystem.MapBuildStatus</c> → here. The map builds <see cref="Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager"/> and is pumped every frame, whoever owns the map and whatever the mouse is over.
+    /// </summary>
+    internal Fdp.Toolkit.Orchestration.IMapBuildStatus? MapBuildStatus => _map3D;
 
     /// <summary>⭐ CE-1445 — this node's run controls (transport + choice, Player policy), from <c>NodeRunControls.For</c>; <see langword="null"/> before <c>InitializeEmbedded</c> built the context and after <c>Shutdown</c>.</summary>
     internal Hrot.UI.Common.Adapters.ClusterTimeTransportAdapter? RunControls { get; private set; }

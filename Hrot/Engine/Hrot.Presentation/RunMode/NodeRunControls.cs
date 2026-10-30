@@ -15,8 +15,13 @@ namespace Hrot.UI.Common.RunMode;
 /// <param name="Control">The host's scenario session; <see langword="null"/> for a host with none (SimHost, IG).</param>
 /// <param name="UnsavedReads">How this host reads the unsaved-check round's answer; <see langword="null"/> ⇒ it observes nothing.</param>
 /// <param name="SuppressTimeControl">The host's role has no toolbar time control (the composer does not register one over its transport).</param>
-public sealed record NodeRunProfile(RunHostKind Kind, IRunScenarioControl? Control = null, UnsavedCheckReads? UnsavedReads = null, bool SuppressTimeControl = false)
+/// <param name="MapInLoad">⭐ <c>CE-1446</c> (R-1046) — the node's LOAD waits for its 3-D map (the Player only): its map builds <see cref="Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager"/> from the terrain commit, and the load chain gets a "3-D map" step over the map's
+/// <see cref="Fdp.Toolkit.Orchestration.IMapBuildStatus"/>. Every other ECS host starts in 2-D and builds 3-D on the first switch request.</param>
+public sealed record NodeRunProfile(RunHostKind Kind, IRunScenarioControl? Control = null, UnsavedCheckReads? UnsavedReads = null, bool SuppressTimeControl = false, bool MapInLoad = false)
 {
+    /// <summary>⭐ CE-1446 — when this node's 3-D map builds: <see cref="MapInLoad"/> ⇒ eagerly (the fact is stated once, here).</summary>
+    public Fdp.Toolkit.Vis3D.Map3DBuildPolicy MapBuildPolicy => MapInLoad ? Fdp.Toolkit.Vis3D.Map3DBuildPolicy.Eager : Fdp.Toolkit.Vis3D.Map3DBuildPolicy.OnFirst3DRequest;
+
     /// <summary>What this host's controls wait on — the table's value for <see cref="Kind"/>.</summary>
     public HostGatePolicy GatePolicy => HostGatePolicies.For(Kind);
 
