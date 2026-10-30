@@ -237,7 +237,8 @@ public sealed class HrotNodeBuilder
         // Step 8 — ClusterSlave + SlaveTranslator
         // P1/CE-285: advertise the declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
         var clusterSlave = new ClusterSlave(_config.NodeId, _subsystemName, eventBus, _role,
-            capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(_role));   // + asset tokens, CE-3020
+            capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(_role),   // + asset tokens, CE-3020
+            nodeName: _config.NodeName);   // ⭐ CE-3354 ②
         
         Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null;
         if (participant != null && _networkFactory != null)

@@ -9,6 +9,9 @@ public sealed class NodeHealthProfile
 {
     public int NodeId { get; set; }
     public string SubsystemName { get; set; } = string.Empty;
+
+    /// <summary>⭐ <c>CE-3354</c> ② — the node's unique human-given name from its heartbeat (never empty on the roster: a sender with none gets <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>).</summary>
+    public string NodeName { get; set; } = string.Empty;
     public ClusterState LocalClusterState { get; set; }
     public double LastHeartbeatUtcSeconds { get; set; }
     /// <summary>⭐ C2 (R-4006 I5) — the cluster session the node reports following; empty until it has seen one.</summary>

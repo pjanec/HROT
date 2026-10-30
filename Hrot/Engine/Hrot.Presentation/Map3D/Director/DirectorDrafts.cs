@@ -42,6 +42,19 @@ public static class DirectorUnits
         };
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4119</c> part 1 — what the SHOWN world holds, for a drafter that finds no moments: its entity count and how many of them carry a name (<see cref="EntityInfo.Name"/> with a network identity — what
+    /// <see cref="NameOf"/> can answer). <see langword="null"/> when there is no shown world at all.
+    /// </summary>
+    public static (int Entities, int Named)? Census(EntityRepository? world)
+    {
+        if (world is null) return null;
+        int named = 0;
+        foreach (var e in world.Query().With<EntityInfo>().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build())
+            if (world.GetComponentRO<EntityInfo>(e).Name.ToString().Length > 0) named++;
+        return (world.EntityCount, named);
+    }
+
     private static Entity? Of(EntityRepository? world, long networkId)
     {
         if (world is null) return null;
@@ -68,17 +81,19 @@ public sealed class DirectorDrafts
     private readonly DirectorTakeSession _session;
     private readonly Func<float, float, float>? _groundAt;
     private readonly Func<bool>? _indexComplete;
+    private readonly Func<(int Entities, int Named)?>? _census;
 
     /// <param name="groundAt">⭐ <c>CE-4120</c> (§11n-1 B5) — the host world's ground height at (x, y), for a blast's place; null = 0.</param>
+    /// <param name="census">⭐ <c>CE-4119</c> part 1 — what the shown world holds (<see cref="DirectorUnits.Census"/>): the evidence <see cref="Skips"/> gives when events cannot be named.</param>
     /// <param name="indexComplete">⭐ <c>CE-4121</c> — whether the shown recording's index has been READ (the host's timeline SOURCE says, the one <c>GET /timeline/lanes</c> reports); null = the index's own flag.</param>
     /// <param name="index">The index the host's Event Timeline shows (null: none yet).</param>
     /// <param name="nameOf">A network id to the unit's name (<see cref="DirectorUnits.NameOf"/> over the host's world).</param>
     /// <param name="kindOf">A network id to the unit's kind (<see cref="DirectorUnits.KindOf"/>).</param>
     /// <param name="scenario">The scenario the shown run belongs to (the editor's loaded one; the recording's) — the draft's take is that scenario's.</param>
     public DirectorDrafts(Func<TimelineIndex?> index, Func<long, string?> nameOf, Func<long, SubjectKind> kindOf, Func<string?> scenario, DirectorTakeSession session,
-                           Func<float, float, float>? groundAt = null, Func<bool>? indexComplete = null)
+                           Func<float, float, float>? groundAt = null, Func<bool>? indexComplete = null, Func<(int Entities, int Named)?>? census = null)
     {
-        _groundAt = groundAt; _indexComplete = indexComplete;
+        _groundAt = groundAt; _indexComplete = indexComplete; _census = census;
         _index = index ?? throw new ArgumentNullException(nameof(index));
         _nameOf = nameOf ?? throw new ArgumentNullException(nameof(nameOf));
         _kindOf = kindOf ?? throw new ArgumentNullException(nameof(kindOf));
@@ -100,6 +115,33 @@ public sealed class DirectorDrafts
 
     /// <summary>The candidate moments of the shown index, scored, in time order (<see cref="Drafter.Moments"/>); empty when there is no index.</summary>
     public IReadOnlyList<DraftMoment> Moments() => _index() is { } index ? Drafter.Moments(index, _nameOf, _groundAt) : Array.Empty<DraftMoment>();
+
+    /// <summary>
+    /// ⭐ <c>CE-4119</c> part 1 — the SILENT failure made loud: how many events of the drafter's lanes (<see cref="Drafter.Lanes"/>) <see cref="Drafter.MomentAt"/> could NOT turn into a moment, and why — with the SAME name reader
+    /// the moments use. An event is skipped when its unit has no name in the shown world (a wrong or stale shown world drops every one of them), so the reason carries what that world holds.
+    /// </summary>
+    public (int Skipped, string? Why) Skips()
+    {
+        if (_index() is not { } index) return (0, null);
+        int skipped = 0, total = 0;
+        string? first = null;
+        foreach (var lane in Drafter.Lanes)
+        {
+            var events = index.Lane(lane);
+            for (int i = 0; i < events.Count; i++)
+            {
+                total++;
+                if (Drafter.MomentAt(index, lane, i, _nameOf, _groundAt) is not null) continue;
+                skipped++;
+                first ??= $"{lane} #{i} (unit {events[i].Subject})";
+            }
+        }
+        if (skipped == 0) return (0, null);
+        string world = _census?.Invoke() is { } c
+            ? $"the shown world holds {c.Entities} entities, {c.Named} of them named"
+            : "the shown world is unknown to the drafter";
+        return (skipped, $"{skipped} of {total} events cannot be drafted: their unit has no name in the shown world — first {first} ({world}); a stale or wrong shown world (another recording's, or none) drops them all");
+    }
 
     /// <summary>A unit's name by network id (what a moment's actor / subject are called).</summary>
     public string? NameOf(long networkId) => _nameOf(networkId);

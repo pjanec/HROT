@@ -133,7 +133,8 @@ namespace Hrot.UI.Common.Map3D.Director
                                             h.Scenario ?? (() => null), session,
                                             // ⭐ CE-4120 (§11n-1 B5) — a blast's ground point: the host world's terrain, read the way the map reads it (ONE reader, CachedGroundHeight)
                                             groundAt: new Hrot.UI.Common.Map3D.CachedGroundHeight(() => h.Host.World).At,
-                                            indexComplete: h.IndexComplete);   // ⭐ CE-4121
+                                            indexComplete: h.IndexComplete,   // ⭐ CE-4121
+                                            census: () => DirectorUnits.Census(h.Host.World));   // ⭐ CE-4119 part 1 — both hosts: the drafter says what the shown world holds
                 h.Timeline.EventMenu = drafts.MenuItems;
                 session.Templates = drafts.TemplateCamera;   // ⭐ CE-1305 (§11v T2) — the shot templates: the drafter's rule, through the ONE drafts object
             }

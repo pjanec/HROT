@@ -187,6 +187,11 @@ namespace Hrot.Editor
         /// 0."</i> 0 means "no node" and, on a creation request, "the system picks"; the editor is an offline one-node cluster, so 1.</summary>
         internal const int EditorNodeId = 1;
 
+        /// <summary>⭐ <c>CE-3354</c> ② — this editor node's unique name (<c>--node-name</c>); null ⇒ <c>Editor-1</c>.</summary>
+        private string? _nodeName;
+        /// <summary>⭐ <c>CE-3354</c> ② — the name the editor node heartbeats (the default when none was configured).</summary>
+        public string NodeName => string.IsNullOrWhiteSpace(_nodeName) ? Fdp.Toolkit.Orchestration.ClusterSlave.DefaultNodeName("Editor", EditorNodeId) : _nodeName!;
+
         /// <summary>
         /// ⭐ The editor's terrain residency — the one its load chain commits through and the terrain picker
         /// (W13) switches. 📄 docs/DESIGN_Terrain_World.md §7.3. Null until the cluster handlers are composed.
@@ -1276,6 +1281,7 @@ namespace Hrot.Editor
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
+            _nodeName = config.NodeName;   // ⭐ CE-3354 ②
 
             // ⭐ CE-3340 ③ — the content seed (repository → NAS) is NOT here: SubsystemOrchestrator.Initialize runs it, once, before any subsystem
             // initialises (the asset catalogue below resolves its roots from the NAS).
@@ -1290,7 +1296,7 @@ namespace Hrot.Editor
             _bootstrapper = new EditorNodeBootstrapper(EditorNodeId, isolatedTempRoot, _fdpEventHistory, _navmesh, _blueprintRegistry, MuscleCapabilitiesFactory, TranslatorPlacements);
             _bootstrapper.ApplicationSystemsRegistrar = RegisterHostSystems;
             _node = _bootstrapper.BootstrapNode(
-                new HrotNodeConfig { NodeId = EditorNodeId, SubsystemName = "Editor", Headless = true },
+                new HrotNodeConfig { NodeId = EditorNodeId, SubsystemName = "Editor", Headless = true, NodeName = _nodeName },
                 EditorCapabilities.DefaultRole,
                 _networkFactory);
 

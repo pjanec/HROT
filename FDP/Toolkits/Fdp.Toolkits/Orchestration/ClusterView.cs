@@ -32,6 +32,9 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ <c>CE-3344</c> — the node this view belongs to (<see langword="null"/> = none: <see cref="CanOperate"/> then does not ask for it to be in sync).</summary>
         public int? NodeId { get; }
 
+        /// <summary>⭐ <c>CE-3354</c> ② — the unique name of the node this view belongs to (set by its <c>ClusterSlave</c>); null on a view with no slave.</summary>
+        public string? NodeName { get; internal set; }
+
         // ── the cluster state broadcast ────────────────────────────────────────
 
         /// <summary>The cluster state the master LAST ANNOUNCED (<c>Idle</c> until one arrives, and after <see cref="MasterGone"/>).

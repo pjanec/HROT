@@ -54,6 +54,47 @@ public sealed class TheClusterMembershipRoutesTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — <c>GET /cluster/roster</c> shows each node's <c>name</c>, and lists a heartbeat the master REFUSED for a name another live node holds under
+    /// <c>nameConflicts</c> (not among <c>nodes</c>, not in <c>count</c>). 🔴 Mutations (each compiles): the route not writing <c>name</c> ⇒ the name cell reds; the conflict row left in <c>nodes</c> ⇒ the count cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_The_roster_shows_the_node_names_and_the_refused_name_conflicts()
+    {
+        var svc = Cluster(new[]
+        {
+            new ClusterRosterEntry(100, "IG", "Idle", "Map2D", 0.4, "film-cam"),
+            new ClusterRosterEntry(101, "IG", "Refused", "None", 0.1, "film-cam", "name 'film-cam' is held by live node 100"),
+        });
+
+        var (result, error, _) = svc.GetClusterRoster();
+
+        Assert.Null(error);
+        Assert.Equal(1, (int)result!["count"]!);
+        Assert.Equal("film-cam", (string)result["nodes"]![0]!["name"]!);
+        var conflict = result["nameConflicts"]![0]!;
+        Assert.Equal((101, "film-cam"), ((int)conflict["nodeId"]!, (string)conflict["name"]!));
+        Assert.Contains("100", (string)conflict["reason"]!);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — <c>GET /status.node</c> is the ANSWERING node's <c>{name, nodeId}</c>, read from its cluster view; absent (null) where the host keeps none.
+    /// 🔴 Mutation: <c>NodeOrNull</c> reading the wrong field ⇒ the name cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_Status_names_the_node_that_answers()
+    {
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", new Fdp.Core.FdpEventBus(), nodeName: "film-cam");
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => slave.View) },
+            currentPerspective: () => "IG",
+            acksPending: null));
+
+        var node = svc.GetStatus()["node"]!;
+
+        Assert.Equal(("film-cam", 7), ((string)node["name"]!, (int)node["nodeId"]!));
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4087</c> — a scenario load that waits for a Brain / MuscleGround node (or was refused) is READABLE over HTTP: the
     /// roster answer carries the master's load-gate text as <c>load.notice</c>, from the node that hosts the master even though
     /// another perspective is active. <c>null</c> when no load is held — an absent notice is not an empty string.

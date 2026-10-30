@@ -1405,4 +1405,34 @@ public sealed class ClusterMasterBootstrapTests
         Assert.Equal((OrchestrationStatusCode.Failure, "boom"), (status.StatusCode, (string?)status.ResultPayload));
         Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.AbortTransaction);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ② — the master keeps each node's NAME (an older sender's none ⇒ <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>), refuses a heartbeat whose name another LIVE node holds
+    /// (the roster rows say it: the holder stays, the second is a conflict row, never a member), and a node re-heartbeating under its own name is fine.
+    /// 🔴 Mutations (each compiles): the ingest not setting <c>NodeName</c> ⇒ the name cells red; <c>TryAdmit</c> replaced by <c>Upsert</c> ⇒ the second node is a member.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3354_TheMaster_KeepsTheName_AndRefusesASecondLiveNodeOfTheSameName()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        void Beat(int id, string sub, string? name)
+        {
+            bus.PublishManaged(new NodeHeartbeatEvent { NodeId = id, SubsystemName = sub, NodeName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks });
+            Step(bus, master);
+        }
+        Beat(100, "IG", "film-cam");
+        Beat(1, "SimHost", null);                  // an older sender: the default
+        Beat(100, "IG", "film-cam");               // the holder again: fine
+        Beat(101, "IG", "film-cam");               // a different node, the same name
+
+        var rows = master.DescribeRoster();
+        var members = rows.Where(r => r.NameConflict == null).ToDictionary(r => r.NodeId, r => r.Name);
+        Assert.Equal(new[] { 1, 100 }, members.Keys.OrderBy(x => x).ToArray());
+        Assert.Equal("film-cam", members[100]);
+        Assert.Equal("SimHost-1", members[1]);
+        var conflict = Assert.Single(rows, r => r.NameConflict != null);
+        Assert.Equal((101, "film-cam"), (conflict.NodeId, conflict.Name));
+        Assert.Contains("100", conflict.NameConflict);
+    }
 }

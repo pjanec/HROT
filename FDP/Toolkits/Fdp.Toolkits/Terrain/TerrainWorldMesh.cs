@@ -85,7 +85,9 @@ namespace Fdp.Toolkit.Terrain
             return new Result(v.ToArray(), t.ToArray(), g.ToArray());
         }
 
-        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        /// <summary>The ground grid's layout: its corner, its far corner, its cell and its cell counts — the ONE rule <see cref="AddGround"/> lays the
+        /// ground out by and <see cref="BuildApron"/> meets its edge by (same edge vertices ⇒ no crack between them).</summary>
+        private static (Vector2 Min, Vector2 Max, float Cell, int Nx, int Ny) GroundLayout(TerrainWorld world, float cell)
         {
             var min = world.BoundsMin;
             var max = world.BoundsMax;
@@ -99,6 +101,116 @@ namespace Fdp.Toolkit.Terrain
             }
             int nx = Math.Max(1, (int)MathF.Ceiling((max.X - min.X) / cell));
             int ny = Math.Max(1, (int)MathF.Ceiling((max.Y - min.Y) / cell));
+            return (min, max, cell, nx, ny);
+        }
+
+        /// <summary>The material tag of the <see cref="BuildApron"/> ground.</summary>
+        public const string ApronMaterial = "apron";
+
+        /// <summary>⭐ CE-4122 (HB3) — the apron's coarse cell (m): SUMO's own lattice size.</summary>
+        public const float ApronCoarseCell = 40f;
+        /// <summary>⭐ CE-4122 (HB3) — how far (m) an apron vertex under the SUMO net's ground is sunk, so SUMO's own mesh wins without a gap.</summary>
+        public const float ApronOverlapDrop = 0.3f;
+
+        /// <summary>
+        /// ⭐ The APRON — fake ground round the terrain, for DRAWING only. 🔒 User, 2026-10-30: <i>"The empty space around our terrain is now shown really
+        /// empty. Which looks extra weird when the cars are placed there and moving there … draw there some fake terrain surface, in some cheap and fast
+        /// way"</i> · <i>"there needs to be some basic texture on it so when we move the camera we see that something is moving"</i> · <i>"could it be made a bit
+        /// hilly? … still smoothly connected to our and SUMO terrain"</i>.
+        /// <para>⭐ CE-4122 (§6ad-2, HB3) — a COARSE grid (<see cref="ApronCoarseCell"/>) out to <paramref name="extent"/> metres, a COLLAR zipping the
+        /// terrain's own fine edge vertices (exactly <see cref="GroundLayout"/>'s — no crack) to the coarse grid's first lines, and every vertex at
+        /// <see cref="TerrainWorld.GroundHeightAt"/> — the height a unit out there stands at ⇒ the cars sit on it by construction. Under the attached SUMO
+        /// field's footprint the cells are skipped but one ring, and those ring vertices are sunk <see cref="ApronOverlapDrop"/> so SUMO's own ground mesh
+        /// (its footprint may be rotated) wins without a gap.
+        /// ⛔ Never in <see cref="Build"/>: the navmesh is baked from that soup, and units must not path onto the apron.</para>
+        /// </summary>
+        public static void BuildApron(TerrainWorld world, out Vector3[] verts, out int[] indices, float cellSize = 0f, float extent = 4000f)
+        {
+            if (cellSize <= 0f) cellSize = DefaultCellSize(world);
+            var (min, max, cell, nx, ny) = GroundLayout(world, cellSize);
+            // the edge's coordinates, exactly AddGround's: min + i·cell, the last one clipped to max
+            float X(int i) => MathF.Min(min.X + i * cell, max.X);
+            float Y(int j) => MathF.Min(min.Y + j * cell, max.Y);
+            const float C = ApronCoarseCell;
+            float x0 = min.X, x1 = max.X, y0 = min.Y, y1 = max.Y;
+            // the collar's outer rectangle: coarse lines 20..60 m clear of the terrain's edge
+            int ci0 = (int)MathF.Floor((x0 - 20f) / C), ci1 = (int)MathF.Ceiling((x1 + 20f) / C);
+            int cj0 = (int)MathF.Floor((y0 - 20f) / C), cj1 = (int)MathF.Ceiling((y1 + 20f) / C);
+            int ring = (int)MathF.Ceiling(extent / C);
+            int gi0 = ci0 - ring, gi1 = ci1 + ring, gj0 = cj0 - ring, gj1 = cj1 + ring;
+            int w = gi1 - gi0 + 1, h = gj1 - gj0 + 1;
+            var beyond = world.Beyond is { HasField: true } bg ? bg : null;
+
+            var v = new List<Vector3>();
+            var t = new List<int>();
+            var latIdx = new int[w * h];
+            Array.Fill(latIdx, -1);
+            var latIn = new bool[w * h];   // inside the SUMO field's footprint
+            if (beyond != null)
+                for (int j = 0; j < h; j++)
+                    for (int i = 0; i < w; i++)
+                        latIn[j * w + i] = beyond.InField((gi0 + i) * C, (gj0 + j) * C);
+            int Lat(int i, int j)   // a coarse-lattice vertex, shared by every cell and the collar
+            {
+                int k = (j - gj0) * w + (i - gi0);
+                if (latIdx[k] >= 0) return latIdx[k];
+                float x = i * C, y = j * C;
+                float z = world.GroundHeightAt(x, y) - (latIn[k] ? ApronOverlapDrop : 0f);
+                v.Add(new Vector3(x, y, z));
+                return latIdx[k] = v.Count - 1;
+            }
+            int Fine(float x, float y) { v.Add(new Vector3(x, y, world.GroundHeightAt(x, y))); return v.Count - 1; }
+            void Tri(int a, int b, int c)   // counter-clockwise seen from above
+            {
+                float area = (v[b].X - v[a].X) * (v[c].Y - v[a].Y) - (v[c].X - v[a].X) * (v[b].Y - v[a].Y);
+                if (MathF.Abs(area) < 1e-6f) return;
+                if (area > 0f) { t.Add(a); t.Add(b); t.Add(c); } else { t.Add(a); t.Add(c); t.Add(b); }
+            }
+
+            // ── the coarse grid: every cell outside the collar's rectangle, minus the SUMO field's interior (all four corners in, and so are the 4 neighbours)
+            bool CellAllIn(int i, int j)
+            {
+                if (i < gi0 || i >= gi1 || j < gj0 || j >= gj1) return false;
+                int k = (j - gj0) * w + (i - gi0);
+                return latIn[k] && latIn[k + 1] && latIn[k + w] && latIn[k + w + 1];
+            }
+            for (int j = gj0; j < gj1; j++)
+                for (int i = gi0; i < gi1; i++)
+                {
+                    if (i >= ci0 && i < ci1 && j >= cj0 && j < cj1) continue;   // under the collar and the terrain
+                    if (beyond != null && CellAllIn(i, j) && CellAllIn(i - 1, j) && CellAllIn(i + 1, j) && CellAllIn(i, j - 1) && CellAllIn(i, j + 1)) continue;
+                    int a = Lat(i, j), b = Lat(i + 1, j), c = Lat(i + 1, j + 1), d = Lat(i, j + 1);
+                    Tri(a, b, c); Tri(a, c, d);
+                }
+
+            // ── the collar: four trapezoids, each zipping the terrain's fine edge vertices to the coarse line opposite
+            void Zip(List<int> inner, List<int> outer, bool alongX)
+            {
+                float T(int vi, int first, int last) => alongX ? (v[vi].X - v[first].X) / (v[last].X - v[first].X) : (v[vi].Y - v[first].Y) / (v[last].Y - v[first].Y);
+                int n = inner.Count, m = outer.Count, p = 0, q = 0;
+                while (p < n - 1 || q < m - 1)
+                {
+                    bool advanceInner = q >= m - 1 || (p < n - 1 && T(inner[p + 1], inner[0], inner[n - 1]) <= T(outer[q + 1], outer[0], outer[m - 1]));
+                    if (advanceInner) { Tri(inner[p], inner[p + 1], outer[q]); p++; }
+                    else { Tri(inner[p], outer[q + 1], outer[q]); q++; }
+                }
+            }
+            var inS = new List<int>(); var inN = new List<int>(); var inW = new List<int>(); var inE = new List<int>();
+            for (int i = 0; i <= nx; i++) { inS.Add(Fine(X(i), y0)); inN.Add(Fine(X(i), y1)); }
+            for (int j = 0; j <= ny; j++) { inW.Add(Fine(x0, Y(j))); inE.Add(Fine(x1, Y(j))); }
+            var outS = new List<int>(); var outN = new List<int>(); var outW = new List<int>(); var outE = new List<int>();
+            for (int i = ci0; i <= ci1; i++) { outS.Add(Lat(i, cj0)); outN.Add(Lat(i, cj1)); }
+            for (int j = cj0; j <= cj1; j++) { outW.Add(Lat(ci0, j)); outE.Add(Lat(ci1, j)); }
+            Zip(inS, outS, true); Zip(inN, outN, true); Zip(inW, outW, false); Zip(inE, outE, false);
+
+            verts = v.ToArray();
+            indices = t.ToArray();
+        }
+
+        private static void AddGround(TerrainWorld world, float cell, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        {
+            var (min, max, cellSize, nx, ny) = GroundLayout(world, cell);
+            cell = cellSize;
 
             for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx; ix++)

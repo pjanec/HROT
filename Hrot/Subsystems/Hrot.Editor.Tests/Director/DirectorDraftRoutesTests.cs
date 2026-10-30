@@ -376,4 +376,41 @@ public sealed class DirectorDraftRoutesTests : IDisposable
         Assert.True(body["data"]!["complete"]!.GetValue<bool>());
         Assert.True(new DirectorDrafts(() => index, _ => null, _ => SubjectKind.Vehicle, () => "s", session).IndexComplete);   // no source given: the index's own flag
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4119</c> part 1 — a shown world that holds NO names for the indexed units (a stale or wrong one) used to give <c>complete: true, count: 0</c> and nothing else. Now <c>/director/moments</c> also answers
+    /// <c>skipped</c> (the events the drafter could not turn into a moment) and <c>skippedWhy</c> (the cause, with what the shown world holds), so the agent sees why from the answer alone.
+    /// 🔴 Mutations: <c>Skips()</c> returning (0, null) ⇒ no skipped ⇒ red; the census left out ⇒ the world's figures are missing ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task CE4119_TheMomentsRoute_SaysWhyItFoundNoMoments_WhenTheShownWorldHasNoNames()
+    {
+        var store = new TakeStore(() => _root, () => null);
+        var runner = new DirectorRunner(new Host(store), new NoCinema(), new NoLayers());
+        var session = new DirectorTakeSession(() => store, () => runner, () => null);
+        var index = ShotIndex();   // a shot (1 → 2) and a hit (2): two events in the drafter's lanes
+        var drafts = new DirectorDrafts(() => index, _ => null /* the shown world names nobody */, _ => SubjectKind.Vehicle, () => "s-a", session, census: () => (24, 0));
+
+        int port = DebugApiTestHost.FreePort();
+        var queue = new MainThreadJobQueue();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachDirector(runner, store, () => null, drafts);
+        host.AttachService(new DebugApiService(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+            Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>(), () => "Scenario", null)));
+        host.Start();
+        string url = $"http://localhost:{port}";
+
+        var (_, body) = await DebugApiTestHost.Send(queue, _client.GetAsync(url + "/director/moments"));
+        var data = body["data"]!;
+        Assert.Equal(0, data["count"]!.GetValue<int>());
+        Assert.Equal(2, data["skipped"]!.GetValue<int>());
+        var why = data["skippedWhy"]!.GetValue<string>();
+        Assert.Contains("no name in the shown world", why);
+        Assert.Contains("24 entities, 0 of them named", why);
+        Assert.Contains("combat.shot #0", why);
+
+        // the named world: nothing skipped, no reason
+        var named = new DirectorDrafts(() => index, id => id switch { 1 => "Alpha", 2 => "Bravo", _ => null }, _ => SubjectKind.Vehicle, () => "s-a", session);
+        Assert.Equal((0, (string?)null), named.Skips());
+    }
 }

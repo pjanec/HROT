@@ -54,6 +54,134 @@ public sealed class Map3DFrameRail
         for (int i = 0; i < maxFrames && !done(); i++) { frame.Step(canvas.Draw); System.Threading.Thread.Sleep(20); }
     }
 
+    /// <summary>
+    /// ⭐ The APRON (user, 2026-10-30: "the empty space around our terrain is now shown really empty … draw there some fake terrain surface" · "there
+    /// needs to be some basic texture on it so when we move the camera we see that something is moving"). From the town's east edge looking OUT, the
+    /// lower half beyond the edge is ground, not sky: green, and TEXTURED (the grass pattern on world position — it varies across the patch).
+    /// </summary>
+    [SkippableFact]
+    public void TheApron_BeyondTheTerrainsEdge_IsTexturedGround_NotEmptySky()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        var query = WorldQuery.Of(world)!;
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        canvas.AddLayer(terrainLayer);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true);
+        frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 1000);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+
+        // the eye just inside the east edge, looking east (yaw 0) and a little down: everything in the lower middle is past the edge
+        float midY = (terrain.BoundsMin.Y + terrain.BoundsMax.Y) / 2f, edge = terrain.BoundsMax.X;
+        sw.Camera3D.Pose = new CameraPose(new Vector3(edge + 120f, midY, query.GroundHeightAt(edge + 120f, midY)), 110f, 0f, -0.3f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        string png = Path.Combine(shots, "map3d-apron.png");
+        frame.Screenshot(png);
+
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int ground = 0, n = 0;
+            double sum = 0, sum2 = 0;
+            for (int y = 470; y < 560; y += 2)
+                for (int x = 440; x < 840; x += 2)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    n++;
+                    if (c.G > c.B + 10 && c.G >= c.R) ground++;
+                    double l = 0.3 * c.R + 0.59 * c.G + 0.11 * c.B;
+                    sum += l; sum2 += l * l;
+                }
+            double sd = Math.Sqrt(Math.Max(0, sum2 / n - (sum / n) * (sum / n)));
+            Assert.True(ground > n * 0.8, $"beyond the terrain's edge is ground ({ground} of {n} green) — not the empty sky");
+            Assert.True(sd > 2.0, $"and it is textured (luminance spread {sd:0.00}), so a moving camera sees it move");
+
+            // ⭐ CE-4122 (§6ad-2) — and HILLY: where the ground meets the horizon is not a straight line. ⚠ Not measured from the pixels (the haze blends the far
+            //   ground into the sky, so a pixel scan finds a ragged edge on a FLAT apron too — measured, the first version of this rail passed with the hills off):
+            //   the DRAWN ground's points at one depth across the view (a line 1.5 km ahead, ±1.5 km across), projected through the camera the picture was
+            //   taken with. The camera has no roll, so on flat ground they share ONE screen row; the hills spread them.
+            var eye = sw.Camera3D.Eye;
+            var rows = new List<float>();
+            for (float side = -1500f; side <= 1500f; side += 50f)
+                rows.Add(sw.Camera3D.WorldToScreen(new Vector3(eye.X + 1500f, eye.Y + side, query.GroundHeightAt(eye.X + 1500f, eye.Y + side))).Y);
+            Assert.True(rows.Max() - rows.Min() >= 3f, $"the far ground is hilly: its horizon rows span {rows.Min():0.0}..{rows.Max():0.0} px — a straight line on a flat apron");
+        }
+        finally { Raylib.UnloadImage(image); }
+
+        // and from out on the apron looking BACK at the town: the seam, for the eye (no assertion — the vertex rail pins that it meets the edge)
+        sw.Camera3D.Pose = new CameraPose(new Vector3(edge - 40f, midY, query.GroundHeightAt(edge - 40f, midY)), 260f, MathF.PI * 0.92f, -0.35f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-apron-seam.png"));
+    }
+
+    /// <summary>
+    /// ⭐ The pistol in both hands (user, 2026-10-30: "held with both hands forward from the body if aiming and both hands lowered … if weapon at
+    /// ease"): two soldiers with their sidearm selected (mount 1), one AIMED and one AT EASE, drawn side by side — <c>map3d-pistol.png</c>. The pose
+    /// itself is pinned by <c>Map3DTests.CE1236_EveryWeapon_IsDrawnAsWhatItIs</c>; this draws it.
+    /// </summary>
+    [SkippableFact]
+    public void ThePistol_Aimed_AndAtEase_IsHeldInBothHands()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        foreach (var (dy, kind) in new[] { (1.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed), (-1.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase) })
+        {
+            var e = world.CreateEntity();
+            float x = spot.X, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = UrbanCombatTkbCatalog.TkbInfantrySoldier });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = kind, ActiveMount = 1, Point = new Vector3(x + 30f, y, 1.5f) });
+        }
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        canvas.AddLayer(terrainLayer);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true);
+        frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 1000);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        // from his front-left (north-east), at chest height
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y) + 1.0f), 4.2f, MathF.PI * 0.80f, -0.08f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-pistol.png"));
+        Assert.Equal(2, bodies.BodiesDrawn);
+    }
+
     [SkippableFact]
     public void S1_TestTown_In3D_DrawsTheTerrainAndEveryKit_OnThisGL()
     {
@@ -996,6 +1124,7 @@ public sealed class Map3DFrameRail
         // from the south-west, looking along the highway at the overpass
         sw.Camera3D.Pose = new CameraPose(new Vector3(200f, 150f, g + 3f), 75f, MathF.PI * 0.18f, -0.32f);
         frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 2000);   // CE-1394: the mesh is built on a worker (the hilly apron, CE-4122, made it a little bigger)
         frame.Step(canvas.Draw);
         string png = Path.Combine(shots, "map3d-9-highway-rest.png");
         frame.Screenshot(png);
@@ -4272,8 +4401,10 @@ public sealed class Map3DFrameRail
         try
         {
             Assert.True(image.Width > 0, $"no screenshot at {png}");
-            var top = Raylib.GetImageColor(image, 4, 4);   // the tilted overview has sky across its top edge
-            if (png.Contains("tilted")) Assert.True(top.B > top.R, $"the top of {Path.GetFileName(png)} is not sky: {top.R},{top.G},{top.B}");
+            // the tilted overview's top edge is the far distance: sky — or, since the apron (2026-10-30) draws ground round the terrain out to the
+            //   horizon, that ground. ⛔ Never a blank (black / the clear colour).
+            var top = Raylib.GetImageColor(image, 4, 4);
+            if (png.Contains("tilted")) Assert.True(top.B > top.R || (top.G > top.R && top.G > top.B), $"the top of {Path.GetFileName(png)} is neither sky nor ground: {top.R},{top.G},{top.B}");
             int ground = 0, roof = 0, wall = 0, dark = 0;
             var shades = new HashSet<int>();
             for (int y = image.Height / 4; y < image.Height; y += 5)
@@ -4300,6 +4431,61 @@ public sealed class Map3DFrameRail
             }
         }
         finally { Raylib.UnloadImage(image); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4123 (§6ad-3) — one of EACH body style in a row (sedan, estate, hatchback, SUV, van, bus, box truck), each in the paint
+    /// <c>TrafficPaint</c> gives its id: <c>map3d-ce4123-traffic-styles.png</c> under <c>HROT_RAIL_SHOTS</c> (not in git).
+    /// </summary>
+    [SkippableFact]
+    public void CE4123_OneOfEachTrafficStyle_IsDrawnInARow_InItsOwnPaint()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float Z(float x, float y) => query.GroundHeightAt(x, y);
+        long[] types = { UrbanCombatTkbCatalog.TkbTrafficSedan, UrbanCombatTkbCatalog.TkbTrafficEstate, UrbanCombatTkbCatalog.TkbTrafficHatchback,
+                         UrbanCombatTkbCatalog.TkbTrafficSuv, UrbanCombatTkbCatalog.TkbTrafficVan, UrbanCombatTkbCatalog.TkbTrafficBus, UrbanCombatTkbCatalog.TkbTrafficTruck };
+        var cars = new List<Hrot.Traffic.TrafficCarPose>();
+        float x0 = spot.X - 20f;
+        for (int i = 0; i < types.Length; i++)
+        {
+            float x = x0 + new[] { 0f, 6f, 12f, 18f, 25f, 36f, 49f }[i], y = spot.Y + 5f;
+            tkb.TryGetByType(types[i], out var t);
+            var size = EntityBodyLayer3D.Resolve(t).Size;
+            string id = "veh" + (7 * i + 3);
+            cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, id, 3001 + i, types[i], Hrot.Traffic.TrafficPaint.Of(id, types[i]), x, y, Z(x, y), 0f, size.X, size.Y));
+        }
+        world.SetSingletonManaged(new Hrot.Traffic.TrafficFrame(cars, _ => false, new Dictionary<int, byte>(), new List<Hrot.Traffic.TrafficPedPose>(), _ => false));
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        var target = new Vector2(spot.X - 1280f / 8f, spot.Y + 800f / 8f);
+        two.ApplyCameraView(new MapCameraView { Target = target, Zoom = 4f, SmoothTarget = target, SmoothZoom = 4f });
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, ambient: Hrot.UI.Common.Map3D.TrafficAmbientBodies.Of);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => Z(x, y);
+        sw.Set(true);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        // from the street-side, a little above, looking along the row
+        sw.Camera3D.Pose = new CameraPose(new Vector3(x0 + 25f, spot.Y + 5f, Z(x0 + 25f, spot.Y + 5f) + 1f), 46f, -MathF.PI * 0.5f + 0.0f, -0.18f);
+        for (int k = 0; k < 8; k++) frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-ce4123-traffic-styles.png"));
+        Assert.Equal(types.Length, bodies.AmbientDrawn);
+        Assert.True(bodies.PartsDrawn > types.Length * 8, $"parts drawn: {bodies.PartsDrawn}");
+        Assert.True(cars.Select(c => c.Color).Distinct().Count() >= 3, "the row is painted in several colours");
     }
 
     /// <summary>⭐ CE-4031 (AQ93 §15.8) — SUMO's FAR pedestrians and cars (no entities) are drawn as ours: civilians in their own clothes,

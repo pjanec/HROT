@@ -157,6 +157,9 @@ namespace Hrot.SimHost
         // ── Headless/test support ────────────────────────────────────────────
         private bool _headless;
         private int? _domainOverride;
+
+        /// <summary>⭐ <c>CE-3354</c> ② — the node's unique name (<c>--node-name(s)</c>), set by the subsystem before <c>InitializeEmbedded</c>; null ⇒ <c>SimHost-&lt;nodeId&gt;</c>.</summary>
+        public string? NodeName { get; set; }
         private int  _nodeIdOverride;
         private bool _initialized;
         // ── Role-based bootstrap ─────────────────────────────────────────────
@@ -367,7 +370,7 @@ namespace Hrot.SimHost
             // ── 5. Build Hrot node infrastructure — includes entity map,
             //        elm, geoModule (via BaseModules). Replication is created via INetworkFactory.
             // ⭐ CE-4013 D13 — the one node config (_headless only controls the Raylib window)
-            var hrotConfig = HrotNodeConfig.ForNode(domainId, localNodeId, "SimHost", shellParticipant, nodeConfig.LocalTempRoot);
+            var hrotConfig = HrotNodeConfig.ForNode(domainId, localNodeId, "SimHost", shellParticipant, nodeConfig.LocalTempRoot, NodeName);
             hrotConfig.ExternalGeoTransform = wgs84;   // CE-3126
 
             // -- 6. Bootstrapper setup (SM-009) -----------------------------------------------

@@ -576,7 +576,9 @@ namespace Fdp.Toolkit.Tests.Motion
 
             for (int i = 0; i < 60; i++) { air.Execute(_w, Dt); new DroneImpactSystem().Execute(_w, Dt); }
             var rest = _w.GetComponent<SimTransform>(heli).Position;
-            Assert.InRange(rest.Z, -0.01f, 1f);
+            // ⭐ CE-4122 — it fell 1+ km past the terrain's rectangle, where the ground is the hilly beyond: it rests ON THAT ground (not on Z = 0)
+            float ground = _w.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!.GroundHeightAt(rest.X, rest.Y);
+            Assert.InRange(rest.Z, ground - 0.01f, ground + 1f);
             Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(heli).Linear);
             Assert.True(rest.X > at.X, "it fell forward, along its track");
         }

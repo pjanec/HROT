@@ -1512,6 +1512,25 @@ public sealed class Map3DTests
         Assert.Equal(aimed.Length, pistol.Length);
         Assert.InRange(Length(pistol[BlockFigure.WeaponIndex]), 0.18f, 0.26f);
         Assert.True(Vector3.Distance(BlockFigure.Ends(pistol[7]).B, BlockFigure.Ends(pistol[9]).B) < 0.10f, "both hands on the pistol");
+        // 🔒 user, 2026-10-30 — aimed: both arms forward, the hands at shoulder height, the pistol level; at ease: both hands lowered, still on it,
+        //   the muzzle down (⛔ was: his hands on his chest in every posture)
+        {
+            var chest = (BlockFigure.Ends(aimed[6]).A + BlockFigure.Ends(aimed[8]).A) / 2f;
+            var hand = BlockFigure.Ends(pistol[9]).B;
+            Assert.True(hand.X - chest.X > 0.40f, $"aimed: the hands out in front ({hand.X - chest.X:F2} m)");
+            Assert.InRange(hand.Z - chest.Z, -0.12f, 0.06f);
+            var (s, m) = BlockFigure.Ends(pistol[BlockFigure.WeaponIndex]);
+            Assert.True(MathF.Abs(m.Z - s.Z) < 0.03f && m.X > s.X, "aimed: the pistol level, pointing forward");
+
+            var easeParts = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase);
+            var ease = BlockFigure.Held(easeParts, HeldLook.Pistol, WeaponPostureKind.AtEase);
+            var easeChest = (BlockFigure.Ends(easeParts[6]).A + BlockFigure.Ends(easeParts[8]).A) / 2f;
+            var low = BlockFigure.Ends(ease[9]).B;
+            Assert.True(easeChest.Z - low.Z > 0.30f, $"at ease: the hands lowered ({easeChest.Z - low.Z:F2} m below the shoulders)");
+            Assert.True(Vector3.Distance(BlockFigure.Ends(ease[7]).B, low) < 0.10f, "at ease: still both hands on it");
+            var (es, em) = BlockFigure.Ends(ease[BlockFigure.WeaponIndex]);
+            Assert.True(em.Z < es.Z - 0.05f, "at ease: the muzzle down");
+        }
         Assert.True(Length(BlockFigure.Held(aimed, HeldLook.MachineGun, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex]) > rifle + 0.2f, "a machine gun is longer");
         Assert.Equal(PartShape.Cylinder, BlockFigure.Held(aimed, HeldLook.Rpg, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex].Shape);
         var atEase = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase);
@@ -2796,7 +2815,7 @@ public sealed class Map3DTests
 
     /// <summary>
     /// ⭐ CE-1106 — the doors-off Black Hawk's DOOR GUNNERS sit in the doors like its riders (at 0.95 m off the centreline his body was drawn
-    /// inside the fuselage, only his legs and arms showing), legs out, and his M134 stands in front of him, its pivot at his chest.
+    /// inside the fuselage, only his legs and arms showing), legs out, and his M134 stands in front of him, its pivot at his lap (below his eyes).
     /// </summary>
     [Fact]
     public void CE1106_ADoorGunnerSitsInHisDoor_HisGunInFrontOfHim()
@@ -2812,7 +2831,9 @@ public sealed class Map3DTests
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, man.Pose);
             Assert.True(MathF.Abs(gun.Y) > MathF.Abs(man.Y) && MathF.Sign(gun.Y) == MathF.Sign(man.Y), "the gun outboard of him");
             Assert.InRange(gun.X - man.X, -0.3f, 0.3f);
-            Assert.InRange(gun.Z + 0.3f - man.Z, 0.3f, 0.6f);   // the pintle pivot 0.3 m above the station: at his chest
+            // 🔒 user, 2026-10-30 — 40 cm lower than the first fit (chest): the pivot (0.3 m above the station) at his LAP, so the gun is below his
+            //   eyes and a possessed gunner sees past it (⛔ was 0.3…0.6 m above the seat — the gun sat in front of his face)
+            Assert.InRange(gun.Z + 0.3f - man.Z, -0.1f, 0.15f);
         }
     }
 
@@ -4936,5 +4957,49 @@ public sealed class Map3DTests
             Assert.Equal(Map3DBuildPolicy.OnFirst3DRequest, new Hrot.UI.Common.RunMode.NodeRunProfile(kind).MapBuildPolicy);
         var player = new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Ig, MapInLoad: true);
         Assert.Equal(Map3DBuildPolicy.Eager, player.MapBuildPolicy);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4123 (§6ad-3, TC1/TC2) — the traffic cars are what they are: every body style is its OWN kit (distinct silhouettes, wheels and glass), and a
+    /// WheeledCar type that NAMES a style is drawn with it, one that names none keeps the family's kit. 🔴 Red-proof: <c>KitOf</c> ignores the style.
+    /// </summary>
+    [Fact]
+    public void CE4123_EachBodyStyle_IsItsOwnKit_AndATypeNamingOneGetsIt()
+    {
+        var styles = System.Enum.GetValues<CarBodyStyle>();
+        var kits = styles.Select(CarKits.For).ToList();
+        var silhouettes = kits.Select(k => string.Join("|", k.Parts.Select(p => $"{p.Shape}{p.Centre}{p.Extent}{p.Colour}{p.PitchDegrees}"))).Distinct().Count();
+        Assert.Equal(styles.Length, silhouettes);
+        Assert.All(kits, k =>
+        {
+            Assert.Contains(k.Parts, p => p.Colour == ColourRole.Glass);
+            Assert.Equal(4, k.Parts.Count(p => p.Shape == PartShape.Cylinder));   // four wheels
+        });
+        Assert.NotSame(ShapeKits.WheeledCar, CarKits.Bus);
+
+        var tkb = BuiltIn();
+        var expected = new (long Type, CarBodyStyle Style)[]
+        {
+            (UrbanCombatTkbCatalog.TkbCivilianCar, CarBodyStyle.Sedan), (UrbanCombatTkbCatalog.TkbTrafficSedan, CarBodyStyle.Sedan),
+            (UrbanCombatTkbCatalog.TkbTrafficEstate, CarBodyStyle.Estate), (UrbanCombatTkbCatalog.TkbTrafficHatchback, CarBodyStyle.SmallHatch),
+            (UrbanCombatTkbCatalog.TkbTrafficSuv, CarBodyStyle.Suv), (UrbanCombatTkbCatalog.TkbTrafficVan, CarBodyStyle.Van),
+            (UrbanCombatTkbCatalog.TkbTrafficBus, CarBodyStyle.Bus), (UrbanCombatTkbCatalog.TkbTrafficTruck, CarBodyStyle.BoxTruck),
+        };
+        foreach (var (type, style) in expected)
+        {
+            Assert.True(tkb.TryGetByType(type, out var t));
+            var look = EntityBodyLayer3D.Resolve(t);
+            Assert.Equal(VisualFamily.WheeledCar, look.Family);
+            Assert.Equal(style, look.Style);
+            Assert.Same(CarKits.For(style), EntityBodyLayer3D.KitOf(look));
+            Assert.False(look.TypeColoured, "no type colour: every car is painted per car");
+        }
+
+        // a car type naming no style keeps the family's kit
+        var plain = new TkbTemplate("plain", 9999);
+        plain.DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 81 };
+        var plainLook = EntityBodyLayer3D.Resolve(plain);
+        Assert.Null(plainLook.Style);
+        Assert.Same(ShapeKits.WheeledCar, EntityBodyLayer3D.KitOf(plainLook));
     }
 }

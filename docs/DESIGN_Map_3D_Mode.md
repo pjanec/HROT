@@ -2248,7 +2248,7 @@ right door gun):
 
 ⭐ **CE-1106 — found by this rail:** the doors-off UH-60's door gunner (seats 8 / 10) sat 0.95 m off the centreline, INSIDE the fuselage box —
 only his legs and arms showed, below his gun. His seat moved into the door like the riders' (|Y| 1.05, `SitLegsOut`), and his station in front
-of him with its pivot at his chest (`NedTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
+of him with its pivot at his lap — ⭐ `2026-10-30` lowered 40 cm (station Z −0.7 → −1.1) at the user's ruling: at his chest it blocked a possessed gunner's view (`NedTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
 
 | ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
 |---|---|---|
@@ -3223,6 +3223,139 @@ live editor; the strength (`0.80 + 0.30·tufts`) may want tuning on a real scree
 
 ![grass at first-person height](assets/map3d/grass-first-person.png)
 
+### 6ad-1. The APRON — fake ground round the terrain — AS-BUILT `2026-10-30` (ui)
+
+🔒 User, `2026-10-30`: *"The empty space around our terrain is now shown really empty. Which looks extra weird when the cars are placed there and
+moving there … draw there some fake terrain surface, in some cheap and fast way"* · *"there needs to be some basic texture on it so when we move the
+camera we see that something is moving"*.
+
+| decision | why |
+|---|---|
+| `TerrainWorldMesh.BuildApron`: a ring of quads from the ground grid's own edge vertices out to 4 km, every vertex at `GroundHeightAt` | outside the grid `GroundHeightAt` clamps to the edge (`TerrainHeightGrid.Sample`), the height a car out there is clamped to ⇒ cars sit on it by construction; the shared `GroundLayout` makes its inner edge the ground's edge (no crack). Built once with the terrain mesh, on the worker |
+| drawn ONLY: appended in `TerrainWorldQuery.BuildTagged` (material `apron`) | ⛔ the navmesh is baked from `TerrainWorldMesh.Build`, so units never path onto it; the 3-D picker reads `Build` too, so it is not pickable |
+| the grass pattern (code 250, world-space noise) on a duller green `ApronColor` | the camera sees it slide past; the real terrain's edge stays visible |
+
+Rejected: real terrain (the navmesh and physics would grow) · a flat colour (the user: nothing would show the camera moving). Rails:
+`TerrainHeightTests.TheApron_SitsOnTheClampedGround_MeetsTheGroundEdge_AndIsDrawnOnly` (sloped + flat) · `Map3DFrameRail.TheApron_BeyondTheTerrainsEdge_IsTexturedGround_NotEmptySky` (red without it: "0 of 9000 green").
+⚠ It does not read the SUMO network's extent: 4 km past the terrain on every side.
+
+### 6ad-2. The apron, HILLY — one ground function beyond the terrain, meeting our edge and the SUMO ground *(ui, `2026-10-30`; build-state: BUILT — see the as-built paragraph below the rails)*
+
+🔒 User, `2026-10-30`: *"could it be made a bit hilly? … some simple wave function … but still smoothly connected to our and SUMO terrain"* · lean
+approved (*"go"*): one function, three zones.
+
+**INVENTORY** *(graph + grep)*: `search_graph name_pattern=.*(TerrainMesh|GroundMesh|Skirt|GroundPlane|Backdrop|Horizon|OutsideTerrain|FarGround).* label=Class`
+→ 0 (no existing beyond-ground) · `grep TerrainField` → `Sim.Scene.TerrainField` (SumoSharp, the SUMO lanes' heights as a smooth deterministic field,
+clamped outside its lattice) and `AmbientGroundBuilder` (its mesh) · `TrafficRoadScene.Build:89` already draws that AMBIENT GROUND over the net's
+bounds minus our terrain's footprint (`TrafficLayer3D.ShowAmbientGround`) · `grep "\.GroundHeightAt("` → 32 production readers (the ONE clamp).
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainWorld { <<exists, grown>> GroundHeightAt(x,y) · Beyond NEW (set once) }
+  class TerrainHeightGrid { <<exists>> Sample — clamps outside }
+  class BeyondGround { <<NEW, Fdp.Toolkits>> HeightAt(x,y) · Excludes(x,y) · Hills(x,y) }
+  class TerrainWorldMesh { <<exists, grown>> BuildApron — a coarse grid + a collar }
+  class SumoNetTerrainLoader { <<exists, grown>> Prepare: the field in LOCAL metres · Commit: world.AttachBeyond }
+  class TerrainField { <<exists, SumoSharp>> HeightAt(sumoX, sumoY) }
+  class TrafficRoadScene { <<exists>> the SUMO ambient ground mesh }
+  TerrainWorld --> TerrainHeightGrid : inside the grid
+  TerrainWorld --> BeyondGround : outside the grid
+  BeyondGround ..> TerrainField : via the placement (optional)
+  TerrainWorldMesh --> TerrainWorld : GroundHeightAt
+  SumoNetTerrainLoader --> BeyondGround : builds
+  TrafficRoadScene ..> TerrainField : draws its own ground
+```
+*What the picture shows that prose hid:* the clamp (32 readers) and the apron mesh read ONE function, `GroundHeightAt`; SUMO's ground stays its own mesh
+from the SAME field, so where the apron meets it both evaluate `TerrainField` and agree by construction.
+
+```mermaid
+graph TD
+  P["outside our grid: GroundHeightAt(x, y)"] --> B{"Beyond set?"}
+  B -->|no: no SUMO net| E["edge clamp + Hills · ramp(dTerrain)"]
+  B -->|yes| F["lerp(edge clamp, SUMO field, ramp(dTerrain)) + Hills · ramp(dTerrain) · ramp(dSumo)"]
+  F --> Z1["at our edge: dTerrain = 0 ⇒ the edge height (seamless)"]
+  F --> Z2["at / inside the SUMO bounds: dSumo = 0 ⇒ the SUMO field (meets SUMO's ground)"]
+  F --> Z3["far from both: the field's level + hills"]
+```
+
+**Claim table**
+
+| the build rests on | code — how it IS | design |
+|---|---|---|
+| outside the grid the clamp is the edge height | ✅ `TerrainHeightGrid.cs:48` | ✅ §6ad-1 |
+| SUMO's field is defined everywhere (clamped) and smooth | ✅ `TerrainField.cs:332-337` | ✅ its header (§7.2) |
+| SUMO's ground is drawn over the net bounds minus our footprint | ✅ `TrafficRoadScene.cs:88-97` | — |
+| SUMO cars take the lanes' own heights (unchanged by this) | ✅ `TrafficMirror.cs:73` | — |
+| the content loader may attach to the world before it is used | ⚠ `ITerrainContentLoader.Prepare(…, TerrainWorld world)` runs before commit — ⛔ the publish ORDER is not measured: the builder measures it and says where `AttachBeyond` must happen | ⛔ none |
+| the navmesh is unaffected | ✅ it covers the grid only (`TerrainWorldMesh.Build`) | ✅ §6ad-1 |
+
+**Decisions**
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **HB1** | `BeyondGround` (Fdp.Toolkits, pure, deterministic): `HeightAt(x,y)` per the graph above; `ramp(d) = smoothstep(0, 300 m, d)`; `Hills` = 3 octaves of smooth value noise / sines, amplitude ~10 m total, wavelengths ~250–900 m, seeded by nothing (a fixed function of x, y) | hills drawn only — units clamped out there would float or sink |
+| **HB2** | `TerrainWorld.GroundHeightAt` outside the grid = `Beyond?.HeightAt(x,y)`, else edge clamp + hills (no SUMO). Set ONCE (`AttachBeyond`, a second call throws) by `SumoNetTerrainLoader` when the net loads; a terrain without a net builds its own at parse | a mutable provider — the world is immutable after commit; set-once keeps that true |
+| **HB3** | the apron becomes a coarse GRID (40 m — SUMO's own lattice) out to 4 km, cells skipped inside our footprint and inside the SUMO bounds' interior; a COLLAR strip zips our fine edge vertices to the first coarse line (no crack); cells reaching under SUMO's ground are drawn 0.3 m lower so SUMO's mesh wins without a gap (its rectangle may be rotated by the placement) | flat strips (no hills possible) · zipping to SUMO's rotated lattice — the overlap is cheaper and invisible |
+| **HB4** | the apron rebuilds when `Beyond` is attached (the render geometry's `Identity` includes it) | — |
+
+**Rails:** `TerrainHeightTests` — at our edge the apron equals the edge (no crack, the collar's shared vertices); far away it is hilly (spread > 3 m);
+with a SUMO field, at the SUMO bounds `GroundHeightAt` equals the field; `GroundHeightAt` = the apron vertex heights everywhere (one function); a
+second `AttachBeyond` throws · `Map3DFrameRail` — the apron view shows relief (the horizon line is not straight) · red-proof each.
+
+⭐ **AS-BUILT `2026-10-30` (ui, `CE-4122`)** — built as designed, with these exact points (cross-lane edit: backend's `TerrainWorld`, `TerrainWorldMesh`, `StaticObstacles` in `Fdp.Toolkits/Terrain`):
+- **`BeyondGround`** (`Fdp.Toolkits/Terrain/BeyondGround.cs`): `HeightAt(x, y, edge, dTerrain)` = `lerp(edge, field, ramp(dTerrain)) + Hills·ramp(dTerrain)·ramp(dField)` (no field: `edge + Hills·ramp(dTerrain)`); `Hills` = six travelling sines in three octaves (wavelengths ~900/760, ~480/410, ~260/290 m; amplitudes 5 + 3 + 2 m), a fixed function of (x, y). The SUMO field arrives as a `Func<float,float,float>` in LOCAL metres plus its footprint as a convex quad (the net's bounds through the placement, so a UTM rotation is honoured); no SUMO types in Fdp.Toolkits.
+- **`TerrainWorld`**: `AttachBeyond` (set once; a second call throws), `Beyond`, `GroundRect`. `GroundHeightAt` is unchanged inside the ground rectangle (the bounds, the minimum snapped to the grid's cells — the same rule `GroundLayout` lays the ground out by); outside it `edge` = the height at the NEAREST point of that rectangle and `dTerrain` the distance to it. A world with degenerate bounds (built in code, no rectangle) keeps the old behaviour, so a code-built flat world is not hilly everywhere. Without an attach the world uses `BeyondGround.Default` (edge + hills) — nothing is built lazily, the default is a shared constant.
+- ⚠ **Where the SUMO field is exactly the ground**: `ramp(dTerrain)` pulls the level from the edge to the field over 300 m, so `GroundHeightAt` equals the field inside the SUMO footprint only where that point is ≥ 300 m from our terrain; nearer, it is the blend (still continuous, still inside the footprint's own ground mesh's reach). The rails place their points accordingly.
+- **Where it is attached** (the claim the design left open): `SumoNetTerrainLoader.Prepare` (`AttachBeyond`), which `TerrainResidency` runs at :268 — BEFORE the world is published (:307) and committed. ⛔ Two traps found and closed: (1) a terrain with no world file handed the loader one `new TerrainWorld()` and published ANOTHER — `Staged.PreparedEmptyWorld` is now both; (2) the obstacle bake builds a NEW world (`TerrainObstacles.With`, :491), which now carries `Beyond` over. `:439` (replay copies the reference) keeps it as is. The loader builds its own `TerrainField.FromNetwork` (the road scene builds one too inside SumoSharp; both are deterministic and identical — sharing would mean an API change in the ExtDeps).
+- **HB4**: `ITerrainRenderGeometry.Identity` is the `TerrainWorld` object (`TerrainWorldQuery.cs:145`), the attach happens before the world is published, so a loaded terrain is always a NEW identity ⇒ the apron rebuilds with it; nothing was added to `Identity`.
+- **Mesh (HB3)**: coarse 40 m lattice out to 4 km (global multiples of 40 m); the collar rectangle sits 20–60 m clear of our edge; the collar is four trapezoids zipped from the terrain's own `GroundLayout` edge vertices to that rectangle's coarse vertices (triangles auto-oriented counter-clockwise); cells whose four corners AND four neighbours' corners are inside the SUMO footprint are skipped, every other cell is drawn and the vertices inside the footprint are sunk 0.3 m (per VERTEX, not per cell — a per-cell drop would open a 0.3 m wall against its neighbours). Every other vertex is exactly `GroundHeightAt`.
+- Rails: `TerrainHeightTests.Beyond_*` (edge, 2 km relief, SUMO field, set-once + `With`, apron = one function + watertight + navmesh soup unchanged) and `Map3DFrameRail.TheApron_…` (the far ground's horizon rows, projected through the picture's own camera, span ≥ 3 px — ⚠ not a pixel scan: the haze made a pixel scan pass with the hills OFF) · `TrafficRoadSceneTests.CE4122_…` (the loader attaches the net's field to the PUBLISHED world) — ⭐ existing rails that assumed Z = 0 beyond the bounds now ask the ground itself (`H4_BasicDesert…`, `RotorcraftModelTests.CE2184_…`), and `H5d_HighwayRest` steps until the (now bigger) mesh lands — screenshots `map3d-apron.png` / `map3d-apron-seam.png` under `HROT_RAIL_SHOTS`, not in git.
+
+### 6ad-3. Traffic cars as what they are — a body style per type, a paint per car *(ui, `2026-10-30`; build-state: BUILT — as-built paragraph below the rails)*
+
+🔒 User, `2026-10-30`: *"The cars used as SUMO are one same model just scaled differently (for example a bus is a heavily scaled personal car).
+Could we rather have several different car shapes like a bus, a combi personal car, a van, a small car like nissan micra, SUV etc and assign them to
+sumo car classes somehow deterministically yet still looking randomly - different colors etc?"* · lean approved (*"go"*).
+
+**INVENTORY** *(graph + grep)*: SUMO's types = every TKB template with `TrafficVehicleDto` (`TrafficVehicleCatalog.From`): CivilianCar 6 · Hatchback 4 ·
+DeliveryVan 1.5 · CityBus 0.4 · BoxTruck 0.6 (`UrbanCombatTkbCatalog.cs:191, 197-200`) — all DIS 1.1.81 ⇒ `VisualFamily.WheeledCar` ⇒ ONE kit
+(`ShapeKits.For:492`) scaled to the type's size (`EntityBodyLayer3D.cs:1740-1747`). Colour: `TrafficSession.cs:68` hands SUMO `Color: 0u` ⇒ a car is its
+type's colour (`TrafficReplicas.cs:285` paints only a non-zero one). The presentation descriptor `VisualDefinitionDto` (`ColorHex`, `IconName`, …) exists.
+
+```mermaid
+classDiagram
+  direction LR
+  class VisualDefinitionDto { <<exists, grown>> ColorHex · BodyStyle NEW (string, null = the family's kit) }
+  class CarBodyStyle { <<NEW enum>> Sedan · Estate · SmallHatch · Suv · Van · Bus · BoxTruck }
+  class CarKits { <<NEW>> For(style) : ShapeKit }
+  class ShapeKits { <<exists>> For(family) — WheeledCar }
+  class EntityBodyLayer3D { <<exists>> TypeLook: the kit = CarKits.For(style) when the type names one }
+  class TrafficPaint { <<NEW, Hrot.Traffic>> Of(vehicleId, tkbType) : uint — a weighted palette, FNV-1a of the id }
+  class TrafficMirror { <<exists>> the pose's Color = tag.Color, else TrafficPaint.Of }
+  class UrbanCombatTkbCatalog { <<exists, grown>> + Sedan, Estate, Suv (passenger) · every traffic type names its BodyStyle }
+  VisualDefinitionDto --> CarBodyStyle
+  EntityBodyLayer3D --> CarKits : style named
+  EntityBodyLayer3D --> ShapeKits : otherwise
+  TrafficMirror --> TrafficPaint
+```
+*What the picture shows that prose hid:* the STYLE is type data (every node reads the same TKB) and the PAINT is a function of the vehicle's id in the
+ONE place a pose is made — so the 3-D body, the 2-D map, a replica and a replay all agree with no new state on the wire.
+
+| # | decision | rejected — the one fact |
+|---|---|---|
+| **TC1** | `VisualDefinitionDto.BodyStyle` (a `CarBodyStyle` name); `EntityBodyLayer3D`'s kit = `CarKits.For(style)` when a WheeledCar type names one, else `ShapeKits.For(family)` as today. The size stays the type's (`VehicleParametersDto` / `SimVehicleDef`), so the sim footprint is unchanged | the style from the type's NAME — names are labels, not data · a separate DIS subcategory table — `EntityClassTable` models categories, not car subcategories |
+| **TC2** | `CarKits`: seven block kits in the `ShapeKit` vocabulary (fractions of the size, the existing `Box`/`Cyl` parts): **Sedan** (three-box: bonnet, cabin, boot) · **Estate** (long roof to the tail) · **SmallHatch** (short, tall, a steep tail) · **Suv** (high body, upright, big wheels) · **Van** (one box, a short bonnet) · **Bus** (long box, a window band, a flat front, four wheels per side spaced long) · **BoxTruck** (a cab and a separate cargo box). Wheels, glass (`ColourRole.Glass`) and lights as the WheeledCar kit has them | one kit with scaled proportions — the bus would still read as a stretched car |
+| **TC3** | catalogue: add **Sedan**, **Estate**, **Suv** traffic types (`passenger`, weights so the passenger mix is ~ Sedan 3 · Estate 2 · Hatchback 3 · Suv 2 · CivilianCar → Sedan), each with its size; every traffic type names its `BodyStyle` (CivilianCar Sedan, Hatchback SmallHatch, DeliveryVan Van, CityBus Bus, BoxTruck BoxTruck). SUMO's weighted vType draw picks a car's type (deterministic per run) | a second, ui-side random type per car — it would disagree with SUMO's own vType (its length) |
+| **TC4** | `TrafficPaint.Of(id, type)`: FNV-1a of the SUMO vehicle id → a weighted palette (white 22 · black 18 · grey 18 · silver 14 · blue 9 · red 8 · dark green 3 · beige 3 · yellow 2 · orange 1 · brown 2); a Bus / BoxTruck takes a fleet palette (a few livery colours). Applied in `TrafficMirror` where the pose is built when SUMO gave no colour | `Random` per car — differs per node and per replay · colour per TYPE — every hatchback the same |
+
+**Rails:** `Map3DTests` — each style's kit differs from the others (part count / silhouette), a type naming a style gets that kit, a type naming none keeps
+WheeledCar · `TrafficPaint` — the same id gives the same colour, 1 000 ids spread over the palette in its proportions (±5 %), a bus takes a fleet colour ·
+`TrafficVehicleCatalog` — the passenger mix includes the new types · a frame rail renders one of each side by side (to `HROT_RAIL_SHOTS`, not git) ·
+red-prove each. **Cross-lane:** `UrbanCombatTkbCatalog` and `VisualDefinitionDto` are backend's — name it in the commit.
+
+⭐ **AS-BUILT `2026-10-30` (ui, `CE-4123`)** — as designed, with: `CarBodyStyle` (Fdp.Toolkits `Tkb/Domain`) · `VisualDefinitionDto.BodyStyle` · `CarKits` (Hrot.Presentation `Map3D`, `ShapeKits.Box/Cyl` made `internal` to share the idioms; wheels stay 0.42 of the height so the roll animation is the car kit's; **two axles** on the bus and truck, not four) · `EntityBodyLayer3D.TypeLook.Style` + `KitOf(look)` (both draw sites: entities and SUMO's ambient bodies) · catalogue: `TkbTrafficSedan 1054`, `Estate 1055`, `Suv 1056`; weights Sedan 3 · Estate 2 · Hatchback 3 (was 4; now 3.7 × 1.66 × 1.5) · Suv 2 · CivilianCar 6 (a Sedan); every traffic type carries a `VisualDefinitionDto` with `ColorHex = ""` (⚠ NOT the default `#FFFFFF`, which would make every car type-coloured white) and its `BodyStyle`. ⚠ The catalogue's cars had NO `VisualDefinitionDto` before, so `PresentationTkbTranslator` now has one to project for them. `TrafficPaint.Of(id, type)` (Hrot.Traffic): FNV-1a + an avalanche → the TC4 palette (cars), livery sets for a bus / a truck, 0xRRGGBB never 0; `TrafficMirror` uses it when SUMO's colour is 0. The existing `CE-1100` per-car paint (`Outfits.CarColour`, from the entity's seed) still runs: a car with a pose colour scales THAT paint ±18 % per car, so the same id still gives one family of colours on every node. Rails: `Map3DTests.CE4123_EachBodyStyle…` (red-proved: `KitOf` ignoring the style) · `TrafficPaintTests` · `Map3DFrameRail.CE4123_OneOfEachTrafficStyle…` → `map3d-ce4123-traffic-styles.png` (HROT_RAIL_SHOTS, not git).
+
 ### 6ae. CE-1333 — the terrain's materials: brick, concrete panels, sandbags, roof tiles, planks, earth, hedge — AS-BUILT `2026-10-25` (ui)
 
 🔒 User, `2026-10-25`: *"the grass texture looks great, pls add also textures to different materials (like the house walls from bricks,
@@ -3243,7 +3376,7 @@ sends, read only while the terrain draws (`groundDetail` on), so every other lay
 | 248 | brick (walls) | 25 × 8.5 cm courses, half-bond, mortar, per-brick tint |
 | 247 | concrete, a wall with no material | 3 m × 2.9 m panel joints, stains, rain streaks |
 | 246 | sandbags | rows of 55 × 14 cm bulging bags, staggered |
-| 245 / 241 | a roof (concrete / brick) | tiles on its top (flat or pitched); its sides concrete / brick |
+| 245 / 241 | a roof (concrete / brick) — and a storey's FLOOR (the same upward faces, CE-1341) | ~~tiles on its top~~ ⭐ `2026-10-30` a grey noisy SCREED on its top (~3 m blotches, fine grain, a speckle near the eye — user: tiles read wrong on a floor; `LitShader` `screed`); its sides concrete / brick |
 | 244 | fence-wood, door-wood | planks with grain |
 | 243 / 242 | earth berm / hedge | mottled noise |
 | 255 | water, glass, metal, a car body | none |

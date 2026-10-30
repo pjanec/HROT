@@ -346,6 +346,7 @@ class Program
             //   unwrap, and it agrees with it.
             ResetLayoutOnRun = config.ResetLayout ?? true,
             NodeIdResolver = ResolveNodeId,   // ⭐ C1
+            NodeNameResolver = config.NodeNameFor,   // ⭐ CE-3354 ② — the --node-name(s) of each subsystem; null ⇒ <subsystem>-<nodeId>
         };
 
         // ── Create + run orchestrator ─────────────────────────────────────────

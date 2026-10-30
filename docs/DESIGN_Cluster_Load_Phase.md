@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-29 (§11.7 NEW — U1, ui: ONE run gate on the run choice, the loading screen, the error indicator) · 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-30 (§11.10 NEW — R-3075: load-and-run is the master's; the filming node's 3-D map in its load by a per-node cluster setting; DESIGN) · 2026-10-29 (§11.7 NEW — U1, ui: ONE run gate on the run choice, the loading screen, the error indicator) · 2026-10-29 (§11.5 NEW — the cluster error state, R-3073) · 2026-10-29 (§11.3 NEW — the readiness protocol, R-3072 / AQ110) · 2026-10-29 (§11 NEW — readiness: R-3069 cluster ready = names AND roles, R-3070 play ready + cancel, R-3071 TKB first; DESIGN) · 2026-10-28 (§9.2 CE-4087: a scenario load needs a Brain and a MuscleGround node — it waits, starts when their adverts land, else is refused) · 2026-10-19 (CE-2244: sight is not judged while this node's terrain is still coming) · 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -1836,3 +1836,153 @@ step has something to wait for; on every other node it starts on the first 2-D �
 | failure through CE-3345's path, no second one | ✅ `DrainDeferredAcks` checks each step's `Failure` first: aborts the steps, clears the load and faults the hold ⇒ the slave's `FailPrepare(reason)` ⇒ Failed ⇒ round to Idle | the step also reports resolved on a failure so the poll never spins |
 | wiring: host record carries parts + status source; only the IG | ✅ `EcsHostClusterHandlerInputs.ProfileLoadParts` / `MapBuildStatus` (Compose adds the `MapBuildLoadStep` provider when `Map3D` is requested); `NodeBootstrapper.BuildOrchestration(profileLoadParts, mapBuildStatus)`; `IgNodeBootstrapper.ProfileLoadParts/MapBuildStatus` set by `IgApplication` iff `RunProfile.MapInLoad` | no other host passes them |
 📌 Rails (`LoadPhaseChainTests`, `CE4078_*`): holds until `IsBuilt` · fails with `Failure` · reports `Step` · absent without the profile part · no provider throws.
+
+### 11.10 ⭐⭐ "LOAD AND RUN" — the orchestrator runs the clock once every node's load succeeded; the FILMING node's 3-D map is in its load by a per-node cluster setting *(R-3075, user `2026-10-30`; CE-3354, fixes CE-4122; `build-state: READY-TO-BUILD`)*
+
+🔒 **R-3075, user verbatim:** *"the noded that should be subject of waiting for its 3D map load during scenario load needs to be part of the
+HTTP request for the load … Maybe we could create a new cluster operation that sets the config flag per selected nodes for always waiting for
+3D map during the scenario load. And the scenario load will include the 3D map weighting based on this config flag and not based on the load
+request, which remains simple as it is now … I think it should be the orchestrator who orchestrates this special scenario start playing after
+being loaded operation. And he's the one who runs the scenario clock only after all the nodes have responded with success."*
+⇒ extends §11.9 (R-1046: only the Player puts the 3-D map in its load) with a RUNTIME choice of further nodes — the one a film is shot on.
+
+📐 **INVENTORY** (graph `search_graph name_pattern='.*(LoadPhase|LoadStep|PlayReady|Readiness).*'` (Class / Interface) + grep `MapInLoad`,
+`SetRunSettingsIntent`, `RecordingOff`, `ResumeTimeIntent`; ⚠ coverage could not be checked — `check_index_coverage` is not in the CLI):
+the run-settings operation (`SetRunSettingsIntent` → wire `ClusterOpType.SetRunSettings = 24` → `ClusterMaster.ProcessSetRunSettingsIntent`,
+`ClusterMaster.RunSettings.cs`) · the per-load stamp (`RecordingOff` on `EditLoadHandlerPayload`, `ClusterMaster.cs:1695` /
+`ClusterMaster.InSync.cs:202` → `LoadPhaseContext`) · `MapBuildLoadStep` + `LoadPart.Map3D` (§11.9b) · `NodeRunProfile.MapInLoad` (the IG) ·
+today's resume `GlobalContextProcessManager._resumeWhenLive` (CE-4122: dropped by the master's re-announced state, §11's readiness repeats).
+
+```mermaid
+classDiagram
+  class SetRunSettingsIntent { <<existing, wire op 24>> +RecordLiveRuns? +Armed? +AskToKeepRecordings? +MapInLoadNodes? NEW }
+  class ClusterMaster { <<existing>> +RecordLiveRuns +ArmedMode +MapInLoadNodes NEW · ProcessSetRunSettingsIntent() · PublishClusterState() }
+  class EditLoadHandlerPayload { <<existing, per node>> +RecordingOff +MapInLoad NEW }
+  class LoadPhaseContext { <<existing>> +RecordingOff +MapInLoad NEW }
+  class LoadPhaseChain { <<existing>> requires Map3D when profile OR context says so CHANGED }
+  class MapBuildLoadStep { <<existing §11.9b>> resolves on IsBuilt }
+  class IMapBuildStatus { <<existing, ui>> +IsBuilt +Failure +Step · +RequestBuild() NEW }
+  class LoadAndRun { <<NEW, master-owned>> armed by the load; fires on the round's success on EVERY node }
+  class GlobalContextProcessManager { <<existing>> _resumeWhenLive REMOVED (CE-4122) }
+  SetRunSettingsIntent ..> ClusterMaster
+  ClusterMaster ..> EditLoadHandlerPayload : stamps MapInLoad for the nodes in the set
+  EditLoadHandlerPayload ..> LoadPhaseContext
+  LoadPhaseContext ..> LoadPhaseChain
+  LoadPhaseChain ..> MapBuildLoadStep
+  MapBuildLoadStep ..> IMapBuildStatus : RequestBuild() then polls IsBuilt
+  ClusterMaster *-- LoadAndRun
+```
+*What the picture shows that prose hid: every arrow but two is an existing path — the setting rides the run-settings op that already carries
+"Record live runs", and the per-node flag rides the load payload exactly as `RecordingOff` does. NEW: one field each, `RequestBuild()` (ui), and
+the master-owned run step.*
+
+```mermaid
+sequenceDiagram
+  participant H as HTTP / operator
+  participant M as ClusterMaster
+  participant F as filming node (in the set)
+  participant N as other nodes
+  H->>M: SetRunSettings { MapInLoadNodes: [film-node] } (once, sticky)
+  H->>M: load scenario, run when loaded (POST /scenario/load/live {startPaused:false})
+  M->>F: load round (payload MapInLoad = true)
+  M->>N: load round (payload MapInLoad = false)
+  N-->>M: success (no map step)
+  F->>F: terrain commit, RequestBuild(), wait IsBuilt
+  F-->>M: success (map built)
+  M->>M: round succeeded on EVERY node ⇒ ResumeTimeIntent (the same path as ▶)
+  Note over M: a failure / abort / another target ⇒ the round fails, nothing runs
+```
+*What it shows: the waiting is the load round's own completion — no second readiness signal; only the node in the set waits for a map.*
+
+```mermaid
+graph TD
+  OC["OrchestratorCore.Tick (every host that runs the master: editor, orchestrator)"] -->|each frame| CM["ClusterMaster.Tick"]
+  CM -->|round complete, success| LR["LoadAndRun (NEW) → ResumeTimeIntent"]
+  LR --> MSC["MasterSyncController (Phase 3) — runs the clock"]
+  SL["ClusterSlave on EVERY ECS node"] -->|each frame| LC["LoadPhaseChain"]
+  LC -->|"only when the payload says MapInLoad, or profile.MapInLoad (IG)"| MB["MapBuildLoadStep"]
+  GC["GlobalContextProcessManager"] -.->|"_resumeWhenLive REMOVED"| X["(no resume here any more)"]
+  style X stroke-dasharray: 5 5
+```
+*What it shows: who calls each piece every frame — the run step lives in the master's tick (one owner for pause AND run), the map step in each
+node's chain; the dashed edge is the resume that CE-4122 measured broken, retired.*
+
+| decision | why |
+|---|---|
+| ① the set of nodes is a **cluster setting held by the master**, sent with the existing run-settings op, broadcast with the others | R-3075: the load request stays plain; ONE holder, so two hosts cannot disagree (the CE-4090 rule for *Record live runs*) |
+| ② the master **stamps it per node on that node's load payload**; the chain requires `Map3D` when the payload OR the profile (IG) says so | the `RecordingOff` path; the IG keeps R-1046 as its default — the setting only ADDS nodes |
+| ③ nodes named by their **app-instance name**, not a numeric id | the same node across a restart |
+| ④ **"load and run" is the master's**: the run fires on the load round's success on every node | R-3075; a node acks only when its chain resolved (§11.9b), map step included. Replaces `_resumeWhenLive` (CE-4122) |
+| ⑤ `IMapBuildStatus.RequestBuild()` (ui) — the step starts the build at the terrain commit | on a non-IG node the map builds on the first 3-D switch (§11.9a); the load must start it |
+| ⑥ the HTTP live load's `startPaused:false` asks for load-and-run | the film scripts keep one call |
+
+⛔ **Rejected:** the request names who waits (R-3075) · resume on `OperatingLive` (CE-4122: re-announced states drop it) · the editor's 3-D view
+gates play (a second readiness signal) · the 3-D map in every load (R-1046: the editor would come up and load slowly for pure editing).
+#### 11.10a 📐 MEASURED `2026-10-30` — what "loaded" really is, and what a requester can see *(code read; the cluster-level rail is step ① of the build)*
+
+| question | answer | where |
+|---|---|---|
+| does a node acknowledge the load before its chain resolved? | ⛔ no — `ClusterSlave` publishes its `NodeOpCompletedEvent` Success only when the prepare task COMPLETES; `LoadPhaseChain` holds that task open (`_holdTcs`) until every step — the 3-D map step included — is resolved, and a step's `Failure` faults it | `ClusterSlave.cs:304-341` · `LoadPhaseChain.DrainDeferredAcks` |
+| when is the load round done? | when the master has `Expected` = steps × nodes acknowledgements (`GenericTransactionTracker`) ⇒ it publishes **`ClusterOpCompletedEvent { RequestId, Success }`**, then the cluster state | `ClusterMaster.cs` (tracker at the fan-out; `PublishOpStatus`) |
+| ⛔ is "the cluster state is OperatingLive" the same fact? | **NO.** The master advances `_currentDsmState` to the target OPTIMISTICALLY at the round's START (`ClusterMaster.cs:1560`), and two paths re-announce it mid-round — a run-settings change (`ClusterMaster.RunSettings.cs:72`) and `ClusterMaster.Replay.cs:44` ⇒ OperatingLive can be announced before any node finished | ⇒ **"loaded" = the load REQUEST's op status Success, never the state** |
+| what does `POST /scenario/load/live {waitForReady}` wait for today? | the state equal to the target AND the LOCAL world seen changing and settled (`ScenarioReadyProbe`) — ⛔ not the round's Success, so not the other nodes, not the filming node's map | `DebugApiHost.cs` (the load route) |
+| ⛔ today's auto-run | `GlobalContextProcessManager._resumeWhenLive`, keyed on the announced STATE — dropped by a re-announce (CE-4122) and, by the row above, also unsafe | `GlobalContextProcessManager.cs:63-76` |
+
+⇒ **The hole closed: ONE "loaded" fact for every consumer** — the load request's `ClusterOpCompletedEvent` Success (failure: its status + reason).
+
+| ⭐ consumer | uses it as |
+|---|---|
+| **the director / a script** (the usual case — it must know when the load finished AND when the run started anyway) | `POST /scenario/load/live {waitForReady:true}` returns only on the round's Success (every node, the filming node's map included), or fails with the round's reason; then its OWN `POST /sim/play`; `GET /status` → `load: {requestId, phase: Loading│Loaded│Failed, reason}` and `run: {running, startedAtSim}` so a poller sees both edges |
+| **load-and-run** (demos — nobody polls) | the master's run step fires on the SAME Success, through the same `ResumeTimeIntent` as ▶; `startPaused:false` asks for it |
+| the 3-D map setting (`MapInLoadNodes`) | is a property of the LOAD, so BOTH flows wait for the filming node's map — the director's flow does not need load-and-run to get it |
+
+⭐ **Build order (lean):** ① a cluster-level rail: a round with one slow node (a held step) reports Success only after it, and the state
+announced mid-round is not taken for it · ② `MapInLoadNodes` + the per-node stamp + `RequestBuild()` (ui) · ③ `waitForReady` and `GET /status`
+on the request's Success (`load` / `run` blocks) — what the director needs · ④ load-and-run on the same Success, `_resumeWhenLive` retired
+(CE-4122).
+
+#### 11.10b ⭐ NODE NAMES and the COMMAND LINE — the same load from a launch *(R-3075 extended, user `2026-10-30`; `build-state: READY-TO-BUILD`)*
+
+🔒 User: *"Can we give a name to the node on the command line … What if we are running multiple nodes in one single application?"* · *"this should
+be available from command line as well when starting either editor or '-m all' all-in-one cluster"* · *"from command line we should be able to
+open a scenario for editing. Also a server should be able to load a scenario from command line (paused or auto-running)."*
+
+📐 **Measured:** no node has a name today — the readiness "names" are SUBSYSTEM names (`ClusterMaster.MissingMandatoryNames`); a node is a
+`nodeId`, a fixed offset in one process (`Program.ResolveAppNodeId`) or granted in arrival order to a separate one (`NodeIdBroker.AwaitGrant`,
+no preferred id ⇒ may change on restart); `/status` does not say which node answers; a multi-node process has ONE debug port, routed to the
+selected perspective (AQ54). `-s/--scenario` exists for `--mode ci` only.
+
+| piece | as designed |
+|---|---|
+| **node name** | `--node-name <n>` (one node) · `--node-names IG=film-cam,SimHost=sim-1` (several in one process) · default `<subsystem>-<nodeId>`. In the heartbeat (a wire field: NED doc + `ned-wire-inventory.py --check`; an old peer sends none ⇒ the default), on the roster (`GET /cluster/roster` → `name`), in `/status` (`node: {name, nodeId}`). The master refuses a second LIVE node of one name |
+| **map-in-load set** | keyed by NAME (survives a restart and a new id; a name not present is kept and listed "not present") |
+| **startup load** | the SAME request HTTP sends, issued once the process' master is up — the master already holds a load until its required nodes joined (CE-4087), so nothing waits on a timer |
+
+```mermaid
+graph TD
+  CLI["CLI: --scenario · --load edit|live · --play · --node-name(s) · --map-in-load"] -->|"at startup, once"| RS["SetRunSettings (map-in-load names)"]
+  CLI -->|"at startup, once"| LD["the load request (TransitionStateIntent)"]
+  HTTP["HTTP: POST /run-settings · POST /scenario/load/edit|live"] --> RS
+  HTTP --> LD
+  RS --> M["ClusterMaster (in the editor, -m all, -m server, -m orchestrator)"]
+  LD --> M
+  M -->|"--play / startPaused:false: on the round's Success"| RUN["ResumeTimeIntent"]
+  PL["-m player / a lone simhost: no master"] -.->|"--scenario refused, named"| X["(error at startup)"]
+  style X stroke-dasharray: 5 5
+```
+*What it shows: the command line is a second SENDER of the same two messages, never a second load path; the dashed edge is the host that has
+no master to send them to.*
+
+| CLI | meaning | hosts |
+|---|---|---|
+| `-s/--scenario <name>` | load it at startup (extended beyond `ci`) | any host with the master |
+| `--load edit\|live` | the target; default **edit** in the editor, **live** elsewhere | editor: both · `-m all` / `-m server`: both (edit ⇒ the cluster in OperatingEdit for an editor that joins) |
+| `--play` | live + run when every node's load succeeded (load-and-run); implies `--load live` | any host with the master |
+| `--node-name` / `--node-names` | this process' node name(s) | every host |
+| `--map-in-load [names]` | these nodes' loads wait for their 3-D map; no names = this process' nodes | any host with the master (names may be of other nodes) |
+
+Examples: `-m editor -s ua-air-strike` (open for editing) · `-m editor -s ua-air-strike --play --map-in-load` (film in the editor) · `-m all -s X
+--play --node-names IG=film-cam --map-in-load film-cam` · `-m server -s X` (live, paused) · `-m server -s X --play` (live, running).
+
+⛔ **Rejected:** a startup-only load path (two implementations of one load) · a fixed wait before the startup load (the master's own hold is the
+wait) · names = subsystem names (cannot single out one of two IGs).

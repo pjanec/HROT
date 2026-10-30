@@ -130,13 +130,15 @@ vec3 sandbags(vec3 albedo, vec2 uv)
     float bulge = pow(sin(3.14159 * f.x), 0.35) * pow(sin(3.14159 * f.y), 0.55);
     return albedo * (0.58 + 0.5 * bulge) * (0.92 + 0.16 * grassHash(vec2(floor(x), row)));
 }
-vec3 tiles(vec3 albedo, vec2 uv)
+// a roof's top and a storey's floor — the same upward faces (CE-1341). User, 2026-10-30: a gray noisy surface that fits the interior floors and
+// still looks good enough as the roof ⇒ a screed: ~3 m blotches, a fine grain, and a tiny aggregate speckle near
+// the eye — ⛔ was rows of roof tiles, which read wrong on a floor
+vec3 screed(vec3 albedo, vec2 uv, float near)
 {
-    float row = floor(uv.y / 0.30);
-    float x = uv.x / 0.22 + 0.5 * mod(row, 2.0);
-    vec2 f = vec2(fract(x), fract(uv.y / 0.30));
-    float gap = step(f.x, 0.05);
-    return albedo * (0.74 + 0.34 * f.y) * (1.0 - 0.3 * gap) * (0.93 + 0.12 * grassHash(vec2(floor(x), row)));
+    float blotch = grassNoise(uv * 0.35);
+    float grain = grassNoise(uv * 4.0) * 0.6 + grassNoise(uv * 11.0) * 0.4;
+    float speck = grassHash(floor(uv * 40.0));
+    return albedo * (0.86 + 0.16 * blotch + 0.16 * (grain - 0.5) + near * 0.10 * (speck - 0.5));
 }
 vec3 planks(vec3 albedo, vec2 uv)
 {
@@ -161,11 +163,11 @@ vec3 materialDetail(vec3 albedo, float code, vec3 world, vec3 n, float dist)
     else if (code > 247.5) c = mix(albedo, brick(albedo, uv), fine);                                      // 248 brick
     else if (code > 246.5) c = concrete(albedo, uv);                                                      // 247 concrete
     else if (code > 245.5) c = mix(albedo, sandbags(albedo, uv), fine);                                   // 246 sandbags
-    else if (code > 244.5) c = sloped ? mix(albedo, tiles(albedo, uv), near) : concrete(albedo * 0.95, uv);  // 245 roof (its sides: concrete)
+    else if (code > 244.5) c = sloped ? screed(albedo, uv, near) : concrete(albedo * 0.95, uv);                 // 245 roof / floor (its sides: concrete)
     else if (code > 243.5) c = mix(albedo, planks(albedo, uv), fine);                                     // 244 wood
     else if (code > 242.5) c = albedo * (0.82 + 0.3 * grassNoise(uv * 1.7));                              // 243 earth
     else if (code > 241.5) c = albedo * (0.72 + 0.45 * grassNoise(uv * 6.0) * grassNoise(uv * 2.0 + 7.0)); // 242 hedge
-    else c = sloped ? mix(albedo, tiles(albedo, uv), near) : mix(albedo, brick(albedo, uv), fine);        // 241 brick building's roof
+    else c = sloped ? screed(albedo, uv, near) : mix(albedo, brick(albedo, uv), fine);                   // 241 brick building's roof / floor
     return mix(albedo, c, groundDetail);
 }
 void main()

@@ -132,7 +132,7 @@ namespace Hrot.IG
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
-            _app = new IgApplication();
+            _app = new IgApplication { NodeName = config.NodeName };   // ⭐ CE-3354 ②
             // Orchestrator owns the Raylib window; IG sets up ECS + DDS only.
             int? domainOverride = config.DomainId;
             _app.InitializeEmbedded(

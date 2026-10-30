@@ -429,6 +429,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string Step;
         /// <summary>⭐ CE-3345 — why the node's last prepare failed while Failed; empty otherwise.</summary>
         [DdsManaged] public string Reason;
+        /// <summary>⭐ CE-3354 ② — the node's unique human-given name (default <c>subsystem-nodeId</c>); empty from an older sender. Additive on the wire.</summary>
+        [DdsManaged] public string NodeName;
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;
