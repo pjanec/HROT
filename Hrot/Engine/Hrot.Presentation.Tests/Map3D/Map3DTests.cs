@@ -1512,6 +1512,25 @@ public sealed class Map3DTests
         Assert.Equal(aimed.Length, pistol.Length);
         Assert.InRange(Length(pistol[BlockFigure.WeaponIndex]), 0.18f, 0.26f);
         Assert.True(Vector3.Distance(BlockFigure.Ends(pistol[7]).B, BlockFigure.Ends(pistol[9]).B) < 0.10f, "both hands on the pistol");
+        // 🔒 user, 2026-10-30 — aimed: both arms forward, the hands at shoulder height, the pistol level; at ease: both hands lowered, still on it,
+        //   the muzzle down (⛔ was: his hands on his chest in every posture)
+        {
+            var chest = (BlockFigure.Ends(aimed[6]).A + BlockFigure.Ends(aimed[8]).A) / 2f;
+            var hand = BlockFigure.Ends(pistol[9]).B;
+            Assert.True(hand.X - chest.X > 0.40f, $"aimed: the hands out in front ({hand.X - chest.X:F2} m)");
+            Assert.InRange(hand.Z - chest.Z, -0.12f, 0.06f);
+            var (s, m) = BlockFigure.Ends(pistol[BlockFigure.WeaponIndex]);
+            Assert.True(MathF.Abs(m.Z - s.Z) < 0.03f && m.X > s.X, "aimed: the pistol level, pointing forward");
+
+            var easeParts = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase);
+            var ease = BlockFigure.Held(easeParts, HeldLook.Pistol, WeaponPostureKind.AtEase);
+            var easeChest = (BlockFigure.Ends(easeParts[6]).A + BlockFigure.Ends(easeParts[8]).A) / 2f;
+            var low = BlockFigure.Ends(ease[9]).B;
+            Assert.True(easeChest.Z - low.Z > 0.30f, $"at ease: the hands lowered ({easeChest.Z - low.Z:F2} m below the shoulders)");
+            Assert.True(Vector3.Distance(BlockFigure.Ends(ease[7]).B, low) < 0.10f, "at ease: still both hands on it");
+            var (es, em) = BlockFigure.Ends(ease[BlockFigure.WeaponIndex]);
+            Assert.True(em.Z < es.Z - 0.05f, "at ease: the muzzle down");
+        }
         Assert.True(Length(BlockFigure.Held(aimed, HeldLook.MachineGun, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex]) > rifle + 0.2f, "a machine gun is longer");
         Assert.Equal(PartShape.Cylinder, BlockFigure.Held(aimed, HeldLook.Rpg, WeaponPostureKind.Aimed)[BlockFigure.WeaponIndex].Shape);
         var atEase = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase);

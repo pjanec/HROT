@@ -118,6 +118,60 @@ public sealed class Map3DFrameRail
         frame.Screenshot(Path.Combine(shots, "map3d-apron-seam.png"));
     }
 
+    /// <summary>
+    /// ⭐ The pistol in both hands (user, 2026-10-30: "held with both hands forward from the body if aiming and both hands lowered … if weapon at
+    /// ease"): two soldiers with their sidearm selected (mount 1), one AIMED and one AT EASE, drawn side by side — <c>map3d-pistol.png</c>. The pose
+    /// itself is pinned by <c>Map3DTests.CE1236_EveryWeapon_IsDrawnAsWhatItIs</c>; this draws it.
+    /// </summary>
+    [SkippableFact]
+    public void ThePistol_Aimed_AndAtEase_IsHeldInBothHands()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        foreach (var (dy, kind) in new[] { (1.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed), (-1.0f, Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase) })
+        {
+            var e = world.CreateEntity();
+            float x = spot.X, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = UrbanCombatTkbCatalog.TkbInfantrySoldier });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = kind, ActiveMount = 1, Point = new Vector3(x + 30f, y, 1.5f) });
+        }
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var terrainLayer = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        canvas.AddLayer(terrainLayer);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        sw.Set(true);
+        frame.Step(canvas.Draw);
+        StepUntil(frame, canvas, () => terrainLayer.TriangleCount > 1000);
+        for (int i = 0; i < 40 && sw.IsSwitching; i++) { sw.Camera3D.Update(1f / 30f); frame.Step(canvas.Draw); }
+        // from his front-left (north-east), at chest height
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y) + 1.0f), 4.2f, MathF.PI * 0.80f, -0.08f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "map3d-pistol.png"));
+        Assert.Equal(2, bodies.BodiesDrawn);
+    }
+
     [SkippableFact]
     public void S1_TestTown_In3D_DrawsTheTerrainAndEveryKit_OnThisGL()
     {
