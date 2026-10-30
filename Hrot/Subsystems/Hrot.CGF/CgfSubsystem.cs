@@ -1013,6 +1013,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   null. Its `PollAcks()` already runs every frame (afterKernel); only the mission PANEL wiring stays window-only.
         _missionService = new Hrot.UI.Common.Adapters.ScenarioMissionService(_context.World.Bus, _context.World, _behaviorRegistry!);
 
+        // ⭐⭐ CE-3352 — THIS HOST'S RUN CONTROLS (the drive + the run choice) are NOT UI: they are built ONCE here, for every CGF, headless included. 📐 Measured: they sat in
+        //   `RegisterWindows`, which returns early when `_headless`, so a headless CGF had no drive — the debug provider's `Drive` (`() => _clusterTimeAdapter`) was null and
+        //   `/status.simTime` / `/sim/state` fell back to a source that reads 0 and paused through a live run. `RegisterWindows` only attaches the toolbar's note to this adapter.
+        // ⭐⭐⭐ CE-1445 (R-1044) — the ONE factory builds the adapter + attaches the choice over the node frame; the host passes only its PROFILE.
+        // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
+        //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
+        //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
+        _clusterTimeAdapter = Hrot.UI.Common.RunMode.NodeRunControls.For(_context!, new Hrot.UI.Common.RunMode.NodeRunProfile(
+            Hrot.UI.Common.RunMode.RunHostKind.Cgf,
+            Control: _scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
+            UnsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider())));
+
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
         {
@@ -1326,14 +1338,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var bus = _context?.EventBus;
         if (bus != null)
         {
-            // ⭐⭐⭐ CE-1445 (R-1044) — the ONE factory builds the adapter + attaches the choice over the node frame; the host passes only its PROFILE.
-            // ⭐⭐⭐ CE-4097 (AQ108 §2.8, D12) — this host's ONE run choice (CGF's default is Live), over the SAME session the File menu uses.
-            //   ⭐ part two (D20): the unsaved check reads its answer off THIS node's debug provider (ObservesUnsavedChecks / UnsavedCheck(requestId)); the node's ClusterView (CE-1436) folds the master's op results, so
-            //   the provider observes check rounds on CGF too — ⭐ the round's answer reaches ▶ with no host flag.
-            _clusterTimeAdapter = Hrot.UI.Common.RunMode.NodeRunControls.For(_context!, new Hrot.UI.Common.RunMode.NodeRunProfile(
-                Hrot.UI.Common.RunMode.RunHostKind.Cgf,
-                Control: _scenarioSession?.RunControl,   // ⭐ CE-4101: the RAW verbs go to the choice only
-                UnsavedReads: Hrot.UI.Common.RunMode.UnsavedCheckReads.From(() => _unsavedReadsProvider ??= CreateDebugProvider())));
+            // ⭐ CE-3352 — the run controls (adapter + choice) are built in Initialize, headless included; this method only attaches the status-bar note to them.
             // ⭐ CE-4083 (AQ108 D13) — NO status-bar time control: the toolbar transport below is the one.
             // ⭐⭐⭐ CE-016 — the TOOLBAR transport, and this is a silent-default fix, not a new feature.
             //    📐 Measured `2026-08-25`: the editor registers `MainToolbarTimeControlSection` on its
@@ -1358,7 +1363,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             // ⭐ CE-1437 (AQ108 §2.10) — NOT registered here any more: this host offers its transport + choice (IProvidesRunControls) and
             //   LocalWindowController.ComposeRunControls registers the ONE toolbar entry for the process, by rule.
             // ⭐ CE-4097 part two (AQ108 D11) — the status-bar note while a Preview / Live run goes (the editor registers the same section)
-            Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, _clusterTimeAdapter, "Scenario");
+            if (_clusterTimeAdapter != null)
+                Hrot.UI.Common.Panels.RunNoteStatusBarSection.Register(windowManager.StatusBar, _clusterTimeAdapter, "Scenario");
         }
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).

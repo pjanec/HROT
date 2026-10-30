@@ -252,6 +252,13 @@ namespace Hrot.SimHost
             foreach (var pending in _pendingTestSystems)
                 _app.TestHook_QueueSystem(pending);
             _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId, networkFactory: _networkFactory);
+
+            // ⭐⭐ CE-3352 — SimHost's run controls (the drive + the run choice) are NOT UI: built ONCE here, headless included. 📐 Measured: they were created in
+            //   `RegisterWindows`, which returns when there is no visualization, so a headless SimHost had no drive and its debug provider's `Drive` was null.
+            var bus = _app.OrchestrationEventBus;
+            if (bus != null)
+                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime,
+                    cancelLoad: reason => _app?.ClusterSlave?.CancelLoad(reason));   // ⭐ CE-1436 — the node's ONE cluster view
         }
 
         /// <summary>
@@ -355,12 +362,9 @@ namespace Hrot.SimHost
             Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => vis.Canvas, "SimHost");
 
             // ── Time transport (toolbar) ─────────────────────────
-            var bus = _app?.OrchestrationEventBus;
-            if (bus != null)
+            // ⭐ CE-3352 — the adapter is built in Initialize (headless included); here it only reaches the panel.
+            if (_clusterTimeAdapter != null)
             {
-                _clusterTimeAdapter = CreateTimeTransport(bus, () => _app?.ClusterSlave?.View, () => _app!.CurrentSimTime,
-                    cancelLoad: reason => _app?.ClusterSlave?.CancelLoad(reason));   // ⭐ CE-1436 — the node's ONE cluster view
-
                 // `T5`: the simulation-controls panel gets the SAME transport as the status bar.
                 // It had its own private pause flag that nothing read, so its Play/Pause/Step did
                 // nothing at all. Two surfaces, one implementation — the caller HAS the dependency,
