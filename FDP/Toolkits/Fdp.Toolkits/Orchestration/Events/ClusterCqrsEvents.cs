@@ -151,6 +151,10 @@ namespace Fdp.Toolkit.Orchestration
         public bool AskToKeepRecordings;
         /// <summary>⭐ <c>CE-3354</c> ③ — the NAMES of the nodes whose scenario load also waits for their built 3-D map (the master's run setting); null/empty = none.</summary>
         public string[]? MapInLoadNodes;
+        /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the cluster's CURRENT (last started) scenario load, the id <c>GET /status.load</c> and every outcome follow; <see cref="Guid.Empty"/> before any load.</summary>
+        public Guid LastLoadRequestId;
+        /// <summary>⭐ CE-3354 ⑦ — the scenario that load named; null/empty before any load.</summary>
+        public string? LastLoadScenario;
         /// <summary>⭐ CE-3341 (AQ108 D12a, R-3068) — the cluster's ARMED run mode. Default 0 = <see cref="ClusterArmedMode.Live"/>, so a publisher that never sets it reads as the default.</summary>
         public ClusterArmedMode ArmedMode;
         /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live or Preview). Default 0 = Live.</summary>
@@ -245,6 +249,10 @@ namespace Fdp.Toolkit.Orchestration
         public bool AskToKeepRecordings;
         /// <summary>⭐ <c>CE-3354</c> ③ — as <see cref="ClusterStateTransitionedEvent.MapInLoadNodes"/>.</summary>
         public string[]? MapInLoadNodes;
+        /// <summary>⭐ CE-3354 ⑦ — as <see cref="ClusterStateTransitionedEvent.LastLoadRequestId"/>.</summary>
+        public Guid LastLoadRequestId;
+        /// <summary>⭐ CE-3354 ⑦ — as <see cref="ClusterStateTransitionedEvent.LastLoadScenario"/>.</summary>
+        public string? LastLoadScenario;
         /// <summary>⭐ CE-3341 — as <see cref="ClusterStateTransitionedEvent.ArmedMode"/>.</summary>
         public ClusterArmedMode ArmedMode;
         /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live or Preview). Default 0 = Live.</summary>

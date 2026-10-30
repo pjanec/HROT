@@ -249,6 +249,13 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(new[] { "film-cam", "sim-1" }, ClusterFactsIngress.StateOf(topic).MapInLoadNodes);
         Assert.Empty(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).MapInLoadNodes!);   // an older sender
 
+        var load = Guid.NewGuid();   // ⭐ CE-3354 ⑦ — the current load's request id and scenario ride the broadcast too (an older sender's empty reads as none)
+        var withLoad = ClusterFactsIngress.StateOf(Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent
+            { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, LastLoadRequestId = load, LastLoadScenario = "scn" }));
+        Assert.Equal((load, "scn"), (withLoad.LastLoadRequestId, withLoad.LastLoadScenario));
+        var none = ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle });
+        Assert.Equal((Guid.Empty, (string?)null), (none.LastLoadRequestId, none.LastLoadScenario));
+
         var op = Hrot.Network.Orchestration.SetRunSettingsPayloadDto.From(new SetRunSettingsIntent { MapInLoadNodes = new[] { "a" } });
         var json = System.Text.Json.JsonSerializer.Serialize(op);
         Assert.Equal(new[] { "a" }, Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), json).MapInLoadNodes);

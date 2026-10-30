@@ -43,6 +43,12 @@ namespace Hrot.Editor.DebugApi
                 ? new JsonObject { ["name"] = view.NodeName ?? "", ["nodeId"] = id }
                 : null;
 
+        /// <summary>⭐ CE-3354 ⑦ — the load <c>/status.load</c> follows: the master's broadcast current load (the cluster view), else the last this API sent.</summary>
+        private (Guid RequestId, string? Scenario)? CurrentLoad
+            => (_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is { LastLoadRequestId: var id } view && id != Guid.Empty
+                ? (id, view.LastLoadScenario)
+                : _lastLoad is { } mine ? (mine.RequestId, mine.Scenario) : null;
+
         private JsonNode? LoadStatusOrNull()
         {
             if ((_editorClusterView?.Invoke() ?? _dispatcher?.ClusterViewAnyNode) is not { } view) return null;
@@ -55,10 +61,12 @@ namespace Hrot.Editor.DebugApi
                 ["playReady"] = view.IsLocalPlayReady,
                 // ⭐⭐ CE-3354 ④ — the LAST load this API sent and its phase over the WHOLE cluster: Loaded only when every node's load chain resolved
                 //   (the master's Success for that request), Failed with the master's reason; null fields when this API sent no load yet
-                ["requestId"] = _lastLoad?.RequestId.ToString(),
-                ["scenario"]  = _lastLoad?.Scenario,
-                ["phase"]     = _lastLoad is { } last ? LoadPhaseOf(last.RequestId)?.Phase : null,
-                ["reason"]    = _lastLoad is { } last2 ? LoadPhaseOf(last2.RequestId)?.Reason : null,
+                //   ⭐ CE-3354 ⑦ — WHICH load is the MASTER's fact (the id it broadcasts with the cluster state — whoever sent it: this API, the command line, the operator panel, another node);
+                //   this API's own last load is only the fallback for a master that broadcasts none.
+                ["requestId"] = (CurrentLoad is { } cur ? cur.RequestId : (Guid?)null)?.ToString(),
+                ["scenario"]  = CurrentLoad?.Scenario,
+                ["phase"]     = CurrentLoad is { } c1 ? LoadPhaseOf(c1.RequestId)?.Phase : null,
+                ["reason"]    = CurrentLoad is { } c2 ? LoadPhaseOf(c2.RequestId)?.Reason : null,
             };
         }
 

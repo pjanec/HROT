@@ -1645,6 +1645,11 @@ public sealed partial class ClusterMaster : IDisposable
         if (intent.ScenarioId != null && trajectory.OfType<TransitionStep>().Any(t =>
                 t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit))
         {
+            // ⭐ CE-3354 ⑦ — the current load's request, broadcast with the cluster state: told NOW (the round's state announcement above went out before this), so /status.load names it from the round's first frame
+            bool newLoad = LastLoadRequestId != intent.TransactionId;
+            LastLoadRequestId = intent.TransactionId;
+            LastLoadScenario  = intent.ScenarioId;
+            if (newLoad) PublishClusterState(_currentDsmState);
             _currentScenarioId = intent.ScenarioId;   // ⭐ C7 — what a late joiner's catch-up stages
             _currentExerciseId = intent.ExerciseId;
         }
@@ -2305,6 +2310,8 @@ public sealed partial class ClusterMaster : IDisposable
             MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
+            LastLoadRequestId = LastLoadRequestId,   // ⭐ CE-3354 ⑦
+            LastLoadScenario = LastLoadScenario,
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
             ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070
@@ -2322,6 +2329,8 @@ public sealed partial class ClusterMaster : IDisposable
             MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
+            LastLoadRequestId = LastLoadRequestId,   // ⭐ CE-3354 ⑦
+            LastLoadScenario = LastLoadScenario,
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
             ErrorReason = ErrorReason,   // ⭐ CE-3345 R-3073
             ClusterPlayReady = playReady,   // ⭐ CE-3345 R-3070

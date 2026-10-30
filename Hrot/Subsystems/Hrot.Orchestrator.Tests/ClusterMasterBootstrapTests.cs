@@ -1443,6 +1443,35 @@ public sealed class ClusterMasterBootstrapTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — the master broadcasts the request id and scenario of the load it STARTED, whoever sent it (here a bare intent on the bus, as the command line / the panel / another node do): the master holds it and every
+    /// node's <c>ClusterView</c> reads it; a later load replaces it; nothing before any load. 🔴 Mutations (each compiles): the master not setting <c>LastLoadRequestId</c> ⇒ the first cells red; the broadcast not carrying it ⇒ the view cells red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3354_TheMaster_BroadcastsTheCurrentLoadsRequestId_ForAnySender()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        var view = new ClusterView(bus, nodeId: CgfNode);
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain }, name: "CGF");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost");   // a scenario load waits for the Brain + MuscleGround nodes (CE-4087)
+        view.Update();
+        Assert.Equal((Guid.Empty, (string?)null), (view.LastLoadRequestId, view.LastLoadScenario));      // before any load
+
+        var first = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = first, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive, ScenarioId = "scn-a" });
+        Step(bus, master);
+        bus.PublishManaged(new PrefetchDistributionCompletedEvent { RequestId = first, ScenarioId = "scn-a", IsSuccess = true });   // the scenario's staging is on every node: the parked load resumes
+        Step(bus, master); view.Update();
+        Assert.Equal((first, "scn-a"), (master.LastLoadRequestId, master.LastLoadScenario));
+        Assert.Equal((first, "scn-a"), (view.LastLoadRequestId, view.LastLoadScenario));                  // broadcast
+
+        var second = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = second, TargetState = Fdp.Toolkit.Orchestration.ClusterState.Idle });
+        Step(bus, master); view.Update();
+        Assert.Equal(first, view.LastLoadRequestId);                                                       // an unload is not a load
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3354</c> ② — the master keeps each node's NAME (an older sender's none ⇒ <c>&lt;subsystem&gt;-&lt;nodeId&gt;</c>), refuses a heartbeat whose name another LIVE node holds
     /// (the roster rows say it: the holder stays, the second is a conflict row, never a member), and a node re-heartbeating under its own name is fine.
     /// 🔴 Mutations (each compiles): the ingest not setting <c>NodeName</c> ⇒ the name cells red; <c>TryAdmit</c> replaced by <c>Upsert</c> ⇒ the second node is a member.

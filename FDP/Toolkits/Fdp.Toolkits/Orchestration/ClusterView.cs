@@ -73,6 +73,12 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>⭐ R-1043 — the mode the LAST scenario load went into (Live / Preview), as the master's last broadcast said; Live before a broadcast and for a sender that does not set it.</summary>
         public ClusterArmedMode LastLoadMode { get; private set; } = ClusterArmedMode.Live;
 
+        /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the cluster's current scenario load (the master's broadcast: ANY sender's load — HTTP, the command line, the operator panel, another node); <see cref="Guid.Empty"/> before any.</summary>
+        public Guid LastLoadRequestId { get; private set; }
+
+        /// <summary>⭐ CE-3354 ⑦ — the scenario that load named; null before any.</summary>
+        public string? LastLoadScenario { get; private set; }
+
         // ── cluster ready (CE-3344, R-3069) ─────────────────────────────────────
 
         /// <summary>⭐⭐ <c>CE-3344</c> (R-3069) — what the cluster is still WAITING FOR before it is ready, as the master's last broadcast said
@@ -249,6 +255,8 @@ namespace Fdp.Toolkit.Orchestration
                     MapInLoadNodes = ev.MapInLoadNodes ?? Array.Empty<string>();   // ⭐ CE-3354 ③
                     ArmedMode = ev.ArmedMode;                  // ⭐ CE-3341 R-3068
                     LastLoadMode = ev.LastLoadMode;            // ⭐ R-1043
+                    LastLoadRequestId = ev.LastLoadRequestId;  // ⭐ CE-3354 ⑦
+                    LastLoadScenario = ev.LastLoadScenario;
                     WaitingFor = ev.WaitingFor ?? string.Empty; // ⭐ CE-3344 R-3069
                     ErrorReason = ev.ErrorReason ?? string.Empty; // ⭐ CE-3345 R-3073
                     ClusterPlayReady = ev.ClusterPlayReady;        // ⭐ CE-3345 R-3070

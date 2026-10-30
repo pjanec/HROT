@@ -57,6 +57,12 @@ public sealed partial class ClusterMaster
     /// set when the load round STARTS; before any load it equals the initial armed mode. A fact the master holds and broadcasts beside <see cref="ArmedMode"/> — it never interprets it for a load.</summary>
     public ClusterArmedMode LastLoadMode { get; private set; } = ClusterArmedMode.Live;
 
+    /// <summary>⭐ <c>CE-3354</c> ⑦ — the request id of the LAST scenario load the master started (<see cref="TransitionStateIntent.TransactionId"/>; whoever sent it), broadcast beside <see cref="LastLoadMode"/> so any host's <c>/status.load</c> follows it.</summary>
+    public Guid LastLoadRequestId { get; private set; }
+
+    /// <summary>⭐ CE-3354 ⑦ — the scenario that load named.</summary>
+    public string? LastLoadScenario { get; private set; }
+
     private bool _runNotRecorded;
 
 

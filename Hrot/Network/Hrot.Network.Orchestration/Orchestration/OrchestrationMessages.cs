@@ -185,6 +185,10 @@ namespace Hrot.NED.Descriptors.Orchestration
         public int AskToKeepRecordings;
         /// <summary>⭐ CE-3354 ③ — the node NAMES whose scenario load also waits for their built 3-D map, comma-joined (names hold no comma); empty = none or an older sender. ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
         [DdsManaged] public string MapInLoadNodes;
+        /// <summary>⭐ CE-3354 ⑦ — the request id of the cluster's CURRENT scenario load (empty Guid = none or an older sender). ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
+        public Guid LastLoadRequestId;
+        /// <summary>⭐ CE-3354 ⑦ — the scenario that load named; empty = none or an older sender. Additive on the wire.</summary>
+        [DdsManaged] public string LastLoadScenario;
     }
 
     /// <summary>

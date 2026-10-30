@@ -179,6 +179,8 @@ public sealed class ClusterFactsIngress : IDisposable
         AskToKeepRecordings = topic.AskToKeepRecordings != 0,   // ⭐ AQ108 D15 (CE-4100 ①)
         MapInLoadNodes = string.IsNullOrEmpty(topic.MapInLoadNodes) ? System.Array.Empty<string>()
                          : topic.MapInLoadNodes.Split(',', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries),   // ⭐ CE-3354 ③
+        LastLoadRequestId = topic.LastLoadRequestId,                          // ⭐ CE-3354 ⑦
+        LastLoadScenario = string.IsNullOrEmpty(topic.LastLoadScenario) ? null : topic.LastLoadScenario,
     };
 
     /// <summary>⭐ CE-3341 — an armed-mode wire int; a value this build does not know (a newer peer) reads as the default, Live.</summary>

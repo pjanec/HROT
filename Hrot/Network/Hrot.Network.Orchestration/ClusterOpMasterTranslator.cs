@@ -41,6 +41,8 @@ public sealed class ClusterOpMasterTranslator
         LoadProgress     = ev.LoadProgress ?? string.Empty,
         AskToKeepRecordings = ev.AskToKeepRecordings ? 1 : 0,   // ⭐ AQ108 D15 (CE-4100 ①)
         MapInLoadNodes   = string.Join(",", ev.MapInLoadNodes ?? System.Array.Empty<string>()),   // ⭐ CE-3354 ③
+        LastLoadRequestId = ev.LastLoadRequestId,                  // ⭐ CE-3354 ⑦
+        LastLoadScenario = ev.LastLoadScenario ?? string.Empty,
     };
 
     private readonly DdsReader<ClusterOpRequest>    _requestReader;

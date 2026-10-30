@@ -168,6 +168,33 @@ public sealed class TheClusterMembershipRoutesTests
         Assert.Equal(("Failed", "node 2: the 'Map3D' part failed — no GPU"), svc.LoadPhaseOf(failed));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ⑦ — <c>GET /status.load</c> follows the load the MASTER broadcasts, not only the ones this API sent: a load sent from elsewhere (the command line, the operator panel, another node) shows its request id, scenario and
+    /// phase (Loading until the master answers it, then Loaded); a load this API sent is the fallback while the view knows none. 🔴 Mutations (each compiles): <c>CurrentLoad</c> reading only <c>_lastLoad</c> ⇒ the first cells red;
+    /// the phase read off the wrong id ⇒ the phase cells red.
+    /// </summary>
+    [Fact]
+    public void CE3354_Status_load_follows_a_load_this_API_did_not_send()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[] { new SubsystemDebugProvider("IG", "IG", clusterView: () => view) },
+            currentPerspective: () => "IG",
+            acksPending: null));
+        Assert.Null(svc.GetStatus()["load"]!["requestId"]);                                // no load anywhere yet
+
+        var cli = Guid.NewGuid();
+        void Hear<T>(T ev) where T : struct { bus.PublishManaged(ev); bus.SwapBuffers(); view.Update(); }
+        Hear(new ClusterStateUpdateEvent { CurrentState = ClusterState.LoadingLive, LastLoadRequestId = cli, LastLoadScenario = "scn-cli" });
+        var load = svc.GetStatus()["load"]!;
+        Assert.Equal((cli.ToString(), "scn-cli", "Loading"), ((string)load["requestId"]!, (string)load["scenario"]!, (string)load["phase"]!));
+
+        Hear(new ClusterOpCompletedEvent { RequestId = cli, StatusCode = OrchestrationStatusCode.Success });   // the master answers THAT request
+        Assert.Equal("Loaded", (string)svc.GetStatus()["load"]!["phase"]!);
+    }
+
     private static void Hear(Fdp.Core.FdpEventBus bus, ClusterView view, string[] names)
     {
         bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, MapInLoadNodes = names });
