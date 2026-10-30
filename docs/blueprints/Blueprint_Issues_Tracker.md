@@ -43,7 +43,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | `ui` | **`CE-1000` – `CE-1999`** | `CE-1436` *(`CE-1434`, `CE-1435` = CE-1432's leftovers (HostedSubtree's release, the non-engine channel fallback); `CE-1433` = CE-1430's follow-up (code-built rows' initial values); `CE-1430`/`CE-1431` = CE-1412's follow-ups (code-built Variables rows; the manifest for every curated tree), `CE-1432` CE-1411's (the other channel-release copies); `CE-1410` = R-1042 conversion; `CE-1411`–`CE-1413` the conversion's follow-ups, `CE-1414`–`CE-1419` unused, `CE-1420` the 2-D grid, `CE-1421`–`CE-1429` unused; `CE-1393` CE-1391 batch; `CE-1394` frame-rail order; `CE-1395` control-plane rail; `CE-1396`–`CE-1399`, `CE-1402`–`CE-1409` unused; CE-1305's batch took `CE-1400`, `CE-1401`; `CE-1393`–`CE-1399` left to a parallel ui agent, `2026-10-27`; before: `CE-1385`–`CE-1389` left to a parallel ui agent, `2026-10-27`; CE-1306 took `CE-1390`, `CE-1391`; `CE-1392` the editor flake; the parallel agent took none, so `CE-1385`–`CE-1389` stay unused)* |
 > | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2377` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
 > | `backend` | **`CE-3000` – `CE-3999`** | `CE-3332` |
-> | `coordinator` *(added `2026-10-15`)* | **`CE-4000` – `CE-4999`** | `CE-4106` |
+> | `coordinator` *(added `2026-10-15`)* | **`CE-4000` – `CE-4999`** | `CE-4107` |
 > | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
 >
 > ⭐ Ids below `CE-1000` stay as they are (highest in use `CE-524`, measured `2026-10-02` at the `backend` merge). ⛔ **Never renumber.**
