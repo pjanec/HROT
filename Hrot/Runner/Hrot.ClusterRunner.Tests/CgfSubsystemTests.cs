@@ -6,6 +6,8 @@ using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
+using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Handlers;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Runner;
 using Fdp.Core;
@@ -151,4 +153,33 @@ public class CgfSubsystemTests : IDisposable
         "Hrot.ScenarioEditor.Map.MenuShortcuts",
         "Hrot.Common.Systems.GlobalActionDispatchSystem"
     };
+
+    // ── CE-3348: the claims `CgfHandlerRegistrationTests` made on the retired `CgfApplication` (CGF1-S0104 / BATCH-23 A.1), now on the LIVE CGF's slave ──
+
+    private ClusterSlave LiveSlave()
+    {
+        _sut.Initialize(new SubsystemConfig { DomainId = 0, Headless = true });
+        return _sut.NodeForTest!.ClusterSlave;
+    }
+
+    /// <summary>⭐ <c>CE-3348</c> — the live CGF's slave (built by <c>CgfSubsystem</c> through the shared bootstrapper) holds the replay-load handler.
+    /// 🔴 Mutation: <c>ReferenceReplayLoadHandler</c> dropped from <c>EcsHostClusterHandlers.Compose</c> ⇒ red.</summary>
+    [Fact]
+    public void CE3348_TheLiveCgfSlave_RegistersReferenceReplayLoadHandler()
+        => Assert.True(LiveSlave().IsHandlerRegistered<ReferenceReplayLoadHandler>(), "CGF must register ReferenceReplayLoadHandler for replay cluster participation.");
+
+    /// <summary>⭐ <c>CE-3348</c> — … the live-load handler.</summary>
+    [Fact]
+    public void CE3348_TheLiveCgfSlave_RegistersReferenceLiveLoadHandler()
+        => Assert.True(LiveSlave().IsHandlerRegistered<ReferenceLiveLoadHandler>(), "CGF must register ReferenceLiveLoadHandler for live cluster participation.");
+
+    /// <summary>⭐ <c>CE-3348</c> — … the prefetch handler (scenario file staging).</summary>
+    [Fact]
+    public void CE3348_TheLiveCgfSlave_RegistersReferencePrefetchHandler()
+        => Assert.True(LiveSlave().IsHandlerRegistered<ReferencePrefetchHandler>(), "CGF must register ReferencePrefetchHandler for scenario prefetch.");
+
+    /// <summary>⭐ <c>CE-3348</c> — … the preview handler (dry run).</summary>
+    [Fact]
+    public void CE3348_TheLiveCgfSlave_RegistersReferencePreviewHandler()
+        => Assert.True(LiveSlave().IsHandlerRegistered<ReferencePreviewHandler>(), "CGF must register ReferencePreviewHandler.");
 }

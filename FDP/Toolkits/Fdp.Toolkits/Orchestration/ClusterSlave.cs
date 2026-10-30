@@ -176,7 +176,7 @@ namespace Fdp.Toolkit.Orchestration
         /// 🔴 <b>Why it lives here and not in each subsystem's bootstrap.</b> Under <c>--mode all</c>
         /// every subsystem gets its OWN isolated <see cref="FdpEventBus"/>, so
         /// <c>OrchestrationEventRegistry.RegisterAll</c> called during one subsystem's bootstrap does
-        /// nothing for another's. It was called by <c>CgfApplication</c>, <c>EditorSubsystem</c> and
+        /// nothing for another's. It was called by the retired <c>CgfApplication</c> (CE-3348), <c>EditorSubsystem</c> and
         /// <c>HrotNodeBuilder</c> — and NOT by IG. The first <c>Tick()</c> therefore published
         /// <c>NodeHeartbeatEvent</c> on an unregistered stream and strict mode killed the whole
         /// process on frame one:
