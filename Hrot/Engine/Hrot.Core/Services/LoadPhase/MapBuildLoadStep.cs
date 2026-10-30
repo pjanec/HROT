@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Core.Logging;
 
 namespace Hrot.Map.Common.ClusterLoad;
 
@@ -42,8 +43,16 @@ public sealed class MapBuildLoadStep : ILoadPartProvider
     /// <summary>⭐ CE-3354 ③ — at the commit (the chain runs it after the terrain step's), a load that waits for the map ASKS for it: the build starts for the terrain just committed.</summary>
     public void Commit(LoadPhaseContext context, EntityRepository? world)
     {
-        if (_required) _status()?.Request3D();
+        if (!_required) return;
+        var status = _status();
+        status?.Request3D();
+        // ⭐ CE-3354 — say it: an operator (and a live acceptance) can otherwise not tell whether this load waits for its 3-D map, nor for how long
+        _waitStarted = System.Diagnostics.Stopwatch.StartNew();
+        FdpLog<MapBuildLoadStep>.Info("[LoadPhase] this load waits for the node's 3-D map ({0}){1}.",
+            _alwaysRequired ? "the node's profile" : "map-in-load", status == null ? " — no map on this host (headless): nothing to wait for" : "");
     }
+
+    private System.Diagnostics.Stopwatch? _waitStarted;
 
     public void Abort(LoadPhaseContext context) => _required = false;
 
@@ -51,7 +60,13 @@ public sealed class MapBuildLoadStep : ILoadPartProvider
     {
         if (!_required) return true;   // ⭐ CE-3354 ③ — this load does not wait for the map
         var s = _status();
-        return s == null || s.Failure != null || s.IsBuilt;   // a failure ends the wait (the chain then fails the load with it)
+        bool done = s == null || s.Failure != null || s.IsBuilt;   // a failure ends the wait (the chain then fails the load with it)
+        if (done && _waitStarted is { } waited)
+        {
+            _waitStarted = null;
+            FdpLog<MapBuildLoadStep>.Info("[LoadPhase] the 3-D map is {0} after {1:F1} s.", s?.Failure is { } f ? "FAILED (" + f + ")" : "built", waited.Elapsed.TotalSeconds);
+        }
+        return done;
     }
 
     public string? Failure => _required ? _status()?.Failure : null;
