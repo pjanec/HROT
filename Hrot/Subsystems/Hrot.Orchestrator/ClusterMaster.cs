@@ -1707,7 +1707,9 @@ public sealed partial class ClusterMaster : IDisposable
                             RecordingOff: _runNotRecorded
                                        && tStep.TargetState is ClusterState.LoadingLive or ClusterState.OperatingLive);
 
-                        FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
+                        // ⭐ CE-3354 ③ — a LOAD step's prepare is stamped per node: a node named in the map-in-load set also waits for its 3-D map
+                        if (isLoadStep) FanOutLoadPrepare(prepareOp, tx.TransactionId, preparePayload, activeNodeIds);
+                        else FanOutNodeOp(prepareOp,        tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
                             new CommitStatePayload((FdpClusterState)(int)tStep.TargetState), activeNodeIds);
                     }
@@ -2300,6 +2302,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded   = _runNotRecorded,    // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
@@ -2316,6 +2319,7 @@ public sealed partial class ClusterMaster : IDisposable
             RunNotRecorded = _runNotRecorded,   // ⭐ CE-4090 D14
             RecordLiveRunsOff = !RecordLiveRuns,
             AskToKeepRecordings = AskToKeepRecordings,   // ⭐ AQ108 D15 (CE-4100 ①)
+            MapInLoadNodes = MapInLoadNodes.ToArray(),   // ⭐ CE-3354 ③
             ArmedMode = ArmedMode,   // ⭐ CE-3341 R-3068
             LastLoadMode = LastLoadMode,   // ⭐ R-1043
             WaitingFor = waitingFor,   // ⭐ CE-3344 R-3069
@@ -2372,6 +2376,19 @@ public sealed partial class ClusterMaster : IDisposable
                 Operation     = (Fdp.Toolkit.Orchestration.NodeOpType)(int)operation,
                 DomainPayload = domainPayload,
             });
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ③ — fans out a LOAD step's PREPARE (LoadingLive / LoadingEdit), stamping <see cref="EditLoadHandlerPayload.MapInLoad"/> = true on the payload of each node
+    /// whose roster NAME is in <see cref="MapInLoadNodes"/> (case-insensitive); every other node gets the plain payload. Targets keep their order; CommitState is not touched.
+    /// </summary>
+    private void FanOutLoadPrepare(NodeOpType operation, Guid transactionId, EditLoadHandlerPayload payload, IEnumerable<int> targetNodeIds)
+    {
+        foreach (var nodeId in targetNodeIds)
+        {
+            bool map = _roster.ActiveNodes.TryGetValue(nodeId, out var p) && MapInLoadFor(p.NodeName);
+            FanOutNodeOp(operation, transactionId, map ? payload with { MapInLoad = true } : payload, new[] { nodeId });
         }
     }
 

@@ -1245,12 +1245,12 @@ public sealed class ClusterMasterBootstrapTests
         { Mandatory = Array.Empty<string>(), HeartbeatTimeoutSeconds = 60f, TransactionHistoryCapacity = 10, MandatoryRoles = NodeRole.None };
 
     /// <summary>A node's heartbeat carrying what it reports about ITSELF (phase / step / reason), and — once, when <paramref name="advert"/> is given — its capability advert (an empty array = a node with no role at all).</summary>
-    private static void PhaseBeat(FdpEventBus bus, ClusterMaster master, int nodeId, NodePhase phase, string? step = null, string[]? advert = null, string name = "Node")
+    private static void PhaseBeat(FdpEventBus bus, ClusterMaster master, int nodeId, NodePhase phase, string? step = null, string[]? advert = null, string name = "Node", string? nodeName = null)
     {
         if (advert != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = nodeId, Capabilities = advert });
         bus.PublishManaged(new NodeHeartbeatEvent
         {
-            NodeId = nodeId, SubsystemName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            NodeId = nodeId, SubsystemName = name, NodeName = nodeName, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
             LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, Phase = phase, Step = step,
         });
         Step(bus, master);
@@ -1404,6 +1404,42 @@ public sealed class ClusterMasterBootstrapTests
         var status = Assert.Single(StatusesOf(bus, request));
         Assert.Equal((OrchestrationStatusCode.Failure, "boom"), (status.StatusCode, (string?)status.ResultPayload));
         Assert.DoesNotContain(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.AbortTransaction);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3354</c> ③ — the master holds the map-in-load set (case-insensitive, de-duplicated; null = no change, empty = none; a blank name or one with a comma is no node name), BROADCASTS it (every node's
+    /// <c>ClusterView</c> reads it) and it survives a load; and a scenario load's PREPARE payload carries <c>MapInLoad = true</c> for the node named in the set ONLY — the other node gets the plain one, and CommitState is untouched.
+    /// 🔴 Mutations (each compiles): <c>FanOutLoadPrepare</c> stamping every node / none ⇒ the payload cells red; the set matched case-sensitively ⇒ the "Film-Cam" cell reds; the de-duplication removed ⇒ the count cell reds;
+    /// the set not on the broadcast ⇒ the view cells red; the set cleared by a load ⇒ the survives cell reds.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CE3354_MapInLoad_TheSetIsHeldAndBroadcast_AndOnlyTheNamedNodesLoadPayloadCarriesTheFlag()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        var view = new ClusterView(bus, nodeId: CgfNode);
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain }, name: "CGF", nodeName: "film-cam");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost", nodeName: "sim-1");
+
+        void Set(string[]? names) { bus.PublishManaged(new SetRunSettingsIntent { RequestId = Guid.NewGuid(), MapInLoadNodes = names }); Step(bus, master); view.Update(); }
+        Set(new[] { "Film-Cam", "film-cam", " sim-9 ", "", "bad,name" });
+        Assert.Equal(new[] { "Film-Cam", "sim-9" }, master.MapInLoadNodes);          // de-duplicated case-insensitively, junk dropped
+        Assert.Equal(new[] { "Film-Cam", "sim-9" }, view.MapInLoadNodes);            // broadcast
+        Set(null);
+        Assert.Equal(2, master.MapInLoadNodes.Count);                                // null = no change
+
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = Guid.NewGuid(), TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        Step(bus, master);
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        bool Flag(int node) => Assert.IsType<Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload>(
+            ops.Single(i => i.Operation == FdpNodeOpType.PrepareLive && i.TargetNodeId == node).DomainPayload).MapInLoad;
+        Assert.True(Flag(CgfNode));                                                  // named (case-insensitively)
+        Assert.False(Flag(SimHostNode));                                             // not named
+        Assert.All(ops.Where(i => i.Operation == FdpNodeOpType.CommitState), i => Assert.IsType<CommitStatePayload>(i.DomainPayload));
+        Assert.Equal(2, master.MapInLoadNodes.Count);                                // survives the load
+        Set(Array.Empty<string>());
+        Assert.Empty(view.MapInLoadNodes);                                           // empty = none
     }
 
     /// <summary>

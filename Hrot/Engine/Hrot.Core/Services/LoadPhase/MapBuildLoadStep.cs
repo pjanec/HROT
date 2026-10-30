@@ -19,30 +19,48 @@ namespace Hrot.Map.Common.ClusterLoad;
 public sealed class MapBuildLoadStep : ILoadPartProvider
 {
     private readonly Func<IMapBuildStatus?> _status;
+    private readonly bool _alwaysRequired;
+    private volatile bool _required;   // ⭐ CE-3354 ③ — THIS load waits for the map (set by its prepare)
 
-    public MapBuildLoadStep(Func<IMapBuildStatus?> status) => _status = status ?? throw new ArgumentNullException(nameof(status));
+    /// <param name="alwaysRequired">⭐ CE-3354 ③ — the node's PROFILE waits for its map in every load (the Player); otherwise a load waits only when its payload says <see cref="LoadPhaseContext.MapInLoad"/>
+    /// (the master's map-in-load set names this node). A load that does not wait resolves at once and never starts a build.</param>
+    public MapBuildLoadStep(Func<IMapBuildStatus?> status, bool alwaysRequired = false)
+    {
+        _status = status ?? throw new ArgumentNullException(nameof(status));
+        _alwaysRequired = alwaysRequired;
+        _required = alwaysRequired;
+    }
 
     public LoadPart Part => LoadPart.Map3D;
 
-    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct) => Task.CompletedTask;   // nothing to read: the map builds from the terrain this load commits
+    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)   // nothing to read: the map builds from the terrain this load commits
+    {
+        _required = _alwaysRequired || context.MapInLoad;
+        return Task.CompletedTask;
+    }
 
-    public void Commit(LoadPhaseContext context, EntityRepository? world) { }
+    /// <summary>⭐ CE-3354 ③ — at the commit (the chain runs it after the terrain step's), a load that waits for the map ASKS for it: the build starts for the terrain just committed.</summary>
+    public void Commit(LoadPhaseContext context, EntityRepository? world)
+    {
+        if (_required) _status()?.Request3D();
+    }
 
-    public void Abort(LoadPhaseContext context) { }
+    public void Abort(LoadPhaseContext context) => _required = false;
 
     public bool IsResolved(EntityRepository? world)
     {
+        if (!_required) return true;   // ⭐ CE-3354 ③ — this load does not wait for the map
         var s = _status();
         return s == null || s.Failure != null || s.IsBuilt;   // a failure ends the wait (the chain then fails the load with it)
     }
 
-    public string? Failure => _status()?.Failure;
+    public string? Failure => _required ? _status()?.Failure : null;
 
     public string? ProgressStep
     {
         get
         {
-            var s = _status();
+            var s = _required ? _status() : null;
             return s == null || s.IsBuilt || string.IsNullOrEmpty(s.Step) ? null : s.Step;
         }
     }

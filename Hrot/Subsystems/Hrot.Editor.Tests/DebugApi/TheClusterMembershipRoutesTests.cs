@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.DebugApi;
@@ -92,6 +93,54 @@ public sealed class TheClusterMembershipRoutesTests
         var node = svc.GetStatus()["node"]!;
 
         Assert.Equal(("film-cam", 7), ((string)node["name"]!, (int)node["nodeId"]!));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ③ — <c>POST /run-settings {mapInLoad:true|false}</c> adds / removes THIS node's name (the one <c>/status.node</c> reports) to the master's map-in-load set;
+    /// <c>{mapInLoadNodes:[…]}</c> replaces the set; both at once and a bad name are refused; <c>GET /run-settings</c> returns the set and each <c>/cluster/roster</c> row says whether its name is in it.
+    /// 🔴 Mutations (each compiles): <c>mapInLoad</c> replacing instead of adding ⇒ the second cell reds; the route not sending <c>MapInLoadNodes</c> ⇒ the intent cells red; the roster row not reading the set ⇒ the last cell reds.
+    /// </summary>
+    [Fact]
+    public void CE3354_RunSettings_MapInLoad_AddsThisNode_ReplacesTheSet_AndTheSetIsReadBack()
+    {
+        var bus = new Fdp.Core.FdpEventBus();
+        using var slave = new Fdp.Toolkit.Orchestration.ClusterSlave(7, "IG", bus, nodeName: "film-cam");
+        var view = slave.View;
+        var svc = new DebugApiService(new PerspectiveScopedDispatcher(
+            new ISubsystemDebugProvider[]
+            {
+                new SubsystemDebugProvider("IG", "IG", master: () => _master, clusterView: () => view, recordLiveRunsOff: () => false,
+                    clusterRoster: () => new[] { new ClusterRosterEntry(7, "IG", "Idle", "Map2D", 0.1, "film-cam"), new ClusterRosterEntry(1, "SimHost", "Idle", "None", 0.1, "sim-1") }),
+            },
+            currentPerspective: () => "IG",
+            acksPending: null));
+        string[]? Last() => _master.Sent.OfType<SetRunSettingsIntent>().Last().MapInLoadNodes;
+
+        Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = true }).Error);
+        Assert.Equal(new[] { "film-cam" }, Last());                                   // this node's name, added
+        Hear(bus, view, new[] { "sim-1", "FILM-CAM" });                                    // the master's set, as broadcast
+        Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = false }).Error);
+        Assert.Equal(new[] { "sim-1" }, Last());                                      // removed (case-insensitively), the rest kept
+        Assert.Null(svc.SetRunSettings(new JsonObject { ["mapInLoadNodes"] = new JsonArray("a", "b") }).Error);
+        Assert.Equal(new[] { "a", "b" }, Last());                                     // replaced
+        Assert.NotNull(svc.SetRunSettings(new JsonObject { ["mapInLoad"] = true, ["mapInLoadNodes"] = new JsonArray("a") }).Error);   // not both
+        Assert.NotNull(svc.SetRunSettings(new JsonObject { ["mapInLoadNodes"] = new JsonArray("a,b") }).Error);                       // a comma is no name
+
+        Hear(bus, view, new[] { "sim-1", "FILM-CAM" });
+        var (settings, _, _) = svc.GetRunSettings();
+        Assert.Equal(new[] { "sim-1", "FILM-CAM" }, settings!["mapInLoadNodes"]!.AsArray().Select(n => (string)n!).ToArray());
+        var (roster, _, _) = svc.GetClusterRoster();
+        Assert.True((bool)roster!["nodes"]![0]!["mapInLoad"]!);                       // film-cam
+        Assert.True((bool)roster["nodes"]![1]!["mapInLoad"]!);                        // sim-1
+        Hear(bus, view, Array.Empty<string>());
+        Assert.False((bool)svc.GetClusterRoster().Result!["nodes"]![0]!["mapInLoad"]!);
+    }
+
+    private static void Hear(Fdp.Core.FdpEventBus bus, ClusterView view, string[] names)
+    {
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, MapInLoadNodes = names });
+        bus.SwapBuffers();
+        view.Update();
     }
 
     /// <summary>

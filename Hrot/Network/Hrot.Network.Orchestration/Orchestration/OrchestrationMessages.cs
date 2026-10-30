@@ -183,6 +183,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string LoadProgress;
         /// <summary>⭐ AQ108 D15 (CE-4100 ①) — 1 = the cluster's <i>Ask to keep recordings</i> SETTING is ON; 0 = OFF, or an older sender (the default). ⭐ APPENDED LAST (R-42: never renumber / reorder); additive on the wire.</summary>
         public int AskToKeepRecordings;
+        /// <summary>⭐ CE-3354 ③ — the node NAMES whose scenario load also waits for their built 3-D map, comma-joined (names hold no comma); empty = none or an older sender. ⭐ APPENDED LAST (R-42); additive on the wire.</summary>
+        [DdsManaged] public string MapInLoadNodes;
     }
 
     /// <summary>

@@ -230,6 +230,32 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal(expected, Assert.IsType<EditLoadHandlerPayload>(payload).RecordingOff);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ③ — the per-node <c>MapInLoad</c> stamp crosses the wire with the load payload (an older sender omits it ⇒ false), and the map-in-load SET crosses the cluster-state broadcast both ways
+    /// (the master's <c>StateTopicOf</c>, every node's <c>StateOf</c>; an older sender's empty reads as none) and the run-settings op (<c>SetRunSettingsPayloadDto</c>: null = no change, empty = none).
+    /// 🔴 Mutations (each compiles): the payload DTO / decode not carrying <c>MapInLoad</c> ⇒ the first cells red; <c>StateTopicOf</c> not joining / <c>StateOf</c> not splitting ⇒ the broadcast cell reds; the DTO dropping the field ⇒ the last cells red.
+    /// </summary>
+    [Fact]
+    public void CE3354_TheMapInLoadStamp_TheSet_AndTheRunSettingsOp_CrossTheWire()
+    {
+        Assert.True(Assert.IsType<EditLoadHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(
+            NedNodeOpType.PrepareLive, "{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\",\"MapInLoad\":true}")).MapInLoad);
+        Assert.False(Assert.IsType<EditLoadHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(
+            NedNodeOpType.PrepareLive, "{\"TargetState\":\"LoadingLive\",\"ScenarioId\":\"s\"}")).MapInLoad);
+
+        var topic = Hrot.Network.Orchestration.ClusterOpMasterTranslator.StateTopicOf(new ClusterStateTransitionedEvent
+            { NewStateId = Fdp.Toolkit.Orchestration.ClusterState.Idle, MapInLoadNodes = new[] { "film-cam", "sim-1" } });
+        Assert.Equal("film-cam,sim-1", topic.MapInLoadNodes);
+        Assert.Equal(new[] { "film-cam", "sim-1" }, ClusterFactsIngress.StateOf(topic).MapInLoadNodes);
+        Assert.Empty(ClusterFactsIngress.StateOf(new ClusterStateTopic { CurrentState = NedClusterState.Idle }).MapInLoadNodes!);   // an older sender
+
+        var op = Hrot.Network.Orchestration.SetRunSettingsPayloadDto.From(new SetRunSettingsIntent { MapInLoadNodes = new[] { "a" } });
+        var json = System.Text.Json.JsonSerializer.Serialize(op);
+        Assert.Equal(new[] { "a" }, Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), json).MapInLoadNodes);
+        Assert.Null(Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), "{\"RecordLiveRuns\":false}").MapInLoadNodes);   // absent = no change
+        Assert.Empty(Hrot.Network.Orchestration.SetRunSettingsPayloadDto.Decode(Guid.NewGuid(), "{\"MapInLoadNodes\":[]}").MapInLoadNodes!);   // empty = none
+    }
+
     /// <summary>⭐ CE-4090 — the master's cluster-state broadcast tells EVERY node (and the orchestrator's own observers) whether the run is recorded:
     /// the one decoding (<c>StateOf</c>) keeps <c>RunNotRecorded</c>; an older sender's 0 is "recorded".</summary>
     [Theory]

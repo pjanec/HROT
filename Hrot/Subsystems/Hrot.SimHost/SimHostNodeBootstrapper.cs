@@ -356,6 +356,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     }
 
     /// <inheritdoc/>
+    /// <summary>⭐ <c>CE-3354</c> ③ — where this host's 3-D map step polls the map's build from (lazy: the map is attached after the bootstrap; a null result = no map ⇒ the step resolves). The map-in-load setting makes THIS node's load wait for it.</summary>
+    public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
+
     protected override ClusterSlave BuildOrchestration(
         HrotNodeContext context,
         TogglableSimulationGroup simGroup,
@@ -403,7 +406,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
             // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
             clusterSlave:         context.ClusterSlave,
-            slaveTranslator:      context.SlaveTranslator);
+            slaveTranslator:      context.SlaveTranslator,
+            mapBuildStatus:       MapBuildStatus);   // ⭐ CE-3354 ③ — this host HAS a map when it shows one (SimHostApp wires it), so it passes it
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;

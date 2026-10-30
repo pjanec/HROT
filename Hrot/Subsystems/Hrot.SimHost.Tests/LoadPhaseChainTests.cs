@@ -712,12 +712,14 @@ public sealed class LoadPhaseChainTests
         public bool IsBuilt { get; set; }
         public string? Failure { get; set; }
         public string Step { get; set; } = "";
+        public int Requests { get; private set; }
+        public void Request3D() => Requests++;
     }
 
     private static LoadPhaseChain MapChain(FakeMapStatus? status, NodeRole roles = NodeRole.Map2D, bool withProfilePart = true)
         => LoadPhaseChain.FromRoles(
             roles,
-            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new MapBuildLoadStep(() => status) },
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new MapBuildLoadStep(() => status, alwaysRequired: withProfilePart) },
             world: null,
             profileParts: withProfilePart ? new[] { LoadPart.Map3D } : null);
 
@@ -782,6 +784,68 @@ public sealed class LoadPhaseChainTests
         var hold   = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
         chain.DrainDeferredAcks();
         await hold;   // the never-built map did not hold it
+    }
+
+    private static LoadPhaseChain MapInLoadChain(FakeMapStatus status, bool profileAlways)
+        => LoadPhaseChain.FromRoles(
+            NodeRole.Brain,
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain), new FakeStep(LoadPart.ScenarioEntities), new MapBuildLoadStep(() => status, alwaysRequired: profileAlways) },
+            world: null,
+            profileParts: new[] { LoadPart.Map3D });   // as EcsHostClusterHandlers composes it for any host that supplies a map
+
+    private static ExecuteNodeOpIntent LoadIntent(bool mapInLoad) => new()
+    {
+        Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+        DomainPayload = new EditLoadHandlerPayload("scn", false, ClusterState.LoadingLive, MapInLoad: mapInLoad),
+    };
+
+    /// <summary>
+    /// ⭐ <c>CE-3354</c> ③ — a node NOT in the master's map-in-load set (<c>context.MapInLoad</c> false) and whose profile does not ask for the map: the map step resolves at once, <c>Request3D</c> is NEVER called, the load does not wait.
+    /// A node IN the set: <c>Request3D</c> is called exactly once at the load's commit, and the load HOLDS until the map reports built. A profile node (the Player) waits without the flag.
+    /// 🔴 Mutations (each compiles): the step ignoring <c>MapInLoad</c> ⇒ the held cell never holds; <c>Request3D</c> called in prepare / per poll / never ⇒ the count cells red; <c>IsResolved</c> ignoring the gate ⇒ the first cell holds.
+    /// </summary>
+    [Fact]
+    public async Task CE3354_AMapInLoadNode_RequestsItsMapAtCommit_AndHoldsUntilBuilt_AnyOtherNodeDoesNot()
+    {
+        // not named: no wait, no build
+        var plain = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        var chain = MapInLoadChain(plain, profileAlways: false);
+        var load = LoadIntent(mapInLoad: false);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        await hold;                                  // the never-built map did not hold it
+        Assert.Equal(0, plain.Requests);
+
+        // named: Request3D once at commit, the load holds until built
+        var named = new FakeMapStatus { IsBuilt = false, Step = "3-D map: terrain" };
+        chain = MapInLoadChain(named, profileAlways: false);
+        load = LoadIntent(mapInLoad: true);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        Assert.Equal(0, named.Requests);             // not at prepare
+        chain.Commit(load, null);
+        Assert.Equal(1, named.Requests);
+        hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.NotSame(hold, await Task.WhenAny(hold, Task.Delay(200)));
+        Assert.Equal(1, named.Requests);             // polling does not re-ask
+        named.IsBuilt = true;
+        chain.DrainDeferredAcks();
+        await hold;
+
+        // the profile (the Player) waits without the flag
+        var player = new FakeMapStatus { IsBuilt = false };
+        chain = MapInLoadChain(player, profileAlways: true);
+        load = LoadIntent(mapInLoad: false);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.NotSame(hold, await Task.WhenAny(hold, Task.Delay(200)));
+        player.IsBuilt = true;
+        chain.DrainDeferredAcks();
+        await hold;
     }
 
     /// <summary>⭐ A requested profile part with no provider throws at composition, like a role part.</summary>

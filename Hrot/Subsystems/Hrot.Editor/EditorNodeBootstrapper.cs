@@ -299,6 +299,9 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 
     // ── phase 5: the ONE slave, OFFLINE ──────────────────────────────────────────────────────
 
+    /// <summary>⭐ <c>CE-3354</c> ③ — where this host's 3-D map step polls the map's build from (lazy: the map is attached after the bootstrap; a null result = no map ⇒ the step resolves). The map-in-load setting makes THIS node's load wait for it.</summary>
+    public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
+
     protected override ClusterSlave BuildOrchestration(HrotNodeContext context, TogglableSimulationGroup simGroup, TogglablePostSimulationGroup postSimGroup, ScenarioSerializer serializer)
     {
         Elm = context.BaseModules.OfType<EntityLifecycleModule>().FirstOrDefault();
@@ -345,7 +348,8 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
             behaviorRemapper:     behaviorRemapper,
             offline:              true,
             entityMap:            context.EntityMap,          // CE-2101 — the world boundary clears it
-            dryRunIncludesTransient: true);                   // the editor's dry run copied Transient components (HN-016)
+            dryRunIncludesTransient: true,                    // the editor's dry run copied Transient components (HN-016)
+            mapBuildStatus:       MapBuildStatus);            // ⭐ CE-3354 ③ — the editor HAS a map (EditorSubsystem wires it), so it passes it
     }
 
     // ── phase 6a: the spawning pipeline ──────────────────────────────────────────────────────
