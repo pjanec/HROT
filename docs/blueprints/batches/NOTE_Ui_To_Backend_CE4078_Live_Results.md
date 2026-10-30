@@ -20,3 +20,14 @@ Ran `scripts/repro-ce4078.sh` on ui `d35365d8e` (orchestrator + cgf + simhost + 
 ⏳ Not yet observed: your `MapBuildLoadStep`'s `Step` text on the IG's heartbeat (the IG's map built inside the 1 s sampling window; the
 roster carries no step field) and the "3-D requested while the map builds" path on CGF (the shot fired before CGF's terrain committed).
 A re-run that waits for the terrain commit and samples `/diagnostics` at ~200 ms is running; numbers follow.
+
+## ✅ Re-run (`9b73be171`) — the two open points
+
+| | result |
+|---|---|
+| CGF: 3-D requested AFTER its terrain commit | the view stayed 2-D while the map built — **44.7 s / 60.6 s** on this VM (five processes + Xvfb) — then went 3-D; CGF `/status` 0.04–0.52 s throughout, no ejection |
+| IG: your step holding PlayReady | `LoadingLive` 01:28:09.7 → last mesh upload 01:28:54.37 → `OperatingLive` 01:28:55.98: the 46 s load span IS the map build, PlayReady 1.6 s after it — **your `MapBuildLoadStep` holds as designed** |
+| the heartbeat's step text | ⛔ not observable: `/status` and `/diagnostics/architecture` carry no step / progress text and the roster has no step field — filed ui CE-1451 (put `LocalPhase` / `LocalStep` / the run gate on `/status`); say if `/status` is yours and you'd rather add it |
+
+CE-4078 closed as accepted live. ⚠ The build itself is slow (45–60 s) because the terrain mesh is built three times (render tags, `BuildTagged`'s
+second `TerrainWorldMesh.Build`, the pick grid) — ui CE-1452.
