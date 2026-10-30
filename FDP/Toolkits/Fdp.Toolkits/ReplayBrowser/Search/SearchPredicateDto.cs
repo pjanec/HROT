@@ -46,6 +46,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(ExternalHitTagPredicateDto),     "ExternalHitTag")]
     [JsonDerivedType(typeof(BehaviourStepPredicateDto),      "BehaviourStep")]
     [JsonDerivedType(typeof(RingEntryPredicateDto),          "RingEntry")]
+    [JsonDerivedType(typeof(ValueChangePredicateDto),        "ValueChange")]
     public abstract class SearchPredicateDto { }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -374,6 +375,22 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public string? FilterPath { get; set; }
         public SearchOperator FilterOperator { get; set; } = SearchOperator.Equals;
         public string FilterValue { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4117</c> (docs/DESIGN_Director_Timeline_Editor.md §9c) — a component's VALUE CHANGES, as a lane: one result per alive entity per
+    /// frame on which its state differs from the previous frame's, where the state is what the lane's <see cref="ResultProjectionDto"/> reads
+    /// from <see cref="ComponentType"/> (the projection's <c>SourceComponent</c> is that type; null = it). Unlike <see cref="RingEntryPredicateDto"/>
+    /// there is NO baseline: the first frame an entity is seen WITH the component is a change (frame 0 counts), so a state cue such as
+    /// "side is Red" holds from the unit's first frame. The component being REMOVED while the entity lives is one more change (payload Value 0,
+    /// Other 0, message "removed"); an entity that dies or leaves reports nothing (the Life lanes cover it).
+    /// <para>⭐ <b>An empty <c>ValuePath</c> means "present"</b>: the lane's Value is 1 while the component is present (and 0 on removal) — for a
+    /// tag-like component that has no number worth keeping (<c>IsEmbarkedTag</c>).</para>
+    /// </summary>
+    public sealed class ValueChangePredicateDto : SearchPredicateDto
+    {
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type ComponentType { get; set; } = null!;
     }
 
     public sealed record LifecycleSearchResultDto(
