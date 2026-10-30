@@ -189,6 +189,8 @@ related-designs:
 | CE-1444 | likely refuted (sim text vs wall branch) — worker settling it |
 | CE-4104 | one live multi-process run of the four switches — worker writing `scripts/repro-mode-switches.sh` |
 | CE-1449 | Stride's hand-built run controls → `NodeRunControls.For` — needs a WINDOWS build |
+| ✅ later the same day | CE-1444 → backend CE-3351 (the paused playhead leads a seek) · CE-4104 live over HTTP (`scripts/repro-mode-switches.sh`) · CE-4100 ① the keep/discard prompt + both run-settings toggles in the cluster panel · CE-1366/1373/1393/1400/1434/1435/1324/1282 · the film's 3-D wait fixed (CE-1394) · CE-1453/1454 stale display rails |
+| ⏳ left needing the USER | the run-settings toggles' place (cluster panel, lean taken) · the older design-first rows (CE-1270, CE-1293, CE-1278…1283, CE-1286, CE-1298…1300) |
 
 ## ⭐⭐⭐ SESSION 2026-10-29 (c) — ARMED-MODE MVP, READINESS (U1), THE FILE MENU (U2) *(state at `ui@60c55436f`, pushed)*
 
