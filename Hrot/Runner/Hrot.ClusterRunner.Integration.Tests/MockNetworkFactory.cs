@@ -26,8 +26,6 @@ internal class MockNetworkFactory : INetworkFactory
     /// <inheritdoc/>
     public ICommandGateway CreateCommandGateway() => new NullCommandGateway();
 
-    /// <inheritdoc/>
-    public IExConEgressWriters CreateExConEgressWriters() => new NullExConEgressWriters();
 
     /// <inheritdoc/>
     public ITimeControlGateway CreateTimeControlGateway() => new NullTimeControlGateway();
@@ -157,15 +155,6 @@ internal class MockNetworkFactory : INetworkFactory
         public void Dispose() { }
     }
 
-    private sealed class NullExConEgressWriters : IExConEgressWriters
-    {
-        public void WriteMapConfig(MapConfigDto config) { }
-        public void WriteDeleteEntity(int entityId) { }
-        public void WriteCreateEntity(CreateEntityCommand cmd) { }
-        public void WriteMapCommand(MapCommandDto cmd) { }
-        public void PushContextActions(int mapGroupId, System.Collections.Generic.IReadOnlyList<int>? forSelection, string actionsJson) { }
-        public void Dispose() { }
-    }
 
     private sealed class NullTimeControlGateway : ITimeControlGateway
     {

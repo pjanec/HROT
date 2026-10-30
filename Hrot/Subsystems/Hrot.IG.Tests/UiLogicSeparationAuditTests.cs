@@ -21,7 +21,7 @@ public class UiLogicSeparationAuditTests
     [Fact]
     public void IgUiPanels_HaveNoDirectDdsWriterFields()
     {
-        AssertNoDdsWriterFields(typeof(MiniExConPanel).Assembly,
+        AssertNoDdsWriterFields(typeof(IgApplication).Assembly,
             namespacePredicate: ns => ns != null && ns.StartsWith("Hrot.IG.UI"));
     }
 

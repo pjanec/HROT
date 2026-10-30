@@ -29,8 +29,6 @@ public interface INetworkFactory : IGizmoNetworkFactory
     /// <summary>Creates the command gateway for sending mission control commands.</summary>
     ICommandGateway CreateCommandGateway();
 
-    /// <summary>Creates the egress writers for ExCon-originated entity lifecycle commands.</summary>
-    IExConEgressWriters CreateExConEgressWriters();
 
     /// <summary>Creates the time-control gateway for ExCon-originated time control commands.</summary>
     ITimeControlGateway CreateTimeControlGateway();

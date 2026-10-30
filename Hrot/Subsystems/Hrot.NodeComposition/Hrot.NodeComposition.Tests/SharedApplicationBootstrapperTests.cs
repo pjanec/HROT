@@ -406,7 +406,6 @@ public sealed class SharedApplicationBootstrapperTests
         public ISlaveOrchestrationTranslator CreateSlaveOrchestratorTranslators(FdpEventBus b, int n) => _base.CreateSlaveOrchestratorTranslators(b, n);
         public IOrchestrationObserver CreateOrchestrationObserver(FdpEventBus b) => _base.CreateOrchestrationObserver(b);
         public ICommandGateway CreateCommandGateway() => _base.CreateCommandGateway();
-        public IExConEgressWriters CreateExConEgressWriters() => _base.CreateExConEgressWriters();
         public ISimHostMissionSender CreateSimHostMissionSender() => _base.CreateSimHostMissionSender();
         public ISimHostPathfindingTranslators CreateSimHostPathfindingTranslators(CarKinem.Trajectory.TrajectoryPoolManager? pool = null) => _base.CreateSimHostPathfindingTranslators(pool);
         public ISimHostPerceptionTranslators CreateSimHostPerceptionTranslators(GhostCreationSystem? ghost = null) => _base.CreateSimHostPerceptionTranslators(ghost);

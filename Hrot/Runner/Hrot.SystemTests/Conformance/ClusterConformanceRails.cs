@@ -200,7 +200,7 @@ public sealed class ClusterConformanceRails
     /// </summary>
     private static readonly HashSet<string> ClusterOnlyKinds = new(StringComparer.Ordinal)
     {
-        "ig-debug", "ig-mini-excon", "ig-waypoint-editor",   // ⛔ R-3067 / AQ109 X2: the four `excon-*` kinds and `ExConObserver` went with the node; `ig-mini-excon` goes in X3
+        "ig-debug", "ig-waypoint-editor",   // ⛔ R-3067 / AQ109 X2/X3: the four `excon-*` kinds, `ExConObserver` (X2) and `ig-mini-excon` (X3) went with ExCon
 
     };
 

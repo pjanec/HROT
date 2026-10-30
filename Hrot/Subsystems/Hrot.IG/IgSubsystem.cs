@@ -176,7 +176,6 @@ namespace Hrot.IG
             Hrot.UI.Common.Panels.MapCursorStatusBarSection.Register(windowManager.StatusBar, () => _app?.Canvas, "IG");
             windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(   // ⭐ CE-1096 — the shared window
                 _app.WaypointEditorPanel, Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", IgWindowColor.TitleBar));
-            windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));
             _app.RegisterMainMenu(windowManager.GlobalMenu, "IG");   // ⭐ CE-1243 MB-4 — the map's menus, in the one bar
             windowManager.RegisterWindow(new IgPerformanceWindow(_app.PerformanceOverlay));
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites this host used to spell out by hand are

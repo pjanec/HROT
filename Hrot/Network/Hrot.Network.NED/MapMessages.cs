@@ -114,7 +114,17 @@ namespace Hrot.NED.Messages
         public List<long> SelectedEntityIds;
     }
 
-    // 4. Commands (ExCon -> IG)
+    // ⛔⛔ R-3067 / AQ109 X3 — RETIRED WITH THE EXCON NODE'S REMOTE-MAP PATH. A WIRE-CONTRACT REMOVAL (a peer still on the old build publishes
+    //   topics nobody reads). The DERIVED topic names below are RESERVED — ⛔ never reuse them for a different type, and never renumber CommandType:
+    //     Hrot_NED_Messages_MapCommandRequest      (was: ExCon → one IG, an imperative CommandType + JSON args)
+    //     Hrot_NED_Messages_ContextActionsUpdate   (was: ExCon → IG, the pushed context-menu definition)
+    //     Hrot_NED_Messages_ContextMenuRequest     (was: IG → ExCon, the cache-miss fallback for the pushed menu)
+    //     Hrot_NED_Descriptors_MapInteractionConfig (was: ExCon → IG group, the JSON-merge-patch map/tool config; MapDescriptors.cs)
+    //   ⚠ MapCommandAck (IG → ExCon) is NOT removed here: its only remaining reader is NedMapCommandAckIngressHandler inside
+    //   INetworkFactory.CreateExConIngressHandlers, which is slice X4's. It is dead on the wire (no writer) and goes with that member.
+    //   📄 docs/blueprints/Architect_Question_109_Retire_ExCon.md §6.3 · docs/reference/NED_DDS_Protocol.md "Retired topics".
+
+    // 4. Commands (ExCon -> IG) — ⛔ RETIRED: the type is kept ONLY so its numeric values stay reserved (never reuse or renumber).
     public enum CommandType
     {
         CMD_SET_VIEW,
@@ -152,28 +162,6 @@ namespace Hrot.NED.Messages
         /// </summary>
         CMD_DRAW_PERSONAL_ROUTE,    }
 
-    // Imperative commands sent from ExCon to a specific IG Instance.
-    // Used to force a specific behavior (e.g., "Pan Camera Here", "Enter Edit Mode").
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    [DdsManaged]
-    public partial struct MapCommandRequest
-    {
-        // Unique ID for this request.
-        // Used to match with CommandStatus / Ack.
-        public Guid RequestId;
-
-        // Target IG Instance.
-        public int MapId;
-
-        // Type of command (View, Selection, Editing).
-        public CommandType Type;
-
-        // Arguments for the command in JSON format.
-        // e.g., { "lat": 45.0, "lon": 12.0, "zoom": 1000 }
-        public string CommandArgsJson;
-    }
 
     // ===================================================================================
     // MAP INTERACTION: CONTEXT MENUS (PUSH MODEL)
@@ -207,25 +195,6 @@ namespace Hrot.NED.Messages
         public Guid ContextId;
     }
 
-    // Fallback request sent by the IG when the user right-clicks an entity
-    // that does NOT have a cached menu definition available.
-    // Direction: IG -> ExCon
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct ContextMenuRequest
-    {
-        // Unique ID for this request. Must be echoed in the response.
-        public Guid RequestId;
-
-        // Source IG Instance (where the user clicked).
-        public int MapId;
-
-        // The list of entities currently selected/clicked.
-        // ExCon uses this to generate the appropriate menu options.
-        [DdsManaged]
-        public List<long> ForSelection;
-    }
 
     // ===================================================================================
     // MAP COMMAND ACK (IG -> ExCon)
@@ -263,54 +232,4 @@ namespace Hrot.NED.Messages
         public string DataJson;
     }
 
-    // Proactive update from ExCon containing the context menu definition for a specific selection.
-    // Direction: ExCon -> IG
-    [DdsTopic]
-    [DdsIdlFile("hrot-map-msgs")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    [DdsManaged]
-    public partial struct ContextActionsUpdate
-    {
-        // Target Map Group (Role).
-        // Menus are business logic, so they apply to the Role (e.g. "Instructor"), 
-        // not just one screen.
-        public int MapGroupId;
-
-        // Validation list: Which selected entities does this menu apply to?
-        // The IG checks this against its current selection. If the user's selection 
-        // has changed since this message was generated, the IG discards this update.
-        [DdsManaged]
-        public List<long> ForSelection;
-
-        // Menu structure as JSON.
-        // Supports nested menus, icons, shortcuts, and enable/disable states.
-        // Menu structure as JSON (flexible, nestable)
-        // See "Menu JSON Schema" below
-            /*
-                [
-                {
-                    "id": 100,
-                    "label": "Move Here",
-                    "icon": "move_cursor",
-                    "shortcut": "M",
-                    "enabled": true
-                },
-                { "type": "separator" },
-                {
-                    "label": "Logistics",
-                    "icon": "gear",
-                    "children": [
-                    {
-                        "id": 201,
-                        "label": "Resupply",
-                        "enabled": false,
-                        "tooltip": "Cannot resupply: Unit is moving"
-                    },
-                    { "id": 202, "label": "Repair" }
-                    ]
-                }
-                ]
-            */
-        public string MenuDefinitionJson;
-    }
 }

@@ -51,26 +51,7 @@ public sealed class MissionCommitResult
     public int ErrorCode { get; init; }
 }
 
-/// <summary>Protocol-neutral map config DTO.</summary>
-public sealed class MapConfigDto
-{
-    /// <summary>Interaction context ID embedded in the publication (active tool state).</summary>
-    public Guid ActiveContextId { get; set; } = Guid.Empty;
-    public string ConfigJson { get; set; } = string.Empty;
-}
 
-/// <summary>Protocol-neutral map command DTO.</summary>
-public sealed class MapCommandDto
-{
-    /// <summary>Correlation ID for tracking the command lifecycle.</summary>
-    public Guid RequestId { get; set; } = Guid.NewGuid();
-    /// <summary>Target IG instance MapId (0 = broadcast).</summary>
-    public int TargetMapId { get; set; }
-    /// <summary>Command type discriminator string, e.g. "CMD_PLACE_ENTITY".</summary>
-    public string CommandType { get; set; } = string.Empty;
-    /// <summary>JSON-encoded command arguments.</summary>
-    public string CommandArgsJson { get; set; } = string.Empty;
-}
 
 // ── Neutral entity property patch ────────────────────────────────────────────
 
