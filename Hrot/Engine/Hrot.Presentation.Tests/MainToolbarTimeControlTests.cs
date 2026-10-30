@@ -269,6 +269,20 @@ public class MainToolbarTimeControlTests
             Assert.Equal(MainToolbarTimeControlSection.StopFaceKind.Stop, MainToolbarTimeControlSection.StopFace(m));
     }
 
+    /// <summary>⭐ The ▶ tooltip names what a press does (user, 2026-10-30): in Edit the ARMED mode it starts; in a run, resume or pause by the mode.</summary>
+    [Fact]
+    public void PlayTooltip_NamesTheArmedModeInEdit_AndTheRunningModeOtherwise()
+    {
+        foreach (var (armed, expected) in new[] { (RunArmed.Live, "Play Live"), (RunArmed.Preview, "Play Preview") })
+        {
+            var rig = RunChoiceRig.With(ClusterState.OperatingEdit, armed);
+            Assert.StartsWith(expected, new MainToolbarTimeControlSection(rig.F, choice: rig.Choice).PlayTooltip(isPaused: true));
+        }
+        Assert.Equal("Play DAR — resume", new MainToolbarTimeControlSection(In(TransportMode.Review)).PlayTooltip(isPaused: true));
+        Assert.Equal("Pause AAR", new MainToolbarTimeControlSection(In(TransportMode.Replay)).PlayTooltip(isPaused: false));
+        Assert.Equal("Play Live — resume", new MainToolbarTimeControlSection(In(TransportMode.Live)).PlayTooltip(isPaused: true));
+    }
+
     [Fact]
     public void StopTooltip_PerMode()
     {
