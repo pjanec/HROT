@@ -193,7 +193,8 @@ report. A clip is refilmed when its row closes.
 | F-45, F-40 (and every clip cut on a shot / hit / blast) | the Live recording loses the combat events: 0 shots, hits, blasts though the T-72 dies (F-40); F-49's bomb burst is there without its release | [CE-4118](blueprints/Blueprint_Issues_Tracker.md) | CE-4118 closes |
 | every clip with a state cue (22 of 54) | a cut BEFORE an arrival / a behaviour change is late on a recording | [CE-4117](blueprints/Blueprint_Issues_Tracker.md) | CE-4117 closes |
 | any take anchored on an event, rendered from a recording | stills find the anchor, the render does not (every key unresolved, 45 frames) — the pilot rendered with fixed times | [CE-4119](blueprints/Blueprint_Issues_Tracker.md) | re-render with anchors when CE-4119 closes |
-| drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | (ui finding, pilot `2026-10-30`) | a hand pass meanwhile |
+| drafted takes of an aircraft's bomb | the drafter's ③ aims at the actor's altitude (the sky) and ④ follows the departing jet — a blast with no subject never puts the burst in frame | [CE-4120](blueprints/Blueprint_Issues_Tracker.md) | a hand pass meanwhile |
+| every film's opening card | shows the scenario's name, not the take's title; `/director/moments` says "none" before the index is read | [CE-4121](blueprints/Blueprint_Issues_Tracker.md) | cosmetic — next render |
 
 ## 2. Gaps — what no clip can show yet
 
