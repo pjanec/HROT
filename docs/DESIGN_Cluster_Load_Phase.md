@@ -23,6 +23,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - docs/DESIGN_Node_Features.md — R-1046 / CE-3354 ③'s MapInLoad is migrated into the feature map3d.in-load (its S1)
   - docs/DESIGN_Player_Join.md — the join screens follow §11.8's lobby (the join starts once the Player is caught up)
   - blueprints/Architect_Question_110_Readiness_Protocol.md — owns the readiness PROTOCOL decisions (A–E) and the slice ids that §11 builds
   - docs/DESIGN_Cgf_Scenario_Session_Slice.md — OWNS the shared scenario session and the File menu's items (§3a) that §9.1 guards

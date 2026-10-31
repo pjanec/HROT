@@ -37,6 +37,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Node_Features.md — a ROLE sets feature DEFAULTS through composition; a feature declared by a composed capability is switched per node and per cluster (the three tiers)
   - docs/DESIGN_Player_Join.md — R-4102: gameplay (the deploy server and the Player's deploy screens) is composed as optional packs through this file's §3.2–§3.4 mechanism; a military-sim node composes none of it
   - docs/DESIGN_Cluster_Load_Phase.md — §9.2 (CE-4087) OWNS the bootstrap latch's roles half that reads the roles: a scenario load needs a Brain and a MuscleGround node present
   - docs/DESIGN_World_Survey_Sensor.md — OWNS the brain's only way to the geometry (R-2037); §3.0a here states the rule per role

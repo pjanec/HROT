@@ -7,6 +7,7 @@ stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a Re
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Node_Features.md — OWNS the feature switches: the deploy server is the feature gameplay.deploy-server (D-3), and §7a's G1…G6 become hud.* features
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — OWNS what a Player node is in the CLUSTER (admitted, caught up, acts by REQUESTS to the owner); this design adds what it does as a GAME client once admitted
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.2–§3.4 OWN composition by role (R-4000 one code path; R-4005 a role is what a host does); the gameplay packs are composed through that same mechanism
   - docs/DESIGN_Cluster_Membership_Use_Cases.md — OWNS UC-17…24 (the multiplayer acceptance, CE-4080); §6 here adds UC-25…28
@@ -151,7 +152,7 @@ sequenceDiagram
 |---|---|---|
 | **D-1** | the name | ⭐ **Deploy** — distinct from a node joining the cluster: `DeployRequest`, `DeployStatus`, `DeployProcessor`, `DeployFlow`, `DeployScreen` |
 | **D-2** | where the server logic lives | ⭐ the **gameplay server pack**, composed by an ECS node that owns the units (the Brain node) **only when gameplay is switched on** (`--gameplay`; `-m server` = orchestrator + CGF + SimHost in one process with it). Never in the orchestrator (R-4102) |
-| **D-3** | how the Player knows | ⭐ the server advertises the token `hrot.gameplay.server` on `NodeCapabilitiesTopic`. No token ⇒ the Player observes (R-4103). One server per cluster: a second one stands down (the roster's duplicate-name pattern) |
+| **D-3** | how the Player knows | ⭐ **revised `2026-10-31` by DESIGN_Node_Features:** the server is the FEATURE `gameplay.deploy-server`, declared by the gameplay server pack; "a server exists" = a node advertises it (`hrot.feature.gameplay.deploy-server`) AND reports it ON. None ⇒ the Player observes (R-4103). One server per cluster: a second one stands down (the roster's duplicate-name pattern) · ⛔ was: its own token `hrot.gameplay.server` |
 | **D-4** | the Player side | ⭐ the **gameplay client pack** (`DeployFlow` + `DeployScreen`), composed by the Player host only: `-m player` composes it (R-4101: Player is the host's name; `-m ig` is the obsolete alias). The screen is an overlay composed once per process beside `LoadingScreen` |
 | **D-5** | the wire | ⭐ a **gameplay wire pack**: `DeployRequest` (Volatile, KeepAll — a queue), `DeployStatus` (TransientLocal, readers filter by id), `PlayerSlotTopic` (keyed by station, TransientLocal, KeepLast 1). Composed only with the gameplay packs — the military-sim wire is untouched |
 | **D-6** | when a Player may deploy | ⭐ only once its gate is open (`ClusterView.GateOpen(Player)`) **and** the cluster is in a Live run (paused at its start or running). No scenario ⇒ the waiting screen (*"Waiting for the server to load a scenario"*, AQ108 D16 — to be added); Edit / Preview ⇒ waiting; back to Idle ⇒ waiting again |
