@@ -82,6 +82,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3136 P-7a — a static obstacle's box, creator → every node (its ghost waits for it, [PerInstanceValue]).
             yield return new EntityObstacleShapeEgressTranslator(participant);
             yield return new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4153 — an entity's stable scenario key, creator → every node (no group; immutable, so published once and held until its entity is here).
+            yield return new EntityStableGuidEgressTranslator(participant);
+            yield return new EntityStableGuidIngressTranslator(participant, entityMap);
             // ⭐ WL-1b (CE-1049) — a turret part's pose, the dtTurretPose owner (the Muscle) → every node. 📄 DESIGN_Weapon_Layers §5b.
             yield return new EntityTurretPoseEgressTranslator(participant);
             yield return new EntityTurretPoseIngressTranslator(participant, entityMap);

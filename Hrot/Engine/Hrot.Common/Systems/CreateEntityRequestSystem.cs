@@ -251,6 +251,20 @@ namespace Hrot.Common.Systems
                     ? new List<object>(pending.Request.InitialComponents)
                     : new List<object>();
 
+                // 1b. ⭐ CE-4153 (S2) — the entity's STABLE scenario identity. A scenario load carries the file key as an EntityGuid
+                //     (StagingEntityExtractor keeps every staging component); an entity AUTHORED now (editor placement, a runtime spawn that
+                //     may be saved) gets one minted here, ONCE — never again at save. ⛔ A scenario-load request WITHOUT one is a defect
+                //     (the loader stamps every entity): reported loudly, not papered over with a mint. A transient request (a sketch) never
+                //     reaches a scenario, so it gets none.
+                if (!pending.Request.IsTransient && !allComponents.Exists(c => c is Fdp.Toolkit.Scenario.EntityGuid))
+                {
+                    if (pending.Request.IsScenarioLoad)
+                        FdpLog<CreateEntityRequestSystem>.Error(
+                            $"[Node-{_localNodeId}] CreateEntity {pending.Request.RequestId}: a SCENARIO-LOAD request carries no EntityGuid (tkb {pending.TkbType}) — the loader stamps every entity, so this is a defect. (CE-4153)");
+                    else
+                        allComponents.Add(new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()));
+                }
+
                 // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
                 //    Patches are applied AFTER descriptor-based defaults so fine-grained
                 //    overrides win over template values.
@@ -499,6 +513,10 @@ namespace Hrot.Common.Systems
                             {
                                 childComponents.AddRange(overrideEntry.Components!);
                             }
+
+                            // ⭐ CE-4153 (S2) — a child authored now (not the file's own, which brings its key in its overrides) gets its identity once.
+                            if (!pending.Request.IsTransient && !childComponents.Exists(c => c is Fdp.Toolkit.Scenario.EntityGuid))
+                                childComponents.Add(new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()));
 
                             repo.Bus.PublishManaged(new SpawnEntityCommand
                             {

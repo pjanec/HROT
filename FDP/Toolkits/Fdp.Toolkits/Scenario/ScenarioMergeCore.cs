@@ -30,7 +30,7 @@ public sealed record ScenarioMergeResult(JsonObject? CanonicalDom, IReadOnlyList
 /// 📄 <c>docs/DESIGN_Distributed_Scenario_Persistence.md</c> §4b):
 /// <list type="bullet">
 ///   <item><b>I1</b> one entity → one slice (the save gate keys on the single primary owner);</item>
-///   <item><b>I2</b> entity keys never collide — the DOM key is a fresh <c>Guid.NewGuid()</c> per save;</item>
+///   <item><b>I2</b> entity keys never collide — ⭐ CE-4153 (rev 3, restated): the DOM key is the entity's STABLE <c>EntityGuid</c> (minted ONCE, replicated by <c>dtEntityGuid</c>, never regenerated per save), and I1 puts each entity in exactly ONE slice, so the keys are disjoint; a key in two slices means a broken save or two entities sharing a GUID (a copy that kept it);</item>
 ///   <item><b>I3</b> references stay intra-slice (parts ride the parent's owner) ⇒ no renumbering;</item>
 ///   <item><b>I4</b> globals have one source — <c>TerrainName</c> cluster-wide identical. ⛔ <c>R-4018</c>: a
 ///     slice's legacy <c>Header.TkbName</c> is IGNORED — a scenario never names a TKB — and is never written.
@@ -149,7 +149,7 @@ public static class ScenarioMergeCore
                 {
                     if (mergedEntities.ContainsKey(kv.Key))
                         throw new InvalidOperationException(
-                            $"Entity GUID '{kv.Key}' appears in two slices (node {s.OriginNodeId}) — I2 says this is impossible; the save is broken, refusing to overwrite.");
+                            $"Entity GUID '{kv.Key}' appears in two slices (node {s.OriginNodeId}) — I2 (stable EntityGuid, one slice per entity) says this is impossible; the save is broken or two entities share a GUID, refusing to overwrite.");
                     mergedEntities[kv.Key] = kv.Value?.DeepClone();
                 }
             }

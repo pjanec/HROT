@@ -102,6 +102,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();      // ⭐ CE-3252 — where a person looks (dtLookState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();            // ⭐ CE-4153 — the scenario file's stable entity key (dtEntityGuid)
         world.RegisterComponent<Fdp.Toolkit.Motion.EjectionDone>();             // ⭐ R-3039 S1 — this aircraft's crew has ejected (EjectionSystem)
 
         // ── Terrain / zone loading ────────────────────────────────────────────
