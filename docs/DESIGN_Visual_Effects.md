@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). ⭐ §10 impacts on every surface BUILT 2026-10-16 (CE-1128 / CE-1129). Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-20 (§11 charges BUILT — CE-1231/1232, as built §11.3; every damage-0 burst now sized by its explosive) · 2026-10-20 (§11 charges: the IED / vest burst and the placed IED — leans APPROVED R-1016) · 2026-10-19 (§10 impact marks sized by their round — CE-1199)
-current-answer: §11 charges (BUILT — §11.3 as built) · §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
+current-answer: §12 an inert round never explodes (CE-4145, READY-TO-BUILD) · §11 charges (BUILT — §11.3 as built) · §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -1128,3 +1128,51 @@ graph TD
 | CH-2 | `ChargeMarker`: a charge by CLASS (`ExplosiveChargeWeaponSystem`) that is not carried (`IsEmbarkedTag`) draws a 7 px diamond in its side's colour (2-D only, `Map2D \| FlatOnly`) and "IED" beside it, in place of the outline; its pick box is in screen pixels too (`EmitPickBox` gained `sizeMode`) so it is clickable at every zoom. A worn vest keeps today's drawing (no marker); a car bomb is an enclosed passenger (nothing of its own) | ⚠ `DrawText` has no view target, so the "IED" letters also show in 3-D beside the true-size kit — harmless, and they help find it from map height |
 | CH-3 | `WeaponKits.Charge`: two shells (a body and an ogive cone each) side by side, two turns of wire round both, a detonator between them, its wire off the back — at the old 0.30 × 0.20 × 0.12 m. ⭐ The boxes a round meets are the drawn parts (`CE-3214`): `VehicleBody.WeaponKits.g.cs` (FDP) regenerated (`HROT_GEN_VEHICLE_BODY=1`) — the Charge kit only, 2 boxes → 8 | the parity rail `CE3214_TheBoxesTheRoundsMeet…` holds the two equal |
 | ⚠ not done | a WORN vest still has its own entity card and a sub-pixel outline in 2-D (not new; AW-12 governs observers, not the operator's map) — out of CH-2's scope, named here so it is not lost | — |
+
+## 12. An INERT round never explodes — kinetic impacts are dust and a hole (`CE-4145`, coordinator, `2026-10-31`; build-state: READY-TO-BUILD)
+
+🔒 **User, `2026-10-31`:** *"the hit effect from M2 on humvee machine gun hit looks like explosive ammo (orange ball) and does very big decal (as
+big as a window), there should be just dust puffs and way smaller decals (8cm)"*.
+
+📐 **Measured:** the M2 fires `TkbHmgAp` (6019, no `WarheadDto`, damage 60). It has no `Effect.Set`, so `EffectTkbCatalog.EffectsFor` falls
+back to `ClassOf(60)` = **Medium** ⇒ `ExplosionMedium` (7112: 0.9 s, **5 m, orange #FF8A30**) and `DecalMedium` (7122: **1.8 m**) — a grenade's
+look. The same fallback gives every hard-hitting INERT round an explosive's look: the 25 mm APDS-T, the GAU-8 API, the 120/125 mm APFSDS
+(Large ⇒ a 12 m fireball and a 4.5 m crater). ⚠ That is the sizing VE-D REJECTED (*"sizing from damage or penetration — a HEAT round and an
+APFSDS of the same gun look different"*); the damage default was meant only for a round the TKB cannot describe.
+
+```mermaid
+classDiagram
+    direction LR
+    class EffectTkbCatalog { <<existing, grows>> EffectsFor(tkb, ammo, damage) · +KineticFor(CalibreClass) · +IsKinetic(tkb, ammo) · +ImpactPuffMedium 7115 · +ImpactPuffLarge 7116 · +DecalHoleMedium 7124 · +DecalGouge 7125 }
+    class MunitionEffectsDto { <<existing>> MuzzleFlash · Explosion · Decal · Tracer }
+    class ParameterResolver { <<existing>> Warhead(tkb, ammo) — the one warhead lookup }
+    class EffectSpawnSystem { <<existing, unchanged>> hit + impact + muzzle call EffectsFor }
+    EffectTkbCatalog ..> ParameterResolver : explosive kg
+    EffectTkbCatalog ..> MunitionEffectsDto : returns
+    EffectSpawnSystem ..> EffectTkbCatalog : EffectsFor
+```
+
+```mermaid
+sequenceDiagram
+    participant S as EffectSpawnSystem
+    participant C as EffectTkbCatalog.EffectsFor
+    S->>C: (ammo 6019, damage 60)
+    C->>C: the ammo's own Effect.Set? none
+    C->>C: IsKinetic: ammo KNOWN to the TKB and its warhead has no explosive? yes
+    C-->>S: flash/tracer by damage class (Medium) · Explosion = ImpactPuffMedium (dust) · Decal = DecalHoleMedium (8 cm)
+    Note over C: an ammo the TKB does not know (0, unregistered) keeps today's damage default
+```
+
+*What the pictures show that prose hid:* one function decides, every caller (the hit, the wall/roof impact, the muzzle) already goes through
+it — so the fix is in ONE place and nothing new is registered.
+
+| # | decision | ⭐ rule |
+|---|---|---|
+| **K-1** | which rounds | ⭐ a round whose ammo type the TKB KNOWS and whose warhead carries **no explosive** (`ExplosiveKgOf` = 0) is KINETIC. Its impact is dust and a hole, never an explosion — whatever its damage. An explosive round is unchanged (its set, else its explosive mass, CH-1); an unknown ammo (0 / unregistered) keeps the damage default |
+| **K-2** | the looks, by the damage class | ⭐ Small (rifle): unchanged — `ExplosionSmall` 7111 (0.8 m dust) + `DecalSmall` 7121 (~6 cm). **Medium** (12.7 mm, 25 mm AP): **`ImpactPuffMedium` 7115** — a dust puff 0.45 s, 1.4 m, the same dust colour #C8B89A + **`DecalHoleMedium` 7124 — 8 cm** (the user's figure). **Large** (APFSDS): **`ImpactPuffLarge` 7116** — dust 0.7 s, 3 m, #B8A88A + **`DecalGouge` 7125 — 30 cm** |
+| **K-3** | flash and tracer | ⭐ unchanged: still by the damage class (an M2's muzzle flash is a medium one) |
+
+**Rejected:** an `Effect.Set` on each inert ammo type — every new round would have to remember it (the silent-default trap), and VE-D's
+"sets on the ammo" stays available for a round that wants its own look · lowering `MediumDamageFrom` above 60 — moves the line, keeps the
+bug for the next round past it · a decal sized by penetration — VE-D rejected it.
+
