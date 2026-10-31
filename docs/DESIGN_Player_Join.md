@@ -39,6 +39,7 @@ the CGF / SimHost roles are **untouched**: a military simulation composes none o
 | **R-4101** | **"IG" is the obsolete name of the PLAYER.** New work says *Player*; where code or docs say IG, the Player is meant | 🔒 *"the IG is just an obsolete name for something we now call player"* · *"IG is no longer used, this is a relict"* |
 | **R-4102** | **Gameplay is an EXTRA, composed as packs — never in the orchestrator, never degrading the military simulator.** CGF, SimHost and the orchestrator stay usable with no gameplay; a node becomes a gameplay server, and a host becomes a player, by the COMPONENTS it composes into the shared bootstrap | 🔒 *"the gameplay logic is just an extra which shouldn't reduce or degrade the general military simulation use of the simulator"* · *"The system should stay something like a toolkit where we can assemble the desired functionality from components"* · *"being a player is a composition choice"* |
 | **R-4103** | **A Player with no gameplay server in the cluster is an OBSERVER** | 🔒 *"An ES player without a gameplay server capabilities in the system becomes an observer."* |
+| **R-4104** | **A gameplay feature MAY live in the core when it is SWITCHABLE** — on or off, the off state leaving the military simulation exactly as without it (nothing recorded, nothing drawn). A pack is still the answer for gameplay that adds DECISIONS or WIRE (the deploy server, AW-23) | 🔒 *"It's usually not a big problem if some feature is hard-coded as part of the core, but it needs to be switchable on or off in such a case."* |
 
 ## 3. INVENTORY *(`2026-10-31`)*
 
@@ -199,6 +200,8 @@ composition mechanism, please mark it and we need to refactor"* · *"taking diff
 classic military stuff"* · *"The border between what is classical military training and what is a gameplay is a bit fuzzy, so we might need to
 choose on individual case basis."*
 
+⭐ **R-4104 (below in §2) answers G1–G4 with a SWITCH, not a move:** a cluster run setting **Game feedback** (the `SetRunSettings` path that carries AQ108 D15 *Ask to keep recordings* — the master broadcasts, every host reads `ClusterView`); OFF by default; the gameplay server pack turns it ON when present; an instructor may toggle it. G7 and the deploy stay in packs (they add decisions and wire).
+
 **How it is wired:** `PossessionStation` (the FPS station) is built on EVERY map host — `ScenarioEditor/Map/MapInteractionPack.cs:572`; its hit
 memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70, :151`, `HitFeedback.In(world).Record`). No `.Capability(...)` seam.
 
@@ -206,8 +209,8 @@ memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70,
 |---|---|---|---|---|
 | **G1** | the hit marker round the crosshair (red when he is down) | `PossessionStation.cs:447-480` (`DrawHitFeedback`) | ✅ **gameplay** — no real sight says "you hit him" | the gameplay CLIENT pack: an overlay the station hosts |
 | **G1b** | the damage arc pointing at who hit you | same | ❓ **candidate**, lean gameplay — some training sims show one | — |
-| **G2** | the hit memory behind G1/G3 | `Effects/HitFeedback.cs`, recorded in `EffectSystems.cs:70, :151` | ✅ **gameplay** (its only readers are G1/G3) | the client pack's own recorder — `EffectSpawnSystem` loses the two calls |
-| **G3** | "KILLED by X" + the 3 s kill cam from the shooter's eye | `FallScreen.cs:15-75`, `PossessionStation.cs:493-562` | ✅ **gameplay** — R-4102 names the kill cam | the client pack; without it a killed unit is released to the map (the operator's view) |
+| **G2** | the hit memory behind G1/G3 | `Effects/HitFeedback.cs`, recorded in `EffectSystems.cs:70, :151` | ✅ **gameplay** (its only readers are G1/G3) | ⭐ behind the same switch: nothing recorded while it is off |
+| **G3** | "KILLED by X" + the 3 s kill cam from the shooter's eye | `FallScreen.cs:15-75`, `PossessionStation.cs:493-562` | ✅ **gameplay** — R-4102 names the kill cam | ⭐ behind the same switch; off ⇒ a killed unit is released to the map (the operator's view) |
 | **G4** | after death, Tab takes a living squad mate | `PossessionStation.cs:574-579` | ❓ **candidate**, lean gameplay — right after death it IS a respawn (the same Tab alive is operator possession, unchanged) | — |
 | **G5** | the spread ring (the weapon's real spread) | `PossessionStation.cs:679-693` | ❓ **candidate**, lean military training — a teaching aid showing the sim's true spread | — |
 | **G6** | near misses darken the screen edges | `PossessionStation.cs:126-128, 657-662` | ❓ **candidate**, lean military training — stands in for suppression | — |
