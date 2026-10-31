@@ -57,7 +57,7 @@ second, numeric reference currency beside the GUID.
 |---|---|---|
 | **S8** | drop `NetworkIdentity` from the scenario file | ⭐ yes, once S1–S7 are in: the id is allocated at load exactly as today; nothing reads the file's value except the remap |
 | **S9** | `EntityRef` in a FILE | its FILE form becomes the target's GUID; its LIVE form stays the network id (orders, the wire, the debug API, `BrainIntent` JSON). The conversion is the existing remap step at the file boundary — save: live id → GUID, load: GUID → new id — ⛔ no second remap mechanism. ⚠ `EntityRef`'s JSON is today *"the bare number"* (R-184) — the remap must write / read a string in the file form |
-| **S10** | old files | still load: a numeric `EntityRef` resolves through that file's own `NetworkIdentity` values (the legacy path, as today) |
+| ~~**S10**~~ ⛔ WITHDRAWN (user, `2026-10-31`: *"we should not keep the backwards compatibility, because that might hide some troubles, and we need to see the troubles now"*) | old files | ⭐ every repo scenario is MIGRATED in the same change (a committed, idempotent script); a numeric `EntityRef` in a file is a LOUD load error; an entity from a scenario that reaches save without its `EntityGuid` is a defect (logged + a failing rail), never silently minted — minting only for entities authored after load |
 | **S11** | watch pins / breakpoints across a reload | may key on the GUID instead of the old → new table (BP-509) — a simplification, not required |
 | ⛔ open | readers that rely on a reload REPRODUCING the file's ids (the allocator resets to 1000 per world, so a reload often hands out the same numbers) — tests, scripts | measure before S8 |
 
