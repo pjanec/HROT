@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted"); S1 next
 updated: 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
-current-answer: §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices
+current-answer: §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
 stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
@@ -191,6 +191,30 @@ from that run: **CE-4086** (a Player promotes a replica before its first pose), 
 | does `ClusterView` (or the Player) already read `NodeCapabilitiesTopic`, or does the token need a reader on the Player? | S1 step 1 |
 | `-m server` — the exact subsystem set and whether the Brain and the orchestrator share a process cleanly today (`-m all` does) | S1 |
 | how `StationClaims` reaches the slots on the Brain (the client pack's reader, or a tiny shared reader in the wire pack) | S1 |
+
+## 7a. AUDIT — gameplay that is hard-wired today *(`2026-10-31`, R-4102; verified by grep at the sites named)*
+
+🔒 **User, `2026-10-31`:** *"if you find the gameplay logic too much hard-coded into the system now, not respecting the role-based plugin and
+composition mechanism, please mark it and we need to refactor"* · *"taking different seats in a vehicle, embarking, disembarking. This is all
+classic military stuff"* · *"The border between what is classical military training and what is a gameplay is a bit fuzzy, so we might need to
+choose on individual case basis."*
+
+**How it is wired:** `PossessionStation` (the FPS station) is built on EVERY map host — `ScenarioEditor/Map/MapInteractionPack.cs:572`; its hit
+memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70, :151`, `HitFeedback.In(world).Record`). No `.Capability(...)` seam.
+
+| # | what | where | verdict | moves to |
+|---|---|---|---|---|
+| **G1** | the hit marker round the crosshair (red when he is down) | `PossessionStation.cs:447-480` (`DrawHitFeedback`) | ✅ **gameplay** — no real sight says "you hit him" | the gameplay CLIENT pack: an overlay the station hosts |
+| **G1b** | the damage arc pointing at who hit you | same | ❓ **candidate**, lean gameplay — some training sims show one | — |
+| **G2** | the hit memory behind G1/G3 | `Effects/HitFeedback.cs`, recorded in `EffectSystems.cs:70, :151` | ✅ **gameplay** (its only readers are G1/G3) | the client pack's own recorder — `EffectSpawnSystem` loses the two calls |
+| **G3** | "KILLED by X" + the 3 s kill cam from the shooter's eye | `FallScreen.cs:15-75`, `PossessionStation.cs:493-562` | ✅ **gameplay** — R-4102 names the kill cam | the client pack; without it a killed unit is released to the map (the operator's view) |
+| **G4** | after death, Tab takes a living squad mate | `PossessionStation.cs:574-579` | ❓ **candidate**, lean gameplay — right after death it IS a respawn (the same Tab alive is operator possession, unchanged) | — |
+| **G5** | the spread ring (the weapon's real spread) | `PossessionStation.cs:679-693` | ❓ **candidate**, lean military training — a teaching aid showing the sim's true spread | — |
+| **G6** | near misses darken the screen edges | `PossessionStation.cs:126-128, 657-662` | ❓ **candidate**, lean military training — stands in for suppression | — |
+| **G7** | AW-23: a possessed unit that kills friends turns Hostile | designed, NOT built (`DESIGN_Civilians_And_Crowd_Control.md` §5h; only the generic `SourceEntityId` exists) | ✅ **gameplay** when built — its trigger is "held by a station" | the gameplay SERVER pack — never in `ForceLevels` / `KnownCombatants` |
+| **B1** | the gate policy chosen by HOST KIND | `RunMode/HostGatePolicies.cs:34` (`hostKind == RunHostKind.Ig ? Player : Operator`) | ✅ **composition defect** (not gameplay): a kind test in shared code | the Player host COMPOSES its policy (a capability on its plan) |
+| **B2** | `IsPlayer` branches | `RunMode/NodeRunControls.cs:29, 56` · `Panels/LoadingScreen.cs:55-74` · `Hrot.ClusterRunner/Presentation/LocalWindowController.cs:148` | ✅ composition defect — follows B1 (they read the policy; fine once the policy is composed) | re-read from the composed policy |
+| — | NOT findings: seats, switching seats, embark / disembark, the use key, operator possession, the alive Tab squad switch, the command wheel, the compass and friend markers, `StationClaims` (R-4096: one station per unit — multi-operator concurrency; its `OtherSide` refusal is "you cannot board an enemy-crewed vehicle"), the civilians' laws-of-war rules (AW-22) | | military training | — |
 
 ## 8. ⛔ HISTORY — rev 1 (`2026-10-31`, superseded the same day)
 

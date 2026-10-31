@@ -9,7 +9,7 @@ build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…C
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
 current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §5f CIV-3 crowds (CE-2237) · §5g the protest (CE-2240) · §5h armed people (R-2025) · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
-known-rot: §4 CV-4's "draw a weapon" as a hostile act — amended in place (R-2026, §5h AW-16).
+known-rot: R-4102 (2026-10-31): AW-23 (a possessed unit that kills friends turns Hostile) is GAMEPLAY — when built it goes into the gameplay SERVER pack (DESIGN_Player_Join.md §7a G7), never into ForceLevels / KnownCombatants · §4 CV-4's "draw a weapon" as a hostile act — amended in place (R-2026, §5h AW-16).
 known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Composition.md §2 put "crowds" at Tier 0; it now says · §5e Cower crouches today — RULED to become Prone + CoverHead, and Comply Prone + HandsOnHead (DESIGN_Building_Clearing CB-24, R-2032, CE-2265; not built yet)
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
