@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -546,6 +546,60 @@ scenario
 | **SR-68** | where a macro's (and a scenario's) PARAMS DECLARATION is shown and stored — ⭐ rev `2026-10-31` b (user: *"I am not aware that a scenario has a world entity saved as such. What world entity carries is usually written in the scenario header, and I think the scenario macro parameters should be the same case."*) | measured: the World Environment IS saved as an ENTITY (`ua-weather-regions`, `ua-weather-sensing`, `ua-night-sensing` carry `{NetworkIdentity, ScenarioClock, TkbIdentity, WeatherConditions}`; the others get a default at load and save it next time — Weather W-0 / C-3); the header holds `subsystemType · schemaVersion · terrainName · description` (`ScenarioHeader.cs:33`, `ScenarioHeaderDto.cs`). ⭐ lean (user's model): the declaration is FILE metadata ⇒ `header.params` (rows `{Name, TypeId, Default, Comment}`), by extending `ScenarioHeader` / `ScenarioHeaderDto` — ⛔ not a component on the World Environment entity (a macro file's World Environment would be a never-instantiated oddity). Shown and edited in a **Parameters** map-background Details view (the `DetailsViews.Add` pattern beside *Scenario* / *Zones*, `EditorSubsystem.cs:3141-3200`) with SR-44a's `ScalarEditBox<T>` rows. ⚠ small new code: the header gains an edit path (no view edits the header today — unmeasured) |
 
 ⚠ The film director's takes keep naming units in a RECORDING by name for now — a GUID would need to exist at runtime and in the recording; a separate decision.
+
+## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
+
+### 10.1 The data sources — measured `2026-10-31` (graph `.*(Fire|Hit|Kill|Damage|Destroy|Casualt|Death|Wound).*(Event|Notification|State|Status)$` Class (18) + grep)
+
+| fact | where | feeds |
+|---|---|---|
+| a SHOT: `WeaponFireIntent {Shooter, Target, WeaponIndex, IsRemote, AtPoint, TargetPoint}` — `IsRemote` ⇒ it is raised on other nodes too | `Fdp.Toolkits/Combat/.../WeaponFireEvents.cs:27-46` | shots per shooter |
+| a HIT: `DamageAssessedEvent {HitEntity, TotalDamage, IsRemote, BodyPart, Effect, Source}` — reaches other nodes through `EntityHitDamageIngressTranslator` | `Combat/Events/DetonationEvents.cs:26-54` | hits per shooter, fratricide, civilians harmed |
+| destroyed: `Health.Current <= 0` | `Combat/Components/Health.cs:19` | destroyed / survivors |
+| a REPORT up the chain: `SquadReportNotification {FromUnit, ToUnit, Subject, SentAt, Report (kind, ObservedAt, …), OriginNodeId}` — raised on EVERY node | `Squad/Command/SquadReportNotification.cs:13-29` | report latency (`SentAt − ObservedAt`), reports made |
+| area occupancy: EQS `EntitiesOfForceInArea`, `PolygonMath.Contains`; areas = `EditablePolyline` entities | `EntitiesInAreaGenerator.cs:34, :119`; `PolygonMath.cs:29` | reach / hold / clear |
+| the scenario clock | `ScenarioClock` on the World Environment | deadlines, time-to |
+| "first seen": the perception contact memory (`KnownCombatantList`, sensor contacts) | OVERVIEW §4 | the start of a report latency |
+| ⚠ unmeasured | — | whether `DamageAssessedEvent.Source` is the SHOOTER or the projectile on the Brain node · how "civilian" is told (ForceId Neutral? the Civilian family?) · that every remote hit reaches the Brain |
+
+### 10.2 Objective kinds v1 — each ONE small generic behaviour in the task slot (SR-37, SR-51)
+
+⭐ Every kind's params begin with the SAME nested block `ObjectiveCommon {title, subject, required, visibleTo, points, deadline, activeWhen}` —
+the deadline and the activation are FIELDS, not kinds, so every objective can have them.
+
+| kind | params (besides `ObjectiveCommon`) | achieved when · failed when |
+|---|---|---|
+| `ReachArea` | area, minUnits = 1 | ≥ minUnits of the subject's units inside · the deadline passes |
+| `HoldArea` | area, minUnits = 4, maxEnemy = 0, holdSeconds = 600, `capture` (repeatable: the owner flips) | held continuously for holdSeconds · the deadline passes (capture: never ends, the OWNER is the state) |
+| `ClearArea` | area, enemy side, maxEnemy = 0, forSeconds = 30 | no enemy inside for forSeconds · the deadline passes |
+| `DestroyTargets` | targets (`RefKey` / query), count | count of them destroyed · the deadline passes |
+| `Protect` | targets (`RefKey` / query), minSurvivors | the deadline passes with ≥ minSurvivors · fewer survive |
+| `NoHarm` (a constraint) | protected (civilians / own side), by side, maxCount = 0 | the run ends within limits · more harmed than maxCount (fratricide and civilian harm are two uses) |
+| `Composite` | mode all / any / weighted | its required children achieved · a required child failed |
+
+### 10.3 Measures v1 — evaluation that SCORES rather than ends (a measure is an objective with a value and a target)
+
+| kind | value | default target |
+|---|---|---|
+| `HitRatio` | the subject's hits ÷ shots | ≥ 0.30 |
+| `Count` | shots · hits · kills · fratricide · civilians harmed · reports made — by the subject | per use (fratricide = 0) |
+| `ReportLatency` | first contact seen by the subject's team → its report received by the subject's commander (`SentAt − ObservedAt` on the chain) | ≤ 60 s |
+| `TimeTo` | scenario start → a named objective achieved | per scenario |
+
+### 10.4 `ObjectiveStatus` (replicated, SR-31 / SR-48) — one shape for objectives and measures
+
+`State` (Pending · Active · Achieved · Failed) · `Owner` (side, capture only) · `Progress` (current / needed) · `Value` + `Target` (measures) ·
+`Points` · `ChangedAt` (scenario time) · `Reason` (a short text: *"held 60 s, 5 Blue / 0 Red"*) · `Subject` · `Parent` (SR-53).
+
+### 10.5 Per-member evaluation from the TKB type (SR-30)
+
+A unit TKB type names an evaluation MACRO (e.g. Rifleman → `RiflemanCriteria` = `HitRatio` + `Count(fratricide) = 0` + `ReportLatency`); every
+unit of that type gets one instance with itself as `Subject` and its commander's evaluation as `Parent` (SR-54 ③); thresholds by SR-67.
+
+### 10.6 `ExerciseEnded` (NED, R-4105)
+
+The outcome per side · end time + reason · the objective TREE (each node: key, title, kind, subject, state, value / target, points, when,
+reason) · totals per side. ⭐ A GRADE (A–F, %) is NOT computed by the engine — a frontend derives it from points and pass / fail (R-4105).
 
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
