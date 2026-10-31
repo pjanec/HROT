@@ -20,7 +20,12 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ CE-1231 (docs/DESIGN_Visual_Effects.md §11 CH-1, R-1016) — the burst of 5 kg of explosive and more: an IED, a suicide vest, a
         /// car bomb, a 155 mm shell, a bomb.</summary>
         public const long ExplosionHuge = 7114;
+        /// <summary>⭐ CE-4145 (docs/DESIGN_Visual_Effects.md §12 K-2) — the dust puff of an INERT (kinetic) round: a 12.7 mm / 25 mm AP (medium), an
+        /// APFSDS (large). Not an explosion — dust.</summary>
+        public const long ImpactPuffMedium = 7115, ImpactPuffLarge = 7116;
         public const long DecalSmall = 7121, DecalMedium = 7122, DecalLarge = 7123;
+        /// <summary>⭐ CE-4145 (§12 K-2) — the mark of an inert round: a bullet hole (8 cm for a 12.7 mm) and a gouge (30 cm for an APFSDS).</summary>
+        public const long DecalHoleMedium = 7124, DecalGouge = 7125;
         public const long Tracer = 7131;
         /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — what a destroyed vehicle burns with: flames ≈ 60 s, smoke ≈ 180 s
         /// fading (U6: "Durations ok").</summary>
@@ -66,6 +71,19 @@ namespace Hrot.Core.Tkb
             _ => new MunitionEffectsDto { MuzzleFlash = MuzzleFlashSmall, Explosion = ExplosionSmall, Decal = DecalSmall },
         };
 
+        /// <summary>⭐ <c>CE-4145</c> (§12 K-2, K-3) — the set of an INERT round of calibre class <paramref name="c"/>: the class's muzzle flash and tracer
+        /// (K-3), but dust and a hole instead of its fireball and crater. Small is the rifle default, already dust.</summary>
+        public static MunitionEffectsDto KineticFor(CalibreClass c) => c switch
+        {
+            CalibreClass.Large or CalibreClass.Huge => DefaultFor(CalibreClass.Large) with { Explosion = ImpactPuffLarge, Decal = DecalGouge },
+            CalibreClass.Medium => DefaultFor(CalibreClass.Medium) with { Explosion = ImpactPuffMedium, Decal = DecalHoleMedium },
+            _ => DefaultFor(CalibreClass.Small),
+        };
+
+        /// <summary>⭐ <c>CE-4145</c> (§12 K-1) — a round whose ammo type the TKB KNOWS and whose warhead carries no explosive.</summary>
+        public static bool IsKinetic(ITkbDatabase? tkb, long ammoType)
+            => tkb != null && ammoType != 0 && tkb.TryGetByType(ammoType, out _) && ExplosiveKgOf(tkb, ammoType) <= 0f;
+
         /// <summary>
         /// ⭐ VE-D — the effects a round makes: its AMMO type's <see cref="MunitionEffectsDto"/> when it has one, else the default of
         /// its calibre class. The ONE answer the spawn system asks (E2).
@@ -79,6 +97,8 @@ namespace Hrot.Core.Tkb
         {
             if (tkb != null && ammoType != 0 && tkb.TryGetByType(ammoType, out var ammo) && ammo?.GetDescriptor<MunitionEffectsDto>() is { } set)
                 return set;
+            // ⭐ CE-4145 (§12 K-1) — an INERT round never explodes, whatever its damage: dust and a hole (an unknown ammo keeps the damage default)
+            if (damagePerHit > 0f && IsKinetic(tkb, ammoType)) return KineticFor(ClassOf(damagePerHit));
             var byDamage = DefaultFor(ClassOf(damagePerHit));
             if (damagePerHit > 0f) return byDamage;
             float kg = ExplosiveKgOf(tkb, ammoType);
@@ -103,9 +123,13 @@ namespace Hrot.Core.Tkb
                 [ExplosionMedium]   = ("Explosion medium",    V(EffectKind.Explosion, 0.9f, 5f, "#FF8A30", 0.4f)),
                 [ExplosionLarge]    = ("Explosion large",     V(EffectKind.Explosion, 1.6f, 12f, "#FF6A20", 0.7f)),
                 [ExplosionHuge]     = ("Explosion huge",      V(EffectKind.Explosion, 2.2f, 20f, "#F07028", 1.0f)),   // ⭐ CE-1231 — an IED, a vest, a car bomb
+                [ImpactPuffMedium]  = ("Impact puff medium",  V(EffectKind.Explosion, 0.45f, 1.4f, "#C8B89A", 0.2f)),   // ⭐ CE-4145 — an inert 12.7 / 25 mm round: dust
+                [ImpactPuffLarge]   = ("Impact puff large",   V(EffectKind.Explosion, 0.7f, 3f, "#B8A88A", 0.3f)),      // ⭐ CE-4145 — an APFSDS: a bigger cloud of dust
                 [DecalSmall]        = ("Decal small",         V(EffectKind.Decal, 60f, 0.06f, "#1E1A16C0", 10f)),       // a bullet mark — ~5 cm across (CE-1336)
                 [DecalMedium]       = ("Decal medium",        V(EffectKind.Decal, 180f, 1.8f, "#18140FD0", 30f)),
                 [DecalLarge]        = ("Decal large",         V(EffectKind.Decal, 300f, 4.5f, "#120F0CE0", 60f)),       // a crater
+                [DecalHoleMedium]   = ("Decal hole medium",   V(EffectKind.Decal, 60f, 0.08f, "#1E1A16C0", 10f)),      // ⭐ CE-4145 — a 12.7 mm hole, 8 cm
+                [DecalGouge]        = ("Decal gouge",         V(EffectKind.Decal, 60f, 0.3f, "#1E1A16C0", 10f)),       // ⭐ CE-4145 — an APFSDS gouge, 30 cm
                 [Tracer]            = ("Tracer",              V(EffectKind.Tracer, 0.25f, 0.12f, "#FFB040", 0.1f)),
                 [Fire]              = ("Wreck fire",          V(EffectKind.Fire, 60f, 3.2f, "#FF8A2A", 15f)),          // sized for a tank, scaled by the wreck
                 [Smoke]             = ("Wreck smoke",         V(EffectKind.Smoke, 180f, 3f, "#2E2B28B0", 60f)),

@@ -99,7 +99,7 @@ namespace Hrot.Core.Tkb
             var own = SetOf(tkb, ammoType);
             long bang = EffectTkbCatalog.EffectsFor(tkb, ammoType, damage).Explosion switch
             {
-                EffectTkbCatalog.ExplosionSmall => ExplosionSmall,
+                EffectTkbCatalog.ExplosionSmall or EffectTkbCatalog.ImpactPuffMedium or EffectTkbCatalog.ImpactPuffLarge => ExplosionSmall,   // ⭐ CE-4145 — an inert round's impact sounds like a rifle's, not a burst
                 EffectTkbCatalog.ExplosionMedium => ExplosionMedium,
                 EffectTkbCatalog.ExplosionLarge => ExplosionLarge,
                 EffectTkbCatalog.ExplosionHuge => ExplosionHuge,   // ⭐ CE-1231
