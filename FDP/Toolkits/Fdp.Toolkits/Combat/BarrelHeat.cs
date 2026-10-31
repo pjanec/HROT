@@ -22,6 +22,13 @@ namespace Fdp.Toolkit.Combat
         public const float AutomaticCoolSeconds = 12f;
         /// <summary>An automatic weapon that states no rate of fire.</summary>
         public const float AutomaticHeatPerRound = 0.02f;
+        /// <summary>⭐ <c>CE-4144</c> (docs/DESIGN_Weapon_Layers.md §5k-1, H-1) — small arms (a rifle) are too hot after this many ROUNDS from cold,
+        /// whatever their rate of fire: a slow rifle must not overheat faster than a fast one. 🔒 User, 2026-10-31: <i>"the overheating now
+        /// happens way too quickly for a normal rifles … must be set with much higher limits (what a real rifle would stand)"</i>.</summary>
+        public const int SmallArmsRoundsToHot = 150;
+        /// <summary>Small arms' cool time from too hot to cold (<c>CE-4144</c> H-2); a too-hot rifle fires again at <see cref="ResumeFraction"/>.</summary>
+        public const float SmallArmsCoolSeconds = 60f;
+
         /// <summary>A single-shot gun's heat per round (a tank gun, a howitzer, a launcher tube).</summary>
         public const float SingleShotHeatPerRound = 0.15f;
         /// <summary>A single-shot gun's cool time from too hot to cold.</summary>
@@ -31,15 +38,19 @@ namespace Fdp.Toolkit.Combat
         public static (float PerRound, float CoolSeconds) For(WeaponMountDto? mount)
         {
             if (mount == null || mount.Hands) return (0f, 0f);
-            bool automatic = mount.Category is WeaponCategory.MachineGun or WeaponCategory.Autocannon or WeaponCategory.SmallArms;
-            float perRound = mount.HeatPerRound > 0f ? mount.HeatPerRound : DefaultPerRound(mount, automatic);
+            // CE-4144 (§5k-1): small arms have their own defaults (by rounds), the machine gun and autocannon keep the 4-s-at-cyclic rule.
+            bool smallArms = mount.Category == WeaponCategory.SmallArms;
+            bool automatic = mount.Category is WeaponCategory.MachineGun or WeaponCategory.Autocannon;
+            float perRound = mount.HeatPerRound > 0f ? mount.HeatPerRound : DefaultPerRound(mount, automatic, smallArms);
             if (perRound <= 0f) return (0f, 0f);
-            float cool = mount.BarrelCoolSeconds > 0f ? mount.BarrelCoolSeconds : automatic ? AutomaticCoolSeconds : SingleShotCoolSeconds;
+            float cool = mount.BarrelCoolSeconds > 0f ? mount.BarrelCoolSeconds
+                : smallArms ? SmallArmsCoolSeconds : automatic ? AutomaticCoolSeconds : SingleShotCoolSeconds;
             return (perRound, cool);
         }
 
-        private static float DefaultPerRound(WeaponMountDto mount, bool automatic)
+        private static float DefaultPerRound(WeaponMountDto mount, bool automatic, bool smallArms)
         {
+            if (smallArms) return 1f / SmallArmsRoundsToHot;
             if (mount.Category is WeaponCategory.Grenade or WeaponCategory.Bomb or WeaponCategory.Countermeasure) return 0f;
             if (!automatic) return SingleShotHeatPerRound;
             return mount.RateOfFire > 0f ? 1f / (mount.RateOfFire / 60f * AutomaticBurstSeconds) : AutomaticHeatPerRound;

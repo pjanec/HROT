@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§5k barrel heat — CE-1358) · 2026-10-22 (§5f CE-3296 — a short throw is tossed, a throw nothing clears is refused) · 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
 build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §5k-1 small arms overheat by rounds (CE-4144, READY-TO-BUILD) · §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
+current-answer: §5k-1 small arms overheat by rounds (CE-4144, BUILT) · §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -1218,7 +1218,9 @@ tick rate fires at the tick rate (an M134 at 60 Hz: 50/s fits). Not changed here
 need a second copy; a rounds-in-a-burst counter — it cannot cool partially and gives the thermal sensor nothing; a separate
 `Overheated` refusal from the muscle — every round of an overheated burst would round-trip a refusal, where `Ready` holds at the ask.
 
-#### 5k-1. A RIFLE is not a machine gun — small arms overheat by ROUNDS, not by seconds of cyclic fire *(`CE-4144`, coordinator, `2026-10-31`; build-state: READY-TO-BUILD)*
+#### 5k-1. A RIFLE is not a machine gun — small arms overheat by ROUNDS, not by seconds of cyclic fire *(`CE-4144`, coordinator, `2026-10-31`; build-state: BUILT)*
+
+✅ **As built, `2026-10-31`:** exactly H-1..H-3, no deviation — `BarrelHeat.SmallArmsRoundsToHot` (150) + `SmallArmsCoolSeconds` (60); rails `BarrelHeatTests.CE4144_ARifle_IsTooHot_OnRound150_WhateverItsRate` (M24 40/min and M4 700/min: round 150, not 149), `CE4144_ARifle_Cools_In60Seconds`, `CE4144_TheMachineGun_IsUnchanged_FourSecondsAtCyclic`.
 
 🔒 **User, `2026-10-31`:** *"the overheating now happens way too quickly for a normal rifles, this allows for few shots only and then long wait
 for cooldown, this degrades the gameplay experience, must be set with much higher limits (what a real rifle would stand)"*.
