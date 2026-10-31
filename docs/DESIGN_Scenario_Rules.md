@@ -626,6 +626,22 @@ reason) · totals per side. ⭐ A GRADE (A–F, %) is NOT computed by the engine
 | **SR-76** | EXTERNAL measurements (the physical world) | a small NED topic `ExternalMeasurement {[DdsKey] SubjectEntityId, [DdsKey] Key, Value, Time, SourceId}` (KeepLast per subject + key) published by a device gateway; the ingress keeps the latest per (subject, key) — a measure kind `External {key, aggregate: mean / max / time above threshold, target}` and the same as a trigger condition. Example: `exposure` from a laser / camera rig behind the physical wall → *"time exposed to the enemy > 20 %"* |
 | **SR-77** | the director | a director's utility inputs may read any `Score` / `Value` (SR-18) — the adaptive pressure valve rides the same statuses |
 
+### 10.8 Rev 7b (`2026-10-31`) — aggregation is overridable, roles OR keys, the station link
+
+> 🔒 **User, `2026-10-31`:** *"The aggregation and weighting of the criteria, these are usually something that changes over time, that we will
+> never create something that will fit everyone's needs. So these parts shouldn't be hard coded without the possibility to override them … maybe
+> some aggregation logic as a function, either hard-coded and registered as such (eval result aggregator) or defined as a blueprint."* ·
+> *"tactical designation is not always sufficient, and we might need to reference via the ref key."* · *"The external measurement device reports
+> and provides data for its physical ID … this link between the device and the trainee might live as a component on the trainee entity … stations
+> … are usually numbered or have a string name … fixed string 64 for that (or GUID)."*
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-78** | the AGGREGATOR is the composite's BEHAVIOUR | ⛔ no aggregator registry: a `Composite` objective is an entity whose task-slot behaviour IS its aggregation — `WeightedMean`, `AllMustPass`, `RequiredGateThenWeighted` ship; a scenario picks one by name like any behaviour, with its params; a custom one is a C# behaviour OR a Blueprint behaviour reading its children's `ObjectiveStatus` and writing its own `Score` / `Value`. ⇒ the existing behaviour registry, params form, debugging and hot reload serve aggregation too (R-4111) |
+| **SR-72a** | the member SELECTOR | `MemberEvaluation`'s table is an ordered list of rules, first match wins: a `RefKey` (`@PL-Trainee` → `PlatoonLeaderCriteria`), a `TacticalDesignation` (`MachineGunner` → `MGCriteria`), an entity class, `*` |
+| **SR-76a** | the device ↔ trainee link | a component on the trainee's entity, `PhysicalStation {Id: FixedString64}` — set when the trainee's Player node takes the unit (the node is configured with its station name), cleared when released; `ExternalMeasurement` is keyed by that STATION id (the device knows only where it is installed), and the ingress routes it to the entity whose `PhysicalStation` matches. Generic: any device, any key |
+| **SR-79** | the GUID descriptor's owner | ✅ accepted as built (`dtEntityGuid` stays with the creator — the Brain creates scenario entities; a Brain crash is non-recoverable today — user) |
+
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
 Rev 3 lowered each scenario's rules into ONE generated HSM (one parallel region per objective / rule / measure): first via the runtime
