@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
+build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
-stale-below: §⛔ HISTORY (rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
+current-answer: §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: none
 known-conflict: none
 related-designs:
@@ -51,6 +51,18 @@ related-designs:
 — built by the existing runtime builder, with guards and actions that are the existing compiled **shared primitives** — and registered as the
 **World Environment entity's brain**; so it runs, hot-swaps, journals and debugs exactly like every unit's brain.
 
+## 0c. ✅ The user's ruling, rev 4 (`2026-10-31`) — **generic rules, composed by parameters; nothing compiles per scenario**
+
+> 🔒 *"What I would like to achieve is that the rules are generic enough and we just parameterize them using values and compose the mission
+> objective from those existing rules … So the scenario doesn't really need to recompile any HSM just because it is using already existing
+> rules composed in and parameterized in different ways."* · *"I would like to minimize the need of rebuilding anything per scenario unless
+> there is an unavoidable need for that. And if there is, it should be deterministic so that it can be done by any brain node."* ·
+> *"maybe it's not necessary at all because the scenarios are distributed to all nodes that need them. So all the nodes can recompile
+> whatever is in the scenario."*
+
+⭐ ⇒ SR-21…SR-24: objectives and rules are entities running GENERIC compiled behaviours, parameterised; conditions and actions are referenced
+by name in the params; only a scenario that embeds its own HSM compiles, in memory and deterministically, on each Brain node.
+
 ## 1. INVENTORY *(`2026-10-31`; queries named)*
 
 `search_graph` Class `.*(Hsm|BTree|Bt|Fbt|Tree)(Json|Runtime|Loader|Builder|Compiler|Interpreter|Blob|Asset).*` (29 hits) ·
@@ -74,6 +86,8 @@ name. ⚠ `check_index_coverage` is not available through the CLI — absence cl
 | debugging that exists: HSM / BTree runtime inspector + overlay, `BrainJournal` (always on, recorded), `UtilityDecisionLog`, the Brain view | `HsmRuntimeInspectorPane`, `BTreeRuntimeOverlayRenderer`, OVERVIEW :480-484 | ⭐ inherited, nothing new |
 | timeline lanes as data (`IndexedLaneDefinition`): shot, hit, blast, state lanes | Timeline §9c-§9e | ⭐ measures read and write lanes |
 | the World Environment entity (TKB 8810: scenario-level, Brain-owned) with `ScenarioClock`, `WeatherConditions` | `TkbEntityTypes.cs:120`; Weather W-0 / C-3 | ⭐ the host entity |
+| ⭐ **a params field that names a compiled thing, resolved at runtime** — `UtilityDecisionRef` (CE-2068: JSON = the asset id, the editor offers a picker, the scorer keys on the id); utility inputs dispatched by id through `UtilityInputReaderStore` | `Utility/Core/UtilityDecisionRef.cs:11`; `UtilityScorer.cs:32` | ⭐ the pattern `ConditionRef` / `ActionRef` copy (SR-22) |
+| ⭐ **in-memory compile on the node that needs it** — `InMemoryRoslynCompiler` (Roslyn → PE in a collectible ALC), used by Blueprints' `Stage8_RoslynFinalize` and `QuickReloadService` | `Hrot.Blueprints.Compiler/Compiler/Roslyn/InMemoryRoslynCompiler.cs` | the escape hatch for a scenario-embedded HSM (SR-24) |
 
 ## 2. Claim table
 
@@ -86,105 +100,80 @@ name. ⚠ `check_index_coverage` is not available through the CLI — absence cl
 | the existing inspectors show the scenario brain | ✅ `HsmAssetProjector.Project(blob, metadata, …)` turns any compiled blob + `MachineMetadata` into an editor asset (how every C#-authored HSM is shown); generated machines carry `HsmMetadata = blob.Metadata` (CE-370) | ✅ user, `2026-10-31` |
 | an evaluation can be re-run on a recording | — not needed (user: a finished run is final, SR-19) | — |
 
-## 3. Diagrams
+## 3. Diagrams *(rev 4 — objectives and rules are ENTITIES running GENERIC compiled behaviours; nothing is compiled per scenario)*
 
 ```mermaid
 classDiagram
     direction LR
-    class ScenarioRulesData { <<new DTO, in scenario.json>> objectives · rules · measures · director: name + params }
-    class ScenarioBrainLowering { <<new, ONE generic loader>> data ⇒ HsmBuilder graph + block layout + site bindings + BehaviorDefinition }
-    class HsmBuilder { <<existing>> State · Transition · Guard · Action · Emit ⇒ HsmDefinitionBlob }
-    class HsmSharedBinder { <<existing, + by-offset overload>> Fqn at paramOffset at stateOffset }
-    class BehaviorRegistry { <<existing>> Register(name, definition) · MergeFrom }
-    class BrainTickSystem { <<existing>> ticks SopState + BehaviorState }
-    class WorldEnvironment { <<existing entity 8810>> ScenarioClock · + SopState(scenario brain) · + ObjectiveStates }
-    class SharedPrimitives { <<existing + new scenario-scope ones, compiled once>> [SharedAiCondition] · [SharedAiAction] · [UtilityInput] }
-    class DirectorBehaviour { <<authored, REUSABLE asset>> e.g. CounterAttackDirector.hsm.json + params DTO }
-    class ObjectiveStates { <<new component, replicated>> per objective: state · progress · when · why · points }
-    ScenarioRulesData ..> ScenarioBrainLowering : lowered at load
-    ScenarioBrainLowering ..> HsmBuilder
-    ScenarioBrainLowering ..> HsmSharedBinder
-    ScenarioBrainLowering ..> BehaviorRegistry : registers scenario-id
-    HsmSharedBinder ..> SharedPrimitives : binds
-    BrainTickSystem ..> WorldEnvironment : ticks its brain
-    WorldEnvironment *-- ObjectiveStates
-    ScenarioRulesData ..> DirectorBehaviour : hosts as a sub-machine with params
+    class ScenarioFile { <<existing>> entities, each with Sop name + Params }
+    class ObjectiveEntity { <<new TKB type, the area-entity pattern>> SopState = Objective · ObjectiveStatus (replicated) }
+    class TriggerEntity { <<new TKB type>> SopState = Trigger }
+    class WorldEnvironment { <<existing entity 8810>> ScenarioClock · SopState = ExerciseControl }
+    class Objective { <<new GENERIC behaviour, shipped once>> Pending · Active · Achieved · Failed }
+    class Trigger { <<new GENERIC behaviour>> Armed · Fired · repeat }
+    class ExerciseControl { <<new GENERIC behaviour>> end condition · ExerciseEnded · hosts a director }
+    class ObjectiveParams { <<params DTO, R-3002>> side · title · required · visibleTo · points · timeLimit · success ConditionRef · fail ConditionRef }
+    class ConditionRef { <<new, the UtilityDecisionRef pattern>> name + args JSON · resolved at load }
+    class ActionRef { <<new, same pattern>> name + args JSON }
+    class SharedPrimitiveTable { <<new, GENERATED with the primitives, in the shipped dll>> name to compiled condition / action + its P type }
+    class SharedPrimitives { <<existing + new scenario-scope>> SharedAiCondition · SharedAiAction }
+    class DirectorAsset { <<authored REUSABLE HSM / BTree, shipped>> CounterAttackDirector + params }
+    ScenarioFile *-- ObjectiveEntity
+    ScenarioFile *-- TriggerEntity
+    ObjectiveEntity ..> Objective : runs
+    TriggerEntity ..> Trigger : runs
+    WorldEnvironment ..> ExerciseControl : runs
+    Objective ..> ObjectiveParams
+    ObjectiveParams *-- ConditionRef
+    Trigger ..> ConditionRef : when
+    Trigger ..> ActionRef : do
+    ConditionRef ..> SharedPrimitiveTable : resolved by name
+    ActionRef ..> SharedPrimitiveTable
+    SharedPrimitiveTable ..> SharedPrimitives
+    ExerciseControl ..> DirectorAsset : hosts by name
 ```
 
-*What the picture shows that prose hid:* ONE new class does real work — the generic loader — and it produces only things the engine already
-runs; there is no rules system, no rules tick, no second inspector. The objective state is the HSM's own state, mirrored into one replicated
-component so frontends and NED read it without knowing it came from a brain.
-
-```mermaid
-stateDiagram-v2
-    state "scenario brain (lowered from §7a)" as SB {
-        state "objective bridge" as OB {
-            [*] --> BPending
-            BPending --> BAchieved : AreaControlled(obj-bridge, Blue, 4, 0, 60 s)
-            BPending --> BFailed : ScenarioTime after 10h00
-        }
-        --
-        state "rule counter-attack" as RC {
-            [*] --> Armed
-            Armed --> Fired : ObjectiveIs(bridge, Achieved) / IssueOrder(Red HQ, CounterAttack) · Message(Blue)
-        }
-        --
-        state "measure Blue hits" as MH {
-            [*] --> Counting
-            Counting --> Counting : on hit lane / Count
-        }
-        --
-        state "director (reusable asset)" as DIR {
-            [*] --> Scoring
-            Scoring --> Scoring : ChooseOption(PressureDecision)
-        }
-    }
-```
-
-*Caption:* each objective, rule, measure and the director is one **parallel region** of an ordinary HSM: an objective is a region whose states
-ARE its state; a rule is `Armed → Fired` (or a self-loop when it repeats); a measure is a region whose activity is a stateful primitive (its
-working state is the counter); the director is a reusable sub-machine. Entry actions publish into `ObjectiveStates`. ⇒ the HSM inspector draws
-it, `BrainJournal` records every transition with its cause.
+*What the picture shows that prose hid:* a scenario adds only ENTITIES and PARAMS — the behaviours (`Objective`, `Trigger`,
+`ExerciseControl`, directors) and the primitives are compiled once into the shipped dll. The one new seam is the reference-by-name
+(`ConditionRef` / `ActionRef`), copied from `UtilityDecisionRef` + `UtilityInputReaderStore`, which already resolve by name at runtime.
 
 ```mermaid
 sequenceDiagram
-    participant L as scenario load (Brain node)
-    participant LOW as ScenarioBrainLowering
-    participant R as BehaviorRegistry
-    participant W as World Environment entity
-    participant B as BrainTickSystem
-    participant C as command chain
-    L->>LOW: ScenarioRules section + director name / params
-    LOW->>LOW: layout the block: each site's compiled P / WS at an offset · seed P from args
-    LOW->>R: Register("scenario:demo-bridge", HsmDefinition, BrainStateBytes, ParseParams)
-    L->>W: SopState = scenario:demo-bridge (Origin Superior)
+    participant S as scenario load (every node that loads it)
+    participant E as objective entity "bridge"
+    participant B as BrainTickSystem (the owner node only)
+    participant T as SharedPrimitiveTable
+    participant N as every node
+    S->>E: create entity · SopState = Objective · Params JSON
+    B->>E: start Objective · ParseParams fills ObjectiveParams
+    B->>T: resolve success = AreaControlled + args (once)
     loop each tick
-        B->>W: tick the HSM — guards are compiled primitives
-        W->>C: an action orders Red HQ (AssignTacticalIntent)
-        W->>W: entry action writes ObjectiveStates (replicated, NED)
+        B->>T: call AreaControlled(ref P, self, repo)
+        T-->>B: true after 60 s held
+        B->>E: Achieved · ObjectiveStatus written
+        E-->>N: replicated (frontends, IOS, NED)
     end
-    Note over L,LOW: editing the rules in the editor re-lowers and MergeFrom swaps it live — the hot-reload path, no build
 ```
 
 ```mermaid
 graph TD
-    subgraph brain["Brain node owning the World Environment entity"]
-        F["feature scenario.rules (capability)"] --> LOW["ScenarioBrainLowering at load"]
-        LOW --> REG["BehaviorRegistry"]
-        REG --> BT["BrainTickSystem (existing, every frame)"]
+    subgraph shipped["compiled ONCE, shipped in Hrot.AI.Behaviors (deterministic build)"]
+        GB["generic behaviours: Objective · Trigger · ExerciseControl · measures"]
+        PR["shared primitives + the generated by-name table"]
+        DIR["reusable directors (authored assets)"]
     end
-    subgraph every["every node"]
-        OS["ObjectiveStates (replicated)"] --> NED["frontends · HUD · IOS · NED (R-4105)"]
-        LANE["rules.* / measure.* lanes"]
+    subgraph scenario["per scenario: DATA only, on every node that loads it"]
+        ENT["objective / trigger entities + Sop params"]
     end
-    BT --> OS
-    BT --> LANE
-    NOF["cluster where no Brain composes scenario.rules"]:::dead -. "rules never lowered — the master refuses to start (SR-6)" .-> LOW
-    classDef dead fill:#f8d7da,stroke:#c00
+    ENT --> BT["BrainTickSystem on the OWNER node (existing, every frame)"]
+    GB --> BT
+    PR --> BT
+    EMB["a scenario-EMBEDDED .hsm.json (escape hatch, SR-24)"]:::rare -. "compiled in memory on load, deterministically, on each Brain node" .-> BT
+    classDef rare fill:#fff3cd,stroke:#c90
 ```
 
-*Caption:* who calls it each frame is the EXISTING brain tick — the loader runs once per load / edit. The red edge is the silent-dead case: a
-cluster whose Brain lacks the feature would load a scenario with no objectives, so the master refuses.
+*Caption:* every frame the existing brain tick runs the generic behaviours on the owner node; nothing scenario-specific is compiled. The
+amber edge is the only per-scenario compile, and only for a scenario that embeds its own HSM.
 
 ## 4. Decisions (⭐ leans for the user)
 
@@ -198,12 +187,14 @@ cluster whose Brain lacks the feature would load a scenario with no objectives, 
 | **SR-6** | where it runs | ⭐ rev 3: the **brain of the World Environment entity** on the Brain node that owns it, ticked by the existing `BrainTickSystem`; the feature `scenario.rules` composes the loader; a scenario with rules and no node advertising it ⇒ the master refuses to start |
 | **SR-8** | the output | replicated `ObjectiveStates` (NED fact) + lanes `rules.objective`, `rules.outcome`, `measure.*` |
 | **SR-9** | the end | `EndExercise` broadcasts **`ExerciseEnded`** with the full result (§7c); pause = feature `scenario.rules.pause-on-end` (lean ON); never an automatic unload; UI only a debug panel `ui.rules-debug-panel` that never pops up |
-| **SR-10** | authoring | data in the scenario (the editor's rules section; JSON shaped like `checks.json`); ⭐ rev 3: the lowered HSM opens READ-ONLY in the existing HSM editor view, so the author sees exactly what runs |
+| **SR-10** | authoring | ⭐ rev 4: objectives and triggers are ENTITIES the editor already places and edits (their Sop params, with a picker for `ConditionRef` / `ActionRef` like `UtilityDecisionRef`'s); the rules JSON of §7a is a compact VIEW of those entities, not a second format |
 | **SR-11** | ONE evaluator | ⭐ rev 3: the evaluator IS the brain runtime — rules, objectives, mission objectives and measures are all guards of a brain; film cues and checks call the same primitives |
 | **SR-12** | custom logic | a new condition / action = a shared C# method in `Hrot.AI.Behaviors` or a Blueprint; ⛔ rev 2's world-singleton Blueprint host is dropped (the brain is the host) |
 | **SR-13** | the IOS | a composition choice; the server's full UI by default (R-4107) |
-| ⭐ **SR-15** | **no interpreter** (R-4109) — ⭐ **rev 3a (`2026-10-31`, user: *"having .NET SDK on the server is no issue at all … why not to use it?"*): the LOWERING TARGET flips to the existing compile path** | the loader turns the rules data into a generated **`.hsm.json` asset** (the editor's own HSM format) and the EXISTING pipeline does the rest: `HsmJsonGenerator` (layout, params `ParseParams`, site seeding, HSM0003 type checks, inspector metadata) → build `Hrot.AI.Behaviors` → `AiHotReloadCoordinator` swaps it. ⭐ More reuse than a runtime builder: the generator is the PRODUCTION path (the runtime `HsmBuilder` is used only by examples), the asset opens EDITABLE in the HSM editor, and S0's inspector question disappears. ⛔ The real costs are not the SDK — S0 measures them: ① the rebuild time at load · ② every node that may own the brain needs the same dll (today the rebuild is per process: `AiBehaviorsRebuild` in the editor; CGF wires the coordinator but no watcher — CE-023) · ③ a recording must replay with the brain it was recorded with (the generated asset is saved with the scenario). The runtime-builder route (SR-16's offset layout) stays the fallback ONLY if ① or ② fails, never both |
-| ⭐ **SR-16** | **params and working state** — ⭐ rev 3b (`2026-10-31`, compile path) | exactly the generated-HSM mechanism: the lowering gives each condition / action / measure site one VARIABLE typed with that primitive's compiled `P` (and `WS` when stateful); `HsmJsonGenerator` lays them out as `{Scenario}_Block` (fixed offsets), binds each site as `Fqn@offset` (the thunk projects `*(P*)(block + offset)`, `HsmBridgeEmitCore.cs:853`), and `ParseParams` fills the block from the brain's Sop params JSON at start. ⭐ The lowering writes EVERY argument into the Sop params, never as a baked default ⇒ changing a value (a threshold, an area, a time) needs NO rebuild; only a STRUCTURAL edit (an objective / rule added or removed, a different condition) changes the block ⇒ one incremental rebuild, at authoring time. ⭐ The generated asset lives under `assets/behaviors/HSMs/` (the generator's glob, `Hrot.AI.Behaviors.csproj:196`) and ships like any authored behaviour ⇒ a server running a shipped scenario never rebuilds. ⛔ No cluster-wide push of a rebuilt dll exists (graph + grep, coverage unchecked) — it matters only for live-editing rules during a running exercise |
+| ⭐ **SR-21** | **rev 4: objectives and rules are ENTITIES running GENERIC behaviours** (R-4112) | an objective = an entity of a new TKB type (the area-entity pattern) whose `SopState` runs the generic compiled `Objective` behaviour with its params (side · title · required · `visibleTo` · points · time limit · success / fail `ConditionRef`); a rule = a `Trigger` entity (`when` ConditionRef · `do` ActionRef[] · once / repeat); the end of the exercise = `ExerciseControl` on the World Environment entity. ⭐ The scenario is the EXISTING format (entities with `Sop: {Name, Params}`), the editor authors them as entities with params, each has the brain view, the journal and the inspector. ⇒ **a scenario adds data only — nothing compiles per scenario** |
+| ⭐ **SR-22** | **a condition / action BY REFERENCE** — the one new seam | `ConditionRef` / `ActionRef` = a primitive's NAME + its args JSON, copied from `UtilityDecisionRef` (CE-2068: a params field naming a decision, a picker in the editor, resolved by id at runtime) and `UtilityInputReaderStore` (inputs dispatched by id). A by-name table of the shared primitives (name → compiled method + its `P` type) is GENERATED with the primitives and ships in the dll; at behaviour start the args are parsed into that `P` once and each tick calls the method. Composition: generic `AnyOf` / `AllOf` / `Not` / `ForUnits` conditions take `ConditionRef[]`. ⛔ not an interpreter: one indirection, the same shape as the HSM action dispatcher's id table |
+| ⭐ **SR-23** | **what still compiles, and when** | only NEW PRIMITIVES and new reusable BEHAVIOURS (directors, generic behaviours) — ordinary development, built once into the shipped dll. ⛔ Never a scenario |
+| ⭐ **SR-24** | **a scenario that embeds its own HSM** (the escape hatch, authored in the existing HSM editor, saved in the scenario) | ⭐ compiled IN MEMORY on load by every Brain node that needs it — the precedent is Blueprints' `InMemoryRoslynCompiler` (collectible ALC, `QuickReloadService`) — DETERMINISTIC: the same JSON + the same generator + the same referenced dlls ⇒ the same machine, keyed by the JSON's content hash, cached; ⛔ no dll is distributed (the scenario is). ⚠ discouraged by R-4110 (a director belongs in a reusable asset); not in S1 |
 | ⭐ **SR-17** | **reusable directors** (R-4110) | a director (counter-attack, reinforcement, pressure) is an authored HSM / BTree **asset** with a params DTO (R-3002 initializers), usable in any exercise; the scenario names it + params; the loader hosts it as a sub-machine of the scenario brain (the existing hosted-HSM path). ⛔ never logic for one exercise |
 | ⭐ **SR-18** | **the utility director** | a director asset may hold a utility decision (`ChooseOption` / `IsOption`, DESIGN_Decision_Layer §3) over plays (*Counter-attack · Reinforce · Hold · Ease off*), with `self` = the World Environment entity and `Context` = a candidate (objective, spawn area, side HQ); inputs are scenario-scope `[UtilityInput]`s (§5); the winner is executed as an ORDER down the chain; `UtilityDecisionLog` explains it |
 | ⭐ **SR-19** | **performance evaluation (P-4) on the same brain** (R-4111) | a measure = a named stateful primitive (`Count`, `Duration`, `Latency`, `Ratio` over events / lanes / conditions) with a **subject** (scenario · side · team = a command-chain node · trainee = a station / unit); lowered as regions of the same brain; results into `ObjectiveStates`' sibling `Measures` and `measure.*` lanes; live feedback to trainee / instructor as NED facts. ✅ **user, `2026-10-31`: no re-evaluation of a finished run** — *"once the life is over, we do not change anything, we do not re-evaluate based on different criteria"*; slice 1 is the LIVE scenario and its evaluation (re-running new measures on an old recording: a future idea) |
@@ -233,7 +224,7 @@ cluster whose Brain lacks the feature would load a scenario with no objectives, 
 | slice | builds | done when |
 |---|---|---|
 | **S0 (measure)** | ✅ **① measured `2026-10-31`** (`dotnet build Hrot.AI.Behaviors --no-restore`, warm, this VM): nothing changed **3.8–4.5 s** (up-to-date check) · one NEW `.hsm.json` added **7.5 s** · the same asset rebuilt again **3.8 s** · a whitespace-only edit **7.4 s** (a file change rebuilds even when the content means the same ⇒ the lowering writes the asset only when its content hash changes) · first build of the session 92 s (cold, not representative). ⚠ the probe was a copy of a small test asset; a scenario with many regions emits more code. Hot-reload SWAP time not measured. ✅ **② measured:** the rebuild + reload route is the editor's (`POST /ai/reload`, `AiBehaviorsRebuild`); no push to other nodes. ③ a brain on 8810: code says yes (`BrainTickSystem.cs:224`), no probe run yet | ③ the first S1 rail |
-| **S1** | lowering of objectives + rules; conditions `AreaControlled`, `UnitsDestroyed`, `ScenarioTime`, `ObjectiveIs`, `AllObjectives`, `ForUnits`; actions `Message`, `PublishObjective`, `AwardPoints`, `EndExercise`; `ObjectiveStates`; `ExerciseEnded`; lanes | §7a plays to Blue won on a live cluster, shown in the HSM inspector; editing a rule swaps live |
+| **S1** | the generic `Objective`, `Trigger`, `ExerciseControl` behaviours; `ConditionRef` / `ActionRef` + the generated by-name table; conditions `AreaControlled`, `UnitsDestroyed`, `ScenarioTime`, `ObjectiveIs`, `AllObjectives`, `AnyOf` / `AllOf` / `ForUnits`; actions `Message`, `AwardPoints`, `EndExercise`; the objective / trigger entity types; `ObjectiveStatus`; `ExerciseEnded`; lanes; a brain on 8810 (first rail) | §7a plays to Blue won live on a cluster; two scenarios use the SAME behaviours with different params and NOTHING rebuilds |
 | **S2** | `SpawnGroup`, orders down the chain, a reusable `CounterAttackDirector` asset with params, the utility director, the editor's rules section | the same director runs in two scenarios with different params |
 | **S3** | measures + subjects (P-4), `ReportReceived`, `InputAbove` / `Sample`; SR-19's replay question answered | per-trainee and per-team results in `ExerciseEnded` |
 
@@ -265,10 +256,11 @@ cluster whose Brain lacks the feature would load a scenario with no objectives, 
 }
 ```
 
-### 7b. What it becomes — the lowered brain *(the §3 state diagram)*
+### 7b. What it becomes *(rev 4)*
 
-`scenario:<id>` registered in `BehaviorRegistry`; one region per objective / rule / measure; the director a hosted sub-machine with its params;
-every guard and action a compiled primitive at an offset; `SopState` on 8810 names it. ⇒ no file is written, nothing is compiled.
+Each objective of §7a is one entity in the scenario — e.g. `{"Type": "Objective", "Name": "bridge", "Sop": {"Name": "Objective", "Params":
+{"side":"Blue","title":"Secure the bridge by 10:00","required":true,"points":100,"success":{"cond":"AreaControlled","args":{…}},"fail":{"cond":"ScenarioTime","args":{"after":"10:00"}}}}}`
+— the rule `end` is a `Trigger` entity, the director runs under `ExerciseControl` on 8810. ⇒ no file is generated, nothing is compiled.
 
 ### 7c. `ExerciseEnded` (the NED fact, R-4105)
 
@@ -280,6 +272,14 @@ every guard and action a compiled primitive at an offset; `SopState` on 8810 nam
                 { "id": "contact-report", "team": "Blue HQ", "seconds": 47 } ],
   "points": { "Blue": 50 } }
 ```
+
+## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
+
+Rev 3 lowered each scenario's rules into ONE generated HSM (one parallel region per objective / rule / measure): first via the runtime
+`HsmBuilder` (3), then as a generated `.hsm.json` compiled by `HsmJsonGenerator` + hot reload (3a / 3b, SR-15 / SR-16). ⛔ Superseded: any
+change in WHICH objectives a scenario has would change the generated machine and rebuild. Kept from it: S0's measured rebuild times
+(an incremental rebuild ≈ 7.5 s, an unchanged one ≈ 3.8 s; a whitespace edit also rebuilds), the generated `{Asset}_Block` mechanism
+(`HsmBridgeEmitCore.cs:853`), and `HsmAssetProjector` showing any compiled machine.
 
 ## ⛔ HISTORY — rev 2 (superseded `2026-10-31` by rev 3, R-4109)
 

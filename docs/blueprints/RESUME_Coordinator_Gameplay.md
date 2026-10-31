@@ -42,6 +42,7 @@ related-designs:
    amplifier · **R-4107** Zeus = the server's default UI · **R-4108** EVERY feature is granular, pluggable, announced as a capability and switchable — nothing hard-coded (binds every design).
 
 ## 1a. IN FLIGHT (2026-10-31)
+- ⭐ **P-1 rev 4 (2026-10-31, CURRENT): objectives / rules = ENTITIES running GENERIC compiled behaviours (`Objective`, `Trigger`, `ExerciseControl` on 8810) with params; conditions / actions referenced BY NAME (`ConditionRef` / `ActionRef`, the `UtilityDecisionRef` pattern) through a by-name table generated with the primitives ⇒ nothing compiles per scenario (R-4112, SR-21…SR-24). A scenario-embedded HSM is the escape hatch, compiled in memory per Brain node (`InMemoryRoslynCompiler` precedent). S0 measured (rebuild 7.5 s / 3.8 s). Next: S1 brief for Sonnet — ⛔ ask first. Rev 3 below is HISTORY.
 - **P-1 scenario rules — rev 3 (2026-10-31): [`DESIGN_Scenario_Rules.md`](../DESIGN_Scenario_Rules.md).** 🔒 The user: no rules interpreter, no new brain type — the rules / objectives / measures are DATA LOWERED AT LOAD into an ordinary HSM by the existing runtime builder (`HsmBuilder` → `HsmEmitter`, measured: runs without Roslyn, `ApcHsmSetup.cs`), guards / actions = compiled shared primitives bound at block offsets (`HsmSharedBinder`, CE-3163), registered in `BehaviorRegistry` as the **World Environment entity's brain** (8810; `BrainTickSystem` ticks any SopState + BehaviorState entity). Params / working state: the primitives' own compiled `P` / `WS` concatenated — no per-scenario struct (SR-16). Directors (counter-attack, utility pressure) = REUSABLE parameterised assets hosted as sub-machines, ordering down the command chain (SR-17/18). P-4 measures = stateful primitives with a subject, same brain (SR-19). Facts = `[UtilityInput]` + generic `InputAbove` / `Sample` adapters, no fourth registry (SR-20). Rulings **R-4109…R-4111**. §5 lists what is missing as primitives. Next: S0 = three measurements (inspector on a runtime-built HSM; brain on 8810; offset binding with seeded params) — ⛔ ask before building. Open: re-evaluating measures on a recording (SR-19).
 - Clarified and folded into the PLAN (`ce2ce112d`): server full-UI by default (headless optional); side knowledge = 2-D map only, OFF by default, fading last-known; skill slider adds tiers, clamps at the top.
 
@@ -54,7 +55,7 @@ related-designs:
 
 ## 3. The ids
 - Tracker (coordinator block CE-4000…4999): allocated this session **CE-4116…CE-4150 and CE-4199**; **next free CE-4151** (skip 4199).
-- Rulings: **next free R-4112** (R-4109…R-4111 = scenario control).
+- Rulings: **next free R-4113** (R-4109…R-4112 = scenario control).
 - Standing Sonnet worker: agent `ae49170f7c3d5d648` (context ~480 k — start a fresh one if it is gone or too full).
 
 ## 4. Done this session (2026-10-30/31)
