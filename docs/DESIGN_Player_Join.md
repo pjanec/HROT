@@ -75,7 +75,7 @@ graph TD
     end
     subgraph server["a gameplay SERVER = an ECS node that composes the pack"]
         BRAIN["Brain node bootstrap<br/>(shared)"]
-        GSP["GameplayServerPack<br/>.Capability(Brain, ...) only with --gameplay"]
+        GSP["GameplayServerPack<br/>.Capability(Brain, ...) by default (R-4115)"]
     end
     subgraph player["a PLAYER host"]
         PB["Player bootstrap (shared)"]
@@ -237,9 +237,23 @@ of gameplay (R-4102); the master does not own units, so it may not write their c
 | item | ruling |
 |---|---|
 | G1b · G4 · G5 · G6 | ✅ gameplay (R-4113) — each a `hud.*` Node Feature of the gameplay client pack |
+| ~~⚠ open~~ ✅ answered | R-4113 is NARROWED to the HUD aids: seats, seat switching, embark / disembark, the use key, operator possession and the alive Tab stay military — the earlier ruling stands (user, `2026-10-31`) |
 | `-m server` (S1) | ✅ composes: Brain · Muscle (movement) · Perception · Navigation · orchestrator · traffic |
 | the waiting screen | ✅ add *"Waiting for the server to load a scenario"* (AQ108 D16) — tracker **CE-4156** |
 | D-15 score | ✅ the score IS a set of evaluation measures whose subject is the player's unit (`DESIGN_Scenario_Rules.md` §10.3, SR-82 attribution) — one counter, not two |
 | D-14 respawn delay | ✅ a SCENARIO PARAMETER (`DESIGN_Scenario_Rules.md` SR-41 / SR-68) with a default (10 s) |
 | "Game feedback" | ✅ no separate run setting — Node Features only (R-4114) |
-| ⚠ open | the §7a "NOT findings" list (seats, seat switching, embark / disembark, the use key, operator possession, the alive Tab squad switch) was ruled military training earlier — does R-4113's "everything used when the player possesses" reclassify them? asked `2026-10-31` |
+
+### 7c. ✅ Gameplay is ON by default where its pack is installed *(R-4115, user `2026-10-31`)*
+
+> 🔒 *"I would like to have the whole gameplay features and fun factors switched on by default when the packs and modules that are bringing those
+> features are installed. And I want that packs and features installed now as part of the unified and shared bootstrap … I just wanted to make the
+> system cleaner by moving those stuff to related packs and not to be scattered across the whole system. making every feature switchable on or off
+> relax the need to strictly categorize everything into military and gameplay."*
+
+| what changes | |
+|---|---|
+| D-2 | ⛔ SUPERSEDED: the gameplay server pack is NOT gated by `--gameplay` — the shared bootstrap composes it on the Brain-role node by default; `gameplay.deploy-server` is ON by default and switchable off (a pure military exercise turns it off) |
+| D-4 | the gameplay client pack is composed on every Player host by the shared bootstrap; its `hud.*` features (G1, G1b, G3, G4, G5, G6) default ON |
+| R-4103 (no server ⇒ observer) | still true — but now only when the deploy server feature is switched OFF |
+| the packs | exist for CLEANLINESS (gameplay code in one place, not scattered); a pack runs only when at least one of its features is on |
