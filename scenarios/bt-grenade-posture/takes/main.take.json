@@ -1,60 +1,81 @@
 {
-  "title": "Prone saves your life",
-  "caption": "A grenade lands between a standing and a prone man; the fragments find only the standing one",
+  "title": "Prone saves",
+  "caption": "A grenade bursts between a standing and a prone man: only the standing one is hurt",
+  "clip": "F-36",
+  "chapter": 8,
+  "state": "ready",
+  "endAt": "m+6",
   "anchors": {
-    "blast": {
+    "m": {
       "on": "blast",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "blast": 4.6
-    },
-    "tickHz": 60,
-    "scenarioHash": "50d6b4f732efd44e",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "blast-5",
-      "seconds": 3,
+      "at": "m-4.6",
       "follow": "Thrower",
-      "distance": 8,
+      "distance": 30,
+      "yaw": 30,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Standing",
+      "distance": 14,
       "yaw": 90,
+      "pitch": -15,
+      "lift": 1.4,
+      "fov": 40,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Standing",
+      "distance": 16,
+      "yaw": 60,
+      "pitch": -25,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Prone",
+      "distance": 12,
+      "yaw": 200,
       "pitch": -10,
-      "why": "the throw"
-    },
-    {
-      "at": "blast-1",
-      "seconds": 3,
-      "lookAt": [
-        110,
-        43,
-        0.5
-      ],
-      "distance": 9,
-      "yaw": 90,
-      "pitch": -6,
-      "why": "low, side on: the burst between them"
-    },
-    {
-      "at": "blast-0.3",
-      "seconds": 2,
-      "lookAt": [
-        110,
-        43,
-        0.5
-      ],
-      "distance": 7,
-      "yaw": 270,
-      "pitch": -4,
-      "speed": 0.25,
-      "replay": true,
-      "why": "replay, very slow"
+      "lift": 1,
+      "fov": 40,
+      "segment": "replay"
     }
   ],
-  "clip": "F-36",
-  "chapter": 8,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-4.6",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-4.6",
+      "until": "m+6",
+      "text": "A grenade bursts between a standing and a prone man: only the standing one is hurt"
+    }
+  ]
 }

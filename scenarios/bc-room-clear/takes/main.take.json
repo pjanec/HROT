@@ -1,85 +1,87 @@
 {
   "title": "Into the room",
-  "caption": "The squad stacks beside the door out of the window's view, breaches, and goes in one man at a time",
-  "anchors": {
-    "stack": {
-      "on": "near",
-      "who": "Blue Rifleman 1",
-      "point": [
-        47,
-        112
-      ],
-      "within": 3
-    },
-    "first": {
-      "on": "shot",
-      "n": 1
-    }
-  },
-  "baked": {
-    "times": {
-      "stack": 2.2667,
-      "first": 7.0667
-    },
-    "tickHz": 60,
-    "scenarioHash": "5cc85f8460eee8c2",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": "stack-2",
-      "seconds": 4,
-      "lookAt": [
-        47,
-        112,
-        1
-      ],
-      "distance": 16,
-      "yaw": 270,
-      "pitch": -12,
-      "why": "the stack by the door"
-    },
-    {
-      "at": "first-1",
-      "seconds": 4,
-      "lookAt": [
-        44,
-        108,
-        0
-      ],
-      "distance": 18,
-      "yaw": 90,
-      "pitch": -80,
-      "why": "through the roof: the entry, one at a time"
-    },
-    {
-      "at": "first-1",
-      "seconds": 3,
-      "over": "Blue Rifleman 1",
-      "toward": "Insurgent 1",
-      "back": 2,
-      "height": 1.7,
-      "ahead": 0.5,
-      "speed": 0.5,
-      "replay": true,
-      "why": "replay from the first man in, slow"
-    },
-    {
-      "at": "first+8",
-      "seconds": 4,
-      "lookAt": [
-        44,
-        108,
-        0
-      ],
-      "distance": 18,
-      "yaw": 90,
-      "pitch": -80,
-      "why": "the room cleared"
-    }
-  ],
+  "caption": "Stack beside the door, breach, entry one man at a time",
   "clip": "F-62",
   "chapter": 8,
   "state": "ready",
-  "needs": "⚠ CE-2341: about 1 run in 4 loses all four entry men — the scout pass shows which run this is (the editor is deterministic, so one good run stays good)"
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Insurgent 1",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-15",
+      "follow": "Blue Leader",
+      "distance": 60,
+      "yaw": 20,
+      "pitch": -60,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Blue Rifleman 4",
+      "toward": "Insurgent 1",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Blue Rifleman 4",
+      "toward": "Insurgent 1",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Insurgent 1",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-15",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-15",
+      "until": "m-4",
+      "text": "The squad stacks beside the door and breaches"
+    },
+    {
+      "at": "m-4",
+      "until": "m+8",
+      "text": "The entry team goes in"
+    }
+  ]
 }

@@ -1,64 +1,86 @@
 {
-  "title": "Clear the house",
-  "caption": "A squad clears a house room by room, fire teams taking turns, sparing the civilians inside",
-  "anchors": {
-    "entry": {
-      "on": "near",
-      "who": "Blue Leader",
-      "point": [
-        40,
-        104
-      ],
-      "within": 3
-    }
-  },
-  "baked": {
-    "times": {
-      "entry": 17.8667
-    },
-    "tickHz": 60,
-    "scenarioHash": "91ffbc2b238b1d1a",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": "entry-5",
-      "seconds": 4,
-      "lookAt": [
-        45,
-        105,
-        2
-      ],
-      "distance": 35,
-      "pitch": -15,
-      "why": "the stack at the door"
-    },
-    {
-      "at": "entry",
-      "seconds": 8,
-      "lookAt": [
-        47,
-        105,
-        0
-      ],
-      "yaw": 90,
-      "pitch": -75,
-      "why": "top-down through the roof: room by room"
-    },
-    {
-      "at": "entry+30",
-      "seconds": 6,
-      "lookAt": [
-        47,
-        105,
-        0
-      ],
-      "yaw": 90,
-      "pitch": -75,
-      "why": "the last rooms"
-    }
-  ],
+  "title": "Clear a house",
+  "caption": "The stack at the door, then room by room from above — civilians spared",
   "clip": "F-33",
   "chapter": 8,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+8",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Insurgent 1",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-12",
+      "follow": "Blue Leader",
+      "distance": 70,
+      "yaw": 20,
+      "pitch": -60,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Insurgent 1",
+      "toward": "Blue Rifleman 3",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Insurgent 1",
+      "toward": "Blue Rifleman 3",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Blue Rifleman 3",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-12",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-12",
+      "until": "m-4",
+      "text": "The squad clears the house room by room"
+    },
+    {
+      "at": "m-4",
+      "until": "m+8",
+      "text": "An insurgent opens fire: the clearing goes on"
+    }
+  ]
 }

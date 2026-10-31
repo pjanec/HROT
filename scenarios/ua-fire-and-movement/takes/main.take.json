@@ -1,63 +1,88 @@
 {
   "title": "Fire and movement",
-  "caption": "One half of the squad fires while the other rushes to cover, then they swap",
+  "caption": "One half of the squad fires while the other rushes to cover — then they swap",
+  "clip": "F-24",
+  "chapter": 6,
+  "state": "ready",
+  "endAt": "m+80",
   "anchors": {
-    "contact": {
+    "m": {
       "on": "shot",
+      "by": "Leader",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "contact": 0.9833
-    },
-    "tickHz": 60,
-    "scenarioHash": "48838f1e3bae077b",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "contact-1",
-      "seconds": 4,
-      "lookAt": [
-        200,
-        225,
-        0
-      ],
-      "distance": 150,
+      "at": 0.5,
+      "follow": "Leader",
+      "distance": 65,
+      "yaw": 20,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "a"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Leader",
+      "distance": 22,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "a"
+    },
+    {
+      "at": "m+8",
+      "follow": "Leader",
+      "distance": 75,
       "yaw": 90,
       "pitch": -50,
-      "why": "high: the squad and the enemy, the gap between"
+      "lift": 2,
+      "fov": 45,
+      "segment": "b"
     },
     {
-      "at": "contact+10",
-      "seconds": 6,
+      "at": "m+70",
       "follow": "Leader",
-      "distance": 45,
-      "yaw": 45,
-      "pitch": -45,
-      "why": "three-quarter above the squad: halves alternate"
-    },
-    {
-      "at": "contact+30",
-      "seconds": 4,
-      "follow": "Rifleman 3",
-      "distance": 10,
-      "yaw": 90,
-      "pitch": -12,
-      "why": "one rusher, close"
-    },
-    {
-      "at": "contact+60",
-      "seconds": 4,
-      "follow": "Leader",
-      "distance": 45,
-      "yaw": 45,
-      "pitch": -45,
-      "why": "the gap has closed"
+      "distance": 40,
+      "yaw": 120,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 45,
+      "segment": "c"
     }
   ],
-  "clip": "F-24",
-  "chapter": 6,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.5,
+      "to": "m+8"
+    },
+    {
+      "id": "b",
+      "from": "m+8",
+      "to": "m+70",
+      "speed": 5
+    },
+    {
+      "id": "c",
+      "from": "m+70",
+      "to": "m+80",
+      "speed": 1.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.5,
+      "until": "m+8",
+      "text": "Contact: half the squad fires"
+    },
+    {
+      "at": "m+8",
+      "until": "m+80",
+      "text": "The halves swap: fire, rush, fire"
+    }
+  ]
 }

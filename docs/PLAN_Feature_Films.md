@@ -42,7 +42,7 @@ it is found the same night.*
 |---|---|---|---|---|
 | | **2 · The world** | | | |
 | F-01 | weather | `ua-weather-regions` | an IFV drives east from clear weather into a fog bank, then under overcast | ✅ the IFV now drives east by itself; fog and overcast show — clip made `2026-10-30` (`takes/main.take.json`) |
-| F-02 | city traffic turns to panic | `demo-city` (recipe) | cars and pedestrians flow; a burst of fire; nearby pedestrians become civilians and flee | 🔧 needs a shooter in the recipe, or a plan action that fires one |
+| F-02 | city traffic turns to panic | `demo-city` (recipe) | cars and pedestrians flow; a burst of fire; nearby pedestrians become civilians and flee | ⏭ skipped `2026-10-30`: `demo-city` is a recipe, not a scenario file — nothing to record |
 | | **3 · Civilians** | | | |
 | F-03 | panic into a house | `ua-civ-shelter` | shots; four civilians run to House A, open the door and vanish (~2 → 20 s) | ✅ the block no longer holds (`2026-10-30` Live run: shots at ~1 s, four civilians inside House A by ~9 s, gone ~33 s) — clip made |
 | F-04 | cower in the open | `ua-civ-cower` | no building near: they crouch, then calm down after the Hostile falls | ✅ no longer blocked: they cower from ~2 s, stand up and walk on at ~25 s — clip made |
@@ -66,52 +66,52 @@ it is found the same night.*
 | F-20 | window duel | `bt-window-duel` | two units fight from windows; one swaps windows, the other bounds to the next van | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-21 | grenade or rifle | `ua-grenade-or-rifle` | the grenadier closes and lobs a grenade over the sandbags | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-22 | sentry turns | `ld-sentry-surprise-360` | a man creeps up behind the sentry; he turns to face him | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
-| F-61 | pinned in the open | `uf-alone-under-fire` | crouched rush; a near miss drops him prone (~2.8 s); down while pinned; up and on when the fire stops | ✅ |
+| F-61 | pinned in the open | `uf-alone-under-fire` | crouched rush; a near miss drops him prone (~2.8 s); down while pinned; up and on when the fire stops | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-23 | posture by health | `ua-posture` | the same man suppresses, then takes cover as he is hurt | ⏭ skipped `2026-10-30`: the posture changes only when the check lowers the man's health, and a camera cannot show a posture decision (no overlay) |
 | | **6 · The squad** | | | |
-| F-24 | fire and movement | `ua-fire-and-movement` | one half fires, the other rushes to cover, swap (~90 s → cut to 3 rushes) | ✅ |
-| F-25 | bounding overwatch | `ua-bounding-overwatch` | the halves leapfrog; at contact the watchers open fire | ✅ |
-| F-26 | crossing a road | `ua-squad-danger-crossing` | security kneels, pairs dash across, security last | ✅ |
-| F-27 | contact while crossing | `ua-squad-danger-crossing-contact` | half the squad is across when fire comes; both halves fight | ✅ |
-| F-28 | casualty care | `ua-casualty-care` | a man falls; covering fire; the medic runs out and drags him to cover | 🟡 the check makes him fall. 🔧 better: a hostile with ammo shoots him (blocked by CE-2160) |
-| F-29 | fire distribution | `ua-fire-distribution` | five men, three targets; fire spreads, no more than two per target | ✅ |
+| F-24 | fire and movement | `ua-fire-and-movement` | one half fires, the other rushes to cover, swap (~90 s → cut to 3 rushes) | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-25 | bounding overwatch | `ua-bounding-overwatch` | the halves leapfrog; at contact the watchers open fire | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-26 | crossing a road | `ua-squad-danger-crossing` | security kneels, pairs dash across, security last | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-27 | contact while crossing | `ua-squad-danger-crossing-contact` | half the squad is across when fire comes; both halves fight | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-28 | casualty care | `ua-casualty-care` | a man falls; covering fire; the medic runs out and drags him to cover | ⏭ skipped `2026-10-30`: nobody falls without the check, no Rescue starts — CE-4134 |
+| F-29 | fire distribution | `ua-fire-distribution` | five men, three targets; fire spreads, no more than two per target | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | | **7 · Platoon and command** | | | |
-| F-30 | platoon march | `sl0-platoon-march` | two squads in column, one lying back | ✅ |
-| F-31 | platoon bound | `cc-platoon-bound` | support squad set; the other moves; contact freezes both | 🟡 the check turns the enemy hostile |
-| F-32 | platoon attacks a house | `pc-defend-house` | AI both sides: base of fire set (~47 s), the defence opens up (~72 s), the assault reaches the house (~341 s) | ✅ (⚠ CE-2331: many defenders hide and never fire) |
-| F-34 | the HQ sends the Apache | `uc-request-chain-dry` | the AH-64 flies ~1 km to the mortar cell and kills its crew | 🟡 the SPOT is faked by the check; the real chain `uc-request-chain` is a coin flip (CE-2315 E3) |
+| F-30 | platoon march | `sl0-platoon-march` | two squads in column, one lying back | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-31 | platoon bound | `cc-platoon-bound` | support squad set; the other moves; contact freezes both | ⚠ clip made on a 153 s run: the squads' roles are the reverse of the description and the bound takes 140 s, no contact without the check — CE-4137 |
+| F-32 | platoon attacks a house | `pc-defend-house` | AI both sides: base of fire set (~47 s), the defence opens up (~72 s), the assault reaches the house (~341 s) | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-34 | the HQ sends the Apache | `uc-request-chain-dry` | the AH-64 flies ~1 km to the mortar cell and kills its crew | ⏭ skipped `2026-10-30`: no SPOT without the check, the Apache never flies — CE-4134 |
 | | **8 · Buildings** | | | |
-| F-35 | doors | `bt-doors` | a visitor skips the locked front, opens the back door; the locksmith unlocks the front | ✅ |
-| F-36 | prone saves | `bt-grenade-posture` | a grenade between a standing and a prone man; only the standing one is hurt | ✅ |
-| F-37 | roof burst | `bt-mortar-roof` | a mortar round on a roof; the courtyard man is hit, the man downstairs is not | 🟡 the scenario has no missions — the check orders both rounds. 🔧 put the FireAtPoint missions in the file |
-| F-33 | clear a house | `bc-house-clear` | the stack at the door, then room by room seen from above, civilians spared | ✅ |
-| F-62 | into the room | `bc-room-clear` | stack beside the door, breach, entry one man at a time | ✅ (⚠ CE-2341: ~1 run in 4 the entry fails) |
-| F-38 | defend a house | `sq-defend-house` | defenders take window and roof posts and open fire as Blue crosses the sector | 🔧 CE-2304: posted defenders stall inside (Set in 4 of 5 runs) |
+| F-35 | doors | `bt-doors` | a visitor skips the locked front, opens the back door; the locksmith unlocks the front | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-36 | prone saves | `bt-grenade-posture` | a grenade between a standing and a prone man; only the standing one is hurt | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-37 | roof burst | `bt-mortar-roof` | a mortar round on a roof; the courtyard man is hit, the man downstairs is not | ⏭ skipped `2026-10-30`: no bomb falls, the tubes have no missions — CE-4134 |
+| F-33 | clear a house | `bc-house-clear` | the stack at the door, then room by room seen from above, civilians spared | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-62 | into the room | `bc-room-clear` | stack beside the door, breach, entry one man at a time | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-38 | defend a house | `sq-defend-house` | defenders take window and roof posts and open fire as Blue crosses the sector | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | | **9 · Vehicles and armour** | | | |
 | F-40 | TOW or 25 mm | `ua-weapon-choice` | the Bradley kills a man with a burst and a T-72 with a TOW (~4 s) | ✅ |
-| F-41 | tank round a corner | `ua-tank-corner` | the tank edges out, fires at the AT team, backs into cover | ✅ (⚠ the AT team often dies in the first exposure) |
-| F-42 | denied lock | `ua-javelin-lock` | the tank shows itself just shorter than the Javelin's lock time | ✅ |
-| F-43 | RPG from windows | `ua-rpg-window` | an RPG man hits an IFV, moves window to window, fires again | ✅ |
-| F-44 | stand-off | `ua-ifv-standoff` | a 25 mm IFV kills RPG men at ~326 m; up close an RPG hits the other IFV | ✅ |
+| F-41 | tank round a corner | `ua-tank-corner` | the tank edges out, fires at the AT team, backs into cover | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-42 | denied lock | `ua-javelin-lock` | the tank shows itself just shorter than the Javelin's lock time | ⚠ clip made; the lock is denied in one run and not in the other (CE-4136) |
+| F-43 | RPG from windows | `ua-rpg-window` | an RPG man hits an IFV, moves window to window, fires again | ⚠ clip made; one rocket in one run, three in another (CE-4136) |
+| F-44 | stand-off | `ua-ifv-standoff` | a 25 mm IFV kills RPG men at ~326 m; up close an RPG hits the other IFV | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-45 | round per target | `ua-tank-ammo` | the M1 fires at the T-72 (8.85 s, 17.58 s), HE at the technical | ✅ (re-run the check first) |
-| F-46 | hull-down platoon | `ua-hill-attack` | pairs creep to the crest, one round each, reverse (~73 s) | ✅ |
-| F-47 | convoy hit | `uc-convoy-hit-ifv` | IED under the convoy; the Bradley pushes through with its squad aboard | ✅ |
+| F-46 | hull-down platoon | `ua-hill-attack` | pairs creep to the crest, one round each, reverse (~73 s) | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-47 | convoy hit | `uc-convoy-hit-ifv` | IED under the convoy; the Bradley pushes through with its squad aboard | ⚠ clip made; the squad stays aboard in one run and leaves 3.8 s after the blast in the other (CE-4136) |
 | | **10 · Drones and air** | | | |
-| F-48 | drone and deck | `ua-drone-shelter` | a tank hears the drone and backs under a deck (~10 s); the other is hit on the roof | ✅ |
+| F-48 | drone and deck | `ua-drone-shelter` | a tank hears the drone and backs under a deck (~10 s); the other is hit on the roof | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-49 | level bomb | `ua-air-strike` | the A-10 releases (~26 s); the bomb falls 8 s; the far technical survives | ✅ |
-| F-50 | door-gun orbit | `ua-air-attack` | the UH-60 circles; a gunner is shot; the orbit reverses | ✅ |
-| F-51 | gun and rocket runs | `ua-air-attack` | the Apache's rockets and gun, the A-10 gun run on the column | ✅ (one clip per vignette) |
-| F-52 | AA fire, aircraft break | `ua-air-defence` | the Stinger fires; the Apache breaks low | ✅ (⚠ no visible flares, §2) |
-| F-53 | air assault | `ua-air-assault` | the UH-60 lands (~33 s), the squad gets out, it lifts off after the last man | ✅ |
-| F-54 | air rescue | `ua-air-rescue` | the medic carries the pilot aboard (~42–59 s); lift-off (~69 s) | ✅ |
-| F-55 | fast rope | `ua-fast-rope-roof` | eight men slide onto a roof (done ~26 s); the helicopter leaves (~31 s) | ✅ |
-| F-56 | parachute drop | `ua-airborne-drop` | a stick of eight, one a second; canopies; they assemble | ✅ |
+| F-50 | door-gun orbit | `ua-air-attack` | the UH-60 circles; a gunner is shot; the orbit reverses | ✅ clip made `2026-10-30` (`takes/door-gun.take.json`; the door gunner is hit by the check, so the orbit shows the guns firing, not the reversal) |
+| F-51 | gun and rocket runs | `ua-air-attack` | the Apache's rockets and gun, the A-10 gun run on the column | ✅ clip made `2026-10-30` (`takes/gun-runs.take.json`) |
+| F-52 | AA fire, aircraft break | `ua-air-defence` | the Stinger fires; the Apache breaks low | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-53 | air assault | `ua-air-assault` | the UH-60 lands (~33 s), the squad gets out, it lifts off after the last man | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-54 | air rescue | `ua-air-rescue` | the medic carries the pilot aboard (~42–59 s); lift-off (~69 s) | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-55 | fast rope | `ua-fast-rope-roof` | eight men slide onto a roof (done ~26 s); the helicopter leaves (~31 s) | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-56 | parachute drop | `ua-airborne-drop` | a stick of eight, one a second; canopies; they assemble | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-57 | shot down, pilot ejects | — | an A-10 is hit by AA, its pilot ejects by himself, lands and evades | 🆕 §2 G-1 |
 | | **11 · Indirect fire** | | | |
-| F-58 | adjust, then fire for effect | `ua-indirect-fire` | bursts walk onto the target, then the battery fires for effect | 🟡 the check sends the orders. 🔧 better: give the observer and the battery their missions in the file |
-| F-59 | time on target | `ua-indirect-fire` | rounds from several guns land together | 🟡 as F-58 |
+| F-58 | adjust, then fire for effect | `ua-indirect-fire` | bursts walk onto the target, then the battery fires for effect | ⚠ clip made (`takes/f58.take.json`) on what the run does: ONE of three tubes is manned — CE-4135 |
+| F-59 | time on target | `ua-indirect-fire` | rounds from several guns land together | ✅ clip made `2026-10-30` (`takes/f59.take.json`) |
 | | **12 · Weapon systems, airborne** | | | |
-| F-60 | crew weapons | `ua-weapon-systems` | a sentry gun fires on its own; a crew sets up and mans an M2; a man picks up a Javelin | ✅ (⚠ the M2 is not checked to fire) |
+| F-60 | crew weapons | `ua-weapon-systems` | a sentry gun fires on its own; a crew sets up and mans an M2; a man picks up a Javelin | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 
 ## 1b. What the scout saw — 2026-10-21 (editor preview, real time, one run each)
 
@@ -198,6 +198,7 @@ report. A clip is refilmed when its row closes.
 | F-13 `ua-civ-escalation` | the warning gesture resolves (4.12 s), but the police rifleman never fires — no lethal round at the gunman in 28 s | [CE-4124](blueprints/Blueprint_Issues_Tracker.md) | ⭐ `2026-10-30` re-recorded 30.6 s (fresh editor): the police rifle fires at the Gunman at ~30.5 s, after the Gunman's first round (25.7 s by the plain clock) — the 28 s run simply ended first; ⚠ the lethal round comes within a second of the run's end. Clip made (F-13); CE-4124 can close if this holds on a longer run |
 | F-18 `ua-danger-crossing` | the hold and the rush are not TASK changes (one BTree) — `task` cues never fire; cut on `near` instead; the walk is ~1 m/s, so the beat needs ~4 min of run | (take change, no defect) | ✅ re-taken `2026-10-30` on three `near` cues (109.4 / 161.7 / 231.7 s), rendered ok |
 | long clips sped through (F-18) | a 12× segment renders at ~1.8 s per film frame (~7× the 1× cost) — a 4-minute source takes ~30 min to render | [CE-4126](blueprints/Blueprint_Issues_Tracker.md) | render cost only — overnight is fine meanwhile |
+| F-24, F-26, F-30, F-31 (the overnight pass) | more data for the sped-through cost: 5–6× segments over 60–150 s of source rendered at 891–1194 s for 590–790 frames (1.1–1.5 s per film frame), against 0.45–0.8 s for the 1× clips of the same pass (two Replay Browsers rendering side by side) | [CE-4126](blueprints/Blueprint_Issues_Tracker.md) | render cost only |
 | every clip with a moving camera (F-18 shown) | the camera stuttered against the unit it follows (each frame drawn one step past its camera) · the subtitles used raylib's bitmap font | [CE-4127](blueprints/Blueprint_Issues_Tracker.md), [CE-4128](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` — re-render; the residual ~18 Hz cadence is CE-1401 |
 | every clip (the five pilot re-renders) | 🔒 user: *"videos were a bit jerky (probably those 18Hz) but ok overall"* — a Live recording holds ~18 states/s against 30 fps | [CE-1401](blueprints/Blueprint_Issues_Tracker.md) | not blocking; re-render when smoothing lands |
 | any take on a recording | an anchor that does not resolve is silent in a stills plan (`problems: []`) | [CE-4125](blueprints/Blueprint_Issues_Tracker.md) | ✅ fixed `2026-10-30` — the plan says why (no such unit · too few events · never met · awaits play) |
@@ -206,6 +207,11 @@ report. A clip is refilmed when its row closes.
 | every clip filmed from a Live recording | the editor's recording density falls with every scenario loaded (30 → 2.6 states/s over ~50 loads); recordings must be made on a fresh editor | [CE-4131](blueprints/Blueprint_Issues_Tracker.md) | no refilm; the fix is the editor not slowing per load (or the recorder sampling per sim step), so a batch of recordings needs no restarts |
 | F-07 | the baton charge is one man and three rounds in 0.13 s at ~81 s; 1 of 12 protesters riots (description: charge at ~90 s, some riot) | [CE-4132](blueprints/Blueprint_Issues_Tracker.md) | refilm if the charge becomes a longer baton charge with several rioters |
 | F-05 | fear spreads as `Cower` in place (30–88 m) and `Alarmed` (143 m); nobody runs east, they drift west after ~30 s | [CE-4133](blueprints/Blueprint_Issues_Tracker.md) | refilm if the crowd is meant to run from the fight (then the scenario or the description changes) |
+| F-28, F-34, F-37 (skipped) | F-28, F-34, F-37: the beat is the check's action; run alone the scenario shows nothing (no casualty, no Apache flight, no bomb) — skipped | [CE-4134](blueprints/Blueprint_Issues_Tracker.md) | when the file carries the orders (casualty drop / SPOT / the two FireAtPoint missions), as PLAN §1 rows F-28, F-34, F-37 already ask |
+| F-58 | only 81mm Tube 2 is manned and fires (Gunners 1 and 3 never board): no section, one tube adjusting | [CE-4135](blueprints/Blueprint_Issues_Tracker.md) | refilm F-58 when all three tubes are manned and the section fires |
+| F-42, F-43, F-47, F-20 | the same scenario plays a different story run to run (Javelin lock denied or not, 1 or 3 rockets, squad aboard or out) | [CE-4136](blueprints/Blueprint_Issues_Tracker.md) | refilm when the runs agree; F-42, F-43, F-47 are filmed on the run recorded here |
+| F-31 | Alpha sets at (226,98) and Bravo moves to (195,170) at ~62–140 s: the reverse of the description; the bound takes 140 s; no contact without the check | [CE-4137](blueprints/Blueprint_Issues_Tracker.md) | refilm if the roles are swapped back (or the description changes); contact needs the enemy hostile in the file |
+| F-50 | a cue by a duplicate-named unit finds 0 events (two `M134 minigun`s, 454 rounds) | [CE-4138](blueprints/Blueprint_Issues_Tracker.md) | refilm not needed (F-50 re-anchored on `hit` of `Orbit Truck`); fix so the next duplicate-named unit is not silent |
 
 ## 2. Gaps — what no clip can show yet
 

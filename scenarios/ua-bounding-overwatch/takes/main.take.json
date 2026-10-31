@@ -1,50 +1,85 @@
 {
   "title": "Bounding overwatch",
-  "caption": "Half the squad watches while the other half moves; at contact the watchers open fire at once",
-  "anchors": {
-    "contact": {
-      "on": "shot",
-      "n": 1
-    }
-  },
-  "baked": {
-    "times": {
-      "contact": 17.7833
-    },
-    "tickHz": 60,
-    "scenarioHash": "7ee39425f48be767",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 5,
-      "seconds": 5,
-      "follow": "Leader",
-      "distance": 50,
-      "yaw": 90,
-      "pitch": -55,
-      "why": "high: the leapfrog"
-    },
-    {
-      "at": "contact-2",
-      "seconds": 4,
-      "follow": "Rifleman 4",
-      "distance": 12,
-      "yaw": 90,
-      "pitch": -12,
-      "why": "a watcher, ready"
-    },
-    {
-      "at": "contact+1",
-      "seconds": 4,
-      "follow": "Leader",
-      "distance": 40,
-      "yaw": 90,
-      "pitch": -40,
-      "why": "contact: the overwatch fires"
-    }
-  ],
+  "caption": "The halves leapfrog; when the hostile is seen, the watchers open fire",
   "clip": "F-25",
   "chapter": 6,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+5",
+  "anchors": {
+    "m": {
+      "on": "hit",
+      "target": "Hostile"
+    }
+  },
+  "keys": [
+    {
+      "at": "m-10",
+      "follow": "Leader",
+      "distance": 60,
+      "yaw": 20,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman 5",
+      "toward": "Hostile",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rifleman 5",
+      "toward": "Hostile",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Hostile",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-10",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-10",
+      "until": "m-4",
+      "text": "One half moves while the other watches"
+    },
+    {
+      "at": "m-4",
+      "until": "m+5",
+      "text": "Contact: the watchers open fire"
+    }
+  ]
 }

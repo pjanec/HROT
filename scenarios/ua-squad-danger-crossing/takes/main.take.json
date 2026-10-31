@@ -1,65 +1,78 @@
 {
   "title": "Crossing a road",
-  "caption": "Security first, a pair at a time, far side secured, security last",
-  "anchors": {
-    "first": {
-      "on": "near",
-      "who": "Rifleman 1",
-      "point": [
-        200,
-        75
-      ],
-      "within": 3
-    }
-  },
-  "baked": {
-    "times": {
-      "first": 67.3667
-    },
-    "tickHz": 60,
-    "scenarioHash": "ec9dc0801addc6ca",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": "first-8",
-      "seconds": 4,
-      "lookAt": [
-        195,
-        72,
-        0
-      ],
-      "distance": 70,
-      "yaw": 90,
-      "pitch": -55,
-      "why": "the road from above, the squad arriving"
-    },
-    {
-      "at": "first-1",
-      "seconds": 5,
-      "lookAt": [
-        200,
-        74,
-        0
-      ],
-      "pitch": -25,
-      "why": "along the road: a pair dashes across"
-    },
-    {
-      "at": "first+20",
-      "seconds": 5,
-      "lookAt": [
-        195,
-        72,
-        0
-      ],
-      "distance": 70,
-      "yaw": 90,
-      "pitch": -55,
-      "why": "the last ones over"
-    }
-  ],
+  "caption": "Security kneels, pairs dash across the road, security crosses last",
   "clip": "F-26",
   "chapter": 6,
-  "state": "ready"
+  "state": "ready",
+  "endAt": 122,
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "Leader",
+      "point": [
+        200,
+        100
+      ],
+      "within": 30
+    }
+  },
+  "keys": [
+    {
+      "at": 20,
+      "follow": "Leader",
+      "distance": 35,
+      "yaw": 20,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "a"
+    },
+    {
+      "at": 50,
+      "follow": "Leader",
+      "distance": 35,
+      "yaw": 90,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "b"
+    },
+    {
+      "at": 100,
+      "follow": "Leader",
+      "distance": 35,
+      "yaw": 160,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 45,
+      "segment": "c"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": 20,
+      "to": 50,
+      "speed": 4
+    },
+    {
+      "id": "b",
+      "from": 50,
+      "to": 100,
+      "speed": 5
+    },
+    {
+      "id": "c",
+      "from": 100,
+      "to": 122,
+      "speed": 3
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 20,
+      "until": "122",
+      "text": "The squad meets a road: security first, pairs across, security last"
+    }
+  ]
 }

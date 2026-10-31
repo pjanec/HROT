@@ -1,49 +1,97 @@
 {
   "title": "Stand-off",
-  "caption": "Far out, the IFV's 25 mm kills RPG men untouched; up close, an RPG gets its shot in",
+  "caption": "A 25 mm IFV kills RPG men at 326 m, beyond their reach",
+  "clip": "F-44",
+  "chapter": 9,
+  "state": "ready",
+  "endAt": "m+8",
   "anchors": {
-    "far": {
+    "m": {
       "on": "shot",
       "by": "IFV Standoff",
       "n": 1
-    },
-    "close": {
-      "on": "hit",
-      "target": "IFV Close"
     }
   },
-  "baked": {
-    "times": {
-      "close": 3.5,
-      "far": 9.4833
-    },
-    "tickHz": 60,
-    "scenarioHash": "fec4d7e5af03380d",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "far-1",
-      "seconds": 4,
+      "at": "m-9.4",
+      "follow": "IFV Standoff",
+      "distance": 80,
+      "yaw": 30,
+      "pitch": -20,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
       "over": "IFV Standoff",
-      "toward": "RPG Man A1",
-      "back": 10,
-      "height": 4,
-      "ahead": 0.95,
-      "fov": 8,
-      "why": "telephoto: 300 m away, out of RPG range"
+      "toward": "RPG Man A2",
+      "back": 16,
+      "height": 5,
+      "lift": 2,
+      "fov": 40,
+      "segment": "setup"
     },
     {
-      "at": "close-2",
-      "seconds": 4,
-      "follow": "IFV Close",
-      "distance": 20,
-      "yaw": 90,
-      "pitch": -8,
-      "why": "close in, the RPG hits"
+      "at": "m-0.7",
+      "over": "IFV Standoff",
+      "toward": "RPG Man A2",
+      "back": 14,
+      "height": 4.5,
+      "lift": 2,
+      "fov": 32,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "RPG Man A2",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "RPG Man A2",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
     }
   ],
-  "clip": "F-44",
-  "chapter": 9,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-9.4",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-9.4",
+      "until": "m+8",
+      "text": "A 25 mm IFV kills RPG men at 326 m, beyond their reach"
+    }
+  ]
 }

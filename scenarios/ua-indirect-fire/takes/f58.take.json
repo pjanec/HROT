@@ -1,0 +1,118 @@
+{
+  "title": "Adjust, then fire for effect",
+  "caption": "A mortar tube adjusts onto the target, then the rounds fall for effect",
+  "clip": "F-58",
+  "chapter": 11,
+  "state": "ready",
+  "endAt": "b1+32",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "81mm Tube 2",
+      "n": 1
+    },
+    "b1": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-0.7",
+      "follow": "81mm Tube 2",
+      "distance": 20,
+      "yaw": 60,
+      "pitch": -10,
+      "lift": 2,
+      "fov": 45,
+      "segment": "fire"
+    },
+    {
+      "at": "b1-4",
+      "follow": "Enemy 1",
+      "distance": 110,
+      "yaw": 30,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 50,
+      "segment": "adjust"
+    },
+    {
+      "at": "b1+3",
+      "follow": "Enemy 1",
+      "distance": 70,
+      "yaw": 120,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "adjust"
+    },
+    {
+      "at": "b1+21",
+      "follow": "Enemy 1",
+      "distance": 90,
+      "yaw": 60,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 50,
+      "segment": "effect"
+    },
+    {
+      "at": "b1+29",
+      "follow": "Enemy 1",
+      "distance": 60,
+      "yaw": 150,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "effect"
+    }
+  ],
+  "segments": [
+    {
+      "id": "fire",
+      "from": "m-0.7",
+      "to": "m+4"
+    },
+    {
+      "id": "fly",
+      "from": "m+4",
+      "to": "b1-5",
+      "speed": 6
+    },
+    {
+      "id": "adjust",
+      "from": "b1-5",
+      "to": "b1+6"
+    },
+    {
+      "id": "fly2",
+      "from": "b1+6",
+      "to": "b1+20",
+      "speed": 6
+    },
+    {
+      "id": "effect",
+      "from": "b1+20",
+      "to": "b1+32"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-0.7",
+      "until": "b1-5",
+      "text": "The tube fires its first round"
+    },
+    {
+      "at": "b1-5",
+      "until": "b1+6",
+      "text": "The burst falls: the observer adjusts"
+    },
+    {
+      "at": "b1+20",
+      "until": "b1+32",
+      "text": "Fire for effect"
+    }
+  ],
+  "needs": "only 81mm Tube 2 is manned (CE-4135)"
+}

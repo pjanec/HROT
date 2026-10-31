@@ -1,63 +1,88 @@
 {
   "title": "Pinned in the open",
-  "caption": "Alone under fire, a soldier rushes crouched, drops prone at a near miss, stays down while pinned, and rushes on when the fire stops",
+  "caption": "One soldier crosses open ground under fire: a near miss drops him, he stays down while pinned, then goes on",
+  "clip": "F-61",
+  "chapter": 5,
+  "state": "ready",
+  "endAt": "m+30",
   "anchors": {
-    "fire": {
+    "m": {
       "on": "shot",
-      "by": "*Hostile",
+      "by": "Hostile 1",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "fire": 0.95
-    },
-    "tickHz": 60,
-    "scenarioHash": "47b9d51cb3de2c2a",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "fire-2",
-      "seconds": 3,
-      "lookAt": [
-        200,
-        225,
-        0
-      ],
-      "distance": 140,
-      "yaw": 90,
-      "pitch": -25,
-      "fov": 35,
-      "why": "establish: 115 m of open ground and two rifles at the end"
-    },
-    {
-      "at": "fire-0.3",
-      "seconds": 4,
+      "at": 0.3,
       "follow": "Runner",
-      "distance": 7,
-      "pitch": -6,
-      "why": "side on, low: walking, then the crouched rush"
+      "distance": 45,
+      "yaw": 200,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
     },
     {
-      "at": "fire+2.5",
-      "seconds": 4,
+      "at": "m-0.7",
       "follow": "Runner",
-      "distance": 5,
-      "yaw": 90,
+      "distance": 9,
+      "yaw": 150,
+      "pitch": -8,
+      "lift": 1.2,
+      "fov": 40,
+      "segment": "a"
+    },
+    {
+      "at": "m+6",
+      "follow": "Runner",
+      "distance": 14,
+      "yaw": 60,
       "pitch": -12,
-      "why": "behind him as he goes down"
+      "lift": 1.2,
+      "fov": 45,
+      "segment": "b"
     },
     {
-      "at": "fire+8",
-      "seconds": 5,
+      "at": "m+16",
       "follow": "Runner",
-      "distance": 8,
-      "pitch": -6,
-      "why": "up again and running"
+      "distance": 70,
+      "yaw": 100,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "c"
     }
   ],
-  "clip": "F-61",
-  "chapter": 5,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.3,
+      "to": "m+5"
+    },
+    {
+      "id": "b",
+      "from": "m+5",
+      "to": "m+15",
+      "speed": 2
+    },
+    {
+      "id": "c",
+      "from": "m+15",
+      "to": "m+30",
+      "speed": 2.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.3,
+      "until": "m+15",
+      "text": "Under fire in the open: a near miss, he is down and pinned"
+    },
+    {
+      "at": "m+15",
+      "until": "m+30",
+      "text": "The fire eases: he gets up and goes on"
+    }
+  ]
 }

@@ -1,49 +1,66 @@
 {
-  "title": "Spread the fire",
-  "caption": "The leader spreads the squad's fire over three targets, no more than two men on any one",
+  "title": "Fire distribution",
+  "caption": "Five men, three targets: the leader spreads the fire — no more than two on a target",
+  "clip": "F-29",
+  "chapter": 6,
+  "state": "ready",
+  "endAt": "m+12",
   "anchors": {
-    "contact": {
+    "m": {
       "on": "shot",
+      "by": "Leader",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "contact": 0.9167
-    },
-    "tickHz": 60,
-    "scenarioHash": "d00d1f2859e86006",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "contact-1",
-      "seconds": 4,
-      "lookAt": [
-        300,
-        470,
-        1.5
-      ],
-      "distance": 25,
-      "yaw": 90,
-      "pitch": -15,
-      "why": "behind the line"
+      "at": "m-2.3",
+      "over": "Leader",
+      "toward": "Centre Hostile",
+      "back": 12,
+      "height": 4,
+      "lift": 1.6,
+      "fov": 60,
+      "segment": "intro"
     },
     {
-      "at": "contact+2",
-      "seconds": 5,
-      "lookAt": [
-        300,
-        410,
-        0
-      ],
-      "distance": 130,
-      "yaw": 90,
-      "pitch": -55,
-      "why": "high: tracers fan out to three targets"
+      "at": "m-0.7",
+      "over": "Leader",
+      "toward": "Centre Hostile",
+      "back": 8,
+      "height": 3,
+      "lift": 1.6,
+      "fov": 32,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Centre Hostile",
+      "distance": 45,
+      "yaw": 20,
+      "pitch": -30,
+      "lift": 1.5,
+      "fov": 50,
+      "segment": "moment"
     }
   ],
-  "clip": "F-29",
-  "chapter": 6,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-2.3",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-2.3",
+      "until": "m+12",
+      "text": "Five men, three targets: the leader spreads the fire — no more than two on a target"
+    }
+  ]
 }

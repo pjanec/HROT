@@ -1,66 +1,96 @@
 {
-  "title": "Hide from the drone",
-  "caption": "A tank hears an FPV drone and backs under a deck; the tank in the open is hit on the roof",
-  "anchors": {
-    "hide": {
-      "on": "task",
-      "who": "Tank by the deck",
-      "is": "ShelterFromAir"
-    },
-    "hit": {
-      "on": "hit",
-      "target": "Tank in the open"
-    }
-  },
-  "baked": {
-    "times": {
-      "hide": 6.7833,
-      "hit": 20.55
-    },
-    "tickHz": 60,
-    "scenarioHash": "bc3cc733c7626088",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 2,
-      "seconds": 3,
-      "follow": "Drone A",
-      "distance": 12,
-      "yaw": 270,
-      "pitch": -15,
-      "why": "the drone inbound"
-    },
-    {
-      "at": "hide-0.5",
-      "seconds": 5,
-      "follow": "Tank by the deck",
-      "distance": 25,
-      "yaw": 90,
-      "pitch": -15,
-      "why": "the tank backs under cover"
-    },
-    {
-      "at": "hit-3",
-      "seconds": 3.5,
-      "follow": "Drone B",
-      "distance": 10,
-      "yaw": 270,
-      "why": "the dive"
-    },
-    {
-      "at": "hit-0.5",
-      "seconds": 2,
-      "follow": "Tank in the open",
-      "distance": 18,
-      "yaw": 90,
-      "pitch": -25,
-      "speed": 0.5,
-      "replay": true,
-      "why": "the roof hit, slow"
-    }
-  ],
+  "title": "Drone and deck",
+  "caption": "A tank hears the drone and backs under a deck; the other is hit in the open",
   "clip": "F-48",
   "chapter": 10,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+6",
+  "anchors": {
+    "m": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-10",
+      "follow": "Tank by the deck",
+      "distance": 55,
+      "yaw": 30,
+      "pitch": -25,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "Tank by the deck",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Tank by the deck",
+      "distance": 22,
+      "yaw": 120,
+      "pitch": -10,
+      "lift": 1.8,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Tank by the deck",
+      "distance": 35,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Tank by the deck",
+      "distance": 18,
+      "yaw": 220,
+      "pitch": -8,
+      "lift": 1.8,
+      "fov": 40,
+      "segment": "replay"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-10",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-10",
+      "until": "m+6",
+      "text": "A tank hears the drone and backs under a deck; the other is hit in the open"
+    }
+  ]
 }
