@@ -1,201 +1,199 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — S1 leans AGREED by the user (2026-10-31: "Agreed", "Great, sounds really good", "Yes, please"); S2/S3 leans to confirm when they start
-updated: 2026-10-31 (first version — coordinator)
-current-answer: §3 the diagrams · §4 decisions J-1..J-14 · §5 slices
-stale-below: nothing
-known-rot: none
+build-state: DESIGN — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted"); S1 next
+updated: 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
+current-answer: §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices
+stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
+known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
 related-designs:
-  - docs/blueprints/Architect_Question_91_Player_Nodes.md — OWNS what a Player node is (an IG node, no Player role, acts by REQUESTS to the owner); this design adds the join a Player makes after it is admitted
-  - docs/DESIGN_Cluster_Membership_Use_Cases.md — OWNS UC-17…24 (the multiplayer acceptance, CE-4080); §5 here adds the join / spawn / respawn cases to it
-  - docs/blueprints/Architect_Question_110_Readiness_Protocol.md — OWNS admission (AdmissionPolicy, the Lobby) — the join starts only once a Player is admitted and caught up
-  - docs/DESIGN_Cluster_Load_Phase.md — §11.8 OWNS the Player's waiting / lobby screen (HostGatePolicy.Player); the join screens follow it
-  - docs/DESIGN_Entity_Control.md — §8q OWNS R-4096 (StationClaims: no taking another player's unit or seat) and §8c possession on a cluster; this design gives §8q the player FACTION it lacks and adds the reservation it honours
-  - docs/DESIGN_Unit_Camera.md — OWNS the Observer camera (free / follow / eyes) an observer joins into
-  - docs/designs/air-attack/DESIGN_Air_Operations.md — §6 OWNS the pilot models and "a hand-over keeps the pose", which make a plane taken in flight keep flying
-  - docs/DESIGN_Entity_Creation_Unification.md — OWNS EntityCreationRequest (the one creation path) and CreationRequestId, which a Player uses to find its new unit
-  - docs/DESIGN_Decision_Layer.md — §4 OWNS the paused task a possession leaves and resumes (a placed AI unit taken by a player)
-  - docs/DESIGN_Add_Entity_Picker.md — D6 is the EDITOR's side choice when placing; not the player's (cited so the two are not confused)
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — OWNS what a Player node is in the CLUSTER (admitted, caught up, acts by REQUESTS to the owner); this design adds what it does as a GAME client once admitted
+  - docs/DESIGN_Node_Roles_And_Policies.md — §3.2–§3.4 OWN composition by role (R-4000 one code path; R-4005 a role is what a host does); the gameplay packs are composed through that same mechanism
+  - docs/DESIGN_Cluster_Membership_Use_Cases.md — OWNS UC-17…24 (the multiplayer acceptance, CE-4080); §6 here adds UC-25…28
+  - docs/blueprints/Architect_Question_110_Readiness_Protocol.md — OWNS admission (AdmissionPolicy, the Lobby); a deploy starts only once a Player is admitted and caught up
+  - docs/DESIGN_Cluster_Load_Phase.md — §11.8 OWNS the Player's waiting screen (LoadingScreen, HostGatePolicy.Player); the deploy screen follows it
+  - docs/DESIGN_Entity_Control.md — §8q OWNS R-4096 (StationClaims); D-8 gives it a player's side and reservation from the player slot when a gameplay server exists
+  - docs/DESIGN_Unit_Camera.md — OWNS the Observer camera every observer uses
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — §6 OWNS the pilot models and "a hand-over keeps the pose" (a plane deployed into in flight)
+  - docs/DESIGN_Entity_Creation_Unification.md — OWNS EntityCreationRequest (the one creation path) and CreationRequestId (how a Player finds its new unit)
+  - docs/DESIGN_Decision_Layer.md — §4 OWNS the paused task a possession leaves and resumes
+  - Hrot/Engine/Hrot.Traffic/TrafficPack.cs — the PRECEDENT for an optional feature as packs (Serving on one node, Mirroring on the others)
 -->
 
-# DESIGN — **a player joins the game** *(side → role or unit → spawn → possess, or observe)*
+# DESIGN — **a player deploys into the game** *(side → placed unit or role → spawn → possess, or observe)*
 
 > 🔒 **User, `2026-10-31`:** *"a player that is joining a game will somehow need to choose the side. And once that is done, you will also need
-> to choose the character to be played. Could be one of predefined player roles. Which might include a set of weapons … spawn locations for red
-> team, spawn location for blue team, and there could be many of them, and the game should probably pick one randomly and random place inside that
-> area, which is not occupied by any other player yet. Maybe in some scenarios there could be the characters already existing as entities inside
-> the scenario, and in such a case the player could be offered picking one of them. And then once done, the game should possess that entity … And
-> I would like also some observer mode … free flight and looking at the scene."* · *"What about if the player wants to possess an aircraft which is
-> already in the air?"* · *"We might also think about some competition system … how many enemies was killed by a player … when the player presses
-> some key like tab. This is for slice 2 or something … First we need to resolve how the player joins at all."*
+> to choose the character to be played … spawn locations for red team, spawn location for blue team … the game should possess that entity … And I
+> would like also some observer mode"* · *"The naming should be distinct from generic node joining"* · *"Deploy name is accepted."*
 
-**The idea in one line:** the player sends **one join request to the master**; the master alone decides (one thread ⇒ no races), records
-the player's side and slot in a **player-state topic every node reads**, and either reserves a placed unit or orders a new one through the ONE
-creation path; the player sees its unit arrive **in its own replicated world** and takes it with the **existing** possess request.
+## 1. The idea in one line
 
-## 1. INVENTORY *(`2026-10-31`)*
+A **gameplay server** — a pack an ECS node composes only when the exercise is a game — owns every player decision; a **Player** host
+composes a **gameplay client** pack (the deploy screens); the two talk on their **own** gameplay topics. The orchestrator, the master and
+the CGF / SimHost roles are **untouched**: a military simulation composes none of it and runs exactly as before.
+
+## 2. Rulings (✅ user, `2026-10-31`)
+
+| id | ruling | the user's words |
+|---|---|---|
+| **R-4101** | **"IG" is the obsolete name of the PLAYER.** New work says *Player*; where code or docs say IG, the Player is meant | 🔒 *"the IG is just an obsolete name for something we now call player"* · *"IG is no longer used, this is a relict"* |
+| **R-4102** | **Gameplay is an EXTRA, composed as packs — never in the orchestrator, never degrading the military simulator.** CGF, SimHost and the orchestrator stay usable with no gameplay; a node becomes a gameplay server, and a host becomes a player, by the COMPONENTS it composes into the shared bootstrap | 🔒 *"the gameplay logic is just an extra which shouldn't reduce or degrade the general military simulation use of the simulator"* · *"The system should stay something like a toolkit where we can assemble the desired functionality from components"* · *"being a player is a composition choice"* |
+| **R-4103** | **A Player with no gameplay server in the cluster is an OBSERVER** | 🔒 *"An ES player without a gameplay server capabilities in the system becomes an observer."* |
+
+## 3. INVENTORY *(`2026-10-31`)*
 
 Queries run: `scripts/cbm.sh search_graph` Class `.*(Player|Spawn|Respawn|Lobby|Join|Observer|Spectat|Loadout|Kit|Role|Side|Force|Team).*`
-(14 hits, none a join / spawn-point / loadout class) · grep `class .*(Player|Possess|Spawn|Zone|Observer|Spectator|Loadout|Seat)` (80) ·
-a docs sweep of `docs/` + `.dev/` (an Explore agent: player nodes, membership, admission, possession, observer, spawn, loadout, score).
+→ 14 (none a join / deploy / spawn-point / loadout class) · grep `class .*(Player|Possess|Spawn|Zone|Observer|Spectator|Loadout|Seat)` → 80 ·
+grep `class .*(Pack|Plugin|Feature|Composer)` → 19 packs · a docs sweep of `docs/` + `.dev/` (player nodes, membership, admission, possession,
+observer, spawn, loadout, score).
 
 | what exists | where | used here as |
 |---|---|---|
-| a Player = an IG node (`-m player` → `ig`), admitted, caught up (UC-21: 1.8–3.9 s), a lobby screen | `HrotRunnerConfiguration.cs:369`; Q91 §0; Cluster Load Phase §11.8 | the host the join runs on |
-| possession by request, decided on the brain; R-4096 claims | `PossessionSystem`, `EntityOrders.Possess`, `StationClaims` (Entity Control §8c, §8q) | how a player takes its unit — unchanged |
-| a station's side = the side of the unit it holds; **"a separate player-faction concept does not exist yet"** | `StationClaims.TrySideOf`; Entity Control §8q.3 | the gap J-4 fills |
-| who possesses what, on every node | `PossessedBy { StationNodeId, Mode, Epoch }` + its translators | the player's "I have it" signal |
-| one creation intent with a request GUID; the unit carries the GUID on every node | `EntityCreationRequest.RequestId`; `CreationRequestId` (`NetworkSpawningSystem.cs:204`, rides `EntityMaster` — `EntityMasterIngressTranslator.cs:222`) | the player's "my unit arrived" signal |
-| a request / answer pair to the master | `ClusterOpRequest { RequestId, OperationType, PayloadJson }` (Volatile, KeepAll) · `ClusterOpStatus { RequestId, StatusCode, ResultJson }` (TransientLocal, depth 64, readers filter by id) | the join's wire — one more `ClusterOpType` |
-| the master's node list | `NodeRoster` (from `NodeHeartbeat`), `GET /cluster/roster` | ⚠ master-internal — a brain cannot read it ⇒ J-5's topic |
-| a master-written, per-key, late-joiner-safe topic | `ClusterStateTopic` (Reliable, TransientLocal, KeepLast 1) | the shape of J-5's `PlayerSlotTopic` |
-| drawn areas with their OWN type + component | `WeatherRegion`, `StoneSource` in `PlacementToolRegistry.Graphics` (Area tool) | the shape of the spawn area (S2) |
-| a plane possessed in flight keeps flying | `FixedWingModel.Manual` (`:56-72`, *"possessed already flying"*); the look starts on the hull's heading (`PossessionStation.cs:1286`) | J-11 — no new code |
-| the observer camera | Unit Camera §3/§4/§8 (BUILT) | J-10 |
-| the kill cam knows the killer | `PossessionStation` `FallScreen(…, killer, …)` | the score's source (S3) |
+| composition by role: a host's plan declares `.Capability(role, INodeCapability)`; the shared base registers their systems and modules | `NodeCompositionPlan.Capability`, `INodeCapability` (`Hrot.Common/Infrastructure/NodeCapability.cs:142, :276`) | how BOTH gameplay packs are plugged in |
+| an optional feature as packs | `TrafficPack.Serving()` / `.Mirroring()` (`IgNodeBootstrapper.cs:249`, `CgfNodeBootstrapper.cs:139`, `SimHostNodeBootstrapper.cs:312`) | the precedent |
+| a node advertises capability TOKENS to the cluster | `NodeCapabilitiesTopic` (durable), `CapabilityTokens`, `NodeRoster.Supports(node, token)` | `hrot.gameplay.server` — how a Player learns a server exists |
+| the orchestrator has NO ECS world | `OrchestratorSubsystem.cs:44-48` (*"this subsystem has no ECS kernel"*) | why the server is NOT there |
+| the master's request pair is read only by the master | `ClusterOpMasterTranslator` reads; `ClusterOpEgressTranslator` only writes | why the deploy does NOT ride it |
+| a Player's waiting screen, composed once per process | `LoadingScreen` (Player policy), `LocalWindowController.ComposeRunControls`; gate `ClusterView.GateOpen(Player)` = `IsLocalPlayReady ∧ CanOperate` | the deploy screen's pattern and its "may I start?" |
+| possession by request, decided on the brain; R-4096 claims; a station's side from the held unit | `PossessionSystem`, `EntityOrders.Possess`, `StationClaims` (Entity Control §8c, §8q) | unchanged; D-8 adds the slot as a first source |
+| a new unit carries its request's GUID on every node | `CreationRequestId` (`NetworkSpawningSystem.cs:204`, on `EntityMaster` — `EntityMasterIngressTranslator.cs:222`) | the Player's "my unit arrived" |
+| who possesses what, on every node | `PossessedBy { StationNodeId, Mode, Epoch }` + translators | the Player's "I have it" |
+| drawn areas with their own TKB type | `WeatherRegion`, `StoneSource` (`PlacementToolRegistry.Graphics`) | the spawn area (S2) |
+| a plane possessed in flight keeps flying | `FixedWingModel.cs:56-72` (*"possessed already flying"*); the look starts on the hull's heading (`PossessionStation.cs:1286`) | D-12 — no new code |
 
-## 2. What it rests on — claim table
+## 4. Diagrams
 
-| claim | code — how it IS | design — how it was MEANT to be |
-|---|---|---|
-| a join cannot be an entity interaction (no target yet) | ✅ target/actor ride the header (`InteractionMessages.cs`) | ✅ Entity Interactions R-221 |
-| a Player acts by REQUESTS; the owner decides | ✅ IG node, possess via interaction | ✅ Q91 §0, §4-L.4 |
-| a new unit is recognisable by its request on every node | ✅ `CreationRequestId` on `EntityMaster` | ✅ Entity Creation Unification §3.4d |
-| the master's request/answer pair exists and late joiners replay answers | ✅ `ClusterOpRequest` / `ClusterOpStatus` QoS | ✅ CE-3023 comments there |
-| a brain cannot read the master's roster | ✅ `NodeRoster` lives in `Hrot.Orchestrator` | ⛔ searched, no design gives players a shared side |
-| a placed AI unit resumes its task when released | — | ✅ Decision Layer §4 (R-199 / R-203) |
-| a plane taken in flight keeps speed and heading | ✅ `FixedWingModel.cs:71`, `PossessionStation.cs:1286` | ✅ Air Ops §6 *"a hand-over keeps the pose"* |
-| where the free-point search runs (terrain + navmesh) | ⛔ **not measured — S2's first step** (the master's node may hold no navmesh) | — |
+```mermaid
+graph TD
+    subgraph milsim["military simulation — unchanged, composes NO gameplay"]
+        ORCH["Orchestrator node<br/>OrchestratorCore (no ECS)"]
+        CGF["CGF node (Brain)"]
+        SIM["SimHost node (Muscle)"]
+    end
+    subgraph server["a gameplay SERVER = an ECS node that composes the pack"]
+        BRAIN["Brain node bootstrap<br/>(shared)"]
+        GSP["GameplayServerPack<br/>.Capability(Brain, ...) only with --gameplay"]
+    end
+    subgraph player["a PLAYER host"]
+        PB["Player bootstrap (shared)"]
+        GCP["GameplayClientPack<br/>DeployFlow + DeployScreen"]
+    end
+    BRAIN --> GSP
+    PB --> GCP
+    GSP -- "advertises token hrot.gameplay.server (NodeCapabilitiesTopic)" --> GCP
+    GCP -- "DeployRequest (gameplay topic)" --> GSP
+    GSP -- "DeployStatus + PlayerSlot (gameplay topics)" --> GCP
+    GCP -- "possess (existing interaction)" --> BRAIN
+    ORCH -. "ClusterView: state, gate (read only)" .-> GCP
+    ORCH -. "ClusterView (read only)" .-> GSP
+    style GSP fill:#efe
+    style GCP fill:#efe
+```
 
-## 3. Diagrams
+*What the picture shows that prose hid:* every gameplay box is GREEN and hangs off a shared bootstrap through `.Capability` — remove the
+two packs and the graph is exactly today's military simulation; the orchestrator never points at gameplay, it is only READ.
 
 ```mermaid
 classDiagram
     direction LR
-    class JoinScreen { <<new, ui — Player host>> states Choosing · Requesting · Spawning · TakingControl · Playing · Observing · Dead }
-    class JoinRequestDto { <<new>> StationNodeId · PlayerName · Side · Slot: PlacedUnit(netId) | Role(id) | Observer }
-    class ClusterOpRequest { <<existing>> + ClusterOpType.Join }
-    class ClusterOpStatus { <<existing>> the JoinReply: Accepted / Refused + reason + UnitNetId or CreationRequestId }
-    class ClusterMaster { <<existing, grows>> JoinProcessManager }
-    class JoinProcessManager { <<new, Orchestrator>> validates · reserves or orders the creation · writes the player slot }
-    class PlayerSlotTopic { <<new, keyed by StationNodeId, TransientLocal>> PlayerName · Side · State · UnitNetId · Kills · Deaths (S3) }
-    class ClusterView { <<existing, grows>> Players: the folded PlayerSlotTopic, on EVERY node }
-    class StationClaims { <<existing, grows>> TrySideOf asks the player slot first, then the held unit · honours ReservedFor }
-    class ReservedFor { <<new component>> StationNodeId · UntilSimSeconds }
-    class Playable { <<new component, authored>> Side · SlotName }
-    class EntityCreationRequest { <<existing>> the one creation path (S2 roles) }
-    class PossessionSystem { <<existing>> unchanged — the station asks, the brain decides }
-    JoinScreen ..> ClusterOpRequest : sends Join
-    JoinScreen ..> ClusterView : reads replies and slots
-    ClusterMaster *-- JoinProcessManager
-    JoinProcessManager ..> PlayerSlotTopic : writes
-    JoinProcessManager ..> ReservedFor : reserves
-    JoinProcessManager ..> EntityCreationRequest : S2
-    ClusterView ..> PlayerSlotTopic : folds
-    StationClaims ..> ClusterView : side of a station
-    StationClaims ..> ReservedFor
-    PossessionSystem ..> StationClaims
+    class INodeCapability { <<existing>> Key · Needs · contributes systems and modules }
+    class GameplayServerPack { <<new, Hrot.Gameplay>> DeployProcessor · PlayerSlots · advertises hrot.gameplay.server · stands down if another server is present }
+    class GameplayClientPack { <<new, Hrot.Gameplay>> DeployFlow · DeployScreen · composed by the Player host only }
+    class GameplayWirePack { <<new, Hrot.Gameplay>> DeployRequest · DeployStatus · PlayerSlotTopic translators }
+    class DeployProcessor { <<new>> validates a request · reserves a placed unit · orders a new one (S2) · writes the slot }
+    class PlayerSlot { <<new, keyed by StationNodeId>> Name · Side · State · UnitNetId · ReservedUntil · Kills · Deaths (S3) }
+    class DeployFlow { <<new, per Player, private>> Waiting · Observing · Choosing · Requesting · Spawning · TakingControl · Playing · Dead }
+    class DeployScreen { <<new>> the overlay, the LoadingScreen pattern }
+    class StationClaims { <<existing, grows>> side and reservation: the player slot first, then the held unit }
+    class ClusterView { <<existing>> GateOpen(Player) · State (read only) }
+    class EntityCreationRequest { <<existing>> S2 roles }
+    INodeCapability <|.. GameplayServerPack
+    INodeCapability <|.. GameplayClientPack
+    GameplayServerPack *-- DeployProcessor
+    GameplayServerPack ..> GameplayWirePack
+    GameplayClientPack ..> GameplayWirePack
+    GameplayClientPack *-- DeployFlow
+    GameplayClientPack *-- DeployScreen
+    DeployProcessor ..> PlayerSlot : writes
+    DeployProcessor ..> EntityCreationRequest
+    DeployFlow ..> ClusterView
+    StationClaims ..> PlayerSlot : when present
 ```
 
-*What the picture shows that prose hid:* nothing new decides possession — the join only feeds the EXISTING rule (`StationClaims`) two
-facts it lacked (the player's side, the reservation), so R-4096 and the join cannot disagree.
+*What the picture shows that prose hid:* the only arrow from shared code INTO gameplay is `StationClaims ..> PlayerSlot` — optional, "when
+present"; with no slots it is today's rule.
 
 ```mermaid
 sequenceDiagram
-    participant P as Player node (JoinScreen)
-    participant M as Master (JoinProcessManager)
-    participant B as Brain node (the unit's owner)
-    Note over P: admitted + caught up (the existing lobby)
-    P->>M: ClusterOpRequest{ Join: Blue, PlacedUnit "A-10 1" }
-    M->>M: side exists? unit Playable for Blue, free, not reserved?
-    M->>B: ReservedFor{ station, until +30 s } on the unit
-    M-->>P: ClusterOpStatus{ Accepted, UnitNetId }
-    M->>P: PlayerSlotTopic{ Blue, TakingControl, unit }
-    P->>B: the EXISTING possess request
-    B->>B: StationClaims: reserved for this station ⇒ granted
-    B-->>P: PossessedBy{ StationNodeId = P } (replicated)
-    P->>P: Playing — first person (a plane keeps its speed and heading)
-    Note over P,M: Refused (taken, full, wrong side) ⇒ back to Choosing with the reason. No answer in 10 s ⇒ "server did not answer", retry
+    participant P as Player (DeployFlow)
+    participant S as Gameplay server (DeployProcessor, on the Brain node)
+    participant B as Brain (PossessionSystem)
+    Note over P: Waiting — the existing waiting screen until ClusterView.GateOpen(Player) and a Live run is loaded
+    alt no node advertises hrot.gameplay.server
+        P->>P: Observing (R-4103) — the Observer camera, "this exercise has no player server"
+    else a server exists
+        P->>P: Choosing — side, then a placed unit (or a role, S2), or Observer
+        P->>S: DeployRequest{ RequestId, station, Blue, PlacedUnit "A-10 1" }
+        S->>S: side exists? unit Playable for Blue, free, not reserved?
+        S-->>P: DeployStatus{ Accepted, UnitNetId } + PlayerSlot{ Blue, TakingControl, unit, ReservedUntil +30 s }
+        P->>B: the EXISTING possess request
+        B->>B: StationClaims: reserved for this station (from the slot) ⇒ granted
+        B-->>P: PossessedBy{ StationNodeId = P }
+        P->>P: Playing — first person (a plane keeps its speed and heading)
+    end
+    Note over P,S: Refused ⇒ back to Choosing with the reason. No answer in 10 s ⇒ "server did not answer", retry. Server gone ⇒ Observing
 ```
 
-```mermaid
-sequenceDiagram
-    participant P as Player node
-    participant M as Master
-    participant C as Creating node (brain)
-    Note over P,C: S2 — a ROLE (a new unit)
-    P->>M: Join{ Blue, Role "Rifleman" }
-    M->>M: role not full? a Blue spawn area exists?
-    M->>C: EntityCreationRequest{ RequestId G, TKB type, EntityInfo{Blue, "Blue Rifleman 3"}, ReservedFor, SpawnInArea }
-    M-->>P: ClusterOpStatus{ Accepted, CreationRequestId G }
-    C->>C: a free point in the area (ground, navmesh, ≥ 3 m from anyone) — WHERE: measured in S2
-    C-->>P: the unit replicates, carrying CreationRequestId G
-    P->>C: the existing possess request ⇒ Playing
-```
+## 5. Decisions (✅ "Accepted", `2026-10-31`)
 
-```mermaid
-graph TD
-    subgraph player["Player node — IG (each frame: the host frame)"]
-        JS["JoinScreen<br/>(after the lobby gate)"]
-        CV1["ClusterView.Players"]
-    end
-    subgraph master["Master node — Orchestrator / editor"]
-        CM["ClusterMaster<br/>(consumes ClusterOpRequest each frame)"]
-        JPM["JoinProcessManager (new)"]
-    end
-    subgraph brain["Brain node — CGF"]
-        PS["PossessionSystem → StationClaims"]
-        CV2["ClusterView.Players"]
-    end
-    JS -- "ClusterOpRequest Join" --> CM
-    CM --> JPM
-    JPM -- "ClusterOpStatus (the reply)" --> JS
-    JPM -- "PlayerSlotTopic" --> CV1
-    JPM -- "PlayerSlotTopic" --> CV2
-    JPM -- "ReservedFor (an entity component)" --> PS
-    JS -- "possess (interaction, existing)" --> PS
-```
-
-*Caption:* `ClusterMaster` already consumes `ClusterOpRequest` every frame, so the join is reached by construction once the process
-manager is registered beside the others; ⚠ the edge that could go silently dead is **`PlayerSlotTopic` → the brain's `ClusterView`** —
-without it `StationClaims` falls back to "the held unit's side" and R-4096 still works, but an observer or a dead player has no side.
-The rail for it runs master and brain on two nodes.
-
-## 4. Decisions
-
-| # | decision | rule | status |
-|---|---|---|---|
-| **J-1** | the request | ⭐ one `ClusterOpType.Join` (the next free value in BOTH `ClusterOpType` enums — 27 on `2026-10-31`, check at build) carrying `JoinRequestDto` as `PayloadJson`; the reply is the op's `ClusterOpStatus` | ✅ agreed |
-| **J-2** | who decides | ⭐ the MASTER (`JoinProcessManager`, beside the other process managers) — one thread ⇒ two joiners cannot take one slot | ✅ agreed |
-| **J-3** | the player's waiting | ⭐ the states of §3 (Choosing → Requesting → Spawning → TakingControl → Playing), each with a 10 s timeout and retry; success is read from the player's OWN world (`CreationRequestId`, `PossessedBy`), a refusal from the reply | ✅ agreed |
-| **J-4** | the player's side | ⭐ chosen at join, written by the master in the player slot; `StationClaims.TrySideOf` asks it first, then the held unit (today's rule as the fallback) | ✅ agreed |
-| **J-5** | the "roster" players see | ⭐ `PlayerSlotTopic`, keyed by station, master-written, TransientLocal + KeepLast 1 (the `ClusterStateTopic` shape), folded into `ClusterView.Players` on every node. The node roster stays the master's own | ✅ agreed |
-| **J-6** | the reservation | ⭐ `ReservedFor { StationNodeId, UntilSimSeconds }` on the unit (30 s), honoured by `StationClaims`; cleared on possess or expiry | ✅ agreed |
-| **J-7** | placed units | ⭐ a scenario unit with `Playable { Side, SlotName }` (authored in the editor's Details) is offered; a taken one is greyed with its holder; a free one runs as AI until taken (its task paused on possess, resumed on release) | ✅ agreed |
-| **J-8** | roles (S2) | ⭐ the scenario's per-side list: a TKB person type + a display name + a max count; **the kit is that type's weapon suite** (no loadout system in v1). No list declared ⇒ the person types already present on that side | ✅ agreed |
-| **J-9** | spawn areas (S2) | ⭐ a new map graphic (Area tool, its own TKB type, the `WeatherRegion` pattern) carrying `Side` + a facing; a random area of the side, a random free point inside (ground, navmesh, ≥ 3 m from anyone). Where the search runs: S2's first measurement | ✅ agreed |
-| **J-10** | observer | ⭐ `Join{Observer}`: the slot says Observer; the existing Observer camera (free / follow / eyes); sees everything in v1; may join a side later | ✅ agreed |
-| **J-11** | an aircraft in flight | ⭐ just a placed unit (J-7), shown with its height and speed; nothing new — it keeps speed (held throttle), heading (the look starts on the hull) and pose; a crew seat (the Apache's gunner) is a seat slot | ✅ agreed |
-| **J-12** | death (S2) | ⭐ the existing kill cam, then the role screen after the scenario's respawn delay (default 10 s; 0 = no respawn ⇒ observer) | ✅ agreed (lean) |
-| **J-13** | the score (S3) | ⭐ kills, deaths, team kills per player in the player slot, counted by the master from the killer the kill cam already resolves and the shooter's `PossessedBy` | ⏭ S3 |
-| **J-14** | the scoreboard key (S3) | ⭐ HOLD `Tab` shows it; a TAP keeps the squad switch (Entity Control §8j T-1) | ⏭ S3, to confirm |
+| # | decision | rule |
+|---|---|---|
+| **D-1** | the name | ⭐ **Deploy** — distinct from a node joining the cluster: `DeployRequest`, `DeployStatus`, `DeployProcessor`, `DeployFlow`, `DeployScreen` |
+| **D-2** | where the server logic lives | ⭐ the **gameplay server pack**, composed by an ECS node that owns the units (the Brain node) **only when gameplay is switched on** (`--gameplay`; `-m server` = orchestrator + CGF + SimHost in one process with it). Never in the orchestrator (R-4102) |
+| **D-3** | how the Player knows | ⭐ the server advertises the token `hrot.gameplay.server` on `NodeCapabilitiesTopic`. No token ⇒ the Player observes (R-4103). One server per cluster: a second one stands down (the roster's duplicate-name pattern) |
+| **D-4** | the Player side | ⭐ the **gameplay client pack** (`DeployFlow` + `DeployScreen`), composed by the Player host only: `-m player` composes it (R-4101: Player is the host's name; `-m ig` is the obsolete alias). The screen is an overlay composed once per process beside `LoadingScreen` |
+| **D-5** | the wire | ⭐ a **gameplay wire pack**: `DeployRequest` (Volatile, KeepAll — a queue), `DeployStatus` (TransientLocal, readers filter by id), `PlayerSlotTopic` (keyed by station, TransientLocal, KeepLast 1). Composed only with the gameplay packs — the military-sim wire is untouched |
+| **D-6** | when a Player may deploy | ⭐ only once its gate is open (`ClusterView.GateOpen(Player)`) **and** the cluster is in a Live run (paused at its start or running). No scenario ⇒ the waiting screen (*"Waiting for the server to load a scenario"*, AQ108 D16 — to be added); Edit / Preview ⇒ waiting; back to Idle ⇒ waiting again |
+| **D-7** | the Player's states | ⭐ `DeployFlow`: Waiting → (Observing) / Choosing → Requesting → Spawning → TakingControl → Playing → Dead (S2), each with a 10 s timeout and retry; success read from the Player's OWN world (`CreationRequestId`, `PossessedBy`), refusal from `DeployStatus` |
+| **D-8** | the player's side and the reservation | ⭐ held in the **player slot** (the server never writes a unit it does not own); `StationClaims` asks the slot first, then the held unit (today's rule, the whole rule with no gameplay) |
+| **D-9** | placed units | ⭐ `Playable { Side, SlotName }` on a scenario unit (the editor's Details); a taken one greyed with its holder; a free one runs as AI until taken |
+| **D-10** | roles (S2) | ⭐ the scenario's per-side list (TKB person type + name + max count); the kit is that type's weapon suite; none declared ⇒ the person types present on that side |
+| **D-11** | spawn areas (S2) | ⭐ a map graphic (Area tool, its own TKB type) with `Side` + facing; a random area, a random free point (ground, navmesh, ≥ 3 m from anyone) — searched by the server, which has the world |
+| **D-12** | an aircraft in flight | ⭐ a placed unit; it keeps speed, heading and pose; a crew seat is a seat slot |
+| **D-13** | observer | ⭐ the Observer camera; sees everything in v1; may deploy later |
+| **D-14** | death (S2) | ⭐ the kill cam, then the deploy screen after the scenario's respawn delay (default 10 s; 0 ⇒ observer) |
+| **D-15** | score (S3) | ⭐ kills / deaths / team kills in the player slot, counted by the server from the kill cam's killer and the shooter's `PossessedBy` |
+| **D-16** | scoreboard (S3) | ⭐ hold `Tab`; a tap keeps the squad switch |
 
 **Rejected — one line each:**
-- *The player creates its own unit* — two joiners race for one spot; Q91: a Player requests, the owner decides.
-- *An entity interaction for the join* — there is no target entity yet.
-- *The master possesses on the player's behalf* — possession stays "the station asks, the brain decides"; the reservation gives the same safety.
-- *No reply, only watching the world* — a refusal ("role full") would show only as a timeout.
-- *The player's side in its own heartbeat* — the player would decide its own side; the master must validate it.
-- *A loadout system first* — the TKB types already are kits; kit variants are S3.
-- *Spawn POINTS* — players stack on one point; an area with a free-point search scales.
+- *The server logic in the orchestrator* — it has no ECS world; it would query units, sides and free spots across nodes, and gameplay would sit in the military-sim core (R-4102).
+- *The deploy on the master's `ClusterOpRequest`* — only the master reads it; the orchestrator would have to forward gameplay.
+- *A gameplay flag inside the shared bootstrap* — a switch read everywhere instead of a component composed where wanted (R-4102: a toolkit).
+- *The Player creates its own unit* — two Players race for one spot; the server decides.
+- *The server possesses for the Player* — possession stays "the station asks, the brain decides".
+- *A loadout system first* · *spawn POINTS* — as rev 1 (§8).
 
-## 5. Slices
+## 6. Slices
 
 | slice | builds | done when |
 |---|---|---|
-| **S1** | J-1…J-7, J-10, J-11: the join op + `JoinProcessManager`, `PlayerSlotTopic` + `ClusterView.Players`, `ReservedFor` + `StationClaims`, `Playable` (+ its editor checkbox), the side / unit / observer screens on the Player | a Player joins Blue, takes a placed rifleman and an A-10 in flight; a second Player is refused the same unit with its holder named; an observer flies free; a two-node rail carries the slot to the brain. New UCs in the membership use cases: **UC-25** join a placed unit · **UC-26** refused (taken) · **UC-27** observer · **UC-28** a plane in flight |
-| **S2** | J-8, J-9, J-12: roles, spawn areas (measure where the search runs first), respawn | a role spawns in a free point of its side's area and is possessed; a full role is refused; death returns to the role screen after the delay |
-| **S3** | J-13, J-14: score + scoreboard; kit variants; choosing the spawn area on the map; spawning on the squad | — |
+| **S1** | D-1…D-9, D-12, D-13: the three packs (`Hrot.Gameplay`), the server token, `DeployProcessor` for placed units, `PlayerSlotTopic`, `StationClaims` reading the slot, `Playable` + its editor checkbox, `DeployFlow` + `DeployScreen` (waiting, observer, side, unit) | a military-sim cluster boots and runs with **no** gameplay topic on the wire (a rail); with a server, a Player deploys into a placed rifleman and an A-10 in flight; a second Player is refused the same unit with its holder named; a Player with no server observes. New use cases **UC-25** deploy into a placed unit · **UC-26** refused (taken) · **UC-27** no server ⇒ observer · **UC-28** a plane in flight |
+| **S2** | D-10, D-11, D-14: roles, spawn areas, respawn | a role spawns at a free point of its side's area and is possessed; a full role is refused; death returns to the deploy screen after the delay |
+| **S3** | D-15, D-16: score + scoreboard; kit variants; choosing the area on the map | — |
 
-⚠ **Before S1 runs live:** CE-4080's UC-17 crash (a Player crashing in `FpsCameraDriver.Aim` on possession) is FIXED (`f752491af`) and UC-17 passed live afterwards — ⚠ the membership use cases' UC-17 row still reads 🔴 (stale); still open from that run: **CE-4086** (a Player promotes a replica before its first pose), which a join ends in.
+⚠ **Before S1 runs live:** CE-4080's possession crash is FIXED (`f752491af`; ⚠ the use cases' UC-17 row still reads 🔴, stale); still open
+from that run: **CE-4086** (a Player promotes a replica before its first pose), which every deploy ends in.
+
+## 7. Open — measure at the start of the slice
+
+| question | when |
+|---|---|
+| does `ClusterView` (or the Player) already read `NodeCapabilitiesTopic`, or does the token need a reader on the Player? | S1 step 1 |
+| `-m server` — the exact subsystem set and whether the Brain and the orchestrator share a process cleanly today (`-m all` does) | S1 |
+| how `StationClaims` reaches the slots on the Brain (the client pack's reader, or a tiny shared reader in the wire pack) | S1 |
+
+## 8. ⛔ HISTORY — rev 1 (`2026-10-31`, superseded the same day)
+
+Rev 1 carried the request on the master's `ClusterOpRequest` (a new `ClusterOpType.Join`), put a `JoinProcessManager` into `OrchestratorCore`,
+and reserved a unit with a `ReservedFor` component written by the master. ⛔ Superseded: the orchestrator has no ECS world and must stay free
+of gameplay (R-4102); the master does not own units, so it may not write their components; "Join" collided with a node joining the cluster.

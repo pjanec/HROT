@@ -31,7 +31,7 @@ current-answer: "THE PROPOSAL IN ONE PAGE" (directly below the rulings) is the a
   AMEND the section above them and WIN over it; ⭐ §4-H (operator cancel → Idle, R-4004) is new and has no
   earlier version. ⛔ Do not quote §4-A, §4-D or §4-E without reading the prime section that follows it.
 stale-below: nothing
-known-rot: ⛔ R-4018 (2026-10-15): the TKB FILE reaches a node by the JOIN SYNC (designs/tkb-1/DESIGN.md §0a), never by
+known-rot: R-4101 (2026-10-31) — "IG" is the OBSOLETE name of the Player; where this file says an IG node / no Player role, read: the Player host, a player by COMPOSITION (DESIGN_Player_Join.md §2) ·  ⛔ R-4018 (2026-10-15): the TKB FILE reaches a node by the JOIN SYNC (designs/tkb-1/DESIGN.md §0a), never by
   the catch-up. Every "LoadingLive (KB + terrain)" below still holds for the LOAD — the knowledge-base step loads the file the
   join sync left — but no TKB is transferred in the catch-up.
   ALSO: ⚠ TWO claims this document made that the review measured FALSE, both corrected in place:
