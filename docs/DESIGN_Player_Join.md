@@ -202,7 +202,7 @@ composition mechanism, please mark it and we need to refactor"* · *"taking diff
 classic military stuff"* · *"The border between what is classical military training and what is a gameplay is a bit fuzzy, so we might need to
 choose on individual case basis."*
 
-⭐ **R-4104 (below in §2) answers G1–G4 with a SWITCH, not a move:** a cluster run setting **Game feedback** (the `SetRunSettings` path that carries AQ108 D15 *Ask to keep recordings* — the master broadcasts, every host reads `ClusterView`); OFF by default; the gameplay server pack turns it ON when present; an instructor may toggle it. G7 and the deploy stay in packs (they add decisions and wire).
+⛔ **SUPERSEDED `2026-10-31` (user: *"game feedback should be unified to node features, Nothing separate."*, R-4114): there is NO separate run setting — each G item is its own `hud.*` Node Feature (DESIGN_Node_Features), declared by the gameplay client pack.** ⛔ WAS: ⭐ **R-4104 (below in §2) answers G1–G4 with a SWITCH, not a move:** a cluster run setting **Game feedback** (the `SetRunSettings` path that carries AQ108 D15 *Ask to keep recordings* — the master broadcasts, every host reads `ClusterView`); OFF by default; the gameplay server pack turns it ON when present; an instructor may toggle it. G7 and the deploy stay in packs (they add decisions and wire).
 
 **How it is wired:** `PossessionStation` (the FPS station) is built on EVERY map host — `ScenarioEditor/Map/MapInteractionPack.cs:572`; its hit
 memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70, :151`, `HitFeedback.In(world).Record`). No `.Capability(...)` seam.
@@ -210,12 +210,12 @@ memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70,
 | # | what | where | verdict | moves to |
 |---|---|---|---|---|
 | **G1** | the hit marker round the crosshair (red when he is down) | `PossessionStation.cs:447-480` (`DrawHitFeedback`) | ✅ **gameplay** — no real sight says "you hit him" | the gameplay CLIENT pack: an overlay the station hosts |
-| **G1b** | the damage arc pointing at who hit you | same | ❓ **candidate**, lean gameplay — some training sims show one | — |
+| **G1b** | the damage arc pointing at who hit you | same | ✅ **gameplay** (R-4113, user `2026-10-31`: *"everything which is used when the player possesses an entity … through the first person or over the shoulder view"*) — a `hud.*` feature | — |
 | **G2** | the hit memory behind G1/G3 | `Effects/HitFeedback.cs`, recorded in `EffectSystems.cs:70, :151` | ✅ **gameplay** (its only readers are G1/G3) | ⭐ behind the same switch: nothing recorded while it is off |
 | **G3** | "KILLED by X" + the 3 s kill cam from the shooter's eye | `FallScreen.cs:15-75`, `PossessionStation.cs:493-562` | ✅ **gameplay** — R-4102 names the kill cam | ⭐ behind the same switch; off ⇒ a killed unit is released to the map (the operator's view) |
-| **G4** | after death, Tab takes a living squad mate | `PossessionStation.cs:574-579` | ❓ **candidate**, lean gameplay — right after death it IS a respawn (the same Tab alive is operator possession, unchanged) | — |
-| **G5** | the spread ring (the weapon's real spread) | `PossessionStation.cs:679-693` | ❓ **candidate**, lean military training — a teaching aid showing the sim's true spread | — |
-| **G6** | near misses darken the screen edges | `PossessionStation.cs:126-128, 657-662` | ❓ **candidate**, lean military training — stands in for suppression | — |
+| **G4** | after death, Tab takes a living squad mate | `PossessionStation.cs:574-579` | ✅ **gameplay** (R-4113, user `2026-10-31`: *"everything which is used when the player possesses an entity … through the first person or over the shoulder view"*) — a `hud.*` feature | — |
+| **G5** | the spread ring (the weapon's real spread) | `PossessionStation.cs:679-693` | ✅ **gameplay** (R-4113, user `2026-10-31`: *"everything which is used when the player possesses an entity … through the first person or over the shoulder view"*) — a `hud.*` feature | — |
+| **G6** | near misses darken the screen edges | `PossessionStation.cs:126-128, 657-662` | ✅ **gameplay** (R-4113, user `2026-10-31`: *"everything which is used when the player possesses an entity … through the first person or over the shoulder view"*) — a `hud.*` feature | — |
 | **G7** | AW-23: a possessed unit that kills friends turns Hostile | designed, NOT built (`DESIGN_Civilians_And_Crowd_Control.md` §5h; only the generic `SourceEntityId` exists) | ✅ **gameplay** when built — its trigger is "held by a station" | the gameplay SERVER pack — never in `ForceLevels` / `KnownCombatants` |
 | **B1** | the gate policy chosen by HOST KIND | `RunMode/HostGatePolicies.cs:34` (`hostKind == RunHostKind.Ig ? Player : Operator`) | ✅ **composition defect** (not gameplay): a kind test in shared code | the Player host COMPOSES its policy (a capability on its plan) |
 | **B2** | `IsPlayer` branches | `RunMode/NodeRunControls.cs:29, 56` · `Panels/LoadingScreen.cs:55-74` · `Hrot.ClusterRunner/Presentation/LocalWindowController.cs:148` | ✅ composition defect — follows B1 (they read the policy; fine once the policy is composed) | re-read from the composed policy |
@@ -226,3 +226,20 @@ memory is fed from the shared `EffectSpawnSystem` (`Effects/EffectSystems.cs:70,
 Rev 1 carried the request on the master's `ClusterOpRequest` (a new `ClusterOpType.Join`), put a `JoinProcessManager` into `OrchestratorCore`,
 and reserved a unit with a `ReservedFor` component written by the master. ⛔ Superseded: the orchestrator has no ECS world and must stay free
 of gameplay (R-4102); the master does not own units, so it may not write their components; "Join" collided with a node joining the cluster.
+
+### 7b. ✅ The user's rulings, `2026-10-31` *(R-4113, R-4114)*
+
+> 🔒 *"I consider everything which is used when the player possesses an entity in the virtual world through the first person or over the shoulder
+> view as gameplay features. The server mode should instantiate brain, muscle with movement, perception and navigation, orchestrator, traffic.
+> Waiting for the server screen is okay, should be added. D15 lean approved. D14 is a scenario parameter with a default value. game feedback
+> should be unified to node features, Nothing separate."*
+
+| item | ruling |
+|---|---|
+| G1b · G4 · G5 · G6 | ✅ gameplay (R-4113) — each a `hud.*` Node Feature of the gameplay client pack |
+| `-m server` (S1) | ✅ composes: Brain · Muscle (movement) · Perception · Navigation · orchestrator · traffic |
+| the waiting screen | ✅ add *"Waiting for the server to load a scenario"* (AQ108 D16) — tracker **CE-4156** |
+| D-15 score | ✅ the score IS a set of evaluation measures whose subject is the player's unit (`DESIGN_Scenario_Rules.md` §10.3, SR-82 attribution) — one counter, not two |
+| D-14 respawn delay | ✅ a SCENARIO PARAMETER (`DESIGN_Scenario_Rules.md` SR-41 / SR-68) with a default (10 s) |
+| "Game feedback" | ✅ no separate run setting — Node Features only (R-4114) |
+| ⚠ open | the §7a "NOT findings" list (seats, seat switching, embark / disembark, the use key, operator possession, the alive Tab squad switch) was ruled military training earlier — does R-4113's "everything used when the player possesses" reclassify them? asked `2026-10-31` |
