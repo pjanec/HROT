@@ -41,6 +41,10 @@ related-designs:
    observer · **R-4104** a core gameplay feature must be switchable · **R-4105** engine = infrastructure, frontends via NED · **R-4106** skill
    amplifier · **R-4107** Zeus = the server's default UI · **R-4108** EVERY feature is granular, pluggable, announced as a capability and switchable — nothing hard-coded (binds every design).
 
+## 1a. IN FLIGHT (2026-10-31)
+- **P-1 scenario rules — the INVENTORY is running** (an Explore agent: condition evaluators `AnchorBook.HoldsFor` + the regression verifier, the mission system, Blueprint hosting / scenario scope, areas, timeline lanes, where scenario-level data lives). Next: write `DESIGN_Scenario_Rules.md` from it (diagram-first, INVENTORY + claim table, every rule element a feature — R-4108), leans for the user. The user said *"Let's please dive into the point number one, which I think is the most important for now."*
+- Clarified and folded into the PLAN (`ce2ce112d`): server full-UI by default (headless optional); side knowledge = 2-D map only, OFF by default, fading last-known; skill slider adds tiers, clamps at the top.
+
 ## 2. Next, in order (ask before building)
 1. **P-1 scenario rules**: measure Blueprint at scenario scope (search_graph + the Blueprint designs, R-129 order), then write the design.
 2. P-5 the skill amplifier (small): one read site (`ProficiencyOf`), a per-side run setting.
