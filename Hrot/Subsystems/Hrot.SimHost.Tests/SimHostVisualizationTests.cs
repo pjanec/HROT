@@ -201,7 +201,8 @@ namespace Hrot.SimHost.Tests
             var vis = new SimHostVisualization();
             using var missionSender = new StubMissionSender();
             var eventHistoryService = new Fdp.Core.Diagnostics.DiagnosticEventHistoryService();
-            vis.Initialize(repo, kernel, road, traj, formations, missionSender, eventHistoryService);
+            vis.Initialize(repo, kernel, road, traj, formations, missionSender, eventHistoryService,
+                Hrot.TestShared.TestEntityCreation.For(repo, Hrot.Map.Common.HrotEnvironment.CreateTkb()));   // ⭐ CE-259ax — the spawners ask the creation pack
 
             var camera = vis.GetMapCamera();
             Assert.NotNull(camera);

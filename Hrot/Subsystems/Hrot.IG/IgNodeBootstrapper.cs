@@ -356,8 +356,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// the NED egress sends it to the node that should.</para>
     ///
     /// <para>⭐⭐ <b>Why registering the spawn system does NOT reintroduce the double spawn.</b>
-    /// 📐 Measured: IG's requests carry <c>OwnerAppInstanceId = 0</c> (untargeted — see
-    /// <c>IgEntityCreationRequests</c>) and this node is NOT the broadcast arbiter, so
+    /// 📐 Measured: IG's requests carry <c>OwnerAppInstanceId = 0</c> (untargeted — the default of
+    /// <c>EntityCreation.RequestEntityCreation</c>'s <c>owner</c>) and this node is NOT the broadcast arbiter, so
     /// <c>EntityCreationRouting.IsHandledLocally</c> is false for every one of them. The forwarder sends
     /// them, no local order is published, and the authoritative entity still comes back as a replicated
     /// ghost — today's behaviour exactly. ⭐ The systems are present and idle, which is what

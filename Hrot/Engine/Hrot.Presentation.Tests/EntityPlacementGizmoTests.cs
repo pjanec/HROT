@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -50,6 +51,29 @@ public class EntityPlacementGizmoTests
         foreach (var p in buffer.GetFrame())
             if (p.Shape == DebugPrimitiveShape.Sphere) radius = p.SphereRadius;
         Assert.Equal(3f, radius);   // CE-1337
+    }
+
+    // ⭐ CE-259ax G2 — the resolver was accepted and DROPPED (`_ = _nameResolver`). It now rides on the command as an EntityInfo.
+    [Fact]
+    public void CE259ax_G2_TheNameResolver_IsHonoured_NotDropped()
+    {
+        var captured = new List<SpawnEntityCommand>();
+        var gizmo = new EntityPlacementGizmo(cmd => captured.Add(cmd), TestTkbType, nameResolver: () => "Bravo-3");
+
+        gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(1f, 2f, 0f));
+
+        var cmd = Assert.Single(captured);
+        var info = Assert.Single(cmd.InitialComponents!.OfType<Fdp.Core.EntityInfo>());
+        Assert.Equal("Bravo-3", info.Name.ToString());
+    }
+
+    // Non-vacuity: without a resolver the gizmo adds nothing (the adapter seeds the TKB-default name).
+    [Fact]
+    public void CE259ax_G2_WithoutAResolver_TheGizmoAddsNoEntityInfo()
+    {
+        var (captured, gizmo) = CreateGizmo();
+        gizmo.OnMouseEvent(MapMouseButton.Left, false, new Vector3(1f, 2f, 0f));
+        Assert.True(Assert.Single(captured).InitialComponents == null);
     }
 
     // -- EPG-001: left-click publishes exactly one command ----------------

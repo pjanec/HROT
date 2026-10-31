@@ -2314,7 +2314,7 @@ namespace Hrot.Editor
                     //   Windowed only: a headless editor reports Spawn unserviceable, as before.
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => _tkbDatabase,
-                        Requests:     () => EntityCreation?.World.Bus)   // ⭐ CE-3228 — the creation pack reads this world's bus
+                        Creation:     () => EntityCreation)   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
                     {
                         // ⭐ CE-1226 (R-1012, user: "When preview, adding new entities is disabled in the menu, i need it enabled") —
                         //   Add Entity stays on in Preview. ⛔ Was: SuspendedReason "suspended in Preview". An entity added in Preview

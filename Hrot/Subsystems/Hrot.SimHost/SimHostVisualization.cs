@@ -165,7 +165,7 @@ namespace Hrot.SimHost
             CarKinem.Formation.FormationTemplateManager formationTemplates,
             ISimHostMissionSender missionSender,
             IDiagnosticEventHistoryService eventHistoryService,
-            INetworkIdAllocator?    idAllocator = null,
+            Hrot.Common.EntityCreation.EntityCreation creation,   // ⭐ CE-259ax — the scenario manager's spawners ask it (RequestEntityCreation)
             int                     localNodeId = 0,
             long                    worldPosDescriptorId = 0,
             DebugPrimitiveBuffer?   gizmoBuffer = null,
@@ -290,7 +290,7 @@ namespace Hrot.SimHost
             }));
 
             // ── Scenario manager ──────────────────────────────────────────────
-            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates, idAllocator: idAllocator, localNodeId: localNodeId);
+            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates, creation, localNodeId: localNodeId);
 
             // ── UI ────────────────────────────────────────────────────────────
             _ui = new SimHostMainUI();

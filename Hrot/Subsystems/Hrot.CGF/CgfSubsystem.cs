@@ -1,4 +1,4 @@
-﻿using CycloneDDS.Runtime;
+using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
@@ -592,6 +592,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.World.Bus.PublishManaged(dtoCmd);
 
         // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).
+        //    ⭐ CE-259ax — deliberately NOT routed through EntityCreation.RequestEntityCreation: this hook (a) must know the network id BEFORE
+        //    genesis — it returns it, and the DeferredTakeOwnership above is keyed by it — and the affordance has no pre-allocated-id
+        //    parameter (design §3: that belongs to the scenario extractor, a TRANSLATOR); (b) is a TEST harness, not a gesture. ~35 cluster
+        //    tests depend on that synchronous id. 📄 DESIGN_Entity_Authoring_Surface.md §9.3.
         _context.World.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId   = networkId,
@@ -705,7 +709,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //   no submenu. No SuspendedReason: CGF has no Preview state (its world ticks from boot).
                 EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                     Tkb:          () => _context?.TkbDb,
-                    Requests:     () => EntityCreation?.World.Bus)   // ⭐ CE-3228 — the creation pack reads this world's bus
+                    Creation:     () => EntityCreation)   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
                 {
                     HostPickers = () => _shellPickers,
                 },

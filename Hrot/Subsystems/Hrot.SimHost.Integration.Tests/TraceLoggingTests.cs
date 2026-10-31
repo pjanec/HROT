@@ -47,7 +47,7 @@ public sealed class TraceLoggingTests
         using var trajectoryPool = new TrajectoryPoolManager();
         using var formationTemplates = new FormationTemplateManager();
         var road = new RoadNetworkBlob();
-        var scenario = new SimHostScenarioManager(simHost.World, road, trajectoryPool, formationTemplates);
+        var scenario = new SimHostScenarioManager(simHost.World, road, trajectoryPool, formationTemplates, simHost.EntityCreation!);
 
         scenario.SpawnVehicle(new Vector2(100f, 200f), Vector2.UnitX, VehicleClass.Tank);
 
