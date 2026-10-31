@@ -1236,6 +1236,8 @@ for cooldown, this degrades the gameplay experience, must be set with much highe
 | **H-2** small arms cool | ⭐ **60 s** hot → cold (`SmallArmsCoolSeconds`), firing again at ½ (30 s). ⇒ a rifle at its rapid aimed rate (~45 /min) never overheats; only magazine after magazine on full auto does |
 | **H-3** unchanged | `MachineGun` and `Autocannon` keep the 4 s-at-cyclic rule (CE-1358, the user's *"fires at its fast automatic rate until it gets too hot"*); single-shot guns unchanged; a mount's own TKB `HeatPerRound` / `BarrelCoolSeconds` still wins over every default |
 
+⚠ **`CE-4146` (`2026-10-31`, found live):** the rule keys on the CATEGORY — three urban soldiers' rifles were inline copies with none (`Unknown` ⇒ the single-shot rule, ~7 shots), so §5k-1 never reached them. They are the one `Rifle()` now, and `NedTkbBuilderCombatTests.CE4146_*` fails any built-in bullet mount without a category.
+
 *Rejected:* raising `AutomaticBurstSeconds` for everyone — it would also lengthen the MG's burst, which the user asked for as it is; per-rifle
 TKB values — every new rifle would have to remember them (the silent-default trap); a rate-based rule with a higher constant — a slow rifle
 would still overheat in fewer shots than a fast one, the opposite of reality.

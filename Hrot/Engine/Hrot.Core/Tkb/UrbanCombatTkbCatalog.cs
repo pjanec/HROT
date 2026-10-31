@@ -244,7 +244,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { Rifle() /* ⭐ CE-4146 — the ONE rifle (it carries Category SmallArms; the inline copies did not, so their barrel heat was a tank gun's) */,
                     Pistol() } });   // ⭐ CE-3231 (B-9) — his sidearm, mount 1 (the hands go to 2)
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
@@ -278,7 +278,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts =
                 {
-                    new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                    Rifle() /* ⭐ CE-4146 — the ONE rifle (it carries Category SmallArms; the inline copies did not, so their barrel heat was a tank gun's) */,
                     new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },   // ⭐ WL-4 (W-5) — the category the weapon brain reads
                     Pistol(),   // ⭐ CE-3231 (B-9) — his sidearm, mount 2 AFTER the grenades (PI-2: the grenade stays mount 1; the hands go to 3)
                 } });
@@ -302,7 +302,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());
                 t.AddDescriptor(new WeaponSuiteDto { Mounts =
                 {
-                    new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                    Rifle() /* ⭐ CE-4146 — the ONE rifle (it carries Category SmallArms; the inline copies did not, so their barrel heat was a tank gun's) */,
                     new WeaponMountDto { InitialAmmunition = AssaultStunGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbStunGrenade, Category = WeaponCategory.Grenade },
                     new WeaponMountDto { InitialAmmunition = AssaultFragGrenades, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },
                 } });   // ⚠ no pistol: the hands make mount 3, the last the replicated per-mount ammo carries (dtWeaponAmmo, 0…3)

@@ -280,6 +280,34 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4146</c> — every built-in mount that fires a BULLET (5.56, 7.62, 9 mm) names its category, so its barrel heat is a rifle's or a
+        /// machine gun's (Weapon Layers §5k-1). An untagged mount falls to the single-shot rule (too hot after ~7 rounds, 60 s to cool) — the
+        /// three inline rifles of the urban soldiers did, the AssaultRifleman's among them. 🔴 Red-proof: one inline copy back ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4146_EveryBulletMount_NamesItsCategory_AndTheAssaultRiflesBarrelLasts150Rounds()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var bullets = new HashSet<long> { Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball,
+                                              Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm };
+            var bad = new List<string>();
+            foreach (var t in tkb.GetAll())
+            {
+                if (t.GetDescriptor<WeaponSuiteDto>() is not { } suite) continue;
+                for (int i = 0; i < suite.Mounts.Count; i++)
+                    if (bullets.Contains(unchecked((long)suite.Mounts[i].AmmoGuid))
+                        && suite.Mounts[i].Category is not (WeaponCategory.SmallArms or WeaponCategory.MachineGun))
+                        bad.Add($"{t.Name} ({t.TkbType}) mount {i}: {suite.Mounts[i].Category}");
+            }
+            Assert.Empty(bad);
+
+            var assault = tkb.GetAll().Single(t => t.TkbType == Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman);
+            var (perRound, cool) = Fdp.Toolkit.Combat.BarrelHeat.For(assault.GetDescriptor<WeaponSuiteDto>()!.Mounts[0]);
+            Assert.Equal(150, (int)System.MathF.Round(1f / perRound));
+            Assert.Equal(Fdp.Toolkit.Combat.BarrelHeat.SmallArmsCoolSeconds, cool);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3233</c> (civilians B-11b, AW-12; §7.13 ST-8/ST-9) — the EXPLOSIVE CHARGE (618) is a charge (never fired) that goes worn,
         /// placed or in a boot; its round (6043) takes its warhead from the library's "8 kg demolition charge" (8 kg: a wider blast than a grenade's);
         /// the civilian car (1002) has one concealed, stowed boot after its four seats. ✅ Red-proof: the library entry renamed ⇒ no warhead ⇒ red.
