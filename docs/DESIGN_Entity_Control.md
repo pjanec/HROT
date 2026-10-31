@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-28 (C-3′ / R-4096 — a station never takes a unit or a seat another live station holds; same side shares a vehicle in free seats) · 2026-10-21 (§8p CE-1201 — an optional over-the-shoulder view; leans OS-1…OS-6 taken overnight) · 2026-10-21 (§8o CE-1200 — first person in a vehicle draws it, from a crew eye; BUILT) · 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
-current-answer: §8q (R-4096 / C-3′ — a player never takes another live player's unit or seat; BUILT) · §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
+current-answer: §8r (CE-4143 — a fast gun on a turret fires where you look, the L switch; DESIGN, leans for the user) · §8q (R-4096 / C-3′ — a player never takes another live player's unit or seat; BUILT) · §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -2177,6 +2177,131 @@ sequenceDiagram
 ⚠ **Not built, said:** (1) the executor race — two stations pressing Drive at the same tick on an EMPTY driver seat nobody holds yet: `EmbarkExecutor`/`Embarkation` still decide by free seat (first to run wins, nobody is pushed); the held-vehicle test is made when the press is read. (2) `EmbarkOrders` (the map menu's Embark…) is an editor order on AI units and was left alone. (3) Not yet measured live with two real Player PROCESSES (UC-18 in [`DESIGN_Cluster_Membership_Use_Cases.md`](DESIGN_Cluster_Membership_Use_Cases.md)): the in-process cluster rail below is the proof so far.
 
 📐 **Rails** *(each red-proved by a compiling mutant)*: `PossessionReplicationTests.R4096_*` (SimHost: the brain refuses a second station and keeps the holder's epoch and frames · a killed or departed holder's unit is taken in the same tick · a vehicle carrying an enemy player is refused, a friend's is not, a station with no unit has no side · a killed player's seat is freed, a dead AI man's is not) · `OperatorUseActionsTests.R4096_*` (FDP: same-side Board into a free seat and never the held driver seat · a held empty vehicle's driver seat is taken · an enemy player aboard ⇒ `OtherSide`, an AI-driven enemy vehicle is boardable as before · a left seat is free) · `PossessionStationTests.R4096_*` (the station's synchronous 409 / `WrongSide` · G never offers a held seat) · `EntityOrdersAcrossNodesTests.R4096_ASecondStationOnAnotherNode_IsRefused_TheFirstKeepsTheMan_UntilHeLetsGo` (SimHost holds the man, the IG asks: told at once, a request that reaches the CGF brain anyway is ignored, taken after the release) · `DebugApiOrdersTests.CE3172_AnotherStation_CannotDriveOrRelease_AndR4096_CannotTakeOver` (the old C-3 take-over test, now asserting the refusal on the HTTP-facing `EntityOrders`, then the brain ignoring a raw request, then a take once the holder releases).
+
+## 8r. A fast gun fires where you look — SIGHT on a turret, and the L switch (`CE-4143`, designed `2026-10-31`, coordinator) — build-state: DESIGN (leans await the user)
+
+🔒 **User, `2026-10-31`:** *"the machine gun works in target lock mode like a big gun, trying to aim at the target under aiming cross
+automatically. As this is a rapid fire gun i need it to fire as a rifle, with no auto aiming, straight to where aiming cross … so we can aim
+in front of a moving vehicle (now impossible - the gun tries to lock to some ground point seen through the aiming cross far at the background
+terrain). this is basically same for miniguns and rapid fire weapons if operated manually. Only a remotely or AI controlled weapons could use
+target locking … the player controlled rapid fire should fire straight as a rifle or have some switch for aiming mode which defaults to
+'straight in the direction of aim' for player controlled one."*
+
+⚠ **This amends §8g F-1 and F-2** (`R-` none; the ruling was the user's of `2026-10-16`: *"locking mode for slow turrets as well"* ·
+*"Mounted fast weapons: OK"* — a fast gun WITHOUT a turret). ⇒ the gap: a fast gun ON a turret (a coax, an RWS M2, a turreted minigun) took
+the slow-turret rule.
+
+### INVENTORY *(graph `search_graph` Class `.*(TargetLock|Lase|Ballistic|FireControl|Reticle|AimPoint|Gunnery).*` → 13: `AimPoint`,
+`BallisticAim`, `BallisticsSystem`, `BallisticProjectile`, `AmmoWeaponBallisticsDto`, tests and examples — no fire-control or lead class; grep
+`OperatorFireMode` → one rule, `OperatorFireModes.Of`; a docs sweep of `docs/` + `.dev/` → §8e, §8g, Weapon_Layers W-8/W-8b/W-8c,
+Weapon_Systems W-E/W-H; nothing on lead, superelevation or a fire-mode switch besides §8g F-6 → `CE-1130`)*
+
+| the design rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a turret mount is LOCK whatever its category | `WeaponBrainProfiles.cs` `OperatorFireModes.Of` — the `TurretIndex >= 0` test returns `Lock` before the category is read | §8g F-1 *"LOCK when the weapon is fought through a turret"* |
+| a LOCK press holds the UNIT under the crosshair and the muscle follows it (its middle) | `OperatorControlBehavior.OperateWeapon` (`Pending = 1`, `PendingTarget`) → `WeaponTaskDispatcherSystem` `aim = AimPoint.Middle(task.Target)` | §8e D-1, §8g F-3 |
+| even SIGHT on a turret aims at the crosshair's HIT POINT — leading a vehicle puts it on the background terrain | `OperatorControlBehavior` `Point = input.AimPoint` (`Pending = 2`) → `TurretPath` `Point = OperatorPoint(p.Point)` → `BallisticAim.Solve(aim)` | §8g F-2 (written for hand weapons: *"the round goes where the crosshair is when it leaves"*) |
+| a turret fires only within 0.5° of its aim | `WeaponTaskDispatcherSystem.Engage` returns unless `OnTarget` (`TurretSlew.OnTargetTolerance = 0.5°`) | Weapon_Layers W-7 — the AI's gate |
+| the turret round flies to `task.Point`, not along the barrel | `Engage` → `WeaponFireIntent{ AtPoint, TargetPoint = task.Point }` | — |
+| direct rounds have no gravity — the only elevation is the geometry to the point | `BallisticAim.cs` header; `FireProcessingSystem.ArcLaunch` only for indirect | §8g F-6 (*"not now"*, `CE-1130`) |
+| `WeaponTask` reaches the muscle on the wire | `EntityWeaponTask{Ingress,Egress}Translators` (Hrot.Network.NED) | Weapon_Layers W-3 |
+| `L` is free on the station | `PossessionStation.cs` key constants (O, Q, E, F, R, T, Tab, M, G, I, B, V, X, C, Z) | — |
+| where the gunner's eye sits against the barrel (parallax) | ⛔ not measured | Unit_Camera — gunner cameras. ⭐ Not load-bearing: D-3 converges on the crosshair RAY, whatever the eye |
+
+```mermaid
+classDiagram
+    direction LR
+    class FpsCameraDriver { <<existing, grows>> +L toggles the selected weapon's preference · FirePreference per mount · frame carries the look ray }
+    class OperatorControlFrameEvent { <<existing, grows>> AimPoint · +LookFrom Vector3 · +LookDir Vector3 · +FirePref byte 0 default 1 sight 2 lock }
+    class OperatorInput { <<existing, grows>> mirrors the three new fields }
+    class OperatorFireModes { <<existing, grows>> +Of(world, unit, mount, ammo, pref) · +CanChoose(mount) bool · +Default(mount) }
+    class OperatorControlBehavior { <<existing, grows>> Pending 2 on a turret: Point = LookFrom + LookDir x ZeroRange, AlongBarrel = 1 }
+    class AimAndFireParams { <<existing, grows>> +AlongBarrel byte }
+    class AimAndFireExecutor { <<existing>> TurretPath copies AlongBarrel into the task }
+    class WeaponTask { <<existing, grows>> +AlongBarrel byte · rides EntityWeaponTask }
+    class EntityWeaponTaskTranslators { <<existing, grows>> carry AlongBarrel both ways }
+    class WeaponTaskDispatcherSystem { <<existing, grows>> AlongBarrel: no OnTarget gate, round at Muzzle + barrel x range }
+    class Muzzle { <<existing>> the muzzle point of a mount }
+    class TurretSlew { <<existing>> Step · InArc · OnTarget }
+    class BallisticAim { <<existing>> Solve · BeyondTraverse }
+    FpsCameraDriver ..> OperatorControlFrameEvent : sends
+    OperatorControlFrameEvent ..> OperatorInput : ingress
+    OperatorControlBehavior ..> OperatorFireModes : Of(pref)
+    OperatorControlBehavior ..> AimAndFireParams : writes
+    AimAndFireExecutor ..> WeaponTask : writes
+    WeaponTask ..> EntityWeaponTaskTranslators
+    WeaponTaskDispatcherSystem ..> WeaponTask : reads
+    WeaponTaskDispatcherSystem ..> TurretSlew
+    WeaponTaskDispatcherSystem ..> BallisticAim
+    WeaponTaskDispatcherSystem ..> Muzzle
+    FpsCameraDriver ..> OperatorFireModes : HUD mirror
+```
+
+*What the picture shows that prose hid:* no new class and no second fire path — SIGHT on a turret is ONE flag that crosses the wire with the task
+it already belongs to; and the mode is still decided in ONE place (`OperatorFireModes.Of`), which the brain asks and the station only mirrors.
+
+```mermaid
+sequenceDiagram
+    participant P as Player (station)
+    participant B as Brain - OperatorControlBehavior
+    participant X as AimAndFireExecutor.TurretPath
+    participant M as Muscle - WeaponTaskDispatcherSystem
+    P->>B: frame{ Trigger 1, LookFrom, LookDir, FirePref 0 } every frame
+    B->>B: OperatorFireModes.Of(mount, pref 0) = SIGHT (turret MG default)
+    B->>X: AimAndFireParams{ Point = LookFrom + LookDir x ZeroRange, Target none, AlongBarrel 1, Trigger 1 }
+    X->>M: WeaponTask{ Engage, Point, AlongBarrel 1, rounds granted }
+    loop each muscle tick
+        M->>M: TurretSlew.Step toward Point (the slew rate - the gun lags a fast sweep)
+        M->>M: cooldown run down? then WeaponFireIntent{ AtPoint, TargetPoint = Muzzle + barrel x range }
+    end
+    Note over M: no OnTarget gate - the round goes where the barrel points now. W-8c beyond-arc hold stays.
+    P->>B: L pressed - FirePref 2
+    B->>B: Of = LOCK - today's latch (point or unit, fires when it bears)
+```
+
+```mermaid
+graph TD
+    subgraph viewer["the player's node"]
+        ST["PossessionStation / FpsCameraDriver<br/>(the map host's frame)"]
+    end
+    subgraph brain["the unit's Brain node"]
+        OCB["OperatorControlBehavior<br/>(the unit's behaviour tick)"]
+        AF["AimAndFireExecutor<br/>(WeaponTaskDispatcher's channel tick)"]
+    end
+    subgraph muscle["the unit's MuscleGround node"]
+        WTD["WeaponTaskDispatcherSystem<br/>(each muscle frame)"]
+        FPS2["FireProcessingSystem"]
+    end
+    ST -- "OperatorControlFrameEvent<br/>(interaction topic)" --> OCB
+    OCB --> AF
+    AF -- "WeaponTask + AlongBarrel<br/>(EntityWeaponTask translators)" --> WTD
+    WTD -- "WeaponFireIntent" --> FPS2
+    style AF fill:#eef
+```
+
+*Caption:* every box already runs every frame on its node today (the operator path is live); nothing new is registered, so nothing can be
+unreached. ⚠ The one edge that can go silently dead is the wire: `AlongBarrel` must be added to BOTH `EntityWeaponTask` translators — a
+muscle on another node would otherwise read `0` and keep the 0.5° gate (the silent-default pattern). Its rail runs the brain and the
+muscle on two nodes.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **R-1** | which turret weapons default to SIGHT for a PLAYER | ⭐ `MachineGun`, `SmallArms` and `Autocannon` on a turret (rapid fire: a coax, an RWS M2, a minigun, the Bradley's 25 mm). `TankGun`, guided and arc weapons stay LOCK. ⚠ Autocannon is the one to confirm |
+| **R-2** | the switch | ⭐ `L` toggles the selected weapon between SIGHT and LOCK, only where both make sense (a direct-fire turret weapon); a hand weapon is SIGHT only, an arc or guided one LOCK only (the key says *"LOCK only"*). The choice is per weapon, kept by the station for the possession, sent on every frame; the HUD shows `SIGHT` / `LOCK` beside the weapon |
+| **R-3** | where SIGHT on a turret aims | ⭐ along the crosshair RAY at a fixed zero range — `LookFrom + LookDir × ZeroRange` — never at what the ray hits. Leading a vehicle aims at the air in front of it. ZeroRange: the mount's sight zero (`CE-1130`'s field), default 300 m. No lead, no superelevation (direct rounds have no gravity; if gravity comes, SIGHT stays un-corrected: the player holds over, as with a rifle) |
+| **R-4** | when it fires | ⭐ every cooldown while the trigger is held, along the barrel as it points NOW — no 0.5° gate. A fast sweep shows the gun lagging (tracers); W-8c's out-of-arc hold stays |
+| **R-5** | the AI, a remote or automatic weapon | ⭐ unchanged: they never read `AlongBarrel` (0) and keep the lock, `AimPoint.Middle`, the solve and the 0.5° gate. The player may still LOCK with `L` |
+| **R-6** | hand weapons | ⭐ unchanged (§8g F-2: muzzle → the crosshair's point). ⚠ The same "background terrain" point exists there, but the eye is at the muzzle, so the error is the parallax of a shoulder — not worth a change now |
+
+**Rejected — one line each:**
+- *A third mode (`Free`) next to SIGHT and LOCK* — SIGHT already means "where I look now"; a third name for it splits one rule in two.
+- *SIGHT on a turret aimed at the ray's hit point (today)* — leading puts that point on the terrain behind the target: the reported bug.
+- *Keeping the 0.5° gate in SIGHT* — a sweeping gun holds fire until it stops; an MG must hose.
+- *The station decides the mode* — §8g rejected it: the brain owns the latch; the station sends a PREFERENCE and mirrors the answer.
+- *Lead computation for the player* — the user asked for none; it belongs to the AI's solution (R-5).
+
+**Gates when built:** the operator rails of `OperatorControlBehavior` and `AimAndFireExecutor` (their feature suites), a two-node rail for
+`AlongBarrel` on the wire, and a live check on `ua-weapon-systems` / a Bradley: lead a moving car with the coax — rounds pass in front of it.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
