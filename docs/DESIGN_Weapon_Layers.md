@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§5k barrel heat — CE-1358) · 2026-10-22 (§5f CE-3296 — a short throw is tossed, a throw nothing clears is refused) · 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
 build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
+current-answer: §5k-1 small arms overheat by rounds (CE-4144, READY-TO-BUILD) · §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -1217,6 +1217,26 @@ tick rate fires at the tick rate (an M134 at 60 Hz: 50/s fits). Not changed here
 **Rejected:** heat on the muscle's `WeaponMuscleState` — only the turret path has it, the per-shot path and the thermal sensor would
 need a second copy; a rounds-in-a-burst counter — it cannot cool partially and gives the thermal sensor nothing; a separate
 `Overheated` refusal from the muscle — every round of an overheated burst would round-trip a refusal, where `Ready` holds at the ask.
+
+#### 5k-1. A RIFLE is not a machine gun — small arms overheat by ROUNDS, not by seconds of cyclic fire *(`CE-4144`, coordinator, `2026-10-31`; build-state: READY-TO-BUILD)*
+
+🔒 **User, `2026-10-31`:** *"the overheating now happens way too quickly for a normal rifles, this allows for few shots only and then long wait
+for cooldown, this degrades the gameplay experience, must be set with much higher limits (what a real rifle would stand)"*.
+
+📐 **Measured:** `BarrelHeat.For` puts `SmallArms` in the AUTOMATIC class — too hot after `AutomaticBurstSeconds` (4 s) at the stated
+`RateOfFire`, so the heat per round is `1 / (RateOfFire/60 × 4)`. A slow-firing rifle states a slow rate ⇒ a big heat per round: the M24
+(`ScopedRifle`, 40 /min) is too hot after **3 shots**, the M110 / SVD (60 /min) after **4**, then waits ~6 s (12 s hot → cold, firing again at
+½). The M4 (700 /min) lasts ~47 rounds.
+
+| ⭐ decision | rule |
+|---|---|
+| **H-1** small arms by ROUNDS | ⭐ `SmallArms` is too hot after **150 rounds** from cold (`SmallArmsRoundsToHot`), whatever its rate — the order of a rifle's real limit (an M4's cook-off risk begins after ~140+ rounds of continuous fire) |
+| **H-2** small arms cool | ⭐ **60 s** hot → cold (`SmallArmsCoolSeconds`), firing again at ½ (30 s). ⇒ a rifle at its rapid aimed rate (~45 /min) never overheats; only magazine after magazine on full auto does |
+| **H-3** unchanged | `MachineGun` and `Autocannon` keep the 4 s-at-cyclic rule (CE-1358, the user's *"fires at its fast automatic rate until it gets too hot"*); single-shot guns unchanged; a mount's own TKB `HeatPerRound` / `BarrelCoolSeconds` still wins over every default |
+
+*Rejected:* raising `AutomaticBurstSeconds` for everyone — it would also lengthen the MG's burst, which the user asked for as it is; per-rifle
+TKB values — every new rifle would have to remember them (the silent-default trap); a rate-based rule with a higher constant — a slow rifle
+would still overheat in fewer shots than a fast one, the opposite of reality.
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 
