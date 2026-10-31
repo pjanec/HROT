@@ -275,6 +275,8 @@ namespace Hrot.NED.Descriptors
         public uint Epoch;
         /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — <c>ArcPreference</c> the laid indirect mount's solution chose (APPENDED, R-169).</summary>
         public byte Arc;
+        /// <summary>⭐ CE-4143 (DESIGN_Entity_Control §8r; APPENDED, R-169) — <c>WeaponTask.AlongBarrel</c>: 1 = fire along the barrel, no on-target gate.</summary>
+        public byte AlongBarrel;
     }
 
     // ⭐ WL-2b (CE-1049) — the weapon muscle's report on that order (W-3), Muscle → Brain, same key.

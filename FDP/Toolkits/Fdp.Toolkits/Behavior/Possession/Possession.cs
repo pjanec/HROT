@@ -103,6 +103,13 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1219 (DESIGN_Entity_Control §8k B-1, appended) — 1 while the operator holds his binoculars up (B held), 0 otherwise —
         /// a LEVEL; his brain raises them through <c>HeldItems.Set</c>, which refuses a man who carries none.</summary>
         public byte Binoculars;
+        /// <summary>⭐ <c>CE-4143</c> (DESIGN_Entity_Control §8r, appended) — the look ray's origin (the camera eye, world metres).</summary>
+        public Vector3 LookFrom;
+        /// <summary>⭐ CE-4143 — the look ray's direction (unit): the crosshair ray, which a SIGHT shot on a turret follows at the zero range.</summary>
+        public Vector3 LookDir;
+        /// <summary>⭐ CE-4143 (R-2) — the operator's fire-mode preference for the selected weapon: 0 = the default, 1 = SIGHT, 2 = LOCK
+        /// (<c>OperatorFireModes.Of</c> applies it only where <c>CanChoose</c>).</summary>
+        public byte FirePref;
     }
 
     /// <summary>
@@ -148,6 +155,13 @@ namespace Fdp.Toolkit.Behavior.Possession
         public byte Lean;
         /// <summary>⭐ CE-1219 (§8k B-1, appended) — binoculars up (<see cref="OperatorControlFrameEvent.Binoculars"/>).</summary>
         public byte Binoculars;
+        /// <summary>⭐ <c>CE-4143</c> (§8r) — the frame's look ray and fire-mode preference (<see cref="OperatorControlFrameEvent"/>).</summary>
+        public Vector3 LookFrom;
+        /// <summary>⭐ CE-4143 — the look ray's direction (unit): the crosshair ray, which a SIGHT shot on a turret follows at the zero range.</summary>
+        public Vector3 LookDir;
+        /// <summary>⭐ CE-4143 (R-2) — the operator's fire-mode preference for the selected weapon: 0 = the default, 1 = SIGHT, 2 = LOCK
+        /// (<c>OperatorFireModes.Of</c> applies it only where <c>CanChoose</c>).</summary>
+        public byte FirePref;
     }
 
     /// <summary>
@@ -214,6 +228,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                         UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
                         Lean = f.Lean,                                                     // ⭐ CE-1212
                         Binoculars = f.Binoculars,                                         // ⭐ CE-1219
+                        LookFrom = f.LookFrom, LookDir = f.LookDir, FirePref = f.FirePref, // ⭐ CE-4143
                     };
                     if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
                     else repo.AddComponent(f.Unit, input);

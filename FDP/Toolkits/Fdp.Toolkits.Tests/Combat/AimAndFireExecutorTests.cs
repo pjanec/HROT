@@ -2847,6 +2847,43 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, null));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4143</c> (docs/DESIGN_Entity_Control.md §8r R-1, R-2) — a player's RAPID-FIRE turret weapon (MG, small arms, autocannon)
+        /// defaults to SIGHT, a tank gun to LOCK; <c>pref</c> (L: 1 sight, 2 lock) overrides only where <c>CanChoose</c> (a direct-fire turret
+        /// weapon); a mortar on a turret stays LOCK whatever he presses. 🔴 Red-proof: restore the old "any turret mount ⇒ Lock" line in
+        /// <c>OperatorFireModes.Of</c> ⇒ the MG default assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4143_ARapidFireTurretGun_DefaultsToSight_ATankGunToLock_AndThePreferenceSwitchesOnlyWhereBothApply()
+        {
+            var (tank, _, _, _) = TurretedTank(rounds: 0, cooldown: 0.2f);   // a hull with turret 0
+            Fdp.Toolkit.Tkb.Domain.WeaponMountDto OnTurret(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => new() { Category = c, TurretIndex = 0 };
+            foreach (var rapid in new[] { Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms,
+                                          Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon })
+            {
+                var gun = OnTurret(rapid);
+                Assert.True(OperatorFireModes.CanChoose(gun));
+                Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, gun));              // the default: where he looks
+                Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, gun, 0L, pref: 1));
+                Assert.Equal(OperatorFireMode.Lock, OperatorFireModes.Of(_world, tank, gun, 0L, pref: 2));   // L: the lock
+            }
+            var tankGun = OnTurret(Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun);
+            Assert.True(OperatorFireModes.CanChoose(tankGun));
+            Assert.Equal(OperatorFireMode.Lock, OperatorFireModes.Of(_world, tank, tankGun));
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, tankGun, 0L, pref: 1));
+            Assert.Equal(OperatorFireMode.Lock, OperatorFireModes.Of(_world, tank, tankGun, 0L, pref: 2));
+
+            // an arc weapon on a turret is LOCK only: the preference is ignored
+            var mortar = OnTurret(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar);
+            Assert.False(OperatorFireModes.CanChoose(mortar));
+            Assert.Equal(OperatorFireMode.Lock, OperatorFireModes.Of(_world, tank, mortar, 0L, pref: 1));
+
+            // a hand weapon (no turret) is SIGHT only: pref 2 changes nothing
+            var hand = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 };
+            Assert.False(OperatorFireModes.CanChoose(hand));
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, hand, 0L, pref: 2));
+        }
+
         /// <summary>⭐ CE-1079 (D-3) — the operator's round switch holds the trigger like a reload; once it is done the round that
         /// leaves is the LOADED one (the per-shot path now carries it too) and its type's count drops.</summary>
         [Fact]

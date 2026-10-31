@@ -424,7 +424,7 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
-                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit));
+                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit), _driver.FireModeLine(w));
             if (OverShoulder && lines.Length > 0) lines = [.. lines[..^1], Hud.ShoulderLine, lines[^1]];   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
             int width = 0;
@@ -839,7 +839,7 @@ namespace Hrot.UI.Common.Map3D
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
                                          Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
                                          ControlScheme scheme = ControlScheme.Person, bool running = false, bool lookFree = false,
-                                         string? seat = null)
+                                         string? seat = null, string? fireMode = null)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
@@ -865,6 +865,7 @@ namespace Hrot.UI.Common.Map3D
                         lines.Add(WeaponLine(w, weapon, w.GetComponentRO<WeaponAmmo>(weapon), 0, slots[i] == mount, key: i + 1));
                     else lines.Add($"{(slots[i] == mount ? "> " : "  ")}{i + 1} {TypeName(w, weapon)?.ToUpperInvariant() ?? "WEAPON"}");
                 }
+                if (fireMode != null) lines.Add(fireMode);   // ⭐ CE-4143 (§8r R-2) — AIM SIGHT / AIM LOCK beside the weapons
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (X cancels)");   // ⭐ CE-1078
                 if (!vehicle && !flyer && stance is { } st)
                     lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}"   // ⭐ CE-1074 / CE-1143
@@ -1147,8 +1148,49 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1127 (§8g F-1) — how the selected weapon's trigger works (the brain's own rule, mirrored for the HUD).</summary>
         public Fdp.Toolkit.Combat.OperatorFireMode FireMode
             => _world() is { } w && w.IsAlive(Unit) && PossessionStation.Hud.Resolve(w, Unit, Mount) is var (holder, local)
-                ? Fdp.Toolkit.Combat.OperatorFireModes.Of(w, holder, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local))
+                ? Fdp.Toolkit.Combat.OperatorFireModes.Of(w, holder, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local), 0L, FirePref)
                 : Fdp.Toolkit.Combat.OperatorFireMode.Sight;
+
+        /// <summary>
+        /// ⭐ <c>CE-4143</c> (docs/DESIGN_Entity_Control.md §8r R-2) — the operator's fire-mode PREFERENCE for the selected weapon (0 = the
+        /// default, 1 = SIGHT, 2 = LOCK), kept per mount for the possession and sent on every frame; the brain applies it only where
+        /// <see cref="Fdp.Toolkit.Combat.OperatorFireModes.CanChoose"/>.
+        /// </summary>
+        public byte FirePref => _firePref.TryGetValue(Mount, out var pref) ? pref : (byte)0;
+        private readonly Dictionary<int, byte> _firePref = new();
+        private string? _modeNote;
+        private float _modeNoteUntil;
+
+        /// <summary>⭐ CE-4143 — the fire-mode line of the HUD: <c>SIGHT</c> / <c>LOCK</c> (with the key when it can switch), or the brief
+        /// "LOCK only" / "SIGHT only" after L on a weapon that cannot.</summary>
+        public string? FireModeLine(EntityRepository w)
+        {
+            if (_modeNote != null && _station.Clock < _modeNoteUntil) return _modeNote;
+            if (!w.IsAlive(Unit)) return null;
+            var (holder, local) = PossessionStation.Hud.Resolve(w, Unit, Mount);
+            if (Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local) is not { } dto) return null;
+            return $"AIM {FireMode.ToString().ToUpperInvariant()}"
+                   + (Fdp.Toolkit.Combat.OperatorFireModes.CanChoose(dto) ? $"  ({FireModeKey}: switch)" : "");
+        }
+
+        /// <summary>⭐ CE-4143 (R-2) — L: toggle the selected weapon's SIGHT / LOCK preference where both apply; else say which one only.</summary>
+        private void ToggleFireMode()
+        {
+            if (_world() is not { } w || !w.IsAlive(Unit)) return;
+            var (holder, local) = PossessionStation.Hud.Resolve(w, Unit, Mount);
+            var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local);
+            if (Fdp.Toolkit.Combat.OperatorFireModes.CanChoose(dto))
+            {
+                _firePref[Mount] = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Sight ? (byte)2 : (byte)1;
+                _modeNote = null;
+                return;
+            }
+            _modeNote = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Lock ? "LOCK only" : "SIGHT only";
+            _modeNoteUntil = _station.Clock + ModeNoteSeconds;
+        }
+
+        /// <summary>⭐ CE-4143 — how long "LOCK only" / "SIGHT only" stays on the HUD (s).</summary>
+        public const float ModeNoteSeconds = 1.5f;
 
         /// <summary>⭐ CE-1078 — the network id of the unit the last press locked on (0 = the ground point).</summary>
         public long LockedTarget => _shotTarget;
@@ -1432,6 +1474,8 @@ namespace Hrot.UI.Common.Map3D
             return at;
         }
 
+        /// <summary>⭐ <c>CE-4143</c> (§8r R-2) — L switches the selected weapon between SIGHT and LOCK where both apply (free before).</summary>
+        public const KeyboardKey FireModeKey = KeyboardKey.L;
         /// <summary>⭐ <c>CE-1212</c> (§8j L-1, L-2; keys approved, R-1009) — hold to lean left / right; the use key; the next round.</summary>
         public const KeyboardKey LeanLeftKey = KeyboardKey.Q, LeanRightKey = KeyboardKey.E, UseKeyCode = KeyboardKey.F, NextRoundKey = KeyboardKey.R;
 
@@ -1720,6 +1764,7 @@ namespace Hrot.UI.Common.Map3D
             }
             // R moves the selected weapon to its next round (⭐ CE-1212, §8j L-2 — F before; F is the use key now)
             if (input.IsKeyPressed((MapKeyboardKey)NextRoundKey)) unchecked { _ammoSeq++; }
+            if (input.IsKeyPressed((MapKeyboardKey)FireModeKey)) ToggleFireMode();   // ⭐ CE-4143 (§8r R-2)
             // ⭐ CE-1212 (§8j L-1) — a person leans while Q / E is held (both, or neither: upright); the sim's own rule ignores it prone
             bool leftHeld = input.IsKeyDown((MapKeyboardKey)LeanLeftKey), rightHeld = input.IsKeyDown((MapKeyboardKey)LeanRightKey);
             Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
@@ -1786,6 +1831,9 @@ namespace Hrot.UI.Common.Map3D
                 Lean = (byte)Leaning,                                                                     // ⭐ CE-1212
                 Binoculars = BinocularsHeld ? (byte)1 : (byte)0,                                          // ⭐ CE-1219
                 UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,                              // ⭐ CE-1158 (U-2)
+                // ⭐ CE-4143 (§8r) — the crosshair RAY (the eye and the direction through the visible map's centre) and the L preference:
+                //   a SIGHT shot on a turret aims along the ray, never at what it hits
+                LookFrom = camera.Eye, LookDir = camera.RayDirection(camera.ViewCentre), FirePref = FirePref,
             };
             _station.Send(_netId, frame);
             return true;

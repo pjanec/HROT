@@ -64,6 +64,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 MountIndex = d.MountIndex, RoundsGranted = d.RoundsGranted, AmmoGuid = d.AmmoGuid,
                 CooldownSeconds = d.CooldownSeconds, Epoch = d.Epoch,
                 Arc = (Fdp.Toolkit.Combat.ArcPreference)d.Arc,   // ⭐ ui handoff P2
+                AlongBarrel = d.AlongBarrel,   // ⭐ CE-4143
             };
         }
 

@@ -961,6 +961,90 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4143</c> (docs/DESIGN_Entity_Control.md §8r R-2) — the station's side of SIGHT / LOCK: every frame carries the crosshair RAY
+    /// (<c>LookFrom</c> = the eye, <c>LookDir</c> = the direction through the visible map's centre) and the weapon's preference
+    /// (<c>FirePref</c>); <c>L</c> toggles the preference of the SELECTED weapon only where <c>OperatorFireModes.CanChoose</c> (a direct-fire
+    /// turret weapon) — a rifle says "SIGHT only", a grenade launcher "LOCK only" — the choice is kept per weapon, and the HUD shows the
+    /// mode the brain's own rule would pick. 🔴 Red-proof: toggle without the <c>CanChoose</c> test ⇒ the grenade launcher's preference
+    /// leaves 0 and the "LOCK only" assertion fails.
+    /// </summary>
+    [Fact]
+    public void CE4143_L_SwitchesSightAndLock_OnlyWhereBothApply_PerWeapon_AndTheFrameCarriesTheLookRay()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var ammo = new WeaponAmmo { Count = 3 };
+            ammo.Set(0, new WeaponState { Ammo = 200, MaxAmmo = 200 });
+            ammo.Set(1, new WeaponState { Ammo = 6, MaxAmmo = 6 });
+            ammo.Set(2, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            w.AddComponent(unit, ammo);
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            w.RegisterComponent<TurretPose>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("TurretMgMan", 4713);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, TurretIndex = 0 },   // 1: a turret MG
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, TurretIndex = -1 },    // 2: LOCK only
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },  // 3: SIGHT only
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
+            Fdp.Toolkit.Combat.TurretParts.Ensure(w, unit, 0);
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+
+            OperatorControlFrameEvent Frame(params Raylib_cs.KeyboardKey[] pressed)
+            {
+                var input = new Input();
+                foreach (var k in pressed) input.Pressed.Add((int)k);
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            }
+
+            var f = Frame();
+            Assert.Equal((byte)0, f.FirePref);
+            Assert.Equal(sw.Camera3D.Eye, f.LookFrom);                                                   // the frame carries the look ray
+            Assert.InRange(Vector3.Distance(f.LookDir, sw.Camera3D.RayDirection(sw.Camera3D.ViewCentre)), 0f, 1e-4f);
+            Assert.InRange(f.LookDir.Length(), 0.999f, 1.001f);
+            Assert.Equal(Fdp.Toolkit.Combat.OperatorFireMode.Sight, driver.FireMode);                    // a turret MG: SIGHT by default
+            Assert.Contains("AIM SIGHT", driver.FireModeLine(w));
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, false, false, fireMode: driver.FireModeLine(w)), l => l.StartsWith("AIM SIGHT"));
+
+            f = Frame(Raylib_cs.KeyboardKey.L);                                                          // L: the lock
+            Assert.Equal((byte)2, f.FirePref);
+            Assert.Equal(Fdp.Toolkit.Combat.OperatorFireMode.Lock, driver.FireMode);
+            Assert.Contains("AIM LOCK", driver.FireModeLine(w));
+            f = Frame(Raylib_cs.KeyboardKey.L);                                                          // and back
+            Assert.Equal((byte)1, f.FirePref);
+            Assert.Equal(Fdp.Toolkit.Combat.OperatorFireMode.Sight, driver.FireMode);
+            Frame(Raylib_cs.KeyboardKey.L);                                                              // LOCK again (pref 2), kept for this weapon
+
+            f = Frame(Raylib_cs.KeyboardKey.Two, Raylib_cs.KeyboardKey.L);                               // the grenade launcher: LOCK only
+            Assert.Equal((byte)0, f.FirePref);
+            Assert.Equal("LOCK only", driver.FireModeLine(w));
+            f = Frame(Raylib_cs.KeyboardKey.Three, Raylib_cs.KeyboardKey.L);                             // the rifle: SIGHT only
+            Assert.Equal((byte)0, f.FirePref);
+            Assert.Equal("SIGHT only", driver.FireModeLine(w));
+            station.Update(FpsCameraDriver.ModeNoteSeconds + 0.1f);                                               // the note goes after a moment
+            Assert.DoesNotContain("only", driver.FireModeLine(w));
+
+            f = Frame(Raylib_cs.KeyboardKey.One);                                                        // back to the MG: its choice was kept
+            Assert.Equal((byte)2, f.FirePref);
+            Assert.Equal(Fdp.Toolkit.Combat.OperatorFireMode.Lock, driver.FireMode);
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1078 / CE-1079 / CE-1080 (docs/DESIGN_Entity_Control.md §8e) — the station's side: a LMB PRESS counts a shot and locks the
     /// unit under the crosshair (its id, and the aim point is where the ray meets its box — not its feet); X (RMB before CE-1211) counts a
     /// cancel and drops the lock; F counts an ammo press; 1-4 pick a weapon that exists; the lock clears when the selected weapon's count drops. Counters,

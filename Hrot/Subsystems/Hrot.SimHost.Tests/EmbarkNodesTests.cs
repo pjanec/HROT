@@ -781,6 +781,91 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorConstants.ActionIdDisembark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
         }
 
+        // ── CE-4143 (docs/DESIGN_Entity_Control.md §8r) — a player's rapid-fire turret gun fires where he looks ─────────────────────
+
+        private const long TurretMgType = 414301;
+
+        /// <summary>An operator whose one mount is a MACHINE GUN on a turret he has (a coax / RWS), with a weapon channel.</summary>
+        private Entity TurretMgOperator(WeaponCategory category = WeaponCategory.MachineGun)
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("TurretMg", TurretMgType);
+            t.AddDescriptor(new TurretSuiteDto { Turrets = { new TurretDto { PivotZ = 2f } } });
+            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = category, TurretIndex = 0 } } });
+            db.Register(t);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var op = Operator(Vector3.Zero);
+            _w.AddComponent(op, new WeaponChannel());
+            _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TurretMgType });
+            TurretParts.Ensure(_w, op, 0);
+            return op;
+        }
+
+        private unsafe Fdp.Toolkit.Combat.Executors.AimAndFireParams ParamsOf(Entity op)
+            => System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref _w.GetComponentRW<WeaponChannel>(op).Params[0]);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4143</c> (§8r R-3, R-4) — SIGHT on a turret machine gun aims along the LOOK RAY at the zero range — never at the frame's
+        /// crosshair HIT point (the terrain behind a vehicle he is leading) — and asks the muscle to fire along the barrel
+        /// (<c>Operator = OperatorAlongBarrel</c>); an <c>L</c> preference of 2 (LOCK) is today's latch, unchanged: the crosshair point, no
+        /// along-barrel flag. 🔴 Red-proof: in <c>OperateWeapon</c> use <c>input.AimPoint</c> for a SIGHT turret shot ⇒ the Point assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4143_SightOnATurretMachineGun_AimsAlongTheLookRay_AtTheZeroRange_AndLockIsUnchanged()
+        {
+            var op = TurretMgOperator();
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            var hit = new Vector3(0f, 900f, 0f);   // the far background terrain the crosshair ray ends on
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq++; input.Mount = 0; input.ShotSeq = 1; input.Trigger = 1; input.AimPoint = hit;
+            input.LookFrom = new Vector3(0f, 0f, 1.7f); input.LookDir = new Vector3(0f, 0.6f, 0.8f);
+            Tick(op, ref ws);
+
+            Assert.Equal((byte)2, ws.Pending);                                       // SIGHT: nothing held
+            var p = ParamsOf(op);
+            Assert.Equal(Fdp.Toolkit.Combat.Executors.AimAndFireParams.OperatorAlongBarrel, p.Operator);
+            Assert.Equal((byte)1, p.AlongBarrel);
+            var expected = new Vector3(0f, 0.6f * OperatorFireModes.SightZeroMetres, 1.7f + 0.8f * OperatorFireModes.SightZeroMetres);
+            Assert.Equal(expected.Y, p.Point.Y, 2);
+            Assert.Equal(expected.Z, p.Point.Z, 2);
+            Assert.NotEqual(hit, p.Point);                                           // never at what the ray hits
+            Assert.True(p.Target.IsNull);
+
+            // the held trigger, once the shot has left: still along the barrel
+            ref var held = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            held.Seq++; held.LookDir = new Vector3(0f, 1f, 0f);
+            Tick(op, ref ws);
+            p = ParamsOf(op);
+            Assert.Equal(Fdp.Toolkit.Combat.Executors.AimAndFireParams.OperatorAlongBarrel, p.Operator);
+            Assert.Equal(OperatorFireModes.SightZeroMetres, p.Point.Y, 2);
+
+            // L pressed (FirePref 2 = LOCK): the old latch — the crosshair's point, the AI-style gate (no AlongBarrel)
+            var lockWs = default(OperatorControlBehavior.ManualControlState);
+            ref var lk = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            lk.Seq++; lk.FirePref = 2; lk.ShotSeq = 2;
+            Tick(op, ref lockWs);
+            Assert.Equal((byte)1, lockWs.Pending);
+            p = ParamsOf(op);
+            Assert.Equal((byte)1, p.Operator);
+            Assert.Equal((byte)0, p.AlongBarrel);
+            Assert.Equal(hit, p.Point);
+        }
+
+        /// <summary>⭐ <c>CE-4143</c> — a frame with no look ray (an older station: <c>LookDir</c> zero) keeps today's SIGHT: the crosshair's
+        /// point and the on-target gate, never a point at the zero range of nothing.</summary>
+        [Fact]
+        public void CE4143_AFrameWithNoLookRay_KeepsTheCrosshairPoint()
+        {
+            var op = TurretMgOperator();
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq++; input.ShotSeq = 1; input.Trigger = 1; input.AimPoint = new Vector3(5f, 500f, 0f);
+            Tick(op, ref ws);
+            var p = ParamsOf(op);
+            Assert.Equal((byte)1, p.Operator);
+            Assert.Equal(new Vector3(5f, 500f, 0f), p.Point);
+        }
+
         // ── CE-1157 (docs/DESIGN_Entity_Control.md §8h U-4, O-2, O-3, the driving sequence) — drive, ride, get out ────────────────────
 
         /// <summary>⭐ <c>CE-1157</c> — E on a vehicle boards him in its DRIVER seat; while the station holds him as a rider

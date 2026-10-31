@@ -609,6 +609,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 CooldownSeconds = CooldownFor(p.CooldownSeconds, mountDto),   // ⭐ CE-2199 — the muscle times the rounds by it
                 Epoch = epoch,
                 AmmoGuid = unchecked((ulong)loadedAmmo),   // ⭐ M8 — the loaded round (0 = the mount's own); it rides EntityWeaponTask
+                AlongBarrel = atPoint ? p.AlongBarrel : (byte)0,   // ⭐ CE-4143 (§8r) — a player's SIGHT shot fires along the barrel
             };
             if (fresh || !current.Equals(next)) world.SetComponent(part, next);
 

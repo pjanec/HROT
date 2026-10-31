@@ -53,6 +53,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     MountIndex = task.MountIndex, RoundsGranted = task.RoundsGranted, AmmoGuid = task.AmmoGuid,
                     CooldownSeconds = task.CooldownSeconds, Epoch = task.Epoch,
                     Arc = (byte)task.Arc,   // ⭐ ui handoff P2
+                    AlongBarrel = task.AlongBarrel,   // ⭐ CE-4143
                 };
                 if (_last.TryGetValue((hullNet, partId), out var prev) && prev.Equals(sample)) continue;
                 _last[(hullNet, partId)] = sample;

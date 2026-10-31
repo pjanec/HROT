@@ -240,6 +240,46 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(3, Status(turret).RoundsFired);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4143</c> (docs/DESIGN_Entity_Control.md §8r R-4) — a player's SIGHT shot (<see cref="WeaponTask.AlongBarrel"/> 1) fires
+        /// every cooldown WHILE the turret still slews, the round going along the barrel as it points NOW (not at the task's point); the
+        /// same order with AlongBarrel 0 (the AI, a lock) waits for the turret to be on target. 🔴 Red-proof: ignore AlongBarrel in
+        /// <c>Engage</c> ⇒ the first assertion (a round in the first second, still slewing) fails.
+        /// </summary>
+        [Fact]
+        public void CE4143_AlongBarrel_FiresWhileSlewing_AlongTheBarrel_AndWithoutItTheGunWaitsForTheTarget()
+        {
+            _world.RegisterComponent<WeaponMuscleState>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+
+            (int Frame, Vector3 Point, WeaponTaskState State)? FirstRound(byte alongBarrel, int frames)
+            {
+                var (hull, turret) = Tank(1);
+                _world.AddOrSet(turret, new WeaponTask { Mode = WeaponTaskMode.Engage, Point = new Vector3(0, 300, 2), RoundsGranted = 5,
+                                                         CooldownSeconds = 0.2f, Epoch = 1, AlongBarrel = alongBarrel });
+                for (int f = 0; f < frames; f++)
+                {
+                    _muscle.Execute(_world, Dt);
+                    _world.Bus.SwapBuffers();
+                    foreach (ref readonly var shot in _world.Bus.Read<Fdp.Toolkit.Combat.Events.WeaponFireIntent>())
+                        if (shot.Shooter == hull) return (f, shot.TargetPoint, Status(turret).State);
+                }
+                return null;
+            }
+
+            // 90° off at 24°/s: not on target for 3.75 s. With AlongBarrel the first round leaves in the first frames, at the pose of NOW.
+            var along = FirstRound(1, 60);
+            Assert.NotNull(along);
+            Assert.True(along!.Value.Frame < 5, $"first round at frame {along.Value.Frame}");
+            Assert.NotEqual(WeaponTaskState.OnTarget, along.Value.State);   // fired while still slewing
+            // the round's point lies along the barrel (azimuth ~0.4° after a frame), nowhere near the task's point 90° away
+            var dir = Vector3.Normalize(along.Value.Point - new Vector3(0, 0, 2));
+            Assert.True(dir.X > 0.99f, $"the round goes along the barrel, not at the task point: {dir}");
+
+            // the same order without it: no round in the first 3 s (not on target yet)
+            Assert.Null(FirstRound(0, 180));
+        }
+
         /// <summary>⭐ M8 — the TURRET path carries the loaded round: the round the weapon brain wrote on the task
         /// (<see cref="WeaponTask.AmmoGuid"/>, riding <c>EntityWeaponTask</c>) is the round on the fire intent the muscle publishes.</summary>
         [Fact]

@@ -65,6 +65,10 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — for a mount that declares an indirect arc: the arc the brain's fire
         /// solution chose (Low / High); Auto = not laid by a solution (the one-speed arc, as before — every Engage order). The muscle lays the turret along <c>FireSolution.For</c> on it. Appended.</summary>
         public Fdp.Toolkit.Combat.ArcPreference Arc;
+        /// <summary>⭐ <c>CE-4143</c> (DESIGN_Entity_Control §8r R-3/R-4, appended) — 1 = a player's SIGHT shot: the turret still slews toward
+        /// <see cref="Point"/>, but <c>Engage</c> fires every cooldown along the barrel as it points NOW (no on-target gate). 0 = the AI's /
+        /// a locked shot (every zero-filled writer): fires only on target.</summary>
+        public byte AlongBarrel;
     }
 
     /// <summary>
