@@ -196,7 +196,9 @@ namespace Hrot.Map.Definitions.Tkb
             dto.Seats.Add(new SeatDto
             {
                 Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 3, NeedsGunner = true,
-                X = -0.4f, Z = HmmwvRingPivotZ - WeaponPivotZ, StartWith = TkbEntityTypes.WeaponSystem_M2Hmg,
+                // ⭐ 2026-10-31 — 0.45 m FORWARD of the gunner (he stands behind his gun at the ring's front edge): at the same X as him the M2's
+                //   receiver sat on his head (seen on the CE-1459 render)
+                X = 0.05f, Z = HmmwvRingPivotZ - WeaponPivotZ, StartWith = TkbEntityTypes.WeaponSystem_M2Hmg,
                 // ⭐ 2026-10-31 — EXPOSED: the ring is on the roof. Without it the station inherited the ENCLOSED carrier, the M2 counted as a hidden
                 //   passenger (PhysicalPresence.IsEnclosedPassenger) and the 3-D map never drew it — the user saw only the gunner standing there
                 Exposed = true,

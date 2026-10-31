@@ -3177,6 +3177,26 @@ public sealed class Map3DFrameRail
     public void CE1202_V_TheTechnicalsGunner_TurnsWithTheGun()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var bodies = StationGunnerScene(TkbEntityTypes.Technical_Dshk, TkbEntityTypes.WeaponSystem_DshkHmg, "ce1202-gunner-turns.png");
+        Assert.Equal(1, bodies.GunnersTurned);
+    }
+
+    /// <summary>⭐ CE-1459 — the HMMWV's M2 in its roof ring is DRAWN (user, 2026-10-31: "the machine gun on the vehicle is not rendered, i see just the
+    /// AI gunner standing there") and turns with its gunner: the station's exposure comes from the type, so an enclosed station would be skipped.
+    /// Screenshot <c>ce1459-hmmwv-m2.png</c>.</summary>
+    [SkippableFact]
+    public void CE1459_TheHmmwvsM2_IsDrawn_AndTurnsWithItsGunner()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var bodies = StationGunnerScene(TkbEntityTypes.Truck_HMMWV, TkbEntityTypes.WeaponSystem_M2Hmg, "ce1459-hmmwv-m2.png");
+        Assert.Equal(3, bodies.BodiesDrawn);   // the HMMWV, its gunner AND its M2
+        Assert.Equal(1, bodies.GunnersTurned);
+    }
+
+    /// <summary>A vehicle of <paramref name="vehicleType"/> with its gunner seated and a <paramref name="weaponType"/> in its station, the gun turned 90°
+    /// left and a little up, drawn to <paramref name="png"/>; the bodies layer, for the rail's own assertions.</summary>
+    private static EntityBodyLayer3D StationGunnerScene(long vehicleType, long weaponType, string png)
+    {
         string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
         Directory.CreateDirectory(shots);
         var terrain = Map3DTests.TestTown();
@@ -3194,22 +3214,25 @@ public sealed class Map3DFrameRail
         var query = WorldQuery.Of(world)!;
         var spot = FindOpenGround(terrain, query);
         var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y));
-        var seats = tkb.GetByType(TkbEntityTypes.Technical_Dshk)!.GetDescriptor<CarrierDefDto>()!.Seats;
+        var carrier = tkb.GetByType(vehicleType)!.GetDescriptor<CarrierDefDto>()!;
+        var seats = carrier.Seats;
+        // ⭐ each seat's exposure as the TYPE declares it (the runtime's rule) — ⛔ was hard-coded 1, which is how the HMMWV's hidden M2 passed
+        byte Exposed(int i) => (byte)((seats[i].Exposed ?? carrier.Exposure == Fdp.Toolkit.Behavior.Components.PassengerExposure.Open) ? 1 : 0);
         int gunnerSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Gunner);
         int stationSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
-        var technical = world.CreateEntity();
+        var technical = world.CreateEntity();   // the vehicle
         world.AddComponent(technical, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(technical, new TkbIdentity { TkbType = TkbEntityTypes.Technical_Dshk });
+        world.AddComponent(technical, new TkbIdentity { TkbType = vehicleType });
         var gunner = world.CreateEntity();
         world.AddComponent(gunner, new SimTransform { Position = at, Rotation = Quaternion.Identity });
         world.AddComponent(gunner, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
         world.AddComponent(gunner, new StanceIntent { TargetStance = StanceId.Standing });
-        world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = (byte)gunnerSeat });
+        world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = Exposed(gunnerSeat), Seat = (byte)gunnerSeat });
         var gun = world.CreateEntity();
         var st = seats[stationSeat];
         world.AddComponent(gun, new SimTransform { Position = at + new Vector3(st.X, st.Y, st.Z), Rotation = Quaternion.Identity });
-        world.AddComponent(gun, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_DshkHmg });
-        world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = 1, Seat = (byte)stationSeat });
+        world.AddComponent(gun, new TkbIdentity { TkbType = weaponType });
+        world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = Exposed(stationSeat), Seat = (byte)stationSeat });
         world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
         var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = (byte)seats.Count };
         list.Passengers[gunnerSeat] = gunner; list.Passengers[stationSeat] = gun;
@@ -3232,8 +3255,8 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(at + new Vector3(-1f, 0f, 1.6f), 8f, MathF.PI * 1.25f, -0.45f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
-        frame.Screenshot(Path.Combine(shots, "ce1202-gunner-turns.png"));
-        Assert.Equal(1, bodies.GunnersTurned);
+        frame.Screenshot(Path.Combine(shots, png));
+        return bodies;
     }
 
     /// <summary>
