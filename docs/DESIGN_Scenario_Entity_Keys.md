@@ -32,13 +32,34 @@ related-designs:
 
 | # | decision | ⭐ lean |
 |---|---|---|
-| **S1** | the component | `EntityGuid {Guid}` on every authored entity, never serialized as a component — it IS the entity's key in the file |
+| **S1** | the component — ✅ user, `2026-10-31`: *"We need to treat it as optional because there are many lightweight entities that exist at runtime and are never saved to a scenario (like bullets) … it shouldn't be saved back to scenario in the normal way. It should go to the key of the entity and never repeat as a component inside the entity."* | `EntityGuid {Guid}` — OPTIONAL: only entities that come from a scenario (or a scenario macro) or are authored to be saved carry it; bullets, effects, sensor parts never do. `[DataPolicy(NoScenario)]` so the generic serializer never writes it as a component — it is written ONLY as the entity's key |
 | **S2** | where a GUID comes from | ⭐ scenario LOAD: the file key → `EntityCreationRequest` (a new optional `Guid`) → the created entity's `EntityGuid`. ⭐ a NEW entity (editor placement, runtime spawn that may be saved): minted ONCE at creation. ⭐ a MACRO-made entity: derived `uuidv5(instance GUID, local GUID)` (deterministic). ⭐ any future duplicate / paste: re-minted, never copied. ⛔ never `NewGuid()` at save again |
 | **S3** | how it reaches the saving node | ⭐ lean (a): a small replicated descriptor `EntityGuid {[DdsKey] EntityId, Guid}`, Reliable + TransientLocal, published by the entity's creator — every node knows every entity's GUID, so any owner saves it; it is also RECORDED, which later lets the film director reference by GUID. ⛔ (b) a field on `EntityMaster` — a core descriptor other NED participants read; ⛔ (c) the loading node ships a GUID map in its slice — breaks for entities created after load whose ownership moved |
 | **S4** | save | key = `EntityGuid`; an entity without one (created before this change, or by a path that does not mint) gets one minted AND stamped on the live entity, so the next save repeats it |
 | **S5** | load of old files | nothing to migrate — every file already has GUID keys; they simply stop changing from the next save |
 | **S6** | the merge | I2 restated: keys are unique because each entity has ONE stable GUID and lives in ONE slice; the duplicate-key guard stays and now also catches an aliased GUID |
 | **S7** | rails | load → save → load keeps every key · two saves of an unchanged scenario are identical · ownership moved to another node before save keeps the key · a macro instance's entities derive the same GUIDs on two loads |
+
+
+### 00a. Then why keep the network id in the file? *(user, `2026-10-31`: "Do we still need to use the network ID as saved in the scenario for referencing within the scenario once we have a stable GUID?")*
+
+| measured | where |
+|---|---|
+| ⭐ scenario load gives EVERY entity a NEW network id — `idAllocator.AllocateId()` per entity, an old → new map | `StagingEntityExtractor.cs:248-261` |
+| the file's network id is used ONLY as the reference currency for `EntityRef` (behaviour params JSON + components), rewritten by that map at load (`RemapComponentNetworkIds`, `EntityRefRemap`) — ≈ 76 such references in 39 of 117 scenarios (heuristic: numbers equal to an entity's id, outside `NetworkIdentity`) | `StagingEntityExtractor.cs:344-359`; scan `2026-10-31` |
+| component-level references (`VisHierarchyNode`, `UnitSubordinate`, passengers, targets…) ALREADY use the GUID key through the resolver | `DESIGN` §0a (the stopped worker) |
+| the old → new table is handed out (`OnRemap`) so runtime-id keyed things survive a reload — watch pins and breakpoints (BP-509) | `StagingEntityExtractor.cs:130-145, :389`; `DESIGN_Variable_Watch_Pinning.md` §5 |
+
+⇒ the file's network id is neither stable (re-allocated every load) nor guaranteed unique (two files, two macro instances), and it is only a
+second, numeric reference currency beside the GUID.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **S8** | drop `NetworkIdentity` from the scenario file | ⭐ yes, once S1–S7 are in: the id is allocated at load exactly as today; nothing reads the file's value except the remap |
+| **S9** | `EntityRef` in a FILE | its FILE form becomes the target's GUID; its LIVE form stays the network id (orders, the wire, the debug API, `BrainIntent` JSON). The conversion is the existing remap step at the file boundary — save: live id → GUID, load: GUID → new id — ⛔ no second remap mechanism. ⚠ `EntityRef`'s JSON is today *"the bare number"* (R-184) — the remap must write / read a string in the file form |
+| **S10** | old files | still load: a numeric `EntityRef` resolves through that file's own `NetworkIdentity` values (the legacy path, as today) |
+| **S11** | watch pins / breakpoints across a reload | may key on the GUID instead of the old → new table (BP-509) — a simplification, not required |
+| ⛔ open | readers that rely on a reload REPRODUCING the file's ids (the allocator resets to 1000 per world, so a reload often hands out the same numbers) — tests, scripts | measure before S8 |
 
 ## 0. ⚠ CANDIDATE (not decided) — raised by the user as a QUESTION, `2026-10-31` (*"It was a question, not a imperative. So let's Analyze if GUIDs are the right answer."*): *"Maybe the GUID is the right answer here. Doesn't need names and is always unique. So not names but GUIDs, and that's the real reason for GUIDs in the scenario file."*
 
