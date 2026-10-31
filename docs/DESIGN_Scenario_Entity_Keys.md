@@ -34,6 +34,17 @@ hit). ⇒ GUIDs can be the cross-scope reference only once they are made persist
 ⭐ Trade-off accepted: a GUID survives a RENAME (a name path would break); it breaks if a macro's author deletes and re-creates an entity
 (a new GUID) — a name path would survive that. The editor can warn when a saved reference no longer resolves.
 
+
+### 0a. Measured by the (stopped) CE-4153 worker, `2026-10-31` — all in favour of rev 2
+
+| fact | where | for stable GUIDs |
+|---|---|---|
+| a saveable entity CAN lack `NetworkIdentity` (the selection checks alive · not ignored · owned, never the id); 9 of 1068 repo entities have none | `ScenarioSerializer.cs:614-637`; `BlueprintDemo.scenario.json`, `test-data/scenario-corpus/multi-version/*` | ⭐ a GUID identity does not depend on a network id (rev 1 would have needed an `L<n>` fallback that collides in `ScenarioMergeCore.cs:146-152`) |
+| every translator treats the key as OPAQUE (`VisHierarchyNode`, `UnitSubordinate`, `TargetMemory`, `PassengerBuffer`, `IsEmbarkedTag`, `PersonalRouteRef` translators, `FdpAutoSerializer.cs:420`); only `ScenarioSerializer.cs:410-441` and `LoadResolver :716-729` parse it | as cited | ⭐ making GUIDs stable touches the serializer only |
+| a GUID DERIVED from a network id already exists: `TransientMasterBuilder` keys with `NetworkIdGuid.From(netVal)` | `TransientMasterBuilder.cs:85, 137, 247` | ⭐ precedent for G2's derived GUIDs |
+| the generators mint DETERMINISTIC keys (`prefix-0000-4000-8000-n`) | `scripts/scenario_builder.py:17-20` (+ `gen-ia/rf/ts-scenarios.py`) | ⭐ already stable per regeneration — compatible with G1 |
+| ~558 in-file values reference another entity's key; nothing beside `scenario.json` (`checks.json`, `golden.json`, `takes/`) references entity keys | grep | ⭐ no migration needed for rev 2 (the keys stay) |
+
 ## ⛔ HISTORY — rev 1 (superseded `2026-10-31`): network ids as keys
 
 
