@@ -1,53 +1,87 @@
 {
-  "title": "Surrender, then a feint",
-  "caption": "Hands up and weapon down hold fire; when he picks the rifle up again he is engaged",
+  "title": "Surrender and feint",
+  "caption": "Rifle down, hands up: the rifleman holds fire — then he picks the rifle up, and is shot",
+  "clip": "F-15",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+5",
   "anchors": {
-    "fire": {
+    "m": {
       "on": "shot",
       "by": "Rifleman",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "fire": 20.7833
-    },
-    "tickHz": 60,
-    "scenarioHash": "95b125681cda1508",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": 3,
-      "seconds": 4,
+      "at": "m-21",
+      "follow": "Enemy Soldier",
+      "distance": 40,
+      "yaw": 30,
+      "pitch": -25,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman",
+      "toward": "Enemy Soldier",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
       "over": "Rifleman",
       "toward": "Enemy Soldier",
       "back": 4,
-      "height": 2,
-      "ahead": 0.7,
-      "fov": 30,
-      "why": "the covering rifleman's view"
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
     },
     {
-      "at": 12,
-      "seconds": 4,
+      "at": "m+2",
       "follow": "Enemy Soldier",
-      "distance": 6,
-      "yaw": 135,
-      "pitch": -8,
-      "why": "close: hands up, rifle at his feet"
-    },
-    {
-      "at": "fire-2",
-      "seconds": 4,
-      "follow": "Enemy Soldier",
-      "distance": 9,
-      "yaw": 135,
-      "pitch": -8,
-      "why": "he reaches for it — and is shot"
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
     }
   ],
-  "clip": "F-15",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-21",
+      "to": "m-4",
+      "speed": 3
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-21",
+      "until": "m-4",
+      "text": "Hands up: the rifleman spends no round"
+    },
+    {
+      "at": "m-4",
+      "until": "m+5",
+      "text": "He picks the rifle up again: shot"
+    }
+  ]
 }

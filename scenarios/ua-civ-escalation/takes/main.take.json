@@ -1,63 +1,92 @@
 {
   "title": "The escalation ladder",
-  "caption": "Police warn first, use non-lethal force on the rioters, and lethal rounds only at the gunman",
+  "caption": "A warning first; lethal force only at the gunman who fires — the crowd is only stunned",
+  "clip": "F-13",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+0.05",
   "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Police rifle",
+      "n": 1
+    },
     "warn": {
       "on": "gesture",
       "who": "Police rifleman",
       "is": "Warning"
-    },
-    "lethal": {
-      "on": "shot",
-      "by": "Police rifleman",
-      "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "lethal": 0.9667
-    },
-    "tickHz": 60,
-    "scenarioHash": "30d5ad6e52f5e08e",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "warn"
-    ]
-  },
-  "shots": [
+  "keys": [
     {
       "at": "warn-1",
-      "seconds": 4,
+      "follow": "Police rifleman",
+      "distance": 25,
+      "yaw": 40,
+      "pitch": -15,
+      "lift": 1.7,
+      "fov": 45,
+      "segment": "warn"
+    },
+    {
+      "at": "m-8",
+      "follow": "Gunman",
+      "distance": 35,
+      "yaw": 40,
+      "pitch": -25,
+      "lift": 1.7,
+      "fov": 45,
+      "segment": "gun"
+    },
+    {
+      "at": "m-0.7",
       "over": "Police rifleman",
       "toward": "Gunman",
       "back": 4,
-      "height": 2,
-      "fov": 30,
-      "why": "the warning"
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "gun"
     },
     {
-      "at": "lethal-1",
-      "seconds": 3,
+      "at": "m-0.2",
       "follow": "Gunman",
-      "distance": 8,
-      "yaw": 200,
-      "pitch": -8,
-      "why": "the gunman raises his rifle — and is shot"
-    },
-    {
-      "at": "lethal+1",
-      "seconds": 4,
-      "lookAt": [
-        108,
-        200,
-        0
-      ],
       "distance": 35,
-      "pitch": -40,
-      "why": "high: the rioters stunned, not shot"
+      "yaw": 60,
+      "pitch": -45,
+      "lift": 1,
+      "fov": 45,
+      "segment": "gun"
     }
   ],
-  "clip": "F-13",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "warn",
+      "from": "warn-1",
+      "to": "warn+3"
+    },
+    {
+      "id": "run",
+      "from": "warn+3",
+      "to": "m-8",
+      "speed": 6
+    },
+    {
+      "id": "gun",
+      "from": "m-8",
+      "to": "m+0.05"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "warn-1",
+      "until": "warn+3",
+      "text": "First, a warning"
+    },
+    {
+      "at": "m-8",
+      "until": "m+0.05",
+      "text": "Only the gunman who fires meets a lethal round"
+    }
+  ]
 }

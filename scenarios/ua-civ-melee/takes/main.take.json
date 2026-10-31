@@ -1,46 +1,82 @@
 {
-  "title": "A blow",
-  "caption": "A protester strikes a policeman down — and that act makes him hostile",
+  "title": "Melee",
+  "caption": "A protester knocks a policeman down",
+  "clip": "F-17",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+8",
   "anchors": {
-    "blow": {
+    "m": {
       "on": "side",
       "who": "Rioter",
       "is": "Hostile"
     }
   },
-  "baked": {
-    "times": {
-      "blow": 4.1167
-    },
-    "tickHz": 60,
-    "scenarioHash": "5c88f63fd0628f89",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "blow-3",
-      "seconds": 3,
-      "lookAt": [
-        103,
-        200,
-        1.5
-      ],
-      "distance": 10,
-      "yaw": 90,
-      "pitch": -5,
-      "why": "side on, close"
-    },
-    {
-      "at": "blow-0.5",
-      "seconds": 2,
+      "at": "m-4.5",
       "follow": "Policeman",
-      "distance": 4,
+      "distance": 30,
+      "yaw": 60,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rioter",
+      "toward": "Policeman",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Policeman",
+      "distance": 14,
+      "yaw": 60,
+      "pitch": -25,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Policeman",
+      "distance": 12,
+      "yaw": 200,
       "pitch": -10,
-      "speed": 0.5,
-      "why": "the blow, slow"
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
     }
   ],
-  "clip": "F-17",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-4.5",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+8"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-4.5",
+      "until": "m+8",
+      "text": "A protester knocks a policeman down"
+    }
+  ]
 }
