@@ -6,6 +6,7 @@ stale-below: none
 known-rot: §6 said "enter the polygon" — the predicate is a BOX (BoundingBox2D); corrected 2026-10-23
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — every scenario-rule CONDITION is a predicate (R-4077); adds PolygonOccupancy (TE-3), UnitKilled, ScenarioTime, ObjectiveState
   - docs/DESIGN_Replay_Browser_Debug_Http.md — /replay/search gains the lifecycle mode; seek to the next change is a lookup over this model (RB-2, RB-5)
   - docs/DESIGN_Director_Timeline_Editor.md — R-4072: film anchors ARE these predicates, edited by this editor; it owns the planned EXTENSIONS (a polygon area, a line crossing, drawing them on the map)
   - docs/designs/breakpoints-1/DESIGN.md — OWNS the data breakpoints that evaluate these predicates live

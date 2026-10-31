@@ -6,6 +6,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — P-1, designed (SR-1…SR-12)
   - docs/DESIGN_Player_Join.md — the deploy (side, unit / role, spawn, observe); its S3 score feeds item P-4
   - docs/DESIGN_Node_Features.md — the feature switches every item here is delivered as (presets, side knowledge, fun features)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — the Player host; interest management deferred there (item P-x2)
