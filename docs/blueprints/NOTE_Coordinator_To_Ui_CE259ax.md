@@ -17,3 +17,7 @@ authoring surface: the editor / Player / SimHost / Stride creation sites call `E
 
 ⭐ Please avoid editing those files until the coordinator reports the batch done (a later note), or say so and we coordinate.
 At dispatch `origin/ui` was not ahead of `coordinator` (0 commits).
+
+## ✅ DONE `2026-10-31` — commit `676464716` on `coordinator`
+
+`ScenarioSpawnAdapter` is a thin caller of `EntityCreation.RequestEntityCreation` (its own request mapping deleted; `EntityAuthoringInputs.Requests` → `Creation`), the placement gizmo's name resolver is honoured (G2), `SimHostScenarioManager`'s six spawners author through the pack, `IgEntityCreationRequests` (zero callers) deleted. Not built: `BeginPlacement` (its only consumer, IG's `MapCommandController` session, was retired by R-3067). As-built: [`DESIGN_Entity_Authoring_Surface.md`](../DESIGN_Entity_Authoring_Surface.md) §9. ⭐ The files are free again.
