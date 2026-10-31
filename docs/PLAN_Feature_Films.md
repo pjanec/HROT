@@ -62,12 +62,12 @@ it is found the same night.*
 | F-17 | melee | `ua-civ-melee` | a protester knocks a policeman down (~8 s) | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | | **5 · The soldier** | | | |
 | F-18 | hold at a watched road | `ua-danger-crossing` | he stops short of a watched road, waits, rushes across when the watcher leaves | ✅ |
-| F-19 | flank a lost target | `ua-attack-approach` | the hostile ducks behind a wall; the rifleman moves to a new firing spot | ✅ |
-| F-20 | window duel | `bt-window-duel` | two units fight from windows; one swaps windows, the other bounds to the next van | ✅ |
-| F-21 | grenade or rifle | `ua-grenade-or-rifle` | the grenadier closes and lobs a grenade over the sandbags | ✅ (no live check — the scout pass is its first live look) |
-| F-22 | sentry turns | `ld-sentry-surprise-360` | a man creeps up behind the sentry; he turns to face him | ✅ |
+| F-19 | flank a lost target | `ua-attack-approach` | the hostile ducks behind a wall; the rifleman moves to a new firing spot | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-20 | window duel | `bt-window-duel` | two units fight from windows; one swaps windows, the other bounds to the next van | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-21 | grenade or rifle | `ua-grenade-or-rifle` | the grenadier closes and lobs a grenade over the sandbags | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-22 | sentry turns | `ld-sentry-surprise-360` | a man creeps up behind the sentry; he turns to face him | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-61 | pinned in the open | `uf-alone-under-fire` | crouched rush; a near miss drops him prone (~2.8 s); down while pinned; up and on when the fire stops | ✅ |
-| F-23 | posture by health | `ua-posture` | the same man suppresses, then takes cover as he is hurt | 🟡 the check lowers his health. ⚠ Weak on film — **skip** unless an overlay shows the posture |
+| F-23 | posture by health | `ua-posture` | the same man suppresses, then takes cover as he is hurt | ⏭ skipped `2026-10-30`: the posture changes only when the check lowers the man's health, and a camera cannot show a posture decision (no overlay) |
 | | **6 · The squad** | | | |
 | F-24 | fire and movement | `ua-fire-and-movement` | one half fires, the other rushes to cover, swap (~90 s → cut to 3 rushes) | ✅ |
 | F-25 | bounding overwatch | `ua-bounding-overwatch` | the halves leapfrog; at contact the watchers open fire | ✅ |
