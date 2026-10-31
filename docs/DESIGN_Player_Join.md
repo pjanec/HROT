@@ -7,6 +7,7 @@ stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a Re
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
 related-designs:
+  - docs/PLAN_Training_And_Gameplay_Engine.md — the ranked engine items (scenario rules, skill amplifier, performance evaluation, fun features) the deploy's S2/S3 feed
   - docs/DESIGN_Node_Features.md — OWNS the feature switches: the deploy server is the feature gameplay.deploy-server (D-3), and §7a's G1…G6 become hud.* features
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — OWNS what a Player node is in the CLUSTER (admitted, caught up, acts by REQUESTS to the owner); this design adds what it does as a GAME client once admitted
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.2–§3.4 OWN composition by role (R-4000 one code path; R-4005 a role is what a host does); the gameplay packs are composed through that same mechanism
