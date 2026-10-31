@@ -69,7 +69,7 @@ public sealed class TrafficMirror
             id ??= handle.Index.ToString(System.Globalization.CultureInfo.InvariantCulture);
             long netId = long.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
             source.Tags.TryGetValue(handle, out var tag);
-            into.Add(new TrafficCarPose(_owner, handle, id, netId, tag.ExternalType, tag.Color != 0 ? tag.Color : TrafficPaint.Of(id, tag.ExternalType),   // ⭐ CE-4123 (TC4)
+            into.Add(new TrafficCarPose(_owner, handle, id, netId, tag.ExternalType, tag.Color != 0 ? tag.Color : TrafficPaint.Of(id, tag.ExternalType),   // ⭐ CE-1457 (TC4)
                 (float)x, (float)y, (float)r.Z, yaw, dims.Length, dims.Width));
         }
 

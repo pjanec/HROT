@@ -225,6 +225,33 @@ public sealed class MainToolbarTimeControlSection
     /// <summary>■ in a review is ⏏ Back to live (R-3060), else ■.</summary>
     public static StopFaceKind StopFace(TransportMode mode) => mode == TransportMode.Review ? StopFaceKind.BackToLive : StopFaceKind.Stop;
 
+    /// <summary>
+    /// ⭐ The ▶ / ⏸ tooltip: what a press does, named by the mode. 🔒 User, <c>2026-10-30</c>: <i>"the Play button should have tooltip saying what it does
+    /// based on armed mode (Play Live, Play AAR, Play DAR, Play Preview...)"</i>. In Edit ▶ starts the ARMED mode (R-1043 — the indicator arms it);
+    /// in a run it resumes or pauses that run.
+    /// </summary>
+    public string PlayTooltip(bool isPaused)
+    {
+        var mode = _facade.Mode;
+        if (mode == TransportMode.Edit || mode == TransportMode.Idle)
+            return _choice?.Armed switch
+            {
+                RunArmed.Live    => "Play Live — start the exercise (recorded)",
+                RunArmed.AAR     => "Play AAR — play the recording",
+                RunArmed.Preview => "Play Preview — a dry run of the scenario (nothing recorded)",
+                _                => "Play",
+            };
+        string name = mode switch
+        {
+            TransportMode.Live    => "Live",
+            TransportMode.Review  => "DAR",
+            TransportMode.Replay  => "AAR",
+            TransportMode.Preview => "Preview",
+            _                     => "",
+        };
+        return isPaused ? $"Play {name} — resume" : $"Pause {name}";
+    }
+
     /// <summary>The ■ tooltip per DAR §9a — and, for 3 s after a return to live, why a press is ignored (F15).</summary>
     public string StopTooltip()
     {
@@ -309,8 +336,10 @@ public sealed class MainToolbarTimeControlSection
         {
             OnPlayPause();
         }
-        if (_choice?.PlayDisabledReason is { } playWhy && (_facade.Mode == TransportMode.Edit || _choice.ClosedReason is not null) && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-            ImGui.SetTooltip(playWhy);   // ⭐ CE-4097 §2.8 ⑥ — Live armed with no scenario session
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip(_choice?.PlayDisabledReason is { } playWhy && (_facade.Mode == TransportMode.Edit || _choice.ClosedReason is not null)
+                ? playWhy                    // ⭐ CE-4097 §2.8 ⑥ — Live armed with no scenario session
+                : PlayTooltip(isPaused));    // what a press does, by the mode
 
         ImGui.SameLine();
 

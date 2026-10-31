@@ -184,19 +184,32 @@ namespace Hrot.Map.Definitions.Tkb
         /// stay enclosed, and the roof-ring STATION (4) it operates — a pintle, all round (the weapon's own limits), NeedsGunner — that
         /// starts with an M2. The ring's pivot is 2.3 m up (the station 2.0 m + the weapon's 0.3 m pivot), over the rear seats.
         /// </summary>
-        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto HmmwvSeats()
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto HmmwvSeats(bool crewed)
         {
             var dto = Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(3);
             dto.Seats.Add(new SeatDto
             {
-                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman, Exposed = true,
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = crewed ? TkbEntityTypes.Infantry_Rifleman : 0L, Exposed = true,
                 // ⭐ CE-1108 — STANDING in the hatch on the rear floor (the place is his feet): seated at 1.2 m only his head cleared the roof
                 X = -0.4f, Z = 0.7f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Stand,
             });
             dto.Seats.Add(new SeatDto
             {
                 Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 3, NeedsGunner = true,
-                X = -0.4f, Z = HmmwvRingPivotZ - WeaponPivotZ, StartWith = TkbEntityTypes.WeaponSystem_M2Hmg,
+                // ⭐ 2026-10-31 — 0.45 m FORWARD of the gunner (he stands behind his gun at the ring's front edge): at the same X as him the M2's
+                //   receiver sat on his head (seen on the CE-1459 render)
+                X = 0.05f, Z = HmmwvRingPivotZ - WeaponPivotZ, StartWith = TkbEntityTypes.WeaponSystem_M2Hmg,
+                // ⭐ 2026-10-31 — EXPOSED: the ring is on the roof. Without it the station inherited the ENCLOSED carrier, the M2 counted as a hidden
+                //   passenger (PhysicalPresence.IsEnclosedPassenger) and the 3-D map never drew it — the user saw only the gunner standing there
+                Exposed = true,
+            });
+            // ⭐ 2026-10-31 (user: "a gunner seat and driver seat and a few passenger seats so that players can either drive or shoot or be
+            //   transported") — the DRIVER seat (5), appended so the indices saved scenarios name (0–4) stay; front left, seated. It starts
+            //   EMPTY: a player walks up and drives (OperatorUse offers Drive only on a free Driver seat); the AI drives as before without one
+            dto.Seats.Add(new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver,
+                X = 0.35f, Y = 0.45f, Z = 0.55f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit,
             });
             return dto;
         }
@@ -541,6 +554,49 @@ namespace Hrot.Map.Definitions.Tkb
         /// brain (a Strike to it resolves to <c>SelfPropelledArtilleryStrike</c>, the behaviour lane's), and a preset crew (W-I: driver,
         /// gunner, commander, two loaders). Class SelfPropelledArtillery 1.1.*.4. Public figures, rounded.
         /// </summary>
+        /// <summary>⭐ The HMMWV (M1025-class, an M2 in its roof ring), ONE definition for both variants (2026-10-31, user: "HMMWV (M2, crewed)" /
+        /// "HMMWV (M2, no crew)"): <paramref name="crewed"/> = its gunner seat starts with a rifleman at the M2, else it starts empty.</summary>
+        private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed)
+        {
+            builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v =>
+                {
+                    v.IconName = "hmmwv";   // CE-1017 S0
+                    v.SymbolCode = "SFGPUUS--------";
+                    v.ModelPath = "models/hmmwv.obj";
+                    v.ColorHex = "#3E5641";
+                    v.Scale = 0.9f;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 2_400;
+                    p.Length = 4.57f;
+                    p.Width = 2.16f;
+                    p.Height = 1.83f;
+                    p.MaxSpeed = 25.0f;
+                    p.Acceleration = 4.0f;
+                    p.TurnRate = 30.0f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                })
+                // ⭐ BR-15 (Urban Battle §4 ⑧) — a LIGHT vehicle that can be hit and killed: the M998's thin aluminium body (a rifle round's
+                //   pen 5 against its 5 mm sides scales the hit by half, ArmorModel), health one RPG (400) takes, most of a burst's blast
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 6; c.ArmorSide = 5; c.ArmorRear = 5; c.ArmorTop = 3;
+                    c.MaxHealth = 350;
+                    c.BlastSusceptibility = 0.9f;   // ⭐ R-2019 D-M2 (AE3) — near a soft skin: a near burst wrecks it
+                    c.MobilityKillBelowFraction = 0.6f;
+                    c.EyeHeight = 2.3f;   // the gunner in the roof ring
+                    c.SensorRange = 2000;
+                })
+                .WithFaction(type, 1)
+                .WithCarrier(type, HmmwvSeats(crewed))   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
+        }
+
         private static void DefineSelfPropelledHowitzer(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.Sph_M109;
@@ -719,44 +775,9 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithSignatures(TkbEntityTypes.IFV_Bradley, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, CannonReport))   // ⭐ CE-3281 — the 25 mm as the catalogue's autocannon
                 .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
             
-            // HMMWV
-            builder
-                .DefineVehicle(TkbEntityTypes.Truck_HMMWV, "HMMWV")
-                .WithVisual(TkbEntityTypes.Truck_HMMWV, v =>
-                {
-                    v.IconName = "hmmwv";   // CE-1017 S0
-                    v.SymbolCode = "SFGPUUS--------";
-                    v.ModelPath = "models/hmmwv.obj";
-                    v.ColorHex = "#3E5641";
-                    v.Scale = 0.9f;
-                })
-                .WithPhysics(TkbEntityTypes.Truck_HMMWV, p =>
-                {
-                    p.Mass = 2_400;
-                    p.Length = 4.57f;
-                    p.Width = 2.16f;
-                    p.Height = 1.83f;
-                    p.MaxSpeed = 25.0f;
-                    p.Acceleration = 4.0f;
-                    p.TurnRate = 30.0f;
-                    p.Mobility = TerrainMobility.Wheeled;
-                })
-                // ⭐ BR-15 (Urban Battle §4 ⑧) — a LIGHT vehicle that can be hit and killed: the M998's thin aluminium body (a rifle round's
-                //   pen 5 against its 5 mm sides scales the hit by half, ArmorModel), health one RPG (400) takes, most of a burst's blast
-                .WithCombat(TkbEntityTypes.Truck_HMMWV, c =>
-                {
-                    c.ArmorFront = 6; c.ArmorSide = 5; c.ArmorRear = 5; c.ArmorTop = 3;
-                    c.MaxHealth = 350;
-                    c.BlastSusceptibility = 0.9f;   // ⭐ R-2019 D-M2 (AE3) — near a soft skin: a near burst wrecks it
-                    c.MobilityKillBelowFraction = 0.6f;
-                    c.EyeHeight = 2.3f;   // the gunner in the roof ring
-                    c.SensorRange = 2000;
-                })
-                .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
-                .WithCarrier(TkbEntityTypes.Truck_HMMWV, HmmwvSeats())   // ⭐ CE-2151 three beside the (abstract) driver; ⭐ ui P1 + the roof ring
-                .WithBehavior(TkbEntityTypes.Truck_HMMWV)
-                .WithSignatures(TkbEntityTypes.Truck_HMMWV, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
-                .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
+            // HMMWV — ⭐ 2026-10-31 two variants of ONE definition (Hmmwv): 102 crewed (as before), 111 with no crew
+            Hmmwv(builder, TkbEntityTypes.Truck_HMMWV, "HMMWV (M2, crewed)", crewed: true);
+            Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_NoCrew, "HMMWV (M2, no crew)", crewed: false);
             
             // T-72 (OPFOR)
             builder

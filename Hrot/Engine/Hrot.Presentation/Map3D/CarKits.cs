@@ -5,7 +5,7 @@ using static Hrot.UI.Common.Map3D.ShapeKits;
 namespace Hrot.UI.Common.Map3D;
 
 /// <summary>
-/// ⭐ CE-4123 (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-3, TC2) — seven block kits for the wheeled road vehicles a TKB type names by
+/// ⭐ CE-1457 (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-3, TC2) — seven block kits for the wheeled road vehicles a TKB type names by
 /// <see cref="CarBodyStyle"/>, in the <see cref="ShapeKits"/> vocabulary (fractions of the type's size; x forward, y across, z up; wheels
 /// 0.42 of the height across, so the roll animation and the ground contact are the car kit's). Each is its own silhouette — a bus is not a
 /// stretched car.

@@ -4,7 +4,7 @@ using Hrot.Core.Tkb;
 namespace Hrot.Traffic;
 
 /// <summary>
-/// ⭐ CE-4123 (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-3, TC4) — the paint of a SUMO car: a pure function of its vehicle id (FNV-1a), so every node, a
+/// ⭐ CE-1457 (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-3, TC4) — the paint of a SUMO car: a pure function of its vehicle id (FNV-1a), so every node, a
 /// replica and a replay agree with no state on the wire, yet the traffic LOOKS random: a weighted street palette for cars, a livery set for a bus
 /// or a truck. Applied where the pose is made (<see cref="TrafficMirror"/>) when SUMO gave no colour. 0xRRGGBB, never 0 (0 means "no colour").
 /// </summary>
