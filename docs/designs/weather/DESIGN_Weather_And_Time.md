@@ -4,9 +4,10 @@ updated: 2026-10-16
 build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). ⭐ S2 DESIGNED and APPROVED 2026-10-19 (§8, R-3017) — READY-TO-BUILD. S3–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
 current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice) · §8 S2 perception design (leans, awaiting the user). §0 is the measured ground.
 stale-below: nothing.
-known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
+known-rot: ⚠ C-3's "saved next time" as an ENTITY is to change — the saved form moves to `header.world` (Scenario Rules SR-71, CE-4154, not built yet) · §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — SR-71 (CE-4154): the World Environment's SAVED form moves to the scenario header (`header.world`); its runtime entity (W-0) and C-3's defaults are unchanged
   - ../../DESIGN_Scenario_Rules.md — the World Environment entity also carries the scenario's RuleSet and RuleState (SR-7, SR-8)
   - docs/DESIGN_Sensors_And_Doctrine.md — §5.7 AQ-2: the acquisition dwell S2 leaves unchanged (§8.3 S2-1)
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.8 A-4 (`SeeingConditions`, the light curve): the one curve S2 reuses
