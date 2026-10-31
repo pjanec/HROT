@@ -245,6 +245,38 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(2.3f, ring.Z + m2Turret.PivotZ, 4);
             var driver = carrier.Seats[5];   // appended: the saved indices 0–4 above are unchanged; empty, so a player can take it
             Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Driver, 0L), (driver.Role, driver.StartWith));
+            Assert.True(ring.Exposed == true, "the roof ring is EXPOSED — enclosed, its M2 was a hidden passenger and never drawn (2026-10-31)");
+
+            // ⭐ 2026-10-31 — the NO-CREW variant (111): the same vehicle, the M2 mounted, the gunner seat empty
+            var bare = db.GetByType(TkbEntityTypes.Truck_HMMWV_NoCrew)!;
+            Assert.Equal(("HMMWV (M2, crewed)", "HMMWV (M2, no crew)"), (db.GetByType(TkbEntityTypes.Truck_HMMWV)!.Name, bare.Name));
+            var bareSeats = bare.GetDescriptor<CarrierDefDto>()!.Seats;
+            Assert.Equal((6, 0L, TkbEntityTypes.WeaponSystem_M2Hmg), (bareSeats.Count, bareSeats[3].StartWith, bareSeats[4].StartWith));
+            Assert.Equal(db.GetByType(TkbEntityTypes.Truck_HMMWV)!.DisType, bare.DisType);
+        }
+
+        /// <summary>
+        /// ⭐ 2026-10-31 — every weapon STATION a vehicle shows is exposed: on an enclosed carrier a station seat that does not say so counts as a hidden
+        /// passenger and its weapon is never drawn (the HMMWV's M2). Only a station meant to be unseen — stowed or concealed (a car bomb's boot) — may
+        /// stay enclosed.
+        /// </summary>
+        [Fact]
+        public void EveryVisibleWeaponStation_IsExposed()
+        {
+            var db = BuildDatabase();
+            var bad = new List<string>();
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<CarrierDefDto>() is not { } c) continue;
+                for (int i = 0; i < c.Seats.Count; i++)
+                {
+                    var seat = c.Seats[i];
+                    if (seat.Role != Fdp.Toolkit.Behavior.Components.SeatRole.Station || seat.Stowed || seat.Concealed) continue;
+                    bool exposed = seat.Exposed ?? c.Exposure == Fdp.Toolkit.Behavior.Components.PassengerExposure.Open;
+                    if (!exposed) bad.Add($"{t.Name} ({t.TkbType}) seat {i}");
+                }
+            }
+            Assert.Empty(bad);
         }
 
         /// <summary>

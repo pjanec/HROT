@@ -22,6 +22,8 @@ namespace Hrot.Map.Common
         public const long Technical_Minigun = 109;
         /// <summary>⭐ <c>CE-2190</c> (DESIGN_Weapon_Systems §5c) — the pickup (106) with a ZU-23-2 in the bed and a rifleman at it.</summary>
         public const long Technical_Zu23 = 110;
+        /// <summary>⭐ 2026-10-31 — the HMMWV (102) with NO crew: the M2 in its roof ring, the gunner and driver seats empty (a player takes them).</summary>
+        public const long Truck_HMMWV_NoCrew = 111;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;

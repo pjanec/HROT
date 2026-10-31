@@ -197,7 +197,7 @@ public sealed class EntityTypeCatalogTests
     private const string BuiltInGolden = """
         100 M1 Abrams | dis 1.1.225.1.0.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
         101 M2 Bradley IFV | dis 1.1.225.2.0.0.0 | family Afv | folder Platform/Land/United States/Armored Fighting Vehicle | icon _afv
-        102 HMMWV | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
+        102 HMMWV (M2, crewed) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         103 T-72 | dis 1.1.222.1.0.0.0 | family Tank | folder Platform/Land/Russia/Tank | icon _tank
         104 Technical (HMG) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         105 Technical (ATGM) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
@@ -206,6 +206,7 @@ public sealed class EntityTypeCatalogTests
         108 Technical (DShK) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         109 Technical (minigun) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         110 Technical (ZU-23-2) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        111 HMMWV (M2, no crew) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -254,6 +255,9 @@ public sealed class EntityTypeCatalogTests
         1051 DeliveryVan | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1052 CityBus | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1053 BoxTruck | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1054 Sedan | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1055 Estate | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        1056 Suv | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1101 CivilianAdultMale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1102 CivilianAdultFemale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1103 CivilianMinor | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
