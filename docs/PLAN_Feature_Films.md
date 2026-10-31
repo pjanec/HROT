@@ -65,7 +65,7 @@ it is found the same night.*
 | F-19 | flank a lost target | `ua-attack-approach` | the hostile ducks behind a wall; the rifleman moves to a new firing spot | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-20 | window duel | `bt-window-duel` | two units fight from windows; one swaps windows, the other bounds to the next van | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-21 | grenade or rifle | `ua-grenade-or-rifle` | the grenadier closes and lobs a grenade over the sandbags | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
-| F-22 | sentry turns | `ld-sentry-surprise-360` | a man creeps up behind the sentry; he turns to face him | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
+| F-22 | sentry turns | `ld-sentry-surprise-360` | a man creeps up behind the sentry; he turns to face him | ⚠ clip made `2026-10-30`; the sentry's 'turn' is a 22° adjustment at 2–8 s, nothing turns when the man arrives (CE-4139) |
 | F-61 | pinned in the open | `uf-alone-under-fire` | crouched rush; a near miss drops him prone (~2.8 s); down while pinned; up and on when the fire stops | ✅ clip made `2026-10-30` (`takes/main.take.json`, cut from a Live recording) |
 | F-23 | posture by health | `ua-posture` | the same man suppresses, then takes cover as he is hurt | ⏭ skipped `2026-10-30`: the posture changes only when the check lowers the man's health, and a camera cannot show a posture decision (no overlay) |
 | | **6 · The squad** | | | |
@@ -212,6 +212,7 @@ report. A clip is refilmed when its row closes.
 | F-42, F-43, F-47, F-20 | the same scenario plays a different story run to run (Javelin lock denied or not, 1 or 3 rockets, squad aboard or out) | [CE-4136](blueprints/Blueprint_Issues_Tracker.md) | refilm when the runs agree; F-42, F-43, F-47 are filmed on the run recorded here |
 | F-31 | Alpha sets at (226,98) and Bravo moves to (195,170) at ~62–140 s: the reverse of the description; the bound takes 140 s; no contact without the check | [CE-4137](blueprints/Blueprint_Issues_Tracker.md) | refilm if the roles are swapped back (or the description changes); contact needs the enemy hostile in the file |
 | F-50 | a cue by a duplicate-named unit finds 0 events (two `M134 minigun`s, 454 rounds) | [CE-4138](blueprints/Blueprint_Issues_Tracker.md) | refilm not needed (F-50 re-anchored on `hit` of `Orbit Truck`); fix so the next duplicate-named unit is not silent |
+| F-22 | the sentry already faces B at 8 s (a 22° turn at 2–8 s): no visible 'turn' when B reaches him | [CE-4139](blueprints/Blueprint_Issues_Tracker.md) | ⚠ clip made `2026-10-30`; the sentry's 'turn' is a 22° adjustment at 2–8 s, nothing turns when the man arrives (CE-4139) |
 
 ## 2. Gaps — what no clip can show yet
 
