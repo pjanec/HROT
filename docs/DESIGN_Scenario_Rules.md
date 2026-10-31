@@ -517,13 +517,28 @@ scenario
 | # | decision | ⭐ lean |
 |---|---|---|
 | **SR-58** | a macro is CLOSED | inside a macro, references use its own local ids (remapped per instance, SR-45); ⛔ a macro never reaches OUT — anything outside it comes IN through its params (the exercise macro gets its `subject` / `area` as params) |
-| **SR-59** (⭐ the lean again — SR-62 is open) | a reference that crosses scopes = a NAME PATH | `<instance name>/<entity name>`, nested deeper as macros nest (`Blue Platoon/Squad 1/Rifleman 2`); a top-level entity is just its name. An `EntityRef`-typed param or field accepts a network id OR a path string; the path is resolved ONCE to a network id — after all macros of a load are expanded, or at insertion for a macro added at runtime — through a path index built from a `MacroOrigin {instance, local name}` stamp on every created entity |
+| ~~**SR-59**~~ ⛔ SUPERSEDED by SR-63 (names are labels; reusable refs use `RefKey`) | a reference that crosses scopes = a NAME PATH | `<instance name>/<entity name>`, nested deeper as macros nest (`Blue Platoon/Squad 1/Rifleman 2`); a top-level entity is just its name. An `EntityRef`-typed param or field accepts a network id OR a path string; the path is resolved ONCE to a network id — after all macros of a load are expanded, or at insertion for a macro added at runtime — through a path index built from a `MacroOrigin {instance, local name}` stamp on every created entity |
 | **SR-60** | names unique per scope | a macro's entity names are unique within the macro; instance names unique within their parent scope; a duplicate that a path references is refused at load with the alike-names hint the director already gives. (Today 3 of 117 scenarios have duplicates — they only matter once a path names them) |
 | **SR-61** | groups by the command chain, not by lists | an objective about "all of Blue Platoon" names the platoon's path as its `Subject` and quantifies over its members through the command chain (`ForUnits(members of …)`), so a macro's internal roster can change without touching the objective |
-| **SR-62** | ⚠ OPEN — the user ASKED whether GUIDs are the answer (*"It was a question, not a imperative"*); analysis in `DESIGN_Scenario_Entity_Keys.md` §0b, lean: name paths (SR-59) — candidate: a STABLE GUID | every authored entity keeps one `EntityGuid` for life; a macro-made entity's is derived `uuidv5(instance, local)` — so the exercise macro's `subject` param holds the GUID of *Blue Platoon's Squad 1* that the editor's picker wrote, resolved to the live network id after expansion. SR-58 (macros are closed, refs come in as params) and SR-61 (groups via the command chain) stand. 📄 [`DESIGN_Scenario_Entity_Keys.md`](DESIGN_Scenario_Entity_Keys.md) rev 2 G1–G6 |
+| ~~**SR-62**~~ ⛔ SUPERSEDED by SR-63 | ⚠ was OPEN — the user ASKED whether GUIDs are the answer (*"It was a question, not a imperative"*); analysis in `DESIGN_Scenario_Entity_Keys.md` §0b, lean: name paths (SR-59) — candidate: a STABLE GUID | every authored entity keeps one `EntityGuid` for life; a macro-made entity's is derived `uuidv5(instance, local)` — so the exercise macro's `subject` param holds the GUID of *Blue Platoon's Squad 1* that the editor's picker wrote, resolved to the live network id after expansion. SR-58 (macros are closed, refs come in as params) and SR-61 (groups via the command chain) stand. 📄 [`DESIGN_Scenario_Entity_Keys.md`](DESIGN_Scenario_Entity_Keys.md) rev 2 G1–G6 |
 | ~~SR-46~~ | ⛔ SUPERSEDED by SR-59 | the qualified `{instance, local id}` reference is replaced by the name path — ids are file-local and change per load; names are what an author reads and what the tooling already uses |
 
 ⭐ Rejected — **macro EXPORTS** (declared public aliases) for v1: the macro's entity names already are its interface; add exports only if renaming internals breaks references in practice.
+
+### 9.6 Three reference forms; `RefKey` *(✅ user, `2026-10-31`: "ref key is fine. recorded.")*
+
+> 🔒 **User, `2026-10-31`:** *"Entity name is by no means a stable identifier during the authoring."* · *"sometimes the objectives might be written
+> in a generic way referencing some subjects that are expected to be in the scenario, but every scenario might have different ones … So the
+> entity would need some kind of extra key which is not the entity's label but is used for referencing it."*
+
+| # | decision (✅ approved) |
+|---|---|
+| **SR-63** | three reference forms: **exact** (the entity's GUID — *this one entity*) · **key** (`RefKey` — *whatever entity this scenario gives that key*) · **query** (side, class, command chain, `TacticalDesignation` — *the squad leader of @Squad1*, *all members of @BluePlatoon*). ⇒ `EntityInfo.Name` is a LABEL only, never a reference; ⛔ SR-59 (name paths) and SR-62 (GUIDs for cross-scope refs) are superseded |
+| **SR-64** | `RefKey` — an author-assigned attribute on an entity (`"RefKey": "BlueHQ"`), separate from the label, set deliberately, rarely changed, unique within its scope; most entities have none. Precedent: `TacticalDesignation` (`Fdp.Core/CommandHierarchy/TacticalDesignation.cs`) is a role key scoped to one command group, a fixed enum on the wire |
+| **SR-65** | reusable macros reference keys THROUGH PARAMS — `subject` defaults to `"@BlueHQ"`, a scenario with another key overrides it at insertion; lookup is LEXICAL: inside the enclosing macro instance first, then outward to the scenario; from outside, a key inside an instance is qualified by keys only (`@BluePlatoon/SL`) |
+| **SR-66** | a missing key fails LOUDLY: the objective stays inactive with *"no entity with key 'BlueHQ' here"* (the director's *"no unit named …"* shape); duplicate keys in one scope are refused at save and load |
+
+⚠ The film director's takes keep naming units in a RECORDING by name for now — a GUID would need to exist at runtime and in the recording; a separate decision.
 
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 

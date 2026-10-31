@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — OPEN QUESTION (2026-10-31): stable GUIDs (§0, a CANDIDATE) vs name paths vs network-id keys — analysis in §0b; nothing decided; tracker CE-4153 paused
+build-state: DESIGN — rev 3 (2026-10-31): ✅ user — make the GUIDs STABLE and keep them (§00, S1–S7); leans for the user on S3; tracker CE-4153 re-scoped
 updated: 2026-10-31 (first version)
-current-answer: §0 the rev-2 decision G1–G6 · §1 inventory (still true)
+current-answer: §00 rev 3 — stable GUIDs, the mechanism · §0a measurements · §1 inventory
 stale-below: §2–§4 (rev 1, network-id keys — SUPERSEDED)
 known-rot: none
 known-conflict: none
@@ -11,10 +11,34 @@ related-designs:
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b OWNS network id allocation and the per-load re-allocation (old → new map) that makes a file's key file-local either way
   - docs/blueprints/DESIGN_Entity_Reference.md — OWNS EntityRef (a network id) and EntityRefRemap, the load-time remap of references
   - docs/designs/mgmt-1/DESIGN.md — §13.3a: an exercise archive carries a COPY of its scenario ⇒ the loader must keep reading legacy GUID keys
+  - docs/DESIGN_Distributed_Scenario_Persistence.md — §4a-§4b OWN the distributed save + merge whose invariant I2 (fresh GUID per save) rev 3 restates (S6)
   - docs/designs/cgf-scn-2/DESIGN.md — the scenario-translator programme that introduced IGuidResolver (VisHierarchyNodeTranslator, InitialHierarchyIntent)
 -->
 
 # DESIGN — **scenario entity identity: a STABLE GUID** *(tracker CE-4153; rev 1 proposed network-id keys — superseded)*
+
+## 00. ✅ Rev 3 — make the GUIDs STABLE and keep them *(user, `2026-10-31`)*
+
+> 🔒 *"I still think the GUID in the scenarios are only good if they are stable. And the need for a stable GUID might come later. So we might just
+> change the task from retiring the GUIDs to make them stable … if they are not stable, then the network IDs would work equally good. So can we
+> make the GUIDs stable? If so, let's keep them."* · reusable references use `RefKey` (`DESIGN_Scenario_Rules.md` SR-63…SR-66), not GUIDs.
+
+| measured | where | consequence |
+|---|---|---|
+| saving on a cluster is DISTRIBUTED: each node saves the entities it primarily owns as a slice; the orchestrator unions the slices (`ScenarioMergeCore`) | `DESIGN_Distributed_Scenario_Persistence.md` §4a-§4b; `ScenarioMergeCore.cs` | ⭐ the GUID must be known on WHICHEVER node owns the entity at save time — ownership moves (brain hand-over) |
+| the merge's invariant **I2** rests on *"the DOM key is a fresh `Guid.NewGuid()` per save"*; a key in two slices is rejected | §4b I2, fail-loud guards | ⭐ still true with stable GUIDs — I1 (one entity → one slice) keeps them disjoint; a duplicate still means a broken save |
+| `EntityMaster` (the NED entity descriptor) carries `EntityId`, `TkbType`, `DisType`, `Flags` — no GUID | `Hrot.Network.NED/GenericDescriptors.cs:97-121` | the GUID needs its own way across nodes |
+| a new replicated component ≈ 9 places (the `Descent` recipe) | Airborne D-1, commit bdc7827ec | the cost of S3 |
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **S1** | the component | `EntityGuid {Guid}` on every authored entity, never serialized as a component — it IS the entity's key in the file |
+| **S2** | where a GUID comes from | ⭐ scenario LOAD: the file key → `EntityCreationRequest` (a new optional `Guid`) → the created entity's `EntityGuid`. ⭐ a NEW entity (editor placement, runtime spawn that may be saved): minted ONCE at creation. ⭐ a MACRO-made entity: derived `uuidv5(instance GUID, local GUID)` (deterministic). ⭐ any future duplicate / paste: re-minted, never copied. ⛔ never `NewGuid()` at save again |
+| **S3** | how it reaches the saving node | ⭐ lean (a): a small replicated descriptor `EntityGuid {[DdsKey] EntityId, Guid}`, Reliable + TransientLocal, published by the entity's creator — every node knows every entity's GUID, so any owner saves it; it is also RECORDED, which later lets the film director reference by GUID. ⛔ (b) a field on `EntityMaster` — a core descriptor other NED participants read; ⛔ (c) the loading node ships a GUID map in its slice — breaks for entities created after load whose ownership moved |
+| **S4** | save | key = `EntityGuid`; an entity without one (created before this change, or by a path that does not mint) gets one minted AND stamped on the live entity, so the next save repeats it |
+| **S5** | load of old files | nothing to migrate — every file already has GUID keys; they simply stop changing from the next save |
+| **S6** | the merge | I2 restated: keys are unique because each entity has ONE stable GUID and lives in ONE slice; the duplicate-key guard stays and now also catches an aliased GUID |
+| **S7** | rails | load → save → load keeps every key · two saves of an unchanged scenario are identical · ownership moved to another node before save keeps the key · a macro instance's entities derive the same GUIDs on two loads |
 
 ## 0. ⚠ CANDIDATE (not decided) — raised by the user as a QUESTION, `2026-10-31` (*"It was a question, not a imperative. So let's Analyze if GUIDs are the right answer."*): *"Maybe the GUID is the right answer here. Doesn't need names and is always unique. So not names but GUIDs, and that's the real reason for GUIDs in the scenario file."*
 
