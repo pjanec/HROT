@@ -41,7 +41,20 @@ related-designs:
 | **S7** | rails | load → save → load keeps every key · two saves of an unchanged scenario are identical · ownership moved to another node before save keeps the key · a macro instance's entities derive the same GUIDs on two loads |
 
 
-### 00a. Then why keep the network id in the file? *(user, `2026-10-31`: "Do we still need to use the network ID as saved in the scenario for referencing within the scenario once we have a stable GUID?")*
+#
+### 00c. After CE-259ax (`2026-10-31`) — the mint moves up to the request level *(✅ user: "Yes")*
+
+📐 Measured on `coordinator` after CE-259ax (`676464716`): the only production publishers of `SpawnEntityCommand` are `CreateEntityRequestSystem`
+(`:343` the entity, `:406` / `:503` composite children) and the CGF test hook (`CgfSubsystem.cs:599`) — both creation ways (the NED wire request
+and the in-process intent) converge in `CreateEntityRequestSystem`. ⇒ the reason S2 minted in `NetworkSpawningSystem.ProcessSpawn` is gone.
+
+| # | change (applied on the experiment branch, rebased onto `coordinator`) |
+|---|---|
+| **S2′** | the GUID is minted in `CreateEntityRequestSystem` where it decides to materialise (carried in the order's initial components); `ProcessSpawn` mints nothing; a scenario-load request keeps its file key |
+| **S2″** | a composite's auto-created child derives its GUID `uuidv5(parent GUID, slot)` — the same rule as macro-made entities, one shared helper |
+| **S4′** | still no fallback: a non-transient entity reaching save without a GUID fails loudly; the CGF test hook mints its own, visibly |
+
+## 00a. Then why keep the network id in the file? *(user, `2026-10-31`: "Do we still need to use the network ID as saved in the scenario for referencing within the scenario once we have a stable GUID?")*
 
 | measured | where |
 |---|---|
