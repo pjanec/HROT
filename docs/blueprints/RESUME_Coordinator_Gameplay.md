@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-31 (written before an auto-compaction — the coordinator lane's session of 2026-10-30/31)
+updated: 2026-10-31 (Scenario Rules rev 3 folded — the coordinator lane's session of 2026-10-30/31)
 current-answer: §0 read first · §1 where the discussion is · §2 next, in order · §3 the ids · §4 done this session
 stale-below: nothing
 known-rot: none
@@ -42,7 +42,7 @@ related-designs:
    amplifier · **R-4107** Zeus = the server's default UI · **R-4108** EVERY feature is granular, pluggable, announced as a capability and switchable — nothing hard-coded (binds every design).
 
 ## 1a. IN FLIGHT (2026-10-31)
-- **P-1 scenario rules — DESIGNED: [`DESIGN_Scenario_Rules.md`](../DESIGN_Scenario_Rules.md)** (rev 2 `4cac7337e`: the user's answers folded — conditions are NAMED PRIMITIVES implemented as a data predicate, a `[SharedAiCondition]` C# method or a Blueprint, shared with BTrees / HSM guards / film cues / checks; ONE evaluator; first-class objectives SR-14 with JSON examples §6; `ExerciseEnded` carries the full result; pause-on-end and `ui.rules-debug-panel` are features (no pop-up); the instructor station by composition SR-13. Open: the user's reaction to the examples. Was: SR-1…SR-12, leans await the user; key: conditions = the ONE predicate model R-4077; rules + state on the World Environment entity 8810; `ScenarioRulesSystem` on its Brain; outcomes = replicated RuleState + `rules.*` lanes; EndExercise pauses; data rules v1, shared grammar/evaluator with checks.json (SR-11), world-singleton Blueprints S3). The inventory found: world-singleton Blueprint runtime exists, never called; `ConditionBook` is editor-only. ⛔ was: the INVENTORY is running (an Explore agent: condition evaluators `AnchorBook.HoldsFor` + the regression verifier, the mission system, Blueprint hosting / scenario scope, areas, timeline lanes, where scenario-level data lives). Next: write `DESIGN_Scenario_Rules.md` from it (diagram-first, INVENTORY + claim table, every rule element a feature — R-4108), leans for the user. The user said *"Let's please dive into the point number one, which I think is the most important for now."*
+- **P-1 scenario rules — rev 3 (2026-10-31): [`DESIGN_Scenario_Rules.md`](../DESIGN_Scenario_Rules.md).** 🔒 The user: no rules interpreter, no new brain type — the rules / objectives / measures are DATA LOWERED AT LOAD into an ordinary HSM by the existing runtime builder (`HsmBuilder` → `HsmEmitter`, measured: runs without Roslyn, `ApcHsmSetup.cs`), guards / actions = compiled shared primitives bound at block offsets (`HsmSharedBinder`, CE-3163), registered in `BehaviorRegistry` as the **World Environment entity's brain** (8810; `BrainTickSystem` ticks any SopState + BehaviorState entity). Params / working state: the primitives' own compiled `P` / `WS` concatenated — no per-scenario struct (SR-16). Directors (counter-attack, utility pressure) = REUSABLE parameterised assets hosted as sub-machines, ordering down the command chain (SR-17/18). P-4 measures = stateful primitives with a subject, same brain (SR-19). Facts = `[UtilityInput]` + generic `InputAbove` / `Sample` adapters, no fourth registry (SR-20). Rulings **R-4109…R-4111**. §5 lists what is missing as primitives. Next: S0 = three measurements (inspector on a runtime-built HSM; brain on 8810; offset binding with seeded params) — ⛔ ask before building. Open: re-evaluating measures on a recording (SR-19).
 - Clarified and folded into the PLAN (`ce2ce112d`): server full-UI by default (headless optional); side knowledge = 2-D map only, OFF by default, fading last-known; skill slider adds tiers, clamps at the top.
 
 ## 2. Next, in order (ask before building)
@@ -54,7 +54,7 @@ related-designs:
 
 ## 3. The ids
 - Tracker (coordinator block CE-4000…4999): allocated this session **CE-4116…CE-4150 and CE-4199**; **next free CE-4151** (skip 4199).
-- Rulings: **next free R-4109**.
+- Rulings: **next free R-4112** (R-4109…R-4111 = scenario control).
 - Standing Sonnet worker: agent `ae49170f7c3d5d648` (context ~480 k — start a fresh one if it is gone or too full).
 
 ## 4. Done this session (2026-10-30/31)
