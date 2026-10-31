@@ -1207,4 +1207,13 @@ R-3046 | docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md | The other leans accepte
 R-3047 | docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md | each node COPIES its history up to the branch point into the new exercise
 R-3048 | docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md | you lean about R-143 accepted.
 R-3049 | docs/blueprints/Blueprint_Issues_Tracker.md | yes, master mints the id when missing
+R-4100 | docs/PLAN_Feature_Films.md | If the block the filming we will solve them with priority
+R-4101 | docs/DESIGN_Player_Join.md | IG is no longer used, this is a relict
+R-4102 | docs/DESIGN_Player_Join.md | the gameplay logic is just an extra which shouldn't reduce or degrade the general military simulation use of the simulator
+R-4103 | docs/DESIGN_Player_Join.md | An ES player without a gameplay server capabilities in the system becomes an observer.
+R-4104 | docs/DESIGN_Player_Join.md | It's usually not a big problem if some feature is hard-coded as part of the core, but it needs to be switchable on or off in such a case.
+R-4105 | docs/PLAN_Training_And_Gameplay_Engine.md | It just needs to be accessible, all the information needed for that via the NED protocol.
+R-4106 | docs/PLAN_Training_And_Gameplay_Engine.md | there needs to be some amplifier that increases the level or decreases the level, but doesn't level all to equal.
+R-4107 | docs/PLAN_Training_And_Gameplay_Engine.md | I assume this should be the default mode for the server node.
+R-4108 | docs/PLAN_Training_And_Gameplay_Engine.md | Nothing is hard-coded, everything is a feature that can be switched on or off and announced as a capability.
 ```
