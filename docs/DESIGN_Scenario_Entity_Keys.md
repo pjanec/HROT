@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (2026-10-31, coordinator; tracker CE-4153)
+build-state: DESIGN — rev 2 (2026-10-31): RE-SCOPED by the user — keep GUIDs and make them STABLE (§0); the network-id key (K1–K6) is SUPERSEDED and moved to HISTORY; tracker CE-4153 paused for re-dispatch
 updated: 2026-10-31 (first version)
-current-answer: §2 decisions K1–K6 · §3 diagrams · §4 acceptance
-stale-below: nothing
+current-answer: §0 the rev-2 decision G1–G6 · §1 inventory (still true)
+stale-below: §2–§4 (rev 1, network-id keys — SUPERSEDED)
 known-rot: none
 known-conflict: none
 related-designs:
@@ -14,7 +14,28 @@ related-designs:
   - docs/designs/cgf-scn-2/DESIGN.md — the scenario-translator programme that introduced IGuidResolver (VisHierarchyNodeTranslator, InitialHierarchyIntent)
 -->
 
-# DESIGN — **scenario entity keys: the network id, not a fresh GUID** *(tracker CE-4153)*
+# DESIGN — **scenario entity identity: a STABLE GUID** *(tracker CE-4153; rev 1 proposed network-id keys — superseded)*
+
+## 0. ✅ Rev 2 — the user, `2026-10-31`: *"Maybe the GUID is the right answer here. Doesn't need names and is always unique. So not names but GUIDs, and that's the real reason for GUIDs in the scenario file."*
+
+⚠ Measured: today's GUIDs are NOT stable — `ScenarioSerializer.cs:171` writes a fresh `Guid.NewGuid()` per entity on EVERY save; no persistent
+entity GUID component exists (graph `.*(EntityGuid|PersistentId|StableId|StableEntity|ScenarioEntityId|AuthoredId|EntityUid).*` = no entity
+hit). ⇒ GUIDs can be the cross-scope reference only once they are made persistent.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **G1** | a STABLE identity per authored entity | a saved component `EntityGuid {Guid}` assigned ONCE (when the entity is first created in the editor or first saved) and kept forever: load reads the file key into it, save writes it back — ⛔ never `NewGuid()` on save again |
+| **G2** | identity of an entity a MACRO creates | DERIVED, deterministic: `uuidv5(instance.EntityGuid, local EntityGuid)` — the same on every node and every load; nested macros chain it. ⇒ "Rifleman 2 of Blue Platoon" always has the same GUID, without names |
+| **G3** | the scenario `entities` key | stays the GUID (now stable) — ⛔ rev 1's network-id key withdrawn: network ids are re-allocated per load and cannot identify a macro-made entity across loads |
+| **G4** | a persisted reference to an entity | `EntityRef`'s JSON accepts EITHER today's number (a file-local network id, remapped at load as now) OR a GUID string (a stable identity, resolved to the live network id after expansion) — the editor's map / ORBAT picker writes the GUID when the target is macro-made (or always — open) |
+| **G5** | resolving GUIDs at runtime | an index `EntityGuid → entity` on the node that expands / loads; a macro inserted at runtime resolves against the live index |
+| **G6** | readability | names stay the human handle (display, checks, director); GUIDs are written by pickers, never typed |
+
+⭐ Trade-off accepted: a GUID survives a RENAME (a name path would break); it breaks if a macro's author deletes and re-creates an entity
+(a new GUID) — a name path would survive that. The editor can warn when a saved reference no longer resolves.
+
+## ⛔ HISTORY — rev 1 (superseded `2026-10-31`): network ids as keys
+
 
 > 🔒 **User, `2026-10-31`:** *"Maybe it would be easier to read if the entity was identified by the network ID directly, which is a short number
 > and not so long GUID … if there is no good reason for keeping just GUID."* · *"Could we please create the task for retiring the GUIDs from the
