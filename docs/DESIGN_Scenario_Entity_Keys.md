@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — rev 2 (2026-10-31): RE-SCOPED by the user — keep GUIDs and make them STABLE (§0); the network-id key (K1–K6) is SUPERSEDED and moved to HISTORY; tracker CE-4153 paused for re-dispatch
+build-state: DESIGN — OPEN QUESTION (2026-10-31): stable GUIDs (§0, a CANDIDATE) vs name paths vs network-id keys — analysis in §0b; nothing decided; tracker CE-4153 paused
 updated: 2026-10-31 (first version)
 current-answer: §0 the rev-2 decision G1–G6 · §1 inventory (still true)
 stale-below: §2–§4 (rev 1, network-id keys — SUPERSEDED)
@@ -16,7 +16,7 @@ related-designs:
 
 # DESIGN — **scenario entity identity: a STABLE GUID** *(tracker CE-4153; rev 1 proposed network-id keys — superseded)*
 
-## 0. ✅ Rev 2 — the user, `2026-10-31`: *"Maybe the GUID is the right answer here. Doesn't need names and is always unique. So not names but GUIDs, and that's the real reason for GUIDs in the scenario file."*
+## 0. ⚠ CANDIDATE (not decided) — raised by the user as a QUESTION, `2026-10-31` (*"It was a question, not a imperative. So let's Analyze if GUIDs are the right answer."*): *"Maybe the GUID is the right answer here. Doesn't need names and is always unique. So not names but GUIDs, and that's the real reason for GUIDs in the scenario file."*
 
 ⚠ Measured: today's GUIDs are NOT stable — `ScenarioSerializer.cs:171` writes a fresh `Guid.NewGuid()` per entity on EVERY save; no persistent
 entity GUID component exists (graph `.*(EntityGuid|PersistentId|StableId|StableEntity|ScenarioEntityId|AuthoredId|EntityUid).*` = no entity
@@ -35,7 +35,7 @@ hit). ⇒ GUIDs can be the cross-scope reference only once they are made persist
 (a new GUID) — a name path would survive that. The editor can warn when a saved reference no longer resolves.
 
 
-### 0a. Measured by the (stopped) CE-4153 worker, `2026-10-31` — all in favour of rev 2
+### 0a. Measured by the (stopped) CE-4153 worker, `2026-10-31`
 
 | fact | where | for stable GUIDs |
 |---|---|---|
@@ -44,6 +44,26 @@ hit). ⇒ GUIDs can be the cross-scope reference only once they are made persist
 | a GUID DERIVED from a network id already exists: `TransientMasterBuilder` keys with `NetworkIdGuid.From(netVal)` | `TransientMasterBuilder.cs:85, 137, 247` | ⭐ precedent for G2's derived GUIDs |
 | the generators mint DETERMINISTIC keys (`prefix-0000-4000-8000-n`) | `scripts/scenario_builder.py:17-20` (+ `gen-ia/rf/ts-scenarios.py`) | ⭐ already stable per regeneration — compatible with G1 |
 | ~558 in-file values reference another entity's key; nothing beside `scenario.json` (`checks.json`, `golden.json`, `takes/`) references entity keys | grep | ⭐ no migration needed for rev 2 (the keys stay) |
+
+
+### 0b. The analysis *(`2026-10-31`; for the user to decide)*
+
+| criterion | stable GUID | name path | network-id key + `{instance, local}` |
+|---|---|---|---|
+| unique across macro instances | ✅ derived `uuidv5` | ✅ instance name prefixes | ✅ but ids change every load |
+| survives a RENAME of the target | ✅ | ⛔ (editor can warn / rename refs) | ✅ |
+| survives delete + re-create of the target | ⛔ | ✅ | ⛔ |
+| readable in the file, writable by a script / AI / by hand | ⛔ picker only | ✅ — the tooling already names units (checks, director) | ⚠ numbers, no meaning |
+| new mechanism | `EntityGuid` component, persist, mint on create, re-mint on any future duplicate / paste (none exists today), derived ids, a GUID→entity index | uniqueness per scope (114 / 117 scenarios already), a path index | a qualified ref type |
+| entities that lack the handle today | none (any entity can get one) | 6 of 1015 unnamed | 9 of 1068 without a network id |
+| what the reference expresses | *this exact object* | *the thing called X in instance Y* — the macro's names act as its interface | *slot n of instance Y* |
+
+⭐ **Lean: NAME PATHS for authored cross-scope references; the GUID stays what it is today (a file-local key, regenerated per save)** —
+⛔ not stable GUIDs. Reasons, in weight order: ① references cross scopes mainly into REUSABLE macros, where the referenced thing is part of
+the macro's contract — a name is that contract, a GUID is an accident of when the author created it; ② scenarios here are largely written by
+scripts and agents (`scenario_builder.py`, the gen-* scripts, MCP), which can write a name and cannot invent a valid derived GUID; ③ zero new
+persistence semantics (a stable GUID must be minted and re-minted correctly forever — a copy / paste / duplicate that copies it silently
+aliases two entities). ⚠ What would change the lean: if referenced entities are frequently RENAMED (then GUID, or explicit macro exports).
 
 ## ⛔ HISTORY — rev 1 (superseded `2026-10-31`): network ids as keys
 
