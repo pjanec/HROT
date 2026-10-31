@@ -790,7 +790,7 @@ drops) are different and both optional.
 | usage: 35 scenarios / 47 entities; trigger kinds used: `BehaviorFinished` 85 · `TimerElapsed` 18 · `UnderAttack` 0 · `HealthCritical` 0; 52 production + 29 test files touch the mission types | scan `2026-10-31` |
 | authoring: the editor's Mission panel (five trigger names, `MissionPanel.cs:78`); saved by `MissionPlanTranslator` | as cited |
 
-**The proposal (U5) — ONE step engine, two SHAPES, the user's concept unchanged:**
+**The proposal (U5) — ⛔ SUPERSEDED by §10.13 SR-89 (keep the queue, share the step library) — ONE step engine, two SHAPES, the user's concept unchanged:**
 
 ```mermaid
 classDiagram
@@ -823,6 +823,16 @@ mission: a list"*.
 
 ⭐ Rejected — **lowering a mission into one trigger ENTITY per phase** (up to 8 + their objectives per unit): the same result with many more entities; the `Sequence` shape keeps one entity per plan.
 ⭐ Rejected — **triggers as one-step mission plans**: the existing mission occupies its unit's task slot; triggers run in parallel without one — U5's `Sequence` does not occupy the slot either (it ORDERS the unit, as the mission director does today).
+
+### 10.13 Where a trigger runs, and the mission plan lean *(`2026-10-31`)*
+
+> 🔒 **User, `2026-10-31`:** *"Where the trigger hsm runs? The behavior on the entity is set by the mission plan items so trigger can not run there."*
+> → on the answer: *"trigger runs on sub-entity, not on the entity where the mission is'. I am fine with that."*
+
+| # | | |
+|---|---|---|
+| **SR-88** | ✅ where a trigger runs | on its OWN entity — conceptually a SUB-entity of the entity it concerns (`Subject`, shown nested under it), technically a full entity with its own brain running the `Trigger` behaviour in ITS task slot (a `PartMetadata` part cannot carry a brain — §9.3). The concerned unit's slots stay its own: the TASK slot = its mission plan / orders, the SOP slot = its doctrine. SR-73 / SR-21 stand |
+| **SR-89** | ⭐ lean (the user's suggestion, summarised `2026-10-31`; not yet confirmed) — the mission plan | KEEP the mission queue on the unit (one mission per unit, the simple concept) and EXTEND it with a SHARED step library — `StepCondition` (Timer · BehaviourFinished · UnderAttack · HealthCritical · ScenarioTime · ObjectiveState(ref)), `StepState` (T1–T5 edge / holdFor / delay), `StepAction` (RunTask · Order · InsertMacro · Message · MissionCommand · SetObjectiveActive · SetSkillAmplifier · EndExercise): `MissionDirectorSystem` evaluates the current phase's up-to-4 conditions with it; the `Trigger` behaviour binds the same library through thin `[SharedAiCondition]` / `[SharedAiAction]` methods — ONE implementation, two hosts. Per phase: optional extra actions and an optional objective. Fixed: strict parsing (an unknown kind = a load error, today it silently fires `TimerElapsed(0)`), every condition honoured (today only the first), a journaled advance. ⛔ supersedes U5 (§10.12). ⚠ unmeasured: whether `MissionPhase` can carry ~4 conditions in its fixed layout |
 
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
