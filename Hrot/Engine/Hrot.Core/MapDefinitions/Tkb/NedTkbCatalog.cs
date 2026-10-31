@@ -198,6 +198,14 @@ namespace Hrot.Map.Definitions.Tkb
                 Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 3, NeedsGunner = true,
                 X = -0.4f, Z = HmmwvRingPivotZ - WeaponPivotZ, StartWith = TkbEntityTypes.WeaponSystem_M2Hmg,
             });
+            // ⭐ 2026-10-31 (user: "a gunner seat and driver seat and a few passenger seats so that players can either drive or shoot or be
+            //   transported") — the DRIVER seat (5), appended so the indices saved scenarios name (0–4) stay; front left, seated. It starts
+            //   EMPTY: a player walks up and drives (OperatorUse offers Drive only on a free Driver seat); the AI drives as before without one
+            dto.Seats.Add(new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver,
+                X = 0.35f, Y = 0.45f, Z = 0.55f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit,
+            });
             return dto;
         }
 
@@ -753,7 +761,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.SensorRange = 2000;
                 })
                 .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
-                .WithCarrier(TkbEntityTypes.Truck_HMMWV, HmmwvSeats())   // ⭐ CE-2151 three beside the (abstract) driver; ⭐ ui P1 + the roof ring
+                .WithCarrier(TkbEntityTypes.Truck_HMMWV, HmmwvSeats())   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
                 .WithBehavior(TkbEntityTypes.Truck_HMMWV)
                 .WithSignatures(TkbEntityTypes.Truck_HMMWV, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
                 .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"

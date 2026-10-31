@@ -232,7 +232,7 @@ namespace Hrot.Map.Common.Tests
             var db = BuildDatabase();
             var carrier = db.GetByType(TkbEntityTypes.Truck_HMMWV)!.GetDescriptor<CarrierDefDto>()!;
             Assert.Equal(Fdp.Toolkit.Behavior.Components.PassengerExposure.Enclosed, carrier.Exposure);
-            Assert.Equal(5, carrier.Seats.Count);
+            Assert.Equal(6, carrier.Seats.Count);   // ⭐ 2026-10-31 — + the driver seat (5): a player can drive, shoot or ride
             for (int i = 0; i < 3; i++) Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, carrier.Seats[i].Role);
             var gunner = carrier.Seats[3];
             Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, TkbEntityTypes.Infantry_Rifleman, (bool?)true),
@@ -243,6 +243,8 @@ namespace Hrot.Map.Common.Tests
             Assert.Null(ring.TraverseMinDeg);   // all round: the M2's own pintle limits
             var m2Turret = db.GetByType(TkbEntityTypes.WeaponSystem_M2Hmg)!.GetDescriptor<TurretSuiteDto>()!.Turrets[0];
             Assert.Equal(2.3f, ring.Z + m2Turret.PivotZ, 4);
+            var driver = carrier.Seats[5];   // appended: the saved indices 0–4 above are unchanged; empty, so a player can take it
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Driver, 0L), (driver.Role, driver.StartWith));
         }
 
         /// <summary>
