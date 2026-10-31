@@ -57,6 +57,9 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
             NetworkId   = TestNetworkId,
             OwnerNodeId = 0,
             InitType    = ReliableInitType.None,
+            // ⭐ CE-4153 — this harness publishes the spawn itself, bypassing CreateEntityRequestSystem (the one place that mints the entity's
+            //   stable key), and the test then SAVES: it plays the creator and stamps the key, as a production request would.
+            InitialComponents = new List<object> { new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()) },
         });
         Assert.True(
             harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpTimeoutMs),
