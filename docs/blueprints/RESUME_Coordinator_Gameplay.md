@@ -39,7 +39,7 @@ related-designs:
    G5/G6 training aids ON everywhere.
 4. Rulings this session: **R-4101** IG = the Player's obsolete name · **R-4102** gameplay is packs, never in the orchestrator · **R-4103** no server ⇒
    observer · **R-4104** a core gameplay feature must be switchable · **R-4105** engine = infrastructure, frontends via NED · **R-4106** skill
-   amplifier · **R-4107** Zeus = the server's default UI.
+   amplifier · **R-4107** Zeus = the server's default UI · **R-4108** EVERY feature is granular, pluggable, announced as a capability and switchable — nothing hard-coded (binds every design).
 
 ## 2. Next, in order (ask before building)
 1. **P-1 scenario rules**: measure Blueprint at scenario scope (search_graph + the Blueprint designs, R-129 order), then write the design.
@@ -50,7 +50,7 @@ related-designs:
 
 ## 3. The ids
 - Tracker (coordinator block CE-4000…4999): allocated this session **CE-4116…CE-4150 and CE-4199**; **next free CE-4151** (skip 4199).
-- Rulings: **next free R-4108**.
+- Rulings: **next free R-4109**.
 - Standing Sonnet worker: agent `ae49170f7c3d5d648` (context ~480 k — start a fresh one if it is gone or too full).
 
 ## 4. Done this session (2026-10-30/31)

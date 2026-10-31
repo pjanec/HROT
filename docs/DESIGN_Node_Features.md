@@ -24,6 +24,8 @@ related-designs:
 > · *"is this feature setting on or off related to the capabilities that are announced by different nodes? So the feature can be turned on only if
 > the capability is saying that the node has it."*
 
+⭐ **R-4108 (`2026-10-31`):** this structure is the rule for EVERY behaviour of the engine, not only gameplay — *"Nothing is hard-coded, everything is a feature that can be switched on or off and announced as a capability."*
+
 **The idea in one line:** a **feature** is a named behaviour declared by the capability whose code implements it; a node ADVERTISES it as
 available when that code is composed, and whether it is ON is decided by three layers — the composition's default, the node's own override,
 the cluster's override — so any mixture of training and gameplay behaviour can be assembled at run time.

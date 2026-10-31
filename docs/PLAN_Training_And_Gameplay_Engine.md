@@ -25,8 +25,11 @@ related-designs:
 | **R-4105** | **The engine is the INFRASTRUCTURE; a frontend is built on top.** A screen (a debrief, a scoreboard) need not be part of the engine — every fact it needs must be GATHERED, AGGREGATED and reachable over the NED protocol | 🔒 *"the engine is oriented towards the infrastructure and backend capabilities, while the frontend is something that is usually developed on top of that, so it doesn't need to be strict part of the engine as is. It just needs to be accessible, all the information needed for that via the NED protocol."* |
 | **R-4106** | **AI skill is set per SIDE as an AMPLIFIER, never a leveller** — it raises or lowers every unit's own level and keeps their differences; set in the scenario, changeable during the run (from the game-master mode) | 🔒 *"there needs to be some amplifier that increases the level or decreases the level, but doesn't level all to equal."* |
 | **R-4107** | **The game-master ("Zeus") mode is the server's default UI** — what the CGF / SimHost operator UI already is; the server must also start headless | 🔒 *"isn't this Game Master Zeus mode? Practically the one we have now by default on CGF and SimHost nodes. I assume this should be the default mode for the server node."* |
+| **R-4108** | **EVERY feature is GRANULAR and PLUGGABLE** — nothing hard-coded: each behaviour is a feature declared by its capability, announced as a capability token when composed, and switched on or off (the three tiers of `DESIGN_Node_Features.md`). It applies to every item below and to every new design | 🔒 *"all the features, they should be granular, there should be pluggable. Nothing is hard-coded, everything is a feature that can be switched on or off and announced as a capability. The same approach as we drafted just a while ago."* |
 
 ## 2. The items — ranked by the user
+
+⭐ **R-4108:** every item ships as Node Features — e.g. `scenario.rules`, `ui.side-knowledge` (+ `ui.side-knowledge.last-known`), `ai.skill-amplifier`, `eval.performance`, `hud.kill-feed`, `game.round-timer`, `game.tickets`, `game.squad-spawn` — each declared by the capability that implements it, advertised, and switchable per node and per cluster.
 
 | # | item | the user | lean / next step |
 |---|---|---|---|
