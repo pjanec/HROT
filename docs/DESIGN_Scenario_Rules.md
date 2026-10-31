@@ -774,6 +774,56 @@ drops) are different and both optional.
 | **T9** | the instructor | may FIRE, DISARM or RE-ARM a trigger by hand (an instructor action, journaled with its origin) |
 | **T10** | replay | triggers do not run in replay (brains do not tick there) — what fired is in the recording (journal + status) |
 
+### 10.12 Mission plan × triggers — information and a unification proposal *(`2026-10-31`; NOT decided — the user wants information first)*
+
+> 🔒 **User, `2026-10-31`:** *"the triggers which are on an entity can steer the entity, not just a scenario … It still looks to me that these are
+> the same concepts and that we should somehow unify … I'm not forcing to unify or replace the mission plan concept yet. I need information first."*
+> · *"The concept and UI, as perceived by the user who defines the missions, should stay simple. The internal implementation doesn't need to. We
+> can also change the wire format if beneficial, no backward compatibility required. No one is using the NED API to mission editing now … Everything
+> what uses mission plans is just UIs and scenarios, and we can migrate these if beneficial."*
+
+| measured | where |
+|---|---|
+| the mission plan is NOT a brain: `MissionDirectorSystem` evaluates the current phase's ONE trigger per entity with a `MissionPlanQueue` (≤ 8 phases) and starts the next task through `AssignTacticalIntent` (origin Superior); commands replace / jump / abort (`MissionControlExecutionSystem`) | `MissionDirectorSystem.cs:153-200`; `REFERENCE_Command_Building_Blocks_Measured.md` |
+| the wire trigger is open (`{Type: string, Params: string}`, a LIST per task) but ingress narrows it to 4 kinds, uses only the FIRST, and ⚠ maps an UNKNOWN type to `TimerElapsed(0)` — the phase advances at once, silently | `Hrot.Network.NED/Helpers/MissionTriggerHelper.cs:30-52` |
+| a phase change is journaled only as the next behaviour's start — no *"advanced because …"* | grep `Journal` in `MissionDirectorSystem.cs` = none |
+| usage: 35 scenarios / 47 entities; trigger kinds used: `BehaviorFinished` 85 · `TimerElapsed` 18 · `UnderAttack` 0 · `HealthCritical` 0; 52 production + 29 test files touch the mission types | scan `2026-10-31` |
+| authoring: the editor's Mission panel (five trigger names, `MissionPanel.cs:78`); saved by `MissionPlanTranslator` | as cited |
+
+**The proposal (U5) — ONE step engine, two SHAPES, the user's concept unchanged:**
+
+```mermaid
+classDiagram
+    direction LR
+    class Step { <<shared>> condition · holdFor · delay · actions[] }
+    class StepCondition { <<shared, a FIXED small set + objective refs>> Timer · BehaviourFinished · UnderAttack · HealthCritical · ScenarioTime · ObjectiveState(ref) }
+    class StepAction { <<shared>> RunTask(subject, behaviour, params) · Order · InsertMacro · Message · MissionCommand · SetObjectiveActive · EndExercise }
+    class Trigger { <<behaviour>> ONE step · armed / repeat / cooldown (T1-T10) }
+    class Sequence { <<behaviour = the MISSION PLAN>> ORDERED steps + a pointer · jump / replace / abort }
+    class MissionPanel { <<existing UI, unchanged concept>> a selected unit's ordered task list }
+    Trigger *-- Step
+    Sequence *-- Step
+    Step *-- StepCondition
+    Step *-- StepAction
+    MissionPanel ..> Sequence : edits the one whose Subject is the unit
+```
+
+*Caption:* a mission plan IS an ordered list of steps (*"do task 1 until it finishes, then task 2 for 30 s, then …"*); a trigger is ONE unordered
+step. Same conditions, same semantics (T1–T5), same actions, same journal and status, same entity shape — the user still sees *"the unit's
+mission: a list"*.
+
+| | effect |
+|---|---|
+| ⭐ the user concept | unchanged: the Mission panel shows the selected unit's list (task · until · next) — it edits the `Sequence` whose `Subject` is that unit |
+| ⭐ removed duplication | one condition vocabulary (the mission's 4 built-ins join `ScenarioTime` / `ObjectiveState` in ONE shared set, usable by triggers too); one action vocabulary; one semantics; one journal (a step advance is a journaled transition WITH its cause) |
+| ⭐ gained by missions | richer conditions (*"until `Clear B4` achieved"*), a mission step can carry an objective (its outcome scored), several conditions per step, the instructor's jump / re-arm from the same UI |
+| ⚠ retired | `MissionPlanQueue`, `MissionDirectorSystem`, `MissionAdapterSystem`, the ingress narrowing (and its silent fallback), `EntityMission` / `MissionControlRequest` as they are — the wire becomes the replicated params + `ObjectiveStatus` of the `Sequence` entity (+ a generic step-control message) |
+| ⚠ cost | migrate 35 scenarios (47 plans, all `BehaviorFinished` / `TimerElapsed` — mechanical), the Mission panel's backing model, 52 + 29 files |
+| ⚠ open | a unit's mission moves from a component ON the unit to its own entity (subject = the unit) — the Mission panel and the ORBAT must find "the unit's mission" by `Subject`; one sequence per unit, or several (e.g. an instructor's overlay plan)? |
+
+⭐ Rejected — **lowering a mission into one trigger ENTITY per phase** (up to 8 + their objectives per unit): the same result with many more entities; the `Sequence` shape keeps one entity per plan.
+⭐ Rejected — **triggers as one-step mission plans**: the existing mission occupies its unit's task slot; triggers run in parallel without one — U5's `Sequence` does not occupy the slot either (it ORDERS the unit, as the mission director does today).
+
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
 Rev 3 lowered each scenario's rules into ONE generated HSM (one parallel region per objective / rule / measure): first via the runtime
