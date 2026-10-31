@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
+build-state: DESIGN — rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
 current-answer: §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
@@ -202,7 +202,7 @@ cluster whose Brain lacks the feature would load a scenario with no objectives, 
 | **SR-11** | ONE evaluator | ⭐ rev 3: the evaluator IS the brain runtime — rules, objectives, mission objectives and measures are all guards of a brain; film cues and checks call the same primitives |
 | **SR-12** | custom logic | a new condition / action = a shared C# method in `Hrot.AI.Behaviors` or a Blueprint; ⛔ rev 2's world-singleton Blueprint host is dropped (the brain is the host) |
 | **SR-13** | the IOS | a composition choice; the server's full UI by default (R-4107) |
-| ⭐ **SR-15** | **no interpreter** (R-4109) | the ONE new piece is `ScenarioBrainLowering`: data ⇒ `HsmBuilder` graph + block layout + `HsmSharedBinder` bindings + `BehaviorDefinition`. ⛔ it never evaluates anything — it builds, the kernel runs |
+| ⭐ **SR-15** | **no interpreter** (R-4109) — ⭐ **rev 3a (`2026-10-31`, user: *"having .NET SDK on the server is no issue at all … why not to use it?"*): the LOWERING TARGET flips to the existing compile path** | the loader turns the rules data into a generated **`.hsm.json` asset** (the editor's own HSM format) and the EXISTING pipeline does the rest: `HsmJsonGenerator` (layout, params `ParseParams`, site seeding, HSM0003 type checks, inspector metadata) → build `Hrot.AI.Behaviors` → `AiHotReloadCoordinator` swaps it. ⭐ More reuse than a runtime builder: the generator is the PRODUCTION path (the runtime `HsmBuilder` is used only by examples), the asset opens EDITABLE in the HSM editor, and S0's inspector question disappears. ⛔ The real costs are not the SDK — S0 measures them: ① the rebuild time at load · ② every node that may own the brain needs the same dll (today the rebuild is per process: `AiBehaviorsRebuild` in the editor; CGF wires the coordinator but no watcher — CE-023) · ③ a recording must replay with the brain it was recorded with (the generated asset is saved with the scenario). The runtime-builder route (SR-16's offset layout) stays the fallback ONLY if ① or ② fails, never both |
 | ⭐ **SR-16** | **params and working state without compiling** | each primitive's `P` and `WS` are compiled WITH the primitive; the loader lays the brain's block out as their concatenation (each at its offset) and seeds every site's `P` from its JSON args (System.Text.Json into the compiled type). The scenario-level state (objective state) is HSM state, needing no struct; counters live in generic stateful primitives' `WS`. ⇒ no per-scenario DTO, no per-scenario struct |
 | ⭐ **SR-17** | **reusable directors** (R-4110) | a director (counter-attack, reinforcement, pressure) is an authored HSM / BTree **asset** with a params DTO (R-3002 initializers), usable in any exercise; the scenario names it + params; the loader hosts it as a sub-machine of the scenario brain (the existing hosted-HSM path). ⛔ never logic for one exercise |
 | ⭐ **SR-18** | **the utility director** | a director asset may hold a utility decision (`ChooseOption` / `IsOption`, DESIGN_Decision_Layer §3) over plays (*Counter-attack · Reinforce · Hold · Ease off*), with `self` = the World Environment entity and `Context` = a candidate (objective, spawn area, side HQ); inputs are scenario-scope `[UtilityInput]`s (§5); the winner is executed as an ORDER down the chain; `UtilityDecisionLog` explains it |
@@ -211,7 +211,7 @@ cluster whose Brain lacks the feature would load a scenario with no objectives, 
 
 **Rejected — one line each:**
 - *A rules interpreter (rev 2's `ScenarioRulesSystem`)* — a second brain runtime beside HSM / BTree with its own debugging (R-4109).
-- *One generated `.hsm.json` + Roslyn build per scenario* — the HSM is data; only primitives need compiling.
+- ⛔ ~~*One generated `.hsm.json` + Roslyn build per scenario*~~ — **withdrawn rev 3a**: the SDK is not a blocker (user) and it is the most-reused path; now SR-15's lean.
 - *A world-singleton Blueprint as the scenario host* — the brain already hosts Blueprints as guards / actions; a second host duplicates it.
 - *A per-scenario params / working-state struct* — the primitives' compiled `P` / `WS` concatenated cover it (SR-16).
 - *Directing by moving units* — duplicates the order chain; the director orders.
@@ -232,7 +232,7 @@ cluster whose Brain lacks the feature would load a scenario with no objectives, 
 
 | slice | builds | done when |
 |---|---|---|
-| **S0 (measure)** | the inspector shows a runtime-built HSM; a brain ticks on 8810; offsets bind a `[SharedAiCondition]` with seeded `P` | three probes green — or the gap named |
+| **S0 (measure)** | ① rebuild-and-swap time of `Hrot.AI.Behaviors` with one generated asset · ② how a rebuilt dll reaches the other nodes that may own the brain · ③ a brain ticks on 8810 | three numbers / answers — they decide SR-15 (compile path) vs the runtime-builder fallback |
 | **S1** | lowering of objectives + rules; conditions `AreaControlled`, `UnitsDestroyed`, `ScenarioTime`, `ObjectiveIs`, `AllObjectives`, `ForUnits`; actions `Message`, `PublishObjective`, `AwardPoints`, `EndExercise`; `ObjectiveStates`; `ExerciseEnded`; lanes | §7a plays to Blue won on a live cluster, shown in the HSM inspector; editing a rule swaps live |
 | **S2** | `SpawnGroup`, orders down the chain, a reusable `CounterAttackDirector` asset with params, the utility director, the editor's rules section | the same director runs in two scenarios with different params |
 | **S3** | measures + subjects (P-4), `ReportReceived`, `InputAbove` / `Sample`; SR-19's replay question answered | per-trainee and per-team results in `ExerciseEnded` |
