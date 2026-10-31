@@ -249,7 +249,7 @@ of gameplay (R-4102); the master does not own units, so it may not write their c
 > 🔒 *"I would like to have the whole gameplay features and fun factors switched on by default when the packs and modules that are bringing those
 > features are installed. And I want that packs and features installed now as part of the unified and shared bootstrap … I just wanted to make the
 > system cleaner by moving those stuff to related packs and not to be scattered across the whole system. making every feature switchable on or off
-> relax the need to strictly categorize everything into military and gameplay."*
+> relax the need to strictly categorize everything into military and gameplay. The possibility to switch a feature on and off is much more important than in what pack it is implemented."*
 
 | what changes | |
 |---|---|
