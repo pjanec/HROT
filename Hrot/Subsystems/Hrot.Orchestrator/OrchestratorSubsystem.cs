@@ -309,7 +309,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
     /// (<c>LocalWindowController.ComposeRunControls</c>): the SAME <c>ScenarioMenuCommands.Register</c> the editor and CGF call, over this host's session, so the menu — and the Start surface,
     /// which draws the items marked allowed-in-Idle — is the same on every operator host by construction.
     /// <para>⚠ <b>What a host with no world cannot do</b>, stated and greyed with its reason (ruling 49), never faked: <i>Save Scenario As</i> has no dialog here (nothing local to author, so
-    /// nothing local to name); <i>New Scenario</i> is the shared local wipe (<c>ClearWorld</c>) — on this host it only forgets the loaded name, until CE-4089 makes New a recipe the cluster opens.</para>
+    /// nothing local to name); <i>New Scenario…</i> is new from a scenario recipe (CE-4140) and needs the editor's New-asset picker — greyed here.</para>
     /// </summary>
     public void ComposeScenarioActions(Fdp.Presentation.WindowManager.WindowManager windowManager)
     {
@@ -340,6 +340,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             session:            _scenarioSession,
             openPicker:         (kinds, callback) => scenarioPicker.Open(kinds, callback),
             openSaveAsDialog:   null,
+            // ⭐ CE-4140 — New Scenario… is new FROM A SCENARIO RECIPE (the editor's New-asset picker + Save-As naming); this host composes neither — greyed with its reason (ruling 49), said here rather than defaulted
+            openNewScenario:    null,
             // ⭐ CE-4101 — the session's own open / open-recording ARE the guarded door (Stop & Load over a run, Save / Discard / Cancel over unsaved edits): no host seam, no unguarded fallback
             openRecordingPicker: new Hrot.Editor.AiShared.Scenarios.RecordingPickerLauncher(
                 openPicker:    OpenPicker,

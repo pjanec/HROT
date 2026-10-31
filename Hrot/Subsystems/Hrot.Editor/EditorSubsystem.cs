@@ -4014,7 +4014,8 @@ namespace Hrot.Editor
                     openPicker:         _shellPickers.OpenPicker,
                     services:           _newAssetServices,
                     showNewAssetDialog: ShowNewAssetDialog,
-                    describe:           Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe,
+                    // ⭐ CE-4140 — a scenario recipe's description is its scenario.json header's (the Blueprint seam knows only blueprints)
+                    describe:           a => Hrot.Blueprints.Editor.RecipeMetadataAdapter.DescribeRecipe(a) ?? ScenarioNewAssetService.DescribeRecipe(a),
                     recipeCategory:     Hrot.Blueprints.Editor.RecipeMetadataAdapter.RecipeCategory)
                 : null;
 
@@ -4077,7 +4078,11 @@ namespace Hrot.Editor
                 checkpointDisabledReason: () => _timeTransport?.RunChoice?.CheckpointDisabledReason,
                 // ⭐ CE-1443 part B — File/Save and File/Save As… are drawn only while a DOCUMENT is the target (the scenario has its own items)
                 documentToSave: () => wm.CurrentPerspective != "Scenario"
-                                   && ResolveDocumentForCurrentPerspective(wm, _aiDocumentManager) != null);
+                                   && ResolveDocumentForCurrentPerspective(wm, _aiDocumentManager) != null,
+                // ⭐ CE-4140 — File › New Scenario…: the New-asset picker over the SCENARIO recipes only → Save-As naming → CreateNew. This host HAS the scenario recipes service, so it passes it (the silent-default rule).
+                openNewScenario: newAssetLauncher != null && _newAssetServices!.ContainsKey(Hrot.Editor.AiShared.AssetKind.Scenario)
+                    ? () => newAssetLauncher.Open(Hrot.Editor.AiShared.AssetKind.Scenario)
+                    : null);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();

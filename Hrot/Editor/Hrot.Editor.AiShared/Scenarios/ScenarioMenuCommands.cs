@@ -154,7 +154,8 @@ public static class ScenarioMenuCommands
         Action?                                                   takeCheckpoint       = null,
         Func<string?>?                                            checkpointDisabledReason = null,
         Action<Action<string>>?                                    openCheckpointPicker = null,
-        Func<bool>?                                               documentToSave       = null)
+        Func<bool>?                                               documentToSave       = null,
+        Action?                                                   openNewScenario      = null)
     {
         if (registerCommand is null) throw new ArgumentNullException(nameof(registerCommand));
         if (menu            is null) throw new ArgumentNullException(nameof(menu));
@@ -181,10 +182,14 @@ public static class ScenarioMenuCommands
         RegisterCommand(
             registerCommand, menu, commands, closedReason,
             NewId, "New Scenario…", NewScenarioMenuPath,
-            "Create an empty scenario to author",
-            isEnabled: () => true,
-            handler: _ => session.ClearWorld(),
-            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16) — ⚠ until CE-4089 it is today's local blank scenario, not yet "from a recipe"
+            "Create a new scenario from one of the scenario recipes",
+            isEnabled: () => openNewScenario != null,
+            // ⭐⭐ CE-4140 — New Scenario… is NEW FROM A RECIPE (CE-4089 landed): the host's picker over the scenario recipes only, then the Save-As naming, then ScenarioNewAssetService.CreateNew (it loads the recipe's
+            //   contents and saves them under the NEW name — ⛔ the recipe itself is never loaded under its own name, so a later Save cannot overwrite it). It was the local wipe (ClearWorld), which on the Start screen — no world — did nothing.
+            //   A host with no such dialog (it composes no scenario recipes service) is greyed with its reason, like Load Scenario…
+            handler: _ => openNewScenario?.Invoke(),
+            dynamicDisplayName: Unavailable("New Scenario…", openNewScenario != null, NoNewScenarioReason),
+            allowedInIdle: true);   // ⭐ CE-4096 (AQ108 D16)
 
         // ⭐ LOAD CHECKPOINT — a live run, paused at the checkpoint: the existing restore (the session's RestoreCheckpoint = RestoreCheckpointIntent). ⚠ The host supplies the picker of the labels it can list; none does yet (the live run's
         //   marks are not on the cluster view — only a replay session carries them), so the item says so rather than doing nothing (ruling 49).
@@ -300,6 +305,7 @@ public static class ScenarioMenuCommands
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private const string NoPickerReason = "no scenario picker on this host";
+    private const string NoNewScenarioReason = "this host has no scenario recipes to start from";
     private const string NoSaveAsReason = "no Save-As dialog on this host";
     private const string NoRecordingsReason = "no recording inventory on this host";
     private const string NoCheckpointListReason = "this host cannot list the checkpoints of the run";

@@ -1309,6 +1309,18 @@ mode, the defect itself · *keep the current item greyed* — the user named it 
 
 **As built (`2026-10-30`, ui):** `RunModeChoice.Shown` (= `ModeTarget(mode) ?? Armed`); `Indicator` and `RunModeMove.IsShown` (renamed from `IsArmed` with Roslyn, 3 files) both read it. The shown item is checked and enabled and `MainToolbarTimeControlSection.ModeMenu` gives it a no-op (no `Choose`); the running header gets `· loads go into: {Armed}` (the clock reads `AAR · 00:00:12.000 · …`, the section's own format, not `0:12`); the stale `:263` comment fixed. ⚠ **One deviation:** a CLOSED run gate (CE-1442) still disables every item, the shown one included (`IsShown` stays true) — the gate says the host takes no move at all, and the CE-1442 rail pins it. Rails (`MainToolbarTimeControlTests`): `CE4111_TheIconTheCheckAndTheEnabledState_AgreeOnTheShownMode` · `CE4111_ChoosingTheShownItem_DoesNothing` · `CE4111_TheRunningHeader_NamesTheArmedMode`.
 
+### 2.17 CE-4140 — File › New Scenario… is NEW FROM A RECIPE — ✅ **AS-BUILT `2026-10-31` (built by the coordinator lane's worker; a cross-lane edit in ui's File menu)**
+
+⛔ **Supersedes** §2.6 deviation 12 and §2.12 row 3 (*"New Scenario = `ClearWorld`, the recipe form follows CE-4089"*): CE-4089 landed, and on the Start screen the local wipe had nothing to wipe — the item did nothing.
+
+| design said | built | why |
+|---|---|---|
+| New Scenario… = the New-from-recipe flow | `ScenarioMenuCommands.Register(.., openNewScenario)`; the editor passes `() => newAssetLauncher.Open(AssetKind.Scenario)` — the SAME `NewAssetLauncher` / `RecipePickerSource` picker (one kind), then the host's Save-As naming, then the ONE create-core | no second picker or dialog |
+| the picker shows each recipe's description | `ScenarioNewAssetService.DescribeRecipe` = the `header.description` of the recipe's `scenario.json` (the launcher's `describe` seam was Blueprint-only) | the description already lives in the scenario file |
+| a host without the dialog | CGF and the Orchestrator host pass `openNewScenario: null` (stated in the code) ⇒ the item is greyed with *"unavailable — this host has no scenario recipes to start from"* | neither composes the Scenario `INewAssetService` (CGF: no `IEditorLogic`; the Orchestrator: no local authoring) |
+
+📐 `ScenarioNewAssetService.CreateNew` loads the picked RECIPE by its recipe name (`recipes/scenarios/<x>`, resolved by the master) and then `SaveScenarioAs(<folder>/<name>)` — the new scenario is SAVED under the name typed in the dialog; the recipe is never loaded as the working scenario under its own name, so a later Save cannot overwrite it. Rails: `ScenarioMenuTests.CE4140_*`.
+
 ## 3. Every move, with what the user is told
 
 | from → to | how | confirmation (R3) | what happens |

@@ -2408,6 +2408,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 openSaveAsDialog: _saveAsBrowser != null
                     ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed)
                     : null,
+                // ⭐ CE-4140 — New Scenario… is new FROM A SCENARIO RECIPE, which needs ScenarioNewAssetService — and this host composes none (WireAssetCreation: it takes an IEditorLogic adapter, CGF has no IEditorLogic).
+                //   Said here, not defaulted: the item is greyed with its reason (ruling 49). ⚠ The day CGF gains the Scenario kind in _newAssetServices it passes () => _newAssetLauncher.Open(AssetKind.Scenario).
+                openNewScenario:  null,
                 // ⭐⭐⭐ Ruling 53 + UX_Feature_Modal_Surfaces.md §2.0b — this host is headless-first: a
                 //    modal on an unattended node is a hang, not a prompt. ⇒ it PROCEEDS, and the log IS
                 //    the safety net. ⛔ Passing null would proceed SILENTLY, which is the one option the
