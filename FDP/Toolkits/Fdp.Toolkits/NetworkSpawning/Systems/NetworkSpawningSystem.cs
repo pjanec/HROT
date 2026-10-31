@@ -215,14 +215,6 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
                 foreach (var component in cmd.InitialComponents)
                     EntityComponentReflector.SetComponent(world, entity, component);
 
-            // 8a. ⭐ CE-4153 (S2) — the entity's STABLE scenario identity, minted ONCE here for a creation that did not bring one (a scenario load
-            //   brings its file key in InitialComponents; an editor placement / runtime spawn that may be saved does not). Here, not in
-            //   CreateEntityRequestSystem: every creation converges on this method, the direct SpawnEntityCommand publishers included, and an
-            //   entity that reached a save unstamped would fail the save (ScenarioSerializer). A transient (sketch) entity never reaches a scenario.
-            if (!cmd.IsTransient && world.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>()
-                && !world.HasComponent<Fdp.Toolkit.Scenario.EntityGuid>(entity))
-                world.AddComponent(entity, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
-
             // 8b. ⭐ CE-1017 S2 — the birth-height request, AFTER every override so it wins over a transform carried in
             //   InitialComponents too. 📄 docs/DESIGN_Add_Entity_Picker.md §2e (here, not in CreateEntityRequestSystem: eleven
             //   direct publishers bypass that system). ⭐⭐ CE-3271 (Q94 D, R-3018) — ASKED here, not resolved: SpawnLevelSystem
