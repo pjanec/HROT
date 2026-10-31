@@ -9,6 +9,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - DESIGN_Player_Join.md — §5 adds the join use cases UC-25…28 (join a placed unit, refused, observer, a plane in flight)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — owns every DECISION these use cases test (§4-A..§4-L); this
     document owns only WHAT must hold and HOW to check it live.
   - docs/RUNBOOK_Cluster_Debugging_Over_Http.md — owns the generic debug-over-HTTP technique and its traps; §3 here is the

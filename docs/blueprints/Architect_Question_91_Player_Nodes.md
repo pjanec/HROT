@@ -47,6 +47,7 @@ known-conflict: §4-G vs NodeRolePersistenceRails / DESIGN_Node_Roles_And_Polici
   §4.2 (a node compares the epoch and self-heals) design a NODE-DRIVEN join; §4-E and §4-I here choose MASTER-DRIVEN.
   §4-I keeps the epoch as telemetry only (I4). Unreconciled in mgmt-1 until §4-I is approved.
 related-designs:
+  - docs/DESIGN_Player_Join.md — OWNS how an admitted Player JOINS: side, placed unit / role, spawn, possess, observer (J-1…J-14)
   - ../DESIGN_Replay_Time_Axis_And_Review.md — the cluster's replay time map (intersected per node, beside §4-P's zero) and the review's end pause at the live point
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.3 / R-4000 is the rule this question obeys (one code path on every node;
     a behaviour that must differ comes from the ROLE). It owns the role table that §4-A reads.
