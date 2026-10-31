@@ -560,11 +560,11 @@ scenario
 | area occupancy: EQS `EntitiesOfForceInArea`, `PolygonMath.Contains`; areas = `EditablePolyline` entities | `EntitiesInAreaGenerator.cs:34, :119`; `PolygonMath.cs:29` | reach / hold / clear |
 | the scenario clock | `ScenarioClock` on the World Environment | deadlines, time-to |
 | "first seen": the perception contact memory (`KnownCombatantList`, sensor contacts) | OVERVIEW §4 | the start of a report latency |
-| ⚠ unmeasured | — | whether `DamageAssessedEvent.Source` is the SHOOTER or the projectile on the Brain node · how "civilian" is told (ForceId Neutral? the Civilian family?) · that every remote hit reaches the Brain |
+| ✅ hits reach every node: the hit-damage ingress is in the SHARED translator pack (`SharedTranslatorPack.cs`, `EntityHitDamageIngressTranslator.cs`) · ✅ harm is judged by AFFILIATION: `ForceId {Neutral, Friend, Hostile}` (`Fdp.Core/Components/ForceId.cs:10-20`) — 🔒 user: *"the affiliation is a better indicator than being a civilian or not, because we can have terrorists and other civilian combatants, as well as we do not want the neutral side soldiers be killed"* · ⚠ still unmeasured: whether `DamageAssessedEvent.Source` is the shooter or the projectile | as cited | — |
 
 ### 10.2 Objective kinds v1 — each ONE small generic behaviour in the task slot (SR-37, SR-51)
 
-⭐ Every kind's params begin with the SAME nested block `ObjectiveCommon {title, subject, required, visibleTo, points, deadline, activeWhen}` —
+⭐ Every kind's params begin with the SAME nested block `ObjectiveCommon {title, subject, required, visibleTo, points, weight, deadline, activeWhen, scored}` —
 the deadline and the activation are FIELDS, not kinds, so every objective can have them.
 
 | kind | params (besides `ObjectiveCommon`) | achieved when · failed when |
@@ -574,7 +574,7 @@ the deadline and the activation are FIELDS, not kinds, so every objective can ha
 | `ClearArea` | area, enemy side, maxEnemy = 0, forSeconds = 30 | no enemy inside for forSeconds · the deadline passes |
 | `DestroyTargets` | targets (`RefKey` / query), count | count of them destroyed · the deadline passes |
 | `Protect` | targets (`RefKey` / query), minSurvivors | the deadline passes with ≥ minSurvivors · fewer survive |
-| `NoHarm` (a constraint) | protected (civilians / own side), by side, maxCount = 0 | the run ends within limits · more harmed than maxCount (fratricide and civilian harm are two uses) |
+| `NoHarm` (a constraint) | protected AFFILIATION (`ForceId`: Neutral / Friend / Hostile), by side, maxCount = 0 | the run ends within limits · more harmed than maxCount (fratricide and civilian harm are two uses) |
 | `Composite` | mode all / any / weighted | its required children achieved · a required child failed |
 
 ### 10.3 Measures v1 — evaluation that SCORES rather than ends (a measure is an objective with a value and a target)
@@ -591,7 +591,7 @@ the deadline and the activation are FIELDS, not kinds, so every objective can ha
 `State` (Pending · Active · Achieved · Failed) · `Owner` (side, capture only) · `Progress` (current / needed) · `Value` + `Target` (measures) ·
 `Points` · `ChangedAt` (scenario time) · `Reason` (a short text: *"held 60 s, 5 Blue / 0 Red"*) · `Subject` · `Parent` (SR-53).
 
-### 10.5 Per-member evaluation from the TKB type (SR-30)
+### 10.5 ⛔ SUPERSEDED by §10.7 SR-72 (user: *"Evaluation macro should not come from TKB. TKB is static"*) — per-member evaluation from the TKB type (SR-30)
 
 A unit TKB type names an evaluation MACRO (e.g. Rifleman → `RiflemanCriteria` = `HitRatio` + `Count(fratricide) = 0` + `ReportLatency`); every
 unit of that type gets one instance with itself as `Subject` and its commander's evaluation as `Parent` (SR-54 ③); thresholds by SR-67.
@@ -600,6 +600,31 @@ unit of that type gets one instance with itself as `Subject` and its commander's
 
 The outcome per side · end time + reason · the objective TREE (each node: key, title, kind, subject, state, value / target, points, when,
 reason) · totals per side. ⭐ A GRADE (A–F, %) is NOT computed by the engine — a frontend derives it from points and pass / fail (R-4105).
+
+### 10.7 Rev 7a (`2026-10-31`) — assignment by ROLE, triggers on the same statuses, external measurements, weights
+
+> 🔒 **User, `2026-10-31`:** *"Evaluation macro should not come from TKB. TKB is static, but the evaluation criteria and objectives, they need to
+> be specifiable per scenario"* · *"how a higher echelon macro scenario objective can specify the objectives for subordinates (likely by referencing
+> another macro or some macro library where the objective is selected by member role.) The goal is to assign the objectives more or less
+> automatically whenever possible."* · *"we should talk also about the triggers … how to affect the running scenario based on similar conditions"* ·
+> *"inputs that are not coming directly from our simulation, but are coming from external world … how much a trainee exposes to an enemy … there
+> are some measurement devices providing this information"* · *"Weighting of the criteria might be necessary in case we want to act on some
+> triggering condition which is based on the evaluation criteria … the points or some values calculated from the objectives would need to be passed
+> to the upper layer, which might be aggregating them and deciding something upon them."*
+
+| measured | where |
+|---|---|
+| a member's ROLE already exists: `TacticalDesignation` (Commander, SquadLeader, TeamLeader, Medic, AutomaticRifleman, MachineGunner, Grenadier, Marksman, …) on the command link, on the wire | `Fdp.Core/CommandHierarchy/TacticalDesignation.cs`; `UnitSubordinate.cs:25` |
+| ⛔ no generic NED topic for an external measurement (graph `.*(External|Telemetry|Measurement|Reading|Instrument|Sensor|Variable|Signal|Value)(Topic|Descriptor|Sample|Message)$` — no topic; the protocol inventory names an external gateway as *"a node like any other"*) | `NED_DDS_Protocol.md` |
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-72** | per-member objectives are assigned BY ROLE, per scenario | a `MemberEvaluation` kind placed on a commander (its `Subject`): params `byRole {SquadLeader: "SLCriteria", MachineGunner: "MGCriteria", *: "RiflemanCriteria"}` (role → a macro from a library folder, e.g. `macros/evaluation/`) — it creates ONE macro instance per subordinate down the command chain, chosen by `TacticalDesignation` (or the entity class when no role), `Subject` = that member; a role's macro may itself contain a `MemberEvaluation` (squad → fire teams). It follows the chain LIVE: a reinforcement gets an instance; a casualty's instance stays and keeps its result. ⛔ never from the TKB (static) — SR-30 superseded |
+| **SR-73** | triggers act on the SAME statuses | a `Trigger` kind: `when` = a status of other objectives / measures (*"`bridge` becomes Achieved"*, *"`Blue members` value < 0.5"*, *"`Blue tickets` ≤ 0"*) + an optional delay · `do` = actions. ⭐ ⇒ the CONDITION vocabulary IS the objective kinds: a condition that is not scored is an objective with `scored: false` — no second condition language, nothing called by name |
+| **SR-74** | actions v1 | `Order` (an `AssignTacticalIntent` to a `RefKey` / query subject: behaviour + params) · `SetReporting` · `InsertMacro` (a scenario macro instance created at runtime at a position — waves, reinforcements, an IED event: the SAME macro machinery) · `Message` (to a side / the IOS / a trainee) · `SetObjectiveActive` · `SetSkillAmplifier` (P-5) · `EndExercise` |
+| **SR-75** | values passed UP | every status carries a normalised `Score` (0..1: achieved = 1, failed = 0, a measure = value vs target); a `Composite` aggregates its children by their `weight` into its own `Score` / `Value` ⇒ a trigger or a director watches any level (team, side, exercise) |
+| **SR-76** | EXTERNAL measurements (the physical world) | a small NED topic `ExternalMeasurement {[DdsKey] SubjectEntityId, [DdsKey] Key, Value, Time, SourceId}` (KeepLast per subject + key) published by a device gateway; the ingress keeps the latest per (subject, key) — a measure kind `External {key, aggregate: mean / max / time above threshold, target}` and the same as a trigger condition. Example: `exposure` from a laser / camera rig behind the physical wall → *"time exposed to the enemy > 20 %"* |
+| **SR-77** | the director | a director's utility inputs may read any `Score` / `Value` (SR-18) — the adaptive pressure valve rides the same statuses |
 
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
