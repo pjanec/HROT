@@ -599,7 +599,7 @@ sequenceDiagram
 | area occupancy: EQS `EntitiesOfForceInArea`, `PolygonMath.Contains`; areas = `EditablePolyline` entities | `EntitiesInAreaGenerator.cs:34, :119`; `PolygonMath.cs:29` | reach / hold / clear |
 | the scenario clock | `ScenarioClock` on the World Environment | deadlines, time-to |
 | "first seen": the perception contact memory (`KnownCombatantList`, sensor contacts) | OVERVIEW §4 | the start of a report latency |
-| ✅ hits reach every node: the hit-damage ingress is in the SHARED translator pack (`SharedTranslatorPack.cs`, `EntityHitDamageIngressTranslator.cs`) · ✅ harm is judged by AFFILIATION: `ForceId {Neutral, Friend, Hostile}` (`Fdp.Core/Components/ForceId.cs:10-20`) — 🔒 user: *"the affiliation is a better indicator than being a civilian or not, because we can have terrorists and other civilian combatants, as well as we do not want the neutral side soldiers be killed"* · ⚠ still unmeasured: whether `DamageAssessedEvent.Source` is the shooter or the projectile | as cited | — |
+| ✅ hits reach every node: the hit-damage ingress is in the SHARED translator pack (`SharedTranslatorPack.cs`, `EntityHitDamageIngressTranslator.cs`) · ✅ harm is judged by AFFILIATION: `ForceId {Neutral, Friend, Hostile}` (`Fdp.Core/Components/ForceId.cs:10-20`) — 🔒 user: *"the affiliation is a better indicator than being a civilian or not, because we can have terrorists and other civilian combatants, as well as we do not want the neutral side soldiers be killed"* · ✅ `DamageAssessedEvent.Source` is the SHOOTER for gunfire (`DamageCalculationSystem.cs:~120`), blasts (`AreaEffectSystem.cs:215-225`) and hits from other nodes (`EntityHitDamageIngressTranslator.cs:~101`, `SourceEntityId` mapped); ⚠ drone impacts, gas clouds and ejection carry no source | as cited | — |
 
 ### 10.2 Objective kinds v1 — each ONE small generic behaviour in the task slot (SR-37, SR-51)
 
@@ -680,6 +680,49 @@ reason) · totals per side. ⭐ A GRADE (A–F, %) is NOT computed by the engine
 | **SR-72a** | the member SELECTOR | `MemberEvaluation`'s table is an ordered list of rules, first match wins: a `RefKey` (`@PL-Trainee` → `PlatoonLeaderCriteria`), a `TacticalDesignation` (`MachineGunner` → `MGCriteria`), an entity class, `*` |
 | **SR-76a** | the device ↔ trainee link | a component on the trainee's entity, `PhysicalStation {Id: int}` (⭐ rev `2026-10-31`, user: *"Station names are unique across the cluster … Please change the fixed string into an integer. The stations use the name just for convenience, but technically they are assigned a unique integer ID as well"* — the name stays a display label, the INTEGER is the key; cluster-unique) — set when the trainee's Player node takes the unit (the node is configured with its station name), cleared when released; `ExternalMeasurement` is keyed by that integer STATION id (the device knows only where it is installed), and the ingress routes it to the entity whose `PhysicalStation` matches. Generic: any device, any key |
 | **SR-79** | the GUID descriptor's owner | ✅ accepted as built (`dtEntityGuid` stays with the creator — the Brain creates scenario entities; a Brain crash is non-recoverable today — user) |
+
+### 10.9 Worked example — *"Platoon attack on the village"* *(`2026-10-31`)*
+
+📐 Measured for it: roles in the 117 scenarios — 409 entities have a command link: `Wingman` 284, `SquadLeader` 80, `MachineGunner` 29,
+`TeamLeader` 8, `AutomaticRifleman` 4, `Medic` 4 ⇒ most riflemen carry the DEFAULT role, so SR-72a's `*` / class / `RefKey` rules matter.
+
+**What the author places in the scenario** (everything else expands from macros or follows the command chain):
+
+```
+entity "Blue Platoon"      Scenario macro → macros/forces/ReinforcedPlatoon   { side: Blue }                       (units, RefKeys @BluePL, @Sq1…)
+entity "Red defenders"     Scenario macro → macros/forces/InsurgentCell       { side: Red, count: 12 }
+entity "Blue mission"      Scenario macro → macros/missions/SeizeArea          { subject: "@BluePL", area: "@Village", deadline: "10:00" }
+entity "Blue evaluation"   Scenario macro → macros/evaluation/PlatoonAttackEval { subject: "@BluePL" }
+entity "Red counter"       Scenario macro → macros/directors/CounterAttack     { attacker: "@RedHQ", trigger: "Blue mission/Hold", wave: "macros/forces/RedQRF" }
+area   "Village"           RefKey @Village
+```
+
+**What `PlatoonAttackEval` contains** (a reusable library macro):
+
+```
+Composite "Platoon attack"   behaviour WeightedMean                              (subject ^subject)
+ ├─ ObjectiveRef "mission"     weight 40   value: the Blue mission's Score   (via RefKey of the mission macro's root)
+ ├─ MemberEvaluation           weight 60   subject ^subject, rules (first match wins):
+ │      @PL-Trainee      → macros/evaluation/PlatoonLeader
+ │      SquadLeader      → macros/evaluation/SquadLeader       (itself a MemberEvaluation for its fire team)
+ │      MachineGunner    → macros/evaluation/MachineGunner
+ │      *                → macros/evaluation/Rifleman           (HitRatio ≥ ^minHit · NoHarm(Friend, Neutral) · ReportLatency ≤ 60 s · External "exposure" ≤ 20 %)
+ └─ NoHarm "No fratricide"    weight 0, required   (fails the whole tree)
+```
+
+**Triggers in play** (all `Trigger` entities, inside macros):
+
+| trigger | when | do |
+|---|---|---|
+| `CounterAttack` director | `Blue mission/Hold` becomes Active | `InsertMacro(RedQRF, at the edge of @Village)` + `Order(@RedQRF, Attack @Village)` |
+| ease off (in the director) | `Platoon attack` Score < 0.35 after 20 min | `SetSkillAmplifier(Red, −1)` + `Message(IOS, "Red eased")` |
+| end | `Blue mission` Achieved OR Failed OR `ScenarioTime > 10:30` | `EndExercise` |
+
+| ⭐ what this shows | |
+|---|---|
+| six authored entities produce the whole objective tree, per-member evaluation for every soldier and three triggers | reuse across scenarios = swap args / swap the library macro |
+| the threshold `^minHit` defaults in `Rifleman`, may be overridden by `PlatoonAttackEval`'s args, a squad's macro, or the unit's own entry | SR-67 nearest wins |
+| a trigger's condition is another objective's STATUS; the director reads `Score` | SR-73, SR-75, SR-77 |
 
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
