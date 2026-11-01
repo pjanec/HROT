@@ -165,7 +165,7 @@ behaviour in ITS task slot (⛔ never on the unit it steers: that unit's task sl
 
 | it needs | from |
 |---|---|
-| its CONDITION | the replicated `ObjectiveStatus` of the objective it watches (`@HoldTheBridge`) — ⭐ conditions ARE objective statuses; a condition you do not want scored is an objective with `scored: false` (e.g. *"Red reaches the ridge"* = a `ReachArea` objective, not scored) |
+| its CONDITION | ⭐ written in the SAME JSON condition language data breakpoints and the Blueprint `When` node use (SR-95) — here *"`OnEntity @HoldTheBridge`: `ObjectiveStatus.State` equals Active"*; it reads the replicated `ObjectiveStatus` of the objective it watches (`@HoldTheBridge`) — ⭐ conditions ARE objective statuses; a condition you do not want scored is an objective with `scored: false` (e.g. *"Red reaches the ridge"* = a `ReachArea` objective, not scored) |
 | time | `ScenarioClock` (the delay, the cooldown) |
 | the targets of its actions | `RefKey`s (`@RedQRF`, `@VillageEdge`, `@Bridge`) resolved in the nearest scope |
 
@@ -243,7 +243,28 @@ graph LR
 leader's tree or a director all call the same `InsertMacro`. Each one reports `Running` until it is really done (InsertMacro: until every
 entity it asked for is constructed and acked on all nodes), so the list can wait for it. The `do` list itself is still just data — nothing is
 compiled per scenario, and an unknown action or bad argument is refused when the scenario loads. `when` can be an objective's status OR the
-scenario clock directly (`scenarioTime >= 09:30`).
+scenario clock directly — both written in the existing condition language (SR-95).
+
+Each `do` entry carries its own bindings to scenario parameters, so moving an entry moves them too (SR-94):
+
+```json
+{ "act": "InsertMacro",
+  "args": { "macro": "RedQRF", "at": "@VillageEdge", "macroArgs": { "size": 12, "side": "Hostile" } },
+  "bind": { "macro": "qrfMacro", "macroArgs.size": "qrfSize" } }
+```
+
+```mermaid
+graph LR
+    SP["scenario param<br/>qrfSize = 12"]
+    AA["action arg<br/>macroArgs.size"]
+    MP["macro param<br/>size"]
+    PF["a field of a part<br/>inside the macro"]
+    SP -- "bind on the do entry" --> AA
+    AA -- "passed to the macro" --> MP
+    MP -- "bind inside the macro" --> PF
+```
+
+*Caption:* one binding principle at every level, each binding written next to the value it binds; all applied once, at load.
 
 ```mermaid
 sequenceDiagram
