@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Scenario picker mockup (AQ108 D24 / D25, CE-4141). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Go live — run setup</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1280px; height: 820px; box-sizing: border-box; padding: 40px; background: #121417; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; gap: 40px; align-items: flex-start;">
+
+  <div style="width: 420px; border-radius: 10px; background: #202328; border: 1px solid #3a3e46; display: flex; flex-direction: column; overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid #353941; font-size: 15px; font-weight: 600;">Go live with Bridgehead?</div>
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+      <span style="color: #c9ccd2;">The run starts from the scenario's beginning and is recorded.</span>
+      <button style="text-align: left; background: #262a30; color: #c9ccd2; border: 1px solid #353941; border-radius: 6px; padding: 9px 12px; font: inherit;">▸ Run setup <span style="color: #8a9099;">— random variant · default params</span></button>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid #353941; display: flex; justify-content: flex-end; gap: 10px;">
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Cancel</button>
+      <button style="background: #c2412f; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font: inherit; font-weight: 600;">● Go live</button>
+    </div>
+    <span style="padding: 0 16px 14px; color: #8a9099; font-size: 12px;">Collapsed = the defaults. One click starts the run — nothing has to be chosen.</span>
+  </div>
+
+  <div style="flex-grow: 1; border-radius: 10px; background: #202328; border: 1px solid #3a3e46; display: flex; flex-direction: column; overflow: hidden;">
+    <div style="padding: 14px 16px; border-bottom: 1px solid #353941; font-size: 15px; font-weight: 600;">Go live with Bridgehead?</div>
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+      <button style="text-align: left; background: #262a30; color: #e4e6ea; border: 1px solid #3c4a63; border-radius: 6px; padding: 9px 12px; font: inherit;">▾ Run setup</button>
+
+      <fieldset style="border: 1px solid #353941; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;">
+        <legend style="color: #9aa0a8; font-size: 12px; padding: 0 4px;">Variant</legend>
+        <label style="display: flex; gap: 8px; align-items: center;"><input type="radio" name="v" checked>Random <span style="color: #8a9099;">— drawn now: <b style="color: #e4e6ea;">7214</b></span></label>
+        <label style="display: flex; gap: 8px; align-items: center;"><input type="radio" name="v">Number <input value="3" aria-label="Variant number" style="width: 80px; background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 4px 6px; font: inherit;"><span style="color: #8a9099;">the same number = the identical run</span></label>
+        <label style="display: flex; gap: 8px; align-items: center;"><input type="radio" name="v">As authored <span style="color: #8a9099;">(variant 0 — everything present, first option, middle delays)</span></label>
+      </fieldset>
+
+      <fieldset style="border: 1px solid #353941; border-radius: 8px; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;">
+        <legend style="color: #9aa0a8; font-size: 12px; padding: 0 4px;">Scenario parameters <span style="color: #8a9099;">(from the scenario header — defaults filled in)</span></legend>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+          <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">QRF size<input value="8" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Counter-attack delay<input value="120 s" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Red skill (amplifier)<select style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px; font: inherit;"><option>0 — as authored</option><option>−1</option><option>+1</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Civilians present<select style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px; font: inherit;"><option>yes</option><option>no</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Time limit<input value="45 min" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+          <label style="display: flex; flex-direction: column; gap: 4px; color: #9aa0a8; font-size: 12px;">Pass mark <span style="color: #8a9099;">(evaluation default)</span><input value="0.60" style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 4px; padding: 5px 6px; font: inherit;"></label>
+        </div>
+        <button style="align-self: flex-start; background: transparent; color: #7fb6ff; border: 0; padding: 2px 0; font: inherit;">Reset to defaults</button>
+      </fieldset>
+
+      <div style="padding: 8px 10px; border-radius: 6px; background: #262a30; color: #9aa0a8; font-size: 12px;">Recorded with the run · shown in the mode menu · the debrief and AAR show them · <span style="color: #c9ccd2;">--startup-scenario showcase-bridgehead --variant 3 --param qrfSize=8</span> does the same from the command line</div>
+    </div>
+    <div style="padding: 12px 16px; border-top: 1px solid #353941; display: flex; justify-content: flex-end; gap: 10px;">
+      <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 8px 14px; font: inherit;">Cancel</button>
+      <button style="background: #c2412f; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font: inherit; font-weight: 600;">● Go live · variant 7214</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
