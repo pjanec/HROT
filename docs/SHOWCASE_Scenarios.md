@@ -242,9 +242,22 @@ point) · *Sharpshooter* (accuracy ≥ 40 % with ≥ 10 hits) · *Crate hunter* 
 - the comeback boost raises only the losing team's bots, by one tier, and never twice within 2 min;
 - the awards come from the awards macro, not from the scenario file.
 
-⚠ **Capture the flag** proper needs a *carry an item* mechanic (pick up, carry, drop on death) that does not exist; domination needs
-none. ⭐ Lean: ship domination first; CTF is a later variant once carrying exists (it would be a small `Carry` component + a `ReachArea`
-with *carrying the flag* as its condition).
+### 2.7 The extension to true capture the flag *(a later variant — most of the carrying is already built)*
+
+⚠ *Corrected `2026-11-01` (user: "carrying entities and stuff is already implemented"): the first version of this section claimed no carry
+mechanic exists — it was written without searching. Measured:*
+
+| CTF needs | what exists | gap |
+|---|---|---|
+| the flag is a thing a soldier carries | ⭐ **carry stations per person** — HANDS (fired from), BACK (stowed, seen), HIDDEN (stowed, unseen); the station a thing is in is its slot in the man's `PassengerBuffer`, already on the wire (`Behavior/CarryStations.cs:27`, CE-3233, `DESIGN_Civilians_And_Crowd_Control.md` §7.13); portable things as ENTITIES picked up and put down — weapons, stones, canisters (`DESIGN_Weapon_Systems` separable weapons; §7.10 B-13 pick-up, CE-3235; §7.11 laid-down, CE-3232); casualties carried / dragged with a speed penalty (`CarryLoad.cs`, `CarryNodes.cs`) | a **Flag** entity type that a station accepts (today a station takes a downed man or a portable weapon system — `DESIGN_Civilians_And_Crowd_Control.md` §7 table, *"picking up"*) |
+| carrying it slows the carrier | ✅ `CarryLoad.Factor` (a carry factor per type) | none — give the flag a factor |
+| the carrier is visible to all | ✅ BACK station = carried and seen | a HUD / map marker on the flag (the bounty marker's mechanism) |
+| dropped where the carrier dies, returned if untouched 30 s | ⛔ **not found** — no drop-on-death of carried things in a search (`grep` for death / drop over the toolkit) | ⭐ small: on the carrier's death put the thing down at his position (the existing put-down) + a trigger *flag untouched 30 s ⇒ return to base* |
+| a player picks it up | ⚠ **not measured** — whether the possession controls (`DESIGN_Player_Join`) offer *pick up* for a thing on the ground | measure first |
+| *flag captured* = the carrier, of side X, reaches his base | ⭐ a trigger: `when` = OnEntity(@BlueFlag) *its carrier (`CarryStations.SeatOf`, `:34`) is Red* AND *inside @RedBase* (CE-4164's area leaf) → AddPoints · return the flag | the "carrier of" predicate leaf (`OnEntity` + carrier, SR-95 family) |
+
+⇒ ⭐ **Domination ships first; CTF is the same scenario plus a Flag item type, drop-on-death and one predicate leaf** — no new mechanism.
+The flag's state on the HUD (*at base · carried by Hawk · dropped 12 s*) is one more `game.*` feature.
 
 ---
 
@@ -276,6 +289,7 @@ with *carrying the flag* as its condition).
 | game-master interventions | SR-104 | ✅ | ✅ | ⚠ add / order / Brain tab live; macros, action palette not |
 | AAR lanes for rules, replay from my eyes | SR-103 | ✅ | ✅ (best moment) | ⚠ lanes + film director built; rules lanes not |
 | every element a switchable feature | R-4108 | ✅ | ✅ | ⚠ Node Features built |
+| carrying things (stations, pick up / put down) — the CTF extension | CE-3233, CE-3235, CE-3232 | ✅ (casualty evacuation) | ⚠ CTF variant §2.7 | ✅ built; Flag type + drop-on-death not |
 
 ## 4. How to use this document
 
