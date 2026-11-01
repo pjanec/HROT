@@ -331,7 +331,7 @@ reusable macro.
 |---|---|---|
 | ⭐ **watch** how the teams are doing | objectives and measures — each publishes `ObjectiveStatus` with a `Score` 0..1 | *"Blue platoon attack"* = 0.42 |
 | ⭐ **decide** when to act | a trigger's `when`, in the existing condition language (SR-95) — any objective's state or `Score`, the scenario clock, several entities at once | `Score < 0.35` AND elapsed > 20 min |
-| ⭐ **act** on the exercise, from outside the world | the trigger's `do` — the shared action vocabulary (SR-93) | `InsertMacro` · `Order` · `AdjustProficiency` · `Message` · `SetObjectiveActive` · `EndExercise` |
+| ⭐ **act** on the exercise, from outside the world | the trigger's `do` — the shared action vocabulary (SR-93) | `InsertMacro` · `Order` · `SetSkillAmplifier` · `Message` · `SetObjectiveActive` · `EndExercise` |
 | **remember** what already happened | a trigger's own status (`Fired`, `FireCount`) and `maxFires`; a `Count` objective for a total shared by several triggers | *"at most 3 waves in total"* |
 | **belong to no side** | the trigger's `Subject` is the World Environment entity | Red HQ stays an ordinary commander |
 | **package and reuse** | a macro with params | `macros/control/AdaptivePressure {blue, red}` |
@@ -353,7 +353,7 @@ The adaptive-difficulty example, as a reusable macro `macros/control/AdaptivePre
 | trigger | when | do | rules |
 |---|---|---|---|
 | Counter-attack | `@BlueAttack/Hold` becomes Active | InsertMacro(RedQRF, @VillageEdge) → Order(@RedQRF, Attack @Bridge) | delay 120 s, once |
-| Ease off | `@BlueAttack.Score < 0.35` AND elapsed > 20 min | AdjustProficiency(Red, −1 tier) · Message(IOS, "Red eased") | holdFor 2 min, repeat, cooldown 10 min, maxFires 2 |
+| Ease off | `@BlueAttack.Score < 0.35` AND elapsed > 20 min | SetSkillAmplifier(Red, −1) · Message(IOS, "Red eased") | holdFor 2 min, repeat, cooldown 10 min, maxFires 2 |
 | Push harder | `@BlueAttack.Score > 0.8` AND elapsed < 30 min | InsertMacro(RedReserve) → Order(…) | holdFor 1 min, once |
 
 ```mermaid
@@ -364,7 +364,7 @@ graph LR
     T3["Push harder<br/>(trigger)"]
     RQ["new Red force<br/>(InsertMacro)"]
     RH["Red HQ<br/>(ordinary commander)"]
-    PR["Red proficiency<br/>(AdjustProficiency)"]
+    PR["Red proficiency<br/>(SetSkillAmplifier)"]
     IOS["instructor station<br/>(Message)"]
     BA -- "Hold becomes Active" --> T1
     BA -- "Score below 0.35" --> T2
@@ -390,7 +390,7 @@ sequenceDiagram
     Note over BA: 09:20 — Score drops to 0.31
     EO->>BA: reads Score, condition rises
     Note over EO: holdFor 2 min — still below at 09:22
-    EO->>RED: AdjustProficiency −1 tier (Veteran to Regular, Militia to Untrained)
+    EO->>RED: SetSkillAmplifier −1 tier (Veteran to Regular, Militia to Untrained)
     EO->>IOS: Message "Red eased"
     Note over EO: cooldown 10 min, FireCount 1 of maxFires 2
     Note over BA: 09:30 — Score recovers to 0.5
@@ -398,8 +398,8 @@ sequenceDiagram
 ```
 
 **The proficiency knob already exists** — `CombatProficiency` (Untrained · Militia · Regular · Veteran · Elite, 0..1), set per man, per unit
-(it fills down to the men) or by the unit type; it changes aim spread, exposure, reaction time and fire discipline. `AdjustProficiency` adds a
-RELATIVE change for a whole side at runtime (SR-100), so a veteran stays better than a militiaman, and forces inserted later are covered too.
+(it fills down to the men) or by the unit type; it changes aim spread, exposure, reaction time and fire discipline. `SetSkillAmplifier` sets a per-side amplifier in
+tiers at runtime (R-4106, SR-100), so a veteran stays better than a militiaman, and forces inserted later are covered too.
 
 ### 3.3 When standalone triggers and objectives are not enough — the ladder
 
@@ -499,7 +499,7 @@ What the scenario author places — ONE entity, a name and params, nothing compi
                                              { "act": "Order", "args": { "unit": "@RedQRF", "intent": "Attack", "target": "@Bridge" } } ],
                          "reinforceSouth": [ { "act": "InsertMacro", "args": { "macro": "RedQRF", "at": "@SouthEdge" } },
                                              { "act": "Order", "args": { "unit": "@RedQRF", "intent": "Attack", "target": "@Bridge" } } ],
-                         "easeOff":        [ { "act": "AdjustProficiency", "args": { "target": "Red", "delta": -1 } },
+                         "easeOff":        [ { "act": "SetSkillAmplifier", "args": { "target": "Red", "delta": -1 } },
                                              { "act": "Message", "args": { "to": "IOS", "text": "Red eased" } } ] } } } }
 ```
 
