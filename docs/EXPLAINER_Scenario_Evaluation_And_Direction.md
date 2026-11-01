@@ -429,5 +429,103 @@ development that every scenario then gets for free.
 **Rule of thumb:** if the logic reads as *"when X, do Y"*, it is a trigger. If it reads as *"keep judging which of these to do"*, it is a
 control behaviour (rung 3). If it needs something the world cannot tell you yet, it is a new primitive (rung 4).
 
+### 3.4 Worked example — one exercise climbing the ladder
+
+*"Platoon attack on the village"* (part 2's scenario). The instructor's wishes grow; each one is met on the lowest rung that can carry it.
+
+**Rung 1 — *"when Blue holds the bridge, send a counter-attack."*** One trigger (part 2):
+
+| trigger | when | do |
+|---|---|---|
+| Counter-attack | `@BlueAttack/Hold` becomes Active | InsertMacro(RedQRF, @VillageEdge) → Order(@RedQRF, Attack @Bridge) |
+
+**Rung 2 — *"send waves from the north or the south, whichever Blue is not watching; the next wave only once the previous one is destroyed;
+three waves in total."*** Still triggers and objectives, combined:
+
+| entity | kind | role |
+|---|---|---|
+| `Blue watches north` / `Blue watches south` | `HoldArea` objectives, ⛔ not scored | the branch condition — which side Blue covers |
+| `Waves sent` | `Count` objective (counts `InsertMacro` of `RedQRF`), ⛔ not scored | the budget SHARED by both wave triggers |
+| `Wave destroyed` | `DestroyTargets` objective on the last inserted wave, ⛔ not scored | the chain — *"the previous wave is gone"* |
+| trigger `Wave north` | `Blue watches south` Active AND `Waves sent < 3` AND (`Waves sent = 0` OR `Wave destroyed` Achieved) | InsertMacro(RedQRF, @NorthEdge) → Order(...) |
+| trigger `Wave south` | the mirror (`Blue watches north` Active, …) | InsertMacro(RedQRF, @SouthEdge) → Order(...) |
+
+The `when`s are exclusive (Blue covers one side), so the two triggers never fire together, and the `Count` objective is the memory both of them
+read.
+
+**Rung 3 — *"every couple of minutes, weigh how Blue is doing, how strong each side is and how much time is left, and pick the best of:
+reinforce north · reinforce south · hold · ease off."*** Bands of exclusive conditions stop scaling here — four plays, several inputs, and the
+choice has to stick for a while instead of flickering. ⇒ a **control behaviour**, authored ONCE as an asset and shipped:
+
+```mermaid
+graph TD
+    R["PressureController (BTree asset)"]
+    P["Parallel"]
+    C["ChooseOption(PressureDecision)<br/>keeps the winner in its working state"]
+    S["Selector"]
+    O1["IsOption(ReinforceNorth) → RunActions(plays.reinforceNorth)"]
+    O2["IsOption(ReinforceSouth) → RunActions(plays.reinforceSouth)"]
+    O3["IsOption(Hold) → wait"]
+    O4["IsOption(EaseOff) → RunActions(plays.easeOff)"]
+    R --> P
+    P --> C
+    P --> S
+    S --> O1
+    S --> O2
+    S --> O3
+    S --> O4
+```
+
+*Caption:* the decision and the plays are separate — `ChooseOption` scores the options and remembers the winner (with hysteresis, so it does not
+flicker); each branch runs its play as an ordinary `RunActions` list — the SAME actions a trigger's `do` uses.
+
+The utility decision `PressureDecision` (authored once, like the asset):
+
+| option | scored up by | scored down by |
+|---|---|---|
+| ReinforceNorth | Blue `Score` high · Blue watches south | waves sent · little time left |
+| ReinforceSouth | the mirror | the mirror |
+| Hold | Blue `Score` in the middle band | — |
+| EaseOff | Blue `Score` low · `EnemyStrengthRatio` against Blue high (an existing input, `StandardInputs.cs:289`) | proficiency already lowered twice |
+
+What the scenario author places — ONE entity, a name and params, nothing compiled:
+
+```json
+{ "Name": "Pressure", "Subject": "World Environment",
+  "Sop": { "Name": "PressureController",
+           "Params": { "blue": "@BlueAttack", "red": "Red", "maxWaves": 3, "decideEvery": 120,
+                       "plays": {
+                         "reinforceNorth": [ { "act": "InsertMacro", "args": { "macro": "RedQRF", "at": "@NorthEdge" } },
+                                             { "act": "Order", "args": { "unit": "@RedQRF", "intent": "Attack", "target": "@Bridge" } } ],
+                         "reinforceSouth": [ { "act": "InsertMacro", "args": { "macro": "RedQRF", "at": "@SouthEdge" } },
+                                             { "act": "Order", "args": { "unit": "@RedQRF", "intent": "Attack", "target": "@Bridge" } } ],
+                         "easeOff":        [ { "act": "AdjustProficiency", "args": { "target": "Red", "delta": -1 } },
+                                             { "act": "Message", "args": { "to": "IOS", "text": "Red eased" } } ] } } } }
+```
+
+The next exercise uses the same `PressureController` with other params (other edges, other macros, `maxWaves: 5`); the instructor sees in
+`UtilityDecisionLog` *why* each play won.
+
+**Rung 4 — *"also ease off when Blue is running out of ammunition."*** A man's own ammunition is already an input (`AmmoFraction`,
+`Utility/Inputs/StandardInputs.cs:84`), but nothing yet sums it for a whole SIDE ⇒ one new primitive, in C#, built once, next to it:
+
+```csharp
+[UtilityInput("SideAmmoFraction")]   // 0..1 — the side's remaining ammunition over its loaded-out total
+static float SideAmmoFraction(in UtilityInputCtx ctx) => …;
+```
+
+From then on `PressureDecision` scores `EaseOff` up by it, AND — through the same registry — it can be a measure (*"Blue's ammunition
+discipline"*) and a trigger condition (*"Blue below 30 %"*; ⚠ that needs a utility-input leaf in the condition language — the SR-20 bridge,
+not yet designed for SR-95). Every scenario gets it for free.
+
+**Rung 5** is not needed here — nothing in this exercise is so one-off that a reusable asset should not carry it.
+
+| wish | rung | new authoring | new code |
+|---|---|---|---|
+| a counter-attack | 1 | one trigger | none |
+| north / south waves, chained, budget of 3 | 2 | 5 entities (3 watched objectives, 2 triggers) | none |
+| keep choosing the best of four plays | 3 | one entity naming `PressureController` + params | none per exercise — the asset is authored once |
+| react to ammunition | 4 | one input added to the decision | one `[UtilityInput]` |
+
 ⚠ None of this is built yet — the trigger machinery is being proven by a proof of concept (runtime binding of actions, per-step blackboard
 slots, the condition language); see [SR-93…SR-100](DESIGN_Scenario_Rules.md).
