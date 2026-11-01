@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-140; §9.8.8 rev e = the current types and layout; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-141; §9.8.8 rev e + §9.8.9 rev f = the current types — EntityRef / EntityLink, WorldPoint / PointLink, AreaLink; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -947,7 +947,7 @@ public readonly struct WorldArea                        // 72 B — authored by 
 |---|---|---|
 | **SR-140** | two reference types, and where each goes | ⭐ **`EntityRef` stays exactly as today** (8 bytes, the network id) for everything code writes: components, lists (`PassengerNetworkIds`, buffers, target memories), runtime node structs, the wire, `BrainIntent` JSON — ⇒ recordings do not grow. ⭐ **`EntityLink`** (48 bytes) for everything a PERSON writes: params-DTO fields (the 21 `EntityRef` params fields change type), the `when` / `do` args, macro params. It converts to `EntityRef` (`link.Ref`), so behaviour code changes one member access. `WorldPoint` and `WorldArea` are authored by nature and carry the same `RefSpec`. ⭐ A RAIL fails on an `EntityRef` member of a `[ParamsDto]` / predicate DTO (it must be `EntityLink`) — the split cannot drift. The picker keys on BOTH types (D5): an `EntityRef` pick writes an id, an `EntityLink` pick writes `Exact` or `Key`. ⚠ What it does NOT solve: an internal `EntityRef` inside a component SAVED to a scenario (`UnitSubordinate`'s parent …) still needs `DESIGN_Scenario_Entity_Keys.md` S9's file-boundary GUID conversion — those components already save through translators keyed by GUID (§0a there), so that is S9's open item, not this one's |
 
-⭐ **The same cut for places** (user, `2026-11-01`: *"Sometimes we need to store the coordinates internally without the authored information. I guess here we will use the plain vector 3 for the internal representation"*): ✅ yes — internal positions stay plain `Vector3` (`SimTransform`, `NavigationIntent`, `RoutePlan` …, the engine's local metres); `WorldPoint` / `WorldArea` exist only where a person authors. ⇒ no third type. The saved components' `Vector3`s are relocated by the per-component relocators (SR-128).
+⭐ **The same cut for places** (user, `2026-11-01`: *"Sometimes we need to store the coordinates internally without the authored information. I guess here we will use the plain vector 3 for the internal representation"*): ⛔ WITHDRAWN by §9.8.9 SR-141 (an internal `WorldPoint` type; the authored one is renamed `PointLink`) — ~~internal positions stay plain `Vector3` (`SimTransform`, `NavigationIntent`, `RoutePlan` …, the engine's local metres); `WorldPoint` / `WorldArea` exist only where a person authors. ⇒ no third type. The saved components' `Vector3`s are relocated by the per-component relocators (SR-128).~~
 
 ⭐ **Why an internal `EntityRef` in a SAVED component is an issue only now** (user: *"It must have been happening all the time till now"*): today it WORKS — the file stores network ids AND each entity's `NetworkIdentity`, and load remaps old → new (`StagingEntityExtractor.cs:344-359`, `EntityRefRemap`). It breaks in exactly two new cases: ① a reference to an entity a MACRO creates — that entity is transient, never saved, and gets a fresh id each load, so no saved number can name it (only its derived GUID can, `DESIGN_Scenario_Entity_Keys.md` G2); ② `DESIGN_Scenario_Entity_Keys.md` S8 drops `NetworkIdentity` from the file — then a saved number has nothing to be remapped against. ⇒ the S9 item (write the target's GUID at save) is needed for ① and ②; a scenario with no macros keeps working as today until S8 lands.
 
@@ -955,6 +955,43 @@ public readonly struct WorldArea                        // 72 B — authored by 
 - *One 40–48-byte `EntityRef` everywhere (rev d)* — every internal list and every recorded frame pays for text nobody authored (the user's point).
 - *A hand-rolled length + byte array* — `FixedString32` exists (the user's point).
 - *`EntityLink` for components too* — components are written by code; an authored form there would always be empty.
+
+#### 9.8.9 Rev f (`2026-11-01`) — an INTERNAL world-point type too; authored types renamed `*Link` *(lean SR-141 awaits the user; amends §9.8.8: "internal positions stay plain `Vector3`" is WITHDRAWN)*
+
+> 🔒 **User, `2026-11-01`:** *"is using the plain vector 3 for an actual world position internally okay? wouldn't it be better to really invent a new
+> type which is the same inside like the vector 3, but its semantic meaning is telling that this is an actual world location that can be shown on
+> the map and may be edited as such?"* · *"The debug tools, when seeing such type, can for example show the actual position of that field on the
+> map … the user would not need to interpret the location, but the tool will help him by showing the location on the map."*
+
+| measured | where |
+|---|---|
+| ⚠ `Vector3` is AMBIGUOUS today: 124 `public Vector3` fields in engine / toolkit / core types mix world points (`LastSeen`, `Hide`, `Anchor`, `At`, `Point` …) with non-points (`Velocity`, `LastVelocity`, `LocalPoint` — body-relative, `Value`) | grep `public Vector3 \w+;` over `Fdp.Core`, `Fdp.Toolkits`, `Hrot.Core` |
+| `SimTransform.Position` is read ~1023 times; `FinalDestination` 169; 11 `ref …Position` aliases | grep |
+| ⛔ no semantic point type exists (graph `^(World\|Local\|Sim\|Map)(Point\|Position\|Pos\|Location\|Vec)\w*$` — fields and enum values only; the NED `WorldPos` is a wire descriptor) | graph |
+| ⭐ the TYPE already drives the schema hint for tools: `DtoJsonSchemaExtractor` writes `picker: "worldLocation"` for a location type | `DebugApi/DtoJsonSchemaExtractor.cs:201-202` |
+
+```csharp
+// INTERNAL — what code writes; same 12 bytes and JSON as Vector3 ⇒ recordings and scenario files do not change
+[JsonConverter(typeof(WorldPointJsonConverter))]            // [x, y, z], exactly Vector3's file form
+public struct WorldPoint
+{
+    public float X, Y, Z;                                    // local ENU metres
+    public static implicit operator Vector3(WorldPoint p) => new(p.X, p.Y, p.Z);
+    public static implicit operator WorldPoint(Vector3 v) => new() { X = v.X, Y = v.Y, Z = v.Z };
+}
+// AUTHORED — what a person writes (§9.8.8, renamed for symmetry with EntityRef / EntityLink)
+public readonly struct PointLink { public readonly WorldPoint Local; public readonly RefSpec Spec; }   // was "WorldPoint" in §9.8.2–9.8.8
+public readonly struct AreaLink  { … }                                                                  // was "WorldArea"
+```
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-141** | an internal world-point type | ⭐ YES — `WorldPoint` = a plain 12-byte struct, identical in memory and in JSON to `Vector3`, whose TYPE says *"a place in the world"*. ⭐ The pairs are symmetric: **`EntityRef` / `EntityLink`**, **`WorldPoint` / `PointLink`**, areas **`AreaLink`** (`*Link` = authored, carries `RefSpec`). ⭐ What the type buys, BY CONSTRUCTION: ① **tools show it on the map** — the inspector, the watch, the brain view and the debug API offer *"show on map"* for every `WorldPoint` / `EntityRef` field (the schema hint `DtoJsonSchemaExtractor` already emits by type), so nobody has to interpret coordinates; ② **editable on the map** by its type (D5 / P5); ③ **relocation is generic** — the type plan finds every `WorldPoint` in any component, so the per-component relocators shrink to rotation (`SimTransform.Rotation`, `SimVelocity`) and `EditablePolyline`'s 2-D points; ④ the ambiguity of the 124 `Vector3` fields ends — a direction stays `Vector3`. ⭐ Migration is cheap BECAUSE of the implicit conversions both ways and the `X` / `Y` / `Z` fields: the ~1023 reads of `SimTransform.Position` compile unchanged (`a.Position - b.Position` is a `Vector3`, as a difference of points should be); the 11 `ref` aliases are edited. Recordings, blobs and scenario files are byte-identical. ⭐ A RAIL classifies every `Vector3` field of every component and params type as point (→ `WorldPoint`) or not (an explicit allow-list), so a new position cannot be added as a bare `Vector3` unnoticed. ⏭ the wire structs keep their `double`s (AQ107); translators convert |
+
+**Rejected — one line each:**
+- *Plain `Vector3` internally (§9.8.8)* — 124 fields mix points and directions; no tool can tell which to show on the map (the user's point).
+- *Explicit-only conversions* — strict, but ~1000 call sites would change for no runtime benefit; the type's value is MEANING for tools, not arithmetic safety.
+- *Keeping the authored name `WorldPoint`* — the internal type deserves the plain name; authored ones read `*Link`, like `EntityLink`.
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
