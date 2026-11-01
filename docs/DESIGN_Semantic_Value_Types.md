@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN
+build-state: DESIGN — ✅ ACCEPTED 2026-11-01 (user: "Okay, accepting your suggestions.") · tracker: SV-1 CE-4201 · SV-2 + SV-3 bundled into CE-4200 · SV-4 CE-4202 · SV-5 CE-4203 · SV-6 CE-4204
 updated: 2026-11-01 (first version — coordinator)
 current-answer: §2 the candidates, ranked, with leans · §3 the shared pattern
 stale-below: nothing yet
