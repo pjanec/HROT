@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
     /// <summary>
     /// ⭐ TRIGGER ACTION-SEQUENCE PoC (SR-93..98, docs/DESIGN_Scenario_Rules.md). Tests ASSUMPTIONS of the design; a red/false finding is a RESULT.
     /// P1 runtime binding · P2 per-step slot · P3 the loop as a shared action · P4 called from a real BTree · P5 the when (trigger.cs) · P6 restore.
+    /// ⭐ Findings: SR-108 in docs/DESIGN_Scenario_Rules.md · the production build starts FROM this folder: tracker CE-4160…CE-4166 (and CE-4159).
     /// </summary>
     public sealed unsafe partial class TriggerPocTests
     {
