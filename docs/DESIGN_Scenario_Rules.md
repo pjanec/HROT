@@ -1238,6 +1238,65 @@ public readonly struct AreaLink  { … }                                        
 - *An authored `BearingLink` (with `RefSpec`)* — a heading "toward an entity" is a point (`PointLink`), not an angle.
 - *Bearings in radians, math convention (CCW from east)* — every authored and displayed heading in the engine is compass degrees; one convention.
 
+#### 9.8.11 ⭐ AS-BUILT — S0 (`2026-11-01`, backend; the details step 0 left to the builder)
+
+```mermaid
+classDiagram
+    direction LR
+    class WorldPoint { <<Fdp.Core, struct 12 B>> X Y Z · implicit to/from Vector3 · point minus point = Vector3 }
+    class WorldRotation { <<Fdp.Core, struct 16 B>> X Y Z W · HeadingDeg · OWNS the compass convention }
+    class OrientationText { <<Fdp.Core>> the ONE HPR text, tokenised }
+    class Bearing { <<Fdp.Core, struct 4 B>> Degrees · implicit to/from float }
+    class RefSpec { <<Fdp.Core, 36 B explicit>> FixedString32 Key at 0 / Guid Exact at 0 · RefForm at 32 }
+    class SimTransformBridgeSystem { <<Fdp.Toolkits, existing>> routes to WorldRotation }
+    class OrientationDisplay { <<Fdp.Toolkits, existing>> maps OrientationText tokens to ddsmonitor colours }
+    class EntityLink { <<Fdp.Toolkits.Replication>> EntityRef Ref · RefSpec Spec }
+    class PointLink { <<Fdp.Toolkits.Replication>> WorldPoint Local · RefSpec Spec }
+    class AreaLink { <<Fdp.Toolkits.Replication>> EntityRef Area · RefSpec Spec · WorldPoint Center · Vector2 Size · Bearing Heading · Contains }
+    class EntityRefRemap { <<existing, generalised>> one plan per type · WalkJson · WalkObject }
+    class LeafApplier { <<abstract>> one virtual per leaf type }
+    class RefRemap
+    class RefResolve
+    class Relocation
+    class IRefScope { <<interface>> TryResolve · TryPositionOf }
+    class ScenarioRefScope { <<Fdp.Toolkits.Scenario>> RefKey + EntityGuid of one load }
+    class RefKey { <<component 468, saved>> FixedString32 Value }
+    class StagingEntityExtractor { <<existing>> builds the scope after Pass 1 }
+    class WeatherField { <<existing>> AreaEntityContains — the one area-entity test }
+    SimTransformBridgeSystem ..> WorldRotation : routes
+    OrientationDisplay ..> OrientationText : routes
+    WorldRotation ..> OrientationText : ToString
+    EntityLink *-- RefSpec
+    PointLink *-- WorldPoint
+    PointLink *-- RefSpec
+    AreaLink *-- RefSpec
+    AreaLink ..> WeatherField : entity form
+    EntityRefRemap ..> LeafApplier
+    LeafApplier <|-- RefRemap
+    LeafApplier <|-- RefResolve
+    LeafApplier <|-- Relocation
+    RefResolve ..> IRefScope
+    IRefScope <|.. ScenarioRefScope
+    ScenarioRefScope ..> RefKey
+    StagingEntityExtractor ..> ScenarioRefScope : builds
+    StagingEntityExtractor ..> RefResolve : after the remap
+```
+
+*What the picture shows that the prose hid:* the convention and the text moved DOWN into `Fdp.Core` (the only assembly `WorldPoint`'s users all
+reference), and the toolkit copies now route there; and the one walker is one plan with three appliers — remap, resolve and relocate are not three
+walkers.
+
+| decided by the builder | as built | why |
+|---|---|---|
+| assemblies | `WorldPoint` / `WorldRotation` / `Bearing` / `RefSpec` in **Fdp.Core** (`World/`); the `*Link`s beside `EntityRef` in **Fdp.Toolkits** (`Replication/Links.cs`) | `SimTransform` is in Fdp.Core; `EntityRef` in Fdp.Toolkits |
+| "`HeadingDeg` / `ToString` ROUTE to `SimTransformBridgeSystem` / `OrientationDisplay`" (§9.8.10) | ⚠ **DEVIATION — the direction is inverted**: the convention's bodies and the HPR text now live in `WorldRotation` / `OrientationText` (Fdp.Core) and the toolkit classes ROUTE to them | Fdp.Core cannot reference Fdp.Toolkits; still ONE copy (`S0TypesTests`, `SimTransformBridgeSystemTests`, `OrientationDisplayTests` green) |
+| JSON of the internal types | the converter hands the value to the OPTIONS' own `Vector3` / `Quaternion` / `float` handling | byte-identical by construction in files AND in the debug API's NaN-safe dump — no copy of either converter |
+| SR-138 ③ "the converter writes by CONTEXT" (file · wire · diagnostics) | ⚠ **DEVIATION — by the VALUE's state**: not authored ⇒ the bare answer · authored, unresolved ⇒ the text (`"@Key"` / GUID) · authored AND resolved ⇒ both (`{"NetworkId": n, "Ref": "@Key"}`, `{"Local": […], "Ref": …}`, `{"Area": n, "Ref": …}`) | load-time resolution rewrites params JSON in place and the behaviour must still read the answer, so a resolved link must carry it; one converter, no context flag. ⏭ A file saved after a load carries the both-form (it loads back identically — the form wins); writing only the text at save is the file-form applier, left for S3 / CE-4153 S9 |
+| `AreaLink` shapes | `Size` = (width across the heading, length along it), circle radius in `Size.X`; `Heading` a `Bearing`; `Center` a `WorldPoint`; an area entity's outline is relative to its `SimTransform` (as weather regions) | the area-entity case reuses `WeatherField.TryOutline` + its even-odd test (new public `WeatherField.AreaEntityContains`) — one containment |
+| the walker | `EntityRefRemap` keeps its name and API (`CompileJson`, `RemapObject`, `HoldsRefs` = holds a network id) and gains `WalkJson` / `WalkObject` + `LeafApplier`; a JSON leaf is read and written through its own converter, the string returned untouched when nothing changed; a leaf the type cannot read is left alone (the params parse reports it) | ⛔ no second plan; `RefResolve` throws on a reference that names nothing — the load fails loudly |
+| `Relocation` | translate X / Y, turn about the anchor by the heading difference (compass clockwise), Z by the anchors' height difference; `WorldRotation` pre-multiplied by the turn; `Bearing` + turn, normalised; a `PointLink` / `AreaLink` written as an entity is NOT moved | SR-127 / SR-131; rails `S0WalkerTests.Relocate_*` |
+| `RefKey` | component **468**, `DataPolicy.Default` (saved), `"RefKey": {"Value": "BlueHQ"}`; the scope is built by `StagingEntityExtractor` after Pass 1 from `RefKey` + `EntityGuid` + `SimTransform`, mapped to the NEW ids; a duplicate key throws; behaviour params resolve through `ScenarioBehaviorRemapper.ResolveJson` (the one contract lookup it shares with `RemapJson`) | rails `StagingEntityExtractorTests.S0_*` |
+
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
 ### 10.1 The data sources — measured `2026-10-31` (graph `.*(Fire|Hit|Kill|Damage|Destroy|Casualt|Death|Wound).*(Event|Notification|State|Status)$` Class (18) + grep)
