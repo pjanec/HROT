@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-01 (first version — coordinator; parts 1–2)
+updated: 2026-11-01 (parts 1–2, diagrams added — coordinator)
 current-answer: the whole file — an EXPLAINER of the design, not the design itself
 stale-below: nothing
 known-rot: none — ⚠ describes the DESIGN (nothing here is built yet); the decisions and their ids live in DESIGN_Scenario_Rules.md
@@ -24,6 +24,22 @@ related-designs:
 | **trigger** | REACTS — *when something happens, do something* | *"when the bridge is held, send the counter-attack"* |
 | **mission plan** | DIRECTS one unit — *its ordered task list* | *"drive to the bridge, then hold it"* |
 
+```mermaid
+graph LR
+    W["the simulated world<br/>units · areas · clock"]
+    O["OBJECTIVES<br/>observe + report"]
+    T["TRIGGERS<br/>watch + react"]
+    M["MISSION PLANS / orders<br/>direct one unit"]
+    W -- "read" --> O
+    O -- "status" --> T
+    T -- "orders · insert macros · messages" --> M
+    M -- "the units act" --> W
+    O -- "status" --> R["evaluation result<br/>IOS · HUD · NED · debrief"]
+```
+
+*Caption:* the loop — objectives READ the world and publish statuses; triggers READ statuses and ACT through orders and macros; units carry
+the orders out and change the world, which the objectives read again.
+
 ---
 
 ## 1. The objective
@@ -38,6 +54,23 @@ An ordinary **entity** (usually created by a scenario macro) with four parts:
 | its LINKS (`ObjectiveLinks`) | `Subject` = **Blue Platoon** (*whose* objective it is) · `Parent` = **Blue mission** (the objective it rolls up into) |
 | its TASK slot = the evaluating behaviour | `HoldArea` with params `{area: "@Bridge", minUnits: 4, maxEnemy: 0, holdSeconds: 600, common: {deadline: "10:30", points: 100, weight: 40}}` |
 | its RESULT (`ObjectiveStatus`, replicated to every node) | state · progress · value / target · score · points · when · reason |
+
+
+```mermaid
+classDiagram
+    direction LR
+    class ObjectiveEntity { <<an ordinary entity>> }
+    class EntityInfo { title "Hold the bridge" · side Blue }
+    class SimTransform { position at the bridge · drawing only }
+    class ObjectiveLinks { Subject = Blue Platoon · Parent = Blue mission }
+    class TaskSlot { behaviour HoldArea · params area minUnits maxEnemy holdSeconds deadline weight }
+    class ObjectiveStatus { <<replicated>> State · Progress · Value Target · Score · Points · ChangedAt · Reason }
+    ObjectiveEntity *-- EntityInfo
+    ObjectiveEntity *-- SimTransform
+    ObjectiveEntity *-- ObjectiveLinks
+    ObjectiveEntity *-- TaskSlot
+    ObjectiveEntity *-- ObjectiveStatus
+```
 
 It runs on the **Brain node** (which owns it), in the normal brain tick — only while simulation time advances.
 
@@ -59,6 +92,21 @@ stateDiagram-v2
     Pending --> Active : activeWhen holds (or none)
     Active --> Achieved : held long enough
     Active --> Failed : the deadline passed
+```
+
+
+```mermaid
+sequenceDiagram
+    participant BT as brain tick (Brain node)
+    participant HA as HoldArea (on the objective)
+    participant W as world
+    participant S as ObjectiveStatus (replicated)
+    BT->>HA: tick (sim time advanced by dt)
+    HA->>W: Subject Blue Platoon - members via the command chain
+    HA->>W: @Bridge - polygon · members and hostiles inside · clock
+    HA->>HA: ours 5 ≥ 4, enemy 0 ≤ 0 ⇒ held += dt (312 s)
+    HA->>S: Active · "5 / 4 units, held 312 of 600 s"
+    Note over HA,S: later — held reaches 600 s ⇒ Achieved, Reason "held 600 s, 5 Blue / 0 Red"
 ```
 
 ```
@@ -139,14 +187,22 @@ stateDiagram-v2
 
 The example, on a timeline:
 
-```
-09:41:10  Hold the bridge  Pending -> Active          (Blue's 4th man reaches the bridge)
-09:41:10  Counter-attack   Armed -> Holding -> Waiting (holdFor 0; delay 120 s starts)
-09:43:10  Counter-attack   Waiting -> Fired:
-            ① InsertMacro RedQRF at @VillageEdge   -> 12 ordinary entities are created (transient, never saved)
-            ② Order @RedQRF Attack @Bridge          -> an AssignTacticalIntent down Red's command chain
-            ③ Message IOS                           -> the instructor sees it
-          -> Done   (Reason "@HoldTheBridge became Active 09:41:10; fired 09:43:10 after 120 s; inserted 12; order sent")
+```mermaid
+sequenceDiagram
+    participant HB as Hold the bridge (objective)
+    participant CA as Counter-attack (trigger)
+    participant EC as entity creation
+    participant RC as Red's command chain
+    participant IOS as instructor station
+    Note over HB: 09:41:10 — Blue's 4th man reaches the bridge
+    HB->>HB: Pending to Active
+    CA->>HB: reads the status, sees the edge
+    CA->>CA: Armed to Waiting (delay 120 s)
+    Note over CA: 09:43:10 — the delay elapsed
+    CA->>EC: InsertMacro RedQRF at @VillageEdge (12 transient entities)
+    CA->>RC: Order @RedQRF Attack @Bridge (AssignTacticalIntent)
+    CA->>IOS: Message "Red counter-attack launched"
+    CA->>CA: Fired to Done · Reason written · journaled
 ```
 
 | rule | meaning |
