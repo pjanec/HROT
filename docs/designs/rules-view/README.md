@@ -28,7 +28,7 @@ related-designs:
 | [`mockup/GameSummary.html`](mockup/GameSummary.html) | ⭐ **for the player — GAME end of round** (SR-112): winner banner · scoreboard per team (K / D / A / points / score, MVP, AI bots listed) · *your round* stats · awards · *your best moment* clip (auto-cut) · level / XP |
 | [`mockup/HudTraining.html`](mockup/HudTraining.html) | ⭐ **HUD — TRAINING** (SR-112): mission objectives with progress · *my standards* (optional coaching) · a coaching hint · the timed message subtitle + message log · health, ammo, compass |
 | [`mockup/HudGame.html`](mockup/HudGame.html) | ⭐ **HUD — GAME** (SR-112): tickets + capture points + round timer · capture progress · kill feed · hit marker · *+100 elimination / streak* · the message subtitle · own K / D / score, ammo |
-| [`mockup/EditAtRuntime.html`](mockup/EditAtRuntime.html) | editing at any run state: the **+ Add** menu · **drag to connect** (writes a condition into the target's `when`) · what each live edit does · the live-edit dialog (*this run only* / *also in the scenario file*) · the **Graph** view |
+| [`mockup/EditAtRuntime.html`](mockup/EditAtRuntime.html) | editing at any run state: the **+ Add** menu · **drag to connect** (writes a condition into the target's `when`) · what each live edit does · the live-edit dialog (a live edit lasts for THIS RUN only — the scenario file changes in edit mode) · the **Graph** view |
 
 **How to look at them:** open a file in any browser (each is self-contained: inline styles, no scripts, no network). On GitHub the blob page
 shows the source; download it or use the *Raw* view and open it locally. The same nine boards are also on a private claude.ai canvas,
