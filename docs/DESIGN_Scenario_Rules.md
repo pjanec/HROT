@@ -820,14 +820,15 @@ public readonly struct WorldPoint                     // 24 bytes (12 + 4 paddin
 
 [StructLayout(LayoutKind.Sequential)]
 [JsonConverter(typeof(WorldAreaJsonConverter)), DebuggerDisplay("{ToString()}")]
-public readonly struct WorldArea                      // 40 bytes
+public readonly struct WorldArea                      // 40 bytes (8 + 8 + 12 + 8 + 4)
 {
-    public readonly AreaShape   Shape;                // Circle · Rectangle · Entity (byte, + padding)
-    public readonly Vector3     Center;               // Circle / Rectangle
-    public readonly Vector2     Size;                 // Rectangle w, h · Circle: X = radius
-    public readonly float       HeadingDeg;           // Rectangle, degrees from north, clockwise
-    public readonly long        AreaNetworkId;        // Entity: the area entity
-    public readonly AuthoredRef Authored;             // Entity: "@Village" / GUID
+    public readonly long        AreaNetworkId;        // offset 0  — Entity form: the area entity (the live answer)
+    public readonly AuthoredRef Authored;             // offset 8  — the SHAPE lives here: Form Shape + index 0 circle / 1 rectangle;
+                                                      //             Form Exact / Key = an area entity ("@Village" / GUID)
+    public readonly Vector3     Center;               // offset 16 — circle / rectangle, local metres
+    public readonly Vector2     Size;                 // offset 28 — rectangle w, h · circle: X = radius
+    public readonly float       HeadingDeg;           // offset 36 — rectangle, degrees from north, clockwise
+    public AreaShape Shape => Authored.Form == AuthoredForm.Shape ? (AreaShape)Authored.Index : AreaShape.Entity;
 }
 ```
 
