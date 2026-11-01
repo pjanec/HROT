@@ -1280,6 +1280,12 @@ classDiagram
     class RefKey { <<component 468, saved>> FixedString32 Value }
     class StagingEntityExtractor { <<existing>> builds the scope after Pass 1 }
     class WeatherField { <<existing>> AreaEntityContains — the one area-entity test }
+    class SemanticValueTypes { <<Fdp.Core, static>> StorageTypeOf · ToStorage · FromStorage }
+    class GenericWidgets { <<existing>> inspector · FixedListFormatter · JsonShapeDescriber · blackboard · schemas }
+    GenericWidgets ..> SemanticValueTypes : field type routes through
+    SemanticValueTypes ..> WorldPoint
+    SemanticValueTypes ..> WorldRotation
+    SemanticValueTypes ..> Bearing
     SimTransformBridgeSystem ..> WorldRotation : routes
     OrientationDisplay ..> OrientationText : routes
     WorldRotation ..> OrientationText : ToString
@@ -1313,6 +1319,10 @@ walkers.
 | the walker | `EntityRefRemap` keeps its name and API (`CompileJson`, `RemapObject`, `HoldsRefs` = holds a network id) and gains `WalkJson` / `WalkObject` + `LeafApplier`; a JSON leaf is read and written through its own converter, the string returned untouched when nothing changed; a leaf the type cannot read is left alone (the params parse reports it) | ⛔ no second plan; `RefResolve` throws on a reference that names nothing — the load fails loudly |
 | `Relocation` | translate X / Y, turn about the anchor by the heading difference (compass clockwise), Z by the anchors' height difference; `WorldRotation` pre-multiplied by the turn; `Bearing` + turn, normalised; a `PointLink` / `AreaLink` written as an entity is NOT moved | SR-127 / SR-131; rails `S0WalkerTests.Relocate_*` |
 | `RefKey` | component **468**, `DataPolicy.Default` (saved), `"RefKey": {"Value": "BlueHQ"}`; the scope is built by `StagingEntityExtractor` after Pass 1 from `RefKey` + `EntityGuid` + `SimTransform`, mapped to the NEW ids; a duplicate key throws; behaviour params resolve through `ScenarioBehaviorRemapper.ResolveJson` (the one contract lookup it shares with `RemapJson`) | rails `StagingEntityExtractorTests.S0_*` |
+| item 6 — saved components (`d298cd86d`) | ⭐ `WorldPoint`: `SimTransform.Position`, `NetworkTransform.LastPosition`, `NavState` / `NavigationIntent.FinalDestination`, geographic `Position.Value`, `BallisticProjectile.Muzzle` / `PreviousPosition`, `WeaponTask.Point`, `FakeCrowdAgentState.Target`, `EqsSensor.ContextPoint1`, `EngagementArea.ArcOrigin` · `WorldRotation`: `SimTransform.Rotation`, `NetworkTransform.LastRotation` · `Bearing`: `EngagementArea.Left/Right/WatchBearing`. Everything else vector-shaped is a velocity, a body-relative angle or a 2-D world XY (`FormationTarget.TargetPosition` — no 2-D point type until S3), each named with its reason in `S0ComponentTypesRailTests.NotSpatial` | memory identical ⇒ no golden moved. ⚠ The rail scans a saved component's DIRECT fields only (nested structs such as `WeaponPosture.Point` are not reached) and only the assemblies `Fdp.Toolkits.Tests` references (not `Hrot.MuscleCharacter.*`, whose `FakeAnimBackendState.WorldAimPoint` is a bare `Vector3`) — ⏭ item 8 |
+| the generic-widget seam | ⭐ ONE mapping `SemanticValueTypes` (Fdp.Core: `StorageTypeOf` / `ToStorage` / `FromStorage` / `IsSemantic`) — the inspector (renderer registry fallback, property tree, quaternion editor), `FixedListFormatter`, `JsonShapeDescriber`, the blackboard helpers and schema builders route through it; a schema KEEPS the semantic type name (`format: worldRotation`, `number/bearing`); the blueprint compiler gains same-bytes rungs `WorldPoint↔Vector3`, `WorldRotation↔Quaternion`, `Bearing↔Single` | rails `SemanticValueTypesTests`, `SemanticValueRoutingTests` |
+| ⚠ DEVIATION — `Stage2_Validate` (BP2014) | matches the three types by **full NAME**, not through `SemanticValueTypes` | `Hrot.Blueprints.Compiler` also targets `netstandard2.0`, where `Fdp.Core` is not referenced (the netstandard / net8.0 wall, `BATCH-03-REPORT.md:100`). One check, three names; the cure is a source file linked into both targets |
+| ⚠ `NodeEditor.UI` (ExtDep) | `PinDefaultValueEditorRegistry` maps `Fdp.Core.WorldPoint` by type NAME to `VectorPinEditor(3)` | the library cannot reference `Fdp.Core` |
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
