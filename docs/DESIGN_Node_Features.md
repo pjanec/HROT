@@ -2,7 +2,7 @@
 state: LIVE
 build-state: S1 READY-TO-BUILD (2026-11-01, §4 F-13…F-18 — leans await the user) · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
 updated: 2026-11-01 (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
-current-answer: §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable)
+current-answer: §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable) · ⭐ §6 the S1 technical spec (catalogue, C# shapes, where it lives, speed, wire, recording + going live)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -208,3 +208,117 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 | **S1** ⭐ READY-TO-BUILD | `FeatureDeclaration` on `INodeCapability`, `FeatureRegistry`, `NodeFeatures` (`IFeatureGate`), `[NodeFeature]` + the `SystemScheduler` gate (F-13), `--feature`, `FeatureOverrides` on the run settings + the cluster facts + `ClusterView` (F-16), `FeaturesAtLoad` in the load payload (F-14) and in `RecordingMetadata` (F-15), the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` deleted) and **`scenario.rules` declared** (F-17) | a Player builds its 3-D map in the load exactly as today (the R-1046 / CE-3354 ③ rails unchanged, re-pointed); an override switches it on a named node at the next load; an override for a node without the feature is refused; a `[NodeFeature]` system is skipped while off (a rail beside the TickMode rails); a branch to live re-applies the recorded set; rails: every literal is declared, every `[NodeFeature]` id is declared |
 | **S2** | the HUD features: `hud.hit-marker`, `hud.damage-arc`, `hud.kill-cam`, `hud.squad-takeover-after-death`, `hud.spread-ring`, `hud.near-miss` (CE-4148; Player Join §7a G1–G6) + the `FeatureGridPanel` | with each OFF nothing of it is drawn or recorded on any host; defaults: ON for `-m player`, OFF elsewhere (G5/G6 lean ON everywhere) |
 | **S3** | `gameplay.deploy-server` (Player Join D-3): "a server exists" = a node with the feature available AND on | a Player observes when no node has it on (R-4103) |
+
+## 6. S1 technical spec *(`2026-11-01`, answers the user's questions: *"What is the list of features? What do the network topic structs look like … the reason for comma separated list in one place and a list of strings in the other … What is the scenario.rules feature about? How does the node keep / manage the list … where, what module? How fast is the NodeFeatures.On(id) check? How do we remember the features in the recording … when we load the recording and go to live, how do we know what features to enable?"*)*
+
+### 6.1 The feature catalogue *(every id the designs name — grep of `docs/` for dotted ids, `2026-11-01`; S1 builds the first two, the rest arrive with their owners)*
+
+| id | declared by (capability) | change | default | owning design / slice |
+|---|---|---|---|---|
+| `map3d.in-load` | Player (`cap:image-generator`) | AtLoad | ON for `-m player` | R-1046 · **S1** (migrated) |
+| `scenario.rules` | Brain (`cap:brain`) | AtLoad | ON where composed | `DESIGN_Scenario_Rules.md` §00.6 S1 · **S1** |
+| `scenario.rules.pause-on-end` | Brain | Live | ON | Scenario Rules SR-9 / SR-116 · its S2 |
+| `hud.objectives` · `hud.own-evaluation` · `hud.messages` | Player | Live | ON (demo profile, SR-83) | Scenario Rules SR-106 / SR-112 · its S2 / S4 |
+| `hud.hit-marker` · `hud.damage-arc` · `hud.kill-cam` · `hud.squad-takeover-after-death` · `hud.spread-ring` · `hud.near-miss` | Player | Live | ON for `-m player` | `DESIGN_Player_Join.md` §7a G1–G6 · S2 |
+| `hud.kill-feed` · `hud.score-popups` · `hud.coaching` | Player | Live | game profile ON, training OFF | Scenario Rules SR-112 · its S6 |
+| `gameplay.deploy-server` | the deploy pack | AtLoad | ON where composed | Player Join D-3 · S3 |
+| `gameplay.team-kill` | Combat (`cap:muscle-ground`) | AtLoad | ON | PLAN_Training_And_Gameplay_Engine |
+| `ui.side-knowledge` · `ui.side-knowledge.last-known` · `map3d.knowledge-indicators` | Player | Live | per profile | Entity Control / Map 3D designs |
+| `eval.performance` | Brain | AtLoad | ON | Scenario Rules S4 |
+
+⭐ The catalogue is CODE, not a file: each capability's `Features` list is the truth; a rail prints the table, so this one can be regenerated.
+
+### 6.2 The C# shapes
+
+```csharp
+public enum FeatureChange : byte { Live, AtLoad }
+public sealed record FeatureDeclaration(string Id, string Description, FeatureChange Change, Func<NodeRole, bool> DefaultOn);
+
+public interface INodeCapability {                      // existing — grows ONE default member
+    IReadOnlyList<FeatureDeclaration> Features => Array.Empty<FeatureDeclaration>();
+    // Key, Needs, PopulateSystems, ProvideModules, Register — unchanged
+}
+
+public readonly struct FeatureHandle { internal readonly int Index; }   // a dense index, resolved ONCE
+
+public interface IFeatureGate { bool On(FeatureHandle f); FeatureHandle Resolve(string id); }   // Fdp.ModuleHost — the scheduler's view
+
+public sealed class NodeFeatures : IFeatureGate {       // Hrot.Common/Infrastructure — ONE per node
+    public bool On(FeatureHandle f) => _on[f.Index];    // the hot path: one array read
+    public bool On(string id) => _on[_index[id]];        // convenience: one dictionary lookup
+    public FeatureHandle Resolve(string id);             // throws on an undeclared id (F-18)
+    public event Action? Changed;                        // after a recompute
+    private bool[] _on;                                  // effective, recomputed on ClusterView change / at load
+    private readonly Dictionary<string, int> _index;     // id → index, built at boot from the FeatureRegistry
+    private bool[] _frozenAtLoad;                        // the AtLoad part, set from the load payload or the recording
+}
+
+[AttributeUsage(AttributeTargets.Class)] public sealed class NodeFeatureAttribute(string id) : Attribute { public string Id => id; }
+```
+
+### 6.3 Where it lives, who builds it
+
+```mermaid
+graph TD
+    subgraph boot["every host — SharedApplicationBootstrapper (Hrot.Common/Infrastructure) — Editor, CGF/Brain, SimHost, IG/Player, Traffic, Stride"]
+        WALK["NodeCapabilityWalk (existing, :207)"] --> REG["FeatureRegistry — the declarations of the composed capabilities, dense indices"]
+        REG --> NF["NodeFeatures — placed on HrotNodeContext"]
+        REG --> TOK["NodeCapabilitiesTopic.CapabilitiesJson += hrot.feature.<id>"]
+        CLI["--feature id=on|off · node config"] --> NF
+    end
+    CV["ClusterView (existing, folds ClusterStateTopic)"] -- "Changed ⇒ recompute _on" --> NF
+    LOAD["load PREPARE payload FeaturesAtLoad"] -- "freeze" --> NF
+    REC["RecordingMetadata.FeaturesAtLoad (on a branch)"] -- "freeze" --> NF
+    NF --> GATE["IFeatureGate → SystemScheduler (Fdp.ModuleHost)"]
+    NF --> HB["NodeHeartbeat.FeaturesOn"]
+    NF --> SYS["a system's own FeatureHandle checks"]
+```
+
+*Caption:* the registry is built where the capability walk already is, in the ONE base bootstrapper every host derives from (`TrafficNodeBootstrapper`,
+`IgNodeBootstrapper`, `StrideNodeBootstrapper`, `CgfNodeBootstrapper`, `SimHostNodeBootstrapper`, `EditorNodeBootstrapper` — all
+`: SharedApplicationBootstrapper`), so no host can lack it; the scheduler sees only the FDP-level `IFeatureGate`.
+
+### 6.4 Speed
+
+| call | cost | used by |
+|---|---|---|
+| `On(FeatureHandle)` | one `bool[]` read (~1 ns) | the scheduler (the handle cached per system TYPE at registration, beside `TickMode`) and systems (handle resolved in the constructor) |
+| `On(string)` | one `Dictionary<string,int>` lookup (~20 ns) | UI and rare checks — ⛔ not in a per-entity loop |
+| recompute `_on` | O(features), only when `ClusterView` changes or a load freezes | — |
+
+### 6.5 The wire *(measured shapes: `OrchestrationMessages.cs:150-200` `ClusterStateTopic`, `:426-445` `NodeHeartbeat`, `:463-472` `NodeCapabilitiesTopic`; `Payloads/OrchestrationPayloadDtos.cs:98-108` `SetRunSettingsPayloadDto`)*
+
+```csharp
+public partial struct FeatureOverrideWire {                // NEW, a DDS struct
+    [DdsManaged] public string Feature;
+    [DdsManaged] public List<string> Nodes;                // empty = all nodes
+    public bool On;
+}
+// ClusterStateTopic — APPENDED LAST (R-42); MapInLoadNodes DELETED (no compatibility):
+    [DdsManaged] public List<FeatureOverrideWire> FeatureOverrides;
+// NodeHeartbeat — appended:
+    [DdsManaged] public List<string> FeaturesOn;          // the effective ON set
+// NodeCapabilitiesTopic — UNCHANGED: CapabilitiesJson simply gains "hrot.feature.<id>" tokens
+// SetRunSettingsPayloadDto (JSON, the cluster-op channel) — appended; MapInLoadNodes deleted:
+    [property: JsonPropertyName("FeatureOverrides")] FeatureOverrideDto[]? FeatureOverrides = null   // null = no change
+// EditLoadHandlerPayload (JSON, the load PREPARE) — MapInLoad DELETED:
+    string[]? FeaturesAtLoad                               // this node's effective AtLoad ON set
+```
+
+⭐ **Why a comma string in one place and a list in another — measured, no deep reason:** the orchestration topics carry lists in THREE
+conventions today — a comma string (`ClusterStateTopic.MapInLoadNodes`, CE-3354 ③: *"comma-joined (names hold no comma)"*), a JSON
+`string[]` inside a string (`NodeCapabilitiesTopic.CapabilitiesJson`, `SubsystemsJson`, the asset inventory), and a typed DDS sequence
+(`EntityMission.Plan.Tasks`, `[DdsManaged] List<MissionTask>`, `MissionDescriptors.cs:62-64`). The JSON payload DTOs (`SetRunSettingsPayloadDto`)
+use `string[]` because they are JSON. ⭐ Lean: NEW topic fields use the typed sequence (it already crosses the wire for missions);
+`MapInLoadNodes` goes with this slice. ⚠ Unifying the existing JSON-in-a-string lists is a separate, cheap finding — filed with this slice's row.
+
+### 6.6 The recording, and going live from it
+
+| step | what happens | where |
+|---|---|---|
+| a live load | the master stamps each node's effective AtLoad ON set into its load PREPARE (`FeaturesAtLoad`) — the `FanOutLoadPrepare` path `MapInLoad` takes today | `ClusterMaster.cs:2392-2400` |
+| the node | freezes it (`_frozenAtLoad`) and writes it into its own `RecordingMetadata.FeaturesAtLoad` | `RecordingModule` (`Fdp.Toolkits/Replay/RecordingModule.cs`), where `ParentExerciseId` is written today (`:89`) |
+| replay | nothing needed — the outcome of those features is already in the recorded state | — |
+| ⭐ go live from the recording (`NodeOpType.PrepareLive`, `LiveBranchAggregator`) | each node's `StartBranch` already copies its parent's metadata (terrain, geo origin, checkpoints, parent id — `RecordingModule.cs:57-73`); it copies `FeaturesAtLoad` too, and the node FREEZES that set — ⭐ **the recording wins** for AtLoad features (the continued run plays by the same rules); Live features follow the cluster's current settings | `RecordingModule.StartBranch` |
+| a node that kept no recording | takes the master's current overrides, as on a fresh load | — |
+| a recorded feature this build does not declare | the branch is REFUSED loudly (*"recording needs feature X, not available on node Y"*) — ⛔ never a silent different run | the PrepareLive answer |
