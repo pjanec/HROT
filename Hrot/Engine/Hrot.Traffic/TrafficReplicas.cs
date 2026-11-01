@@ -46,7 +46,7 @@ public sealed class TrafficReplicas
     /// <summary>⭐ AQ93 §15 K3 / §15.8 (CE-4031) — a SUMO pedestrian's type, by his id (<see cref="TrafficPanicSystem.TypeOf"/>): the far
     /// figure, the replica and the civilian a conversion makes are ONE person — same type, and the map seeds his clothes and face by the
     /// same id. ⛔ Before: the replica was always the adult man, so he changed sex and age the moment he was converted.</summary>
-    public static long PedestrianTypeOf(long networkId) => TrafficPanicSystem.TypeOf(networkId);
+    public static long PedestrianTypeOf(int networkId) => TrafficPanicSystem.TypeOf(networkId);
 
     /// <summary>⭐ AQ93 §12 T1 — a SUMO car's type: the one its sender mapped, else the generic traffic car. The replica and the map's far
     /// car (§15.8) both read it.</summary>
@@ -59,11 +59,11 @@ public sealed class TrafficReplicas
     private readonly List<Vector2> _anchors = new();
     private readonly HashSet<(int, VehicleHandle)> _seen = new();
     private readonly List<(int, VehicleHandle)> _drop = new();
-    private readonly Dictionary<(int Owner, long NetworkId), Entity> _peds = new();
-    private readonly HashSet<(int, long)> _pedSeen = new();
-    private readonly List<(int, long)> _pedDrop = new();
-    private readonly HashSet<long> _released = new();
-    private readonly HashSet<long> _seenIds = new();
+    private readonly Dictionary<(int Owner, int NetworkId), Entity> _peds = new();
+    private readonly HashSet<(int, int)> _pedSeen = new();
+    private readonly List<(int, int)> _pedDrop = new();
+    private readonly HashSet<int> _released = new();
+    private readonly HashSet<int> _seenIds = new();
 
     /// <param name="entityMap">The node's network entity map (null in a world with no network layer, e.g. a rail).</param>
     public TrafficReplicas(EntityRepository world, NetworkEntityMap? entityMap, int localNodeId)
@@ -77,14 +77,14 @@ public sealed class TrafficReplicas
     public IReadOnlyDictionary<(int Owner, VehicleHandle Handle), Entity> Replicas => _replicas;
 
     /// <summary>⭐ AQ93 §15 K3 — the live pedestrian replicas, by (sender, network id).</summary>
-    public IReadOnlyDictionary<(int Owner, long NetworkId), Entity> Pedestrians => _peds;
+    public IReadOnlyDictionary<(int Owner, int NetworkId), Entity> Pedestrians => _peds;
 
     /// <summary>Is this pedestrian a replica now (the entity layer draws it)?</summary>
     public bool IsPedReplica(TrafficPedPose ped) => _peds.ContainsKey((ped.Owner, ped.NetworkId));
 
     /// <summary>⭐ AQ93 §15 K5/K7 — the pedestrian or car <paramref name="networkId"/> is becoming OUR entity: its replica goes now (so the
     /// id is free when ours is registered) and is not re-made while SUMO's wire still shows it.</summary>
-    public void Release(long networkId)
+    public void Release(int networkId)
     {
         _released.Add(networkId);
         foreach (var kv in _peds.ToArray())
@@ -200,7 +200,7 @@ public sealed class TrafficReplicas
     private static SimTransform Transform(in TrafficPedPose ped)
         => new() { Position = new Vector3(ped.X, ped.Y, ped.Z), Rotation = SimMath.FromYaw(ped.YawRad) };
 
-    private void DestroyPed((int, long) key, Entity e)
+    private void DestroyPed((int, int) key, Entity e)
     {
         if (_world.IsAlive(e))
         {

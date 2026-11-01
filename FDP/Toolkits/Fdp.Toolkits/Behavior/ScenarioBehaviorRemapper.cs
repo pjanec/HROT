@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Behavior
         /// <param name="idMap">Old-to-new network ID map built during two-pass extraction.</param>
         /// <returns>Remapped JSON, or the original <paramref name="json"/> when no mapping
         ///   applies.</returns>
-        public string? RemapJson(string behaviorId, string? json, IReadOnlyDictionary<long, long> idMap)
+        public string? RemapJson(string behaviorId, string? json, IReadOnlyDictionary<int, int> idMap)
             => ContractOf(behaviorId) is { } contract ? EntityRefRemap.CompileJson(contract)(json, idMap) : json;
 
         /// <summary>

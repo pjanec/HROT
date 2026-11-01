@@ -167,7 +167,7 @@ namespace Hrot.SimHost
             => App.TestHook_BehaviorRegistry;
 
         /// <summary>TestHook: spawns an entity and returns its network ID.</summary>
-        internal long TestHook_SpawnEntity(long tkbType, GeoPoint position)
+        internal int TestHook_SpawnEntity(long tkbType, GeoPoint position)
             => App.TestHook_SpawnEntity(tkbType, position);
 
         /// <summary>TestHook: current kernel simulation time in seconds.</summary>
@@ -191,7 +191,7 @@ namespace Hrot.SimHost
         internal Fdp.ModuleHost.Time.TimeMode? TestHook_TimeControllerMode => App.TestHook_TimeControllerMode;
 
         /// <summary>TestHook: teleports entity to <paramref name="worldPos"/> (simulates IG drag).</summary>
-        internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)
+        internal void TestHook_SimulateDrag(int networkId, System.Numerics.Vector2 worldPos)
             => App.TestHook_SimulateDrag(networkId, worldPos);
 
         /// <summary>TestHook: exposes the gizmo primitive buffer for integration tests.</summary>
@@ -203,11 +203,11 @@ namespace Hrot.SimHost
             => App.TestHook_GizmoIngressTranslator;
 
         /// <summary>TestHook: attaches a MoveTo NavigationIntent to the entity, triggering movement.</summary>
-        internal void TestHook_SetMovementIntent(long networkId, System.Numerics.Vector2 destination, float speed = 15f)
+        internal void TestHook_SetMovementIntent(int networkId, System.Numerics.Vector2 destination, float speed = 15f)
             => App.TestHook_SetMovementIntent(networkId, destination, speed);
 
         /// <summary>TestHook: returns the current <see cref="SimTransform"/>, or default.</summary>
-        internal SimTransform TestHook_GetSimTransform(long networkId)
+        internal SimTransform TestHook_GetSimTransform(int networkId)
             => App.TestHook_GetSimTransform(networkId);
 
         /// <summary>TestHook: returns child entities that reference the given parent.</summary>

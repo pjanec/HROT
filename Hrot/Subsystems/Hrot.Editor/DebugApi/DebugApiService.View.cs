@@ -69,7 +69,7 @@ namespace Hrot.Editor.DebugApi
         /// unit on the distance continuum (far: orbit, near: over the shoulder, 0: his eyes); <c>entity: null</c> hands the camera back.
         /// Refused where no map draws this world, and while the station possesses a unit (its view is the eyes).
         /// </summary>
-        public (JsonNode? Result, string? Error) FollowUnit(long? networkId, float? distance)
+        public (JsonNode? Result, string? Error) FollowUnit(int? networkId, float? distance)
         {
             if (ViewControl.Of(_world) is not { } view)
                 return (null, "No map canvas draws this world (a headless host): there is no camera to follow with.");
@@ -105,7 +105,7 @@ namespace Hrot.Editor.DebugApi
             return (primary, all);
         }
 
-        private long? NetworkIdOrNull(Entity e)
+        private int? NetworkIdOrNull(Entity e)
             => e != Entity.Null && _entityMap.TryGetNetworkId(e, out var id) ? id : null;
     }
 }

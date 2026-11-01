@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>⭐ <c>CE-3236</c> (B-14, §7.15 VC-4) — the venting canister it sits on (its network id; APPENDED): while that lives the
         /// cloud does not drift; once it is known gone (picked up, burnt out) the owner sets 0 and the cloud drifts free. 0 = free.</summary>
-        public long SourceNetworkId;
+        public int SourceNetworkId;
 
         /// <summary>⭐ <c>R-3039</c> S1 — the OWNER's step clock (APPENDED; ⛔ not on the wire — the translator copies named fields): the sim time of
         /// its last step, valid once <see cref="Stepped"/> is 1. Was a field of <c>AreaEffectCloudSystem</c>: a checkpoint restored into a fresh

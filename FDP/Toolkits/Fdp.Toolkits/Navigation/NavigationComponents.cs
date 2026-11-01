@@ -373,7 +373,7 @@ namespace Fdp.Toolkit.Navigation
         /// <see cref="TrajectoryId"/> is a LOCAL pool index that never crosses the wire, so on a split cluster it is 0 and the route was
         /// never driven. 0 = none (the local <see cref="TrajectoryId"/> alone, as before).
         /// </summary>
-        public long RouteEntityId;
+        public int RouteEntityId;
     }
 
     /// <summary>

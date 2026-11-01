@@ -20,35 +20,35 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// </summary>
     public sealed class PositionTrack
     {
-        private readonly Dictionary<long, SharedList<PositionSample>> _units;
+        private readonly Dictionary<int, SharedList<PositionSample>> _units;
 
-        public PositionTrack(IReadOnlyDictionary<long, SharedList<PositionSample>> units)
+        public PositionTrack(IReadOnlyDictionary<int, SharedList<PositionSample>> units)
         {
-            _units = new Dictionary<long, SharedList<PositionSample>>(units);
+            _units = new Dictionary<int, SharedList<PositionSample>>(units);
         }
 
-        public PositionTrack(IReadOnlyDictionary<long, PositionSample[]> units)
+        public PositionTrack(IReadOnlyDictionary<int, PositionSample[]> units)
         {
-            _units = new Dictionary<long, SharedList<PositionSample>>(units.Count);
+            _units = new Dictionary<int, SharedList<PositionSample>>(units.Count);
             foreach (var (id, samples) in units) _units[id] = new SharedList<PositionSample>(samples);
         }
 
-        public static readonly PositionTrack Empty = new(new Dictionary<long, SharedList<PositionSample>>());
+        public static readonly PositionTrack Empty = new(new Dictionary<int, SharedList<PositionSample>>());
 
         /// <summary>The units that have at least one sample.</summary>
-        public IReadOnlyCollection<long> UnitIds => _units.Keys;
+        public IReadOnlyCollection<int> UnitIds => _units.Keys;
         public int UnitCount => _units.Count;
 
         /// <summary>All samples of all units.</summary>
         public int SampleCount { get { int n = 0; foreach (var l in _units.Values) n += l.Count; return n; } }
 
-        public bool Has(long unit) => _units.ContainsKey(unit);
+        public bool Has(int unit) => _units.ContainsKey(unit);
 
         /// <summary>The unit's samples, in frame order (empty for a unit the track does not hold).</summary>
-        public SharedList<PositionSample> Samples(long unit) => _units.TryGetValue(unit, out var l) ? l : SharedList<PositionSample>.Empty;
+        public SharedList<PositionSample> Samples(int unit) => _units.TryGetValue(unit, out var l) ? l : SharedList<PositionSample>.Empty;
 
         /// <summary>The unit's samples in frames [<paramref name="from"/>, <paramref name="to"/>) — a slice of the shared array, no copy.</summary>
-        public ReadOnlySpan<PositionSample> Between(long unit, int from, int to)
+        public ReadOnlySpan<PositionSample> Between(int unit, int from, int to)
         {
             var a = Samples(unit).Span;
             int lo = LowerBound(a, from), hi = LowerBound(a, to);
@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// (heading along the shorter arc), with <see cref="PositionSample.Frame"/> = <paramref name="frame"/>. <c>null</c> before the unit's first
         /// or after its last sample (it was not there, or has left — never an extrapolation).
         /// </summary>
-        public PositionSample? At(long unit, int frame)
+        public PositionSample? At(int unit, int frame)
         {
             var a = Samples(unit).Span;
             int i = LowerBound(a, frame);
@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         /// Appends to <paramref name="results"/> (ascending id) the units whose place at <paramref name="frame"/> is within
         /// <paramref name="radius"/> metres of (<paramref name="x"/>, <paramref name="y"/>) on the ground plane.
         /// </summary>
-        public void UnitsWithin(int frame, float x, float y, float radius, List<long> results)
+        public void UnitsWithin(int frame, float x, float y, float radius, List<int> results)
         {
             int start = results.Count;
             float r2 = radius * radius;
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public const int FallbackFrameStride = 15;
 
         private readonly double _interval;
-        private readonly Dictionary<long, GrowOnlyBuffer<PositionSample>> _units = new();
+        private readonly Dictionary<int, GrowOnlyBuffer<PositionSample>> _units = new();
         private long _lastBucket = long.MinValue;
         private int _lastFrame = -1;
         private int _version;
@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             if (!repo.IsComponentTypeRegistered<NetworkIdentity>() || !repo.IsComponentTypeRegistered<SimTransform>()) return;
             foreach (var e in repo.Query().With<NetworkIdentity>().With<SimTransform>().Build())
             {
-                long id = repo.GetComponentRO<NetworkIdentity>(e).Value;
+                int id = repo.GetComponentRO<NetworkIdentity>(e).Value;
                 if (id <= 0) continue;   // a unit with no network id is not a cross-node identity (the index's negative ids are entity indices)
                 ref readonly var t = ref repo.GetComponentRO<SimTransform>(e);
                 var q = t.Rotation;
@@ -157,7 +157,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public PositionTrack Snapshot()
         {
             if (_cachedVersion == _version) return _cached;
-            var units = new Dictionary<long, SharedList<PositionSample>>(_units.Count);
+            var units = new Dictionary<int, SharedList<PositionSample>>(_units.Count);
             foreach (var (id, buffer) in _units) units[id] = buffer.Snapshot();
             _cached = new PositionTrack(units);
             _cachedVersion = _version;

@@ -227,15 +227,15 @@ public sealed class PedestriansPanicIntoCiviliansTests
 
     private sealed class Harness : IDisposable
     {
-        public const long FirstId = 90000;
-        private long _next = FirstId;
+        public const int FirstId = 90000;
+        private int _next = FirstId;
         private double _t = 100.0;
         public EntityRepository World = null!;
         public TrafficRuntime Runtime = null!;
         public TrafficMirrorSystem Mirror = null!;
         public TrafficPanicSystem Panic = null!;
         public NetworkEntityMap Map = new();
-        public long LastId => Interlocked.Read(ref _next);
+        public int LastId => Interlocked.CompareExchange(ref _next, 0, 0);
 
         public static Harness Start(int walkers, int maxConverted = 0)
         {

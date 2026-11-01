@@ -48,7 +48,7 @@ public sealed class EqsMultiSensorTests : IDisposable
             ISimulationView view, Span<EqsResult> candidates)
         {
             if (candidates.Length == 0) return 0;
-            candidates[0] = new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Score = 1f };
+            candidates[0] = new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f, Score = 1f };
             return 1;
         }
     }
@@ -163,7 +163,7 @@ public sealed class EqsMultiSensorTests : IDisposable
     {
         // Arrange: parent entity with NetworkIdentity, child with PartMetadata+EqsSensor.
         const uint blueprintId = 2380002u;
-        const long parentNetId  = 12345L;
+        const int parentNetId  = 12345;
         const int  childInstId  = 42;
 
         var registry = new SimpleEqsTemplateRegistry();
@@ -229,7 +229,7 @@ public sealed class EqsMultiSensorTests : IDisposable
     {
         // Arrange: entity with NetworkIdentity + EqsSensor (no PartMetadata).
         const uint blueprintId  = 2380003u;
-        const long networkIdVal = 99001L;
+        const int networkIdVal = 99001;
 
         var registry = new SimpleEqsTemplateRegistry();
         registry.Register(new EqsQueryTemplate
@@ -286,7 +286,7 @@ public sealed class EqsMultiSensorTests : IDisposable
     {
         // Arrange: one parent + three child sensors.
         const uint blueprintId = 2380004u;
-        const long parentNetId = 77777L;
+        const int parentNetId = 77777;
 
         var registry = new SimpleEqsTemplateRegistry();
         registry.Register(new EqsQueryTemplate
@@ -376,7 +376,7 @@ public sealed class EqsMultiSensorTests : IDisposable
 
         // Spawn parent entity on Brain with split authority (Brain owns cognition,
         // Muscle owns kinematics -- standard split topology).
-        long parentNetId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
+        int parentNetId = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for the Muscle ghost of the parent to appear.

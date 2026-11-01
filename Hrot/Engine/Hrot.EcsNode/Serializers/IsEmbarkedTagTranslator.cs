@@ -64,7 +64,7 @@ namespace Hrot.SimHost.Serializers
             Entity resolved = resolver.Resolve(guidStr);
             if (resolved.IsNull || !repo.IsAlive(resolved)) return;
 
-            long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
+            int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
             repo.SetManagedComponent(entity, new InitialVehicleIntent
             {
                 VehicleNetworkId = new EntityRef(networkId),

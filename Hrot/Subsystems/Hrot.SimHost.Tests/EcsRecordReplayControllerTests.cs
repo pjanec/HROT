@@ -189,7 +189,7 @@ namespace Hrot.SimHost.Tests
             }
 
             // Finalize with a known MaxNetworkId so the value is verifiable.
-            const long expectedMaxNetworkId = 42L;
+            const int expectedMaxNetworkId = 42;
             await controller.FinalizeRecordingAsync(maxNetworkId: expectedMaxNetworkId);
 
             cts.Cancel();

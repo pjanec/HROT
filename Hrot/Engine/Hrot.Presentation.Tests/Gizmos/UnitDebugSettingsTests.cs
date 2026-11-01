@@ -33,7 +33,7 @@ public sealed class UnitDebugSettingsTests : IDisposable
 
     public void Dispose() => _repo.Dispose();
 
-    private Entity Unit(long net)
+    private Entity Unit(int net)
     {
         var e = _repo.CreateEntity();
         _repo.AddComponent(e, new BehaviorState());

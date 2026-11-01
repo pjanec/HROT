@@ -204,7 +204,7 @@ public sealed class EcsSelectionState : ISelectionState
     /// <summary>⭐ <c>CE-4049</c> — THE write: the store (when the entity has a network id) and its component copy, together.</summary>
     public static void Write(EntityRepository world, Entity entity, bool selected, bool primary)
     {
-        long net = NetOf(world, entity);
+        int net = NetOf(world, entity);
         if (net > 0) SelectionStore.Of(world).Set(net, selected, primary);
         if (!world.HasComponent<SelectionStateComponent>(entity))
         {
@@ -223,7 +223,7 @@ public sealed class EcsSelectionState : ISelectionState
     {
         if (SelectionStore.Peek(world) is not { } store) return;
         if (!world.IsComponentTypeRegistered<SelectionStateComponent>() || !world.IsComponentTypeRegistered<NetworkIdentity>()) return;
-        foreach (long net in store.Selected)
+        foreach (int net in store.Selected)
         {
             var e = NetworkIdResolver.ResolveNetworkId(world, net);
             if (e.IsNull || !world.IsAlive(e)) continue;   // not in this frame (a seek before he existed): kept, marked when he is
@@ -240,13 +240,13 @@ public sealed class EcsSelectionState : ISelectionState
         {
             ref readonly var c = ref world.GetComponentRO<SelectionStateComponent>(e);
             if (!c.IsSelected && !c.IsPrimarySelection) continue;
-            long net = NetOf(world, e);
+            int net = NetOf(world, e);
             if (net > 0 && !store.Contains(net))
                 world.SetComponent(e, new SelectionStateComponent { IsSelected = false, IsPrimarySelection = false });
         }
     }
 
-    private static long NetOf(EntityRepository world, Entity e)
+    private static int NetOf(EntityRepository world, Entity e)
         => world.IsComponentTypeRegistered<NetworkIdentity>() ? NetworkIdResolver.RuntimeNetworkIdOf(world, e) : 0;
 
     // ── observation ──────────────────────────────────────────────────────────────

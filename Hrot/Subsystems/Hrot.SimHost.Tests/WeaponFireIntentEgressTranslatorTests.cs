@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        private Entity SpawnShooter(long netId, bool authoritative = true)
+        private Entity SpawnShooter(int netId, bool authoritative = true)
         {
             var entity = _world.CreateEntity();
             if (authoritative)
@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        private Entity SpawnTarget(long netId)
+        private Entity SpawnTarget(int netId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(netId, entity);
@@ -105,8 +105,8 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter = SpawnShooter(netId: 1L, authoritative: true);
-            var target  = SpawnTarget(netId: 2L);
+            var shooter = SpawnShooter(netId: 1, authoritative: true);
+            var target  = SpawnTarget(netId: 2);
             PublishIntent(shooter, target, weaponIndex: 0);
 
             translator.ScanAndPublish(_world);
@@ -125,8 +125,8 @@ namespace Hrot.SimHost.Tests
         public void M8_TheLoadedRound_RoundTripsTheWire()
         {
             var (translator, writer) = BuildTranslator();
-            var shooter = SpawnShooter(netId: 1L, authoritative: true);
-            var target  = SpawnTarget(netId: 2L);
+            var shooter = SpawnShooter(netId: 1, authoritative: true);
+            var target  = SpawnTarget(netId: 2);
             _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = 12.5, BurnSeconds = 37.25f, RequestId = 77u, BodyStance = 2 });
             _world.Bus.SwapBuffers();
 
@@ -164,8 +164,8 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            var shooter = SpawnShooter(netId: 1L, authoritative: false);
-            var target  = SpawnTarget(netId: 2L);
+            var shooter = SpawnShooter(netId: 1, authoritative: false);
+            var target  = SpawnTarget(netId: 2);
             PublishIntent(shooter, target);
 
             translator.ScanAndPublish(_world);
@@ -207,7 +207,7 @@ namespace Hrot.SimHost.Tests
             // Shooter entity has authority but is NOT in NetworkEntityMap.
             var unmappedShooter = _world.CreateEntity();
             _world.AddComponent(unmappedShooter, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            var target = SpawnTarget(netId: 2L);
+            var target = SpawnTarget(netId: 2);
 
             PublishIntent(unmappedShooter, target);
 

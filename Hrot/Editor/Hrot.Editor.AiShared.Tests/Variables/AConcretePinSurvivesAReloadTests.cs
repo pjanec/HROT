@@ -28,7 +28,7 @@ namespace Hrot.Editor.AiShared.Tests.Variables;
 /// </summary>
 public sealed class AConcretePinSurvivesAReloadTests
 {
-    private const long AuthoredId = 100;
+    private const int AuthoredId = 100;
     private static readonly Guid AssetA = Guid.Parse("aaaaaaaa-3333-3333-3333-333333333333");
 
     private static Entity Ent(int index) => new(index, 1);
@@ -51,14 +51,14 @@ public sealed class AConcretePinSurvivesAReloadTests
     /// <summary>⭐ A fake WORLD: runtime network id ⇄ Entity, the two halves the host supplies.</summary>
     private sealed class FakeWorld
     {
-        private readonly Dictionary<long, Entity> _byId = new();
-        private readonly Dictionary<Entity, long> _byEntity = new();
+        private readonly Dictionary<int, Entity> _byId = new();
+        private readonly Dictionary<Entity, int> _byEntity = new();
 
-        public void Spawn(long runtimeId, Entity e) { _byId[runtimeId] = e; _byEntity[e] = runtimeId; }
+        public void Spawn(int runtimeId, Entity e) { _byId[runtimeId] = e; _byEntity[e] = runtimeId; }
         public void Clear() { _byId.Clear(); _byEntity.Clear(); }
 
-        public Entity EntityByRuntimeId(long id) => _byId.TryGetValue(id, out var e) ? e : default;
-        public long   RuntimeIdOf(Entity e)      => _byEntity.TryGetValue(e, out var id) ? id : 0;
+        public Entity EntityByRuntimeId(int id) => _byId.TryGetValue(id, out var e) ? e : default;
+        public int    RuntimeIdOf(Entity e)      => _byEntity.TryGetValue(e, out var id) ? id : 0;
     }
 
     private static (AiWatchWindow Watch, StagingRemapView Remap, FakeWorld World) Production()
@@ -111,7 +111,7 @@ public sealed class AConcretePinSurvivesAReloadTests
         var (watch, remap, world) = Production();
 
         // ── load 1: authored 100 arrives as runtime 7000 on handle #1 ──
-        remap.Publish(new Dictionary<long, long> { [AuthoredId] = 7000 });
+        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 7000 });
         world.Spawn(7000, Ent(1));
 
         // ⭐ The designer pins through the ORDINARY gesture path: BindingFor fills in the AUTHORED id.
@@ -123,7 +123,7 @@ public sealed class AConcretePinSurvivesAReloadTests
 
         // ── the reload: same authored entity, NEW runtime id, NEW handle ──
         world.Clear();
-        remap.Publish(new Dictionary<long, long> { [AuthoredId] = 9000 });
+        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 9000 });
         world.Spawn(9000, Ent(42));
 
         Assert.Equal(1, watch.RebindConcretePins());
@@ -145,13 +145,13 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var (watch, remap, world) = Production();
 
-        remap.Publish(new Dictionary<long, long> { [AuthoredId] = 7000 });
+        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 7000 });
         world.Spawn(7000, Ent(1));
         watch.Pinned.Pin(Row(Ent(1)), watch.BindingFor(Ent(1)));
 
         // ── a DIFFERENT scenario: authored 100 is not in it, and something else holds 7000 now ──
         world.Clear();
-        remap.Publish(new Dictionary<long, long> { [777] = 7000 });
+        remap.Publish(new Dictionary<int, int> { [777] = 7000 });
         world.Spawn(7000, Ent(9));
 
         Assert.Equal(0, watch.RebindConcretePins());
@@ -168,7 +168,7 @@ public sealed class AConcretePinSurvivesAReloadTests
         var (watch, remap, _) = Production();
 
         watch.Pinned.Pin(Row(default), EntityBinding.Chameleon);
-        remap.Publish(new Dictionary<long, long> { [AuthoredId] = 9000 });
+        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 9000 });
 
         Assert.Equal(0, watch.RebindConcretePins());
         var (row, binding) = Assert.Single(watch.Pinned.PinnedWithBindings());
@@ -186,7 +186,7 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var (watch, remap, world) = Production();
 
-        remap.Publish(new Dictionary<long, long> { [AuthoredId] = 7000 });
+        remap.Publish(new Dictionary<int, int> { [AuthoredId] = 7000 });
         world.Spawn(5555, Ent(3));                 // ⚠ a live entity with NO authored ancestor
 
         var binding = watch.BindingFor(Ent(3));
@@ -215,7 +215,7 @@ public sealed class AConcretePinSurvivesAReloadTests
         Assert.Equal(0, remap.ToRuntime(100));
         Assert.Equal(0, remap.ToStaging(100));
 
-        remap.Publish(new Dictionary<long, long> { [100] = 7000, [101] = 7001 });
+        remap.Publish(new Dictionary<int, int> { [100] = 7000, [101] = 7001 });
 
         Assert.True(remap.HasMap);
         Assert.Equal(7000, remap.ToRuntime(100));
@@ -234,10 +234,10 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var remap = new StagingRemapView();
 
-        remap.Publish(new Dictionary<long, long> { [100] = 7000 });
+        remap.Publish(new Dictionary<int, int> { [100] = 7000 });
         Assert.Equal(1, remap.Generation);
 
-        remap.Publish(new Dictionary<long, long> { [101] = 8000 });
+        remap.Publish(new Dictionary<int, int> { [101] = 8000 });
         Assert.Equal(2, remap.Generation);
         Assert.Equal(0, remap.ToRuntime(100));       // ⛔ the previous load's pair is GONE
         Assert.Equal(0, remap.ToStaging(7000));
@@ -251,7 +251,7 @@ public sealed class AConcretePinSurvivesAReloadTests
     {
         var remap = new StagingRemapView();
 
-        remap.Publish(new Dictionary<long, long>());
+        remap.Publish(new Dictionary<int, int>());
         Assert.False(remap.HasMap);
 
         remap.Publish(null);
@@ -280,7 +280,7 @@ public sealed class AConcretePinSurvivesAReloadTests
 
         bus.PublishManaged(new StagingRemapPublishedEvent
         {
-            StagingToRuntime = new Dictionary<long, long> { [100] = 7000, [101] = 7001 },
+            StagingToRuntime = new Dictionary<int, int> { [100] = 7000, [101] = 7001 },
             SourceNodeId     = 7,
         });
         bus.SwapBuffers();

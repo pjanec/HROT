@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// </summary>
     public sealed class TimelineIndexTests
     {
-        private const long Commander = 101, Soldier = 102, Late = 104;
+        private const int Commander = 101, Soldier = 102, Late = 104;
         private readonly ITestOutputHelper _out;
 
         public TimelineIndexTests(ITestOutputHelper output) { _out = output; }
@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return harness.BuildToTempFile();
         }
 
-        private const long Unit = 101, Bystander = 102, Carrier = 200;
+        private const int Unit = 101, Bystander = 102, Carrier = 200;
 
         /// <summary>
         /// ⭐ <c>CE-4117</c> — six frames of STATE: 0 the unit starts with a task (0x1111), a force (Friend), health 80/100 and a gesture
@@ -145,7 +145,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return harness.BuildToTempFile();
         }
 
-        private static List<(int Frame, long Subject, long Other, float X, float Value)> Of(TimelineIndex index, string lane)
+        private static List<(int Frame, int Subject, long Other, float X, float Value)> Of(TimelineIndex index, string lane)
             => index.Lane(lane).OrderBy(e => e.Frame).ThenBy(e => e.Subject).Select(e => (e.Frame, e.Subject, e.Other, e.X, e.Value)).ToList();
 
         /// <summary>
@@ -201,7 +201,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             harness.Tick().RecordDelta(400_000L);
             var index = TimelineIndexBuilder.Build(harness.BuildToTempFile(), Lanes, Compiler());
 
-            Assert.Equal(new[] { (0, 301L, 10f), (0, 302L, 10f), (0, 303L, 10f), (1, 302L, 5f), (2, 301L, 7f) },
+            Assert.Equal(new[] { (0, 301, 10f), (0, 302, 10f), (0, 303, 10f), (1, 302, 5f), (2, 301, 7f) },
                          Of(index, CombatTimelineLanes.HealthState.Id).Select(e => (e.Frame, e.Subject, e.Value)).ToArray());
         }
 
@@ -393,7 +393,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             var live = new LiveTimelineSource(Shipped(), new TimelineLaneContext(Live: true), Compiler());
             using var world = new EntityRepository();
             world.RegisterComponent<NetworkIdentity>();
-            long next = 1;
+            int next = 1;
             void Frame(int n)
             {
                 world.SetSingleton(new GlobalTime { FrameNumber = n });
@@ -422,7 +422,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Throws<ArgumentOutOfRangeException>(() => old.FrameTicks[oldTicks.Length]);          // a reader cannot reach past its snapshot
         }
 
-        private static (int Frame, long Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)
+        private static (int Frame, int Subject, long Other)[] Of(TimelineIndex index, TimelineLaneDescriptor lane)
             => index.Lane(lane.Id).Select(e => (e.Frame, e.Subject, e.Other)).ToArray();
 
         [Fact]
@@ -447,7 +447,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Equal(new[] { (1, Commander, 0L) }, Of(index, CombatTimelineLanes.Hit));
             var blast = Assert.Single(index.Lane(CombatTimelineLanes.Blast.Id));
             Assert.Equal((2, Soldier, 5f, 6f, 0.5f), (blast.Frame, blast.Subject, blast.X, blast.Y, blast.Value));
-            Assert.Equal(new[] { (1, Commander, Soldier), (1, Commander, Soldier), (2, Commander, Soldier) }, Of(index, BehaviourTimelineLanes.Orders));   // to whom; the repeat too, not the baseline
+            Assert.Equal(new[] { (1, Commander, (long)Soldier), (1, Commander, (long)Soldier), (2, Commander, (long)Soldier) }, Of(index, BehaviourTimelineLanes.Orders));   // to whom; the repeat too, not the baseline
             var decision = Assert.Single(index.Lane(BehaviourTimelineLanes.Decisions.Id));
             Assert.Equal((2, Soldier, 7L, (float)0x2067), (decision.Frame, decision.Subject, decision.Other, decision.Value));
             var change = Assert.Single(index.Lane(BehaviourTimelineLanes.Changes.Id));
@@ -461,7 +461,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
         // ───────────────────────── CE-4059 — the position track ─────────────────────────
 
-        private const long Mover = 201, Leaver = 202, Arriver = 203;
+        private const int Mover = 201, Leaver = 202, Arriver = 203;
 
         /// <summary>
         /// ⭐ <c>CE-4059</c> — nine frames of a sim clock at 0.5 + 0.25·n s (so a 0.5 s sample interval lands on every SECOND frame: 0 2 4 6 8):
@@ -502,7 +502,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             return harness.BuildToTempFile();
         }
 
-        private static int[] FramesOf(PositionTrack track, long unit) => track.Samples(unit).Select(s => s.Frame).ToArray();
+        private static int[] FramesOf(PositionTrack track, int unit) => track.Samples(unit).Select(s => s.Frame).ToArray();
 
         /// <summary>
         /// ⭐ <c>CE-4059</c> — the position track of a recording: one sample per networked unit every 0.5 s of SIM time (the frames of a 0.25 s clock
@@ -540,7 +540,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             Assert.Equal(new[] { 2, 4, 6 }, index.PositionsOf(Mover, 2, 7).ToArray().Select(s => s.Frame).ToArray());   // [from, to)
             Assert.True(index.PositionsOf(Mover, 100, 200).IsEmpty);
 
-            var near = new List<long>();
+            var near = new List<int>();
             track.UnitsWithin(3, 30, 5, 2, near);                                                   // the mover is at (30, 5) at frame 3
             Assert.Equal(new[] { Mover }, near.ToArray());
             near.Clear();
@@ -556,7 +556,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         [Fact]
         public void CE4059_AHeading_InterpolatesAlongTheShorterArc()
         {
-            var track = new PositionTrack(new Dictionary<long, PositionSample[]>
+            var track = new PositionTrack(new Dictionary<int, PositionSample[]>
             {
                 [1] = new[] { new PositionSample(0, 0, 0, 0, 3.0f), new PositionSample(2, 0, 0, 0, -3.0f) },
             });

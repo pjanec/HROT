@@ -16,13 +16,13 @@ namespace Fdp.Toolkit.Squad.Command
     public static class CommandPictureOps
     {
         /// <summary>The id a picture keys a unit by: its network id, else its local handle (a world with no network — a test).</summary>
-        public static long NetIdOf(ISimulationView view, Entity e)
+        public static int NetIdOf(ISimulationView view, Entity e)
         {
             if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>())
-                return (long)e.PackedValue;
+                return e.Index;   // CE-4200: the local fallback is the 32-bit slot index (a world with no network)
             return view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
                 ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value
-                : (long)e.PackedValue;
+                : e.Index;
         }
 
         /// <summary>The commander's subordinate in roster slot <paramref name="slot"/> (<see cref="Entity.Null"/> when there is none).</summary>
@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Squad.Command
         }
 
         /// <summary>The picture's row index for <paramref name="unitNetId"/>, or -1.</summary>
-        public static int RowOf(in CommandPicture picture, long unitNetId)
+        public static int RowOf(in CommandPicture picture, int unitNetId)
         {
             for (int i = 0; i < picture.Subordinates.Count; i++)
                 if (picture.Subordinates.Items[i].UnitNetId == unitNetId) return i;
@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Squad.Command
         }
 
         /// <summary>The row for <paramref name="unitNetId"/>, added when absent (full ⇒ -1). Makes the picture on first use.</summary>
-        public static int EnsureRow(EntityRepository world, Entity commander, long unitNetId)
+        public static int EnsureRow(EntityRepository world, Entity commander, int unitNetId)
         {
             if (!world.IsComponentTypeRegistered<CommandPicture>()) return -1;
             if (!world.HasComponent<CommandPicture>(commander)) world.AddComponent(commander, new CommandPicture());

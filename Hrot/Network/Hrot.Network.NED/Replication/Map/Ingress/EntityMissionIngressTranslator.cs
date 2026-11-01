@@ -63,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             foreach (var sample in loan)
             {
                 // Resolve entity ID from either valid data or the key-only native frame.
-                long entityId;
+                int entityId;
                 if (sample.IsValid)
                 {
                     entityId = sample.Data.EntityId;
@@ -137,7 +137,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>
         /// This translator is ingress-only; no DDS instance to dispose.
         /// </summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private MissionPlanQueue BuildQueue(in EntityMission mission)
         {

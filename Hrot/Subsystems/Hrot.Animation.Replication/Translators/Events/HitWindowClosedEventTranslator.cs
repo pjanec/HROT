@@ -35,7 +35,7 @@ internal sealed class HitWindowClosedEventTranslator
     protected override bool TryEncode(
         in HitWindowClosedEvent ecs, out DdsHitWindowClosedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

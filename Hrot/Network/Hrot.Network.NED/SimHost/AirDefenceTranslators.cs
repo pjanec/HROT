@@ -39,7 +39,7 @@ namespace Hrot.Network.NED.SimHost
         {
             foreach (ref readonly var evt in view.ReadEvents<MissileWarningEvent>())
             {
-                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Unit, out long unitId)) continue;
+                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Unit, out int unitId)) continue;
                 _writer.Write(new MissileWarning
                 {
                     UnitEntityId = unitId, FromX = evt.FromX, FromY = evt.FromY, FromZ = evt.FromZ,
@@ -50,7 +50,7 @@ namespace Hrot.Network.NED.SimHost
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ <c>CE-2189</c> — the Brain's half: a DDS <c>MissileWarning</c> becomes a remote <see cref="MissileWarningEvent"/> on the
@@ -100,6 +100,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

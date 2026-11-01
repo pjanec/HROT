@@ -14,14 +14,14 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
-        public JsonNode GetEntityBrain(long networkId) => BrainOf(_world, _entityMap, networkId);
+        public JsonNode GetEntityBrain(int networkId) => BrainOf(_world, _entityMap, networkId);
 
-        public JsonNode GetEntityJournal(long networkId, uint since) => JournalOf(_world, _entityMap, networkId, since);
+        public JsonNode GetEntityJournal(int networkId, uint since) => JournalOf(_world, _entityMap, networkId, since);
 
         /// <summary>⭐ <c>CE-1329</c> (Brain View §12r BV-72) — <c>GET /entities/{networkId}/debug-settings</c>: the unit's switches in the ONE store
         /// the Brain tab and the map's right-click menu use — its pinned gizmo families, its trace (the user's switch; <c>traceOn</c> also counts
         /// a Brain tab showing it and an observe / breakpoint arming), and whether the camera follows it. ⛔ SUPERSEDED: <c>POST /entities/{id}/debug</c>.</summary>
-        public (JsonNode? Result, string? Error) GetDebugSettings(long networkId)
+        public (JsonNode? Result, string? Error) GetDebugSettings(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
                 return (null, $"Entity {networkId} not found.");
@@ -31,7 +31,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ <c>CE-1329</c> — <c>POST /entities/{networkId}/debug-settings {pins?, trace?, follow?, reset?}</c>: sets what is given
         /// (<c>pins</c> replaces the pinned families; <c>reset</c> forgets everything remembered for the unit first) and answers as the GET does.
         /// Remembered per scenario, like the Brain tab's ticks.</summary>
-        public (JsonNode? Result, string? Error) SetDebugSettings(long networkId, JsonNode? body)
+        public (JsonNode? Result, string? Error) SetDebugSettings(int networkId, JsonNode? body)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
                 return (null, $"Entity {networkId} not found.");
@@ -75,7 +75,7 @@ namespace Hrot.Editor.DebugApi
             return (DebugSettingsJson(networkId), null);
         }
 
-        private JsonObject DebugSettingsJson(long networkId)
+        private JsonObject DebugSettingsJson(int networkId)
         {
             var store = UnitDebugSettings.Peek(_world);
             var pins = new JsonArray();
@@ -90,7 +90,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>⭐ <c>CE-1258</c> (BV-28) — <c>POST /entities/{networkId}/journal/break {kinds?}</c>: stop the sim when THIS unit's journal
         /// gains an entry (of one of <paramref name="kinds"/>, when given). Hits come through <c>GET /breakpoints/hits</c>.</summary>
-        public (JsonNode? Result, string? Error) ArmJournalBreak(long networkId, string[]? kinds)
+        public (JsonNode? Result, string? Error) ArmJournalBreak(int networkId, string[]? kinds)
         {
             if (_bpManager is null)
                 throw new Hrot.Presentation.DebugApi.NotSupportedHereException(Hrot.Presentation.DebugApi.DebugCapabilities.Breakpoints);
@@ -135,7 +135,7 @@ namespace Hrot.Editor.DebugApi
         private string? BehaviorNameOf(int hash)
             => _behaviorRegistry is { } reg && reg.TryGetName(hash, out var n) ? n : null;
 
-        private JsonNode BrainOf(EntityRepository world, NetworkEntityMap map, long networkId)
+        private JsonNode BrainOf(EntityRepository world, NetworkEntityMap map, int networkId)
         {
             if (!map.TryGetEntity(networkId, out var entity) || !world.IsAlive(entity))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -150,7 +150,7 @@ namespace Hrot.Editor.DebugApi
             return json;
         }
 
-        private JsonNode JournalOf(EntityRepository world, NetworkEntityMap map, long networkId, uint since)
+        private JsonNode JournalOf(EntityRepository world, NetworkEntityMap map, int networkId, uint since)
         {
             if (!map.TryGetEntity(networkId, out var entity) || !world.IsAlive(entity))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -197,7 +197,7 @@ namespace Hrot.Editor.DebugApi
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) return map;
             foreach (var e in repo.Query().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build())
             {
-                long id = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value;
+                int id = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value;
                 if (!map.TryGetEntity(id, out _)) map.Register(id, e);
             }
             return map;
@@ -225,7 +225,7 @@ namespace Hrot.Editor.DebugApi
         /// A walk of the recording frame by frame (every entry dirties the unit's chunk, so the recorder wrote that frame), in a read-only
         /// reader of the file — ⛔ the replayed world is not touched.
         /// </summary>
-        public JsonNode GetJournalHistory(long networkId, int? from, int? to)
+        public JsonNode GetJournalHistory(int networkId, int? from, int? to)
         {
             var ctx = ScanContext(out _) ?? throw new InvalidOperationException(NoReplayRecording);
             int total = ctx.Playback?.TotalFrames ?? 0;
@@ -296,7 +296,7 @@ namespace Hrot.Editor.DebugApi
             if (UnknownComponentIn(condition)) return (null, "Invalid condition: a ComponentType names no registered component (use its name, e.g. \"BehaviorState\", or its full name).");
 
             var filter = body!["networkId"] is JsonNode n
-                ? new Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter { UseNetworkId = true, NetworkId = n.GetValue<long>() }
+                ? new Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter { UseNetworkId = true, NetworkId = n.GetValue<int>() }
                 : null;
             int limit = body["limit"]?.GetValue<int>() ?? 200;
             _recordingSearch ??= new Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchService(
@@ -346,7 +346,7 @@ namespace Hrot.Editor.DebugApi
         };
 
         // ⭐ BP-508 — the ONE resolver (ThereIsOneNetworkIdResolverTests): no inline network-id scan here.
-        private static Entity FindByNetworkId(EntityRepository repo, long networkId)
+        private static Entity FindByNetworkId(EntityRepository repo, int networkId)
             => NetworkIdResolver.FindEntityByNetworkId(repo, networkId);
     }
 }

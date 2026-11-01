@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.DER
         {
             private readonly DdsReader<T> _reader;
             private readonly DerRepo _repo;
-            private readonly Func<T, long> _entityId;
+            private readonly Func<T, int> _entityId;
             private readonly Func<T, long>? _part;
             private readonly Func<T, long>? _tkb;
 
@@ -149,7 +149,7 @@ namespace Fdp.Toolkit.DER
             {
                 _repo = repo;
                 var keys = WireTypeCatalog.KeyFields(typeof(T));
-                _entityId = Getter(keys[0])!;
+                _entityId = IdGetter(keys[0])!;
                 _part = keys.Count > 1 ? Getter(keys[1]) : null;
                 _tkb = typeof(T).GetField("TkbType", BindingFlags.Public | BindingFlags.Instance) is { } f ? Getter(f) : null;
                 _reader = new DdsReader<T>(participant);
@@ -164,6 +164,14 @@ namespace Fdp.Toolkit.DER
                 return Expression.Lambda<Func<T, long>>(Expression.Convert(Expression.Field(p, f), typeof(long)), p).Compile();
             }
 
+            /// <summary>⭐ CE-4200: the entity-id key as an <c>int</c> — checked, so a key wider than 32 bits fails loudly instead of truncating.</summary>
+            private static Func<T, int>? IdGetter(FieldInfo f)
+            {
+                if (Getter(f) is null) return null;
+                var p = Expression.Parameter(typeof(T), "s");
+                return Expression.Lambda<Func<T, int>>(Expression.ConvertChecked(Expression.Field(p, f), typeof(int)), p).Compile();
+            }
+
             public int Poll()
             {
                 int n = 0;
@@ -172,7 +180,7 @@ namespace Fdp.Toolkit.DER
                 {
                     if (sample.Info.InstanceState != DdsInstanceState.Alive || !sample.IsValid) continue;
                     var data = sample.Data;
-                    long id = _entityId(data);
+                    int id = _entityId(data);
                     var entity = _repo.GetEntity(id) ?? _repo.CreateEntity(id, _tkb?.Invoke(data) ?? 0L);
                     entity.SetDescriptor(data, _part is null ? 0 : unchecked((int)_part(data)));
                     n++;

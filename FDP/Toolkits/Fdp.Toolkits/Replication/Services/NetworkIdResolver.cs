@@ -56,7 +56,7 @@ public static class NetworkIdResolver
     /// alike. ⛔ Deliberately not an exception: asking an unreplicated entity for its network id is a
     /// normal question with a normal answer.</para>
     /// </summary>
-    public static long RuntimeNetworkIdOf(EntityRepository? repo, Entity entity)
+    public static int RuntimeNetworkIdOf(EntityRepository? repo, Entity entity)
         => repo != null
         && !entity.Equals(default(Entity))
         && repo.IsAlive(entity)
@@ -64,7 +64,7 @@ public static class NetworkIdResolver
              ? repo.GetComponentRO<NetworkIdentity>(entity).Value
              : 0;
 
-    public static Entity FindEntityByNetworkId(EntityRepository? repo, long networkId)
+    public static Entity FindEntityByNetworkId(EntityRepository? repo, int networkId)
     {
         if (repo == null || networkId <= 0) return Entity.Null;
 
@@ -102,7 +102,7 @@ public static class NetworkIdResolver
     /// 📌 It is not hypothetical: a replay re-materialises the same network id as a DIFFERENT live handle
     /// after a seek, and the old entry can still be alive.</para>
     /// </summary>
-    public static Entity ResolveNetworkId(EntityRepository? repo, long networkId)
+    public static Entity ResolveNetworkId(EntityRepository? repo, int networkId)
     {
         if (repo == null || networkId <= 0) return Entity.Null;
 
@@ -135,7 +135,7 @@ public static class NetworkIdResolver
     /// <see langword="false"/>: a mapless node cannot know, and answering <i>"dead"</i> on a guess is the
     /// error that matters.</para>
     /// </summary>
-    public static bool IsKnownDeadAnchor(EntityRepository? repo, long networkId)
+    public static bool IsKnownDeadAnchor(EntityRepository? repo, int networkId)
     {
         if (repo == null || networkId <= 0) return false;
         if (!repo.HasSingletonManaged<NetworkEntityMap>()) return false;
@@ -146,4 +146,17 @@ public static class NetworkIdResolver
         if (map.TryGetEntity(networkId, out var mapped) && !repo.IsAlive(mapped)) return true;
         return map.IsGraveyard(networkId);
     }
+
+    // ── ⭐ CE-4200 — gizmo ANCHOR ids: 64-bit on the gizmo map's side, 32-bit network ids here ───────────────────────────────
+    // A gizmo token's anchor is an `long` owned by the gizmo-map library (it also carries tool ids from a disjoint range,
+    // DESIGN_Gizmo_Renderer_Seam §6.1). A network id is 32-bit, so an anchor outside the int range can only be a tool id: it
+    // names no entity. ONE place owns that rule — every consumer of a token's anchor resolves through these two.
+
+    /// <summary><see cref="ResolveNetworkId"/> for a 64-bit gizmo anchor id; <see cref="Entity.Null"/> when it does not fit a network id.</summary>
+    public static Entity ResolveAnchorId(EntityRepository? repo, long anchorId)
+        => anchorId is >= int.MinValue and <= int.MaxValue ? ResolveNetworkId(repo, (int)anchorId) : Entity.Null;
+
+    /// <summary><see cref="IsKnownDeadAnchor"/> for a 64-bit gizmo anchor id; <see langword="false"/> when it does not fit a network id.</summary>
+    public static bool IsKnownDeadAnchorId(EntityRepository? repo, long anchorId)
+        => anchorId is >= int.MinValue and <= int.MaxValue && IsKnownDeadAnchor(repo, (int)anchorId);
 }

@@ -517,7 +517,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// <para>⛔ 0 means "not replicated". Such an entity emits no pick box either
         /// (<c>EntityPresentationGizmo</c> queries <c>NetworkIdentity</c>), so it is not interactive.</para>
         /// </summary>
-        private static long NetworkIdOf(EntityRepository repo, Entity entity)
+        private static int NetworkIdOf(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(repo, entity);
 
         /// <summary>
@@ -534,7 +534,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// no entity-bound gizmo.</para>
         /// </summary>
         private static Entity ResolveAnchor(EntityRepository repo, long anchorId)
-            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, anchorId);
+            => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(repo, anchorId);   // ⭐ CE-4200: the one 64-bit-anchor rule
 
         /// <summary>
         /// ⭐⭐⭐ <b>§6.8 — EMIT AN EXCLUSIVE-CAPTURE BINDING ONLY IF THE ANCHOR CAN BE ADDRESSED.</b>
@@ -559,7 +559,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private bool TryEmitCaptureBinding(EntityRepository repo, Entity entity, IEntityStatefulGizmo gizmo)
         {
-            long anchorId = NetworkIdOf(repo, entity);
+            int anchorId = NetworkIdOf(repo, entity);
             if (anchorId == 0)
             {
                 System.Diagnostics.Debug.Assert(false,

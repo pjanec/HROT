@@ -33,7 +33,7 @@ public static class TrafficAmbientBodies
 
     /// <summary>The network id; for an agent its sender named otherwise (id 0), a stable hash of its name (FNV-1a — the same on every node,
     /// unlike <see cref="string.GetHashCode()"/>), negative so it never meets a real id.</summary>
-    public static long KeyOf(long networkId, string name)
+    public static long KeyOf(int networkId, string name)
     {
         if (networkId != 0) return networkId;
         ulong h = 14695981039346656037UL;

@@ -847,7 +847,7 @@ public sealed class ClusterConformanceRails
     /// <para>⛔ Filters out node-local rows *(networkId 0 or no name)*: those are per-host by construction and
     /// are exactly what makes the raw row list incomparable.</para>
     /// </summary>
-    private static async Task<List<(long Id, string Name)>> NetworkedEntitiesAsync(
+    private static async Task<List<(int Id, string Name)>> NetworkedEntitiesAsync(
         EditorProcess host, ITestOutputHelper output)
     {
         var byKind = await CaptureByKindAsync(host, output);
@@ -860,10 +860,10 @@ public sealed class ClusterConformanceRails
         var rows  = model?["entities"] as JsonArray;
         Assert.NotNull(rows);
 
-        var list = new List<(long, string)>();
+        var list = new List<(int, string)>();
         foreach (var row in rows!)
         {
-            long id    = row?["networkId"]?.GetValue<long>() ?? 0;
+            int id     = row?["networkId"]?.GetValue<int>() ?? 0;
             string? nm = row?["name"]?.GetValueKind() == System.Text.Json.JsonValueKind.String
                          ? row!["name"]!.GetValue<string>() : null;
             if (id == 0 || string.IsNullOrEmpty(nm)) continue;   // node-local, not scenario content
@@ -2451,7 +2451,7 @@ public sealed class ClusterConformanceRails
             "GET /entities is empty after loading hill-attack, so there is no entity to delete. That is "
           + "a scenario-loading finding, not a delete-route one.");
 
-        var victim = rows[0]!["networkId"]!.GetValue<long>();
+        var victim = rows[0]!["networkId"]!.GetValue<int>();
         _out.WriteLine($"deleting entity {victim} of {rows.Count}");
 
         // ⛔ An unknown id is refused, NOT queued against nothing.
@@ -2470,7 +2470,7 @@ public sealed class ClusterConformanceRails
         var afterRows  = (await editor.Client.ListEntitiesAsync()).EnsureOk();
         var remaining  = afterRows.Data as JsonArray
                       ?? (afterRows.Field("entities") as JsonArray) ?? new JsonArray();
-        var stillThere = remaining.Any(r => r!["networkId"]!.GetValue<long>() == victim);
+        var stillThere = remaining.Any(r => r!["networkId"]!.GetValue<int>() == victim);
 
         Assert.False(stillThere,
             $"entity {victim} is still in the world after DELETE + 5 ticks. The DestroyEntityCommand "

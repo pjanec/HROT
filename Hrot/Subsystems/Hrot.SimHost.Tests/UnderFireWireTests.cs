@@ -46,9 +46,9 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<StanceIntent>();
             var map = new NetworkEntityMap();
             var man = w.CreateEntity();
-            w.AddComponent(man, new NetworkIdentity { Value = 70L });
+            w.AddComponent(man, new NetworkIdentity { Value = 70 });
             w.AddComponent(man, new NetworkAuthority(primaryOwner, localNode));
-            map.Register(70L, man);
+            map.Register(70, man);
             return (w, map, man);
         }
 
@@ -111,17 +111,17 @@ namespace Hrot.SimHost.Tests
             using (w)
             {
                 Assert.False(w.HasComponent<UnderFire>(man));
-                Apply(w, map, new EntityUnderFire { EntityId = 70L, LastTime = 12.5 });
+                Apply(w, map, new EntityUnderFire { EntityId = 70, LastTime = 12.5 });
                 Assert.Equal(12.5, w.GetComponentRO<UnderFire>(man).LastTime);
-                Apply(w, map, new EntityUnderFire { EntityId = 70L, LastTime = 20.0 });
+                Apply(w, map, new EntityUnderFire { EntityId = 70, LastTime = 20.0 });
                 Assert.Equal(20.0, w.GetComponentRO<UnderFire>(man).LastTime);
-                Apply(w, map, new EntityUnderFire { EntityId = 999L, LastTime = 1.0 });   // an unknown entity: dropped, nothing thrown
+                Apply(w, map, new EntityUnderFire { EntityId = 999, LastTime = 1.0 });   // an unknown entity: dropped, nothing thrown
             }
 
             var (owner, ownerMap, ownMan) = Node(primaryOwner: 1, localNode: 1);
             using (owner)
             {
-                Apply(owner, ownerMap, new EntityUnderFire { EntityId = 70L, LastTime = 12.5 });
+                Apply(owner, ownerMap, new EntityUnderFire { EntityId = 70, LastTime = 12.5 });
                 Assert.False(owner.HasComponent<UnderFire>(ownMan));
             }
         }
@@ -137,7 +137,7 @@ namespace Hrot.SimHost.Tests
                 float calm = HitModel.Sigma(w, man, Rifle, now: 12.0);
                 Assert.True(calm > 0f);
 
-                var sample = EntityUnderFireEgressTranslator.ToSample(70L, new UnderFire { LastTime = 10.0 });
+                var sample = EntityUnderFireEgressTranslator.ToSample(70, new UnderFire { LastTime = 10.0 });
                 Apply(w, map, in sample);
 
                 Assert.Equal(calm * HitModel.UnderFireFactor, HitModel.Sigma(w, man, Rifle, now: 12.0), 6);                      // 2 s after

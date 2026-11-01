@@ -27,7 +27,7 @@ public static class SharedContextMenuPopulator
     /// <param name="builder">Context-menu builder obtained from the host's ImGui popup.</param>
     /// <param name="actions">Action controller that executes the menu commands.</param>
     public static void PopulateEntityMenu(
-        long entityId,
+        int entityId,
         long tkbType,
         bool hasEditablePolyline,
         bool hasRoutePlan,

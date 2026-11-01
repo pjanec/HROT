@@ -98,9 +98,9 @@ internal static class DefaultLiteral
 
             // ⭐ DESIGN_Entity_Reference.md — an EntityRef default is its network id (JSON number, as the converter writes it).
             case "Fdp.Toolkit.Replication.EntityRef":
-                if (long.TryParse(text, NumberStyles.Integer, inv, out var netId))
-                { csharp = "new global::Fdp.Toolkit.Replication.EntityRef(" + netId.ToString(inv) + "L)"; return true; }
-                reason = "expected a network id (an integer)";
+                if (int.TryParse(text, NumberStyles.Integer, inv, out var netId))   // ⭐ CE-4200: a network id is 32-bit
+                { csharp = "new global::Fdp.Toolkit.Replication.EntityRef(" + netId.ToString(inv) + ")"; return true; }
+                reason = "expected a network id (a 32-bit integer)";
                 return false;
 
             // ⭐ CE-415 — the vectors DO have a literal form: a constructor call. One reader for both converters.

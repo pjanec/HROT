@@ -79,12 +79,12 @@ public sealed class EqsRoundTripTests : IDisposable
         {
             int count = Math.Min(Xs.Length, candidates.Length);
             for (int i = 0; i < count; i++)
-                candidates[i] = new EqsResult { EntityId = 0L, PositionX = Xs[i], PositionY = 0f };
+                candidates[i] = new EqsResult { EntityId = 0, PositionX = Xs[i], PositionY = 0f };
             return count;
         }
     }
 
-    // Rejects candidates at indices 1 and 3 (X=20 and X=40) by setting EntityId = -1L.
+    // Rejects candidates at indices 1 and 3 (X=20 and X=40) by setting EntityId = -1.
     private sealed class SentinelRejectionFilterTest : IEqsTest
     {
         public EqsTestPhase Phase => EqsTestPhase.FilterCheap;
@@ -92,8 +92,8 @@ public sealed class EqsRoundTripTests : IDisposable
         public void ExecuteBatch(Entity observer, ref EqsSensor sensor,
             ISimulationView view, Span<EqsResult> candidates)
         {
-            if (candidates.Length > 1) candidates[1].EntityId = -1L;
-            if (candidates.Length > 3) candidates[3].EntityId = -1L;
+            if (candidates.Length > 1) candidates[1].EntityId = -1;
+            if (candidates.Length > 3) candidates[3].EntityId = -1;
         }
     }
 
@@ -177,7 +177,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9200L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9200 });
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
@@ -229,7 +229,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9300L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9300 });
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
@@ -311,7 +311,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9400L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9400 });
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
@@ -378,7 +378,7 @@ public sealed class EqsRoundTripTests : IDisposable
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9500L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9500 });
 
         // Threat entity: provides the slot-based threat position for CheapLineOfSightTest.
         var threatEntity = _harness.Repo.CreateEntity();

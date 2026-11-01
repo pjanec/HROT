@@ -76,7 +76,7 @@ namespace Hrot.DDS.DataModel.Tests
         //   ⭐ Rewritten to the contract the record itself documents (GizmoInteractionBatch.cs:21 — "a
         //     blittable breakdown of stable network ID").
         //   ⭐⭐ NetId is deliberately NOT equal to entity.Index, so a test cannot pass by coincidence.
-        private const long NetId = 90210L;
+        private const int NetId = 90210;
 
         /// <summary>
         /// ⭐⭐ §6.7 — the map is a WORLD SINGLETON, set on the repository, which is how every production
@@ -87,7 +87,7 @@ namespace Hrot.DDS.DataModel.Tests
         /// ⭐ Registering it here also gives the entity a real <c>NetworkIdentity</c>, without which
         /// §6.7's resolve — and production's own <c>EmitPickBox</c> (constraint C2) — see no anchor.
         /// </summary>
-        private static Fdp.Core.Entity NetworkedEntity(EntityRepository repo, long netId = NetId)
+        private static Fdp.Core.Entity NetworkedEntity(EntityRepository repo, int netId = NetId)
         {
             var e = repo.CreateEntity();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = netId });
@@ -490,7 +490,7 @@ namespace Hrot.DDS.DataModel.Tests
             Assert.Equal(NetId, drag.Token.AnchorId);
             Assert.Equal(
                 recvEntity,
-                Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(
+                Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(
                     recvRepo, drag.Token.AnchorId));
         }
 

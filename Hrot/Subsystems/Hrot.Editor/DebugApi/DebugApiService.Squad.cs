@@ -16,7 +16,7 @@ namespace Hrot.Editor.DebugApi
     public sealed partial class DebugApiService
     {
         /// <summary><c>GET /entities/{networkId}/squad</c>.</summary>
-        public JsonNode GetEntitySquad(long networkId)
+        public JsonNode GetEntitySquad(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -42,7 +42,7 @@ namespace Hrot.Editor.DebugApi
             return new JsonObject { ["networkId"] = networkId, ["role"] = "none", ["note"] = "Not a squad commander or member." };
         }
 
-        private JsonObject DescribeSquad(long networkId, Entity commander)
+        private JsonObject DescribeSquad(int networkId, Entity commander)
         {
             ref readonly var roster = ref _world.GetComponentRO<UnitRoster>(commander);
             ref readonly var state  = ref _world.GetComponentRO<SquadCognitiveState>(commander);
@@ -154,7 +154,7 @@ namespace Hrot.Editor.DebugApi
         {
             var node = new JsonObject();
             if (e.IsNull || !_world.IsAlive(e)) { node["gone"] = true; return node; }
-            if (_entityMap.TryGetNetworkId(e, out long netId)) node["networkId"] = netId;
+            if (_entityMap.TryGetNetworkId(e, out int netId)) node["networkId"] = netId;
             if (_world.HasComponent<EntityInfo>(e))
                 node["name"] = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
             return node;

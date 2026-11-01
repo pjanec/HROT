@@ -207,7 +207,7 @@ public class CE472_IntentAndJsonNodeTests
         var oracle = System.Text.Json.JsonSerializer.Serialize(
             new HullDownAttackParams
             {
-                SlotX = 12.5f, TargetNetworkId = new Fdp.Toolkit.Replication.EntityRef(4242L), ApproachSpeed = 15f, CreepSpeed = 5f,
+                SlotX = 12.5f, TargetNetworkId = new Fdp.Toolkit.Replication.EntityRef(4242), ApproachSpeed = 15f, CreepSpeed = 5f,
             },
             Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
         Assert.Equal(Read(oracle), p);

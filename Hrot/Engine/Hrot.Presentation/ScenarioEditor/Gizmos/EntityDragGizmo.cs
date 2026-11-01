@@ -90,7 +90,7 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         // ⭐ §6.8 / R-77 — through the ONE resolver, which also covers liveness and presence. ⛔ This was
         //   an inline `HasComponent` + `GetComponentRO(...).Value` pair: a fifth copy of the lookup
         //   BP-508 consolidated.
-        long networkId = Fdp.Toolkit.Replication.Services.NetworkIdResolver
+        int networkId = Fdp.Toolkit.Replication.Services.NetworkIdResolver
             .RuntimeNetworkIdOf(view as EntityRepository, _entity);
 
         // ⭐⭐⭐ §6.8 — NO ID, NO PICK BOX. `networkId` defaults to 0 above when the entity carries no

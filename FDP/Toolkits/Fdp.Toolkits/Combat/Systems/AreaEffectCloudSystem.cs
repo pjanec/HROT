@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Combat.Systems
         /// </summary>
         private static bool SitsOnItsSource(EntityRepository repo, Entity cloud)
         {
-            long source = repo.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId;
+            int source = repo.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId;
             if (source <= 0) return false;
             if (!Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, source).IsNull) return true;
             bool mapless = !repo.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();

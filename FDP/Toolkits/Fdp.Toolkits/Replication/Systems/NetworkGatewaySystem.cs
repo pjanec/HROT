@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Replication.Systems
             }
 
             // C4: publish the in-progress result so the local requestor's poll reads Pending, not "unknown".
-            long netId = TryGetNetworkId(view, entity);
+            int netId = TryGetNetworkId(view, entity);
             if (netId != 0 && _world != null)
                 ConstructionResults.GetOrCreate(_world).SetPending(netId, GetFrame(view));
 
@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Replication.Systems
             if (pending.Count != 0) return false;
             // Pruned to empty ⇒ the entity is live and nothing supporting is left to wait for → Success.
             var world = (view as EntityRepository) ?? _world;
-            long netId = TryGetNetworkId(view, entity);
+            int netId = TryGetNetworkId(view, entity);
             if (netId != 0 && world != null)
                 ConstructionResults.GetOrCreate(world)
                     .Resolve(netId, ConstructionOutcome.Success, ConstructionFailReason.None, GetFrame(view));
@@ -215,7 +215,7 @@ namespace Fdp.Toolkit.Replication.Systems
             if (pendingPeers.Count == 0)
             {
                 // C4: record Success for the local requestor's poll-store BEFORE Complete strips state.
-                long netId = _world != null ? TryGetNetworkId(_world, entity) : 0;
+                int netId = _world != null ? TryGetNetworkId(_world, entity) : 0;
                 Complete(entity, cmd, currentFrame); // base: ack + OnCompleted cleanup
                 if (netId != 0 && _world != null)
                     ConstructionResults.GetOrCreate(_world)
@@ -234,7 +234,7 @@ namespace Fdp.Toolkit.Replication.Systems
         protected override void OnTimeout(ISimulationView view, Entity entity, IEntityCommandBuffer cmd, uint currentFrame)
         {
             var world = (view as EntityRepository) ?? _world;
-            long netId = TryGetNetworkId(view, entity);
+            int netId = TryGetNetworkId(view, entity);
             if (netId != 0 && world != null)
                 ConstructionResults.GetOrCreate(world)
                     .Resolve(netId, ConstructionOutcome.Failed, ConstructionFailReason.Timeout, currentFrame);
@@ -251,10 +251,10 @@ namespace Fdp.Toolkit.Replication.Systems
         private static uint GetFrame(ISimulationView view) => view is EntityRepository r ? r.GlobalVersion : 0u;
 
         // The entity's network id, or 0 if it has no NetworkIdentity yet.
-        private static long TryGetNetworkId(ISimulationView view, Entity entity)
+        private static int TryGetNetworkId(ISimulationView view, Entity entity)
             => view.HasComponent<NetworkIdentity>(entity)
                 ? view.GetComponentRO<NetworkIdentity>(entity).Value
-                : 0L;
+                : 0;
 
         // Reads the stamped peer set, excluding the local node (a node never waits for itself).
         private HashSet<int> CollectPeers(ISimulationView view, Entity entity)

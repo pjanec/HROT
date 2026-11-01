@@ -30,8 +30,8 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly DdsWriter<EntityLifecycleStatusDescriptor> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly int _localNodeId;
-        private readonly HashSet<long> _reported = new();               // phase-2 Active published
-        private readonly HashSet<long> _reportedConstructing = new();   // CE-288 (C2): phase-1 Constructing published
+        private readonly HashSet<int> _reported = new();               // phase-2 Active published
+        private readonly HashSet<int> _reportedConstructing = new();   // CE-288 (C2): phase-1 Constructing published
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLifecycleStatusDescriptor>();
@@ -123,7 +123,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _reported.Remove(networkEntityId);
             _reportedConstructing.Remove(networkEntityId);

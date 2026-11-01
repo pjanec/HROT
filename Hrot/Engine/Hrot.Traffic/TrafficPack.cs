@@ -76,7 +76,7 @@ public sealed class TrafficPack : INodeCapability, IDisposable
             context.World.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
         if (_serves)
         {
-            long local = 0;
+            int local = 0;
             var ids = context.IdAllocator;
             Runtime = new TrafficRuntime(new TrafficServeOptions(
                 NextNetworkId: ids is not null ? ids.AllocateId : () => Interlocked.Decrement(ref local),

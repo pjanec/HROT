@@ -17,8 +17,8 @@ namespace Hrot.IG.Tests
 {
     public class GeoSpatialTranslatorTests
     {
-        private const long KnownId   = 5L;
-        private const long UnknownId = 88L;
+        private const int KnownId   = 5;
+        private const int UnknownId = 88;
 
         [Fact]
         public void Decode_KnownEntity_SetsNetworkPosition()

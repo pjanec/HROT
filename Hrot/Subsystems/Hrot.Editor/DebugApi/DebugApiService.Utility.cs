@@ -18,7 +18,7 @@ namespace Hrot.Editor.DebugApi
     {
 
         /// <summary><c>GET /entities/{networkId}/utility</c>.</summary>
-        public JsonNode GetEntityUtility(long networkId)
+        public JsonNode GetEntityUtility(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity) || !_world.IsAlive(entity))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -152,7 +152,7 @@ namespace Hrot.Editor.DebugApi
             var node = new JsonObject();
             if (_world.IsAlive(e))
             {
-                if (_entityMap.TryGetNetworkId(e, out long netId)) node["networkId"] = netId;
+                if (_entityMap.TryGetNetworkId(e, out int netId)) node["networkId"] = netId;
                 if (_world.HasComponent<EntityInfo>(e)) node["name"] = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
             }
             else node["gone"] = true;

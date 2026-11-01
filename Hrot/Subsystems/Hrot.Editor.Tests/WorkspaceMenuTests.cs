@@ -29,10 +29,10 @@ public sealed class WorkspaceMenuTests
         public void SaveScenarioAs(string scenarioName) { }
         public IReadOnlyList<string> AvailableScenarios => Array.Empty<string>();
         public void ActivateTool(EditorTool tool) { }
-        public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents) { }
-        public void CenterOnEntity(long entityId) { }
-        public void SelectEntity(long entityId) { }
-        public void OpenRenameDialog(long entityId) { }
+        public void CommitPropertyEdit(int networkId, IReadOnlyList<object> updatedComponents) { }
+        public void CenterOnEntity(int entityId) { }
+        public void SelectEntity(int entityId) { }
+        public void OpenRenameDialog(int entityId) { }
         public void RebuildAndReloadAI() { }
         public bool IsScenarioDegraded => false;
         public IReadOnlyList<Fdp.Core.Serialization.Migrations.SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()

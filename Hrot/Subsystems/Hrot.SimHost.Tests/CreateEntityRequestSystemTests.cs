@@ -21,12 +21,12 @@ namespace Hrot.SimHost.Tests
 
     internal sealed class StubIdAllocator : INetworkIdAllocator
     {
-        private long _next;
+        private int _next;
         public long LastAllocatedId { get; private set; }
 
-        public StubIdAllocator(long startId = 100) => _next = startId;
-        public long AllocateId() { LastAllocatedId = _next; return _next++; }
-        public void Reset(long startId = 0) => _next = startId;
+        public StubIdAllocator(int startId = 100) => _next = startId;
+        public int AllocateId() { LastAllocatedId = _next; return _next++; }
+        public void Reset(int startId = 0) => _next = startId;
         public void Dispose() { }
     }
 
@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
     {
         public List<AckRecord> WrittenAcks { get; } = new();
 
-        public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
+        public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
             => WrittenAcks.Add(new AckRecord
             {
                 RequestId  = requestId,
@@ -1126,7 +1126,7 @@ namespace Hrot.SimHost.Tests
                 OwnerAppInstanceId = LocalNodeId,
                 TkbType            = ValidTkbType,
                 DisType            = ValidDisType,
-                PreAllocatedNetworkId = 5555L,
+                PreAllocatedNetworkId = 5555,
             });
 
             var idAlloc = new StubIdAllocator(startId: 999);
@@ -1163,9 +1163,9 @@ namespace Hrot.SimHost.Tests
                 OwnerAppInstanceId = LocalNodeId,
                 TkbType            = ValidTkbType,
                 DisType            = ValidDisType,
-                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                ChildComponentOverrides = new Dictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>
                 {
-                    { 2, (9001L, new List<object> { overrideComp }) },
+                    { 2, (9001, new List<object> { overrideComp }) },
                 },
             });
 
@@ -1202,10 +1202,10 @@ namespace Hrot.SimHost.Tests
                 OwnerAppInstanceId = LocalNodeId,
                 TkbType            = ValidTkbType,
                 DisType            = ValidDisType,
-                PreAllocatedNetworkId = 5555L,   // parent pre-allocated — avoids parent alloc
-                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                PreAllocatedNetworkId = 5555,   // parent pre-allocated — avoids parent alloc
+                ChildComponentOverrides = new Dictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>
                 {
-                    { 2, (0L, new List<object>()) },   // 0 means "fall through"
+                    { 2, (0, new List<object>()) },   // 0 means "fall through"
                 },
             });
 
@@ -1286,11 +1286,11 @@ namespace Hrot.SimHost.Tests
                 OwnerAppInstanceId = LocalNodeId,
                 TkbType            = ValidTkbType,
                 DisType            = ValidDisType,
-                PreAllocatedNetworkId = 5555L,
+                PreAllocatedNetworkId = 5555,
                 IsScenarioLoad        = true,   // ⭐ CE-3324 — what StagingEntityExtractor says
-                ChildComponentOverrides = new Dictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>
+                ChildComponentOverrides = new Dictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>
                 {
-                    { 99, (9999L, new List<object>()) },  // no entry for InstanceId 2
+                    { 99, (9999, new List<object>()) },  // no entry for InstanceId 2
                 },
             });
 
@@ -1327,7 +1327,7 @@ namespace Hrot.SimHost.Tests
                 OwnerAppInstanceId    = LocalNodeId,
                 TkbType               = ValidTkbType,
                 DisType               = ValidDisType,
-                PreAllocatedNetworkId = 5555L,   // fixed by its author — and nothing says "scenario load"
+                PreAllocatedNetworkId = 5555,   // fixed by its author — and nothing says "scenario load"
             });
 
             var idAlloc = new StubIdAllocator(startId: 100);

@@ -29,7 +29,7 @@ namespace Hrot.AI.Behaviors.Brains
         public struct TriggerIedParams
         {
             /// <summary>The charge's network id (resolved each tick: a load re-allocates handles).</summary>
-            public long Charge;
+            public int Charge;
             public float KillZoneMetres;
             public byte AnyTarget;
             public float TimeoutSeconds;

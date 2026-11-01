@@ -258,8 +258,8 @@ namespace Fdp.Toolkit.Tests.Motion
         private sealed class Routes : IRouteSource
         {
             public readonly System.Collections.Generic.List<NavRouteWaypoint> Waypoints = new();
-            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
-            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
+            public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
+            public bool TryGetRoute(EntityRepository repo, int routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
             {
                 into.Clear(); into.AddRange(Waypoints); loop = false; version = 1;
                 return into.Count > 0;
@@ -294,7 +294,7 @@ namespace Fdp.Toolkit.Tests.Motion
         }
 
         private static NavRouteWaypoint Wp(float x, float y, RouteWaypointKind kind = RouteWaypointKind.Pass, RouteHold hold = RouteHold.None)
-            => new(new Vector3(x, y, 0f), 0f, kind, 0f, hold, 0f, 0L);
+            => new(new Vector3(x, y, 0f), 0f, kind, 0f, hold, 0f, 0);
 
         private void Order(Entity e) => _w.SetComponent(e, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 900 });
 
@@ -469,7 +469,7 @@ namespace Fdp.Toolkit.Tests.Motion
         public void B3_ARopeHoldHigherThanItsRope_IsRefused_AndFlownThrough()
         {
             var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false, new CarrierDefDto { RopeLengthM = 20f });
-            routes.Waypoints.AddRange(new[] { Wp(0, 0), new NavRouteWaypoint(new Vector3(200, 0, 0), 0f, RouteWaypointKind.Pass, 30f, RouteHold.Rope, 0f, 0L), Wp(400, 0) });
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), new NavRouteWaypoint(new Vector3(200, 0, 0), 0f, RouteWaypointKind.Pass, 30f, RouteHold.Rope, 0f, 0), Wp(400, 0) });
             Order(heli);
             var seen = new System.Collections.Generic.HashSet<NavigationPhase>();
             for (int i = 0; i < 60 * 60 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++)

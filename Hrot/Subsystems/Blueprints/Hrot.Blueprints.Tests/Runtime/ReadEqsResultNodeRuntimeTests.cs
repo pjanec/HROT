@@ -234,7 +234,7 @@ public sealed class ReadEqsResultNodeRuntimeTests
 
         var buffer = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
         var span   = buffer.GetSpanRW();
-        span[0]    = new EqsResult { EntityId = 77L, Score = 0.5f };
+        span[0]    = new EqsResult { EntityId = 77, Score = 0.5f };
         var child  = fixture.CreateEntity();
         fixture.World.AddComponent(child, buffer);
         WriteSlotField(fixture, asset, entity, sensorVarName, new EqsSensorHandle(child));

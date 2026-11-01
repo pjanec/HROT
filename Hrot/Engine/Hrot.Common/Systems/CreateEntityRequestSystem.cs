@@ -214,7 +214,7 @@ namespace Hrot.Common.Systems
 
                 // Allocate (or use pre-allocated) network ID, then immediately send Phase 1 ACK
                 // (InProgress) so the client unblocks now.
-                long newNetworkId = request.PreAllocatedNetworkId != 0
+                int newNetworkId = request.PreAllocatedNetworkId != 0
                     ? request.PreAllocatedNetworkId
                     : _idAllocator.AllocateId();
                 _ackSink.WriteAck(request.RequestId, newNetworkId, EntityOperationStatus.InProgress);
@@ -425,7 +425,7 @@ namespace Hrot.Common.Systems
                         var force = Hrot.Common.EntityCreation.SeatPresets.ForceOf(parentTemplate, allComponents);
                         foreach (var (seat, presetType) in seatPresets)
                         {
-                            long presetId = _idAllocator.AllocateId();
+                            int presetId = _idAllocator.AllocateId();
                             _tkbDb.TryGetByType(presetType, out var presetTemplate);
                             ulong presetDis = presetTemplate?.DisType.Value ?? 0UL;
                             repo.Bus.PublishManaged(new SpawnEntityCommand
@@ -470,7 +470,7 @@ namespace Hrot.Common.Systems
                         foreach (var childDef in parentTemplate.ChildBlueprints)
                         {
                             // FIX: Explicitly initialize the tuple to satisfy definite assignment rules
-                            (long PreAllocatedId, IReadOnlyList<object> Components) overrideEntry = default;
+                            (int PreAllocatedId, IReadOnlyList<object> Components) overrideEntry = default;
             
                             bool hasOverride = pending.Request.ChildComponentOverrides != null
                                 && pending.Request.ChildComponentOverrides.TryGetValue(childDef.InstanceId, out overrideEntry);
@@ -483,7 +483,7 @@ namespace Hrot.Common.Systems
                             }
 
                             // Determine child network ID
-                            long childNetworkId;
+                            int childNetworkId;
                             if (hasOverride && overrideEntry.PreAllocatedId != 0)
                             {
                                 childNetworkId = overrideEntry.PreAllocatedId;
@@ -628,7 +628,7 @@ namespace Hrot.Common.Systems
         private struct PendingRequest
         {
             public EntityCreationRequest Request;
-            public long                  NetworkId;
+            public int                  NetworkId;
             public long                  TkbType;
             public ulong                 DisType;
         }

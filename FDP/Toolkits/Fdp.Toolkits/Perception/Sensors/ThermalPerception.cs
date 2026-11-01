@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                     float signature = ts.BaseSignature * contrast + ts.Heat * (1f - ts.BaseSignature);
                     hot = signature >= min && signature > 0f;
                 }
-                if (!hot) c.EntityId = -1L;
+                if (!hot) c.EntityId = -1;
             }
         }
     }

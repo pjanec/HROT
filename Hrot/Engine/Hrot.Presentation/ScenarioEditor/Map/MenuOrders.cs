@@ -32,11 +32,11 @@ namespace Hrot.ScenarioEditor.Map
         private readonly EntityRepository _world;
         private Task<Fdp.Core.WorldPoint>? _location;   // ⭐ S0 item 5 (SR-135): a picked place is LOCAL METRES
         private Task<int>? _enemy;
-        private long _unit;
+        private int _unit;
         private OrderInfo? _order;
         private OrderDraft? _draft;
         private DesignationKind? _designating;   // ⭐ CE-2149 — the pending pick sets a designation, not an order
-        private long[] _designateFor = Array.Empty<long>();   // ⭐ CE-1059 (U6) — every unit the pending designation is for
+        private int[] _designateFor = Array.Empty<int>();   // ⭐ CE-1059 (U6) — every unit the pending designation is for
         private Entity _embarking = Entity.Null;              // ⭐ CE-1230 — the unit whose vehicle pick is pending
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));
@@ -74,7 +74,7 @@ namespace Hrot.ScenarioEditor.Map
             actions.RegisterLocal(GlobalActionIds.DesignateClear,  (_, unit) =>
             {
                 if (PickService?.Invoke() is null || OrderDesignations.Of(_world) is not { } store) return;
-                foreach (long id in UnitsOf(unit)) store.ClearAll(id);   // ⭐ CE-1059 — the selection
+                foreach (int id in UnitsOf(unit)) store.ClearAll(id);   // ⭐ CE-1059 — the selection
             });
             // ⭐ CE-1059 (§13.12 O5) — Order with options: the ORDER FORM for any order, prefilled, for the selection.
             for (int i = 0; i < GlobalActionIds.OrderWithOptionsMax; i++)
@@ -89,7 +89,7 @@ namespace Hrot.ScenarioEditor.Map
             //   (PossessionStation). Like the orders, only where a pick exists — a windowed station, never a relayed headless node.
             actions.RegisterLocal(GlobalActionIds.Possess,  (_, unit) =>
             {
-                if (PickService?.Invoke() is null || !TryNetworkId(unit, out long id)) return;
+                if (PickService?.Invoke() is null || !TryNetworkId(unit, out int id)) return;
                 Report(Orders()?.Possess(id));
             });
             // ⭐ CE-1230 (canvas context menu §11 OM-2, OM-3, R-1019) — Disembark at once; Embark… picks the VEHICLE on the map (the pick
@@ -107,7 +107,7 @@ namespace Hrot.ScenarioEditor.Map
                 _draft = null;
                 _designating = null;
                 _location = null;
-                _unit = TryNetworkId(unit, out long id) ? id : 0;
+                _unit = TryNetworkId(unit, out int id) ? id : 0;
                 _embarking = unit;
                 _enemy = pick.PickEntityAsync(null);
             });
@@ -119,7 +119,7 @@ namespace Hrot.ScenarioEditor.Map
         private void Begin(OrderInfo order, Entity unit)
         {
             var pick = PickService?.Invoke();
-            if (pick is null || !TryNetworkId(unit, out long id)) return;
+            if (pick is null || !TryNetworkId(unit, out int id)) return;
             _unit = id;
             _order = order;
             _designating = null;
@@ -150,14 +150,14 @@ namespace Hrot.ScenarioEditor.Map
 
         /// <summary>⭐ <c>CE-1059</c> (O6) — the units a click on <paramref name="unit"/> means: the whole selection when the unit is
         /// in it, else the unit alone (network ids).</summary>
-        private long[] UnitsOf(Entity unit)
+        private int[] UnitsOf(Entity unit)
         {
-            if (!TryNetworkId(unit, out long clicked)) return Array.Empty<long>();
+            if (!TryNetworkId(unit, out int clicked)) return Array.Empty<int>();
             var selected = Selected?.Invoke();
             if (selected is null || !System.Linq.Enumerable.Contains(selected, unit)) return new[] { clicked };
-            var ids = new List<long>();
+            var ids = new List<int>();
             foreach (var e in selected)
-                if (TryNetworkId(e, out long id)) ids.Add(id);
+                if (TryNetworkId(e, out int id)) ids.Add(id);
             return ids.ToArray();
         }
 
@@ -166,7 +166,7 @@ namespace Hrot.ScenarioEditor.Map
         private void BeginDesignate(DesignationKind kind, Entity unit)
         {
             var pick = PickService?.Invoke();
-            if (pick is null || !TryNetworkId(unit, out long id)) return;
+            if (pick is null || !TryNetworkId(unit, out int id)) return;
             _embarking = Entity.Null;
             _unit = id;
             _designateFor = UnitsOf(unit);
@@ -210,7 +210,7 @@ namespace Hrot.ScenarioEditor.Map
                         if (Map() is { } map && map.TryGetEntity(enemy.Result, out var vehicle))
                             Hrot.Common.Orders.EmbarkOrders.Embark(_world, _embarking, vehicle);
                     }
-                    else if (_designating is DesignationKind kind) SetDesignation(kind, JsonValue.Create((long)enemy.Result));
+                    else if (_designating is DesignationKind kind) SetDesignation(kind, JsonValue.Create((int)enemy.Result));
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(enemy.Result, null), draft.Send, draft.Params, DesignationLookup())));
                 }
@@ -221,11 +221,11 @@ namespace Hrot.ScenarioEditor.Map
         private void SetDesignation(DesignationKind kind, JsonNode value)
         {
             var store = OrderDesignations.For(_world);
-            foreach (long unit in _designateFor) store.Set(unit, kind, value);
+            foreach (int unit in _designateFor) store.Set(unit, kind, value);
         }
 
         /// <summary>⭐ <c>CE-2149</c> — this station's designations as the draft's lookup (null when nothing was ever designated).</summary>
-        private Func<long, DesignationKind, JsonNode?>? DesignationLookup()
+        private Func<int, DesignationKind, JsonNode?>? DesignationLookup()
             => OrderDesignations.Of(_world) is { } store && Map() is { } map
                 ? store.Lookup(id => OrderDesignations.IsLive(_world, map, id))
                 : null;
@@ -246,7 +246,7 @@ namespace Hrot.ScenarioEditor.Map
             return results.Count > 0 ? results[0] : null;
         }
 
-        private IReadOnlyList<OrderResult> Send(long[] units, OrderInfo order, string json)
+        private IReadOnlyList<OrderResult> Send(int[] units, OrderInfo order, string json)
         {
             var orders = Orders();
             if (orders is null) return Array.Empty<OrderResult>();
@@ -267,7 +267,7 @@ namespace Hrot.ScenarioEditor.Map
         private IGeographicTransform? Geo()
             => _world.HasSingletonManaged<IGeographicTransform>() ? _world.GetSingletonManaged<IGeographicTransform>() : null;
 
-        private bool TryNetworkId(Entity unit, out long id)
+        private bool TryNetworkId(Entity unit, out int id)
         {
             id = 0;
             return !unit.IsNull && Map() is { } map && map.TryGetNetworkId(unit, out id);

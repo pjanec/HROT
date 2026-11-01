@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             public void Add(Vector2 p)
             {
                 if (Full || !EqsTerrainSight.TryPlace(_world, p, _zHint, out var placed)) return;
-                _out[Count++] = new EqsResult { EntityId = 0L, PositionX = placed.X, PositionY = placed.Y, PositionZ = placed.Z };
+                _out[Count++] = new EqsResult { EntityId = 0, PositionX = placed.X, PositionY = placed.Y, PositionZ = placed.Z };
             }
         }
     }

@@ -152,7 +152,7 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     /// <inheritdoc/>
-    public void CommitPropertyEdit(long networkId, IReadOnlyList<object> updatedComponents)
+    public void CommitPropertyEdit(int networkId, IReadOnlyList<object> updatedComponents)
     {
         if (updatedComponents == null) throw new ArgumentNullException(nameof(updatedComponents));
         _simBus.PublishManaged(new UpdateEntityCommand
@@ -163,15 +163,15 @@ public sealed class EditorApplication : IEditorLogic
     }
 
     /// <inheritdoc/>
-    public void CenterOnEntity(long entityId) =>
+    public void CenterOnEntity(int entityId) =>
         _simBus.Publish(new CenterOnEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
-    public void SelectEntity(long entityId) =>
+    public void SelectEntity(int entityId) =>
         _simBus.Publish(new SelectEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
-    public void OpenRenameDialog(long entityId) =>
+    public void OpenRenameDialog(int entityId) =>
         _simBus.Publish(new OpenRenameDialogCommand { NetworkId = entityId });
 
     private AiBehaviorsRebuild? _aiRebuild;

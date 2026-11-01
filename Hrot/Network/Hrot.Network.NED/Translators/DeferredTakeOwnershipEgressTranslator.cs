@@ -76,6 +76,6 @@ namespace Hrot.Network.Translators
 
         public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

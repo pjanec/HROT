@@ -182,7 +182,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         //   faulted "Entity … missing NetworkIdentity", the 2PC failed and both worlds stayed EMPTY
         //   (measured 2026-10-01). Ids from 5000, off the live allocator's range, as DistributedScenarioLoadTests.
         extractRepo.RegisterComponent<NetworkIdentity>();
-        long nextNetworkId = 5000;
+        int nextNetworkId = 5000;
         foreach (var entity in extractRepo.Query().With<TkbIdentity>().Build())
             extractRepo.AddComponent(entity, new NetworkIdentity { Value = nextNetworkId++ });
 

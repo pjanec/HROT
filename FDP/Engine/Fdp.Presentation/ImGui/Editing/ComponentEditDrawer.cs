@@ -464,7 +464,7 @@ public sealed class ComponentEditDrawer
             // ⭐ S0 item 5 (SR-140) — the authored reference's ANSWER (the network id), typed in or set by the picker; 0 = none. A typed id is a bare reference.
             string text = value is Fdp.Toolkit.Replication.EntityLink el ? el.Ref.NetworkId.ToString() : "0";
             bool typed = ImGuiApi.InputText("##v", ref text, 64);
-            if (typed && long.TryParse(text, out long id))
+            if (typed && int.TryParse(text, out int id))
             {
                 value = new Fdp.Toolkit.Replication.EntityLink(new EntityRef(id));
                 return true;
@@ -501,7 +501,7 @@ public sealed class ComponentEditDrawer
             // The network id, typed in or set by the picker; 0 = none.
             string strVal = value is EntityRef r ? r.NetworkId.ToString() : "0";
             bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
-            if (ok && long.TryParse(strVal, out long parsed))
+            if (ok && int.TryParse(strVal, out int parsed))
             {
                 value = new EntityRef(parsed);
                 return true;
@@ -541,7 +541,7 @@ public sealed class ComponentEditDrawer
         {
             string strVal = value is long l ? l.ToString() : "0";
             bool ok = ImGuiApi.InputText("##v", ref strVal, 64);
-            if (ok && long.TryParse(strVal, out long parsed))
+            if (ok && int.TryParse(strVal, out int parsed))
             {
                 value = parsed;
                 return true;

@@ -2035,7 +2035,7 @@ public sealed class Map3DTests
             world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
-            Entity Person(long net, Vector3 at)
+            Entity Person(int net, Vector3 at)
             {
                 var m = Man(world, at);
                 world.AddComponent(m, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });

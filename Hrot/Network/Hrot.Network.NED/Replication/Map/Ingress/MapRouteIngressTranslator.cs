@@ -41,7 +41,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     /// <see cref="NetworkEntityMap"/> when the sample arrived.
     /// Key: DDS EntityId (network ID); Value: the pending sample.
     /// </summary>
-    private readonly Dictionary<long, MapRoute> _pendingRoutes = new();
+    private readonly Dictionary<int, MapRoute> _pendingRoutes = new();
 
     /// <summary>
     /// Network IDs registered since the last <see cref="PollIngress"/> call.
@@ -49,7 +49,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     /// that the retry loop only inspects newly-arrived entities rather than scanning
     /// the entire <see cref="_pendingRoutes"/> dictionary on every tick.
     /// </summary>
-    private readonly HashSet<long> _recentlyRegistered = new();
+    private readonly HashSet<int> _recentlyRegistered = new();
     private int _worldEpoch;   // ⭐ CE-2101 — deferred samples belong to ONE world (WorldEpoch)
 
     public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
@@ -118,7 +118,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
         repo.SetManagedComponent(entity, ApplyWaypoints(routePlan with { IsLoop = mapRoute.IsLoop }, mapRoute));
     }
 
-    public void Dispose(long networkEntityId)
+    public void Dispose(int networkEntityId)
     {
         _pendingRoutes.Remove(networkEntityId);
     }
@@ -127,7 +127,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
 
     internal void ProcessSample(in MapRoute data, IEntityCommandBuffer cmd, ISimulationView view)
     {
-        long netId = data.EntityId;
+        int netId = data.EntityId;
         if (!_entityMap.TryGetEntity(netId, out var entity))
         {
             // Entity not yet spawned — defer until it is registered.
@@ -188,7 +188,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     /// entity is registered. Records the net ID so that <see cref="PollIngress"/> can
     /// check only the newly-arrived entries rather than scanning all pending routes.
     /// </summary>
-    private void OnEntityRegistered(long netId, Entity _)
+    private void OnEntityRegistered(int netId, Entity _)
     {
         if (_pendingRoutes.ContainsKey(netId))
             _recentlyRegistered.Add(netId);

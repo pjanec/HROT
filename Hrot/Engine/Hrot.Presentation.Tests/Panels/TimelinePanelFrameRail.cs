@@ -66,18 +66,18 @@ public sealed class TimelinePanelFrameRail
         const int frames = 10 * 60 * Hz;
         var rng = new Random(26);
         var events = new List<TimelineEvent>();
-        void Add(int f, TimelineLaneDescriptor lane, long who, long other = 0, float v = 0) => events.Add(new TimelineEvent(f, lane.Id, who, other, 0, 0, v));
+        void Add(int f, TimelineLaneDescriptor lane, int who, long other = 0, float v = 0) => events.Add(new TimelineEvent(f, lane.Id, who, other, 0, 0, v));
         int S(double seconds) => (int)(seconds * Hz);
 
-        for (long u = 1; u <= 12; u++) Add(0, Life.Spawned, u);
-        foreach (var (start, length, dead) in new[] { (120.0, 40.0, new long[] { 7 }), (270.0, 55.0, new long[] { 3, 9, 11 }), (420.0, 30.0, new long[] { 5 }) })
+        for (int u = 1; u <= 12; u++) Add(0, Life.Spawned, u);
+        foreach (var (start, length, dead) in new[] { (120.0, 40.0, new int[] { 7 }), (270.0, 55.0, new int[] { 3, 9, 11 }), (420.0, 30.0, new int[] { 5 }) })
         {
             Add(S(start - 20), Behaviour.Orders, 1, 2); Add(S(start - 19), Behaviour.Orders, 1, 3);
             Add(S(start - 8), Behaviour.Decisions, 2, 4, 0x2067);
             for (int b = 0; b < (int)(length * 1.5); b++)                 // bursts: a few rounds each, all through the contact
             {
                 double t = start + rng.NextDouble() * length;
-                long shooter = rng.Next(2, 13);
+                int shooter = rng.Next(2, 13);
                 for (int r = 0; r < rng.Next(2, 6); r++) Add(S(t + r * 0.12), Combat.Shot, shooter, rng.Next(2, 13), 1);
                 if (rng.NextDouble() < 0.18) Add(S(t + 0.4), Combat.Hit, rng.Next(2, 13));
                 if (rng.NextDouble() < 0.12) Add(S(t + 0.2), Behaviour.Changes, shooter, 0, 2);

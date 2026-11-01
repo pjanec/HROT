@@ -22,7 +22,7 @@ namespace Hrot.Network.NED.Tests
         private const int  Local     = 1;
         private const int  MasterOrd = 7;            // stand-in for dtEntityMaster
         private const int  OtherOrd  = 8;
-        private const long NetId     = 5000;
+        private const int NetId     = 5000;
 
         private static (EntityRepository repo, Entity e, OwnershipTransferInitiationSystem sys) Setup()
         {

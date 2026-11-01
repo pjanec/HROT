@@ -83,7 +83,7 @@ public sealed class VariableAddressingTests : SystemTestBase
     {
         await LoadAndPreviewAsync(await AnyCuratedScenarioAsync(PreferredScenario), startPaused: true);
         string? attached = null;
-        long entity = 0;
+        int entity = 0;
         try
         {
             entity = await FirstListedEntityAsync();
@@ -167,7 +167,7 @@ public sealed class VariableAddressingTests : SystemTestBase
             var entities = (await Mcp.ListEntitiesAsync()).EnsureOk().Array();
             foreach (var e in entities)
             {
-                long id = e!["networkId"]?.GetValue<long>() ?? e["id"]?.GetValue<long>() ?? 0;
+                int id = e!["networkId"]?.GetValue<int>() ?? e["id"]?.GetValue<int>() ?? 0;
                 if (id == 0) continue;
                 var slots = (await Mcp.GetEntitySlotsAsync(id)).Field("slots") as JsonArray;
                 // ⭐ the what-if an agent makes most: a RUNNING task's parameter, e.g. a move's Speed (the curated worlds' tasks carry
@@ -199,7 +199,7 @@ public sealed class VariableAddressingTests : SystemTestBase
                              + "TheBrainViewTests.CE1320_*; shape not asserted here.");
             foreach (var e in entities.Take(6))
             {
-                long id = e!["networkId"]?.GetValue<long>() ?? 0;
+                int id = e!["networkId"]?.GetValue<int>() ?? 0;
                 var slots = (await Mcp.GetEntitySlotsAsync(id)).Field("slots") as JsonArray;
                 foreach (var s in slots ?? new JsonArray())
                     Output.WriteLine($"  #{id} {s?["owner"]} {s?["role"]} {s?["label"]} = {s?["value"]?.ToJsonString()[..Math.Min(160, s["value"]?.ToJsonString().Length ?? 0)]}");
@@ -215,7 +215,7 @@ public sealed class VariableAddressingTests : SystemTestBase
     /// Attaches the first <c>Instance</c>-dispatch blueprint this editor compiled, or null when there
     /// is none. Returns its name so the caller can detach it again.
     /// </summary>
-    private async Task<string?> AttachAnyInstanceBlueprintAsync(long entity)
+    private async Task<string?> AttachAnyInstanceBlueprintAsync(int entity)
     {
         var blueprints = (await Mcp.GetBlueprintsAsync()).EnsureOk();
         var attachable = (blueprints.Field("blueprints") as JsonArray)?
@@ -269,7 +269,7 @@ public sealed class VariableAddressingTests : SystemTestBase
     /// The first entity in the loaded world whose blueprint variables can be listed, with them.
     /// Null when this world has no blueprint-carrying entity.
     /// </summary>
-    private async Task<(long Entity, List<JsonNode?> Variables)?> FindBlueprintEntityAsync()
+    private async Task<(int Entity, List<JsonNode?> Variables)?> FindBlueprintEntityAsync()
     {
         var listed = await WaitUntilAsync(
             () => Mcp.ListEntitiesAsync(),
@@ -277,7 +277,7 @@ public sealed class VariableAddressingTests : SystemTestBase
             "at least one entity in the loaded world");
 
         var ids = listed.Array()
-            .Select(n => n?["networkId"]?.GetValue<long>())
+            .Select(n => n?["networkId"]?.GetValue<int>())
             .Where(id => id is not null)
             .Select(id => id!.Value)
             .ToList();
@@ -317,13 +317,13 @@ public sealed class VariableAddressingTests : SystemTestBase
         Output.WriteLine($"no blueprint entity in this world; refusal reads: {result.Error}");
     }
 
-    private async Task<long> FirstListedEntityAsync()
+    private async Task<int> FirstListedEntityAsync()
     {
         var listed = await WaitUntilAsync(
             () => Mcp.ListEntitiesAsync(),
             r => r.Ok && r.Array().Count > 0,
             "at least one entity in the loaded world");
 
-        return listed.Array()[0]!["networkId"]!.GetValue<long>();
+        return listed.Array()[0]!["networkId"]!.GetValue<int>();
     }
 }

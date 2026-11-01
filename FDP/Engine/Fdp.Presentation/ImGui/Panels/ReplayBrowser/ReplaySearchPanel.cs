@@ -68,7 +68,7 @@ public sealed class ReplaySearchPanel
     private readonly Action<int, Entity> _onMatchSelected;
     private readonly BehaviorRegistry _behaviorRegistry;
     private readonly Func<Entity?>? _getSelectedEntity;
-    private readonly Func<long?>? _getSelectedNetworkId;
+    private readonly Func<int?>? _getSelectedNetworkId;
 
     private SearchMode _mode = SearchMode.Component;
     private IEditSession? _predicateSession;
@@ -140,7 +140,7 @@ public sealed class ReplaySearchPanel
         Action<int, Entity> onMatchSelected,
         BehaviorRegistry? behaviorRegistry = null,
         Func<Entity?>? getSelectedEntity = null,
-        Func<long?>? getSelectedNetworkId = null)
+        Func<int?>? getSelectedNetworkId = null)
     {
         _editService      = editService      ?? throw new ArgumentNullException(nameof(editService));
         _searchService    = searchService    ?? throw new ArgumentNullException(nameof(searchService));
@@ -498,7 +498,7 @@ public sealed class ReplaySearchPanel
                         UseNetworkId = _targetUseNetworkId,
                         Index = _targetIndex,
                         Generation = _targetGeneration,
-                        NetworkId = long.TryParse(_targetNetworkIdStr, out long nid) ? nid : 0
+                        NetworkId = int.TryParse(_targetNetworkIdStr, out int nid) ? nid : 0
                     };
                 }
 

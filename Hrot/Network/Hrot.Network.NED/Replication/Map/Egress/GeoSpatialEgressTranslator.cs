@@ -23,7 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// </summary>
     public class GeoSpatialEgressTranslator : CycloneTranslator<WorldPos, WorldPos>
     {
-        private readonly HashSet<long> _tracedNetIds = new();
+        private readonly HashSet<int> _tracedNetIds = new();
         private readonly long _localNodeId;
 
         private const long WorldPosOrdinal = (long)Hrot.NED.Descriptors.EDescriptorType.dtWorldPos;
@@ -62,7 +62,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>
         /// Tombstones the <see cref="WorldPos"/> topic instance to prevent descriptor leaks.
         /// </summary>
-        public override void Dispose(long networkEntityId)
+        public override void Dispose(int networkEntityId)
         {
             base.Dispose(networkEntityId);
         }

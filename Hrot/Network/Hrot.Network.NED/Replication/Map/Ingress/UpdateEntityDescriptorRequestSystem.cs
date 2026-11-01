@@ -162,7 +162,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             WriteAck(req.RequestId, req.EntityId, NedStatusCode.Success);
         }
 
-        private void WriteAck(Guid requestId, long entityId, NedStatusCode errorCode)
+        private void WriteAck(Guid requestId, int entityId, NedStatusCode errorCode)
         {
             _ackWriter.Write(new UpdateEntityDescriptorAck
             {

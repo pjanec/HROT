@@ -84,14 +84,14 @@ namespace Hrot.Map.Common.Replication.Ingress
             });
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         internal void ProcessSample(in MapEntitySymbol data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
             if (!ShouldApply(data.MapGroupId))
                 return;
 
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (repo == null)

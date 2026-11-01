@@ -29,7 +29,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
 {
-    private const long   TestNetworkId  = 42L;
+    private const int   TestNetworkId  = 42;
     private const long   TestTkbType    = 1L;   // Matches TkbTemplate("TestUnit", 1L) in EditorHarness
     private const int    PumpTimeoutMs  = 5_000;
 

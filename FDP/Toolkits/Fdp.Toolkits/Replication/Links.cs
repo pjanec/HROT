@@ -211,11 +211,11 @@ namespace Fdp.Toolkit.Replication
             throw new JsonException($"{type}: '{text}' is neither \"@Key\" nor an entity GUID.");
         }
 
-        public static long ReadId(ref Utf8JsonReader reader, string type) => reader.TokenType switch
+        public static int ReadId(ref Utf8JsonReader reader, string type) => reader.TokenType switch
         {
-            JsonTokenType.Number => reader.GetInt64(),
+            JsonTokenType.Number => reader.GetInt32(),
             JsonTokenType.Null   => 0,
-            JsonTokenType.String when long.TryParse(reader.GetString(), out long n) => n,
+            JsonTokenType.String when int.TryParse(reader.GetString(), out int n) => n,
             _ => throw new JsonException($"{type}: expected a network id, saw {reader.TokenType}."),
         };
     }
@@ -228,14 +228,14 @@ namespace Fdp.Toolkit.Replication
             switch (reader.TokenType)
             {
                 case JsonTokenType.Null:   return EntityLink.None;
-                case JsonTokenType.Number: return new EntityLink(new EntityRef(reader.GetInt64()));
+                case JsonTokenType.Number: return new EntityLink(new EntityRef(reader.GetInt32()));
                 case JsonTokenType.String:
                     var s = reader.GetString();
                     if (string.IsNullOrWhiteSpace(s)) return EntityLink.None;
-                    if (long.TryParse(s, out long id)) return new EntityLink(new EntityRef(id));
+                    if (int.TryParse(s, out int id)) return new EntityLink(new EntityRef(id));
                     return new EntityLink(EntityRef.None, LinkJson.Spec(s, nameof(EntityLink)));
                 case JsonTokenType.StartObject:
-                    long nid = 0; RefSpec spec = default;
+                    int nid = 0; RefSpec spec = default;
                     while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                     {
                         if (reader.TokenType != JsonTokenType.PropertyName) continue;
@@ -314,13 +314,13 @@ namespace Fdp.Toolkit.Replication
             switch (reader.TokenType)
             {
                 case JsonTokenType.Null:   return default;
-                case JsonTokenType.Number: return AreaLink.OfEntity(new EntityRef(reader.GetInt64()));
+                case JsonTokenType.Number: return AreaLink.OfEntity(new EntityRef(reader.GetInt32()));
                 case JsonTokenType.String:
                     var s = reader.GetString();
-                    if (long.TryParse(s, out long id)) return AreaLink.OfEntity(new EntityRef(id));
+                    if (int.TryParse(s, out int id)) return AreaLink.OfEntity(new EntityRef(id));
                     return AreaLink.OfEntity(EntityRef.None, LinkJson.Spec(s, nameof(AreaLink)));
                 case JsonTokenType.StartObject:
-                    long area = 0; RefSpec spec = default; AreaLink? shape = null;
+                    int area = 0; RefSpec spec = default; AreaLink? shape = null;
                     while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
                     {
                         if (reader.TokenType != JsonTokenType.PropertyName) continue;

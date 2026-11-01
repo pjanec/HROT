@@ -142,7 +142,7 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>⭐ <c>CE-2171</c> — the route entity's network id (appended): it rides the intent to the motion side, which resolves its
         /// own trajectory from it. 0 = only the local <see cref="TrajectoryId"/>.</summary>
-        public long RouteEntityId;
+        public int RouteEntityId;
 
         /// <summary>⭐ Air Ops slice 3 (docs/designs/air-attack/DESIGN_Air_Operations.md §9b) — 1 while the Brain's condition for the
         /// aircraft's current Unload / Pickup hold is met (appended): <see cref="Executors.FollowRouteExecutor"/> mirrors it onto

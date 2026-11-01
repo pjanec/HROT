@@ -24,8 +24,8 @@ namespace Fdp.Toolkit.Tests.Motion
         private sealed class Routes : IRouteSource
         {
             public readonly List<NavRouteWaypoint> Waypoints = new();
-            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
-            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, List<NavRouteWaypoint> into, out bool loop, out int version)
+            public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
+            public bool TryGetRoute(EntityRepository repo, int routeNetworkId, List<NavRouteWaypoint> into, out bool loop, out int version)
             {
                 into.Clear(); into.AddRange(Waypoints); loop = false; version = 1;
                 return into.Count > 0;
@@ -70,7 +70,7 @@ namespace Fdp.Toolkit.Tests.Motion
         }
 
         private static NavRouteWaypoint Wp(float x, float y, RouteWaypointKind kind = RouteWaypointKind.Pass)
-            => new(new Vector3(x, y, 0f), 0f, kind, 300f, RouteHold.None, 0f, 0L);
+            => new(new Vector3(x, y, 0f), 0f, kind, 300f, RouteHold.None, 0f, 0);
 
         private static float Roll(Quaternion q) => MathF.Asin(Math.Clamp(Vector3.Transform(Vector3.UnitY, q).Z, -1f, 1f));   // left side up +
 

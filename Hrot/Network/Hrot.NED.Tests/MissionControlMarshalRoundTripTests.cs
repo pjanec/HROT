@@ -73,7 +73,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 42L,
+                TargetEntityId = 42,
                 BaseVersion    = 0,
                 Payload        = new MissionCommandUnion
                 {
@@ -98,7 +98,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request   = new MissionControlRequest
             {
                 RequestId      = requestId,
-                TargetEntityId = 99L,
+                TargetEntityId = 99,
                 BaseVersion    = 7L,
                 Payload        = new MissionCommandUnion
                 {
@@ -130,7 +130,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 1L,
+                TargetEntityId = 1,
                 Payload        = new MissionCommandUnion
                 {
                     _d              = eMissionCommandType.CMD_REPLACE_MISSION,
@@ -162,7 +162,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 1L,
+                TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload        = new MissionCommandUnion
                 {
@@ -204,7 +204,7 @@ namespace Hrot.DDS.DataModel.Tests
             var request = new MissionControlRequest
             {
                 RequestId      = Guid.NewGuid(),
-                TargetEntityId = 1L,
+                TargetEntityId = 1,
                 Payload        = new MissionCommandUnion
                 {
                     _d              = eMissionCommandType.CMD_REPLACE_MISSION,
@@ -309,7 +309,7 @@ namespace Hrot.DDS.DataModel.Tests
 
             var em = new EntityMission
             {
-                EntityId = 42L,
+                EntityId = 42,
                 Plan = new MissionPlan
                 {
                     ActiveTaskId = Guid.NewGuid(),

@@ -138,7 +138,7 @@ namespace Hrot.ScenarioEditor.Tools
             ToolActivationOutcome ToggleEntityGizmo<TComponent>(
                 Entity e,
                 EditorTool tool,
-                Func<EntityRepository, Entity, long, Action, IEntityStatefulGizmo> factory)
+                Func<EntityRepository, Entity, int, Action, IEntityStatefulGizmo> factory)
                 where TComponent : class
             {
                 if (world() is not { } w)  return Unserviceable(tool, "this host has no world");
@@ -164,7 +164,7 @@ namespace Hrot.ScenarioEditor.Tools
                 //     ANOTHER subsystem, not of this call — which is exactly the kind of accidental
                 //     safety this guard replaces with a stated one. 🔒 The caller HAS the id; it must
                 //     check it (the silent-default rule, in its inverse form).
-                long anchorId = NetworkIdOf(w, e);
+                int anchorId = NetworkIdOf(w, e);
                 if (anchorId == 0)
                     return Unserviceable(tool, "the selected entity has no network identity, so its edit handles could not be addressed");
 
@@ -221,9 +221,9 @@ namespace Hrot.ScenarioEditor.Tools
             }
         }
 
-        private static long NetworkIdOf(EntityRepository world, Entity e)
+        private static int NetworkIdOf(EntityRepository world, Entity e)
             => world.HasComponent<NetworkIdentity>(e)
                 ? world.GetComponentRO<NetworkIdentity>(e).Value
-                : 0L;
+                : 0;
     }
 }

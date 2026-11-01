@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
                 {
                     var p = r.Payload;
                     into.Add(p is { } payload
-                        ? new TimelineEvent(frame, laneId, payload.Subject, payload.Other, payload.X, payload.Y, payload.Value)
+                        ? new TimelineEvent(frame, laneId, checked((int)payload.Subject), payload.Other, payload.X, payload.Y, payload.Value)
                         : new TimelineEvent(frame, laneId, ResultIds.Of(repo, r.Entity), 0, 0, 0, 0));
                 }
             }

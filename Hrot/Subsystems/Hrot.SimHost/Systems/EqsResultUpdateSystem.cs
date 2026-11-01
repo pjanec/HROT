@@ -113,7 +113,7 @@ namespace Hrot.SimHost.Systems
                 _byIndex.TryAdd(candidate.Index, candidate);   // a local-only sensor: matched by entity Index
                 // ⭐ The ONE wire-key rule (EqsSensorKey): a child sensor by (parent's network id, part id) — InstanceId 0 is a valid
                 //   first child index — or a legacy sensor on the networked entity itself.
-                if (EqsSensorKey.Resolve(view, candidate, out long net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy)
+                if (EqsSensorKey.Resolve(view, candidate, out int net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy)
                     _byKey.TryAdd((net, index), candidate);
             }
 

@@ -33,8 +33,8 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 
     private const int PlayerNodeId = 301;   // ⛔ not the IG default (300) — that is the Orchestrator's own node id in this one-process harness
-    private const long UnitAId = 5000L;
-    private const long UnitBId = 5001L;
+    private const int UnitAId = 5000;
+    private const int UnitBId = 5001;
 
     private readonly string _scenarioId = "test_player_join_" + Guid.NewGuid().ToString("N");
 
@@ -150,15 +150,15 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
     }
 
     /// <summary>The network ids of the brain's units (ghost map of the CGF node).</summary>
-    private List<long> UnitNetworkIds(EntityRepository cgfWorld)
+    private List<int> UnitNetworkIds(EntityRepository cgfWorld)
     {
-        var ids = new List<long>();
+        var ids = new List<int>();
         foreach (var e in UnitEntities(cgfWorld))
             if (cgfWorld.HasComponent<NetworkIdentity>(e)) ids.Add(cgfWorld.GetComponentRO<NetworkIdentity>(e).Value);
         return ids;
     }
 
-    private static int CountKnownOnIg(Fdp.Toolkit.Replication.Services.NetworkEntityMap map, EntityRepository world, List<long> ids)
+    private static int CountKnownOnIg(Fdp.Toolkit.Replication.Services.NetworkEntityMap map, EntityRepository world, List<int> ids)
     {
         int n = 0;
         foreach (var id in ids)

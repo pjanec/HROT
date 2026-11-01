@@ -219,7 +219,7 @@ namespace Hrot.SimHost.Tests
     {
         public readonly List<(long EntityId, Vector2 Destination, float Speed, float ArrivalRadius)> Sent = new();
 
-        public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
+        public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
             => Sent.Add((entityNetworkId, destination, speed, arrivalRadius));
 
         public void Dispose() { }

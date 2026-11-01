@@ -45,10 +45,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation, FireTeam Team)>> _pendingSubordinates = new();
 
         // Keyed by subordinate net ID. Used when the subordinate itself has not yet spawned.
-        private readonly Dictionary<long, (long CommanderNetId, TacticalDesignation Designation, FireTeam Team)> _pendingUnspawnedSubordinates = new();
+        private readonly Dictionary<long, (int CommanderNetId, TacticalDesignation Designation, FireTeam Team)> _pendingUnspawnedSubordinates = new();
 
         // Fired by NetworkEntityMap when a new entity is registered. Used to drain both pending queues.
-        private readonly List<long> _recentlyRegistered = new();
+        private readonly List<int> _recentlyRegistered = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<Hrot.NED.Descriptors.EntityInfo>();
@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             _entityMap.EntityRegistered += OnEntityRegistered;
         }
 
-        private void OnEntityRegistered(long netId, Entity entity)
+        private void OnEntityRegistered(int netId, Entity entity)
         {
             _recentlyRegistered.Add(netId);
         }
@@ -100,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                     ReceivedSampleCount++;
                     var info   = sample.Data;
-                    long netId = info.EntityId;
+                    int netId = info.EntityId;
                     var repo   = view as EntityRepository;
 
                     if (!_entityMap.TryGetEntity(netId, out _))
@@ -147,7 +147,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             // Remove as a pending commander.
             _pendingSubordinates.Remove(networkEntityId);
@@ -166,7 +166,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>Unsubscribes from <see cref="NetworkEntityMap.EntityRegistered"/>.</summary>
         internal void Shutdown() => _entityMap.EntityRegistered -= OnEntityRegistered;
 
-        internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, long netId, EntityRepository? repo = null)
+        internal void ProcessSample(Hrot.NED.Descriptors.EntityInfo info, int netId, EntityRepository? repo = null)
         {
             var igData = new Fdp.Core.EntityInfo
             {
@@ -216,7 +216,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
 
             // Commander assignment / removal.
-            long commanderNetId = info.CommanderId;
+            int commanderNetId = info.CommanderId;
             var designation     = TacticalDesignationMapper.ToEcs(info.TacticalDesignation);
             var team            = info.FireTeam <= (byte)FireTeam.D ? (FireTeam)info.FireTeam : FireTeam.None;   // ⭐ CE-2281 / R-3019
 
@@ -265,7 +265,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 list.Add((subEntity3, designation, team));
         }
 
-        private void DrainPendingForRegistered(long registeredNetId, EntityRepository? repo)
+        private void DrainPendingForRegistered(int registeredNetId, EntityRepository? repo)
         {
             // 1. If a previously un-spawned subordinate just appeared:
             if (_pendingUnspawnedSubordinates.TryGetValue(registeredNetId, out var pending))
@@ -314,7 +314,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             _pendingSubordinates.Remove(registeredNetId);
         }
 
-        private void RemoveFromAllPendingQueues(long subordinateNetId)
+        private void RemoveFromAllPendingQueues(int subordinateNetId)
         {
             _pendingUnspawnedSubordinates.Remove(subordinateNetId);
 

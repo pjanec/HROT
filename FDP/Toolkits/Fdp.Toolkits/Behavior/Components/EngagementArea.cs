@@ -10,7 +10,7 @@ using Fdp.Toolkit.Perception.Events;
 namespace Fdp.Toolkit.Behavior.Components
 {
     [InlineArray(EngagementArea.MaxNoFire)]
-    public struct NoFireAreaSlots { private long _e0; }
+    public struct NoFireAreaSlots { private int _e0; }
 
     /// <summary>The NoFire areas' network ids (a fixed-list wrapper, CC-16: the entity dump prints it as an array).</summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -45,7 +45,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>0 = no limit.</summary>
         public float MaxRange;
         /// <summary>An area entity's network id the man may shoot into (0 = none).</summary>
-        public long AllowArea;
+        public int AllowArea;
         /// <summary>Where he watches (compass degrees), when <see cref="WatchSet"/> — for the eyes (LD-3).</summary>
         public Bearing WatchBearing;
         public byte WatchSet;
@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Behavior.Components
         public float RightBearing;
         public float MinRange;
         public float MaxRange;
-        public long AllowArea;
+        public int AllowArea;
         public float WatchBearing;
         public byte WatchSet;
         public NoFireAreaList NoFire;
@@ -232,7 +232,7 @@ namespace Fdp.Toolkit.Behavior.Components
             return a.AllowArea != 0 && view is EntityRepository repo && InArea(repo, a.AllowArea, point);
         }
 
-        private static bool InArea(EntityRepository repo, long areaNetId, Vector3 point)
+        private static bool InArea(EntityRepository repo, int areaNetId, Vector3 point)
         {
             if (areaNetId == 0) return false;
             var area = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(repo, areaNetId);

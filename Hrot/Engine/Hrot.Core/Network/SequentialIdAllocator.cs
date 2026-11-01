@@ -14,7 +14,7 @@ public sealed class SequentialIdAllocator : INetworkIdAllocator, IRestorableIdAl
     private long _next = 1;
 
     /// <inheritdoc/>
-    public long AllocateId() => Interlocked.Increment(ref _next);
+    public int AllocateId() => NetworkIdLimit.Checked(Interlocked.Increment(ref _next));   // ⭐ CE-4200: refuses past int.MaxValue; _next stays a long so it never wraps
 
     /// <inheritdoc/>
     /// <remarks>
@@ -27,7 +27,7 @@ public sealed class SequentialIdAllocator : INetworkIdAllocator, IRestorableIdAl
     /// DDS path, both already asserting the "next id is startId" meaning)*, so this corrects a latent
     /// disagreement rather than changing behaviour anything depended on.</para>
     /// </remarks>
-    public void Reset(long startId = 0) => Interlocked.Exchange(ref _next, startId - 1);
+    public void Reset(int startId = 0) => Interlocked.Exchange(ref _next, startId - 1);
 
     /// <inheritdoc/>
     /// <remarks>

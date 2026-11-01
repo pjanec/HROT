@@ -17,7 +17,7 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct EntityStateTopic
     {
         /// <summary>Network-wide unique entity identifier</summary>
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         
         /// <summary>X position in world coordinates</summary>
         public double PositionX;

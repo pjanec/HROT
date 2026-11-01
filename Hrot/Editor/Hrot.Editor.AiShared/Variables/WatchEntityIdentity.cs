@@ -28,8 +28,8 @@ namespace Hrot.Editor.AiShared.Variables;
 /// </summary>
 public sealed class WatchEntityIdentity
 {
-    private readonly Func<long, Entity> _entityByRuntimeId;
-    private readonly Func<Entity, long> _runtimeIdOf;
+    private readonly Func<int, Entity> _entityByRuntimeId;
+    private readonly Func<Entity, int> _runtimeIdOf;
 
     /// <param name="remap">⭐ The table the current load published *(shared, not copied — it is replaced
     /// in place on each load and every reader must see the same one)</param>
@@ -37,8 +37,8 @@ public sealed class WatchEntityIdentity
     /// <param name="runtimeIdOf">⭐ Production: read <c>NetworkIdentity.Value</c> off the entity, or <c>0</c>.</param>
     public WatchEntityIdentity(
         StagingRemapView   remap,
-        Func<long, Entity> entityByRuntimeId,
-        Func<Entity, long> runtimeIdOf)
+        Func<int, Entity> entityByRuntimeId,
+        Func<Entity, int> runtimeIdOf)
     {
         Remap              = remap             ?? throw new ArgumentNullException(nameof(remap));
         _entityByRuntimeId = entityByRuntimeId ?? throw new ArgumentNullException(nameof(entityByRuntimeId));
@@ -53,11 +53,11 @@ public sealed class WatchEntityIdentity
     /// ⚠ <c>0</c> for the sentinel entity, for an entity with no <c>NetworkIdentity</c>, and for one
     /// spawned at runtime. ⭐ All three mean the same thing to a pin: within-session only.
     /// </summary>
-    public long StagingIdOf(Entity entity)
+    public int StagingIdOf(Entity entity)
     {
         if (entity.Equals(default(Entity))) return 0;
 
-        long runtimeId = _runtimeIdOf(entity);
+        int runtimeId = _runtimeIdOf(entity);
         return runtimeId == 0 ? 0 : Remap.ToStaging(runtimeId);
     }
 
@@ -68,11 +68,11 @@ public sealed class WatchEntityIdentity
     /// ⛔ It never falls back to treating the authored id AS a runtime id — 📌 the two are drawn from one
     /// numeric space, so that would silently resolve to the wrong entity.
     /// </summary>
-    public Entity EntityForStagingId(long stagingId)
+    public Entity EntityForStagingId(int stagingId)
     {
         if (stagingId == 0) return default;
 
-        long runtimeId = Remap.ToRuntime(stagingId);
+        int runtimeId = Remap.ToRuntime(stagingId);
         return runtimeId == 0 ? default : _entityByRuntimeId(runtimeId);
     }
 

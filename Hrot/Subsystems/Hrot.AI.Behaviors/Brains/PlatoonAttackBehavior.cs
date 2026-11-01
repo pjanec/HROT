@@ -754,7 +754,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             int index = CommandPictureOps.FirstRequest(world, self, RequestKind.Casevac);
             if (index < 0) return false;
-            long casualty = world.GetComponentRO<CommandPicture>(self).Requests.Items[index].SubjectNetId;
+            int casualty = world.GetComponentRO<CommandPicture>(self).Requests.Items[index].SubjectNetId;
             CommandPictureOps.Answered(world, self, index);
             if (casualty == 0) return false;
             var unit = CommandPictureOps.Subordinate(world, self, slot);

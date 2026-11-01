@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             => new(tkb, new EntityLifecycleModule(tkb, System.Array.Empty<int>()),
                    map, new StubIdAllocator(startId: 700), LocalNodeId);
 
-        private static SpawnEntityCommand Cmd(long networkId, int owner) => new()
+        private static SpawnEntityCommand Cmd(int networkId, int owner) => new()
         {
             RequestId        = System.Guid.NewGuid(),
             NetworkId        = networkId,
@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         };
 
         private static Entity Spawn(EntityRepository repo, NetworkSpawningSystem system,
-                                    NetworkEntityMap map, long networkId, int owner)
+                                    NetworkEntityMap map, int networkId, int owner)
         {
             repo.Bus.PublishManaged(Cmd(networkId, owner));
             repo.Bus.SwapBuffers();

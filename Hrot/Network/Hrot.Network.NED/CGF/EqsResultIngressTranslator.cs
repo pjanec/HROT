@@ -24,7 +24,7 @@ namespace Hrot.Network.NED.CGF
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
         // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
-        internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
+        internal readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
@@ -129,7 +129,7 @@ namespace Hrot.Network.NED.CGF
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Internal helpers (exposed for unit testing via InternalsVisibleTo) ─
 
@@ -151,7 +151,7 @@ namespace Hrot.Network.NED.CGF
             foreach (var entry in results)
             {
                 if (entry.EntityId == 0L) { mapped.Add(entry); continue; }
-                if (!entityMap.TryGetEntity(entry.EntityId, out var local)) continue;
+                if (!entityMap.TryGetEntity(checked((int)entry.EntityId), out var local)) continue;
                 var copy = entry;
                 copy.EntityId = (long)local.PackedValue;
                 mapped.Add(copy);
@@ -163,7 +163,7 @@ namespace Hrot.Network.NED.CGF
         /// Removes a cache entry for the given composite key.
         /// Called when a NotAliveDisposed DDS sample is received.
         /// </summary>
-        internal void RemoveCacheEntry(long parentNetworkId, int localChildIndex)
+        internal void RemoveCacheEntry(int parentNetworkId, int localChildIndex)
             => _childEntityCache.Remove((parentNetworkId, localChildIndex));
     }
 }

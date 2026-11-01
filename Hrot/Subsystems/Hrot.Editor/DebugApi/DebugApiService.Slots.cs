@@ -12,7 +12,7 @@ namespace Hrot.Editor.DebugApi
         /// task's, the SOP's, a paused task's, their hosted children's and working-state slots — named by its owner and role, its value
         /// decoded through the layout the root dump already uses (<see cref="OccurrenceSlotCatalog"/>). An unnamed slot is still listed.
         /// </summary>
-        public JsonNode GetEntitySlots(long networkId)
+        public JsonNode GetEntitySlots(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -42,7 +42,7 @@ namespace Hrot.Editor.DebugApi
         /// parameter set through the behaviour's own parser.
         /// </summary>
         public (JsonNode? result, string? error, string? hintCategory) StageSlotField(
-            long networkId, string owner, string? behaviour, string? part, string? role, string? path, JsonNode? value, string? paramsJson)
+            int networkId, string owner, string? behaviour, string? part, string? role, string? path, JsonNode? value, string? paramsJson)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);

@@ -20,7 +20,7 @@ internal sealed class NedSimHostMissionSender : ISimHostMissionSender
     public NedSimHostMissionSender(DdsParticipant participant)
         => _writer = new DdsWriter<MissionControlRequest>(participant);
 
-    public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
+    public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
     {
         var paramsJson = string.Format(
             CultureInfo.InvariantCulture,

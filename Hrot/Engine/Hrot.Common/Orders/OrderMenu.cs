@@ -42,7 +42,7 @@ namespace Hrot.Common.Orders
     /// <summary>⭐ <c>CE-2148</c> (F6) — what the operator's gesture points at: the clicked entity (network id) and / or the clicked
     /// point (geodetic <c>[lat, lon]</c>, or <c>[y, x]</c> on a node without a transform — OrderGeo's fallback). It fills a missing
     /// <c>[Required]</c> field of the same kind.</summary>
-    public readonly record struct OrderContext(long? Entity, JsonArray? Point)
+    public readonly record struct OrderContext(int? Entity, JsonArray? Point)
     {
         public static OrderContext None => default;
     }
@@ -52,7 +52,7 @@ namespace Hrot.Common.Orders
     /// <c>[Required]</c> fields still <see cref="Missing"/>. <see cref="Send"/> issues it to every unit (through <c>EntityOrders</c>)
     /// and answers one result per unit — what an order form calls when the operator presses Send.
     /// </summary>
-    public sealed record OrderDraft(IReadOnlyList<long> Units, OrderInfo Order, JsonObject Params, IReadOnlyList<OrderField> Missing,
+    public sealed record OrderDraft(IReadOnlyList<int> Units, OrderInfo Order, JsonObject Params, IReadOnlyList<OrderField> Missing,
         Func<string, IReadOnlyList<OrderResult>> Send)
     {
         /// <summary>True when nothing required is missing: the order can go as it is.</summary>
@@ -217,13 +217,13 @@ namespace Hrot.Common.Orders
         /// (⭐ <c>CE-2149</c>) the unit's <paramref name="designation"/>s the same way. Explicit values always win.
         /// <paramref name="send"/> is what <see cref="OrderDraft.Send"/> calls.
         /// </summary>
-        public static OrderDraft Draft(OrderInfo order, IReadOnlyList<long> units, OrderContext context,
+        public static OrderDraft Draft(OrderInfo order, IReadOnlyList<int> units, OrderContext context,
             Func<string, IReadOnlyList<OrderResult>> send, JsonObject? given = null,
-            Func<long, DesignationKind, JsonNode?>? designation = null)
+            Func<int, DesignationKind, JsonNode?>? designation = null)
         {
             var json = given != null ? (JsonObject)given.DeepClone() : new JsonObject();
             // ⭐ CE-2149 (§13.3) — a clicked ENTITY fills a target, never a route or a sector; a clicked point fills a point.
-            Fill(DesignationKind.Target, context.Entity is long e && e != 0 ? JsonValue.Create(e) : null);
+            Fill(DesignationKind.Target, context.Entity is int e && e != 0 ? JsonValue.Create(e) : null);
             Fill(DesignationKind.MapPoint, context.Point?.DeepClone());
             // ⭐ CE-2149 (F7 stage 1) — then the unit's standing designations, for an operator's draft of ONE unit (the per-unit store
             //   cannot speak for several); explicit values and the gesture already won above.

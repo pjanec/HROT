@@ -57,7 +57,7 @@ public sealed class NavigationStatusAuthorityTests
 
         // SimHost node ID is 1 (SimHostNetworkConstants.LocalNodeId).
         // TestHook_SpawnEntityWithSplitAuthority now grants BOTH dtWorldPos and dtNavigationStatus.
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool hasNavStatusAuthority = PumpBothUntil(simHost, cgf,
@@ -95,7 +95,7 @@ public sealed class NavigationStatusAuthorityTests
 
         cgf.PumpFrames(20);
 
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for the entity to arrive on SimHost before checking Brain authority.

@@ -44,7 +44,7 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        private Entity RegisterEntity(long netId)
+        private Entity RegisterEntity(int netId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(netId, entity);
@@ -71,7 +71,7 @@ namespace Hrot.SimHost.Tests
         public void ScanAndPublish_WritesAudioTargetDetected_ForSingleEvent()
         {
             var (translator, writer) = BuildTranslator();
-            var listener = RegisterEntity(netId: 5L);
+            var listener = RegisterEntity(netId: 5);
 
             PublishEvent(listener, radius: 7.5f, origin: new Vector3(10f, 20f, 30f));
 

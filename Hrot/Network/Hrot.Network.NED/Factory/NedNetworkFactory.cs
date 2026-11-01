@@ -470,7 +470,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
 /// <summary>No-op stub for ISimHostMissionSender.</summary>
 internal sealed class NullSimHostMissionSender : ISimHostMissionSender
 {
-    public void SendNavigateToPoint(long id, System.Numerics.Vector2 dest, float speed, float radius) { }
+    public void SendNavigateToPoint(int id, System.Numerics.Vector2 dest, float speed, float radius) { }
     public void Dispose() { }
 }
 

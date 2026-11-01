@@ -116,7 +116,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             repo.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static bool IsOwnedHere(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(
@@ -124,7 +124,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         internal void ProcessSample(in MapVisualOverlay data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (repo == null)

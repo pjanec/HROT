@@ -466,9 +466,9 @@ namespace Hrot.SimHost.Tests
             return _w.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!;
         }
 
-        private long NetIdOf(Entity e)
+        private int NetIdOf(Entity e)
         {
-            long id = 7000 + e.Index;
+            int id = 7000 + e.Index;
             if (!NetMap().TryGetEntity(id, out _)) NetMap().Register(id, e);
             return id;
         }

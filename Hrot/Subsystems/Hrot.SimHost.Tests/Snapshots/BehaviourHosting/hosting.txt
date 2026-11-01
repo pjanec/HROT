@@ -32,10 +32,10 @@ DangerCrossing | hostedInput=- | inputBytes=128
 DangerCrossingBp | hostedInput=Hrot.AI.Behaviors.Brains.DangerCrossingParams | inputBytes=60
 Demo_Advance | hostedInput=- | inputBytes=0
 Demo_Engage | hostedInput=- | inputBytes=0
-Demo_MissionPlan | hostedInput=Hrot.AI.Behaviors.Brains.DemoMissionPlanParams | inputBytes=200
+Demo_MissionPlan | hostedInput=Hrot.AI.Behaviors.Brains.DemoMissionPlanParams | inputBytes=192
 Demo_Retreat | hostedInput=- | inputBytes=0
 Demo_TakeCover | hostedInput=- | inputBytes=0
-Demo_TaskChain | hostedInput=Hrot.AI.Behaviors.Brains.DemoTaskChainParams | inputBytes=128
+Demo_TaskChain | hostedInput=Hrot.AI.Behaviors.Brains.DemoTaskChainParams | inputBytes=120
 DetonateCharge | hostedInput=Hrot.Map.Definitions.Behavior.DetonateChargeParamsJsonDto | inputBytes=16
 Disembark | hostedInput=Hrot.Map.Definitions.Behavior.DisembarkParamsJsonDto | inputBytes=20
 DoorLocksmith | hostedInput=Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto | inputBytes=236
@@ -51,10 +51,10 @@ FireAtPoint | hostedInput=Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto
 FireAtTarget | hostedInput=Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto | inputBytes=24
 FiringPosition | hostedInput=- | inputBytes=0
 Flank | hostedInput=- | inputBytes=0
-FollowRoute | hostedInput=- | inputBytes=24
+FollowRoute | hostedInput=- | inputBytes=16
 HoldStance | hostedInput=Hrot.Map.Definitions.Behavior.HoldStanceParamsJsonDto | inputBytes=1
 HoldTheLine | hostedInput=Hrot.Map.Definitions.Behavior.HoldTheLineParamsJsonDto | inputBytes=40
-HsmChannelE2E | hostedInput=Hrot.AI.Behaviors.Brains.HsmChannelE2EParams | inputBytes=64
+HsmChannelE2E | hostedInput=Hrot.AI.Behaviors.Brains.HsmChannelE2EParams | inputBytes=52
 HsmCuratedBindingDemo | hostedInput=- | inputBytes=0
 HsmOrthogonalRegions | hostedInput=- | inputBytes=0
 HsmPolledGuardDemo | hostedInput=- | inputBytes=0
@@ -69,7 +69,7 @@ InertSop | hostedInput=- | inputBytes=0
 InfantrySquadAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=1216
 InfantrySquadHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=1208
 InfantrySquadMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=1232
-JoinFormation | hostedInput=Hrot.AI.Behaviors.Brains.CgfNodes+JoinFormationParams | inputBytes=56
+JoinFormation | hostedInput=Hrot.AI.Behaviors.Brains.CgfNodes+JoinFormationParams | inputBytes=44
 LandPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=320
 LoadCasualty | hostedInput=Hrot.Map.Definitions.Behavior.LoadCasualtyParamsJsonDto | inputBytes=80
 ManWeapon | hostedInput=Hrot.Map.Definitions.Behavior.ManWeaponParamsJsonDto | inputBytes=36
@@ -86,8 +86,8 @@ PlatformHold | hostedInput=- | inputBytes=0
 PlatformMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=20
 PlatoonAttack | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonAttackParamsJsonDto | inputBytes=208
 PlatoonBound | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonBoundParamsJsonDto | inputBytes=88
-PlatoonConvoy | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonConvoyParamsJsonDto | inputBytes=120
-PlatoonDefend | hostedInput=- | inputBytes=408
+PlatoonConvoy | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonConvoyParamsJsonDto | inputBytes=112
+PlatoonDefend | hostedInput=- | inputBytes=376
 PlatoonHillAttack | hostedInput=- | inputBytes=248
 PlatoonHold | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonHoldParamsJsonDto | inputBytes=16
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
@@ -139,8 +139,8 @@ T41_GeneratedParamsDto | hostedInput=Hrot.AI.Behaviors.Params.T41Params | inputB
 T42_SopOrdersAndDeactivator | hostedInput=- | inputBytes=0
 TakeCover | hostedInput=- | inputBytes=84
 TrackTarget | hostedInput=Hrot.Map.Definitions.Behavior.TrackTargetParamsJsonDto | inputBytes=16
-TriggerIed | hostedInput=Hrot.Map.Definitions.Behavior.TriggerIedParamsJsonDto | inputBytes=32
-UrbanMovement | hostedInput=- | inputBytes=320
+TriggerIed | hostedInput=Hrot.Map.Definitions.Behavior.TriggerIedParamsJsonDto | inputBytes=24
+UrbanMovement | hostedInput=- | inputBytes=308
 VehicleFightFromCover | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 WanderMilitary | hostedInput=- | inputBytes=0
 WeaponSystemAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=24

@@ -66,7 +66,7 @@ public sealed class StrideSelfTest
 
     // ── Test parameters ──────────────────────────────────────────────────────
     private const long  SpawnTkbType   = 101L;  // IFV (TkbType 101) — the exact type the test-move scenario uses
-    private const long  SpawnNetId     = 9001L;
+    private const int  SpawnNetId     = 9001;
     private const float HoldTolerance  = 5.0f;  // metres (FDP X,Y)
 
     // IN-ARENA coords (arena ≈ FDP X∈[-10,10], Y∈[0,15]) so entities are on the floor.

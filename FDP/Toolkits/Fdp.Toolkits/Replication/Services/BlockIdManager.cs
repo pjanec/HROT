@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Replication.Services
     [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
     public class BlockIdManager : INetworkIdAllocator, IRestorableIdAllocator
     {
-        private readonly Queue<long> _localPool = new();
+        private readonly Queue<int> _localPool = new();
         private readonly int _lowWaterMark;
         
         /// <summary>
@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Replication.Services
             _lowWaterMark = lowWaterMark;
         }
 
-        public long AllocateId()
+        public int AllocateId()
         {
             // Check if we are at or will drop below low water mark
             if (_localPool.Count <= _lowWaterMark + 1)
@@ -39,16 +39,18 @@ namespace Fdp.Toolkit.Replication.Services
             return _localPool.Dequeue();
         }
 
-        public void AddBlock(long start, int count)
+        public void AddBlock(int start, int count)
         {
             if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+            // ⭐ CE-4200: refuse loudly, before queueing anything, when the block's LAST id would not fit in 32 bits.
+            if (count > 0) NetworkIdLimit.Checked((long)start + count - 1);
             for (int i = 0; i < count; i++)
             {
                 _localPool.Enqueue(start + i);
             }
         }
 
-        public void Reset(long startId = 0)
+        public void Reset(int startId = 0)
         {
             _localPool.Clear();
             // Optional: If startId > 0, we could potentially seed it, 
@@ -85,7 +87,7 @@ namespace Fdp.Toolkit.Replication.Services
         /// <inheritdoc/>
         public void RestoreIssuingPosition(object snapshot)
         {
-            if (snapshot is not long[] held) return;
+            if (snapshot is not int[] held) return;
 
             // ⭐ Replace, do not prepend-and-keep: anything acquired during the preview is spent from the
             //   cluster's point of view, and re-offering it is a cross-node collision.

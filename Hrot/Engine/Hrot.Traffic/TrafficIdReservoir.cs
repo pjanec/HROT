@@ -16,10 +16,10 @@ public sealed class TrafficIdReservoir
     /// <summary>How long the stepping thread waits for a top-up before it gives up on a car.</summary>
     public static readonly TimeSpan TakeTimeout = TimeSpan.FromSeconds(2);
 
-    private readonly Func<long> _allocate;
-    private readonly ConcurrentQueue<long> _ids = new();
+    private readonly Func<int> _allocate;
+    private readonly ConcurrentQueue<int> _ids = new();
 
-    public TrafficIdReservoir(Func<long> allocate) => _allocate = allocate ?? throw new ArgumentNullException(nameof(allocate));
+    public TrafficIdReservoir(Func<int> allocate) => _allocate = allocate ?? throw new ArgumentNullException(nameof(allocate));
 
     /// <summary>Ids ready to hand out.</summary>
     public int Count => _ids.Count;
@@ -31,9 +31,9 @@ public sealed class TrafficIdReservoir
     }
 
     /// <summary>The next id. ⭐ The stepping thread's only call; waits briefly for the main thread when the reserve ran dry.</summary>
-    public long Take()
+    public int Take()
     {
-        if (_ids.TryDequeue(out long id)) return id;
+        if (_ids.TryDequeue(out int id)) return id;
         var spin = new SpinWait();
         var until = DateTime.UtcNow + TakeTimeout;
         while (DateTime.UtcNow < until)

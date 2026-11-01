@@ -96,7 +96,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         public bool IsReplayActive => _activeReplayModule != null;
 
         /// <inheritdoc />
-        public long ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
+        public int ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
 
         /// <inheritdoc />
         public long ActiveRecordingStartWallTicks => _activeReplayModule?.RecordingStartWallTicks ?? 0;
@@ -295,7 +295,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// Highest network entity ID used during the recording session.  Pass <c>0</c> (or omit)
         /// when no network map is available (e.g. offline / test scenarios).
         /// </param>
-        public async Task FinalizeRecordingAsync(long maxNetworkId = 0)
+        public async Task FinalizeRecordingAsync(int maxNetworkId = 0)
         {
             if (_activeRecordingModule == null)
             {

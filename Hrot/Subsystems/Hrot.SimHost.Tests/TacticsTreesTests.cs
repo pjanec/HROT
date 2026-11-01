@@ -2131,7 +2131,7 @@ namespace Hrot.SimHost.Tests
 
         // ── ⭐ CE-3170 — an ATTACK order: CombatPosture with a designated target (docs/DESIGN_Entity_Control.md C-5) ──────────
 
-        private const long NamedId = 2000;
+        private const int NamedId = 2000;
 
         /// <summary>The enemy an attack order names: alive, on the map at <paramref name="at"/>, known to the node by
         /// <see cref="NamedId"/>, and NOT in the unit's memory yet.</summary>

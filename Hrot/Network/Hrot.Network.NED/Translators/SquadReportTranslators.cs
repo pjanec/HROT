@@ -59,9 +59,9 @@ namespace Hrot.Network.Translators
             foreach (var r in view.ReadManagedEvents<SquadReportNotification>())
             {
                 if (r is null || r.OriginNodeId != 0) continue;   // it arrived from another node
-                if (!_entityMap.TryGetNetworkId(r.FromUnit, out long from)
-                    || !_entityMap.TryGetNetworkId(r.ToUnit, out long to)
-                    || !NetIdOrNone(r.Subject, out long subject))
+                if (!_entityMap.TryGetNetworkId(r.FromUnit, out int from)
+                    || !_entityMap.TryGetNetworkId(r.ToUnit, out int to)
+                    || !NetIdOrNone(r.Subject, out int subject))
                 {
                     RefusedCount++;
                     continue;
@@ -71,13 +71,13 @@ namespace Hrot.Network.Translators
             }
         }
 
-        private bool NetIdOrNone(Entity e, out long id)
+        private bool NetIdOrNone(Entity e, out int id)
         {
             id = 0;
             return e.IsNull || _entityMap.TryGetNetworkId(e, out id);
         }
 
-        internal static SquadReport ToWire(SquadReportNotification n, long from, long to, long subject, long origin)
+        internal static SquadReport ToWire(SquadReportNotification n, int from, int to, int subject, long origin)
         {
             ref readonly var r = ref n.Report;
             return new SquadReport
@@ -102,7 +102,7 @@ namespace Hrot.Network.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ namespace Hrot.Network.Translators
             return true;
         }
 
-        private Entity EntityOf(long netId) => _entityMap.TryGetEntity(netId, out var e) ? e : Entity.Null;
+        private Entity EntityOf(int netId) => _entityMap.TryGetEntity(netId, out var e) ? e : Entity.Null;
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view) { }
@@ -180,6 +180,6 @@ namespace Hrot.Network.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

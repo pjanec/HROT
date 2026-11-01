@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
     public class DeferredTakeOwnershipCommand
     {
         /// <summary>Network entity ID the routing table applies to.</summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// Per-descriptor ownership assignments.  Each entry states which node ID should

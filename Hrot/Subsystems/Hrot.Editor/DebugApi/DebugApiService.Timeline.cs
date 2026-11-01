@@ -92,7 +92,7 @@ namespace Hrot.Editor.DebugApi
         public (JsonNode? Result, string? Error) SelectEntity(JsonNode? body)
         {
             if (body?["entity"] is not JsonNode node) return (null, "entity is required: {\"entity\": 1042} (a network id).");
-            long id = Long(node);
+            int id = Int(node);
             if (!_entityMap.TryGetEntity(id, out var entity) || !_world.IsAlive(entity))
                 return (null, $"Entity {id} not found in this world.");
             if (!_world.Bus.IsRegistered<Hrot.Common.Events.SelectEntityCommand>())

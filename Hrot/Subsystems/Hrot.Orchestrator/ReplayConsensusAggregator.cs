@@ -40,7 +40,7 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
     public object? Aggregate(IReadOnlyDictionary<int, Dictionary<NodeOpType, string>> nodeResponses)
     {
         float maxDuration    = 0f;
-        long  maxNetworkId   = 0L;
+        int  maxNetworkId   = 0;
         long  firstFrame     = 0L;   // ⭐ R-4012 — the earliest first frame across the cluster: the replay's zero
         long  lastFrame      = 0L;   //            the latest last frame: the replay's end
         // ⭐ CE-3329 P1 (R3) — every node's map; the anchor node's (the earliest first frame) leads the intersection

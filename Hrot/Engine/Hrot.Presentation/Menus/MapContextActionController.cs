@@ -41,22 +41,22 @@ public sealed class MapContextActionController : IEntityActionController
     }
 
     /// <inheritdoc/>
-    public void CenterOnEntity(long entityId)     => _centerOnEntity(entityId);
+    public void CenterOnEntity(int entityId)     => _centerOnEntity(entityId);
 
     /// <inheritdoc/>
-    public void DeleteEntity(long entityId)       => _deleteEntity(entityId);
+    public void DeleteEntity(int entityId)       => _deleteEntity(entityId);
 
     /// <inheritdoc/>
-    public void ActivateRotateTool(long entityId) => _rotateTool(entityId);
+    public void ActivateRotateTool(int entityId) => _rotateTool(entityId);
 
     /// <inheritdoc/>
-    public void EditOverlay(long entityId)        { }
+    public void EditOverlay(int entityId)        { }
 
     /// <inheritdoc/>
-    public void EditRoute(long entityId)          { }
+    public void EditRoute(int entityId)          { }
 
     /// <inheritdoc/>
-    public void Rename(long entityId)             { }
+    public void Rename(int entityId)             { }
 
     /// <inheritdoc/>
     public void ActivateMeasureTool()             { }
@@ -67,7 +67,7 @@ public sealed class MapContextActionController : IEntityActionController
     /// menu item that appears and silently no-ops is worse than one that is absent (<c>R-133</c>), and
     /// the absence is a composition gap on that host, not a valid state.
     /// </remarks>
-    public void LoadZone(long entityId)
+    public void LoadZone(int entityId)
     {
         if (_loadZone == null)
         {

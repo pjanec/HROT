@@ -16,7 +16,7 @@ namespace Hrot.SimHost.Tests
         public void CE3262_ANearMiss_CarriesTheRoundsOrigin_ToTheBrain_MarkedRemote()
         {
             var evt = new NearMissEvent { X = 30f, Y = 2f, Z = 1f, OriginX = 0.5f, OriginY = 0f, OriginZ = 1.4f, HasOrigin = true };
-            var sample = Hrot.Network.NED.SimHost.NearMissEgressTranslator.ToSample(77L, in evt);
+            var sample = Hrot.Network.NED.SimHost.NearMissEgressTranslator.ToSample(77, in evt);
             Assert.Equal((77L, (byte)1), (sample.UnitEntityId, sample.HasOrigin));
 
             var unit = new Entity(5, 1);
@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((30f, 2f, 1f), (back.X, back.Y, back.Z));
 
             var none = Hrot.Network.NED.SimHost.NearMissIngressTranslator.ToEvent(
-                Hrot.Network.NED.SimHost.NearMissEgressTranslator.ToSample(77L, new NearMissEvent { X = 1f }), unit);
+                Hrot.Network.NED.SimHost.NearMissEgressTranslator.ToSample(77, new NearMissEvent { X = 1f }), unit);
             Assert.False(none.HasOrigin);   // a round that never knew its muzzle says so
         }
     }

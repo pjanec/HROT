@@ -16,7 +16,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class DebugApiBatch12Tests
 {
-    private const long TestNetworkId = 90_120L;
+    private const int TestNetworkId = 90_120;
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ public sealed class DebugApiBatch12Tests
         Assert.IsType<JsonObject>(result);
         var obj = (JsonObject)result;
         Assert.Null(obj["error"]);
-        Assert.Equal(TestNetworkId, obj["networkId"]?.GetValue<long>());
+        Assert.Equal(TestNetworkId, obj["networkId"]?.GetValue<int>());
         Assert.True(obj["armed"]?.GetValue<bool>(), "armed should be true after arm");
     }
 
@@ -182,7 +182,7 @@ public sealed class DebugApiBatch12Tests
         var traceObj = Assert.IsType<JsonObject>(traceResult);
         Assert.Null(traceObj["error"]);
         Assert.NotNull(traceObj["tier"]);
-        Assert.Equal(TestNetworkId + 10, traceObj["networkId"]?.GetValue<long>());
+        Assert.Equal(TestNetworkId + 10, traceObj["networkId"]?.GetValue<int>());
     }
 
     /// <summary>

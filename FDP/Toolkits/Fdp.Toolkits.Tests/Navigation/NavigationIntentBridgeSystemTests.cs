@@ -264,12 +264,12 @@ namespace Fdp.Toolkit.Navigation.Tests
         {
             private readonly bool _loop;
             public OneRoute(bool loop) => _loop = loop;
-            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 5; return true; }
-            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
+            public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId) { trajectoryId = 5; return true; }
+            public bool TryGetRoute(EntityRepository repo, int routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
             {
                 into.Clear();
-                into.Add(new NavRouteWaypoint(new Vector3(652, 30, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0L));
-                into.Add(new NavRouteWaypoint(new Vector3(652, 380, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0L));
+                into.Add(new NavRouteWaypoint(new Vector3(652, 30, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0));
+                into.Add(new NavRouteWaypoint(new Vector3(652, 380, 0), 8f, RouteWaypointKind.Ground, 0f, RouteHold.None, 0f, 0));
                 loop = _loop; version = 1;
                 return true;
             }

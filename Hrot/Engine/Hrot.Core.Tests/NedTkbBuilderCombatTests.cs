@@ -965,8 +965,8 @@ namespace Hrot.Map.Common.Tests
         private sealed class OneRoute : Fdp.Toolkit.Navigation.IRouteSource
         {
             public readonly System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> Waypoints = new();
-            public bool TryGetTrajectory(Fdp.Core.EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
-            public bool TryGetRoute(Fdp.Core.EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> into,
+            public bool TryGetTrajectory(Fdp.Core.EntityRepository repo, int routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
+            public bool TryGetRoute(Fdp.Core.EntityRepository repo, int routeNetworkId, System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> into,
                                     out bool loop, out int version)
             {
                 into.Clear(); into.AddRange(Waypoints); loop = false; version = 1;
@@ -976,7 +976,7 @@ namespace Hrot.Map.Common.Tests
 
         private static Fdp.Toolkit.Navigation.NavRouteWaypoint Wp(float x, float y,
             Fdp.Toolkit.Navigation.RouteWaypointKind kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Pass)
-            => new(new System.Numerics.Vector3(x, y, 0f), 0f, kind, 0f, Fdp.Toolkit.Navigation.RouteHold.None, 0f, 0L);
+            => new(new System.Numerics.Vector3(x, y, 0f), 0f, kind, 0f, Fdp.Toolkit.Navigation.RouteHold.None, 0f, 0);
 
         /// <summary>
         /// ⭐⭐ <c>CE-2182</c> (AT1, R-2021, DESIGN_Air_Operations §7c) — every AIRCRAFT type, built through the production translator set,

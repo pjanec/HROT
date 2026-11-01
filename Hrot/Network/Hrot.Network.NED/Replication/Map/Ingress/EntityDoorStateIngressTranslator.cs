@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private void Apply(in EntityDoorState data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (view is not EntityRepository repo)
@@ -90,7 +90,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!string.IsNullOrEmpty(door.Key)) repo.SetManagedComponent(entity, new TerrainObjectKey { Key = door.Key });
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static bool OwnsTheDoorDescriptor(EntityRepository repo, Entity entity)
             => Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.IsRecordedOwner(

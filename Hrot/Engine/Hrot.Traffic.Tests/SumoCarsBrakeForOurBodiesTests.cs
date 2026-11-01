@@ -82,7 +82,7 @@ public sealed class SumoCarsBrakeForOurBodiesTests
 
     private static TrafficServeOptions Options()
     {
-        long n = 0;
+        int n = 0;
         return new TrafficServeOptions(() => Interlocked.Increment(ref n), Participant: null, Source: 1);
     }
 

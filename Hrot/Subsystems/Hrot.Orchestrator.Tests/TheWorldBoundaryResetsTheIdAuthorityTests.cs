@@ -30,8 +30,8 @@ public sealed class TheWorldBoundaryResetsTheIdAuthorityTests
     /// <summary>Records what the master asked of the authority, so both firing AND silence are checkable.</summary>
     private sealed class RecordingAuthority : IWorldIdAuthority
     {
-        public List<long> Resets { get; } = new();
-        public void ResetToBase(long firstId) => Resets.Add(firstId);
+        public List<int> Resets { get; } = new();
+        public void ResetToBase(int firstId) => Resets.Add(firstId);
     }
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration

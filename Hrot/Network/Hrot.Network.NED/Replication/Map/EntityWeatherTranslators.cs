@@ -22,7 +22,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private static readonly int[] s_targetIds = { GlobalComponentIds.WeatherConditions };
         private readonly DdsWriter<EntityWeather>? _writer;
-        private readonly Dictionary<long, EntityWeather> _last = new();
+        private readonly Dictionary<int, EntityWeather> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeather>();
@@ -50,7 +50,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<WeatherConditions>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<WeatherConditions>(e));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -60,7 +60,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static unsafe EntityWeather ToSample(long netId, WeatherConditions w)
+        internal static unsafe EntityWeather ToSample(int netId, WeatherConditions w)
         {
             var s = new EntityWeather
             {
@@ -112,10 +112,10 @@ namespace Hrot.Map.Common.Replication.Egress
             return w;
         }
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityWeather { EntityId = networkEntityId });
         }
@@ -134,8 +134,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtWeather;
         private readonly DdsReader<EntityWeather>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, EntityWeather> _pending = new();
-        private readonly List<long> _done = new();
+        private readonly Dictionary<int, EntityWeather> _pending = new();
+        private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeather>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -190,6 +190,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) => _pending.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _pending.Remove(networkEntityId);
     }
 }

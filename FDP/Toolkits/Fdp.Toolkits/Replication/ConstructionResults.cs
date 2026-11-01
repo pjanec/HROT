@@ -27,10 +27,10 @@ namespace Fdp.Toolkit.Replication
     /// <summary>The value returned by <see cref="ConstructionResults.Get(EntityRepository, long)"/>.</summary>
     public readonly struct ConstructionResult
     {
-        public readonly long NetworkId;
+        public readonly int NetworkId;
         public readonly ConstructionOutcome Outcome;
         public readonly ConstructionFailReason Reason;
-        public ConstructionResult(long networkId, ConstructionOutcome outcome, ConstructionFailReason reason)
+        public ConstructionResult(int networkId, ConstructionOutcome outcome, ConstructionFailReason reason)
         {
             NetworkId = networkId; Outcome = outcome; Reason = reason;
         }
@@ -69,16 +69,16 @@ namespace Fdp.Toolkit.Replication
         public const uint DefaultTtlFrames = 3600;
 
         /// <summary>Mark a reliable construction as in-progress (written by the gateway when it defers).</summary>
-        public void SetPending(long networkId, uint frame)
+        public void SetPending(int networkId, uint frame)
             => _byId[networkId] = new Entry { Outcome = ConstructionOutcome.Pending, Reason = ConstructionFailReason.None, Frame = frame };
 
         /// <summary>Record a terminal outcome (written by the gateway on wait-set completion or abort).</summary>
-        public void Resolve(long networkId, ConstructionOutcome outcome, ConstructionFailReason reason, uint frame)
+        public void Resolve(int networkId, ConstructionOutcome outcome, ConstructionFailReason reason, uint frame)
             => _byId[networkId] = new Entry { Outcome = outcome, Reason = reason, Frame = frame };
 
         /// <summary>Poll one result. A TERMINAL result is <b>evicted on read</b> so it is delivered exactly once;
         /// an unknown id (never registered, or already read) reads <see cref="ConstructionOutcome.Pending"/>.</summary>
-        public ConstructionResult Get(long networkId)
+        public ConstructionResult Get(int networkId)
         {
             if (!_byId.TryGetValue(networkId, out var e))
                 return new ConstructionResult(networkId, ConstructionOutcome.Pending, ConstructionFailReason.None);
@@ -121,7 +121,7 @@ namespace Fdp.Toolkit.Replication
         /// <summary>The requestor's poll entry point (§3b.5): <c>ConstructionResults.Get(world, networkId)</c>.
         /// Returns <see cref="ConstructionOutcome.Pending"/> until the gateway resolves it (or if the store does
         /// not exist yet).</summary>
-        public static ConstructionResult Get(EntityRepository world, long networkId)
+        public static ConstructionResult Get(EntityRepository world, int networkId)
         {
             if (!world.HasSingletonManaged<ConstructionResults>())
                 return new ConstructionResult(networkId, ConstructionOutcome.Pending, ConstructionFailReason.None);

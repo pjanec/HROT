@@ -21,9 +21,9 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityDescentEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityDescent>? _writer;
-        private readonly Dictionary<long, EntityDescent> _last = new();
-        private readonly HashSet<long> _seen = new();
-        private readonly List<long> _gone = new();
+        private readonly Dictionary<int, EntityDescent> _last = new();
+        private readonly HashSet<int> _seen = new();
+        private readonly List<int> _gone = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDescent>();
@@ -49,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<Descent>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.All).Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 _seen.Add(netId);
                 var sample = ToSample(netId, view.GetComponentRO<Descent>(e), view);
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var netId in _gone) Send(netId, new EntityDescent { EntityId = netId });
         }
 
-        private void Send(long netId, in EntityDescent sample)
+        private void Send(int netId, in EntityDescent sample)
         {
             _last[netId] = sample;
             _writer?.Write(sample);
@@ -69,7 +69,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam): the anchor as its network id.</summary>
-        internal static EntityDescent ToSample(long netId, in Descent d, ISimulationView view)
+        internal static EntityDescent ToSample(int netId, in Descent d, ISimulationView view)
             => new()
             {
                 EntityId = netId, Kind = (byte)d.Kind, Phase = (byte)d.Phase, Canopy = (byte)d.Canopy, AnchorIndex = d.AnchorIndex,
@@ -78,10 +78,10 @@ namespace Hrot.Map.Common.Replication.Egress
                 PhaseSince = d.PhaseSince, TargetX = d.Target.X, TargetY = d.Target.Y, TargetZ = d.Target.Z,
             };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityDescent { EntityId = networkEntityId });
         }
@@ -147,6 +147,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

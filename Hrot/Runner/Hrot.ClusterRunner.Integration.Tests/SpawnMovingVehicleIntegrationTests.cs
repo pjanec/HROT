@@ -63,7 +63,7 @@ public class SpawnMovingVehicleIntegrationTests
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
 
         // ── 1. Spawn entity on SimHost directly (no DDS round-trip) ──────────
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[M1] SimHost spawned entity networkId={networkId}");
 
         // ── 2. Wait for the entity to appear on IG with a SimTransform ────────
@@ -142,7 +142,7 @@ public class SpawnMovingVehicleIntegrationTests
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.407, Altitude = 0 };
 
         // ── 1. Spawn entity on SimHost directly (no DDS round-trip) ──────────
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
 
         // ── 2. Wait for entity + Active lifecycle ─────────────────────────────
         bool entityAppeared = harness.PumpUntil(
@@ -205,7 +205,7 @@ public class SpawnMovingVehicleIntegrationTests
         // ── 1. Spawn a stationary entity on SimHost ────────────────────────────
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[S1] SimHost spawned entity networkId={networkId}");
 
         // ── 2. Wait for entity to appear on IG ────────────────────────────────
@@ -248,7 +248,7 @@ public class SpawnMovingVehicleIntegrationTests
     /// Scans the IG entity map for the first entity that has a live <see cref="SimTransform"/>.
     /// Returns 0 if none found yet.
     /// </summary>
-    private static long FindFirstMovingCandidateNetworkId(HrotRunnerHarness harness)
+    private static int FindFirstMovingCandidateNetworkId(HrotRunnerHarness harness)
     {
         var igWorld   = harness.Ig.App.World;
         var igMap     = harness.Ig.App.TestHook_EntityMap;
@@ -270,7 +270,7 @@ public class SpawnMovingVehicleIntegrationTests
         return 0;
     }
 
-    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, long networkId)
+    private static bool IgHasNetworkEntity(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
@@ -278,7 +278,7 @@ public class SpawnMovingVehicleIntegrationTests
         return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, long networkId)
+    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
@@ -287,7 +287,7 @@ public class SpawnMovingVehicleIntegrationTests
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity))

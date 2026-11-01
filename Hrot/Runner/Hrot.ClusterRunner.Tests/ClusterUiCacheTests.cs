@@ -242,7 +242,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         {
             RequestId     = txId,
             StatusCode    = OrchestrationStatusCode.Success,
-            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: expectedDuration),
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0, DurationSeconds: expectedDuration),
         });
         Tick();
 
@@ -277,7 +277,7 @@ public sealed class ClusterUiCacheTests : IDisposable
         {
             RequestId     = txId,
             StatusCode    = OrchestrationStatusCode.Success,
-            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0L, DurationSeconds: 180f),
+            ResultPayload = new ReplayPrepareResult(MaxNetworkId: 0, DurationSeconds: 180f),
         });
         Tick();
 

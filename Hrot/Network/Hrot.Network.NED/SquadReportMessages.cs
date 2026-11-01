@@ -19,9 +19,9 @@ namespace Hrot.NED.Messages
     public partial struct SquadReport
     {
         /// <summary>Network id of the reporting unit.</summary>
-        public long FromUnit;
+        public int FromUnit;
         /// <summary>Network id of the unit reported to.</summary>
-        public long ToUnit;
+        public int ToUnit;
         /// <summary>The node that raised it (a node skips its own sample).</summary>
         public long OriginNodeId;
         /// <summary><c>ReportKind</c> (behaviors' <c>CommandReport.Kind</c>, the closed set); an unknown value still crosses and is logged by the receiver.</summary>
@@ -29,7 +29,7 @@ namespace Hrot.NED.Messages
         /// <summary>The kind's subtype.</summary>
         public byte Subtype;
         /// <summary>Network id of what it is about (0 = none).</summary>
-        public long Subject;
+        public int Subject;
         /// <summary>The building's index (−1 = none).</summary>
         public int Building;
         /// <summary><c>CommandReport.At</c>.</summary>

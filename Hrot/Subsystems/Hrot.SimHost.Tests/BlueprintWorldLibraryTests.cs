@@ -59,21 +59,21 @@ namespace Hrot.SimHost.Tests
             //   entity must actually CARRY that identity (every replicated entity does).
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77L });
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77 });
             var map = new NetworkEntityMap();
             repo.SetSingletonManaged<NetworkEntityMap>(map);
-            map.Register(77L, e);
+            map.Register(77, e);
 
-            Assert.Equal(e, BlueprintWorldLibrary.EntityFromNetworkId(77L, repo));
-            Assert.Equal(e, NetworkEntityMapOps.ResolveTarget(new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(77L)), repo));
-            Assert.Equal(Entity.Null, BlueprintWorldLibrary.EntityFromNetworkId(78L, repo));
+            Assert.Equal(e, BlueprintWorldLibrary.EntityFromNetworkId(77, repo));
+            Assert.Equal(e, NetworkEntityMapOps.ResolveTarget(new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(77)), repo));
+            Assert.Equal(Entity.Null, BlueprintWorldLibrary.EntityFromNetworkId(78, repo));
         }
 
         [Fact]
         public void CE469_EntityFromNetworkId_WithoutAMap_IsNull()
         {
             using var repo = World();
-            Assert.Equal(Entity.Null, BlueprintWorldLibrary.EntityFromNetworkId(1L, repo));
+            Assert.Equal(Entity.Null, BlueprintWorldLibrary.EntityFromNetworkId(1, repo));
         }
 
         /// <summary>Deterministic: same self/salt/time ⇒ same value; in range; salt separates two draws in one tick.</summary>

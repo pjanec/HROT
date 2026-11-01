@@ -51,7 +51,7 @@ public class TheEgressShadowExistsAtBirthTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = Spawn(harness);
+        int networkId = Spawn(harness);
         var shWorld = harness.SimHost.World!;
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var e));
 
@@ -138,7 +138,7 @@ public class TheEgressShadowExistsAtBirthTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = Spawn(harness);
+        int networkId = Spawn(harness);
         var shWorld = harness.SimHost.World!;
         Assert.True(harness.SimHost.TestHook_EntityMap.TryGetEntity(networkId, out var e));
 
@@ -202,7 +202,7 @@ public class TheEgressShadowExistsAtBirthTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = Spawn(harness);
+        int networkId = Spawn(harness);
         var igWorld = harness.Ig.App.World;
 
         bool arrived = harness.PumpUntil(() =>
@@ -223,9 +223,9 @@ public class TheEgressShadowExistsAtBirthTests
 
     // ── helper ───────────────────────────────────────────────────────────────
 
-    private static long Spawn(HrotRunnerHarness harness, int pumpFrames = SettleFrames)
+    private static int Spawn(HrotRunnerHarness harness, int pumpFrames = SettleFrames)
     {
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
 

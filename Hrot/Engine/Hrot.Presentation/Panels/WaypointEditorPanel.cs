@@ -13,7 +13,7 @@ namespace Hrot.UI.Common.Panels;
 public sealed record WaypointEditorPanelViewModel(
     string PanelId, string PanelKind, bool HasSelection, int SelectedVertexIndex,
     float PositionX, float PositionY, float PositionZ, float TargetSpeed, string ExtensionJson,
-    string Kind = "Pass", float HeightAgl = 0f, string Hold = "None", float HoldSeconds = 0f, long HoldUnit = 0L) : IPanelViewModel
+    string Kind = "Pass", float HeightAgl = 0f, string Hold = "None", float HoldSeconds = 0f, int HoldUnit = 0) : IPanelViewModel
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
@@ -203,7 +203,7 @@ public class WaypointEditorPanel
         {
             string unit = wp.HoldUnit.ToString(System.Globalization.CultureInfo.InvariantCulture);
             if (ImGui.InputText("Unit to pick up (network id)", ref unit, 24)
-                && long.TryParse(unit, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long id))
+                && int.TryParse(unit, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id))
                 wp.HoldUnit = id;
             changed |= ImGui.IsItemDeactivatedAfterEdit();
         }

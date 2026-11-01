@@ -92,9 +92,9 @@ namespace Hrot.Network.NED.Tests
         // ── ② the wire ──────────────────────────────────────────────────────────────────────────────
 
         private const int GiverNode = 41, NewOwnerNode = 42, ReaderNode = 99;
-        private const long Entity = 7;
+        private const int Entity = 7;
 
-        private sealed record Seen(DdsInstanceState State, bool Valid, int? Sender, long EntityId, byte Side);
+        private sealed record Seen(DdsInstanceState State, bool Valid, int? Sender, int EntityId, byte Side);
 
         private static DdsParticipant Node(int appInstanceId)
         {

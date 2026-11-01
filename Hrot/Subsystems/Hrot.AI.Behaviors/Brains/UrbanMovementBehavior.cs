@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed float Z[MaxPoints];
         /// <summary>The points held: before the plan the authored legs only; after it the start first.</summary>
         public int Count;
-        public long RouteNet;
+        public int RouteNet;
         public byte Made;
         /// <summary>The point the lead heads for (1 … <see cref="Count"/> − 1); <see cref="Count"/> = every leg done.</summary>
         public int Leg;

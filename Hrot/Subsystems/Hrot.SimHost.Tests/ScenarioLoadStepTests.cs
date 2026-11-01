@@ -279,7 +279,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
             doors.Select(r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key));
         Assert.All(doors, r => Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Door, r.TkbType));
         Assert.All(doors, r => Assert.True(r.IsTransient));                     // K5 — never written into a scenario
-        Assert.Equal(new long[] { 100, 101 }, doors.Select(r => r.PreAllocatedNetworkId));   // K1 — the one allocator
+        Assert.Equal(new int[] { 100, 101 }, doors.Select(r => r.PreAllocatedNetworkId));   // K1 — the one allocator
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Locked,
             doors[0].InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);   // the instance override
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open,

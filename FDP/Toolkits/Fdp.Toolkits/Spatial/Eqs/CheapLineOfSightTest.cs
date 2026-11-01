@@ -169,7 +169,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                 c.FlagsMeaningful |= bit;
                 if (visible) c.Flags |= bit;
-                if (visible != (Require == EqsLosRequire.Visible)) c.EntityId = -1L;
+                if (visible != (Require == EqsLosRequire.Visible)) c.EntityId = -1;
             }
         }
     }

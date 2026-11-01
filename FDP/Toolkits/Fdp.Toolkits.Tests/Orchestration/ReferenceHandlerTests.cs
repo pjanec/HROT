@@ -697,13 +697,13 @@ public sealed class ReferenceHandlerTests
         public Fdp.Core.FlightRecorder.RecordingBranch? RecordedBranch { get; private set; }
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory, Fdp.Core.FlightRecorder.RecordingBranch? branch, double checkpointingSeconds = 0)
         { RecordedBranch = branch; RecordingsStarted++; return Task.CompletedTask; }
-        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task FinalizeRecordingAsync(int maxNetworkId = 0) => Task.CompletedTask;
         public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public void ProcessPlaybackTick(GlobalTime currentTime) { }
         public Task TeardownReplayAsync() => Task.CompletedTask;
         public bool IsReplayActive => true;
         public GlobalTime GetCurrentReplayTime() => default;
         public float ActiveReplayDurationSeconds => 0f;
-        public long ActiveMaxNetworkId => 0;
+        public int ActiveMaxNetworkId => 0;
     }
 }

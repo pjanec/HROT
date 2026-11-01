@@ -38,21 +38,21 @@ namespace Hrot.Network.NED.SimHost
         {
             foreach (ref readonly var evt in view.ReadEvents<NearMissEvent>())
             {
-                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Unit, out long unitId)) continue;
+                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Unit, out int unitId)) continue;
                 _writer.Write(ToSample(unitId, in evt));
                 SentSampleCount++;
             }
         }
 
         /// <summary>⭐ <c>CE-3262</c> — the wire form, the round's origin included (the test seam).</summary>
-        internal static NearMiss ToSample(long unitId, in NearMissEvent evt) => new()
+        internal static NearMiss ToSample(int unitId, in NearMissEvent evt) => new()
         {
             UnitEntityId = unitId, X = evt.X, Y = evt.Y, Z = evt.Z,
             OriginX = evt.OriginX, OriginY = evt.OriginY, OriginZ = evt.OriginZ, HasOrigin = evt.HasOrigin ? (byte)1 : (byte)0,
         };
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ <c>CE-3064</c> — the Brain's half: a DDS <c>NearMiss</c> becomes a remote <see cref="NearMissEvent"/> on the unit,
@@ -100,6 +100,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

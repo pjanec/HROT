@@ -30,7 +30,7 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary><c>GET /utility/decisions/{key}?networkId=</c> — a decision's settings (key = its asset id, its name or its id), and with
         /// <paramref name="networkId"/> that unit's values. Null when no decision matches.</summary>
-        public JsonNode? GetUtilityDecision(string key, long? networkId)
+        public JsonNode? GetUtilityDecision(string key, int? networkId)
         {
             UtilityDecisionCatalog.EnsureRegistered();
             int id = 0;
@@ -76,7 +76,7 @@ namespace Hrot.Editor.DebugApi
         private JsonNode? UnitJson(Entity e)
         {
             var o = new JsonObject();
-            if (_entityMap.TryGetNetworkId(e, out long n)) o["networkId"] = n;
+            if (_entityMap.TryGetNetworkId(e, out int n)) o["networkId"] = n;
             if (_world.IsAlive(e) && _world.HasComponent<EntityInfo>(e)) o["name"] = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
             return o;
         }

@@ -162,7 +162,7 @@ public sealed class TheScenarioWindowsAreSharedTests
         for (int i = 0; i < 3; i++) world.CreateEntity();   // push the tank's index away from 0
         var tank = world.CreateEntity();
         world.AddComponent(tank, new EntityInfo { Name = new FixedString64("Tank") });
-        world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5100L));
+        world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.NetworkIdentity(5100));
         var bus = world.Bus;
         var adapter = new ScenarioOrbatAdapter(world, bus, Mock.Of<ISpawnController>());
         var row = Assert.Single(adapter.GetVisibleNodes("", new System.Collections.Generic.HashSet<int>()));

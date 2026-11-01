@@ -25,7 +25,7 @@ namespace Hrot.NED.Messages
     public partial struct TacticalIntentRequest
     {
         /// <summary>Network entity ID of the subordinate entity receiving the intent.</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Generic intent identifier, e.g. <c>"DefendArea"</c>.</summary>
         public string IntentId;

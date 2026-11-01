@@ -53,7 +53,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         protected override void Decode(in EntityDamage data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!EntityMap.TryGetEntity(netId, out var entity))
             {
                 var repo = view as EntityRepository;

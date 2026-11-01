@@ -53,7 +53,7 @@ namespace Hrot.NED.Messages
         public Guid RequestId;
 
         // The entity to control
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         // Optimistic locking: the version of the mission the sender believes is current.
         // The server rejects the request with ERR_VERSION_CONFLICT if its version is greater.

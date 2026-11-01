@@ -24,9 +24,9 @@ namespace Hrot.Network.NED.Tests
         public void ANewSensor_JoinsItsSiblingsSolver_EvenWhenAnotherNodeIsLessLoaded()
         {
             var cache = Cache();
-            var solverOf = new Dictionary<(long, int), int> { [(7L, 1000)] = 2, [(8L, 1000)] = 3 };
+            var solverOf = new Dictionary<(int, int), int> { [(7, 1000)] = 2, [(8, 1000)] = 3 };
 
-            Assert.Equal(2, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7L, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
+            Assert.Equal(2, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
             Assert.Equal(3, cache.GetLeastLoadedNode(NodeRole.Perception));   // what the old pick would have chosen
         }
 
@@ -34,22 +34,22 @@ namespace Hrot.Network.NED.Tests
         public void NoSibling_OrASiblingSolverWithoutTheRole_OrGone_FallsBackToTheLeastLoaded()
         {
             var cache = Cache();
-            var solverOf = new Dictionary<(long, int), int> { [(8L, 1000)] = 3, [(9L, 1000)] = 4 };
+            var solverOf = new Dictionary<(int, int), int> { [(8, 1000)] = 3, [(9, 1000)] = 4 };
 
-            Assert.Null(EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7L, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
+            Assert.Null(EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
             // node 3 has no NavigationSolver ⇒ a danger-area sensor does not join it
-            Assert.Null(EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (8L, 1001),
+            Assert.Null(EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (8, 1001),
                 NodeRole.Perception | NodeRole.NavigationSolver, cache.AllNodeIds(), cache));
             // node 4 is not in the cache (left the cluster)
-            Assert.Null(EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (9L, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
+            Assert.Null(EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (9, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
         }
 
         [Fact]
         public void TwoSiblingsOnTwoNodes_TheLowestPartWins_Deterministically()
         {
             var cache = Cache();
-            var solverOf = new Dictionary<(long, int), int> { [(7L, 1002)] = 3, [(7L, 1000)] = 2 };
-            Assert.Equal(2, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7L, 1003), NodeRole.Perception, cache.AllNodeIds(), cache));
+            var solverOf = new Dictionary<(int, int), int> { [(7, 1002)] = 3, [(7, 1000)] = 2 };
+            Assert.Equal(2, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7, 1003), NodeRole.Perception, cache.AllNodeIds(), cache));
         }
     }
 }

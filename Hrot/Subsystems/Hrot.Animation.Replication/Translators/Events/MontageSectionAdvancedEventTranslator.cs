@@ -36,7 +36,7 @@ internal sealed class MontageSectionAdvancedEventTranslator
     protected override bool TryEncode(
         in MontageSectionAdvancedEvent ecs, out DdsMontageSectionAdvancedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

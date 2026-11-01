@@ -21,7 +21,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityEngagementAreaEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityEngagementArea>? _writer;
-        private readonly Dictionary<long, EntityEngagementArea> _last = new();
+        private readonly Dictionary<int, EntityEngagementArea> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.EngagementArea };
@@ -51,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<EngagementArea>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<EngagementArea>(unit));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -61,22 +61,22 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityEngagementArea ToSample(long netId, in EngagementArea c)
+        internal static EntityEngagementArea ToSample(int netId, in EngagementArea c)
             => new()
             {
                 EntityId = netId, ArcSet = c.ArcSet, ArcOriginX = c.ArcOrigin.X, ArcOriginY = c.ArcOrigin.Y, ArcOriginZ = c.ArcOrigin.Z,
                 LeftBearing = WireUnits.DegToRad(c.LeftBearing), RightBearing = WireUnits.DegToRad(c.RightBearing),   // ⭐ AQ107 I — radians on the wire, degrees in the ECS
                 MinRange = c.MinRange, MaxRange = c.MaxRange, AllowArea = c.AllowArea,
                 WatchBearing = WireUnits.DegToRad(c.WatchBearing), WatchSet = c.WatchSet, NoFireCount = c.NoFire.Count,
-                NoFire0 = c.NoFire.Count > 0 ? c.NoFire.Items[0] : 0L, NoFire1 = c.NoFire.Count > 1 ? c.NoFire.Items[1] : 0L,
-                NoFire2 = c.NoFire.Count > 2 ? c.NoFire.Items[2] : 0L, NoFire3 = c.NoFire.Count > 3 ? c.NoFire.Items[3] : 0L,
+                NoFire0 = c.NoFire.Count > 0 ? c.NoFire.Items[0] : 0, NoFire1 = c.NoFire.Count > 1 ? c.NoFire.Items[1] : 0,
+                NoFire2 = c.NoFire.Count > 2 ? c.NoFire.Items[2] : 0, NoFire3 = c.NoFire.Count > 3 ? c.NoFire.Items[3] : 0,
                 SetBy = (byte)c.SetBy,
             };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityEngagementArea { EntityId = networkEntityId });
         }
@@ -152,6 +152,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -16,12 +16,12 @@ namespace Hrot.Editor.DebugApi
     public sealed partial class DebugApiService
     {
         /// <summary><c>GET /entities/{networkId}/weapons</c>.</summary>
-        public JsonNode GetEntityWeapons(long networkId, long? targetNetworkId)
+        public JsonNode GetEntityWeapons(int networkId, int? targetNetworkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
             Entity target = Entity.Null;
-            if (targetNetworkId is long t && (!_entityMap.TryGetEntity(t, out target) || !_world.IsAlive(target)))
+            if (targetNetworkId is int t && (!_entityMap.TryGetEntity(t, out target) || !_world.IsAlive(target)))
                 return new JsonObject { ["error"] = $"Target {t} not found." };
 
             Span<Entity> mounts = stackalloc Entity[8];
@@ -80,7 +80,7 @@ namespace Hrot.Editor.DebugApi
                 {
                     ["actionId"] = row.ActionId, ["reason"] = Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Label(row.Reason),
                     ["progress"] = Math.Round(row.Progress, 3), ["needed"] = Math.Round(row.Needed, 3),
-                    ["target"] = row.Target.IsNull ? null : (_entityMap.TryGetNetworkId(row.Target, out long tn) ? tn : (long?)null),
+                    ["target"] = row.Target.IsNull ? null : (_entityMap.TryGetNetworkId(row.Target, out int tn) ? tn : (long?)null),
                     ["at"] = Math.Round(row.At, 3),
                 };
             }
@@ -108,7 +108,7 @@ namespace Hrot.Editor.DebugApi
                         node["task"] = new JsonObject
                         {
                             ["mode"] = task.Mode.ToString(), ["mount"] = task.MountIndex, ["epoch"] = task.Epoch,
-                            ["target"] = task.Target.IsNull ? null : (_entityMap.TryGetNetworkId(task.Target, out long tn) ? tn : (long?)null),
+                            ["target"] = task.Target.IsNull ? null : (_entityMap.TryGetNetworkId(task.Target, out int tn) ? tn : (long?)null),
                             ["point"] = task.Target.IsNull ? new JsonArray(Math.Round(task.Point.X, 2), Math.Round(task.Point.Y, 2), Math.Round(task.Point.Z, 2)) : null,
                             ["roundsGranted"] = task.RoundsGranted,
                         };

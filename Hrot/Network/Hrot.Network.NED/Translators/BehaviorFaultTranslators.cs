@@ -62,7 +62,7 @@ namespace Hrot.Network.Translators
         {
             foreach (var fault in view.ReadManagedEvents<BehaviorFaultNotification>())
             {
-                if (!_entityMap.TryGetNetworkId(fault.Entity, out long netId)) continue;
+                if (!_entityMap.TryGetNetworkId(fault.Entity, out int netId)) continue;
                 _writer.Write(new BehaviorFaultReport
                 {
                     EntityId     = netId,
@@ -87,7 +87,7 @@ namespace Hrot.Network.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -157,6 +157,6 @@ namespace Hrot.Network.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

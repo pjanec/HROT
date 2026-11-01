@@ -27,7 +27,7 @@ public class VertexEditGizmoTests : IDisposable
         public int MenuBindings;   // the handle-anchored context menu
 
         public void EmitRaw(in DebugPrimitive prim) => Handles++;
-        public void DrawContextMenuBinding(long networkId, string menuJson) => MenuBindings++;
+        public void DrawContextMenuBinding(int networkId, string menuJson) => MenuBindings++;
 
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
@@ -47,15 +47,15 @@ public class VertexEditGizmoTests : IDisposable
             CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt,
             PipelineTarget tg = PipelineTarget.All) { }
-        public void DrawEntityLocal(long a, Vector3 ls, Vector3 le,
+        public void DrawEntityLocal(int a, Vector3 ls, Vector3 le,
             Rgba32 c, float t = 1f, byte l = 0) { }
-        public void DrawEntityLocalInteractive(long a, Vector3 ls, Vector3 le,
+        public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le,
             Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
     }
 
     private readonly EntityRepository _repo;
     private readonly Entity           _entity;
-    private const long NetworkId = 42L;
+    private const int NetworkId = 42;
 
     public VertexEditGizmoTests()
     {

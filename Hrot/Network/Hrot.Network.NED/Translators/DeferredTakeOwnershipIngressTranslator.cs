@@ -80,7 +80,7 @@ namespace Hrot.Network.Translators
 
         public void ApplyToEntity(Entity entity, object data, Fdp.Core.EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Private helpers ──────────────────────────────────────────────────────
 
@@ -91,7 +91,7 @@ namespace Hrot.Network.Translators
         {
             if (sample.Grants == null || sample.Grants.Count == 0) return;
 
-            long netId = sample.EntityId;
+            int netId = sample.EntityId;
             var  repo  = view as Fdp.Core.EntityRepository;
 
             // Filter: does any grant in this message target us?

@@ -1136,7 +1136,7 @@ public sealed class WhenNodeRuntimeTests
         // Set up child entity with a positional result (EntityId = 0) and initial sensor
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
         var span1   = buffer1.GetSpanRW();
-        span1[0]    = new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 2f, Score = 0.5f };
+        span1[0]    = new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 2f, Score = 0.5f };
         var sensor1 = new EqsSensor { Epoch = 1u };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, sensor1);
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
@@ -1150,7 +1150,7 @@ public sealed class WhenNodeRuntimeTests
         fixture.World.SetComponent(childEntity, sensor2);
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
         var span2   = buffer2.GetSpanRW();
-        span2[0]    = new EqsResult { EntityId = 0L, PositionX = 99f, PositionY = 99f, Score = 0.8f };
+        span2[0]    = new EqsResult { EntityId = 0, PositionX = 99f, PositionY = 99f, Score = 0.8f };
         fixture.World.SetComponent(childEntity, buffer2);
         fixture.TickFrame(0.016f);
         bool fired = ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired");
@@ -1173,7 +1173,7 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
 
@@ -1186,7 +1186,7 @@ public sealed class WhenNodeRuntimeTests
 
         // Same epoch, NEW answer with a different top.
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
-        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.6f };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.6f };
         fixture.World.SetComponent(childEntity, buffer2);
         fixture.TickFrame(0.016f);
         Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
@@ -1214,7 +1214,7 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
         var sensorChild = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         fixture.World.AddComponent(sensorChild, new Fdp.Toolkit.Perception.Components.SensorTag { Kind = Fdp.Toolkit.Perception.Components.SensorModality.Visual });
         fixture.World.AddComponent(sensorChild, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = parentEntity, InstanceId = 1000 });
@@ -1225,7 +1225,7 @@ public sealed class WhenNodeRuntimeTests
         Assert.False(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"), "the same answer must not fire");
 
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
-        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.6f };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.6f };
         fixture.World.SetComponent(sensorChild, buffer2);
         fixture.TickFrame(0.016f);
         Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
@@ -1245,7 +1245,7 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
         fixture.TickFrame(0.016f);
@@ -1258,7 +1258,7 @@ public sealed class WhenNodeRuntimeTests
 
         // The re-pointed sensor's first answer, with a different top.
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 5u, Count = 1 };
-        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.6f };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.6f };
         fixture.World.SetComponent(childEntity, buffer2);
         fixture.TickFrame(0.016f);
         Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
@@ -1278,14 +1278,14 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
         fixture.TickFrame(0.016f);
         ResetBoolField(fixture, asset, parentEntity, "WasFired");
 
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
-        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.9f };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.9f };
         fixture.World.SetComponent(childEntity, buffer2);
         fixture.TickFrame(0.016f);
         Assert.True(ReadSlotField<bool>(fixture, asset, parentEntity, "WasFired"),
@@ -1311,7 +1311,7 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.9f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.9f };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
 
@@ -1340,13 +1340,13 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
         fixture.TickFrame(0.016f);
 
         var buffer2 = new EqsCognitiveBuffer { LastUpdateTick = 2u, Count = 1 };
-        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9L, Score = 0.9f };
+        buffer2.GetSpanRW()[0] = new EqsResult { EntityId = 9, Score = 0.9f };
         fixture.World.SetComponent(childEntity, buffer2);
         fixture.TickFrame(0.016f);
         ResetBoolField(fixture, asset, parentEntity, "WasFired");
@@ -1369,7 +1369,7 @@ public sealed class WhenNodeRuntimeTests
         fixture.AttachBlueprint(asset, parentEntity);
 
         var buffer1 = new EqsCognitiveBuffer { LastUpdateTick = 1u, Count = 1 };
-        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7L, Score = 0.5f };
+        buffer1.GetSpanRW()[0] = new EqsResult { EntityId = 7, Score = 0.5f };
         var childEntity = SetupEqsChildEntity(fixture, buffer1, new EqsSensor { Epoch = 1u });
         WriteSlotField(fixture, asset, parentEntity, sensorVarName, new EqsSensorHandle(childEntity));
         fixture.TickFrame(0.016f);

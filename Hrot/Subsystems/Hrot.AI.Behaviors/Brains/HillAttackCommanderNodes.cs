@@ -452,7 +452,7 @@ namespace Hrot.AI.Behaviors.Brains
                 // Round-robin target assignment.
                 int targetIdx   = activeTankIndexInWave % targetModulus;
                 long targetPacked = targetIdx < targetCount ? targets[targetIdx] : 0L;
-                long targetNetId  = 0L;
+                int targetNetId  = 0;
                 if (targetPacked != 0L)
                 {
                     var targetEntity = new Entity((ulong)targetPacked);

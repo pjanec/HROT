@@ -69,7 +69,7 @@ public static class ViewControl
 }
 
 /// <summary>One unit in view.</summary>
-public sealed record InViewUnit(Entity Entity, long NetworkId, string? Name, float Distance, Vector2 Screen);
+public sealed record InViewUnit(Entity Entity, int NetworkId, string? Name, float Distance, Vector2 Screen);
 
 /// <summary>
 /// ⭐ <c>CE-1262</c> (AV-2) — which units a view shows: in 2-D the published view rectangle (the per-entity <see cref="CullingState"/> only

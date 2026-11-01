@@ -877,8 +877,8 @@ namespace Hrot.SimHost.Tests
 
             var target1 = repo.CreateEntity();
             var target2 = repo.CreateEntity();
-            repo.AddComponent(target1, new NetworkIdentity { Value = 101L });
-            repo.AddComponent(target2, new NetworkIdentity { Value = 202L });
+            repo.AddComponent(target1, new NetworkIdentity { Value = 101 });
+            repo.AddComponent(target2, new NetworkIdentity { Value = 202 });
 
             AddRoster(repo, commander, subs);
 
@@ -907,7 +907,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(3, events.Count);
 
                 // Parse TargetNetworkId from each event's JSON.
-                long[] netIds = new long[3];
+                int[] netIds = new int[3];
                 for (int i = 0; i < 3; i++)
                     netIds[i] = ParseTargetNetworkId(events[i].JsonParams!);
 
@@ -1507,7 +1507,7 @@ namespace Hrot.SimHost.Tests
 
             var areaEntity = repo.CreateEntity();
             var entityMap  = new NetworkEntityMap();
-            entityMap.Register(999L, areaEntity);
+            entityMap.Register(999, areaEntity);
 
             // PickableGeoPoint uses [latitude, longitude] array format.
             // In Cartesian fallback: StartX=longitude, StartY=latitude.
@@ -1652,15 +1652,15 @@ namespace Hrot.SimHost.Tests
 
         // ── Private helper: parse TargetNetworkId from dispatch event JSON ────────
 
-        private static long ParseTargetNetworkId(string json)
+        private static int ParseTargetNetworkId(string json)
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("TargetNetworkId", out var prop))
-                return prop.GetInt64();
+                return prop.GetInt32();
             // Try camelCase fallback.
             if (doc.RootElement.TryGetProperty("targetNetworkId", out prop))
-                return prop.GetInt64();
-            return 0L;
+                return prop.GetInt32();
+            return 0;
         }
     }
 }

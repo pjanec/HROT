@@ -32,12 +32,12 @@ namespace Fdp.Toolkits.Tests.Replication
 
         private sealed class Scope : IRefScope
         {
-            public readonly Dictionary<string, (long Id, Vector3 At)> Keys = new();
-            public readonly Dictionary<Guid, (long Id, Vector3 At)> Guids = new();
+            public readonly Dictionary<string, (int Id, Vector3 At)> Keys = new();
+            public readonly Dictionary<Guid, (int Id, Vector3 At)> Guids = new();
             public string Describe => "test scope";
             public bool TryResolve(in RefSpec spec, out EntityRef entity)
             {
-                (long Id, Vector3 At) hit = default;
+                (int Id, Vector3 At) hit = default;
                 bool ok = spec.Form switch
                 {
                     RefForm.Key   => Keys.TryGetValue(spec.KeyText, out hit),
@@ -68,7 +68,7 @@ namespace Fdp.Toolkits.Tests.Replication
         [Fact]
         public void Remap_RewritesIdsInsideLinksAndAreas_InJson_AndKeepsTheirForms()
         {
-            var map = new Dictionary<long, long> { [7] = 70, [8] = 80 };
+            var map = new Dictionary<int, int> { [7] = 70, [8] = 80 };
             const string json = "{\"Target\":{\"NetworkId\":7,\"Ref\":\"@BlueHQ\"},\"Zone\":8,\"Nested\":{\"Escort\":7},\"Facing\":30}";
             var outJson = EntityRefRemap.CompileJson(typeof(OrderParams))(json, map)!;
             var o = JsonNode.Parse(outJson)!;
@@ -77,7 +77,7 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.Equal(80, (long)o["Zone"]!);
             Assert.Equal(70, (long)o["Nested"]!["Escort"]!);
             Assert.Equal(30, (double)o["Facing"]!);
-            Assert.Same(json, EntityRefRemap.CompileJson(typeof(OrderParams))(json, new Dictionary<long, long> { [99] = 1 }));   // nothing to do: same string
+            Assert.Same(json, EntityRefRemap.CompileJson(typeof(OrderParams))(json, new Dictionary<int, int> { [99] = 1 }));   // nothing to do: same string
         }
 
         [Fact]

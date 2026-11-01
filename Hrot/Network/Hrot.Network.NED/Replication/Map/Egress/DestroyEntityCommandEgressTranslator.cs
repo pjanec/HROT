@@ -100,13 +100,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>This node owns the entity's master, so its ELM teardown writes the dispose itself. Unknown ⇒ false (forward).</summary>
-        private bool OwnsMaster(ISimulationView view, long networkId)
+        private bool OwnsMaster(ISimulationView view, int networkId)
             => _entityMap != null && _entityMap.TryGetEntity(networkId, out var entity) && view.IsAlive(entity)
                && view.HasAuthority(entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtEntityMaster, 0));
 
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

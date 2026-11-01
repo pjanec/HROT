@@ -34,7 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // without any executor coupling or shadow ECS component.
         // Key = full Entity handle (Index + Generation), Value = last IntentId that was
         // published to DDS for that exact entity instance.
-        private readonly System.Collections.Generic.HashSet<long> _publishedIds = new();   // ⭐ CE-4007
+        private readonly System.Collections.Generic.HashSet<int> _publishedIds = new();   // ⭐ CE-4007
         private int _worldEpoch;
         // ⭐ CE-2208 — the fingerprint is (IntentId, Flags): a FLAG change on the same command must cross too. The Brain's hold release
         //   (FlagBitReleaseHold, FollowRouteExecutor — a level, written without a new IntentId) never left the Brain node before, so on a
@@ -186,10 +186,10 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed for navigation intent.</summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_entityMap.TryGetEntity(networkEntityId, out var entity)) _lastPublishedIntentId.Remove(entity);
             _lastScanTick = 0;   // the next scan looks at every chunk again, so a reclaimed intent is republished

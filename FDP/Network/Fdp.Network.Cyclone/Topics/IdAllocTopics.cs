@@ -29,8 +29,8 @@ namespace Fdp.Network.Cyclone.Topics
         [DdsKey] public string ClientId;
         public long ReqNo;
         public EIdRequestType Type;
-        public ulong Start;
-        public ulong Count;
+        public uint Start;
+        public uint Count;
     }
 
     [DdsTopic]
@@ -45,8 +45,8 @@ namespace Fdp.Network.Cyclone.Topics
         [DdsKey] public string ClientId;
         public long ReqNo;
         public EIdResponseType Type;
-        public ulong Start;
-        public ulong Count;
+        public uint Start;
+        public uint Count;
     }
 
     [DdsTopic]
@@ -58,6 +58,6 @@ namespace Fdp.Network.Cyclone.Topics
     )]
     public partial struct IdStatus
     {
-        public ulong HighestIdAllocated;
+        public uint HighestIdAllocated;
     }
 }

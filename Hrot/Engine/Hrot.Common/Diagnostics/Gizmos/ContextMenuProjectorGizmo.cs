@@ -197,7 +197,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-            long networkId = netId.Value;
+            int networkId = netId.Value;
             if (networkId == 0) return;
 
             draw.DrawContextMenuBinding(networkId, MenuJsonFor(view, entity));

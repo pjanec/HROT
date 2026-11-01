@@ -74,7 +74,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             "the CGF node must hold the Rifleman's brain");
         var onMuscle = ByName(sim, "Rifleman");
         var simMap = harness.SimHost.App.TestHook_EntityMap;
-        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the Rifleman has a network id on SimHost");
         Assert.False(sim.IsComponentTypeRegistered<BehaviorState>() && sim.HasAuthority<BehaviorState>(onMuscle),
             "SimHost must NOT own the Rifleman's brain — otherwise this rail proves nothing about the network");
 
@@ -252,7 +252,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var onBrain = ByName(cgf, "Rifleman");
         var onMuscle = ByName(sim, "Rifleman");
         var simMap = harness.SimHost.App.TestHook_EntityMap;
-        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the Rifleman has a network id on SimHost");
         var station = new EntityOrders(sim, simMap, geo: null);
         int operatorControl = BehaviorHash.FromName("OperatorControl");
 
@@ -333,7 +333,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var onIg = ByName(ig, "Rifleman");
         var simMap = harness.SimHost.App.TestHook_EntityMap;
         var igMap = harness.Ig.App.TestHook_EntityMap;
-        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the Rifleman has a network id on SimHost");
         var first = new EntityOrders(sim, simMap, geo: null);
         var second = new EntityOrders(ig, igMap, geo: null);
         long firstStation = first.StationFor(onMuscle), secondStation = second.StationFor(onIg);
@@ -410,7 +410,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var onBrain = ByName(cgf, "Rifleman");
         var onMuscle = ByName(sim, "Rifleman");
         var simMap = harness.SimHost.App.TestHook_EntityMap;
-        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the Rifleman has a network id on SimHost");
         var station = new EntityOrders(sim, simMap, geo: null);
         int operatorControl = BehaviorHash.FromName("OperatorControl");
         Assert.True(station.Possess(id).Accepted);
@@ -432,7 +432,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             if (d < best) { best = d; door = e; }
         }
         Assert.False(door.IsNull, "bt-range must ship doors");
-        Assert.True(simMap.TryGetNetworkId(door, out long doorId), "a door is a network entity");
+        Assert.True(simMap.TryGetNetworkId(door, out int doorId), "a door is a network entity");
         var before = sim.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State;
         var expected = before == Fdp.Toolkit.Terrain.TerrainDoorState.Open ? Fdp.Toolkit.Terrain.TerrainDoorState.Closed : Fdp.Toolkit.Terrain.TerrainDoorState.Open;
         _out.WriteLine($"door {doorId} at {sim.GetComponentRO<SimTransform>(door).Position} is {before}; the Rifleman at {me}, {best:0.0} m");
@@ -509,8 +509,8 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var ifvOnSim = ByName(sim, Ifv);
         var ifvOnIg = ByName(ig, Ifv);
         var igMap = harness.Ig.App.TestHook_EntityMap;
-        Assert.True(igMap.TryGetNetworkId(manOnIg, out long manId), "the Rifleman's network id on the IG");
-        Assert.True(igMap.TryGetNetworkId(ifvOnIg, out long ifvId), "the IFV's network id on the IG");
+        Assert.True(igMap.TryGetNetworkId(manOnIg, out int manId), "the Rifleman's network id on the IG");
+        Assert.True(igMap.TryGetNetworkId(ifvOnIg, out int ifvId), "the IFV's network id on the IG");
         var station = new EntityOrders(ig, igMap, geo: null);
         int operatorControl = BehaviorHash.FromName("OperatorControl");
 
@@ -859,7 +859,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var onBrain = ByName(cgf, "FPV");
         var onMuscle = ByName(sim, "FPV");
         var simMap = harness.SimHost.App.TestHook_EntityMap;
-        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the drone has a network id on SimHost");
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out int id), "the drone has a network id on SimHost");
         Assert.True(harness.PumpUntil(() => sim.HasComponent<Fdp.Toolkit.Motion.FlightState>(onMuscle), timeoutFrames: 300),
             "SimHost provisioned the drone's flight state (Gen.Flight)");
         var station = new EntityOrders(sim, simMap, geo: null);

@@ -43,7 +43,7 @@ public class IgApplicationTests : System.IDisposable
     public void CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently()
     {
         // -- Arrange --
-        const long networkId = 9001L;
+        const int networkId = 9001;
 
         // Register a route entity with a minimal RoutePlan and SimTransform.
         var routeEntity = _app.World.CreateEntity();

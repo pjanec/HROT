@@ -11,7 +11,7 @@ namespace Hrot.Editor.AiShared.Shell;
 
 /// <summary>One row of a commander's report or order history, newest first.</summary>
 /// <param name="At">Sim seconds.</param>
-public sealed record BrainHistoryRow(float At, string Text, long CounterpartNetId);
+public sealed record BrainHistoryRow(float At, string Text, int CounterpartNetId);
 
 /// <summary>
 /// ⭐⭐ <c>CE-1312</c> (Brain View §12d BV-56…BV-58, §12f's commander) — what a COMMANDER's Brain tab shows, from recorded components

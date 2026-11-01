@@ -53,7 +53,7 @@ namespace Hrot.SimHost.Tests
 
         public void Dispose() => _world.Dispose();
 
-        private Entity Unit(long netId, int owner)
+        private Entity Unit(int netId, int owner)
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new NetworkIdentity(netId));

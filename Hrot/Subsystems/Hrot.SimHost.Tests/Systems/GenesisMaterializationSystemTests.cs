@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
 
         // â”€â”€ Helper: create an entity with NetworkIdentity and register in map â”€â”€
 
-        private Entity CreateNetworkedEntity(long netId)
+        private Entity CreateNetworkedEntity(int netId)
         {
             var e = _repo.CreateEntity();
             _repo.SetComponent(e, new NetworkIdentity { Value = netId });
@@ -70,7 +70,7 @@ namespace Hrot.SimHost.Tests
         {
             var vehicle = _repo.CreateEntity();
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(new EntityRef(99L)); // not in map yet
+            intent.PassengerNetworkIds.Add(new EntityRef(99)); // not in map yet
             _repo.RegisterManagedComponent<InitialPassengersIntent>();
             _repo.SetManagedComponent(vehicle, intent);
 
@@ -87,12 +87,12 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Passengers_MaterializedOnceEntityAppearsInMap()
         {
-            var passenger = CreateNetworkedEntity(42L);
+            var passenger = CreateNetworkedEntity(42);
 
             var vehicle = _repo.CreateEntity();
             _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier (its type declares Gen.Carrier)
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(new EntityRef(42L));
+            intent.PassengerNetworkIds.Add(new EntityRef(42));
             _repo.SetManagedComponent(vehicle, intent);
 
             var sys = CreateAndStartSystem();
@@ -110,11 +110,11 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Vehicle_MaterializesIsEmbarkedTagOnceVehicleInMap()
         {
-            var vehicle = CreateNetworkedEntity(77L);
+            var vehicle = CreateNetworkedEntity(77);
             _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier
 
             var soldier = _repo.CreateEntity();
-            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -131,14 +131,14 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3110_APassengerLoadedAboard_IsOnTheList_Tagged_AndCannotMoveOrShoot()
         {
-            var vehicle = CreateNetworkedEntity(77L);
+            var vehicle = CreateNetworkedEntity(77);
             _repo.AddComponent(vehicle, new PassengerBuffer());   // ⭐ CE-2151 — a carrier
-            var soldier = CreateNetworkedEntity(42L);
+            var soldier = CreateNetworkedEntity(42);
             _repo.AddComponent(soldier, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
             var intent = new InitialPassengersIntent();
-            intent.PassengerNetworkIds.Add(new EntityRef(42L));
+            intent.PassengerNetworkIds.Add(new EntityRef(42));
             _repo.SetManagedComponent(vehicle, intent);
-            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });   // both sides say so
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77) });   // both sides say so
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -162,9 +162,9 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2151_ANonCarrierNamedAsAVehicle_IsNotMadeACarrier()
         {
-            var tank = CreateNetworkedEntity(77L);
-            var soldier = CreateNetworkedEntity(42L);
-            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77L) });
+            var tank = CreateNetworkedEntity(77);
+            var soldier = CreateNetworkedEntity(42);
+            _repo.SetManagedComponent(soldier, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(77) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -178,15 +178,15 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Hierarchy_MaterializesVisHierarchyNodeOnceAllEntitiesInMap()
         {
-            var parent     = CreateNetworkedEntity(10L);
-            var firstChild = CreateNetworkedEntity(20L);
+            var parent     = CreateNetworkedEntity(10);
+            var firstChild = CreateNetworkedEntity(20);
 
             var entity = _repo.CreateEntity();
             _repo.SetManagedComponent(entity, new InitialHierarchyIntent
             {
-                ParentNetworkId     = new EntityRef(10L),
-                FirstChildNetworkId = new EntityRef(20L),
-                NextSiblingNetworkId = new EntityRef(0L), // null
+                ParentNetworkId     = new EntityRef(10),
+                FirstChildNetworkId = new EntityRef(20),
+                NextSiblingNetworkId = new EntityRef(0), // null
             });
 
             var sys = CreateAndStartSystem();
@@ -205,10 +205,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Route_MaterializesPersonalRouteRefOnceRouteInMap()
         {
-            var route = CreateNetworkedEntity(55L);
+            var route = CreateNetworkedEntity(55);
 
             var vehicle = _repo.CreateEntity();
-            _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = new EntityRef(55L) });
+            _repo.SetManagedComponent(vehicle, new InitialRouteIntent { RouteNetworkId = new EntityRef(55) });
 
             var sys = CreateAndStartSystem();
             sys.Execute(_repo, 0.016f);
@@ -224,13 +224,13 @@ namespace Hrot.SimHost.Tests
         public void Targets_PartialMaterialization_UnresolvedEntriesDropped_IntentAlwaysRemoved()
         {
             // Only entity 111 is registered; 222 is not
-            var target1 = CreateNetworkedEntity(111L);
+            var target1 = CreateNetworkedEntity(111);
             _repo.RegisterComponent<TargetMemory>();
 
             var entity = _repo.CreateEntity();
             var intent = new InitialTargetsIntent();
-            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(111L), PosX = 1f, PosY = 2f, Score = 0.5f });
-            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222L), PosX = 3f, PosY = 4f, Score = 0.9f });
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(111), PosX = 1f, PosY = 2f, Score = 0.5f });
+            intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(222), PosX = 3f, PosY = 4f, Score = 0.9f });
             _repo.SetManagedComponent(entity, intent);
 
             var sys = CreateAndStartSystem();
@@ -253,7 +253,7 @@ namespace Hrot.SimHost.Tests
             var commander  = _repo.CreateEntity();
             var subordinate = _repo.CreateEntity();
 
-            const long commanderNetId = 100L;
+            const int commanderNetId = 100;
             _entityMap.Register(commanderNetId, commander);
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
@@ -289,7 +289,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = new EntityRef(999L),
+                CommanderNetworkId = new EntityRef(999),
                 Designation        = TacticalDesignation.Wingman,
             });
 
@@ -309,7 +309,7 @@ namespace Hrot.SimHost.Tests
 
             _repo.SetManagedComponent(subordinate, new InitialUnitSubordinateIntent
             {
-                CommanderNetworkId = new EntityRef(0L),
+                CommanderNetworkId = new EntityRef(0),
                 Designation        = TacticalDesignation.SquadLeader,
             });
 
@@ -330,7 +330,7 @@ namespace Hrot.SimHost.Tests
             roster.Count  = UnitRoster.Capacity;
             _repo.SetComponent(commander, roster);
 
-            const long commanderNetId = 200L;
+            const int commanderNetId = 200;
             _entityMap.Register(commanderNetId, commander);
 
             var subordinate = _repo.CreateEntity();

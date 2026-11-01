@@ -92,7 +92,7 @@ public sealed class MapViewModeLayer : IMapLayer
         if (_switch.Camera3D.Driver is FpsCameraDriver)
             return "The station possesses a unit: its view is his eyes. Release it first.";
         _switch.Set(true);
-        long id = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, target);
+        int id = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.NetIdOf(w, target);
         var store = id != 0 ? Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(w) : null;
         _switch.Camera3D.Driver = new FollowCameraDriver(world, target, Bodies,
             Math.Clamp(distance ?? FollowCameraDriver.StartDistance, 0f, FollowCameraDriver.MaxDistance))

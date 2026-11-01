@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         /// ⭐ §6.7 — <c>BoxAnchorId</c> is the ONLY identity stamped; offsets 8/12 are left alone.
         /// </summary>
         private static DebugPrimitive EntityBox(
-            long networkId, float x, float y, float size = 4f)
+            int networkId, float x, float y, float size = 4f)
         {
             var p = default(DebugPrimitive);
             p.Shape         = DebugPrimitiveShape.Box2D;
@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         /// defect: <see cref="EntityBox"/> builds world-metre boxes AND every rail runs at <see cref="Zoom"/> = 1,
         /// the one zoom at which the drawn and picked extents agree anyway.
         /// </summary>
-        private static DebugPrimitive ScreenPixelEntityBox(long networkId, float x, float y, float halfExtentPx = 8f)
+        private static DebugPrimitive ScreenPixelEntityBox(int networkId, float x, float y, float halfExtentPx = 8f)
         {
             var p = EntityBox(networkId, x, y, halfExtentPx);
             p.SizeMode = SizeMode.ScreenPixels;
@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         [Fact]
         public void CE3147_AScreenPixelBoxesPickArea_ShrinksWithZoom_LikeItsDrawnArea()
         {
-            var prims = new[] { ScreenPixelEntityBox(networkId: 4242L, x: 100f, y: 50f, halfExtentPx: 8f) };
+            var prims = new[] { ScreenPixelEntityBox(networkId: 4242, x: 100f, y: 50f, halfExtentPx: 8f) };
 
             // At zoom 10 the symbol covers 0.8 m; with the 0.5 m slack, 5 m away is far outside it.
             Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
@@ -93,8 +93,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         public void CE3147_AmongEqualLayers_TheNearestEntityWins_NotTheFirstEmitted()
         {
             // Both world-metre boxes overlap the probe; 'far' is emitted FIRST and used to win for that reason.
-            var far  = EntityBox(networkId: 1L, x: 100f, y: 50f, size: 6f);
-            var near = EntityBox(networkId: 2L, x: 104f, y: 50f, size: 6f);
+            var far  = EntityBox(networkId: 1, x: 100f, y: 50f, size: 6f);
+            var near = EntityBox(networkId: 2, x: 104f, y: 50f, size: 6f);
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 new[] { far, near }, new Vector2(103.5f, 50f), Zoom);
@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         [Fact]
         public void AClickOverAnEntitysPrimitiveResolvesThatEntity()
         {
-            var prims = new[] { EntityBox(networkId: 7003L, x: 100f, y: 50f) };
+            var prims = new[] { EntityBox(networkId: 7003, x: 100f, y: 50f) };
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 prims, new Vector2(100f, 50f), Zoom);
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         [Fact]
         public void AClickOnEmptyMapResolvesNothing()
         {
-            var prims = new[] { EntityBox(networkId: 7003L, x: 100f, y: 50f) };
+            var prims = new[] { EntityBox(networkId: 7003, x: 100f, y: 50f) };
 
             Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 prims, new Vector2(9000f, 9000f), Zoom));
@@ -146,7 +146,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         [Fact]
         public void APrimitiveWithNoAnchorIdIsNotReported()
         {
-            var subElementOnly = EntityBox(networkId: 0L, x: 100f, y: 50f);
+            var subElementOnly = EntityBox(networkId: 0, x: 100f, y: 50f);
             subElementOnly.SubElementId = 4;   // interactive, but nothing identifies its owner
 
             Assert.Null(GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
@@ -159,8 +159,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         {
             var prims = new[]
             {
-                EntityBox(networkId: 1001L, x: 100f, y: 50f),
-                EntityBox(networkId: 1002L, x: 100f, y: 50f),   // drawn later ⇒ on top
+                EntityBox(networkId: 1001, x: 100f, y: 50f),
+                EntityBox(networkId: 1002, x: 100f, y: 50f),   // drawn later ⇒ on top
             };
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
@@ -181,7 +181,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var binding = DebugPrimitive.MakeInputCaptureBinding(
                 networkId: 4242, subElementId: 0, exclusive: true, wantsRawInput: true);
 
-            var prims = new[] { binding, EntityBox(networkId: 7003L, x: 100f, y: 50f) };
+            var prims = new[] { binding, EntityBox(networkId: 7003, x: 100f, y: 50f) };
 
             var hit = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
                 prims, new Vector2(100f, 50f), Zoom);
@@ -196,7 +196,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         //   stop-gap while two id domains still existed; S5 collapses identity to the NETWORK ID, so the
         //   generation is no longer part of the comparison and the rails say so in those terms.
 
-        private const long EntityNetId = 4242L;
+        private const int EntityNetId = 4242;
 
         /// <summary>
         /// 🔴🔴🔴 <b>The defect, in S5 terms: a TOOL capture must not admit an ENTITY.</b>

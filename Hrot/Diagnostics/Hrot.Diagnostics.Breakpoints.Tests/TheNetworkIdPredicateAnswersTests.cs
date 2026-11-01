@@ -26,7 +26,7 @@ namespace Hrot.Diagnostics.Breakpoints.Tests;
 [Collection("ComponentRegistry")]
 public sealed class TheNetworkIdPredicateAnswersTests
 {
-    private const long WantedId = 4242;
+    private const int WantedId = 4242;
 
     private static (DataBreakpointManager manager, DataBreakpointSystem system, EntityRepository repo) Setup()
     {

@@ -32,9 +32,9 @@ public sealed class EntityRenameModal
 {
     private const string PopupId = "Rename Entity";
 
-    private readonly Action<long, IReadOnlyList<object>> _commitPropertyEdit;
+    private readonly Action<int, IReadOnlyList<object>> _commitPropertyEdit;
 
-    private long   _targetNetworkId;
+    private int   _targetNetworkId;
     private string _buffer = string.Empty;
     private bool   _openThisFrame;
 
@@ -44,14 +44,14 @@ public sealed class EntityRenameModal
     /// injects a recorder. ⛔ Never <see langword="null"/> — a modal that cannot commit is a control that
     /// looks like it works.
     /// </param>
-    public EntityRenameModal(Action<long, IReadOnlyList<object>> commitPropertyEdit)
+    public EntityRenameModal(Action<int, IReadOnlyList<object>> commitPropertyEdit)
         => _commitPropertyEdit = commitPropertyEdit ?? throw new ArgumentNullException(nameof(commitPropertyEdit));
 
     /// <summary>True while the modal is waiting to be opened or is open.</summary>
     public bool IsPending => _openThisFrame;
 
     /// <summary>The network id the pending rename targets; <c>0</c> when nothing is pending.</summary>
-    public long TargetNetworkId => _targetNetworkId;
+    public int TargetNetworkId => _targetNetworkId;
 
     /// <summary>The current edit buffer — exposed so a headless rail can assert the pre-fill.</summary>
     public string Buffer => _buffer;

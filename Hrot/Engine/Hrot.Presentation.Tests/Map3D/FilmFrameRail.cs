@@ -393,7 +393,7 @@ public sealed class FilmFrameRail
 
     private static Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo LayerControl() =>
         new(NetIdOf(1), new FdpEventBus(), new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
-    private static long NetIdOf(long n) => n;
+    private static int NetIdOf(int n) => n;
 
     private static int Differing(Image a, Image b)
     {

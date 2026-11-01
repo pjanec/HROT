@@ -414,7 +414,7 @@ public sealed class MissionPanel
     /// <summary>
     /// Builds the canonical <c>FireAtTarget</c> behavior-params JSON.
     /// </summary>
-    internal static string BuildFireAtTargetParams(long targetNetworkId, int maxRounds = 0, float cooldownSeconds = 1.0f)
+    internal static string BuildFireAtTargetParams(int targetNetworkId, int maxRounds = 0, float cooldownSeconds = 1.0f)
         => string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{{\"targetNetworkId\":{targetNetworkId},\"maxRounds\":{maxRounds},\"cooldownSeconds\":{cooldownSeconds:F2}}}");
 
@@ -423,7 +423,7 @@ public sealed class MissionPanel
     /// <c>FireAtTarget</c> params JSON string.
     /// </summary>
     internal static bool TryParseFireAtTargetParams(
-        string json, out long targetNetworkId, out int maxRounds, out float cooldownSeconds)
+        string json, out int targetNetworkId, out int maxRounds, out float cooldownSeconds)
     {
         targetNetworkId = 0; maxRounds = 0; cooldownSeconds = 1.0f;
         if (string.IsNullOrWhiteSpace(json)) return false;
@@ -432,7 +432,7 @@ public sealed class MissionPanel
             using var doc  = JsonDocument.Parse(json);
             var       root = doc.RootElement;
             if (root.TryGetProperty("targetNetworkId", out var idEl))
-                targetNetworkId = idEl.GetInt64();
+                targetNetworkId = idEl.GetInt32();
             if (root.TryGetProperty("maxRounds", out var mrEl))
                 maxRounds = mrEl.GetInt32();
             if (root.TryGetProperty("cooldownSeconds", out var csEl))

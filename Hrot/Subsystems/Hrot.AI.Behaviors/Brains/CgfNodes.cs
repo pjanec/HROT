@@ -90,7 +90,7 @@ namespace Hrot.AI.Behaviors.Brains
             public float Speed;
             public bool  Loop;
             /// <summary>⭐ CE-2145 — the route entity's network id, as the authored contract named it.</summary>
-            public long  RouteNetworkId;
+            public int  RouteNetworkId;
         }
 
         /// <summary>
@@ -221,7 +221,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref FollowRouteParams block, EntityRepository world, Entity self)
         {
             // ⚠ an empty params string reaches a typed resolver as default — null for this class DTO (BehaviorParams.FromBlockResolver).
-            long route = authored is null || authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.Ref.NetworkId;
+            int route = authored is null || authored.RouteEntityId.IsNone ? 0 : authored.RouteEntityId.Ref.NetworkId;
             block = new FollowRouteParams
             {
                 RouteNetworkId = route,
@@ -237,7 +237,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<see cref="Fdp.Toolkit.Replication.Services.NetworkIdResolver"/>, BP-508), then its <c>RouteTrajectoryCache</c>.
         /// False while the route is unknown or not compiled (<c>TrajectoryId == 0</c>).
         /// </summary>
-        public static bool TryFindRouteTrajectory(EntityRepository? world, long routeNetworkId, out int trajectoryId)
+        public static bool TryFindRouteTrajectory(EntityRepository? world, int routeNetworkId, out int trajectoryId)
         {
             trajectoryId = 0;
             if (world is null || routeNetworkId <= 0 || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.RouteTrajectoryCache>())

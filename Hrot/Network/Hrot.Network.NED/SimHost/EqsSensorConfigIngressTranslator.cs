@@ -31,18 +31,18 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached entity lookup: (ParentNetworkId, LocalChildIndex) -> child ghost entity.
         // Avoids ECS query scans inside the polling loop (O(1) steady-state lookup).
-        private readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
+        private readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
 
         // ⭐ Samples whose parent or context-slot entities are not on this node YET. DDS Take() consumes
         // a sample, and the Brain re-sends only on change — so a sample applied too early (or dropped
         // because its parent was missing) would leave the sensor without its area FOREVER. Each poll
         // retries these; a sample leaves the set once its parent and every named slot resolve.
-        private readonly Dictionary<(long ParentNetId, int ChildIndex), Pending> _pending = new();
-        private readonly List<(long ParentNetId, int ChildIndex)> _resolvedKeys = new();
+        private readonly Dictionary<(int ParentNetId, int ChildIndex), Pending> _pending = new();
+        private readonly List<(int ParentNetId, int ChildIndex)> _resolvedKeys = new();
         // Carriers created through the command buffer and not yet visible in the world.
-        private readonly HashSet<(long ParentNetId, int ChildIndex)> _awaitingPlayback = new();
+        private readonly HashSet<(int ParentNetId, int ChildIndex)> _awaitingPlayback = new();
         // ⭐ CE-492 — per instance, the newest source time taken; an older sample is stale (two writers after an authority move).
-        private readonly SourceTimeOrder<(long ParentNetId, int ChildIndex)> _order = new();
+        private readonly SourceTimeOrder<(int ParentNetId, int ChildIndex)> _order = new();
 
         private struct Pending
         {
@@ -63,7 +63,7 @@ namespace Hrot.Network.NED.SimHost
         // ⭐ CE-3002 / R-179 — the config names its solver; only that node builds a carrier. 📄
         //   DESIGN_Ownership_Groups_And_Grants.md §5.8.
         private readonly int _localNodeId;
-        private readonly Dictionary<(long ParentNetId, int ChildIndex), int> _recordedSolver = new();
+        private readonly Dictionary<(int ParentNetId, int ChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
         private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 
@@ -126,7 +126,7 @@ namespace Hrot.Network.NED.SimHost
         internal void Receive(IEntityCommandBuffer cmd, in EqsSensorConfigTopic data, bool valid, bool disposed, long sourceTimestamp)
         {
             if (!valid && !disposed) return;                     // unregistered / no writers: nothing to apply
-            long parentNetId    = data.ParentNetworkId;
+            int parentNetId    = data.ParentNetworkId;
             int  localChildIndex = data.LocalChildIndex;
             var  cacheKey       = (parentNetId, localChildIndex);
             if (!_order.Accept(cacheKey, sourceTimestamp)) { StaleSampleCount++; return; }
@@ -202,7 +202,7 @@ namespace Hrot.Network.NED.SimHost
             if (_pending.Count == 0) return;
 
             _resolvedKeys.Clear();
-            foreach (var key in new List<(long ParentNetId, int ChildIndex)>(_pending.Keys))
+            foreach (var key in new List<(int ParentNetId, int ChildIndex)>(_pending.Keys))
             {
                 var pending = _pending[key];
                 if (!_entityMap.TryGetEntity(key.ParentNetId, out var parentGhost)) continue;
@@ -228,7 +228,7 @@ namespace Hrot.Network.NED.SimHost
         }
 
         // Returns false when the sample must wait (its carrier is created but not yet played back).
-        private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
+        private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (int ParentNetId, int ChildIndex) key,
                            Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data, bool newLifetime = false)
         {
             int solverNodeId = data.SolverNodeId;
@@ -359,9 +359,9 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Configs refused for malformed JSON / an unknown kind (R-186 M′) — never half-configured.</summary>
         public long RefusedConfigCount { get; private set; }
-        private readonly HashSet<(long ParentNetId, int ChildIndex)> _refusalLogged = new();
+        private readonly HashSet<(int ParentNetId, int ChildIndex)> _refusalLogged = new();
 
-        private bool TryDecode((long ParentNetId, int ChildIndex) key, in EqsSensorConfigTopic data, out SensorEntryDto? config)
+        private bool TryDecode((int ParentNetId, int ChildIndex) key, in EqsSensorConfigTopic data, out SensorEntryDto? config)
         {
             if (SensorConfigCodec.TryDecode(data.ConfigKind ?? string.Empty, data.ConfigJson ?? string.Empty, out config, out var error))
                 return true;
@@ -372,7 +372,7 @@ namespace Hrot.Network.NED.SimHost
         }
 
         // ⭐ CE-3036 / R-187 N′ — apply (or end) the override of a TKB sensor whose carrier this node built from the TKB.
-        private bool ApplyTkbOverride(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
+        private bool ApplyTkbOverride(IEntityCommandBuffer cmd, ISimulationView view, (int ParentNetId, int ChildIndex) key,
                                       Entity parentGhost, EqsSensor sensor, in EqsSensorConfigTopic data)
         {
             if (!TryFindCarrier(view, parentGhost, key.ChildIndex, out var tkbChild)) return false;   // the spawn has not built it yet
@@ -404,7 +404,7 @@ namespace Hrot.Network.NED.SimHost
             return true;
         }
 
-        private void RecordSolver(EntityRepository repo, Entity parentGhost, (long ParentNetId, int ChildIndex) key, int solver)
+        private void RecordSolver(EntityRepository repo, Entity parentGhost, (int ParentNetId, int ChildIndex) key, int solver)
         {
             if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
             _applier ??= new OwnershipApplier(_localNodeId,
@@ -433,8 +433,8 @@ namespace Hrot.Network.NED.SimHost
             return false;
         }
 
-        private long ParentKey(Entity parentGhost)
-            => _entityMap.TryGetNetworkId(parentGhost, out long net) ? net : 0L;
+        private int ParentKey(Entity parentGhost)
+            => _entityMap.TryGetNetworkId(parentGhost, out int net) ? net : 0;
 
         private static bool IsCarrierOf(ISimulationView view, Entity e, Entity parentGhost, int childIndex)
         {
@@ -463,11 +463,11 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // Resolves a wire network ID to the local Muscle-side Entity. Returns Entity.Null if
         // networkId == 0 or the entity is not yet in the ghost map.
-        internal Entity ResolveSlot(long networkId)
+        internal Entity ResolveSlot(int networkId)
         {
             if (networkId == 0L) return Entity.Null;
             return _entityMap.TryGetEntity(networkId, out Entity e) ? e : Entity.Null;

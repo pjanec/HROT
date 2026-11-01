@@ -75,7 +75,7 @@ namespace Hrot.Network.NED.SimHost
                 // TacticalIntentResolutionSystem in the same frame.
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
                 {
                     FdpLog<TacticalIntentEgressTranslator>.Warn(
                         "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping intent.",
@@ -110,7 +110,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var evt in repo.ReadEvents<SetRoeEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // RoeSystem applies it here
-                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
                 {
                     FdpLog<TacticalIntentEgressTranslator>.Warn(
                         "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its ROE.", evt.Entity.Index);
@@ -137,7 +137,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var evt in repo.ReadEvents<SetReportingEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // ReportingRequirementsSystem applies it here
-                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
                 {
                     FdpLog<TacticalIntentEgressTranslator>.Warn(
                         "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its reporting requirements.", evt.Entity.Index);
@@ -165,7 +165,7 @@ namespace Hrot.Network.NED.SimHost
             foreach (var evt in repo.ReadEvents<SetEngagementAreaEvent>())
             {
                 if (brainHere && repo.HasAuthority<BehaviorState>(evt.Entity)) continue;   // EngagementAreaSystem applies it here
-                if (!_entityMap.TryGetNetworkId(evt.Entity, out long networkId))
+                if (!_entityMap.TryGetNetworkId(evt.Entity, out int networkId))
                 {
                     FdpLog<TacticalIntentEgressTranslator>.Warn(
                         "[TacticalIntentEgress] Entity #{0} not in NetworkEntityMap — skipping its sector.", evt.Entity.Index);
@@ -187,6 +187,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

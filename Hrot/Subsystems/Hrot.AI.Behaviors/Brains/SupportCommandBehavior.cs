@@ -210,7 +210,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>A roster member whose picture id is <paramref name="netId"/> (a world with no network: its handle).</summary>
-        private static Entity SubordinateByNetId(EntityRepository world, Entity self, long netId)
+        private static Entity SubordinateByNetId(EntityRepository world, Entity self, int netId)
         {
             if (!world.HasComponent<UnitRoster>(self)) return Entity.Null;
             ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);

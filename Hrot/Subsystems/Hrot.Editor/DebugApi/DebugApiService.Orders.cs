@@ -34,10 +34,10 @@ namespace Hrot.Editor.DebugApi
         /// (kind, <c>[Required]</c>, entity-pick presets) and its params schema (with <c>required</c>). <paramref name="networkId"/>
         /// narrows it to the orders that unit's class fulfils (the receiver's own answer, §8).
         /// </summary>
-        public (JsonNode? result, int status, string? error, string? hint) GetOrders(long? networkId)
+        public (JsonNode? result, int status, string? error, string? hint) GetOrders(int? networkId)
         {
             IReadOnlyList<OrderInfo> orders = OrderMenu.Orders;
-            if (networkId is long id)
+            if (networkId is int id)
             {
                 if (!_entityMap.TryGetEntity(id, out var unit) || !_world.IsAlive(unit))
                     return (null, 404, $"Entity {id} not found. List entities with GET /entities.", DebugApiHints.Entity);
@@ -63,19 +63,19 @@ namespace Hrot.Editor.DebugApi
                 });
             }
             var result = new JsonObject { ["orders"] = list };
-            if (networkId is long n) result["networkId"] = n;
+            if (networkId is int n) result["networkId"] = n;
             return (result, 200, null, null);
         }
 
         /// <summary><c>POST /entities/{networkId}/order</c> — one order; <c>kind</c> = move · hold (stop) · behavior · release.</summary>
-        public (JsonNode? result, int status, string? error, string? hint) PostOrder(long networkId, JsonNode? body)
+        public (JsonNode? result, int status, string? error, string? hint) PostOrder(int networkId, JsonNode? body)
         {
             var r = IssueOrder(networkId, body);
             return Answer(networkId, r);
         }
 
         /// <summary><c>DELETE /entities/{networkId}/order</c> — release the unit: the operator's order ends, its SOP picks again.</summary>
-        public (JsonNode? result, int status, string? error, string? hint) DeleteOrder(long networkId)
+        public (JsonNode? result, int status, string? error, string? hint) DeleteOrder(int networkId)
             => Answer(networkId, Orders().Release(networkId));
 
         /// <summary><c>POST /orders</c> — several orders in one call: <c>{ orders: [ { networkId, kind, … } ] }</c>. Each is
@@ -87,7 +87,7 @@ namespace Hrot.Editor.DebugApi
             var results = new JsonArray();
             foreach (var item in list)
             {
-                if (item is null || !long.TryParse(item["networkId"]?.ToString(), out long id))
+                if (item is null || !int.TryParse(item["networkId"]?.ToString(), out int id))
                 {
                     results.Add(new JsonObject { ["accepted"] = false, ["refusal"] = OrderRefusal.BadRequest.ToString(), ["detail"] = "networkId missing." });
                     continue;
@@ -98,7 +98,7 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["results"] = results }, null);
         }
 
-        private OrderResult IssueOrder(long networkId, JsonNode? body)
+        private OrderResult IssueOrder(int networkId, JsonNode? body)
         {
             var orders = Orders();
             string kind = (body?["kind"]?.GetValue<string>() ?? "").Trim().ToLowerInvariant();
@@ -131,7 +131,7 @@ namespace Hrot.Editor.DebugApi
                 case "attack":
                 {
                     var t = body?["targetId"];
-                    if (t is null || !t.AsValue().TryGetValue<long>(out long targetId))
+                    if (t is null || !t.AsValue().TryGetValue<int>(out int targetId))
                         return new OrderResult(OrderRefusal.BadRequest, "An attack needs targetId (the enemy's network id).", "", "");
                     return orders.Attack(networkId, targetId);
                 }
@@ -153,11 +153,11 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary><c>POST /entities/{networkId}/possess</c> — this node, as a station, possesses the unit (FPS): its task pauses
         /// and <c>POST …/control</c> frames drive it until <c>DELETE …/possess</c>.</summary>
-        public (JsonNode? result, int status, string? error, string? hint) PostPossess(long networkId)
+        public (JsonNode? result, int status, string? error, string? hint) PostPossess(int networkId)
             => Answer(networkId, Orders().Possess(networkId));
 
         /// <summary><c>DELETE /entities/{networkId}/possess</c> — let the unit go; the task it was doing resumes.</summary>
-        public (JsonNode? result, int status, string? error, string? hint) DeletePossess(long networkId)
+        public (JsonNode? result, int status, string? error, string? hint) DeletePossess(int networkId)
             => Answer(networkId, Orders().Unpossess(networkId));
 
         /// <summary><c>POST /entities/{networkId}/control</c> — one control frame for the possessed unit:
@@ -165,7 +165,7 @@ namespace Hrot.Editor.DebugApi
         /// but <c>seq</c>; newest seq wins; ⭐ CE-1074 <c>stance</c> = "standing" | "crouched" | "prone", absent = keep; ⭐ CE-1078 / CE-1079
         /// <c>shot</c> / <c>cancel</c> / <c>ammo</c> = the station's press COUNTERS (a new value is a press; DESIGN_Entity_Control §8e),
         /// <c>shotTarget</c> = the network id of the unit the last shot press locked on).</summary>
-        public (JsonNode? result, int status, string? error, string? hint) PostControl(long networkId, JsonNode? body)
+        public (JsonNode? result, int status, string? error, string? hint) PostControl(int networkId, JsonNode? body)
         {
             if (body?["seq"] is not JsonNode seqNode || !uint.TryParse(seqNode.ToString(), out uint seq))
                 return Answer(networkId, new OrderResult(OrderRefusal.BadRequest, "A control frame needs seq (rising per frame).", "", ""));
@@ -187,11 +187,11 @@ namespace Hrot.Editor.DebugApi
                 ShotSeq = (byte)(Float(body, "shot") ?? 0f),
                 CancelSeq = (byte)(Float(body, "cancel") ?? 0f),
                 AmmoSeq = (byte)(Float(body, "ammo") ?? 0f),
-                ShotTarget = long.TryParse(body?["shotTarget"]?.ToString(), out long shotTarget) ? shotTarget : 0L,
+                ShotTarget = int.TryParse(body?["shotTarget"]?.ToString(), out int shotTarget) ? shotTarget : 0,
                 // ⭐ CE-1151 (§8h U-2) — the use press counter, its verb (0 = the primary) and its target's network id
                 UseSeq = (byte)(Float(body, "use") ?? 0f),
                 UseVerb = (byte)(Float(body, "useVerb") ?? 0f),
-                UseTarget = long.TryParse(body?["useTarget"]?.ToString(), out long useTarget) ? useTarget : 0L,
+                UseTarget = int.TryParse(body?["useTarget"]?.ToString(), out int useTarget) ? useTarget : 0,
                 // ⭐ CE-1212 (§8j L-1) — the lean held: "left" / "right" (else none)
                 Lean = body?["lean"]?.ToString().ToLowerInvariant() switch { "left" => 1, "right" => 2, _ => 0 },
                 Binoculars = (byte)((body?["binoculars"]?.ToString() is "true" or "1") ? 1 : 0),   // ⭐ CE-1219
@@ -204,7 +204,7 @@ namespace Hrot.Editor.DebugApi
         private static float Float(JsonArray a, int i)
             => float.TryParse(a[i]?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var f) ? f : 0f;
 
-        private static (JsonNode? result, int status, string? error, string? hint) Answer(long networkId, OrderResult r)
+        private static (JsonNode? result, int status, string? error, string? hint) Answer(int networkId, OrderResult r)
         {
             if (r.Accepted)
             {
@@ -234,7 +234,7 @@ namespace Hrot.Editor.DebugApi
         /// interrupted it) · <c>succeeded</c> / <c>failed</c> / <c>faulted</c> (its last one ended so) · <c>none</c>; with what
         /// runs now. Complete only on the unit's BRAIN node (its owner); elsewhere it says so.
         /// </summary>
-        public JsonNode GetOrder(long networkId)
+        public JsonNode GetOrder(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var unit) || !_world.IsAlive(unit))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -377,7 +377,7 @@ namespace Hrot.Editor.DebugApi
                             continue;
                         }
                         var target = new Entity((ulong)ids[i]);
-                        if (target.IsNull || !_entityMap.TryGetNetworkId(target, out long tid)) continue;
+                        if (target.IsNull || !_entityMap.TryGetNetworkId(target, out int tid)) continue;
                         if (known.TryGetValue(tid, out var prev) && prev["freshness"]!.GetValue<double>() >= Round(fresh[i])) continue;
                         known[tid] = new JsonObject
                         {
@@ -407,7 +407,7 @@ namespace Hrot.Editor.DebugApi
             }, null);
         }
 
-        private JsonObject UnitRow(long netId, Entity e, ForceId force, bool withOrder)
+        private JsonObject UnitRow(int netId, Entity e, ForceId force, bool withOrder)
         {
             var row = new JsonObject { ["networkId"] = netId, ["side"] = force.ToString() };
             var name = _world.GetComponentRO<EntityInfo>(e).Name.ToString();
@@ -436,12 +436,12 @@ namespace Hrot.Editor.DebugApi
             return row;
         }
 
-        private IEnumerable<(long NetId, Entity Entity)> LiveNetworkEntities()
+        private IEnumerable<(int NetId, Entity Entity)> LiveNetworkEntities()
         {
-            var list = new List<(long, Entity)>();
+            var list = new List<(int, Entity)>();
             var q = _world.Query().With<EntityInfo>().Build();
             foreach (var e in q)
-                if (_entityMap.TryGetNetworkId(e, out long id)) list.Add((id, e));
+                if (_entityMap.TryGetNetworkId(e, out int id)) list.Add((id, e));
             return list;
         }
 

@@ -43,7 +43,7 @@ public sealed class DesignationOverlayGizmo : IEntityStatefulGizmo
         var geo = world.HasSingletonManaged<IGeographicTransform>() ? world.GetSingletonManaged<IGeographicTransform>() : null;
         foreach (var unit in _selected())
         {
-            if (unit.IsNull || !world.IsAlive(unit) || !world.HasComponent<SimTransform>(unit) || !map.TryGetNetworkId(unit, out long id))
+            if (unit.IsNull || !world.IsAlive(unit) || !world.HasComponent<SimTransform>(unit) || !map.TryGetNetworkId(unit, out int id))
                 continue;
             var from = world.GetComponentRO<SimTransform>(unit).Position;
             foreach (var (kind, value) in store.Of(id))
@@ -61,7 +61,7 @@ public sealed class DesignationOverlayGizmo : IEntityStatefulGizmo
             draw.DrawSphere(at, 3f, PointColor, thickness: 2f, sizeMode: SizeMode.WorldMeters);
             return;
         }
-        if (!(value is JsonValue v && v.TryGetValue<long>(out long target)) || !map.TryGetEntity(target, out var e)
+        if (!(value is JsonValue v && v.TryGetValue<int>(out int target)) || !map.TryGetEntity(target, out var e)
             || !world.IsAlive(e) || !world.HasComponent<SimTransform>(e))
             return;
         var to = world.GetComponentRO<SimTransform>(e).Position;

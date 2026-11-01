@@ -21,9 +21,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class DebugApiOrdersTests
 {
-    private const long UnitId = 1000;
+    private const int UnitId = 1000;
 
-    private static Entity Unit(EditorHarness h, long id, ForceId side, Vector3 at)
+    private static Entity Unit(EditorHarness h, int id, ForceId side, Vector3 at)
     {
         var e = h.Repo.CreateEntity();
         h.Repo.AddComponent(e, new BehaviorState());
@@ -220,7 +220,7 @@ public sealed class DebugApiOrdersTests
         var enemy = Unit(h, 2000, ForceId.Hostile, new Vector3(60, 0, 0));
         h.Repo.AddComponent(enemy, new Health { Current = 100, Max = 100 });
 
-        var (result, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000L });
+        var (result, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000 });
         Assert.Null(error);
         Assert.Equal(200, status);
         Assert.Equal("Order.Attack", result!["behavior"]!.GetValue<string>());   // ⭐ CE-2143 — what was SENT is the order
@@ -238,8 +238,8 @@ public sealed class DebugApiOrdersTests
         Assert.Equal("succeeded", svc.GetOrder(UnitId)["state"]!.GetValue<string>());
 
         Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack" }).status);                          // no target
-        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 4242L }).status);     // unknown
-        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000L }).status);     // killed
+        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 4242 }).status);     // unknown
+        Assert.Equal(400, svc.PostOrder(UnitId, new JsonObject { ["kind"] = "attack", ["targetId"] = 2000 }).status);     // killed
     }
 
     /// <summary>⭐ C-9 — the sitrep shows what the side KNOWS: a hostile in a friendly unit's target memory is a contact, a
@@ -260,14 +260,14 @@ public sealed class DebugApiOrdersTests
         var (fog, error) = svc.GetSitrep("Friend", truth: false);
         Assert.Null(error);
         Assert.Single(fog!["units"]!.AsArray());
-        var contacts = fog["contacts"]!.AsArray().Select(c => c!["networkId"]?.GetValue<long>()).ToArray();
-        Assert.Contains(2000L, contacts);
-        Assert.DoesNotContain(2001L, contacts);
+        var contacts = fog["contacts"]!.AsArray().Select(c => c!["networkId"]?.GetValue<int>()).ToArray();
+        Assert.Contains(2000, contacts);
+        Assert.DoesNotContain(2001, contacts);
 
         var (truth, _) = svc.GetSitrep("Friend", truth: true);
-        var all = truth!["contacts"]!.AsArray().Select(c => c!["networkId"]!.GetValue<long>()).ToArray();
-        Assert.Contains(2000L, all);
-        Assert.Contains(2001L, all);
+        var all = truth!["contacts"]!.AsArray().Select(c => c!["networkId"]!.GetValue<int>()).ToArray();
+        Assert.Contains(2000, all);
+        Assert.Contains(2001, all);
     }
 
     /// <summary>⭐ CE-3168 — /entities/command binds the payload's FIELDS (they used to be dropped, publishing an all-default
@@ -299,7 +299,7 @@ public sealed class DebugApiOrdersTests
     // ── CE-3172 / CE-3173 — possession (docs/DESIGN_Entity_Control.md §8b) ─────────────────────────────
 
     /// <summary>A walking body the muscle can drive (pedestrian preset, nav components the bridge and kinematics read).</summary>
-    private static Entity Walker(EditorHarness h, long id)
+    private static Entity Walker(EditorHarness h, int id)
     {
         var e = Unit(h, id, ForceId.Friend, Vector3.Zero);
         var r = h.Repo;
@@ -385,7 +385,7 @@ public sealed class DebugApiOrdersTests
         var b = new Hrot.Common.Orders.EntityOrders(h.Repo, h.EntityMap, geo: null) { Station = 9 };
         Assert.True(a.Possess(UnitId).Accepted);
         h.PumpFrames(4);
-        Assert.Equal(7L, a.HolderOf(UnitId));
+        Assert.Equal(7, a.HolderOf(UnitId));
 
         var f = new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = 1, Forward = 1f };
         Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, b.Control(UnitId, f).Refusal);
@@ -397,7 +397,7 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(Hrot.Common.Orders.OrderRefusal.Possessed, refused.Refusal);
         Assert.Contains("station 7", refused.Detail);
         h.PumpFrames(4);
-        Assert.Equal(7L, b.HolderOf(UnitId));
+        Assert.Equal(7, b.HolderOf(UnitId));
         Assert.Equal(BehaviorOrigin.Possession, h.Repo.GetComponentRO<BehaviorState>(unit).Origin);
         Assert.True(a.Control(UnitId, f).Accepted);   // the holder still drives
 
@@ -407,7 +407,7 @@ public sealed class DebugApiOrdersTests
             Unit = unit, StationNodeId = 9, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps,
         });
         h.PumpFrames(4);
-        Assert.Equal(7L, a.HolderOf(UnitId));
+        Assert.Equal(7, a.HolderOf(UnitId));
         Assert.Equal(1u, h.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(unit).Epoch);   // never re-taken
 
         // once the holder lets go, the other station may take it (a free unit is free)
@@ -415,7 +415,7 @@ public sealed class DebugApiOrdersTests
         h.PumpFrames(4);
         Assert.True(b.Possess(UnitId).Accepted);
         h.PumpFrames(4);
-        Assert.Equal(9L, b.HolderOf(UnitId));
+        Assert.Equal(9, b.HolderOf(UnitId));
     }
 
     /// <summary>

@@ -58,7 +58,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private void Apply(in EntityObstacleShape data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {
                 if (view is not EntityRepository repo)
@@ -82,7 +82,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             repo.SetComponent(entity, ToShape(shape));
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static ObstacleShape ToShape(in EntityObstacleShape d)
             => new() { Length = d.Length, Width = d.Width, Height = d.Height };

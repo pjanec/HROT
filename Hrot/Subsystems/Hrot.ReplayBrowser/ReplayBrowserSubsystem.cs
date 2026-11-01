@@ -1006,7 +1006,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
         Func<Entity?> getSelectedEntity = () => _inspectorState?.SelectedEntity;
-        Func<long?> getSelectedNetworkId = () =>
+        Func<int?> getSelectedNetworkId = () =>
         {
             var e = _inspectorState?.SelectedEntity;
             if (e == null || e.Value.IsNull || !(_activeRepo?.IsAlive(e.Value) ?? false)) return null;
@@ -1230,7 +1230,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         if (frame <= 0 || frame >= primaryCtx.Playback.TotalFrames)
             return Array.Empty<DiffNode>();
 
-        long? networkId = GetStableNetworkId(entity, _activeRepo);
+        int? networkId = GetStableNetworkId(entity, _activeRepo);
         var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
         JsonNode? before = null;
 
@@ -1270,7 +1270,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     internal void SetSerializerForTest(Fdp.Toolkit.Scenario.ScenarioSerializer serializer)
         => _scenarioSerializer = serializer;
 
-    private static long? GetStableNetworkId(Entity entity, EntityRepository? repo)
+    private static int? GetStableNetworkId(Entity entity, EntityRepository? repo)
     {
         if (repo == null || entity.IsNull || !repo.IsAlive(entity)) return null;
         if (!repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)) return null;
@@ -1284,7 +1284,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     /// like any other (see <see cref="EnsureNetworkEntityMap"/>), so the diff cycle's two lookups per
     /// frame are O(1) instead of two scans.
     /// </summary>
-    private Entity FindEntityByNetworkId(long networkId)
+    private Entity FindEntityByNetworkId(int networkId)
         => Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(_activeRepo, networkId);
 
     // ── Null service stubs (used until real implementations are injected) ──

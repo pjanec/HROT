@@ -194,7 +194,7 @@ namespace Hrot.SimHost.Tests
                 if (sample.Info.InstanceState != DdsInstanceState.NotAliveDisposed)
                     continue;
 
-                long entityId = sample.IsValid
+                int entityId = sample.IsValid
                     ? sample.Data.EntityId
                     : EntityMaster.FromNative(sample.NativePtr).EntityId;
 

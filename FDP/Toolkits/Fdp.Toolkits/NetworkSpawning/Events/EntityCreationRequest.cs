@@ -50,7 +50,7 @@ public sealed class EntityCreationRequest
     /// author that fixes its id (a traffic conversion, terrain objects, a test hook). ⛔ It does NOT say "scenario load" —
     /// that is <see cref="IsScenarioLoad"/> (<c>CE-3324</c>).
     /// </summary>
-    public long PreAllocatedNetworkId { get; init; } = 0;
+    public int PreAllocatedNetworkId { get; init; } = 0;
 
     /// <summary>
     /// Optional per-child component overrides keyed by
@@ -59,7 +59,7 @@ public sealed class EntityCreationRequest
     /// of additional ECS components to merge into its initial component set.
     /// When <c>null</c>, all children use the normal <c>AllocateId()</c> path.
     /// </summary>
-    public IReadOnlyDictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>?
+    public IReadOnlyDictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>?
         ChildComponentOverrides { get; init; } = null;
 
     /// <summary>

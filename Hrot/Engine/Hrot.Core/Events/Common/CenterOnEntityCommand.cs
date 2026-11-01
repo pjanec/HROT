@@ -14,5 +14,5 @@ namespace Hrot.Common.Events;
 public struct CenterOnEntityCommand
 {
     /// <summary>Network entity ID to centre the view on.</summary>
-    public long NetworkId;
+    public int NetworkId;
 }

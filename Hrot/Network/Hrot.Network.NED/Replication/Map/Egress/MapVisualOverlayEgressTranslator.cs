@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private readonly DdsWriter<MapVisualOverlay> _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly HashSet<long> _tracedNetIds = new();
+        private readonly HashSet<int> _tracedNetIds = new();
         private readonly long _localNodeId;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapVisualOverlay>();
@@ -125,7 +125,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _writer.DisposeInstance(new MapVisualOverlay { EntityId = networkEntityId });
         }

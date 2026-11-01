@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Replication.Tests
         private const long Master    = 7;   // stand-in for dtEntityMaster: NetworkIdentity
         private const long Info      = 8;   // a creator-kept descriptor: TkbIdentity
         private const long Kinematic = 9;   // a granted descriptor: NetworkTransform + NetworkVelocity
-        private const long NetId     = 4242;
+        private const int NetId     = 4242;
 
         private static long Key(long d) => OwnershipExtensions.PackKey(d, 0);
 

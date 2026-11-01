@@ -35,7 +35,7 @@ internal sealed class HitWindowOpenedEventTranslator
     protected override bool TryEncode(
         in HitWindowOpenedEvent ecs, out DdsHitWindowOpenedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

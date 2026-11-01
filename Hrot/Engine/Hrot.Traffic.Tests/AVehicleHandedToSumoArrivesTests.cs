@@ -13,7 +13,7 @@ namespace Hrot.Traffic.Tests;
 /// <remarks>⭐ A start and destination known to be connected: a moving SUMO car's pose, and where that same car is 20 s later.</remarks>
 public sealed class AVehicleHandedToSumoArrivesTests
 {
-    private const long Body = 9001;
+    private const int Body = 9001;
 
     [Fact]
     public void TheShadow_DrivesToTheDestination_AndVanishesThere()
@@ -96,7 +96,7 @@ public sealed class AVehicleHandedToSumoArrivesTests
 
     private static TrafficSession Session(TrafficNetCache cache)
     {
-        long n = 0;
+        int n = 0;
         return new TrafficSession(new TrafficSessionKey(cache.Path, Path.GetDirectoryName(cache.Path)!, cache.NetHash, TrafficDemand.Default, 0),
             new TrafficServeOptions(() => Interlocked.Increment(ref n), Participant: null, Source: 1), Array.Empty<TrafficVehicleType>(), 0.0);
     }

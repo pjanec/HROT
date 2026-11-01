@@ -55,7 +55,7 @@ namespace Hrot.SimHost.Tests
         public void Inject_WritesInitialPassengersIntent_WithCorrectNetworkIds()
         {
             var passenger = _repo.CreateEntity();
-            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42L });
+            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42 });
 
             var resolver = new StubResolver();
             resolver.Register(passenger, "guid-passenger");
@@ -82,7 +82,7 @@ namespace Hrot.SimHost.Tests
         public void Inject_DoesNotWritePassengerBuffer()
         {
             var passenger = _repo.CreateEntity();
-            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42L });
+            _repo.SetComponent(passenger, new NetworkIdentity { Value = 42 });
 
             var resolver = new StubResolver();
             resolver.Register(passenger, "guid-passenger");
@@ -135,9 +135,9 @@ namespace Hrot.SimHost.Tests
         public void WS4_TheSeats_SurviveASaveAndLoad()
         {
             var gunner = _repo.CreateEntity();
-            _repo.SetComponent(gunner, new NetworkIdentity { Value = 41L });
+            _repo.SetComponent(gunner, new NetworkIdentity { Value = 41 });
             var m2 = _repo.CreateEntity();
-            _repo.SetComponent(m2, new NetworkIdentity { Value = 42L });
+            _repo.SetComponent(m2, new NetworkIdentity { Value = 42 });
             var pickup = _repo.CreateEntity();
             var buffer = new PassengerBuffer();
             buffer.Passengers[1] = gunner;
@@ -153,7 +153,7 @@ namespace Hrot.SimHost.Tests
             new PassengerBufferTranslator().Inject(_repo, loaded, dom, resolver);
 
             var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(loaded)!;
-            Assert.Equal(new[] { 41L, 42L }, intent.PassengerNetworkIds.ConvertAll(r => r.NetworkId));
+            Assert.Equal(new[] { 41, 42 }, intent.PassengerNetworkIds.ConvertAll(r => r.NetworkId));
             Assert.Equal(new[] { 1, 2 }, intent.Seats);
 
             var older = new Dictionary<string, object> { ["PassengerBuffer"] = new JsonObject

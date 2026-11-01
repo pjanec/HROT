@@ -16,7 +16,7 @@ namespace Hrot.UI.Common.Map3D.Director;
 public static class DirectorUnits
 {
     /// <summary>The unit's <see cref="EntityInfo.Name"/>; null when there is no world, no such unit (not spawned yet, gone) or it has no name.</summary>
-    public static string? NameOf(EntityRepository? world, long networkId)
+    public static string? NameOf(EntityRepository? world, int networkId)
     {
         if (Of(world, networkId) is not { } e || !world!.HasComponent<EntityInfo>(e)) return null;
         var name = world.GetComponentRO<EntityInfo>(e).Name.ToString();
@@ -29,7 +29,7 @@ public static class DirectorUnits
     /// <see cref="SubjectKind.Person"/>, a rotorcraft / fixed-wing an <see cref="SubjectKind.Aircraft"/>, wheeled · tracked · amphibious · a vessel a
     /// <see cref="SubjectKind.Vehicle"/>; anything else (no world, no unit, no class) <see cref="SubjectKind.Unknown"/>.
     /// </summary>
-    public static SubjectKind KindOf(EntityRepository? world, long networkId)
+    public static SubjectKind KindOf(EntityRepository? world, int networkId)
     {
         if (Of(world, networkId) is not { } e) return SubjectKind.Unknown;
         if (world!.IsComponentTypeRegistered<Fdp.Toolkit.Squad.SquadStateMarker>() && world.HasComponent<Fdp.Toolkit.Squad.SquadStateMarker>(e)) return SubjectKind.Group;
@@ -55,7 +55,7 @@ public static class DirectorUnits
         return (world.EntityCount, named);
     }
 
-    private static Entity? Of(EntityRepository? world, long networkId)
+    private static Entity? Of(EntityRepository? world, int networkId)
     {
         if (world is null) return null;
         var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, networkId);
@@ -75,8 +75,8 @@ public sealed class DirectorDrafts
     public const string MenuLabel = "Draft a shot sequence here";
 
     private readonly Func<TimelineIndex?> _index;
-    private readonly Func<long, string?> _nameOf;
-    private readonly Func<long, SubjectKind> _kindOf;
+    private readonly Func<int, string?> _nameOf;
+    private readonly Func<int, SubjectKind> _kindOf;
     private readonly Func<string?> _scenario;
     private readonly DirectorTakeSession _session;
     private readonly Func<float, float, float>? _groundAt;
@@ -90,7 +90,7 @@ public sealed class DirectorDrafts
     /// <param name="nameOf">A network id to the unit's name (<see cref="DirectorUnits.NameOf"/> over the host's world).</param>
     /// <param name="kindOf">A network id to the unit's kind (<see cref="DirectorUnits.KindOf"/>).</param>
     /// <param name="scenario">The scenario the shown run belongs to (the editor's loaded one; the recording's) — the draft's take is that scenario's.</param>
-    public DirectorDrafts(Func<TimelineIndex?> index, Func<long, string?> nameOf, Func<long, SubjectKind> kindOf, Func<string?> scenario, DirectorTakeSession session,
+    public DirectorDrafts(Func<TimelineIndex?> index, Func<int, string?> nameOf, Func<int, SubjectKind> kindOf, Func<string?> scenario, DirectorTakeSession session,
                            Func<float, float, float>? groundAt = null, Func<bool>? indexComplete = null, Func<(int Entities, int Named)?>? census = null)
     {
         _groundAt = groundAt; _indexComplete = indexComplete; _census = census;
@@ -144,7 +144,7 @@ public sealed class DirectorDrafts
     }
 
     /// <summary>A unit's name by network id (what a moment's actor / subject are called).</summary>
-    public string? NameOf(long networkId) => _nameOf(networkId);
+    public string? NameOf(int networkId) => _nameOf(networkId);
 
     /// <summary>
     /// Drafts event <paramref name="eventIndex"/> of <paramref name="lane"/> of <paramref name="index"/> (the shown index when null) and OPENS the draft in the

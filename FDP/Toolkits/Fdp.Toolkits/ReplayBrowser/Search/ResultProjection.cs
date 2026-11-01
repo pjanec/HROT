@@ -112,15 +112,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     /// same thing in a search, the timeline's index, its sidecar and the live world.</summary>
     public static class ResultIds
     {
-        public static long Of(EntityRepository repo, Entity e)
+        public static int Of(EntityRepository repo, Entity e)
         {
             if (e.IsNull || e.Equals(default(Entity))) return 0;
             if (repo.IsComponentTypeRegistered<NetworkIdentity>())
             {
-                long net = NetworkIdResolver.RuntimeNetworkIdOf(repo, e);
+                int net = NetworkIdResolver.RuntimeNetworkIdOf(repo, e);
                 if (net > 0) return net;
             }
-            return -(e.Index + 1L);
+            return -(e.Index + 1);
         }
     }
 

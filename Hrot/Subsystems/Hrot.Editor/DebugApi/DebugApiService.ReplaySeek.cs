@@ -22,7 +22,7 @@ namespace Hrot.Editor.DebugApi
     public sealed partial class DebugApiService
     {
         /// <summary>A <c>next</c> lookup to run off the main thread.</summary>
-        public sealed record ChangeScan(string Path, int StartFrame, long NetworkId, string? Component, int Direction,
+        public sealed record ChangeScan(string Path, int StartFrame, int NetworkId, string? Component, int Direction,
                                         Fdp.Toolkit.Scenario.ScenarioSerializer Serializer);
 
         /// <summary>The replay's zero and now on THIS node: the editor's own recorder, else the active provider.</summary>
@@ -94,7 +94,7 @@ namespace Hrot.Editor.DebugApi
                     if (next["entity"] is null)
                         return (null, "next.entity (or next.lane) is required: {\"next\": {\"entity\": 1042, \"component\": \"Health\"}, \"direction\": 1}.", DebugApiHints.Scenario, null);
                     int direction = body["direction"] is JsonNode d && Int(d) < 0 ? -1 : 1;
-                    return (null, null, null, new ChangeScan(path, now, Long(next["entity"]!),
+                    return (null, null, null, new ChangeScan(path, now, Int(next["entity"]!),
                         next["component"]?.ToString(), direction, LookupSerializer));
                 }
             }

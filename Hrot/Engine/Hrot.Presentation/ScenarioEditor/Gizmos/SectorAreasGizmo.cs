@@ -38,12 +38,12 @@ public sealed class SectorAreasGizmo : IGlobalStatelessGizmo
     private EntityRepository? _queryRepo;
     private EntityQuery? _units;
     private EntityQuery? _subordinates;
-    private readonly Dictionary<long, Entity> _sectors = new();
-    private readonly HashSet<long> _noFire = new();
+    private readonly Dictionary<int, Entity> _sectors = new();
+    private readonly HashSet<int> _noFire = new();
     private readonly List<(Vector2 A, Vector2 B)> _hatch = new();
     private readonly HashSet<Entity> _commanders = new();
 
-    public static Rgba32 ColourOf(long unitNetId) => UnitColours[(int)((ulong)unitNetId % (ulong)UnitColours.Length)];
+    public static Rgba32 ColourOf(int unitNetId) => UnitColours[(int)((ulong)unitNetId % (ulong)UnitColours.Length)];
 
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
@@ -70,7 +70,7 @@ public sealed class SectorAreasGizmo : IGlobalStatelessGizmo
         foreach (var (areaNet, unit) in _sectors)
         {
             if (!TryArea(repo, areaNet, out var points, out var origin)) continue;
-            long unitNet = NetOf(repo, unit);
+            int unitNet = NetOf(repo, unit);
             var colour = ColourOf(unitNet);
             EntityPresentationGizmoShared.DrawClosedPolylineOutline(draw, points, origin, colour, thickness: 2.5f, layer: DebugTraceLayers.Sectors);
             var c = origin + Centroid(points);
@@ -100,11 +100,11 @@ public sealed class SectorAreasGizmo : IGlobalStatelessGizmo
         }
     }
 
-    private static long NetOf(EntityRepository repo, Entity unit)
+    private static int NetOf(EntityRepository repo, Entity unit)
         => repo.IsComponentTypeRegistered<NetworkIdentity>() && repo.HasComponent<NetworkIdentity>(unit)
             ? repo.GetComponentRO<NetworkIdentity>(unit).Value : unit.Index;
 
-    private static bool TryArea(EntityRepository repo, long areaNet, out IReadOnlyList<Vector2> points, out Vector2 origin)
+    private static bool TryArea(EntityRepository repo, int areaNet, out IReadOnlyList<Vector2> points, out Vector2 origin)
     {
         points = Array.Empty<Vector2>();
         origin = default;

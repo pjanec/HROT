@@ -55,7 +55,7 @@ namespace Hrot.Core.Tests.Services
             new Vector2(-53f, -88.5f), new Vector2(47f, -88.5f), new Vector2(47f, 11.5f),
         };
 
-        private static Entity NewZone(EntityRepository repo, long networkId, Vector3 origin)
+        private static Entity NewZone(EntityRepository repo, int networkId, Vector3 origin)
         {
             var e = repo.CreateEntity();
             repo.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });

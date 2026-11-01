@@ -45,11 +45,11 @@ public sealed class ScenarioMissionViewDumpsItsPanelTests : IDisposable
     {
         private readonly string[] _behaviors;
         public RecordingMissions(params string[] behaviors) => _behaviors = behaviors;
-        public IReadOnlyList<string> GetAvailableBehaviors(long entityId) => _behaviors;
-        public (MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId) => (null, 0);
-        public Task<MissionCommitResult> CommitMissionAsync(long id, MissionPlan plan, long baseVersion)
+        public IReadOnlyList<string> GetAvailableBehaviors(int entityId) => _behaviors;
+        public (MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId) => (null, 0);
+        public Task<MissionCommitResult> CommitMissionAsync(int id, MissionPlan plan, long baseVersion)
             => throw new NotSupportedException();
-        public Task<MissionCommitResult> SendControlCommandAsync(long id, eMissionCommandType t, Guid taskId)
+        public Task<MissionCommitResult> SendControlCommandAsync(int id, eMissionCommandType t, Guid taskId)
             => throw new NotSupportedException();
     }
 

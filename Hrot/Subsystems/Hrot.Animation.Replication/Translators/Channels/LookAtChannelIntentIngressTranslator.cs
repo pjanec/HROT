@@ -80,7 +80,7 @@ internal sealed class LookAtChannelIntentIngressTranslator : INetworkTranslator,
 
             // pUpd->Params is already a fixed buffer inside the struct pointer; cast directly.
             LookAtEntityParams* p = (LookAtEntityParams*)pUpd->Params;
-            long networkTargetId = (long)p->TargetEntityId;
+            int networkTargetId = (int)p->TargetEntityId;
             if (!_entityMap.TryGetEntity(networkTargetId, out var localTarget))
             {
                 // Target entity not yet known on this node — keep channel unchanged.

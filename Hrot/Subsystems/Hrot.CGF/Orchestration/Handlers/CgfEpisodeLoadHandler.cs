@@ -36,7 +36,7 @@ namespace Hrot.CGF.Orchestration.Handlers
         private readonly ScenarioBehaviorRemapper? _remapper;
 
         private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
-        private List<long>? _pendingDestroyNetworkIds;
+        private List<int>? _pendingDestroyNetworkIds;
         private Guid? _pendingTransactionId;
         private bool _pendingIsParticipating;
 
@@ -179,7 +179,7 @@ namespace Hrot.CGF.Orchestration.Handlers
 
             try
             {
-                var networkIds = _pendingDestroyNetworkIds ?? new List<long>();
+                var networkIds = _pendingDestroyNetworkIds ?? new List<int>();
                 foreach (var networkId in networkIds)
                 {
                     _world.Bus.PublishManaged(new DestroyEntityCommand
@@ -202,9 +202,9 @@ namespace Hrot.CGF.Orchestration.Handlers
         /// Uses <c>WithLifecycle(EntityLifecycle.All)</c> to also catch entities in the
         /// <c>Constructing</c> state.
         /// </summary>
-        private static List<long> CollectEpisodeNetworkIds(EntityRepository repo, Guid episodeId)
+        private static List<int> CollectEpisodeNetworkIds(EntityRepository repo, Guid episodeId)
         {
-            var result = new List<long>();
+            var result = new List<int>();
             if (!repo.IsComponentTypeRegistered<EpisodeTag>()) return result;
 
             var query = repo.Query().With<EpisodeTag>().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();

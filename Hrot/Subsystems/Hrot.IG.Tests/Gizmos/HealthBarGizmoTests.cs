@@ -48,9 +48,9 @@ namespace Hrot.IG.Tests.Gizmos
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
-        public void DrawEntityLocal(long anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocal(int anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }
-        public void DrawEntityLocalInteractive(long anchor, Vector3 localStart, Vector3 localEnd,
+        public void DrawEntityLocalInteractive(int anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, ushort subElementId, float thickness = 1f, byte layer = 0) { }
     }
 
@@ -73,7 +73,7 @@ namespace Hrot.IG.Tests.Gizmos
             _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         }
 
-        private Entity Unit(float current, float max, long net = 1043)
+        private Entity Unit(float current, float max, int net = 1043)
         {
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new Health { Current = current, Max = max });

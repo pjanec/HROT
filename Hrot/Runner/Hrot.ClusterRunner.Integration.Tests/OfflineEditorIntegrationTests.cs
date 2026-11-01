@@ -30,7 +30,7 @@ public sealed class OfflineEditorIntegrationTests
     // â”€â”€ Test constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const long  TestTkbType    = 1L;   // matches TkbTemplate registered in EditorHarness
-    private const long  TestNetworkId  = 42L;  // deterministic; non-zero = no allocator call
+    private const int  TestNetworkId  = 42;  // deterministic; non-zero = no allocator call
     private const int   PumpTimeoutMs  = 5_000;
 
     // =========================================================================

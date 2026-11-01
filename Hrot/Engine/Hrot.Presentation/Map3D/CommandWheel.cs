@@ -89,7 +89,7 @@ public static class CommandWheel
     /// (<paramref name="aimTarget"/>, a network id; 0 = none) for an Entity pick, the point (<paramref name="aimPoint"/>) for a Point pick.
     /// One draft per man (his designations fill what the crosshair did not); an incomplete draft is not sent. Returns how many accepted.
     /// </summary>
-    public static int Send(EntityRepository world, Entity leader, OrderInfo order, Vector3 aimPoint, long aimTarget)
+    public static int Send(EntityRepository world, Entity leader, OrderInfo order, Vector3 aimPoint, int aimTarget)
     {
         if (!world.HasSingletonManaged<NetworkEntityMap>()) return 0;
         var map = world.GetSingletonManaged<NetworkEntityMap>()!;
@@ -97,7 +97,7 @@ public static class CommandWheel
         var orders = new EntityOrders(world, map, geo);
         var context = order.Pick switch
         {
-            OrderPick.Entity => new OrderContext(aimTarget != 0 ? aimTarget : null, null),
+            OrderPick.Entity => new OrderContext(aimTarget != 0 ? aimTarget : (int?)null, null),
             OrderPick.Point => new OrderContext(null, Hrot.ScenarioEditor.Map.RtsCommands.OrderPoint(world, new Vector2(aimPoint.X, aimPoint.Y))),
             _ => OrderContext.None,
         };
@@ -105,7 +105,7 @@ public static class CommandWheel
         int accepted = 0;
         foreach (var man in MenOf(world, leader))
         {
-            if (!map.TryGetNetworkId(man, out long id)) continue;
+            if (!map.TryGetNetworkId(man, out int id)) continue;
             var draft = OrderMenu.Draft(order, new[] { id }, context, json => new[] { orders.Order(id, order.Name, json) },
                 designation: store?.Lookup(n => OrderDesignations.IsLive(world, map, n)));
             if (draft.IsComplete && draft.Send(draft.Params.ToJsonString())[0].Accepted) accepted++;

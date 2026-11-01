@@ -31,17 +31,17 @@ public sealed class EntityStateLookTests
             acksPending: null));
 
         var man = world.CreateEntity();
-        map.Register(90_300L, man);
+        map.Register(90_300, man);
         world.AddComponent(man, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
         world.AddComponent(man, new LookState
         {
             Target = new Vector3(-10f, 10f, 0f), HasTarget = 1, Source = LookSource.LookOrdered, HeadYaw = MathF.PI / 4f,
         });
         var car = world.CreateEntity();
-        map.Register(90_301L, car);
+        map.Register(90_301, car);
         world.AddComponent(car, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
-        var (state, error, _) = svc.GetEntityState(90_300L);
+        var (state, error, _) = svc.GetEntityState(90_300);
         Assert.Null(error);
         var look = state!["look"]!;
         Assert.Equal(90f, look["bodyYawDeg"]!.GetValue<float>(), 1);
@@ -50,7 +50,7 @@ public sealed class EntityStateLookTests
         Assert.Equal("order", look["source"]!.GetValue<string>());
         Assert.Equal(-10f, look["target"]!["x"]!.GetValue<float>(), 3);
 
-        var (carState, _, _) = svc.GetEntityState(90_301L);
+        var (carState, _, _) = svc.GetEntityState(90_301);
         Assert.Null(carState!["look"]);
     }
 }

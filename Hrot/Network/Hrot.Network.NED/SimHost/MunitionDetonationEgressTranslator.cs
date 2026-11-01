@@ -78,7 +78,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 if (evt.IsRemote) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.Shooter, out long shooterNetId))
+                if (!_entityMap.TryGetNetworkId(evt.Shooter, out int shooterNetId))
                 {
                     FdpLog<MunitionDetonationEgressTranslator>.Warn(
                         "[MunitionDetonationEgress] Shooter entity #{0} not in NetworkEntityMap â€” skipping detonation.",
@@ -86,7 +86,7 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                long hitNetId = 0;   // ⭐ CE-1032 W-3 — a round that detonated on the terrain has no target
+                int hitNetId = 0;   // ⭐ CE-1032 W-3 — a round that detonated on the terrain has no target
                 if (evt.Target != Entity.Null && !_entityMap.TryGetNetworkId(evt.Target, out hitNetId))
                 {
                     FdpLog<MunitionDetonationEgressTranslator>.Warn(
@@ -113,6 +113,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

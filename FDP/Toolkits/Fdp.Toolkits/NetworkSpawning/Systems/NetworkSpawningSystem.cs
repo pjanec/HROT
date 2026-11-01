@@ -114,7 +114,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             SpawnEntityCommand cmd, IEntityCommandBuffer cmdBuffer)
         {
             // 1. Resolve network ID (0 = allocate a new one)
-            long networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
+            int networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
             FdpLog<NetworkSpawningSystem>.Debug(
                 "[Node-{0}] ProcessSpawn: NetworkId={1} TkbType={2}", _localNodeId, networkId, cmd.TkbType);
 

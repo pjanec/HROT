@@ -30,7 +30,7 @@ public class MissionControlIntegrationTests
         using var harness = new HrotRunnerHarness();
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, new CoreGeoPoint
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, new CoreGeoPoint
         {
             Latitude = 32.0853,
             Longitude = 34.7818,
@@ -155,7 +155,7 @@ public class MissionControlIntegrationTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
+        int networkId = harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
 
         // The ghost must be on CGF first: MissionControlExecutionSystem waits only a few frames for the entity before it NACKs.
         Assert.True(harness.PumpUntil(
@@ -187,7 +187,7 @@ public class MissionControlIntegrationTests
         Assert.True(result.NewVersion > 0, $"a successful commit returns NewVersion > 0, got {result.NewVersion}.");
     }
 
-    private static bool TryGetMissionQueue(EntityRepository world, long networkId, out MissionPlanQueue queue)
+    private static bool TryGetMissionQueue(EntityRepository world, int networkId, out MissionPlanQueue queue)
     {
         var view = (ISimulationView)world;
         // Use EntityLifecycle.All so ghost entities in Constructing state are included.
@@ -208,7 +208,7 @@ public class MissionControlIntegrationTests
         return false;
     }
 
-    private static bool SimHostHasEntity(EntityRepository world, long networkId)
+    private static bool SimHostHasEntity(EntityRepository world, int networkId)
     {
         var view = (ISimulationView)world;
         var query = world.Query().With<NetworkIdentity>().Build();

@@ -96,8 +96,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Score = 1f },
-                new EqsResult { EntityId = 0L, PositionX = 2f, PositionY = 0f, Score = 1f },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f, Score = 1f },
+                new EqsResult { EntityId = 0, PositionX = 2f, PositionY = 0f, Score = 1f },
             };
 
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 10f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1, posX: 10f, posY: 0f, scoreBoost: 10f, tick: 1);
             _repo.AddComponent(observer, mem);
 
             // Context slot entity -- needed to reach the threshold bypass gate.
@@ -130,8 +130,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
-                new EqsResult { EntityId = 0L, PositionX = 2f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 2f, PositionY = 0f },
             };
 
             // Freshness[0] = 10f < ThreatThreshold = 50f  => bypass.
@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
             _repo.AddComponent(observer, mem);
 
             // Context slot 1 entity provides threat position for the LOS test.
@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f },
             };
 
             // Freshness[0] = 100f > ThreatThreshold = 50f => LOS test active.
@@ -181,7 +181,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var observer = _repo.CreateEntity();
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
             _repo.AddComponent(observer, mem);
 
             // Context slot 1 entity provides threat position for the LOS test.
@@ -194,7 +194,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             var candidates = new EqsResult[]
             {
-                new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Flags = 0 },
+                new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f, Flags = 0 },
             };
 
             var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
@@ -218,7 +218,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             var test = new CheapLineOfSightTest(los) { Viewer = EqsLosViewer.Slot };
 
             var withPoint = new EqsSensor { ContextPoint1 = new Vector3(40f, 5f, 0f), ContextPointMask = EqsSensor.Point1Bit };
-            var seen = new[] { new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f } };
+            var seen = new[] { new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f } };
             test.ExecuteBatch(observer, ref withPoint, _repo, seen.AsSpan());
             Assert.Equal(-1L, seen[0].EntityId);   // seen from the heard point ⇒ not cover
             Assert.Equal(40f, los.LastEye.X);
@@ -226,7 +226,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.True(EqsContext.AnchorPosition(_repo, observer, withPoint, 1, out var anchor) && anchor == withPoint.ContextPoint1);
 
             var noPoint = new EqsSensor { ContextPoint1 = new Vector3(40f, 5f, 0f) };   // mask clear ⇒ no point
-            var kept = new[] { new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f } };
+            var kept = new[] { new EqsResult { EntityId = 0, PositionX = 1f, PositionY = 0f } };
             test.ExecuteBatch(observer, ref noPoint, _repo, kept.AsSpan());
             Assert.Equal(0L, kept[0].EntityId);
             Assert.Equal(0, (int)kept[0].FlagsMeaningful);

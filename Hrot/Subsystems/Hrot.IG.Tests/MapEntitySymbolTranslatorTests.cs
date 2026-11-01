@@ -11,7 +11,7 @@ namespace Hrot.IG.Tests
 {
     public class MapEntitySymbolTranslatorTests
     {
-        private const long KnownId = 10L;
+        private const int KnownId = 10;
 
         // Helper to to create a joined fixture with null participant (test mode).
         private static (EntityRepository repo, NetworkEntityMap entityMap, MapEntitySymbolIngressTranslator translator)

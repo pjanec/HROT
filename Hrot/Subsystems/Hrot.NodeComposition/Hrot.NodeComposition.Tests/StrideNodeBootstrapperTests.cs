@@ -295,7 +295,7 @@ public sealed class StrideNodeBootstrapperTests
         }
         private sealed class NoAcks : IEntityAckSink
         {
-            public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status) { }
+            public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status) { }
         }
         private sealed class NoEgress : IEntityCreationRequestEgress
         {

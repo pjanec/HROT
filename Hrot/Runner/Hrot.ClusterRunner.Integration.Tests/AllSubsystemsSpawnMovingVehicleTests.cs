@@ -101,7 +101,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         Assert.True(spawnAck.EntityId > 0,
             "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
 
-        long networkId = spawnAck.EntityId;
+        int networkId = spawnAck.EntityId;
         _out.WriteLine($"[A2] ACK received. networkId={networkId}.");
 
         // ── 3. Wait for the full async chain (MissionControl included) ────────
@@ -209,7 +209,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         return false;
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, long networkId)
+    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
@@ -218,7 +218,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, long networkId)
+    private static SimTransform GetIgSimTransform(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return default;
@@ -227,7 +227,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         return world.GetComponent<SimTransform>(entity);
     }
 
-    private static void DiagnoseCgfEntity(HrotRunnerHarness harness, long networkId, ITestOutputHelper output)
+    private static void DiagnoseCgfEntity(HrotRunnerHarness harness, int networkId, ITestOutputHelper output)
     {
         var cgfMap   = harness.Cgf?.GhostEntityMap;
         var cgfWorld = harness.Cgf?.World;
@@ -254,7 +254,7 @@ public sealed class AllSubsystemsSpawnMovingVehicleTests
         output.WriteLine($"[DIAG-CGF] LocoChannel={loco} ActorCaps={caps}");
     }
 
-    private static void DiagnoseSimHostEntity(HrotRunnerHarness harness, long networkId, ITestOutputHelper output)
+    private static void DiagnoseSimHostEntity(HrotRunnerHarness harness, int networkId, ITestOutputHelper output)
     {
         var shMap   = harness.SimHost.App.TestHook_EntityMap;
         var shWorld = harness.SimHost.App.World;

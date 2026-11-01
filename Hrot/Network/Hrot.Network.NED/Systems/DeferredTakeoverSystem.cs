@@ -141,7 +141,7 @@ namespace Hrot.Network.Systems
 
             if (repo.HasComponent<NetworkIdentity>(entity))
             {
-                long netId = repo.GetComponent<NetworkIdentity>(entity).Value;
+                int netId = repo.GetComponent<NetworkIdentity>(entity).Value;
                 FdpLog<DeferredTakeoverSystem>.Info(
                     "[Node-{0}] DeferredTakeover executed: EntityNetId={1} GrantCount={2}",
                     _localNodeId, netId, pending.GrantsByDescriptor.Count);

@@ -248,10 +248,10 @@ namespace Hrot.SimHost.Tests
             brainTick.Execute(repo, dt);
         }
 
-        private static long ParseTargetNetworkId(string json)
+        private static int ParseTargetNetworkId(string json)
         {
             using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("TargetNetworkId").GetInt64();
+            return doc.RootElement.GetProperty("TargetNetworkId").GetInt32();
         }
 
         private static (float SlotX, float SlotY) ParseSlot(string json)
@@ -272,7 +272,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_5_BehaviorIngress_ActivatesPlatoonHillAttack()
         {
             // Arrange
-            const long areaNetId = 9001L;
+            const int areaNetId = 9001;
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
                 new(10f, 10f), new(20f, 10f), new(20f, 20f), new(10f, 20f),
@@ -325,9 +325,9 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem()
         {
             // Arrange — 90 m firing line (3 slots at 30 m spacing), 2 hostiles inside polygon.
-            const long areaNetId = 9004L;
-            const long netId1    = 101L;
-            const long netId2    = 202L;
+            const int areaNetId = 9004;
+            const int netId1    = 101;
+            const int netId2    = 202;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
@@ -433,13 +433,13 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE485_TheRunsSensor_DiesWithTheRun_ReassignAndClear()
         {
-            const long areaNetId = 9485L;
+            const int areaNetId = 9485;
             var areaEntity = CreateAreaEntity(new List<Vector2> { new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f) });
             var entityMap = new NetworkEntityMap();
             entityMap.Register(areaNetId, areaEntity);
             _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
             var hostile = CreateHostileAt(40f, 40f);
-            _repo.AddComponent(hostile, new NetworkIdentity { Value = 101L });
+            _repo.AddComponent(hostile, new NetworkIdentity { Value = 101 });
 
             var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
             var commander = _repo.CreateEntity();
@@ -524,7 +524,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("area", note.Message);
             Assert.Equal(0, _repo.GetComponentRO<BehaviorState>(commander).BrainTier);   // the finish ran the clear
             // ⭐ CE-484: the operator's "Behaviour Faults" tab got ONE Error row for this run, keyed by the network id.
-            long netId = 8000 + commander.Index;
+            int netId = 8000 + commander.Index;
             var rows = Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared.GetMessages()
                 .Where(m => m.Message.StartsWith($"entity {netId}:")).ToList();
             var row = Assert.Single(rows);
@@ -543,7 +543,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem()
         {
             // Arrange — 3 tanks, 2 hostiles inside a 90 m polygon.
-            const long areaNetId = 9002L;
+            const int areaNetId = 9002;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
@@ -556,8 +556,8 @@ namespace Hrot.SimHost.Tests
 
             var hostile1 = CreateHostileAt(40f, 40f);
             var hostile2 = CreateHostileAt(60f, 60f);
-            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 101L });
-            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 202L });
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 101 });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 202 });
 
             var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
@@ -635,7 +635,7 @@ namespace Hrot.SimHost.Tests
         public unsafe void SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem()
         {
             // Arrange — 2 subs, 2 hostiles inside polygon.
-            const long areaNetId = 9003L;
+            const int areaNetId = 9003;
 
             var areaEntity = CreateAreaEntity(new List<Vector2>
             {
@@ -648,8 +648,8 @@ namespace Hrot.SimHost.Tests
 
             var hostile1 = CreateHostileAt(40f, 40f);
             var hostile2 = CreateHostileAt(60f, 60f);
-            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 301L });
-            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 302L });
+            _repo.AddComponent(hostile1, new NetworkIdentity { Value = 301 });
+            _repo.AddComponent(hostile2, new NetworkIdentity { Value = 302 });
 
             var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
@@ -740,7 +740,7 @@ namespace Hrot.SimHost.Tests
         public void SC_HA015_1_FullEndToEnd_CommanderFinishes_WhenAreaIsEmpty()
         {
             // Arrange
-            const long areaNetId = 9001L;
+            const int areaNetId = 9001;
 
             // Empty target polygon — solver will find 0 hostile entities inside.
             var areaEntity = CreateAreaEntity(new List<Vector2>

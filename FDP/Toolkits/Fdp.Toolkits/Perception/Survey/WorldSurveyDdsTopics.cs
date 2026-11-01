@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Perception.Survey.Topics
     public partial struct WorldSurveyResultTopic
     {
         /// <summary>Network id of the unit.</summary>
-        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int ParentNetworkId;
         /// <summary>The sensor child's part id.</summary>
         [DdsKey] public int LocalChildIndex;
         /// <summary>The sensor's epoch at solve time.</summary>

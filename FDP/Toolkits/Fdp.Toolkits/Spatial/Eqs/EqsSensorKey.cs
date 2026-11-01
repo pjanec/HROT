@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// </summary>
         public static EqsSensorKeyKind Resolve(
             ISimulationView view, Entity sensor,
-            out long parentNetworkId, out int localChildIndex, out Entity parent)
+            out int parentNetworkId, out int localChildIndex, out Entity parent)
         {
             parentNetworkId = 0;
             localChildIndex = 0;
@@ -68,10 +68,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <see cref="EqsSensor"/>, and its <c>PartMetadata</c> names a live parent with that network id and that part
         /// id. ⚠ Requiring the sensor also keeps a non-sensor part (animation, weapon) that shares the instance id out.
         /// </summary>
-        public static bool IsChildSensor(ISimulationView view, Entity e, long parentNetworkId, int localChildIndex)
+        public static bool IsChildSensor(ISimulationView view, Entity e, int parentNetworkId, int localChildIndex)
         {
             if (e.IsNull || !view.IsAlive(e) || !view.HasComponent<EqsSensor>(e)) return false;
-            return Resolve(view, e, out long net, out int index, out _) == EqsSensorKeyKind.Child
+            return Resolve(view, e, out int net, out int index, out _) == EqsSensorKeyKind.Child
                 && net   == parentNetworkId
                 && index == localChildIndex;
         }

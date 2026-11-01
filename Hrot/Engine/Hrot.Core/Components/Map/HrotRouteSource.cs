@@ -14,7 +14,7 @@ namespace Hrot.Map.Common.Components;
 /// </summary>
 public sealed class HrotRouteSource : IRouteSource
 {
-    public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId)
+    public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId)
     {
         trajectoryId = 0;
         if (routeNetworkId <= 0 || !repo.IsComponentTypeRegistered<RouteTrajectoryCache>()) return false;
@@ -28,7 +28,7 @@ public sealed class HrotRouteSource : IRouteSource
         return trajectoryId != 0;
     }
 
-    public bool TryGetRoute(EntityRepository repo, long routeNetworkId, List<NavRouteWaypoint> into, out bool loop, out int version)
+    public bool TryGetRoute(EntityRepository repo, int routeNetworkId, List<NavRouteWaypoint> into, out bool loop, out int version)
     {
         into.Clear(); loop = false; version = 0;
         if (routeNetworkId <= 0) return false;

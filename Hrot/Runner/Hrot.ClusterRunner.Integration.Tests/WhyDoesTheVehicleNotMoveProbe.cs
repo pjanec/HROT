@@ -49,7 +49,7 @@ public class WhyDoesTheVehicleNotMoveProbe
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
 

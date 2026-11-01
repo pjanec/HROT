@@ -86,7 +86,7 @@ public sealed class EqsMultiLevelProofTests : IDisposable
             ThreatThreshold = 50f,
             ContextSlot1 = threatSlot,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8201L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8201 });
 
         bool ready = _harness.PumpUntil(
             () => _harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)

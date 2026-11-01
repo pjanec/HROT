@@ -93,7 +93,7 @@ public sealed class OrderFormEntry : IDisposable
             if (OrderDesignations.KindOf(field) is not { } kind) continue;
             var value = json.FirstOrDefault(p => string.Equals(p.Key, field.Name, StringComparison.OrdinalIgnoreCase)).Value;
             if (value is null || (field.Kind == OrderFieldKind.MapEntity && value.ToJsonString() == "0")) continue;
-            foreach (long unit in Draft.Units) store.Set(unit, kind, value);
+            foreach (int unit in Draft.Units) store.Set(unit, kind, value);
         }
     }
 

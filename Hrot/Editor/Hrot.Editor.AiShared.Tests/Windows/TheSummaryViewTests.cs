@@ -65,7 +65,7 @@ public sealed class TheSummaryViewTests : IDisposable
 
         Assert.NotNull(s);
         Assert.Equal("T-72", s!.Name);
-        Assert.Equal(1043L, s.NetworkId);
+        Assert.Equal(1043, s.NetworkId);
         Assert.Equal(101L, s.TkbType);
         Assert.Equal(new Vector3(123.4f, 567.8f, 9f), s.Position);
         Assert.Equal(ForceId.Hostile, s.Side);
@@ -141,6 +141,6 @@ public sealed class TheSummaryViewTests : IDisposable
         var dump = PanelSnapshot.TryGet($"details_ce1247/{EntitySummaryViewDescriptor.ViewId}")!.Dump();
         Assert.Equal("T-72", dump["name"]!.GetValue<string>());
         Assert.Equal("Hostile", dump["side"]!.GetValue<string>());
-        Assert.Equal(1043L, dump["networkId"]!.GetValue<long>());
+        Assert.Equal(1043L, dump["networkId"]!.GetValue<int>());
     }
 }

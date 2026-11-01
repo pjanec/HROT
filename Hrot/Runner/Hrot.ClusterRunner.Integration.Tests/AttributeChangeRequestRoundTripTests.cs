@@ -78,7 +78,7 @@ public class AttributeChangeRequestRoundTripTests
         var igWorld = harness.Ig.App.World;
 
         // ⭐ The unowned-replica shape: a network identity, and nothing local to write.
-        const long ReplicaNetworkId = 987_654L;
+        const int ReplicaNetworkId = 987_654;
         var ghost = igWorld.CreateEntity();
         igWorld.AddComponent(ghost, new NetworkIdentity { Value = ReplicaNetworkId });
 
@@ -166,7 +166,7 @@ public class AttributeChangeRequestRoundTripTests
         // ── 1. SimHost spawns and OWNS a tank ─────────────────────────────────
         long tkbType   = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo  = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
         _out.WriteLine($"[A1] SimHost spawned networkId={networkId}");
 
         // ── 2. Wait for the replica to reach the IG ───────────────────────────
@@ -230,7 +230,7 @@ public class AttributeChangeRequestRoundTripTests
 
         long tkbType   = TkbEntityTypes.Tank_M1Abrams;
         var  spawnGeo  = new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnGeo);
 
         harness.PumpFrames(10);
 
@@ -269,7 +269,7 @@ public class AttributeChangeRequestRoundTripTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams, new CoreGeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
         Assert.True(harness.PumpUntil(() => IgHasEntity(harness, networkId), SpawnTimeoutFrames),
             $"IG never received entity netId={networkId} within {SpawnTimeoutFrames} frames.");
@@ -340,7 +340,7 @@ public class AttributeChangeRequestRoundTripTests
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private static bool IgHasEntity(HrotRunnerHarness harness, long networkId)
+    private static bool IgHasEntity(HrotRunnerHarness harness, int networkId)
     {
         if (!harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var e)) return false;
         var world = harness.Ig.App.World;

@@ -20,7 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly DdsWriter<EntityWeaponTask>? _writer;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<(long, int), EntityWeaponTask> _last = new();
+        private readonly Dictionary<(int, int), EntityWeaponTask> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTask>();
@@ -44,7 +44,7 @@ namespace Hrot.Map.Common.Replication.Egress
             {
                 if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out var hullNet, out int partId)) continue;
                 var task = view.GetComponentRO<WeaponTask>(part);
-                long targetNet = 0;
+                int targetNet = 0;
                 if (!task.Target.IsNull && !_entityMap.TryGetNetworkId(task.Target, out targetNet)) targetNet = 0;
                 var sample = new EntityWeaponTask
                 {
@@ -62,11 +62,11 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(long networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
+        public void Dispose(int networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
         /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
             => TurretPartKey.Release(_last, networkEntityId,
                 partId => _writer?.UnregisterInstance(new EntityWeaponTask { ParentNetworkId = networkEntityId, PartId = partId }));
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
@@ -79,7 +79,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityWeaponTaskStatusEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityWeaponTaskStatus>? _writer;
-        private readonly Dictionary<(long, int), WeaponTaskStatus> _last = new();
+        private readonly Dictionary<(int, int), WeaponTaskStatus> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeaponTaskStatus>();
@@ -113,11 +113,11 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(long networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
+        public void Dispose(int networkEntityId) => TurretPartKey.Forget(_last, networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
         /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
             => TurretPartKey.Release(_last, networkEntityId,
                 partId => _writer?.UnregisterInstance(new EntityWeaponTaskStatus { ParentNetworkId = networkEntityId, PartId = partId }));
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
@@ -127,7 +127,7 @@ namespace Hrot.Map.Common.Replication.Egress
     /// <c>(descriptor, part)</c>. The EQS sensor key shape (<c>EqsSensorKey.Resolve</c>).</summary>
     internal static class TurretPartKey
     {
-        public static bool TryResolve(ISimulationView view, Entity part, long descriptor, out long hullNetworkId, out int partId)
+        public static bool TryResolve(ISimulationView view, Entity part, long descriptor, out int hullNetworkId, out int partId)
         {
             hullNetworkId = 0;
             ref readonly var meta = ref view.GetComponentRO<PartMetadata>(part);
@@ -140,17 +140,17 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>⭐ CE-4079 ② — forgets every cached part of the hull and calls <paramref name="unregister"/> for each part id this node had published.</summary>
-        public static void Release<T>(Dictionary<(long, int), T> cache, long hullNetworkId, System.Action<int> unregister)
+        public static void Release<T>(Dictionary<(int, int), T> cache, int hullNetworkId, System.Action<int> unregister)
         {
-            List<(long, int)>? mine = null;
+            List<(int, int)>? mine = null;
             foreach (var key in cache.Keys) if (key.Item1 == hullNetworkId) (mine ??= new()).Add(key);
             if (mine == null) return;
             foreach (var key in mine) { cache.Remove(key); unregister(key.Item2); }
         }
 
-        public static void Forget<T>(Dictionary<(long, int), T> cache, long hullNetworkId)
+        public static void Forget<T>(Dictionary<(int, int), T> cache, int hullNetworkId)
         {
-            List<(long, int)>? gone = null;
+            List<(int, int)>? gone = null;
             foreach (var key in cache.Keys) if (key.Item1 == hullNetworkId) (gone ??= new()).Add(key);
             if (gone != null) foreach (var key in gone) cache.Remove(key);
         }

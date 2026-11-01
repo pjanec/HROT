@@ -28,7 +28,7 @@ public class EntityDragGizmoTests
 
         _entity = _repo.CreateEntity();
         _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
-        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
+        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55 });
     }
 
     // EDG-001: UpdateAndDraw emits a Box2D primitive with valid entity pick token.
@@ -292,7 +292,7 @@ public class TheDragCommitsThroughTheWriteRouterTests
 
         _entity = _repo.CreateEntity();
         _repo.AddComponent(_entity, new SimTransform { Position = new Vector3(10f, 20f, 5f) });
-        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
+        _repo.AddComponent(_entity, new NetworkIdentity { Value = 55 });
         // ⭐ CE-4073 — NO IGeographicTransform singleton on purpose: the drag writes local ENU metres, so the world needs no geodetic
         //   frame at all (it used to fall back to a direct write that never reached the owner when the frame was absent).
     }

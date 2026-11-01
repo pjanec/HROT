@@ -29,8 +29,8 @@ namespace Hrot.Editor.AiShared.Variables;
 /// </summary>
 public sealed class StagingRemapView
 {
-    private Dictionary<long, long> _stagingToRuntime = new();
-    private Dictionary<long, long> _runtimeToStaging = new();
+    private Dictionary<int, int> _stagingToRuntime = new();
+    private Dictionary<int, int> _runtimeToStaging = new();
 
     /// <summary>
     /// ⭐⭐ Bumped on every <see cref="Publish"/>. ⭐ A host watches this to know *"a load happened, rebind"*
@@ -54,10 +54,10 @@ public sealed class StagingRemapView
     /// hands out each id once)*; if one ever appeared, last-writer-wins here would hide it — ⭐ so it is
     /// asserted in the rail rather than defended against with a silent branch.</para>
     /// </summary>
-    public void Publish(IReadOnlyDictionary<long, long>? stagingToRuntime)
+    public void Publish(IReadOnlyDictionary<int, int>? stagingToRuntime)
     {
-        var forward = new Dictionary<long, long>();
-        var inverse = new Dictionary<long, long>();
+        var forward = new Dictionary<int, int>();
+        var inverse = new Dictionary<int, int>();
 
         if (stagingToRuntime != null)
             foreach (var (staging, runtime) in stagingToRuntime)
@@ -79,7 +79,7 @@ public sealed class StagingRemapView
     /// resolve to <i>whichever</i> entity happens to hold that number — 📌 the wrong-entity failure mode
     /// this whole mechanism exists to remove. ⭐ <c>0</c> means "not translatable", and the caller says so.</para>
     /// </summary>
-    public long ToRuntime(long stagingId)
+    public int ToRuntime(int stagingId)
         => _stagingToRuntime.TryGetValue(stagingId, out var runtime) ? runtime : 0;
 
     /// <summary>
@@ -90,6 +90,6 @@ public sealed class StagingRemapView
     /// ⭐ <c>EntityBinding.IsPersistable</c> already reports exactly that, and the save path already
     /// skips-and-counts it.</para>
     /// </summary>
-    public long ToStaging(long runtimeId)
+    public int ToStaging(int runtimeId)
         => _runtimeToStaging.TryGetValue(runtimeId, out var staging) ? staging : 0;
 }

@@ -80,7 +80,7 @@ namespace Hrot.Common.Orders
         /// <summary>Move to a point: geo (<paramref name="lat"/>/<paramref name="lon"/>) or this node's local metres
         /// (<paramref name="x"/>/<paramref name="y"/>, converted to geo when this node can). Optional speed (m/s), arrival radius (m)
         /// and road use (<c>Never</c> · <c>Neutral</c> · <c>Prefer</c> · <c>StronglyPrefer</c>).</summary>
-        public OrderResult Move(long unit, double? lat = null, double? lon = null, float? x = null, float? y = null,
+        public OrderResult Move(int unit, double? lat = null, double? lon = null, float? x = null, float? y = null,
             float? speed = null, float? arrivalRadius = null, string? roadUse = null)
         {
             // ⭐ CE-2143 (D4-A) — the MOVE order's DTO (MoveOrder: Location [lat, lon], Speed, ArrivalRadius, RoadUse), never a
@@ -108,7 +108,7 @@ namespace Hrot.Common.Orders
         /// <summary>⭐ <c>CE-3170</c> (C-5) — ATTACK a unit: <c>CombatPosture</c> with that target designated and <c>assault</c> — the unit
         /// closes in and fights IT (a nearer threat does not take over), picking its own way, cover and weapon; the order succeeds
         /// when the target is out of the fight. ⚠ ROE still applies: a unit on HoldFire closes in but does not fire.</summary>
-        public OrderResult Attack(long unit, long target)
+        public OrderResult Attack(int unit, int target)
         {
             if (target == unit) return OrderResult.Refused(OrderRefusal.BadRequest, "A unit cannot attack itself.");
             if (!_map.TryGetEntity(target, out var victim) || !_world.IsAlive(victim))
@@ -121,14 +121,14 @@ namespace Hrot.Common.Orders
 
         /// <summary>Hold where it stands — the HOLD order; the unit picks how (a person or a vehicle: stay, as <c>Idle</c>; a squad:
         /// hold and fight). The menu's "Stop".</summary>
-        public OrderResult Hold(long unit) => Order(unit, "Hold", "{}");
+        public OrderResult Hold(int unit) => Order(unit, "Hold", "{}");
 
         /// <summary>
         /// ⭐⭐ <c>CE-2143</c> (D4-A, R-273) — an ORDER by name (<c>Move</c>, <c>Attack</c>, <c>Hold</c> … — the <c>[Order]</c> DTOs) with
         /// its DTO's JSON: published as <c>Order.&lt;name&gt;</c>, resolved by the unit itself to its own behaviour (§8). Refused here,
         /// with the reason, when no class of the unit fulfils it — the same question the receiver asks (<see cref="OrderMenu"/>).
         /// </summary>
-        public OrderResult Order(long unit, string orderName, string? jsonParams)
+        public OrderResult Order(int unit, string orderName, string? jsonParams)
         {
             if (!OrderMenu.TryGetByName(orderName ?? "", out var order))
                 return OrderResult.Refused(OrderRefusal.BadRequest,
@@ -155,7 +155,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>Any behaviour by name, with its parameter JSON (discover them with <c>GET /behaviors?entityId=</c>).</summary>
-        public OrderResult Behavior(long unit, string behaviorName, string? jsonParams)
+        public OrderResult Behavior(int unit, string behaviorName, string? jsonParams)
         {
             if (string.IsNullOrWhiteSpace(behaviorName))
                 return OrderResult.Refused(OrderRefusal.BadRequest, "A behaviour order needs a behaviour name.");
@@ -163,7 +163,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>Release the unit — the operator's order ends and the unit's SOP picks again (a Clear intent).</summary>
-        public OrderResult Release(long unit)
+        public OrderResult Release(int unit)
         {
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
             _world.Bus.PublishManaged(new AssignTacticalIntentEvent
@@ -183,14 +183,14 @@ namespace Hrot.Common.Orders
         /// <see cref="Unpossess"/> (or it dies) resumes the task. ⭐ <c>R-4096</c> (C-3′) — a unit ANOTHER live station holds is refused
         /// (<see cref="OrderRefusal.Possessed"/>, naming the holder), never taken over; so is a vehicle carrying a player of another side
         /// (<see cref="OrderRefusal.WrongSide"/>).</summary>
-        public OrderResult Possess(long unit) => Possess(unit, PossessionMode.Fps);
+        public OrderResult Possess(int unit) => Possess(unit, PossessionMode.Fps);
 
         /// <summary>
         /// ⭐ <c>CE-1158</c> (§8h U-4, module graph GAP2) — possess in <paramref name="mode"/>: <see cref="PossessionMode.Fps"/> drives the
         /// unit; <see cref="PossessionMode.Riding"/> keeps it held (its task paused) while the station drives the vehicle it sits in. A new
         /// Fps possession RELEASES this station's other Fps unit, so a station never holds two (C-8: one operator per node); a rider is kept.
         /// </summary>
-        public OrderResult Possess(long unit, PossessionMode mode)
+        public OrderResult Possess(int unit, PossessionMode mode)
         {
             if (!TryAddress(unit, out var entity, out var refused, ignorePossession: true)) return refused;
             if (Fdp.Toolkit.Behavior.Possession.Possessability.Refusal(_world, entity) is { } why)   // ⭐ CE-1205 (§8m PK-7)
@@ -224,7 +224,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>⭐ <c>CE-3172</c> (C-4) — let the possessed unit go: the task it was doing resumes.</summary>
-        public OrderResult Unpossess(long unit)
+        public OrderResult Unpossess(int unit)
         {
             if (!TryHeld(unit, out var entity, out var refused)) return refused;
             Publish(new ReleasePossessionEvent { Unit = entity, StationNodeId = StationFor(entity) });
@@ -233,7 +233,7 @@ namespace Hrot.Common.Orders
 
         /// <summary>⭐ <c>CE-3172</c> / <c>CE-3173</c> — one control frame for the unit this station possesses (M-6: the newest
         /// <paramref name="frame"/><c>.Seq</c> wins). <paramref name="frame"/>'s unit and station are filled in here.</summary>
-        public OrderResult Control(long unit, OperatorControlFrameEvent frame)
+        public OrderResult Control(int unit, OperatorControlFrameEvent frame)
         {
             if (!TryHeld(unit, out var entity, out var refused)) return refused;
             frame.Unit = entity;
@@ -244,10 +244,10 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>The station holding the unit (null = nobody) — what a station reads to know it still holds it.</summary>
-        public long? HolderOf(long unit)
+        public long? HolderOf(int unit)
             => _map.TryGetEntity(unit, out var e) && _world.IsAlive(e) ? PossessionSystem.HolderOf(_world, e) : null;
 
-        private bool TryHeld(long unit, out Entity entity, out OrderResult refused)
+        private bool TryHeld(int unit, out Entity entity, out OrderResult refused)
         {
             if (!TryAddress(unit, out entity, out refused, ignorePossession: true)) return false;
             long station = StationFor(entity);
@@ -269,7 +269,7 @@ namespace Hrot.Common.Orders
             _world.Bus.Publish(evt);
         }
 
-        private OrderResult Assign(long unit, string intentId, string json)
+        private OrderResult Assign(int unit, string intentId, string json)
         {
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
             return Publish(entity, intentId, json);
@@ -286,7 +286,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>The checks every order shares: the unit exists here, is not killed, and is on the locked side.</summary>
-        private bool TryAddress(long unit, out Entity entity, out OrderResult refused, bool ignorePossession = false)
+        private bool TryAddress(int unit, out Entity entity, out OrderResult refused, bool ignorePossession = false)
         {
             refused = default;
             if (!_map.TryGetEntity(unit, out entity) || !_world.IsAlive(entity))

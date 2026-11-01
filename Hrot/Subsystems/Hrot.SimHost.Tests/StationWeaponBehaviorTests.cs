@@ -267,7 +267,7 @@ namespace Hrot.SimHost.Tests
                 repo.AddComponent(Ied, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = IedNetId });
             }
 
-            public const long IedNetId = 5501;
+            public const int IedNetId = 5501;
 
             /// <summary>A thing he SEES at <paramref name="at"/>: a vehicle or a man on foot, of <paramref name="force"/>.</summary>
             public Entity Sees(Vector3 at, bool vehicle, ForceId force = ForceId.Friend)

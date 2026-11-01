@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Replication.Tests
             var sys = new OwnershipIngressSystem(map, topo);
 
             var entity = repo.CreateEntity();
-            long netId = 999;
+            int netId = 999;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             map.Register(netId, entity);
 
@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Replication.Tests
             var sys = new OwnershipIngressSystem(map, topo);
 
             var entity = repo.CreateEntity();
-            long netId = 888;
+            int netId = 888;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             map.Register(netId, entity);
 
@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Replication.Tests
             var sys    = new OwnershipIngressSystem(map, localNodeId: 1, descriptorMap: ownMap);
 
             var entity = repo.CreateEntity();
-            long netId = 555;
+            int netId = 555;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             // Ghost on THIS node (1), currently owned by remote node 2.
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
@@ -158,7 +158,7 @@ namespace Fdp.Toolkit.Replication.Tests
             var sys    = new OwnershipIngressSystem(map, localNodeId: 1, descriptorMap: ownMap);
 
             var entity = repo.CreateEntity();
-            long netId = 556;
+            int netId = 556;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             // We (node 1) currently own it.
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
@@ -196,7 +196,7 @@ namespace Fdp.Toolkit.Replication.Tests
             var sys    = new OwnershipIngressSystem(map, localNodeId: 1, descriptorMap: ownMap);
 
             var entity = repo.CreateEntity();
-            long netId = 557;
+            int netId = 557;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             map.Register(netId, entity);

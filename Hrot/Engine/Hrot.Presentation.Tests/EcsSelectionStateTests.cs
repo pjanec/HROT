@@ -28,7 +28,7 @@ public sealed class EcsSelectionStateTests
 {
     private readonly EntityRepository  _world;
     private readonly EcsSelectionState _view;
-    private long _nextNetId = 9_100L;
+    private int _nextNetId = 9_100;
 
     public EcsSelectionStateTests()
     {
@@ -333,7 +333,7 @@ public sealed class EcsSelectionStateTests
         {
             var a = NewEntity();
             var b = NewEntity();
-            long netA = _world.GetComponentRO<NetworkIdentity>(a).Value, netB = _world.GetComponentRO<NetworkIdentity>(b).Value;
+            int netA = _world.GetComponentRO<NetworkIdentity>(a).Value, netB = _world.GetComponentRO<NetworkIdentity>(b).Value;
             _view.PrimarySelected = a;                                                                  // selected while recording
             Assert.Equal(netA, SelectionStore.Peek(_world)!.Primary);
             using (var recorder = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
@@ -402,9 +402,9 @@ public sealed class EcsSelectionStateTests
                 recorder.CaptureKeyframe(_world, 100_000L, blocking: true, eventBus: _world.Bus);
                 uint prev = _world.GlobalVersion - 1;
                 _world.Bus.SwapBuffers();
-                _world.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = 9_100L });
-                _world.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = 9_100L });
-                _world.Bus.Publish(new Hrot.Common.Events.OpenRenameDialogCommand { NetworkId = 9_100L });
+                _world.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = 9_100 });
+                _world.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = 9_100 });
+                _world.Bus.Publish(new Hrot.Common.Events.OpenRenameDialogCommand { NetworkId = 9_100 });
                 _world.Bus.Publish(new Hrot.Common.Events.ActivateEditorToolEvent(default));
                 _world.Bus.Publish(default(Hrot.Common.Events.WorldResetEvent));
                 _world.Bus.Publish(default(Hrot.Common.Interactions.MapShortcutKeyEvent));
@@ -446,7 +446,7 @@ public sealed class EcsSelectionStateTests
         shown = other;
         Assert.Null(view.PrimarySelected);                                    // the shown world has no selection yet
         var inOther = other.CreateEntity();
-        other.AddComponent(inOther, new NetworkIdentity { Value = 9_900L });
+        other.AddComponent(inOther, new NetworkIdentity { Value = 9_900 });
         other.AddComponent(inOther, new SelectionState());
         view.PrimarySelected = inOther;
         Assert.True(other.GetComponentRO<SelectionState>(inOther).IsPrimarySelection);

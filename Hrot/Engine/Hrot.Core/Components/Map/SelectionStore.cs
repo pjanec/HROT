@@ -38,10 +38,10 @@ public sealed class SelectionStore
     public static SelectionStore? Peek(EntityRepository world)
         => world.HasSingletonManaged<SelectionStore>() ? world.GetSingletonManaged<SelectionStore>() : null;
 
-    public bool Contains(long netId) => _selected.Contains(netId);
+    public bool Contains(int netId) => _selected.Contains(netId);
 
     /// <summary>Marks <paramref name="netId"/> selected or not, primary or not (the component's two flags).</summary>
-    public void Set(long netId, bool selected, bool primary)
+    public void Set(int netId, bool selected, bool primary)
     {
         if (netId <= 0) return;
         if (!selected && !primary)

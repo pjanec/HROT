@@ -57,9 +57,9 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     private readonly List<TrafficIncident> _frame = new();
     private readonly List<TrafficConversion> _conversions = new();
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
-    private readonly Dictionary<long, (DamageAssessedEvent Hit, double Until)> _held = new();
+    private readonly Dictionary<int, (DamageAssessedEvent Hit, double Until)> _held = new();
     private int _worldEpoch;
-    private readonly List<long> _done = new();
+    private readonly List<int> _done = new();
 
     /// <summary>How long a hit is held for the civilian it converts to (cluster seconds): a creation request round trip, with margin.</summary>
     public const double HoldSeconds = 10.0;
@@ -75,7 +75,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     }
 
     /// <summary>Hits waiting for their civilian (by network id) — rails and diagnostics.</summary>
-    public IReadOnlyCollection<long> HeldHits => _held.Keys;
+    public IReadOnlyCollection<int> HeldHits => _held.Keys;
 
     public void Execute(ISimulationView view, float deltaTime)
     {
@@ -112,7 +112,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     {
         var e = hit.HitEntity;
         if (!world.IsAlive(e) || !world.HasComponent<TrafficCar>(e) || !world.HasComponent<NetworkIdentity>(e)) return;
-        long id = world.GetComponentRO<NetworkIdentity>(e).Value;
+        int id = world.GetComponentRO<NetworkIdentity>(e).Value;
         if (_held.ContainsKey(id)) return;   // a burst on one man is one conversion; his first hit is the one he is born with
         bool car = world.GetComponentRO<TrafficCar>(e).Kind == TrafficCar.KindCar;
         var from = world.IsAlive(hit.Source) && world.HasComponent<SimTransform>(hit.Source)
@@ -162,7 +162,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
 
     private void Request(EntityRepository world, SumoNetPlacement placement, in TrafficConversion c)
     {
-        if (!long.TryParse(c.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var netId) || netId <= 0) return;
+        if (!int.TryParse(c.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var netId) || netId <= 0) return;
         _replicas()?.Release(netId);
         Fdp.Core.Logging.FdpLog<TrafficPanicSystem>.Info("[Traffic] SUMO gave up {0} {1}: requesting our {2}", c.IsVehicle ? "car" : "pedestrian", netId,
             c.IsVehicle ? "car type " + (c.ExternalType > 0 ? c.ExternalType : UrbanCombatTkbCatalog.TkbCivilianCar) + (double.IsNaN(c.X) ? " (no pose: skipped)" : "") : "civilian");
@@ -189,7 +189,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
 
     // ⭐ K7 / §8.7 G4 — the car: OUR civilian car (its TKB type, T1), stopped where SUMO left it, keeping its id; its driver: a civilian
     //   in panic beside it (a new id — the system allocates one).
-    private static void RequestCar(EntityRepository world, SumoNetPlacement placement, in TrafficConversion c, long netId)
+    private static void RequestCar(EntityRepository world, SumoNetPlacement placement, in TrafficConversion c, int netId)
     {
         if (double.IsNaN(c.X) || double.IsNaN(c.Y)) return;   // H15: a car not yet on the road has no pose (never hit, never seen)
         var (x, y) = placement.ToLocal(c.X, c.Y);
@@ -230,7 +230,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
 
     /// <summary>⭐ K5 — the civilian type for a pedestrian (SUMO's carry no age or sex): four in ten men, four in ten women, one child, one
     /// elderly, by the id — the same on every node.</summary>
-    public static int TypeOf(long networkId) => (int)(networkId % 10) switch
+    public static int TypeOf(int networkId) => (int)(networkId % 10) switch
     {
         < 4 => CivilianTkbCatalog.TkbCivilianAdultMale,
         < 8 => CivilianTkbCatalog.TkbCivilianAdultFemale,

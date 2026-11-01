@@ -66,7 +66,7 @@ namespace Hrot.Network.NED.IG
                 if (!sample.IsValid) continue;
 
                 ReceivedSampleCount++;
-                long entityId = sample.Data.EntityId;
+                int entityId = sample.Data.EntityId;
                 if (!_entityMap.TryGetEntity(entityId, out var entity)) continue;
 
                 // Map wire enum -> engine enum (ordinal values are identical: 0/1/2).
@@ -109,6 +109,6 @@ namespace Hrot.Network.NED.IG
         }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

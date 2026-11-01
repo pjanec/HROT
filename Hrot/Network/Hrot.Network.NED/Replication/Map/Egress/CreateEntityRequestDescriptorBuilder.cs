@@ -70,7 +70,7 @@ namespace Hrot.Map.Common.Replication.Egress
             string? initialAttributesJson,
             Vector3? anchor,
             IReadOnlyList<object>? initialComponents,
-            long preAllocatedNetworkId = 0)
+            int preAllocatedNetworkId = 0)
         {
             var descriptors = new List<EntityDescriptorUnion>
             {

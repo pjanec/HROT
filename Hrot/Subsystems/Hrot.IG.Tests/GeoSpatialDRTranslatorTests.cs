@@ -22,8 +22,8 @@ namespace Hrot.IG.Tests
     /// </summary>
     public class GeoSpatialDRTranslatorTests
     {
-        private const long KnownId   = 1L;
-        private const long UnknownId = 99L;
+        private const int KnownId   = 1;
+        private const int UnknownId = 99;
 
         [Fact]
         public void Decode_KnownEntity_SetsNetworkVelocity()

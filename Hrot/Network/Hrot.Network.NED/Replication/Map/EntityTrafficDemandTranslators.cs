@@ -21,7 +21,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityTrafficDemandEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityTrafficDemand>? _writer;
-        private readonly Dictionary<long, EntityTrafficDemand> _last = new();
+        private readonly Dictionary<int, EntityTrafficDemand> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.TrafficDemand };
@@ -52,7 +52,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var env in view.Query().With<TrafficDemand>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(env, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(env).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(env).Value;
                 var sample = ToSample(netId, view.GetComponentRO<TrafficDemand>(env));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -62,15 +62,15 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityTrafficDemand ToSample(long netId, in TrafficDemand c)
+        internal static EntityTrafficDemand ToSample(int netId, in TrafficDemand c)
             => new() { EntityId = netId, TargetCars = c.TargetCars, Seed = c.Seed, StepSeconds = c.StepSeconds,
                        TargetPedestrians = c.TargetPedestrians, ShotPanicRadius = c.ShotPanicRadius, BlastPanicRadius = c.BlastPanicRadius,
                        MaxConverted = c.MaxConverted };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityTrafficDemand { EntityId = networkEntityId });
         }
@@ -90,8 +90,8 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtTrafficDemand;
         private readonly DdsReader<EntityTrafficDemand>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, EntityTrafficDemand> _pending = new();
-        private readonly List<long> _done = new();
+        private readonly Dictionary<int, EntityTrafficDemand> _pending = new();
+        private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityTrafficDemand>();
         public long DescriptorOrdinal => OrdinalValue;
@@ -151,6 +151,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) => _pending.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _pending.Remove(networkEntityId);
     }
 }

@@ -74,7 +74,7 @@ namespace Hrot.Network.NED.SimHost
             {
                 if (evt.IsRemote) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.Shooter, out long shooterNetId))
+                if (!_entityMap.TryGetNetworkId(evt.Shooter, out int shooterNetId))
                 {
                     FdpLog<WeaponFireNotificationEgressTranslator>.Warn(
                         "[WeaponFireNotificationEgress] Shooter entity #{0} not in NetworkEntityMap — skipping notification.",
@@ -82,7 +82,7 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                long targetNetId = 0;   // ⭐ CE-1032 W-8 — a point fire has no target: the shot (muzzle flash, sound) still goes out
+                int targetNetId = 0;   // ⭐ CE-1032 W-8 — a point fire has no target: the shot (muzzle flash, sound) still goes out
                 if (evt.Target != Entity.Null && !_entityMap.TryGetNetworkId(evt.Target, out targetNetId))
                 {
                     FdpLog<WeaponFireNotificationEgressTranslator>.Warn(
@@ -92,7 +92,7 @@ namespace Hrot.Network.NED.SimHost
                 }
 
                 // ⭐ CE-1111 (BS-1-DESIGN §5.4b F1) — the shot itself; the round's id when it is replicated (a visible round), else 0
-                long roundNetId = 0;
+                int roundNetId = 0;
                 if (evt.Round != Entity.Null) _entityMap.TryGetNetworkId(evt.Round, out roundNetId);
                 _writer.Write(new WeaponFire
                 {
@@ -117,6 +117,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

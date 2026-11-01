@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Tests
             return repo;
         }
 
-        private static (Entity Hull, Entity Turret) Tank(EntityRepository world, long netId, int primaryOwner, int localNode)
+        private static (Entity Hull, Entity Turret) Tank(EntityRepository world, int netId, int primaryOwner, int localNode)
         {
             var hull = world.CreateEntity();
             world.AddComponent(hull, new NetworkIdentity(netId));
@@ -44,13 +44,13 @@ namespace Hrot.SimHost.Tests
         {
             using var participant = new DdsParticipant(228u);
             using var owner = World();
-            var (_, ownerTurret) = Tank(owner, 6000L, primaryOwner: 1, localNode: 1);
+            var (_, ownerTurret) = Tank(owner, 6000, primaryOwner: 1, localNode: 1);
             var egress = new EntityTurretPoseEgressTranslator(participant);
 
             using var replica = World();
-            var (replicaHull, replicaTurret) = Tank(replica, 6000L, primaryOwner: 1, localNode: 2);
+            var (replicaHull, replicaTurret) = Tank(replica, 6000, primaryOwner: 1, localNode: 2);
             var map = new NetworkEntityMap();
-            map.Register(6000L, replicaHull);
+            map.Register(6000, replicaHull);
             var ingress = new EntityTurretPoseIngressTranslator(participant, map);
 
             void Tick()
@@ -85,22 +85,22 @@ namespace Hrot.SimHost.Tests
         {
             using var participant = new DdsParticipant(229u);
             using var notOwner = World();
-            var (_, turret) = Tank(notOwner, 6100L, primaryOwner: 1, localNode: 2);
+            var (_, turret) = Tank(notOwner, 6100, primaryOwner: 1, localNode: 2);
             notOwner.SetComponent(turret, new TurretPose { Azimuth = 0.8f });
             var quiet = new EntityTurretPoseEgressTranslator(participant);
             quiet.ScanAndPublish(notOwner);
             Assert.Equal(0, quiet.SentSampleCount);
 
             using var owner = World();
-            var (_, ownerTurret) = Tank(owner, 6200L, primaryOwner: 1, localNode: 1);
+            var (_, ownerTurret) = Tank(owner, 6200, primaryOwner: 1, localNode: 1);
             owner.SetComponent(ownerTurret, new TurretPose { Azimuth = 0.3f });
             var egress = new EntityTurretPoseEgressTranslator(participant);
 
             using var replica = World();
             var bare = replica.CreateEntity();   // the hull is known but its turret part was never built
-            replica.AddComponent(bare, new NetworkIdentity(6200L));
+            replica.AddComponent(bare, new NetworkIdentity(6200));
             var map = new NetworkEntityMap();
-            map.Register(6200L, bare);
+            map.Register(6200, bare);
             var ingress = new EntityTurretPoseIngressTranslator(participant, map);
 
             Thread.Sleep(200);
@@ -143,16 +143,16 @@ namespace Hrot.SimHost.Tests
                 type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
                 db.Register(type);
                 w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-                var (hull, t) = Tank(w, 6300L, primaryOwner: 1, localNode: local);
+                var (hull, t) = Tank(w, 6300, primaryOwner: 1, localNode: local);
                 w.AddComponent(hull, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
                 w.AddComponent(hull, new TkbIdentity { TkbType = 1 });
                 w.SetManagedComponent(hull, new DescriptorOwnership { Map = new System.Collections.Generic.Dictionary<long, int> { [statusKey] = 2, [poseKey] = 2 } });
                 var target = w.CreateEntity();
-                w.AddComponent(target, new NetworkIdentity(6301L));
+                w.AddComponent(target, new NetworkIdentity(6301));
                 w.AddComponent(target, new SimTransform { Position = new System.Numerics.Vector3(0, 300, 0), Rotation = System.Numerics.Quaternion.Identity });
                 map = new NetworkEntityMap();
-                map.Register(6300L, hull);
-                map.Register(6301L, target);
+                map.Register(6300, hull);
+                map.Register(6301, target);
                 turret = t;
                 return w;
             }
@@ -163,10 +163,10 @@ namespace Hrot.SimHost.Tests
             var taskIn = new EntityWeaponTaskIngressTranslator(participant, muscleMap);
             var statusOut = new EntityWeaponTaskStatusEgressTranslator(participant);
             var statusIn = new EntityWeaponTaskStatusIngressTranslator(participant, brainMap);
-            Assert.True(brainMap.TryGetEntity(6301L, out var brainTarget));
+            Assert.True(brainMap.TryGetEntity(6301, out var brainTarget));
             brain.AddComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3, Arc = ArcPreference.High, AlongBarrel = 1 });
-            Assert.True(brainMap.TryGetEntity(6300L, out var brainHull));
-            Assert.True(muscleMap.TryGetEntity(6300L, out var muscleHull));
+            Assert.True(brainMap.TryGetEntity(6300, out var brainHull));
+            Assert.True(muscleMap.TryGetEntity(6300, out var muscleHull));
             brain.AddComponent(brainHull, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = brainTarget, ActiveMount = 33, HeldItem = HeldItemKind.Binoculars });
             var postureOut = new EntityWeaponPostureEgressTranslator(participant, brainMap);
             var postureIn = new EntityWeaponPostureIngressTranslator(participant, muscleMap);
@@ -178,7 +178,7 @@ namespace Hrot.SimHost.Tests
             Thread.Sleep(300);
             using (var cmd = new EntityCommandBuffer()) { taskIn.PollIngress(cmd, muscle); cmd.Playback(muscle); }
             using (var cmd = new EntityCommandBuffer()) { postureIn.PollIngress(cmd, muscle); cmd.Playback(muscle); }
-            Assert.True(muscleMap.TryGetEntity(6301L, out var muscleTarget));
+            Assert.True(muscleMap.TryGetEntity(6301, out var muscleTarget));
             Assert.Equal(muscleTarget, muscle.GetComponentRO<WeaponTask>(muscleTurret).Target);
             Assert.Equal(3u, muscle.GetComponentRO<WeaponTask>(muscleTurret).Epoch);
             Assert.Equal(ArcPreference.High, muscle.GetComponentRO<WeaponTask>(muscleTurret).Arc);   // ⭐ ui P2

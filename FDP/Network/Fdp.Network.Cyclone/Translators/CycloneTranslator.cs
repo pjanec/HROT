@@ -42,7 +42,7 @@ namespace Fdp.Network.Cyclone.Translators
         /// High-performance dispose that patches keys without reflection.
         /// Default implementation disposes instance 0 (Root).
         /// </summary>
-        public virtual void Dispose(long networkEntityId)
+        public virtual void Dispose(int networkEntityId)
         {
             DisposeInstance(networkEntityId, 0);
         }
@@ -52,14 +52,14 @@ namespace Fdp.Network.Cyclone.Translators
         /// descriptor alive and becomes its sole writer). Only an EGRESS translator ever wrote the instance, so an ingress one does
         /// nothing. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.3.
         /// </summary>
-        public virtual void ReleaseInstance(long networkEntityId, long instanceId)
+        public virtual void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if ((Direction & TranslatorDirection.Egress) == 0 || Writer == null) return;
             UnregisterInstance(networkEntityId, 0);
         }
 
         /// <summary>Helper to unregister (release, never dispose) a specific instance — the key is patched like <see cref="DisposeInstance(long, long)"/>.</summary>
-        protected void UnregisterInstance(long entityId, long instanceId)
+        protected void UnregisterInstance(int entityId, long instanceId)
         {
             TDds keySample = default;
             if (UnsafeLayout<TDds>.IsValid) UnsafeLayout<TDds>.WriteId(&keySample, entityId);
@@ -70,7 +70,7 @@ namespace Fdp.Network.Cyclone.Translators
         /// <summary>
         /// Helper to dispose specific instance.
         /// </summary>
-        protected void DisposeInstance(long entityId, long instanceId)
+        protected void DisposeInstance(int entityId, long instanceId)
         {
             // 1. Stack Allocation (Zero GC, Instant)
             TDds keySample = default;

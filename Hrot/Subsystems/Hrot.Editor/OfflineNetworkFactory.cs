@@ -158,7 +158,7 @@ public sealed class OfflineNetworkFactory : INetworkFactory
 
     private sealed class NullSimHostMissionSender : ISimHostMissionSender
     {
-        public void SendNavigateToPoint(long entityNetworkId, Vector2 destination, float speed, float arrivalRadius) { }
+        public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius) { }
         public void Dispose() { }
     }
 

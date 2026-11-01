@@ -62,7 +62,7 @@ public sealed class PinnedVariableEntry
     public string BindingKind  { get; set; } = "Concrete";
 
     /// <summary>⭐ The durable entity id for a concrete pin; <c>0</c> for a chameleon.</summary>
-    public long   NetworkId    { get; set; }
+    public int   NetworkId    { get; set; }
 }
 
 /// <summary>

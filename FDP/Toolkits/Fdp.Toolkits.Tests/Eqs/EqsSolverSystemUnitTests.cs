@@ -6,7 +6,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
     /// <summary>
     /// Unit tests for the ReduceTopK compaction contract (TASK-EQS-011 support tests).
     /// These tests verify the key invariants of the compaction logic used by EqsSolverSystem:
-    ///   - EntityId = -1L entries are removed (rejection sentinel).
+    ///   - EntityId = -1 entries are removed (rejection sentinel).
     ///   - EntityId = 0 entries are preserved (valid positional candidates).
     ///   - Output is truncated to maxTopK when over the limit.
     /// </summary>
@@ -18,9 +18,9 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             var arr = new EqsResult[]
             {
-                new EqsResult { EntityId = -1L, Score = 0f },
-                new EqsResult { EntityId =  0L, Score = 0f }, // positional
-                new EqsResult { EntityId =  5L, Score = 1f }, // entity-shaped
+                new EqsResult { EntityId = -1, Score = 0f },
+                new EqsResult { EntityId =  0, Score = 0f }, // positional
+                new EqsResult { EntityId =  5, Score = 1f }, // entity-shaped
             };
 
             // Replicate the ReduceTopK compaction contract:
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
 
             Assert.True(hasPositional,   "EntityId=0 positional must be preserved");
             Assert.True(hasEntityShaped, "EntityId=5 entity-shaped must be preserved");
-            Assert.False(hasRejected,    "EntityId=-1L rejected must not appear in output");
+            Assert.False(hasRejected,    "EntityId=-1 rejected must not appear in output");
         }
 
         // T-RK2: ReduceTopK truncates output when there are more candidates than maxTopK.

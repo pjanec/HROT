@@ -37,7 +37,7 @@ internal sealed class MontageStartedEventTranslator
     protected override bool TryEncode(
         in MontageStartedEvent ecs, out DdsMontageStartedEvent dds)
     {
-        if (!EntityMap.TryGetNetworkId(ecs.Target, out long netId))
+        if (!EntityMap.TryGetNetworkId(ecs.Target, out int netId))
         {
             dds = default;
             return false;

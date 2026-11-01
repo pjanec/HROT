@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Replication.Systems
             foreach (var e in _query!) _pending.Add(e);
             foreach (var e in _pending)
             {
-                long id = _ids.AllocateId();
+                int id = _ids.AllocateId();
                 world.AddComponent(e, new NetworkIdentity(id));
                 world.AddComponent(e, new NetworkAuthority(_localNodeId, _localNodeId));
                 _entityMap.Register(id, e);

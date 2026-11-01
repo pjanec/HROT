@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             return world;
         }
 
-        private static EntityMission MakeMission(long entityId = 42)
+        private static EntityMission MakeMission(int entityId = 42)
         {
             return new EntityMission
             {

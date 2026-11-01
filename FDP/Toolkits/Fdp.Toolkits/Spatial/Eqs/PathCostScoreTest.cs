@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 {
     /// <summary>
     /// Scores candidates by inverse-linear path cost (closer path = higher score).
-    /// Rejects candidates where no navmesh path exists (EntityId = -1L).
+    /// Rejects candidates where no navmesh path exists (EntityId = -1).
     /// Runs in ScoreExpensive phase.
     /// </summary>
     public sealed class PathCostScoreTest : IEqsTest, IEqsCostWeight, IEqsCountedWork
@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     if (pathDist != float.MaxValue)
                         candidate.Score += 1.0f - Math.Clamp(pathDist / maxDist, 0f, 1f);   // inverse-linear: shorter path = higher score
                     else
-                        candidate.EntityId = -1L;   // reject: no path
+                        candidate.EntityId = -1;   // reject: no path
                 }
             }
             finally

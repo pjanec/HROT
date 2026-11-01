@@ -108,7 +108,7 @@ public sealed record StatusDto(
 public sealed record SimStateDto(bool IsPaused, bool InPreview, double TotalTime, float TimeScale);
 
 /// <summary>One row of <c>GET /entities</c>.</summary>
-public sealed record EntityRowDto(long NetworkId, string? Name, string[] Components);
+public sealed record EntityRowDto(int NetworkId, string? Name, string[] Components);
 
 /// <summary>The <c>GET /replay/status</c> payload.</summary>
 public sealed record ReplayStatusDto(bool ReplayActive, int CurrentFrame, int TotalFrames);

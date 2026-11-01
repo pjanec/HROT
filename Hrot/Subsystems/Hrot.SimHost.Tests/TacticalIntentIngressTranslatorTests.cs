@@ -30,11 +30,11 @@ namespace Hrot.SimHost.Tests
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
 
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 42L,
+                TargetEntityId = 42,
                 IntentId       = "DefendArea",
                 JsonParams     = "{\"radius\":100}",
             };
@@ -58,7 +58,7 @@ namespace Hrot.SimHost.Tests
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 99L,
+                TargetEntityId = 99,
                 IntentId       = "DefendArea",
                 JsonParams     = "{}",
             };
@@ -80,11 +80,11 @@ namespace Hrot.SimHost.Tests
         {
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 42L, IntentId = "Idle", JsonParams = "{}",
+                TargetEntityId = 42, IntentId = "Idle", JsonParams = "{}",
                 Kind = (byte)TacticalIntentKind.Clear, Flags = TacticalIntentFlags.ClearsPriorIntent,
             };
             translator.ProcessSample(in sample, _world);
@@ -103,13 +103,13 @@ namespace Hrot.SimHost.Tests
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
             _world.Bus.Register<SetRoeEvent>();
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
             var sent = new SetRoeEvent { Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask,
                                          ReturnFireWindowSeconds = 4f, ForceLevel = RoeForceLevel.Warn };
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 42L, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetRoe,
+                TargetEntityId = 42, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetRoe,
                 Origin = (byte)BehaviorOrigin.Superior, JsonParams = RoeDirectiveJson.Encode(in sent),
             };
             translator.ProcessSample(in sample, _world);
@@ -132,9 +132,9 @@ namespace Hrot.SimHost.Tests
         {
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
 
-            var sample = new TacticalIntentRequest { TargetEntityId = 42L, IntentId = "Idle", JsonParams = "{}",
+            var sample = new TacticalIntentRequest { TargetEntityId = 42, IntentId = "Idle", JsonParams = "{}",
                                                      Kind = 9 };   // a kind this build does not know
             translator.ProcessSample(in sample, _world);
             _world.Bus.SwapBuffers();
@@ -151,7 +151,7 @@ namespace Hrot.SimHost.Tests
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
             _world.Bus.Register<Fdp.Toolkit.Squad.Command.SetReportingEvent>();
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
+            _entityMap.Register(42, entity);
             var sent = new Fdp.Toolkit.Squad.Command.SetReportingEvent
             {
                 Pir = Fdp.Toolkit.Squad.Command.PirFlags.AnyElement | Fdp.Toolkit.Squad.Command.PirFlags.InArea,
@@ -160,7 +160,7 @@ namespace Hrot.SimHost.Tests
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 42L, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetReporting,
+                TargetEntityId = 42, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetReporting,
                 Origin = (byte)BehaviorOrigin.Superior, JsonParams = ReportingDirectiveJson.Encode(in sent),
             };
             translator.ProcessSample(in sample, _world);
@@ -181,13 +181,13 @@ namespace Hrot.SimHost.Tests
             var translator = new TacticalIntentIngressTranslator(null, _entityMap);
             _world.Bus.Register<Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent>();
             var entity = _world.CreateEntity();
-            _entityMap.Register(42L, entity);
-            var sent = new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent { ArcSet = 1, LeftBearing = 270f, RightBearing = 90f, AllowArea = 9L };
-            sent.NoFire.Items[0] = 77L; sent.NoFire.Count = 1;
+            _entityMap.Register(42, entity);
+            var sent = new Fdp.Toolkit.Behavior.Components.SetEngagementAreaEvent { ArcSet = 1, LeftBearing = 270f, RightBearing = 90f, AllowArea = 9 };
+            sent.NoFire.Items[0] = 77; sent.NoFire.Count = 1;
 
             var sample = new TacticalIntentRequest
             {
-                TargetEntityId = 42L, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetEngagementArea,
+                TargetEntityId = 42, IntentId = string.Empty, Kind = TacticalIntentWireKind.SetEngagementArea,
                 Origin = (byte)BehaviorOrigin.Superior, JsonParams = EngagementAreaDirectiveJson.Encode(in sent),
             };
             translator.ProcessSample(in sample, _world);

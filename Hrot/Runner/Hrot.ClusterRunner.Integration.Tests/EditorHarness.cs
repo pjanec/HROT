@@ -166,9 +166,9 @@ public sealed class EditorHarness : IDisposable
 
     private sealed class SequentialIdAllocator : INetworkIdAllocator
     {
-        private long _next = 1000;
-        public long AllocateId()            => _next++;
-        public void Reset(long startId = 0) => _next = startId;
+        private int _next = 1000;
+        public int AllocateId()            => _next++;
+        public void Reset(int startId = 0) => _next = startId;
         public void Dispose() { }
     }
 

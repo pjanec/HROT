@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class PossessionReplicationTests
     {
-        private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(long netId)
+        private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(int netId)
         {
             var w = new EntityRepository();
             w.RegisterComponent<NetworkIdentity>();
@@ -161,10 +161,10 @@ namespace Hrot.SimHost.Tests
         public void CE3173_ManualDrive_TheAxesOfTheBrain_AreAppliedOnTheMuscle()
         {
             var drive = new ManualDrive { Forward = 1f, Lateral = -1f, Steer = 0.5f, Yaw = 2f, Gait = 1, Seq = 9 };
-            var sample = EntityManualDriveEgressTranslator.ToSample(77L, drive);
+            var sample = EntityManualDriveEgressTranslator.ToSample(77, drive);
             Assert.Equal(77L, sample.EntityId);
 
-            var (muscle, unit, map) = Node(77L);
+            var (muscle, unit, map) = Node(77);
             using (muscle)
             {
                 var ingress = new EntityManualDriveIngressTranslator(participant: null, map);
@@ -174,7 +174,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(drive, muscle.GetComponentRO<ManualDrive>(unit));
 
                 // the brain's let-go (axes zeroed, sequence restarted) still lands: the latest sample wins
-                var stop = EntityManualDriveEgressTranslator.ToSample(77L, new ManualDrive { Yaw = 2f });
+                var stop = EntityManualDriveEgressTranslator.ToSample(77, new ManualDrive { Yaw = 2f });
                 ingress.Apply(in stop, cmd, muscle);
                 cmd.Playback(muscle);
                 Assert.Equal(0f, muscle.GetComponentRO<ManualDrive>(unit).Forward);
@@ -184,8 +184,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3172_PossessedBy_IsSetOnEveryNode_AndRemovedByOneReleaseSample()
         {
-            var (brain, brainsUnit, _) = Node(55L);
-            var (station, stationsUnit, stationMap) = Node(55L);
+            var (brain, brainsUnit, _) = Node(55);
+            var (station, stationsUnit, stationMap) = Node(55);
             using (brain)
             using (station)
             {
@@ -230,15 +230,15 @@ namespace Hrot.SimHost.Tests
                 UseSeq = 7, ActionId = Fdp.Toolkit.Behavior.BehaviorConstants.ActionIdOpenDoor,
                 Outcome = UseOutcome.Refused, Reason = UseReason.Locked,
             };
-            var sample = EntityOperatorUseStatusEgressTranslator.ToSample(66L, verdict);
-            var (station, unit, map) = Node(66L);
+            var sample = EntityOperatorUseStatusEgressTranslator.ToSample(66, verdict);
+            var (station, unit, map) = Node(66);
             using (station)
             {
                 station.RegisterComponent<OperatorUseStatus>();
                 var ingress = new EntityOperatorUseStatusIngressTranslator(participant: null, map);
                 using var cmd = new EntityCommandBuffer();
                 ingress.Apply(in sample, cmd, station);
-                var stranger = EntityOperatorUseStatusEgressTranslator.ToSample(99L, verdict);   // nobody here has id 99
+                var stranger = EntityOperatorUseStatusEgressTranslator.ToSample(99, verdict);   // nobody here has id 99
                 ingress.Apply(in stranger, cmd, station);
                 cmd.Playback(station);
                 Assert.Equal(verdict, station.GetComponentRO<OperatorUseStatus>(unit));
@@ -256,8 +256,8 @@ namespace Hrot.SimHost.Tests
                      new Fdp.Toolkit.Combat.Components.AmmoLoadout { Count = 2, Ammo0 = 6006, Rounds0 = 1, Ammo1 = 6018, Rounds1 = 1, Loaded = 1, SwitchRemaining = 2f });
             Assert.Equal((6018L, 1, true), (ammo.Load1, ammo.LoadRounds1, ammo.IsBusy(1)));
             ammo.LaidDown = 0b0001;   // ⭐ CE-3232 (B-10) — the laid-down mounts cross too
-            var sample = EntityWeaponAmmoEgressTranslator.ToSample(66L, ammo);
-            var (station, unit, map) = Node(66L);
+            var sample = EntityWeaponAmmoEgressTranslator.ToSample(66, ammo);
+            var (station, unit, map) = Node(66);
             using (station)
             {
                 station.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();

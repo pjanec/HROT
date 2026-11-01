@@ -683,7 +683,7 @@ public sealed partial class ReplayBrowserSubsystem : IProvidesDebugSurface
         if (r.Entities is { Count: > 0 } ids)
         {
             o.FilterBySelection = true;
-            foreach (long id in ids)
+            foreach (int id in ids)
             {
                 var e = NetworkIdResolver.ResolveNetworkId(ctx.SandboxRepo, id);
                 if (e.IsNull) return (null, $"Unit {id} is not in the shown world at this frame.");

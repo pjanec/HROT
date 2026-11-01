@@ -104,12 +104,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Private helpers ───────────────────────────────────────────────────
 
         private void ProcessOverlayUpdate(
-            long networkId, Guid requestId,
+            int networkId, Guid requestId,
             EditablePolyline polyline, ISimulationView view)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))

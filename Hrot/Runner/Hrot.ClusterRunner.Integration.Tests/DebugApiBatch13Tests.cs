@@ -15,7 +15,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class DebugApiBatch13Tests
 {
-    private const long TestNetworkId = 90_130L;
+    private const int TestNetworkId = 90_130;
 
     // ── ADA-P8-T01: Attribute patch ────────────────────────────────────────────
 

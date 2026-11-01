@@ -18,7 +18,7 @@ namespace Hrot.Common.Events
         public Guid RequestId;
 
         /// <summary>Network entity ID of the mission target.</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Client-side version the request is based on (0 = unconditional).</summary>
         public long BaseVersion;

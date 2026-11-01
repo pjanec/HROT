@@ -45,15 +45,15 @@ namespace Hrot.Network.NED.SimHost
             if (view is EntityRepository repo && !repo.Bus.IsRegistered<StrikeNotification>()) return;
             foreach (ref readonly var evt in view.ReadEvents<StrikeNotification>())
             {
-                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Striker, out long strikerId)) continue;
-                long targetId = !evt.Target.IsNull && _entityMap.TryGetNetworkId(evt.Target, out long tid) ? tid : 0L;
+                if (evt.IsRemote || !_entityMap.TryGetNetworkId(evt.Striker, out int strikerId)) continue;
+                int targetId = !evt.Target.IsNull && _entityMap.TryGetNetworkId(evt.Target, out int tid) ? tid : 0;
                 _writer.Write(new MeleeStrike { SourceNodeId = _localNodeId, StrikerEntityId = strikerId, TargetEntityId = targetId, Weapon = (byte)evt.Weapon });
                 SentSampleCount++;
             }
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ <c>CE-3266</c> — a <c>MeleeStrike</c> from another node becomes a remote <see cref="StrikeNotification"/> here (ui draws
@@ -106,6 +106,6 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -18,7 +18,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// </summary>
 public sealed class EventAnchoredKeysTests : IDisposable
 {
-    private const long TankId = 1, RifleId = 2;
+    private const int TankId = 1, RifleId = 2;
     private const string Shot = "combat.shot", Hit = "combat.hit", Blast = "combat.blast";
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "cr6-" + Guid.NewGuid().ToString("N"));
@@ -27,9 +27,9 @@ public sealed class EventAnchoredKeysTests : IDisposable
     public EventAnchoredKeysTests() => _store = new TakeStore(() => _root, () => null);
     public void Dispose() { if (Directory.Exists(_root)) Directory.Delete(_root, true); }
 
-    private static string? NameOf(long id) => id switch { TankId => "Tank", RifleId => "Rifle", _ => null };
+    private static string? NameOf(int id) => id switch { TankId => "Tank", RifleId => "Rifle", _ => null };
 
-    private static TimelineEvent At(int frame, string lane, long subject) => new(frame, lane, subject, 0, 0f, 0f, 0f);
+    private static TimelineEvent At(int frame, string lane, int subject) => new(frame, lane, subject, 0, 0f, 0f, 0f);
 
     private static TimelineIndex Index(params TimelineEvent[] events)
     {
@@ -196,7 +196,7 @@ public sealed class EventAnchoredKeysTests : IDisposable
     {
         var struck = new TimelineEvent(7, Blast, RifleId, TankId, 0f, 0f, 0f);   // Rifle's round bursts ON the Tank at 1.4 s
         var index = Index(At(2, Shot, TankId), At(3, Shot, RifleId), At(5, Shot, TankId), At(4, Hit, RifleId), At(6, Blast, 0), struck, At(8, Hit, TankId));
-        bool IsUnit(string who, long id) => NameOf(id) == who;
+        bool IsUnit(string who, int id) => NameOf(id) == who;
 
         int named = 0;
         foreach (var lane in EventAnchors.DefaultLanes)

@@ -46,7 +46,7 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// was not supplied with a network entity map.
         /// </para>
         /// </summary>
-        public long MaxNetworkId { get; set; } = 0;
+        public int MaxNetworkId { get; set; } = 0;
 
         /// <summary>
         /// Distributed exercise identifier shared by all nodes participating in one exercise session.

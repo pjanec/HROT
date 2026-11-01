@@ -36,7 +36,7 @@ public sealed class CommandDisplayGizmoTests : IDisposable
 
     public void Dispose() => _w.Dispose();
 
-    private Entity Area(long net, Vector2 origin, params Vector2[] points)
+    private Entity Area(int net, Vector2 origin, params Vector2[] points)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new SimTransform { Position = new Vector3(origin, 0) });
@@ -45,7 +45,7 @@ public sealed class CommandDisplayGizmoTests : IDisposable
         return e;
     }
 
-    private Entity Unit(long net, string name, long allow = 0, params long[] noFire)
+    private Entity Unit(int net, string name, int allow = 0, params int[] noFire)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new SimTransform { Position = new Vector3(net, 0, 0) });

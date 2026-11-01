@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Replay
         /// <c>.meta.json</c> when <see cref="Dispose"/> is called.
         /// Callers supply the value from the network entity map just before requesting uninstall.
         /// </summary>
-        public void SetMaxNetworkId(long maxNetworkId)
+        public void SetMaxNetworkId(int maxNetworkId)
         {
             if (_recorder != null)
                 _recorder.MaxNetworkId = maxNetworkId;

@@ -29,7 +29,7 @@ public sealed class TimelineLayoutTests
         return new TimelineIndex(lanes, ticks, frames, frames);
     }
 
-    private static TimelineEvent E(int frame, string lane, long subject = 1) => new(frame, lane, subject, 0, 0, 0, 0);
+    private static TimelineEvent E(int frame, string lane, int subject = 1) => new(frame, lane, subject, 0, 0, 0, 0);
     private static TimelineWindow All(TimelineIndex i) => new(i.FrameTicks[0], i.FrameTicks[^1]);
 
     [Fact]

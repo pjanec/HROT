@@ -15,7 +15,7 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     internal static class CombatReport
     {
-        public static JsonNode Shots(EntityRepository world, NetworkEntityMap? map, int last, long? shooter, long? target)
+        public static JsonNode Shots(EntityRepository world, NetworkEntityMap? map, int last, int? shooter, int? target)
         {
             var log = ShotLog.Peek(world);
             if (log == null)
@@ -110,7 +110,7 @@ namespace Hrot.Editor.DebugApi
         /// the way. A dry run of the same <see cref="Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy"/> perception composes
         /// (<c>ForLiveWorld</c>), so it cannot disagree with it.
         /// </summary>
-        public static JsonNode Los(EntityRepository world, NetworkEntityMap? map, long observer, long target)
+        public static JsonNode Los(EntityRepository world, NetworkEntityMap? map, int observer, int target)
         {
             if (map == null || !map.TryGetEntity(observer, out var o) || !world.IsAlive(o))
                 return new JsonObject { ["error"] = $"observer {observer} is not a live entity on this node" };
@@ -152,7 +152,7 @@ namespace Hrot.Editor.DebugApi
         /// node's hearing sensor judges it — heard, or why not, the straight line's loss, the way round (through which doorways and corners) and
         /// where it seems to come from. A dry run of the sensor's own ears and verdict (<c>HearingExplain</c>), so it cannot disagree with it.
         /// </summary>
-        public static JsonNode Hearing(EntityRepository world, NetworkEntityMap? map, long listener, double seconds)
+        public static JsonNode Hearing(EntityRepository world, NetworkEntityMap? map, int listener, double seconds)
         {
             if (map == null || !map.TryGetEntity(listener, out var u) || !world.IsAlive(u))
                 return new JsonObject { ["error"] = $"listener {listener} is not a live entity on this node" };

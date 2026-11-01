@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             return e;
         }
 
-        private static EqsResult Point(float x, float y) => new() { EntityId = 0L, PositionX = x, PositionY = y };
+        private static EqsResult Point(float x, float y) => new() { EntityId = 0, PositionX = x, PositionY = y };
 
         // ── sight ────────────────────────────────────────────────────────────────────────────
 

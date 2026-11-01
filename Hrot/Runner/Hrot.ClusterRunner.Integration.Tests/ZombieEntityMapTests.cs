@@ -28,7 +28,7 @@ public class ZombieEntityMapTests
     {
         using var harness = new HrotRunnerHarness();
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
@@ -60,7 +60,7 @@ public class ZombieEntityMapTests
         // Spawn directly on SimHost so SimHost is the authority (NetworkOwnership.HasAuthority=true).
         // This ensures CycloneNetworkCleanupSystem fires on destroy and sends EntityMaster DISPOSE
         // to DDS, which allows IG to detect the removal and prune its NetworkEntityMap.
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             new CoreGeoPoint { Latitude = 32.0, Longitude = 34.0 });
 

@@ -600,8 +600,8 @@ namespace Fdp.Toolkit.Lifecycle
             foreach (var o in _outcomes)
             {
                 bool alive = view.IsAlive(o.Entity);
-                long networkId = alive && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity)
-                    ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0L;
+                int networkId = alive && view.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity)
+                    ? view.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(o.Entity).Value : 0;
                 long tkbType = o.TkbType != 0 || !alive || !view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity)
                     ? o.TkbType : view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(o.Entity).TkbType;
                 Guid requestId = alive && view.HasComponent<Components.CreationRequestId>(o.Entity)

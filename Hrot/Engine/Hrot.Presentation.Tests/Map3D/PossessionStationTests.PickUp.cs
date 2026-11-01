@@ -30,7 +30,7 @@ public sealed partial class PossessionStationTests
         stoneType.AddDescriptor(new WarheadDto { Kind = WarheadKind.Blunt, Indirect = true });
         stoneType.AddDescriptor(new HandItemDto { LiesSeconds = 60f });
         ((Fdp.Toolkit.Tkb.TkbDatabase)u.W.GetSingletonManaged<ITkbDatabase>()!).Register(stoneType);
-        Entity Stone(Vector3 at, long id)
+        Entity Stone(Vector3 at, int id)
         {
             var e = u.W.CreateEntity();
             u.W.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });

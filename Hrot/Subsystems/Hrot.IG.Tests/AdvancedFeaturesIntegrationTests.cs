@@ -196,7 +196,7 @@ public class AdvancedFeaturesIntegrationTests
             },
         });
 
-        const long polyNetworkId = 999L;
+        const int polyNetworkId = 999;
         using var gizmo = new VertexEditGizmo(view, polyEntity, polyNetworkId, onRemove: () => { });
 
         // SubElementId=2 -> vertex index 1.

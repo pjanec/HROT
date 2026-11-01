@@ -78,7 +78,7 @@ public sealed partial class PossessionStationTests
         w.AddComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
         w.AddComponent(unit, new Health { Current = 80f, Max = 100f });
         var map = new NetworkEntityMap();
-        map.Register(4242L, unit);
+        map.Register(4242, unit);
         w.SetSingletonManaged(map);
         return (w, unit, map);
     }
@@ -730,7 +730,7 @@ public sealed partial class PossessionStationTests
         {
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             w.AddComponent(me, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
-            Entity Man(long id, Entity commander, float health = 100f)
+            Entity Man(int id, Entity commander, float health = 100f)
             {
                 var m = w.CreateEntity();
                 w.AddComponent(m, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
@@ -793,7 +793,7 @@ public sealed partial class PossessionStationTests
             geo.SetOrigin(52.520, 13.405, 0.0);
             w.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var soldier = new Fdp.Core.DISEntityType { Value = (3UL << 56) | (1UL << 48) | (225UL << 32) | (1UL << 24) };
-            Entity Man(long id, Entity commander)
+            Entity Man(int id, Entity commander)
             {
                 var m = w.CreateEntity();
                 w.AddComponent(m, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });

@@ -14,7 +14,7 @@ namespace Fdp.Network.Cyclone.Topics
         /// <summary>
         /// Network entity ID (not FDP entity).
         /// </summary>
-        public long EntityId;
+        public int EntityId;
         
         /// <summary>
         /// Descriptor type ID.

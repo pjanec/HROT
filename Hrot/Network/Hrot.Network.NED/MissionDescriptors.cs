@@ -75,7 +75,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityMission
     {
         [DdsKey]
-        public long EntityId; //@key
+        public int EntityId; //@key
 
         // The current state of the mission
         public MissionPlan Plan;

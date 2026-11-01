@@ -279,7 +279,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private RoadNetworkBlob?      _road;
         private TrajectoryPoolManager? _trajectoryPool;
 
-        private long _nextNetId = 1L;
+        private int _nextNetId = 1;
 
         // ── IScenario.Configure ───────────────────────────────────────────────
 

@@ -1925,7 +1925,7 @@ public sealed class PostureScenarioTests : IDisposable
         void Motion(int f, string name)
         {
             var ce = ByName(cgf, name);
-            if (ce.IsNull || harness.Cgf!.GhostEntityMap is not { } gm || !gm.TryGetNetworkId(ce, out long nid)) return;
+            if (ce.IsNull || harness.Cgf!.GhostEntityMap is not { } gm || !gm.TryGetNetworkId(ce, out int nid)) return;
             var shw = harness.SimHost.World!;
             if (!harness.SimHost.App.TestHook_EntityMap.TryGetEntity(nid, out var se) || !shw.IsAlive(se)) return;
             double t = shw.HasSingleton<GlobalTime>() ? shw.GetSingleton<GlobalTime>().TotalTime : 0d;
@@ -1975,12 +1975,12 @@ public sealed class PostureScenarioTests : IDisposable
                 if (firstHitFrame >= 0 && ammoNow < lastAmmo && Winner() is Posture.TakeCover) firedFromCover += lastAmmo - ammoNow;
                 var t = FireTarget(cgf, rifleman);
                 string tn = ShooterName(cgf, t);
-                string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out long tid) ? $"net{tid}" : "UNMAPPED";
+                string tm = harness.Cgf!.GhostEntityMap is { } m && m.TryGetNetworkId(t, out int tid) ? $"net{tid}" : "UNMAPPED";
                 _out.WriteLine($"f{f}: rifleman ammo {lastAmmo}→{ammoNow}, fire target e{t.Index}:{t.Generation} '{tn}' {tm} alive={cgf.IsAlive(t)}");
                 var sh = harness.SimHost.World!; var shMap = harness.SimHost.App.TestHook_EntityMap;
-                string Sh(long net) => shMap.TryGetEntity(net, out var se) ? $"e{se.Index} alive={sh.IsAlive(se)} weapon={(sh.IsAlive(se) && sh.HasComponent<WeaponState>(se))} xf={(sh.IsAlive(se) && sh.HasComponent<SimTransform>(se))}" : "UNMAPPED";
-                long shooterNet = harness.Cgf!.GhostEntityMap!.TryGetNetworkId(rifleman, out long rn) ? rn : -1;
-                _out.WriteLine($"   simhost: shooter net{shooterNet} {Sh(shooterNet)} · target {tm} {(tm.StartsWith("net") ? Sh(long.Parse(tm[3..])) : "-")}");
+                string Sh(int net) => shMap.TryGetEntity(net, out var se) ? $"e{se.Index} alive={sh.IsAlive(se)} weapon={(sh.IsAlive(se) && sh.HasComponent<WeaponState>(se))} xf={(sh.IsAlive(se) && sh.HasComponent<SimTransform>(se))}" : "UNMAPPED";
+                int shooterNet = harness.Cgf!.GhostEntityMap!.TryGetNetworkId(rifleman, out int rn) ? rn : -1;
+                _out.WriteLine($"   simhost: shooter net{shooterNet} {Sh(shooterNet)} · target {tm} {(tm.StartsWith("net") ? Sh(int.Parse(tm[3..])) : "-")}");
                 lastAmmo = ammoNow;
             }
             if (Winner() is { } w && (postures.Count == 0 || postures[^1] != w)) postures.Add(w);
@@ -2019,7 +2019,7 @@ public sealed class PostureScenarioTests : IDisposable
         {
             var e = ByName(cgf, n);
             string auth = !e.IsNull && cgf.HasComponent<NetworkAuthority>(e) ? $"{cgf.GetComponent<NetworkAuthority>(e).PrimaryOwnerId}/{cgf.GetComponent<NetworkAuthority>(e).LocalNodeId}" : "none";
-            string mapped = cgfMap != null && cgfMap.TryGetNetworkId(e, out long nid) ? $"net{nid}" : "UNMAPPED";
+            string mapped = cgfMap != null && cgfMap.TryGetNetworkId(e, out int nid) ? $"net{nid}" : "UNMAPPED";
             _out.WriteLine($"cgf {n}: e{e.Index} authority(owner/local)={auth} hasAuthority={Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, e)} map={mapped}");
         }
         {
@@ -2027,7 +2027,7 @@ public sealed class PostureScenarioTests : IDisposable
             foreach (var n in hostileNames.Prepend("Rifleman"))
             {
                 var ce = ByName(cgf, n);
-                if (cgfMap == null || !cgfMap.TryGetNetworkId(ce, out long nid) || !shm.TryGetEntity(nid, out var se)) { _out.WriteLine($"simhost {n}: unmapped"); continue; }
+                if (cgfMap == null || !cgfMap.TryGetNetworkId(ce, out int nid) || !shm.TryGetEntity(nid, out var se)) { _out.WriteLine($"simhost {n}: unmapped"); continue; }
                 string col = shw.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>() && shw.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se)
                     ? $"radius={shw.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se).Radius} layer={shw.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(se).CollisionLayer}" : "NO COLLIDER";
                 var sp = shw.HasComponent<SimTransform>(se) ? shw.GetComponent<SimTransform>(se).Position : default;

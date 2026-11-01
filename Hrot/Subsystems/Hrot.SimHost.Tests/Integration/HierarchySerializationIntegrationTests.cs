@@ -73,7 +73,7 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
     {
         // -- Arrange: build source repo with commander + subordinate --
 
-        const long commanderNetId = 42L;
+        const int commanderNetId = 42;
 
         var commander = _repo1.CreateEntity();
         _repo1.SetComponent(commander, new NetworkIdentity { Value = commanderNetId });

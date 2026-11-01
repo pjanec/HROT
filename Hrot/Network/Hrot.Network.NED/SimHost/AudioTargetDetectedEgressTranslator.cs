@@ -52,7 +52,7 @@ namespace Hrot.Network.NED.SimHost
             var events = view.ReadEvents<SoundContactEvent>();
             foreach (ref readonly var evt in events)
             {
-                if (!_entityMap.TryGetNetworkId(evt.Observer, out long listenerId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.Observer, out int listenerId)) continue;
                 _writer.Write(new AudioTargetDetected
                 {
                     ListenerEntityId = listenerId,
@@ -73,6 +73,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

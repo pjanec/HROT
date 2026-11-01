@@ -761,7 +761,7 @@ namespace Fdp.Toolkit.Replay.Tests
                 Module.RegisterSystems(_systems = new CapturingSystemRegistry());
                 return Started = Task.CompletedTask;
             }
-            public Task FinalizeRecordingAsync(long maxNetworkId = 0) { Module?.Dispose(); Module = null; return Task.CompletedTask; }
+            public Task FinalizeRecordingAsync(int maxNetworkId = 0) { Module?.Dispose(); Module = null; return Task.CompletedTask; }
             public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
             public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks) => Task.FromResult(default(GlobalTime));
             public void ProcessPlaybackTick(GlobalTime currentTime) { }
@@ -774,7 +774,7 @@ namespace Fdp.Toolkit.Replay.Tests
             public long ReplayAnchorWallTicks { get; set; }
             public string? ActiveReplayFilePath => null;
             public bool IsRestoringReplay => false;
-            public long ActiveMaxNetworkId => 0;
+            public int ActiveMaxNetworkId => 0;
         }
 
         // The mark is written by a pool thread right after the keyframe: wait for it (bounded).

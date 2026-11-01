@@ -63,7 +63,7 @@ namespace Fdp.Network.Cyclone.Translators
 
         private void ProcessSample(T data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = MultiInstanceLayout<T>.ReadEntityId(&data);
+            int netId = MultiInstanceLayout<T>.ReadEntityId(&data);
             long instId = MultiInstanceLayout<T>.ReadInstanceId(&data);
 
             if (!_entityMap.TryGetEntity(netId, out Entity rootEntity))
@@ -102,7 +102,7 @@ namespace Fdp.Network.Cyclone.Translators
             
             foreach (var entity in query)
             {
-                long netIdValue = 0;
+                int netIdValue = 0;
                 long instIdValue = 0;
 
                 // Case A: Child part
@@ -141,7 +141,7 @@ namespace Fdp.Network.Cyclone.Translators
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             T keySample = default;
             MultiInstanceLayout<T>.WriteEntityId(&keySample, networkEntityId);

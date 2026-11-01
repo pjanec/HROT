@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
     {
         /// <summary>⭐ §6.7 — an anchored primitive the hit-test will consider: a network id, and that
         /// is all it takes. (There used to be a <c>DummyAnchor</c> ECS handle stamped alongside.)</summary>
-        private const long AnchorNetId = 90210L;
+        private const int AnchorNetId = 90210;
 
         private static DebugPrimitive Anchored(DebugPrimitiveShape shape, SizeMode sizeMode)
         {
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         {
             var p = DebugPrimitive.MakePickSegment(
                 new Vector2(0f, 0f), new Vector2(100f, 100f),
-                networkId: 90210L, pickThickness: 2f,
+                networkId: 90210, pickThickness: 2f,
                 sizeMode: SizeMode.WorldMeters);
 
             var hit = Pick(p, new Vector2(x, y));
@@ -124,7 +124,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         {
             var p = DebugPrimitive.MakePickSegment(
                 new Vector2(0f, 0f), new Vector2(100f, 100f),
-                networkId: 90210L, pickThickness: 2f,
+                networkId: 90210, pickThickness: 2f,
                 sizeMode: SizeMode.WorldMeters);
 
             Assert.Null(Pick(p, new Vector2(95f, 5f)));    // bounding-box corner, far from the line
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         {
             var p = DebugPrimitive.MakePickSegment(
                 new Vector2(0f, 0f), new Vector2(10f, 0f),
-                networkId: 90210L, subElementId: 7);
+                networkId: 90210, subElementId: 7);
 
             var token = GizmoMap.Presentation.DebugGizmoLayer.MakePickToken(in p);
 
@@ -154,7 +154,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
         {
             var p = DebugPrimitive.MakePickSegment(
                 new Vector2(0f, 0f), new Vector2(100f, 0f),
-                networkId: 90210L, pickThickness: 2f,
+                networkId: 90210, pickThickness: 2f,
                 sizeMode: SizeMode.WorldMeters);
 
             Assert.NotNull(Pick(p, new Vector2(50f, 0f)));    // on it

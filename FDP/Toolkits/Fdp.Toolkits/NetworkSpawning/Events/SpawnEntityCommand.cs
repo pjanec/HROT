@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// 0 = request new ID allocation (local authority creates new entity).
         /// Non-zero = replicate an existing network entity (ghost/replica path).
         /// </summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// TKB template type to instantiate. Must match a registered TkbDatabase entry.

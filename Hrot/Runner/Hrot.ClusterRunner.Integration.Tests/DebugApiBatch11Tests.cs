@@ -228,7 +228,7 @@ public sealed class DebugApiBatch11Tests
         using var h = new EditorHarness();
         var svc = h.BuildDebugApiService();
 
-        const long networkId1 = 90_100L;
+        const int networkId1 = 90_100L;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType          = 1L,
@@ -304,7 +304,7 @@ public sealed class DebugApiBatch11Tests
 
         // ?near=0,0,100 — radius 100m around origin; "y" in near param maps to world Z axis.
         var nearResult = (JsonArray)svc.ListEntities(near: "0,0,100");
-        var insideIds = nearResult.Select(e => e!["networkId"]!.GetValue<long>()).ToList();
+        var insideIds = nearResult.Select(e => e!["networkId"]!.GetValue<int>()).ToList();
 
         Assert.Contains(inside, insideIds);      // entity at distance ≈70.7 is inside
         Assert.DoesNotContain(outside, insideIds); // entity at distance ≈707 is outside
@@ -319,7 +319,7 @@ public sealed class DebugApiBatch11Tests
         using var h = new EditorHarness();
         var svc = h.BuildDebugApiService();
 
-        const long closeEntityId = 90_120L;
+        const long closeEntityId = 90_120;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType          = 1L,
@@ -357,7 +357,7 @@ public sealed class DebugApiBatch11Tests
         using var h = new EditorHarness();
         var svc = h.BuildDebugApiService();
 
-        const long entityId = 90_130L;
+        const int entityId = 90_130;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType = 1L, NetworkId = entityId, OwnerNodeId = 0, InitType = ReliableInitType.None,
@@ -377,7 +377,7 @@ public sealed class DebugApiBatch11Tests
         using var h = new EditorHarness();
         var svc = h.BuildDebugApiService();
 
-        const long entityId = 90_140L;
+        const int entityId = 90_140;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType          = 1L,

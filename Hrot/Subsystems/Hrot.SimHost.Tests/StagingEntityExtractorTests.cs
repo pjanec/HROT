@@ -188,7 +188,7 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer();
             var json       = SerializeGoldRepo(_goldRepo, serializer);
 
-            IReadOnlyDictionary<long, long>? published = null;
+            IReadOnlyDictionary<int, int>? published = null;
             int calls = 0;
 
             var extractor = new StagingEntityExtractor
@@ -202,10 +202,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, published!.Count);
 
             // ⭐ AUTHORED id → RUNTIME id, in that direction.
-            Assert.Contains(11L, published.Keys);
-            Assert.Contains(22L, published.Keys);
+            Assert.Contains(11, published.Keys);
+            Assert.Contains(22, published.Keys);
             Assert.All(published.Values, v => Assert.InRange(v, 500, 501));
-            Assert.NotEqual(published[11L], published[22L]);
+            Assert.NotEqual(published[11], published[22]);
         }
 
         /// <summary>
@@ -222,7 +222,7 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer();
             var json       = SerializeGoldRepo(_goldRepo, serializer);
 
-            IReadOnlyDictionary<long, long>? published = null;
+            IReadOnlyDictionary<int, int>? published = null;
             var extractor = new StagingEntityExtractor { OnRemap = map => published = map };
             extractor.Extract(serializer, json, new StubIdAllocator(500));
 
@@ -245,14 +245,14 @@ namespace Hrot.SimHost.Tests
             var serializer = BuildSerializer();
             var json       = SerializeGoldRepo(_goldRepo, serializer);
 
-            IReadOnlyDictionary<long, long>? first = null;
+            IReadOnlyDictionary<int, int>? first = null;
             var extractor = new StagingEntityExtractor { OnRemap = map => first ??= map };
             extractor.Extract(serializer, json, new StubIdAllocator(500));
-            long firstRuntimeId = first![11L];
+            long firstRuntimeId = first![11];
 
             // ⭐ A SECOND load allocates fresh ids; the first table must be unchanged by it.
             extractor.Extract(serializer, json, new StubIdAllocator(900));
-            Assert.Equal(firstRuntimeId, first[11L]);
+            Assert.Equal(firstRuntimeId, first[11]);
         }
 
         // ── Test 1: Basic extraction — single root entity ─────────────────────────
@@ -442,8 +442,8 @@ namespace Hrot.SimHost.Tests
         public void Extract_WithBehaviorRemapper_ReplacesNetworkIdInBehaviorParams()
         {
             // Entity with NetworkIdentity and ActiveMissionPlan referencing same ID.
-            const long oldNetId = 1001L;
-            const long newNetId = 2001L;
+            const int oldNetId = 1001;
+            const int newNetId = 2001;
 
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new NetworkIdentity { Value = oldNetId });
@@ -491,8 +491,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_ThroughTheInterface_StillAppliesTheBehaviorRemapper()
         {
-            const long oldNetId = 1001L;
-            const long newNetId = 2001L;
+            const int oldNetId = 1001;
+            const int newNetId = 2001;
 
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new NetworkIdentity { Value = oldNetId });
@@ -600,8 +600,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_EntityWithNetworkIdentity_SetsPreAllocatedNetworkId()
         {
-            const long oldNetId = 1001L;
-            const long expectedNewId = 2001L;
+            const int oldNetId = 1001;
+            const int expectedNewId = 2001;
 
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new SimTransform());
@@ -648,8 +648,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_WithChildEntity_PopulatesChildComponentOverrides()
         {
-            const long rootOldId  = 1000L;
-            const long childOldId = 1001L;
+            const int rootOldId  = 1000;
+            const int childOldId = 1001;
             const int  instanceId = 3;
 
             // Root
@@ -712,8 +712,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_ChildWithNetworkIdentity_CarriesPreAllocatedIdToOverrides()
         {
-            const long rootOldId  = 1000L;
-            const long childOldId = 1001L;
+            const int rootOldId  = 1000;
+            const int childOldId = 1001;
             const int  instanceId = 3;
 
             var root = _goldRepo.CreateEntity();
@@ -747,9 +747,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubPassengersIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubPassengers";
-            private readonly long _passengerNetId;
+            private readonly int _passengerNetId;
 
-            public StubPassengersIntentTranslator(long passengerNetId)
+            public StubPassengersIntentTranslator(int passengerNetId)
                 => _passengerNetId = passengerNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
@@ -775,7 +775,7 @@ namespace Hrot.SimHost.Tests
                 Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var id = ((JsonObject)raw)["PassengerId"]!.GetValue<long>();
+                var id = ((JsonObject)raw)["PassengerId"]!.GetValue<int>();
                 var intent = new InitialPassengersIntent();
                 intent.PassengerNetworkIds.Add(new EntityRef(id));
                 repo.SetManagedComponent(entity, intent);
@@ -789,8 +789,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_InitialPassengersIntent_RemapsPassengerNetworkIdsViaOldToNewMap()
         {
-            const long vehicleOldId   = 1001L;
-            const long passengerOldId = 2001L;
+            const int vehicleOldId   = 1001;
+            const int passengerOldId = 2001;
 
             // Vehicle entity triggers the stub translator.
             var vehicle = _goldRepo.CreateEntity();
@@ -827,9 +827,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubTargetsIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubTargets";
-            private readonly long _targetNetId;
+            private readonly int _targetNetId;
 
-            public StubTargetsIntentTranslator(long targetNetId) => _targetNetId = targetNetId;
+            public StubTargetsIntentTranslator(int targetNetId) => _targetNetId = targetNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
@@ -843,7 +843,7 @@ namespace Hrot.SimHost.Tests
             public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var id = ((JsonObject)raw)["TargetId"]!.GetValue<long>();
+                var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
                 var intent = new InitialTargetsIntent();
                 intent.Entries.Add(new TargetEntry { NetworkId = new EntityRef(id), PosX = 1f, PosY = 2f, PosZ = 7.5f, Score = 0.25f });
                 repo.SetManagedComponent(entity, intent);
@@ -860,17 +860,17 @@ namespace Hrot.SimHost.Tests
         {
             var vehicle = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(vehicle, new SimTransform());
-            _goldRepo.SetComponent(vehicle, new NetworkIdentity { Value = 1001L });
+            _goldRepo.SetComponent(vehicle, new NetworkIdentity { Value = 1001 });
             var target = _goldRepo.CreateEntity();
-            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 2001L });
+            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 2001 });
 
-            var serializer = BuildSerializer(new StubTargetsIntentTranslator(2001L));
+            var serializer = BuildSerializer(new StubTargetsIntentTranslator(2001));
             var requests = new StagingEntityExtractor()
                 .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
 
             var entry = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
                 .OfType<InitialTargetsIntent>().Single().Entries.Single();
-            Assert.Equal(new EntityRef(3002L), entry.NetworkId);
+            Assert.Equal(new EntityRef(3002), entry.NetworkId);
             Assert.Equal(7.5f, entry.PosZ);
             Assert.Equal(0.25f, entry.Score);
         }
@@ -880,9 +880,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubRouteTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubRoute";
-            private readonly long _unitNetId;
+            private readonly int _unitNetId;
 
-            public StubRouteTranslator(long unitNetId) => _unitNetId = unitNetId;
+            public StubRouteTranslator(int unitNetId) => _unitNetId = unitNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
@@ -896,7 +896,7 @@ namespace Hrot.SimHost.Tests
             public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var unit = ((JsonObject)raw)["HoldUnit"]!.GetValue<long>();
+                var unit = ((JsonObject)raw)["HoldUnit"]!.GetValue<int>();
                 var plan = new Hrot.Map.Common.Components.RoutePlan();
                 plan = plan.WithWaypoints(l =>
                 {
@@ -919,11 +919,11 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
             var route = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(route, new SimTransform());
-            _goldRepo.SetComponent(route, new NetworkIdentity { Value = 9502L });
+            _goldRepo.SetComponent(route, new NetworkIdentity { Value = 9502 });
             var squad = _goldRepo.CreateEntity();
-            _goldRepo.SetComponent(squad, new NetworkIdentity { Value = 9510L });
+            _goldRepo.SetComponent(squad, new NetworkIdentity { Value = 9510 });
 
-            var serializer = BuildSerializer(new StubRouteTranslator(9510L));
+            var serializer = BuildSerializer(new StubRouteTranslator(9510));
             var requests = new StagingEntityExtractor()
                 .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
 
@@ -936,9 +936,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubBrainIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubBrain";
-            private readonly long _targetNetId;
+            private readonly int _targetNetId;
 
-            public StubBrainIntentTranslator(long targetNetId) => _targetNetId = targetNetId;
+            public StubBrainIntentTranslator(int targetNetId) => _targetNetId = targetNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
@@ -952,7 +952,7 @@ namespace Hrot.SimHost.Tests
             public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var id = ((JsonObject)raw)["TargetId"]!.GetValue<long>();
+                var id = ((JsonObject)raw)["TargetId"]!.GetValue<int>();
                 string Params() => $"{{\"targetNetworkId\":{id},\"maxRounds\":3,\"cooldownSeconds\":1}}";
                 repo.SetManagedComponent(entity, new InitialBrainIntent
                 {
@@ -975,11 +975,11 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterManagedComponent<InitialBrainIntent>();
             var shooter = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(shooter, new SimTransform());
-            _goldRepo.SetComponent(shooter, new NetworkIdentity { Value = 1001L });
+            _goldRepo.SetComponent(shooter, new NetworkIdentity { Value = 1001 });
             var target = _goldRepo.CreateEntity();
-            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 7300L });
+            _goldRepo.SetComponent(target, new NetworkIdentity { Value = 7300 });
 
-            var serializer = BuildSerializer(new StubBrainIntentTranslator(7300L));
+            var serializer = BuildSerializer(new StubBrainIntentTranslator(7300));
             var requests = new StagingEntityExtractor()
                 .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001),
                     behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper());
@@ -999,8 +999,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_InitialPassengersIntent_PreservesUnknownNetworkId()
         {
-            const long vehicleOldId      = 1001L;
-            const long unknownPassengerId = 9999L; // no entity with this NetworkIdentity exists
+            const int vehicleOldId      = 1001;
+            const int unknownPassengerId = 9999; // no entity with this NetworkIdentity exists
 
             var vehicle = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(vehicle, new SimTransform());
@@ -1031,9 +1031,9 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_ChildEntity_InitialPassengersIntent_NetworkIdIsRemapped()
         {
-            const long rootOldId      = 1000L;
-            const long childOldId     = 1001L;
-            const long passengerOldId = 2000L;
+            const int rootOldId      = 1000;
+            const int childOldId     = 1001;
+            const int passengerOldId = 2000;
             const int  instanceId     = 1;
 
             // Root entity — no SimTransform so stub translator does NOT fire for it.
@@ -1081,9 +1081,9 @@ namespace Hrot.SimHost.Tests
         private sealed class StubUnitSubordinateIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubSubordinate";
-            private readonly long _commanderNetId;
+            private readonly int _commanderNetId;
 
-            public StubUnitSubordinateIntentTranslator(long commanderNetId)
+            public StubUnitSubordinateIntentTranslator(int commanderNetId)
                 => _commanderNetId = commanderNetId;
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
@@ -1108,7 +1108,7 @@ namespace Hrot.SimHost.Tests
                 Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var id = ((JsonObject)raw)["CommanderId"]!.GetValue<long>();
+                var id = ((JsonObject)raw)["CommanderId"]!.GetValue<int>();
                 repo.SetManagedComponent(entity, new InitialUnitSubordinateIntent { CommanderNetworkId = new EntityRef(id) });
             }
         }
@@ -1118,8 +1118,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_InitialUnitSubordinateIntent_RemapsCommanderNetworkIdViaOldToNewMap()
         {
-            const long subordinateOldId = 1001L;
-            const long commanderOldId   = 2001L;
+            const int subordinateOldId = 1001;
+            const int commanderOldId   = 2001;
 
             var subordinate = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(subordinate, new SimTransform());
@@ -1153,8 +1153,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void Extract_InitialUnitSubordinateIntent_PreservesUnknownCommanderNetworkId()
         {
-            const long subordinateOldId     = 1001L;
-            const long unknownCommanderId   = 9999L;
+            const int subordinateOldId     = 1001;
+            const int unknownCommanderId   = 9999;
 
             var subordinate = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(subordinate, new SimTransform());

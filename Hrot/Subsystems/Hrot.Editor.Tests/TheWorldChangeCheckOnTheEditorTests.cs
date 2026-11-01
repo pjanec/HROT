@@ -151,7 +151,7 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
     }
 
     /// <summary>A unit with a name and a network id — the one every edit below targets.</summary>
-    private static (Entity Unit, long NetworkId) AUnit(EntityRepository world)
+    private static (Entity Unit, int NetworkId) AUnit(EntityRepository world)
     {
         foreach (var e in world.Query().With<EntityInfo>().With<Fdp.Toolkit.Replication.Components.NetworkIdentity>().Build())
             return (e, world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value);
@@ -160,7 +160,7 @@ public sealed class TheWorldChangeCheckOnTheEditorTests
 
     /// <summary>The rename dialog's own path (EntityRenameModal → IEditorLogic.CommitPropertyEdit → UpdateEntityCommand, applied by the spawning pack). ⚠ A raw
     /// write of a unit's <c>SimTransform</c> is put back by the next frame — it is no edit.</summary>
-    private static void Rename(EditorSubsystem editor, EntityRepository world, (Entity Unit, long NetworkId) unit, string to)
+    private static void Rename(EditorSubsystem editor, EntityRepository world, (Entity Unit, int NetworkId) unit, string to)
     {
         var info = world.GetComponent<EntityInfo>(unit.Unit);
         info.Name = new FixedString64(to);

@@ -47,7 +47,7 @@ public sealed class EntityBoxPicker : IPicker3D
             if (!_bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half)) continue;
             if (!RayBox.Intersect(origin, direction, centre, rotation, half, out float t) || t > best) continue;
             best = t;
-            long net = hasNet && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : 0;
+            int net = hasNet && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : 0;
             hit = new PickResult(world.GetComponentRO<SimTransform>(e).Position, PickKind.Entity, t, net);
         }
         return hit.Kind == PickKind.Entity;

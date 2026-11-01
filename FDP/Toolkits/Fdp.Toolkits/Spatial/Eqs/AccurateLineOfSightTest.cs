@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     ///
     /// <para>For each candidate, checks whether a raycast result is already in
     /// <see cref="RaycastBatchData.Hits"/>. If found, resolves the candidate
-    /// immediately (§4.2 flag bit     /// immediately (flag bit 0 = occluded = good cover; EntityId = -1L = exposed).lt;slot    /// immediately (flag bit 0 = occluded = good cover; EntityId = -1L = exposed).gt; = HasLOS; occluded = good cover is kept, exposed is rejected with EntityId = -1L).
+    /// immediately (§4.2 flag bit     /// immediately (flag bit 0 = occluded = good cover; EntityId = -1 = exposed).lt;slot    /// immediately (flag bit 0 = occluded = good cover; EntityId = -1 = exposed).gt; = HasLOS; occluded = good cover is kept, exposed is rejected with EntityId = -1).
     /// If not found, submits a <see cref="RaycastRequestEvent"/> (subject to the
     /// per-tick budget in <see cref="EqsSolverGlobalState"/>) and marks the candidate
     /// with <see cref="FlagPendingRay"/> so the solver knows to yield.</para>
@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     else
                     {
                         // Clear LOS -> candidate exposed to threat -> reject.
-                        candidates[i].EntityId        = -1L;
+                        candidates[i].EntityId        = -1;
                         candidates[i].Flags           |= bit;   // §4.2 HasLOSToContext<slot>
                         candidates[i].FlagsMeaningful |= bit;
                     }

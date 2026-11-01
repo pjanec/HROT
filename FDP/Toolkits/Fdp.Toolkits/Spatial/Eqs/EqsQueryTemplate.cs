@@ -10,9 +10,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// </summary>
     public enum EqsTestPhase : byte
     {
-        /// <summary>Fast data-driven filters (faction, FOV). No allocations. Reject with EntityId = -1L.</summary>
+        /// <summary>Fast data-driven filters (faction, FOV). No allocations. Reject with EntityId = -1.</summary>
         FilterCheap = 0,
-        /// <summary>Slow filters (navmesh reachability). Reject with EntityId = -1L.</summary>
+        /// <summary>Slow filters (navmesh reachability). Reject with EntityId = -1.</summary>
         FilterExpensive = 1,
         /// <summary>Fast scoring (distance falloff). Additive to EqsResult.Score.</summary>
         ScoreCheap = 2,
@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <summary>
         /// Executes the test over <paramref name="candidates"/>.
-        /// Filters reject by setting EntityId = -1L.
+        /// Filters reject by setting EntityId = -1.
         /// Scorers accumulate into EqsResult.Score additively.
         /// </summary>
         void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates);

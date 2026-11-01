@@ -101,8 +101,8 @@ public sealed class ExternalHostConformanceTests
         var diagFile = Environment.GetEnvironmentVariable("FAKE_HOST_DIAG_FILE");
         long mastersSeen = 0, mastersWaitAcks = 0, phase1Writes = 0;
 
-        var phase1Sent = new HashSet<long>();
-        var disposedNetIds = new HashSet<long>();   // EntityMaster instances this FOREIGN process saw go NotAliveDisposed
+        var phase1Sent = new HashSet<int>();
+        var disposedNetIds = new HashSet<int>();   // EntityMaster instances this FOREIGN process saw go NotAliveDisposed
         var deadline = DateTime.UtcNow.AddMilliseconds(durationMs);
         long lastHb = 0;
         while (DateTime.UtcNow < deadline)
@@ -217,7 +217,7 @@ public sealed class ExternalHostConformanceTests
         using var obsParticipant = new DdsParticipant((uint)cgf.DomainId);
         using var masterObserver = new DdsReader<EntityMaster>(obsParticipant);
         cgf.PumpFrames(30);   // let the observer discover CGF's EntityMaster writer before the birth sample
-        long netId = SplitAuthoritySpawn(cgf);
+        int netId = SplitAuthoritySpawn(cgf);
         try
         {
             // C3 (§3d STUCK): the fake sends phase-1 (so C2 keeps it) then never Active. The creator holds the
@@ -291,10 +291,10 @@ public sealed class ExternalHostConformanceTests
 
     private string? _lastFakeDiagFile;
 
-    private (CgfHarness cgf, long netId, Process proc) SpawnWithFakeHost(string mode)
+    private (CgfHarness cgf, int netId, Process proc) SpawnWithFakeHost(string mode)
     {
         var (cgf, proc) = SetupFakeHost(mode);
-        long netId = SplitAuthoritySpawn(cgf);
+        int netId = SplitAuthoritySpawn(cgf);
         return (cgf, netId, proc);
     }
 
@@ -310,7 +310,7 @@ public sealed class ExternalHostConformanceTests
         return (cgf, proc);
     }
 
-    private static long SplitAuthoritySpawn(CgfHarness cgf)
+    private static int SplitAuthoritySpawn(CgfHarness cgf)
         => cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNodeId);
 
     private string ReadFakeDiag()
@@ -348,7 +348,7 @@ public sealed class ExternalHostConformanceTests
         cgf.PumpFrames(150); // let CGF ingest node 999 (excluded — no reliable-init token) before spawning
     }
 
-    private static bool EntityActive(CgfHarness cgf, long netId)
+    private static bool EntityActive(CgfHarness cgf, int netId)
     {
         var map = cgf.CgfSvc.GhostEntityMap;
         var world = cgf.World;

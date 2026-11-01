@@ -51,7 +51,7 @@ public class MissionControlRequestSystemFollowRouteTests
 
     private static (Entity vehicle, Entity routeEntity) SetupEntities(
         EntityRepository repo, NetworkEntityMap entityMap,
-        long vehicleNetId, long routeNetId, int trajectoryId)
+        int vehicleNetId, int routeNetId, int trajectoryId)
     {
         var vehicle = repo.CreateEntity();
         repo.AddComponent(vehicle, new MissionPlanQueue());
@@ -66,7 +66,7 @@ public class MissionControlRequestSystemFollowRouteTests
         return (vehicle, routeEntity);
     }
 
-    private static MissionControlIntent MakeFollowRouteRequest(long targetEntityId, long routeEntityId, double speed = 5.0, bool loop = false)
+    private static MissionControlIntent MakeFollowRouteRequest(int targetEntityId, long routeEntityId, double speed = 5.0, bool loop = false)
     {
         return new MissionControlIntent
         {
@@ -103,9 +103,9 @@ public class MissionControlRequestSystemFollowRouteTests
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
-        var (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 5);
+        var (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1, routeNetId: 99, trajectoryId: 5);
 
-        var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 12.0, loop: true);
+        var request = MakeFollowRouteRequest(targetEntityId: 1, routeEntityId: 99, speed: 12.0, loop: true);
         string sent = request.Payload.FullMissionData!.Tasks[0].BehaviorParams;
         system.TestHook_ProcessIntent(repo, request);
 
@@ -126,16 +126,16 @@ public class MissionControlRequestSystemFollowRouteTests
         var system     = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
         Entity vehicle;
         if (routeExists)
-            (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
+            (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1, routeNetId: 99, trajectoryId: 0);
         else
         {
             vehicle = repo.CreateEntity();
             repo.AddComponent(vehicle, new MissionPlanQueue());
             repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
-            entityMap.Register(1L, vehicle);
+            entityMap.Register(1, vehicle);
         }
 
-        system.TestHook_ProcessIntent(repo, MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L));
+        system.TestHook_ProcessIntent(repo, MakeFollowRouteRequest(targetEntityId: 1, routeEntityId: 99));
 
         Assert.Equal(0, system.TestHook_RetryQueueCount);
         Assert.Single(((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle).Plan.Tasks);
@@ -148,7 +148,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         using var repo = CreateWorld();
         var route = repo.CreateEntity();
-        repo.AddComponent(route, new NetworkIdentity { Value = 42L });
+        repo.AddComponent(route, new NetworkIdentity { Value = 42 });
         repo.AddComponent(route, new RouteTrajectoryCache { TrajectoryId = 5, CompiledVersion = 1 });
 
         var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>(
@@ -184,7 +184,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         using var repo = CreateWorld();
         repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
-        var (vehicle, route) = SetupEntities(repo, new NetworkEntityMap(), vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
+        var (vehicle, route) = SetupEntities(repo, new NetworkEntityMap(), vehicleNetId: 1, routeNetId: 99, trajectoryId: 0);
         repo.AddComponent(vehicle, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
 
         var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FollowRouteParamsJsonDto>("{\"routeEntityId\":99}", Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions)!;
@@ -242,13 +242,13 @@ public class MissionControlRequestSystemFollowRouteTests
         var vehicle = repo.CreateEntity();
         repo.AddComponent(vehicle, new MissionPlanQueue());
         repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
-        entityMap.Register(1L, vehicle);
+        entityMap.Register(1, vehicle);
 
         const string originalParams = "{\"radius\":100}";
         var request = new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = 1L,
+            TargetEntityId = 1,
             BaseVersion    = 0,
             Payload        = new MissionCommandPayload
             {

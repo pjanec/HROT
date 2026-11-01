@@ -203,7 +203,7 @@ public class NedEntityCreationRequestEgressRails
             RequestId             = Guid.NewGuid(),
             OwnerAppInstanceId    = 9,
             TkbType               = 42L,
-            PreAllocatedNetworkId = 7001L,   // a fixed id says nothing about either claim
+            PreAllocatedNetworkId = 7001,   // a fixed id says nothing about either claim
             IsScenarioLoad        = isScenarioLoad,
             IsTransient           = isTransient,
         });

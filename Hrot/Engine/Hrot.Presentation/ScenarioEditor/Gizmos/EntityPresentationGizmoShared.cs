@@ -11,7 +11,7 @@ namespace Hrot.ScenarioEditor.Gizmos
     {
         public static void DrawSpatialAnchorFromRotation(
             IDebugDrawBuilder draw,
-            long networkId,
+            int networkId,
             in Vector3 position,
             in Quaternion rotation)
         {
@@ -35,7 +35,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </param>
         /// <param name="sizeMode">⭐ CE-1232 — <see cref="SizeMode.ScreenPixels"/> for a symbol drawn at a fixed size on screen (the IED
         /// marker): the area then matches it at every zoom too.</param>
-        public static void EmitPickBox(IDebugDrawBuilder draw, long networkId, in Vector3 position,
+        public static void EmitPickBox(IDebugDrawBuilder draw, int networkId, in Vector3 position,
                                        float extentMetres, byte layer = 0, SizeMode sizeMode = SizeMode.WorldMeters)
         {
             // ⭐⭐⭐ §6.8 — NO ID, NO PICK TARGET. Constraint C2 was enforced by CALLERS checking that a
@@ -174,7 +174,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                     .RuntimeNetworkIdOf(view as EntityRepository, entity) == 0) return;
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-            long networkId = netId.Value;
+            int networkId = netId.Value;
             if (networkId == 0) return;
 
             int n = points.Count;
@@ -254,7 +254,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </summary>
         public static void DrawSemanticShape(
             IDebugDrawBuilder draw,
-            long networkId,
+            int networkId,
             ulong profileId,
             float length,
             float width,

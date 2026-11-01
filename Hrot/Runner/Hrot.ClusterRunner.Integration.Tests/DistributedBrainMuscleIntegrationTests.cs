@@ -36,7 +36,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         bool reached = harness.PumpUntil(
             () =>
@@ -61,7 +61,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
         long tkbType  = TkbEntityTypes.Tank_M1Abrams;
         var  spawnPos = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
 
-        long networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
+        int networkId = harness.SimHost.TestHook_SpawnEntity(tkbType, spawnPos);
 
         // Wait until entity appears in CGF
         bool appeared = harness.PumpUntil(
@@ -138,7 +138,7 @@ public sealed class DistributedBrainMuscleIntegrationTests
 
         // CGF (Brain) spawns entity with split authority: WorldPos delegated to SimHost. SimHost creates it through its
         // pack: push-only grants the Brain group to CGF.
-        long networkId = creator == "cgf"
+        int networkId = creator == "cgf"
             ? harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1)
             : harness.SimHost.TestHook_SpawnEntity(TkbEntityTypes.Tank_M1Abrams,
                   new Hrot.Core.Mission.GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 });

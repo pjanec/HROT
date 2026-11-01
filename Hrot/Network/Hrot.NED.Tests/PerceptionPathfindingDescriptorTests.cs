@@ -41,7 +41,7 @@ namespace Hrot.DDS.DataModel.Tests
                 Start          = new RelativeVector3 { East = 0f, North = 0f, Up = 0f },
                 End            = new RelativeVector3 { East = 100f, North = 50f, Up = 0f },
                 LayerMask      = 0xFF,
-                IgnoreEntityId = -1L,
+                IgnoreEntityId = -1,
             };
             Assert.Equal(42L, req.RayId);
         }
@@ -60,7 +60,7 @@ namespace Hrot.DDS.DataModel.Tests
         {
             var cfg = new SensorConfig
             {
-                EntityId     = 1001L,
+                EntityId     = 1001,
                 VisionRange  = 500f,
                 HearingRange = 100f,
                 FovRad       = System.MathF.PI / 3f,   // 60°, radians on the wire (AQ107 I)

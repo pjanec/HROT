@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const byte PhasePlan = 0, PhaseMove = 1, PhaseContact = 2, PhaseSecure = 3, PhaseRemount = 4;
         public const byte VehicleNone = 0, VehicleRoute = 1, VehicleHold = 2;
 
-        public long RouteNet;
+        public int RouteNet;
         public Vector3 RouteEnd;
         public float Speed;
         public float ClearSeconds;

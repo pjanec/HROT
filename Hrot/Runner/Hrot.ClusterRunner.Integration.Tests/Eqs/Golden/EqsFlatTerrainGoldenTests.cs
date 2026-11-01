@@ -285,7 +285,7 @@ public sealed class EqsFlatTerrainGoldenTests
             ThreatThreshold = 50f,
             ContextSlot1    = targetEntity,
         });
-        harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8101L });
+        harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8101 });
 
         bool ready = harness.PumpUntil(
             () => harness.Repo.HasComponent<EqsCognitiveBuffer>(observer)

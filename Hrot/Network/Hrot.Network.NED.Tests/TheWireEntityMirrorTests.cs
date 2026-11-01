@@ -56,10 +56,10 @@ namespace Hrot.Network.NED.Tests
         }
 
         [Fact]
-        public void TwoEntityIdsThatDifferOnlyAboveBit31AreTwoEntities()
+        public void TwoEntityIdsAtTheExtremesOfTheInt32RangeAreTwoEntities()
         {
-            // Network ids are long and allocated per node (AQ107 E): 5 and 5 + 2^32 must not merge into one inspector row.
-            const long low = 5, high = 5 + (1L << 32);
+            // CE-4200: network ids are 32-bit (this rail used 5 and 5 + 2^32 under AQ107 E's int64). The extremes of the range must not merge into one inspector row.
+            const int low = 5, high = int.MaxValue;
             var keyed = TheEntityKeyedWireTypesAreReadableByReflectionTests.EntityKeyedTypes();
             using var participant = new DdsParticipant(PrivateDomain + 3);
             using var mirror = new WireEntityMirror(participant, keyed);

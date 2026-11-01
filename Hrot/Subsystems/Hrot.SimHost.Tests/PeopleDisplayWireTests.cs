@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterEvent<StrikeNotification>();
             var map = new NetworkEntityMap();
             Entity a = w.CreateEntity(), b = w.CreateEntity();
-            map.Register(60L, a); map.Register(61L, b);
+            map.Register(60, a); map.Register(61, b);
             return (w, map, a, b);
         }
 
@@ -43,7 +43,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3264_AnUtterance_ReachesTheOtherNode_ItsTargetMappedToThatNodesEntity()
         {
-            var sample = EntityUtteranceEgressTranslator.ToSample(60L, new Utterance { Kind = UtteranceKind.CmdHandsUp, Until = 42.5 }, targetId: 61L);
+            var sample = EntityUtteranceEgressTranslator.ToSample(60, new Utterance { Kind = UtteranceKind.CmdHandsUp, Until = 42.5 }, targetId: 61);
             var (node, map, officer, man) = Node();
             using (node)
             {
@@ -60,7 +60,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3265_ADemeanour_ReachesTheOtherNode()
         {
-            var sample = EntityDemeanourEgressTranslator.ToSample(60L, new Demeanour { Mode = CivilianMode.Riot, Fear = 1, Anger = 4 });
+            var sample = EntityDemeanourEgressTranslator.ToSample(60, new Demeanour { Mode = CivilianMode.Riot, Fear = 1, Anger = 4 });
             var (node, map, man, _) = Node();
             using (node)
             {

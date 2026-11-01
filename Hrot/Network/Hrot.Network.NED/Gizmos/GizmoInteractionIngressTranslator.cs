@@ -112,7 +112,7 @@ namespace Hrot.Network.NED.Gizmos
             //     focus holder's drag on every foreign interaction — on a cluster, most of them. ⇒ only
             //     a KNOWN-and-dead anchor counts. 📄 §6.7; NetworkIdResolver.IsKnownDeadAnchor.
             bool knownDead = Fdp.Toolkit.Replication.Services.NetworkIdResolver
-                .IsKnownDeadAnchor(repo, batch.PickAnchorId);
+                .IsKnownDeadAnchorId(repo, batch.PickAnchorId);
 
             // ⭐⭐⭐ Behaviour ②, KEPT and GENERALISED: an anchor this node does not host yields NO event.
             //   ⛔ Dropping is not tidiness. DDS is broadcast, so every node sees every interaction; and
@@ -135,7 +135,7 @@ namespace Hrot.Network.NED.Gizmos
             if (!canvasForMe
                 && !knownDead
                 && Fdp.Toolkit.Replication.Services.NetworkIdResolver
-                    .ResolveNetworkId(repo, batch.PickAnchorId).IsNull)
+                    .ResolveAnchorId(repo, batch.PickAnchorId).IsNull)
                 return;
 
             bool alive = !knownDead;

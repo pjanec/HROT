@@ -24,7 +24,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
 
     // The hill-attack params (from the retired hill-attack-close-bp scenario, R-2006; the C# PlatoonHillAttack still takes them), with the area pointed at a
     // REAL area entity: with none, the commander's area node fails at once and the behaviour ends (measured).
-    private static string HillAttackParams(long areaNet) =>
+    private static string HillAttackParams(int areaNet) =>
         "{\"firingLineStart\":[52.5239942191481,13.413540814869096],\"firingLineEnd\":[52.524533409890886,13.413578805321581]," +
         "\"baselineStart\":[52.52360336114987,13.412705470497283],\"baselineEnd\":[52.52492437655515,13.412838305005167]," +
         "\"tankSpacing\":20,\"targetAreaNetworkId\":" + areaNet + "}";
@@ -48,10 +48,10 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         return new Rig(h, api, perspective);
     }
 
-    private static long Commander(Rig rig, string behaviour, string? paramsJson = null)
+    private static int Commander(Rig rig, string behaviour, string? paramsJson = null)
     {
         // The area: Muscle-owned, a polygon around the origin, replicated to the Brain before the assignment.
-        long areaNet = rig.H.SimHost.TestHook_SpawnEntity(
+        int areaNet = rig.H.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.TacGraphic_Area, new Hrot.Core.Mission.GeoPoint { Latitude = 52.521, Longitude = 13.406, Altitude = 0 });
         Assert.True(rig.H.PumpUntil(() => rig.H.SimHost.TestHook_EntityMap.TryGetEntity(areaNet, out _), timeoutFrames: 3000));
         rig.H.SimHost.TestHook_EntityMap.TryGetEntity(areaNet, out Entity simArea);
@@ -60,7 +60,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
             Points = new System.Collections.Generic.List<System.Numerics.Vector2> { new(-50, -50), new(50, -50), new(50, 50), new(-50, 50) },
         });
 
-        long net = rig.H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        int net = rig.H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
         Assert.True(rig.H.PumpUntil(() => rig.H.Cgf!.GhostEntityMap!.TryGetEntity(net, out _)
                                        && rig.H.Cgf!.GhostEntityMap!.TryGetEntity(areaNet, out _), timeoutFrames: 3000));
         rig.H.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity e);
@@ -128,7 +128,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         return net;
     }
 
-    private static string Brain(Rig rig, long net)
+    private static string Brain(Rig rig, int net)
     {
         rig.H.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity e);
         var w = rig.H.Cgf!.World!;
@@ -154,7 +154,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
     public void The_trace_arms_and_reads_the_CSharp_BTree_commander()
     {
         using var rig = Boot(() => "Scenario");
-        long commander = Commander(rig, "PlatoonHillAttack");
+        int commander = Commander(rig, "PlatoonHillAttack");
 
         var trace = rig.Api.GetEntityTrace(commander);
         Assert.True("BTree" == (string?)trace["tier"], $"trace: {trace.ToJsonString()} · {Brain(rig, commander)}");
@@ -170,7 +170,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         // ⭐ R-2006 — the subject is SubordinateForEachDemo (PlatoonHillAttackBp retired): a blueprint BEHAVIOUR with an enum-typed
         //   variable (LastOrder) and fixed lists of an enum and of a struct — the shapes the variables surface must read.
         using var rig = Boot(() => "Scenario");
-        long commander = Commander(rig, "SubordinateForEachDemo", "{}");
+        int commander = Commander(rig, "SubordinateForEachDemo", "{}");
 
         var trace = rig.Api.GetEntityTrace(commander);
         Assert.True("Blueprint" == (string?)trace["tier"], $"trace: {trace.ToJsonString()} · {Brain(rig, commander)}");
@@ -196,7 +196,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
     {
         string perspective = "Scenario";
         using var rig = Boot(() => perspective);
-        long commander = Commander(rig, "SubordinateForEachDemo", "{}");   // R-2006: was PlatoonHillAttackBp
+        int commander = Commander(rig, "SubordinateForEachDemo", "{}");   // R-2006: was PlatoonHillAttackBp
 
         perspective = "SimHost";   // the Muscle node: its world has a ghost of the commander, but no AI sessions
         var armed = rig.Api.ObserveTrace(commander, on: true);
@@ -220,7 +220,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         Assert.Null(error);
         Assert.Equal(true, (bool?)node!["enqueued"]);
 
-        long id = 0;
+        int id = 0;
         Assert.True(rig.H.PumpUntil(() =>
         {
             id = rig.H.SimHost.TestHook_EntityMap.Entries.Keys.FirstOrDefault(k => !before.Contains(k));
@@ -263,7 +263,7 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         var (_, error) = rig.Api.CreateEntityViaRequestPath(TkbEntityTypes.Tank_M1Abrams, cgf.NodeId);
         Assert.Null(error);
 
-        long id = 0;
+        int id = 0;
         Assert.True(rig.H.PumpUntil(() =>
         {
             id = rig.H.Cgf!.GhostEntityMap!.Entries.Keys.FirstOrDefault(k => !before.Contains(k));

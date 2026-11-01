@@ -123,7 +123,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var data   = ref view.GetComponentRO<Fdp.Core.EntityInfo>(entity);
 
-                long commanderNetId = 0;
+                int commanderNetId = 0;
                 var designation = eTacticalDesignation.Undefined;
                 byte team = 0;   // ⭐ CE-2281 / R-3019
                 if (view.HasComponent<UnitSubordinate>(entity))
@@ -166,7 +166,7 @@ namespace Hrot.Map.Common.Replication.Egress
 		/// <summary>
 		/// Sends a DDS dispose for the named <see cref="EntityInfo"/> instance.
 		/// </summary>
-		public void Dispose(long networkEntityId)
+		public void Dispose(int networkEntityId)
         {
 			_writer.DisposeInstance(new Hrot.NED.Descriptors.EntityInfo { EntityId = networkEntityId } );
         }

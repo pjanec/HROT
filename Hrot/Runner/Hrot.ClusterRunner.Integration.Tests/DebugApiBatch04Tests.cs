@@ -19,10 +19,10 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 public sealed class DebugApiBatch04Tests
 {
     private const long TestTkbType   = 1L;
-    private const long TestNetworkId = 42L;
+    private const int TestNetworkId = 42;
     private const int  PumpTimeoutMs = 5_000;
 
-    private static void SpawnTestEntity(EditorHarness h, long networkId, Vector3 pos = default)
+    private static void SpawnTestEntity(EditorHarness h, int networkId, Vector3 pos = default)
     {
         var cmd = new SpawnEntityCommand
         {

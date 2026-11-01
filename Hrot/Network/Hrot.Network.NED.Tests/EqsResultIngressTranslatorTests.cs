@@ -20,7 +20,7 @@ namespace Hrot.Network.NED.Tests
             var entityMap  = new NetworkEntityMap();
             var translator = new EqsResultIngressTranslator(participant: null, entityMap);
 
-            var cacheKey   = (ParentNetId: 123L, ChildIndex: 1);
+            var cacheKey   = (ParentNetId: 123, ChildIndex: 1);
             // Seed a synthetic cache entry as if a live sample had already been processed.
             translator._childEntityCache[cacheKey] = new Entity(1UL);
 
@@ -43,7 +43,7 @@ namespace Hrot.Network.NED.Tests
             var translator = new EqsResultIngressTranslator(participant: null, entityMap);
 
             // No cache entry seeded -- must not throw.
-            translator.RemoveCacheEntry(parentNetworkId: 999L, localChildIndex: 7);
+            translator.RemoveCacheEntry(parentNetworkId: 999, localChildIndex: 7);
 
             Assert.Empty(translator._childEntityCache);
         }

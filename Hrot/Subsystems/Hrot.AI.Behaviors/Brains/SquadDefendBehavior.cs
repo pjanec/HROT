@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Runtime: the posts and each man's count of rounds at him (the play's own memory).</summary>
         public DefencePosts Posts;
         /// <summary>⭐ <c>CE-2306</c> (DA-96) — an ambush's initiating charge (its network id; 0 = not an ambush).</summary>
-        public long InitiatedBy;
+        public int InitiatedBy;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — the authored fighting positions of a <c>SquadDefend</c> order (from
@@ -1046,7 +1046,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>CE-2306</c> (DA-96) — the ambush's charge is gone: set off (spent, then torn down on every node) or destroyed.</summary>
-        private static bool Initiated(EntityRepository world, long charge)
+        private static bool Initiated(EntityRepository world, int charge)
         {
             var e = new Fdp.Toolkit.Replication.EntityRef(charge).Resolve(world);
             return e.IsNull || !Fdp.Toolkit.Combat.Charges.IsCharge(world, e);

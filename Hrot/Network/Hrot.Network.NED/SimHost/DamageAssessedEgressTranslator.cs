@@ -69,9 +69,9 @@ namespace Hrot.Network.NED.SimHost
                 // ⭐ CE-3246 — the owner applies its own hit here (HealthApplicationSystem); only a hit this node cannot apply leaves it
                 if (Fdp.Toolkit.Combat.HealthOwnership.AppliesHere(repo, evt.HitEntity)) continue;
 
-                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
+                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out int netId)) continue;
                 // ⭐ CE-3237 (B-15, DS-2) — who caused it, by network id; an unmapped or unknown source reads 0 on the wire
-                long sourceId = !evt.Source.IsNull && _entityMap.TryGetNetworkId(evt.Source, out long s) ? s : 0L;
+                int sourceId = !evt.Source.IsNull && _entityMap.TryGetNetworkId(evt.Source, out int s) ? s : 0;
                 _writer.Write(new EntityHitDamage
                 {
                     HitEntityId = netId,
@@ -90,6 +90,6 @@ namespace Hrot.Network.NED.SimHost
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

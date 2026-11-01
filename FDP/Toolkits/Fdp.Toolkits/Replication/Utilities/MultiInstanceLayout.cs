@@ -43,12 +43,13 @@ namespace Fdp.Toolkit.Replication.Utilities
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe long ReadEntityId(T* ptr)
+        public static unsafe int ReadEntityId(T* ptr)
         {
             byte* bytePtr = (byte*)ptr;
             if (IsEntityId32Bit)
                 return *(int*)(bytePtr + EntityIdOffset);
-            return *(long*)(bytePtr + EntityIdOffset);
+            // ⭐ CE-4200: a network id is 32-bit; a wider key field (a legacy topic) is read CHECKED — loud, never a silent truncation.
+            return checked((int)*(long*)(bytePtr + EntityIdOffset));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -66,7 +67,7 @@ namespace Fdp.Toolkit.Replication.Utilities
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void WriteEntityId(T* ptr, long id)
+        public static unsafe void WriteEntityId(T* ptr, int id)
         {
             byte* bytePtr = (byte*)ptr;
             if (IsEntityId32Bit)

@@ -33,7 +33,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed unsafe class BehaviourTaskDemoTests
     {
-        private const long HostileNetId = 777;
+        private const int HostileNetId = 777;
 
         private sealed class World
         {

@@ -195,13 +195,13 @@ public sealed class PanelSnapshotTests : SystemTestBase
         }
     }
 
-    private async Task<long> FirstListedEntityAsync()
+    private async Task<int> FirstListedEntityAsync()
     {
         var listed = await WaitUntilAsync(
             () => Mcp.ListEntitiesAsync(),
             r => r.Ok && r.Array().Count > 0,
             "at least one entity in the loaded world");
 
-        return listed.Array()[0]!["networkId"]!.GetValue<long>();
+        return listed.Array()[0]!["networkId"]!.GetValue<int>();
     }
 }

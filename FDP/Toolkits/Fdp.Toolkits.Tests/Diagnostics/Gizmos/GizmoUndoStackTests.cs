@@ -174,7 +174,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             // Create entity and publish ConstructionOrder to initialize the gizmo.
             // ⭐ §6.7 — a commit is routed by the anchor's NETWORK id, so the entity needs one.
-            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, 7041L);
+            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, 7041);
             repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
             GizmoTestRepo.PublishConstructionAndExecute(repo, sys, entity);
 
@@ -200,7 +200,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var buffer = new DebugPrimitiveBuffer();
             var sys = new DataDrivenGizmoSystem(registry, buffer, null, undoStack);
 
-            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, 7041L);   // §6.7 — routed by net id
+            var entity = GizmoTestRepo.CreateNetworkedEntity(repo, 7041);   // §6.7 — routed by net id
             repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
             GizmoTestRepo.PublishConstructionAndExecute(repo, sys, entity);
 

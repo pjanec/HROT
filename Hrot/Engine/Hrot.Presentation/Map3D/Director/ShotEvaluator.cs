@@ -13,10 +13,10 @@ namespace Hrot.UI.Common.Map3D.Director;
 public interface IShotWorld
 {
     /// <summary>The network id of <paramref name="who"/> (a name, or a network id as text); null when no such unit is here.</summary>
-    long? Resolve(string who);
+    int? Resolve(string who);
 
     /// <summary>Where the unit stands; null when it is not here.</summary>
-    Vector3? PositionOf(long networkId);
+    Vector3? PositionOf(int networkId);
 
     /// <summary>Every unit's name here (for "*part" and for listing a misspelt name's neighbours).</summary>
     IReadOnlyCollection<string> Names { get; }
@@ -29,24 +29,24 @@ public interface IShotWorld
 public sealed class WorldUnits : IShotWorld
 {
     private readonly Func<EntityRepository?> _world;
-    private Dictionary<string, long> _byName = new(StringComparer.Ordinal);
+    private Dictionary<string, int> _byName = new(StringComparer.Ordinal);
     private EntityRepository? _indexed;
 
     public WorldUnits(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
 
     public IReadOnlyCollection<string> Names { get { Index(force: false); return _byName.Keys; } }
 
-    public long? Resolve(string who)
+    public int? Resolve(string who)
     {
         if (string.IsNullOrWhiteSpace(who)) return null;
-        if (long.TryParse(who, out var id)) return id;
+        if (int.TryParse(who, out var id)) return id;
         Index(force: false);
         if (_byName.TryGetValue(who, out id)) return id;
         Index(force: true);
         return _byName.TryGetValue(who, out id) ? id : null;
     }
 
-    public Vector3? PositionOf(long networkId)
+    public Vector3? PositionOf(int networkId)
     {
         var world = _world();
         var e = NetworkIdResolver.ResolveNetworkId(world, networkId);
@@ -61,7 +61,7 @@ public sealed class WorldUnits : IShotWorld
         var world = _world();
         if (world == null) { _byName.Clear(); _indexed = null; return; }
         if (!force && ReferenceEquals(world, _indexed) && _byName.Count > 0) return;
-        var map = new Dictionary<string, long>(StringComparer.Ordinal);
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var e in world.Query().With<EntityInfo>().With<NetworkIdentity>().Build())
         {
             var name = world.GetComponentRO<EntityInfo>(e).Name.ToString();

@@ -121,7 +121,7 @@ namespace Hrot.IG.Tests.Gizmos
         public void SC_GZ058_4_DrawSpatialAnchor_EmitsCorrectPrimitive()
         {
             var buffer = new DebugPrimitiveBuffer();
-            buffer.DrawSpatialAnchor(networkId: 42L, worldX: 100f, worldY: 200f, worldZ: 5f, headingDeg: 45f);
+            buffer.DrawSpatialAnchor(networkId: 42, worldX: 100f, worldY: 200f, worldZ: 5f, headingDeg: 45f);
 
             var frame = buffer.GetFrame();
             Assert.Equal(1, frame.Length);
@@ -272,9 +272,9 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void ZoneMenu_OffersLoadZone_PlainAreaMenuDoesNot_CE3024()
         {
-            var (zone, _) = MakeOverlay(isClosed: true, networkId: 501L);
+            var (zone, _) = MakeOverlay(isClosed: true, networkId: 501);
             _repo.AddComponent(zone, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
-            var (area, _) = MakeOverlay(isClosed: true, networkId: 502L);
+            var (area, _) = MakeOverlay(isClosed: true, networkId: 502);
 
             string loadZone = $"\"id\":{Hrot.Common.Constants.GlobalActionIds.LoadZone},";   // the DTO serialises camelCase
             Assert.Contains(loadZone,
@@ -283,7 +283,7 @@ namespace Hrot.IG.Tests.Gizmos
                 Hrot.Common.Diagnostics.Gizmos.ContextMenuProjectorGizmo.MenuJsonFor(_repo, area));
         }
 
-        private (Entity entity, EditablePolyline poly) MakeOverlay(bool isClosed, long networkId = 90210L)
+        private (Entity entity, EditablePolyline poly) MakeOverlay(bool isClosed, int networkId = 90210)
         {
             _repo.RegisterComponent<MapOverlayStyle>();
             _repo.RegisterManagedComponent<EditablePolyline>();
@@ -364,7 +364,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ058_7b_ClickingOnALine_CarriesTheNetworkIdForTheContextMenu()
         {
-            var (entity, _) = MakeOverlay(isClosed: true, networkId: 4242L);
+            var (entity, _) = MakeOverlay(isClosed: true, networkId: 4242);
             var buffer = new DebugPrimitiveBuffer(64);
             new MapOverlayGizmo().Draw(_repo, entity, buffer);
 
@@ -403,7 +403,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ058_7d_UnreplicatedOverlay_EmitsNoPickSegments()
         {
-            var (entity, _) = MakeOverlay(isClosed: true, networkId: 0L);
+            var (entity, _) = MakeOverlay(isClosed: true, networkId: 0);
             var buffer = new DebugPrimitiveBuffer(64);
 
             new MapOverlayGizmo().Draw(_repo, entity, buffer);
@@ -430,7 +430,7 @@ namespace Hrot.IG.Tests.Gizmos
         /// The hill-attack shape: an entity that is BOTH a tactical area (TkbType 8803) and a map
         /// overlay, with a non-zero origin and relative points — so both projectors match it.
         /// </summary>
-        private Entity MakeDualProjectedArea(long networkId = 5525100L)
+        private Entity MakeDualProjectedArea(int networkId = 5525100)
         {
             _repo.RegisterComponent<MapOverlayStyle>();
             _repo.RegisterManagedComponent<EditablePolyline>();
@@ -507,7 +507,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void SC_GZ058_8c_ClickingTheDrawnOutline_PicksTheEntity()
         {
-            var entity = MakeDualProjectedArea(networkId: 777L);
+            var entity = MakeDualProjectedArea(networkId: 777);
             var buffer = new DebugPrimitiveBuffer(64);
             new TacticalAreaGizmo().Draw(_repo, entity, buffer);
 
@@ -537,7 +537,7 @@ namespace Hrot.IG.Tests.Gizmos
         /// A terrain ZONE at the same real origin/points as the area fixture, so the geometry assertions
         /// carry over and only the STATE differs between these rails.
         /// </summary>
-        private Entity MakeZone(long networkId = 8880L)
+        private Entity MakeZone(int networkId = 8880)
         {
             _repo.RegisterManagedComponent<EditablePolyline>();
             _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
@@ -613,7 +613,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void E1_AZoneWithNoMarker_ReadsStale_NotLoaded()
         {
-            var zone = MakeZone(networkId: 8881L);
+            var zone = MakeZone(networkId: 8881);
 
             var draw = new FullCapturingDrawBuilder();
             new TerrainZoneGizmo().Draw(_repo, zone, draw);
@@ -627,7 +627,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void E1_AFailedZone_IsDrawnLoud()
         {
-            var zone = MakeZone(networkId: 8882L);
+            var zone = MakeZone(networkId: 8882);
             _repo.AddComponent(zone, new Fdp.Toolkit.Terrain.TerrainAssetLoadState
             {
                 Phase = Fdp.Toolkit.Terrain.LoadPhase.Failed,
@@ -650,7 +650,7 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void E1_TheZoneGizmo_DrawsAtOriginPlusPoints_AndPickingFollows()
         {
-            var zone = MakeZone(networkId: 8883L);
+            var zone = MakeZone(networkId: 8883);
 
             var draw = new FullCapturingDrawBuilder();
             new TerrainZoneGizmo().Draw(_repo, zone, draw);
@@ -674,12 +674,12 @@ namespace Hrot.IG.Tests.Gizmos
         [Fact]
         public void E1_TheTwoPolylineProjectors_DoNotDrawEachOthersKind()
         {
-            var area = MakeDualProjectedArea(networkId: 8884L);
+            var area = MakeDualProjectedArea(networkId: 8884);
             var zoneDrawOnArea = new FullCapturingDrawBuilder();
             new TerrainZoneGizmo().Draw(_repo, area, zoneDrawOnArea);
             Assert.Empty(zoneDrawOnArea.LineCalls);
 
-            var zone = MakeZone(networkId: 8885L);
+            var zone = MakeZone(networkId: 8885);
             var areaDrawOnZone = new FullCapturingDrawBuilder();
             new TacticalAreaGizmo().Draw(_repo, zone, areaDrawOnZone);
             Assert.Empty(areaDrawOnZone.LineCalls);

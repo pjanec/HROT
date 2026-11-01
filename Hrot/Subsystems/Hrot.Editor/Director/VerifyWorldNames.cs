@@ -12,9 +12,9 @@ namespace Hrot.Editor.Director
     internal static class VerifyWorldNames
     {
         /// <summary>Every unit with a name and a network id (<see cref="IVerifyWorld.Named"/>).</summary>
-        public static IReadOnlyList<(long Id, string Name)> Named(EntityRepository? w)
+        public static IReadOnlyList<(int Id, string Name)> Named(EntityRepository? w)
         {
-            var list = new List<(long, string)>();
+            var list = new List<(int, string)>();
             if (w is null || !w.IsComponentTypeRegistered<NetworkIdentity>()) return list;
             foreach (var e in w.Query().With<EntityInfo>().With<NetworkIdentity>().Build())
             {

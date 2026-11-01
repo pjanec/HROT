@@ -467,7 +467,7 @@ public sealed class Map3DFrameRail
         void At(double t) => world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
         var query = WorldQuery.Of(world)!;
         var spot = FindOpenGround(terrain, query);
-        long net = 500;
+        int net = 500;
         Entity Put(long type, float dx, float dy, float hp, StanceId stance = StanceId.Standing, float yaw = 0.35f)
         {
             var e = world.CreateEntity();
@@ -1492,8 +1492,8 @@ public sealed class Map3DFrameRail
         ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 3, MaxAmmo = 4 });
         world.AddComponent(me, ammo);
         var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-        map.Register(1001L, me);
-        map.Register(1002L, tank);
+        map.Register(1001, me);
+        map.Register(1002, tank);
         world.SetSingletonManaged(map);
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
@@ -1540,7 +1540,7 @@ public sealed class Map3DFrameRail
     /// <summary>A picker answering one network id under the crosshair (the rail chooses what the operator looks at).</summary>
     private sealed class LookingAt : IPicker3D
     {
-        public long Id;
+        public int Id;
         public PickFilter Kind => PickFilter.EntityParts;
         public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
         {
@@ -1601,7 +1601,7 @@ public sealed class Map3DFrameRail
         var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
         world.SetSingletonManaged(map);
 
-        Entity Man(Vector2 at, float health, long net, StanceId stance)
+        Entity Man(Vector2 at, float health, int net, StanceId stance)
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(at.X, at.Y, query.GroundHeightAt(at.X, at.Y)), Rotation = Quaternion.Identity });
@@ -1618,9 +1618,9 @@ public sealed class Map3DFrameRail
             map.Register(net, e);
             return e;
         }
-        var me = Man(stand, 100f, 1001L, StanceId.Standing);   // he faces east (+X)
-        var down = Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002L, StanceId.Prone);   // a man down, in reach
-        Man(stand + new Vector2(6f, -0.4f), 10f, 1003L, StanceId.Prone);   // another, out of reach
+        var me = Man(stand, 100f, 1001, StanceId.Standing);   // he faces east (+X)
+        var down = Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002, StanceId.Prone);   // a man down, in reach
+        Man(stand + new Vector2(6f, -0.4f), 10f, 1003, StanceId.Prone);   // another, out of reach
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
             StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,
@@ -1647,7 +1647,7 @@ public sealed class Map3DFrameRail
         Assert.True(station.InFps);
         var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
 
-        string[] Shot(string name, FrameInput input, long lookAt, float dt = 1f / 30f)
+        string[] Shot(string name, FrameInput input, int lookAt, float dt = 1f / 30f)
         {
             looking.Id = lookAt;
             station.Update(dt);
@@ -1660,23 +1660,23 @@ public sealed class Map3DFrameRail
             return driver.UseLines(world).Select(l => l.Text).ToArray();
         }
         var look = new FrameInput { MouseDelta = new Vector2(0f, 120f) };   // look down at him
-        Assert.Equal(new[] { "F  Drag" }, Shot("fps-use-1-prompt.png", look, 1002L));
-        Assert.Equal(new[] { "F  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003L));
+        Assert.Equal(new[] { "F  Drag" }, Shot("fps-use-1-prompt.png", look, 1002));
+        Assert.Equal(new[] { "F  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003));
 
         var press = new FrameInput();
         press.Pressed.Add((int)KeyboardKey.F); press.Down.Add((int)KeyboardKey.F);
-        Shot("fps-use-0-pressed.png", press, 1002L);
+        Shot("fps-use-0-pressed.png", press, 1002);
         var hold = new FrameInput();
         hold.Down.Add((int)KeyboardKey.F);
-        Assert.Equal(new[] { "> 1  Drag", "  2  Carry" }, Shot("fps-use-3-list.png", hold, 1002L, FpsCameraDriver.HoldSeconds + 0.05f));
+        Assert.Equal(new[] { "> 1  Drag", "  2  Carry" }, Shot("fps-use-3-list.png", hold, 1002, FpsCameraDriver.HoldSeconds + 0.05f));
 
-        Shot("fps-use-3b-released.png", new FrameInput(), 1002L);   // let go: the press of Drag is sent
+        Shot("fps-use-3b-released.png", new FrameInput(), 1002);   // let go: the press of Drag is sent
         Assert.Equal(1, driver.UseSeq);
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.OperatorUseStatus
         {
             UseSeq = 1, Outcome = Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, ActionId = 9,
         });
-        Assert.Equal(new[] { "F  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
+        Assert.Equal(new[] { "F  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002));
         File.Delete(Path.Combine(shots, "fps-use-0-pressed.png"));
         File.Delete(Path.Combine(shots, "fps-use-3b-released.png"));
 
@@ -1690,9 +1690,9 @@ public sealed class Map3DFrameRail
         if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
         world.AddComponent(me, new EntityInfo { Name = new FixedString64("Rifleman Novak"), ForceId = ForceId.Friend });
         world.AddComponent(down, new EntityInfo { Name = new FixedString64("Pvt. Dvorak"), ForceId = ForceId.Friend });
-        var buddy = Man(stand + new Vector2(7f, 1.5f), 100f, 1004L, StanceId.Standing);   // a friend standing ahead: his name over his head
+        var buddy = Man(stand + new Vector2(7f, 1.5f), 100f, 1004, StanceId.Standing);   // a friend standing ahead: his name over his head
         world.AddComponent(buddy, new EntityInfo { Name = new FixedString64("Cpl. Svoboda"), ForceId = ForceId.Friend });
-        Shot("fps-hit-feedback.png", new FrameInput { MouseDelta = new Vector2(0f, -90f) }, 1002L);   // look up to the standing friend
+        Shot("fps-hit-feedback.png", new FrameInput { MouseDelta = new Vector2(0f, -90f) }, 1002);   // look up to the standing friend
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
@@ -3563,7 +3563,7 @@ public sealed class Map3DFrameRail
         var query = WorldQuery.Of(world)!;
         var spot = FindOpenGround(terrain, query);
         float ground = query.GroundHeightAt(spot.X, spot.Y);
-        long net = 7100;
+        int net = 7100;
         var men = new System.Collections.Generic.List<Entity>();
 
         Entity Man(long type, float dx, Fdp.Toolkit.Combat.GestureKind gesture, string name)
@@ -3773,7 +3773,7 @@ public sealed class Map3DFrameRail
         var query = WorldQuery.Of(world)!;
         var spot = FindOpenGround(terrain, query);
         float ground = query.GroundHeightAt(spot.X, spot.Y);
-        long net = 7000;
+        int net = 7000;
 
         Entity Place(long type, Vector3 at)
         {
@@ -4011,7 +4011,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
         var tkb = Map3DTests.BuiltIn();
         Fdp.Core.DISEntityType Dis(byte category, byte sub = 0) => new() { Kind = 1, Domain = 1, Country = 225, Category = category, Subcategory = sub };
-        void Type(long id, string name, Fdp.Core.DISEntityType dis) => tkb.Register(new Fdp.Interfaces.TkbTemplate(name, id) { DisType = dis });
+        void Type(int id, string name, Fdp.Core.DISEntityType dis) => tkb.Register(new Fdp.Interfaces.TkbTemplate(name, id) { DisType = dis });
         Type(990001, "M2 HMG (test)", Dis(50, 1)); Type(990002, "M134 minigun (test)", Dis(50, 2)); Type(990003, "Kornet (test)", Dis(50, 3));
         Type(990004, "Javelin (test)", Dis(50, 4)); Type(990005, "Sentry gun (test)", Dis(50, 5)); Type(990006, "81 mm mortar (test)", Dis(10));
         Type(990007, "M119 105 mm (test)", Dis(5)); Type(990008, "M109 155 mm (test)", Dis(4));

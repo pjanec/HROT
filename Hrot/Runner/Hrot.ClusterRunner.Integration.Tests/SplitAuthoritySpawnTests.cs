@@ -47,7 +47,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         cgf.PumpFrames(20);
 
         // SimHost node ID is 1 (SimHostNetworkConstants.LocalNodeId)
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         bool arrived = PumpBothUntil(simHost, cgf,
@@ -95,7 +95,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         cgf.PumpFrames(20);
 
         // SimHost node ID is 1 (SimHostNetworkConstants.LocalNodeId)
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // Wait for SimTransform authority to become true on the Muscle side.
@@ -175,7 +175,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
         cgf.PumpFrames(20);
 
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
 
         // First wait for the entity to arrive on Muscle so we know propagation completed.
@@ -466,7 +466,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             }, AuthorityTimeoutMs);
             var simNow = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
             Assert.True(grounded, $"the level must be resolved by SimHost (ground 7) and come back to CGF: SimHost {Level(simWorld, simNow)}, CGF {Level(cgfWorld, cgfMan)}");
-            long netId = cgfWorld.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(cgfMan).Value;
+            int netId = cgfWorld.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(cgfMan).Value;
 
             cgfWorld.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand { NetworkId = netId, Reason = "CE-2234 sheltered" });
             bool gone = PumpBothUntil(simHost, cgf, () =>

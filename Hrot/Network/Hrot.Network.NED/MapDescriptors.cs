@@ -28,7 +28,7 @@ namespace Hrot.NED.Descriptors
     {
         // Primary Key: Which entity is being modified?
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         // Target Group (Role).
         // 0 = Global Override (Applies to everyone).
@@ -61,7 +61,7 @@ namespace Hrot.NED.Descriptors
     public partial struct MapVisualOverlay
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         // Persistence and lifecycle
         public PersistenceMode PersistenceMode;
@@ -133,7 +133,7 @@ namespace Hrot.NED.Descriptors
         // The Seconds hold (s).
         public float HoldSeconds;
         // The unit a Pickup hold waits for (network id); 0 = none.
-        public long HoldUnit;
+        public int HoldUnit;
     }
 
     // Defines a navigation route composed of multiple waypoints.
@@ -145,7 +145,7 @@ namespace Hrot.NED.Descriptors
     {
         // The Entity ID representing this route.
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         // Ordered list of waypoints.
         [DdsManaged]

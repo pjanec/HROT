@@ -20,5 +20,5 @@ public sealed record OrbatNodeViewModel(
     bool HasChildren,
     bool IsPendingDelete,
     bool CanAcceptSubordinates,
-    long NetworkId = 0,
+    int NetworkId = 0,
     bool IsDestroyed = false);   // ⭐ CE-1350 — destroyed (dead / wrecked): the row is drawn dark red

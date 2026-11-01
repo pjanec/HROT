@@ -22,7 +22,7 @@ namespace Hrot.SimHost.Tests
         {
             var remapper = CgfBehaviorSetup.CreateBehaviorRemapper();
             const string json = "{\"targetNetworkId\":999,\"maxRounds\":3,\"cooldownSeconds\":1.0}";
-            var idMap = new Dictionary<long, long> { { 999L, 1999L } };
+            var idMap = new Dictionary<int, int> { { 999, 1999 } };
 
             var result = remapper.RemapJson("FireAtTarget", json, idMap);
 
@@ -46,7 +46,7 @@ namespace Hrot.SimHost.Tests
             var remapper = CgfBehaviorSetup.CreateBehaviorRemapper(registry);
 
             const string json = "{\"Move\":{\"x\":600,\"y\":427},\"Fire\":{\"targetNetworkId\":1006,\"maxRounds\":3},\"Home\":{\"x\":446.3}}";
-            var idMap = new Dictionary<long, long> { { 1006L, 1001L }, { 1001L, 1000L } };
+            var idMap = new Dictionary<int, int> { { 1006, 1001 }, { 1001, 1000 } };
 
             var result = remapper.RemapJson("Demo_MissionPlan", json, idMap);
 
@@ -65,7 +65,7 @@ namespace Hrot.SimHost.Tests
         {
             var remapper = CgfBehaviorSetup.CreateBehaviorRemapper();
             const string json = "{\"routeEntityId\":888,\"speed\":15.0}";
-            var idMap = new Dictionary<long, long> { { 888L, 1888L } };
+            var idMap = new Dictionary<int, int> { { 888, 1888 } };
 
             var result = remapper.RemapJson("FollowRoute", json, idMap);
 

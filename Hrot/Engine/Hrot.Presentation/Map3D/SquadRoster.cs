@@ -22,7 +22,7 @@ public static class SquadRoster
         var orders = new Hrot.Common.Orders.EntityOrders(world, map, geo: null);
         void Add(Entity e)
         {
-            if (e.IsNull || !Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e) || !map.TryGetNetworkId(e, out long id)) return;
+            if (e.IsNull || !Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e) || !map.TryGetNetworkId(e, out int id)) return;
             if (world.IsComponentTypeRegistered<PossessedBy>() && world.HasComponent<PossessedBy>(e)
                 && world.GetComponentRO<PossessedBy>(e).StationNodeId != orders.StationFor(e)) return;   // another station's
             if (!roster.Exists(r => r.Item2 == e)) roster.Add((id, e));

@@ -96,7 +96,7 @@ namespace Hrot.SimHost.Serializers
                     if (resolved.IsNull || !repo.IsAlive(resolved)) continue;
                     if (!repo.HasComponent<NetworkIdentity>(resolved)) continue;
 
-                    long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
+                    int networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
                     intent.PassengerNetworkIds.Add(new EntityRef(networkId));
                     if (seats != null && index < seats.Count) intent.Seats.Add(seats[index]!.GetValue<int>());
                 }

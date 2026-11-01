@@ -10,5 +10,5 @@ namespace Hrot.Common.Events;
 public struct OpenRenameDialogCommand
 {
     /// <summary>Network entity ID whose rename dialog should be opened.</summary>
-    public long NetworkId;
+    public int NetworkId;
 }

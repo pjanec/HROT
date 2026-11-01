@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.Replication.Systems
         ///   Current simulation tick (frame number).  Pass <c>view.Tick</c> from the
         ///   calling translator.  Defaults to <c>0</c> for backward compatibility.
         /// </param>
-        public Entity CreateGhost(EntityRepository repo, long networkId, uint tick = 0)
+        public Entity CreateGhost(EntityRepository repo, int networkId, uint tick = 0)
         {
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(networkId));

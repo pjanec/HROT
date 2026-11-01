@@ -757,7 +757,7 @@ namespace Hrot.Editor.DebugApi
         /// the entity is gone. ⛔ Answering as though it were synchronous would be a lie the caller then
         /// writes a flaky test against.</para>
         /// </remarks>
-        public (JsonNode? Result, string? Error, string? HintCategory) DeleteEntity(long networkId)
+        public (JsonNode? Result, string? Error, string? HintCategory) DeleteEntity(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out _))
                 return (null,

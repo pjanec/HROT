@@ -184,7 +184,7 @@ namespace Hrot.AI.Behaviors.Brains
         [ThreadStatic] private static UseAction[]? s_useActions;
 
         /// <summary>⭐ CE-1154 — what the use press aimed at (its network id), or null: the rule still offers Put down / Get out then.</summary>
-        private static Entity UseTargetOf(EntityRepository world, Entity self, long networkId)
+        private static Entity UseTargetOf(EntityRepository world, Entity self, int networkId)
         {
             if (networkId == 0 || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return Entity.Null;
             return world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!.TryGetEntity(networkId, out var e)
@@ -320,7 +320,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ CE-1078 — the unit a press locked on (its network id; never the operator's own unit), or null for the point.</summary>
-        private static Entity ShotTargetOf(EntityRepository world, Entity self, long networkId)
+        private static Entity ShotTargetOf(EntityRepository world, Entity self, int networkId)
         {
             if (networkId == 0 || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return Entity.Null;
             return world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!.TryGetEntity(networkId, out var e)

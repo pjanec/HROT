@@ -32,7 +32,7 @@ public sealed class HostOnlyWiringTests : IDisposable
 
     public void Dispose() => _w.Dispose();
 
-    private Entity Unit(bool brain = false, long net = 77)
+    private Entity Unit(bool brain = false, int net = 77)
     {
         var e = _w.CreateEntity();
         _w.AddComponent(e, new SimTransform { Position = new Vector3(5, 5, 0) });

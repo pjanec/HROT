@@ -151,7 +151,7 @@ namespace Hrot.CGF.Orchestration
         /// <para>⚠ <b>Public</b>, unlike the disposal callback: that one is a test hook, this one is
         /// production wiring.</para>
         /// </summary>
-        public Action<IReadOnlyDictionary<long, long>>? OnRemap { get; set; }
+        public Action<IReadOnlyDictionary<int, int>>? OnRemap { get; set; }
 
         // ── IScenarioEntityExtractor ───────────────────────────────────────────────
 
@@ -251,7 +251,7 @@ namespace Hrot.CGF.Orchestration
                 // Pre-allocate new network IDs for every entity (root and child) that
                 // carries a NetworkIdentity in the staging DOM.  Build the translation
                 // map so behavior BehaviorParams can be patched in Pass 2.
-                var oldToNewMap = new Dictionary<long, long>();
+                var oldToNewMap = new Dictionary<int, int>();
                 for (int i = 0; i <= maxIdx; i++)
                 {
                     var maskP1 = stagingRepo.GetEntityIndex().GetComponentMask(i);
@@ -262,8 +262,8 @@ namespace Hrot.CGF.Orchestration
                     var e = stagingRepo.GetEntityByIndex(i);
                     if (e == Entity.Null) continue;
 
-                    long oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
-                    long newId = idAllocator.AllocateId();
+                    int oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
+                    int newId = idAllocator.AllocateId();
                     oldToNewMap[oldId] = newId;
                 }
 
@@ -283,13 +283,13 @@ namespace Hrot.CGF.Orchestration
                     long   tkbType,
                     ulong  disType,
                     List<object> components,
-                    long   preAllocId)>();
+                    int   preAllocId)>();
 
                 var entityToRootIdx = new Dictionary<Entity, int>();
 
                 // Child buffer keyed by parentEntity (staging handle) then by InstanceId.
                 var childBuffer = new Dictionary<Entity,
-                    Dictionary<int, (long preAllocId, List<object> components)>>();
+                    Dictionary<int, (int preAllocId, List<object> components)>>();
 
                 for (int i = 0; i <= maxIdx; i++)
                 {
@@ -305,10 +305,10 @@ namespace Hrot.CGF.Orchestration
                         // ── Child entity ───────────────────────────────────────────
                         var partMeta = stagingRepo.GetComponent<PartMetadata>(e);
 
-                        long childPreAllocId = 0;
+                        int childPreAllocId = 0;
                         if (mask.IsSet(GlobalComponentIds.NetworkIdentity))
                         {
-                            long childOldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
+                            int childOldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
                             oldToNewMap.TryGetValue(childOldId, out childPreAllocId);
                         }
 
@@ -317,7 +317,7 @@ namespace Hrot.CGF.Orchestration
 
                         if (!childBuffer.TryGetValue(partMeta.ParentEntity, out var childMap))
                             childBuffer[partMeta.ParentEntity] =
-                                childMap = new Dictionary<int, (long, List<object>)>();
+                                childMap = new Dictionary<int, (int, List<object>)>();
 
                         childMap[partMeta.InstanceId] = (childPreAllocId, childComps);
                     }
@@ -330,10 +330,10 @@ namespace Hrot.CGF.Orchestration
 
                         ulong disType = meta.DisType.Value;
 
-                        long preAllocId = 0;
+                        int preAllocId = 0;
                         if (mask.IsSet(GlobalComponentIds.NetworkIdentity))
                         {
-                            long oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
+                            int oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
                             oldToNewMap.TryGetValue(oldId, out preAllocId);
                         }
 
@@ -359,12 +359,12 @@ namespace Hrot.CGF.Orchestration
                         comps.Add(new EpisodeTag { EpisodeId = episodeId.Value });
 
                     // Attach harvested child component overrides (null when none).
-                    IReadOnlyDictionary<int, (long PreAllocatedId, IReadOnlyList<object> Components)>?
+                    IReadOnlyDictionary<int, (int PreAllocatedId, IReadOnlyList<object> Components)>?
                         childOverrides = null;
 
                     if (childBuffer.TryGetValue(rd.stagingEntity, out var harvested))
                     {
-                        var overrideDict = new Dictionary<int, (long, IReadOnlyList<object>)>(harvested.Count);
+                        var overrideDict = new Dictionary<int, (int, IReadOnlyList<object>)>(harvested.Count);
                         foreach (var kvp in harvested)
                         {
                             RemapComponentNetworkIds(kvp.Value.components, oldToNewMap, behaviorRemapper, refScope);
@@ -397,7 +397,7 @@ namespace Hrot.CGF.Orchestration
                 //    ⛔ A copy, not the live dictionary: the subscriber keeps it for the lifetime of the
                 //    load and this one is a local that Pass 2 read from — handing out the instance would
                 //    make a future edit to Pass 2 visible to a reader that already published it.
-                OnRemap?.Invoke(new Dictionary<long, long>(oldToNewMap));
+                OnRemap?.Invoke(new Dictionary<int, int>(oldToNewMap));
 
                 return results;
             }
@@ -418,7 +418,7 @@ namespace Hrot.CGF.Orchestration
         /// </summary>
         private static void RemapComponentNetworkIds(
             List<object> comps,
-            Dictionary<long, long> oldToNewMap,
+            Dictionary<int, int> oldToNewMap,
             ScenarioBehaviorRemapper? behaviorRemapper,
             Fdp.Toolkit.Scenario.ScenarioRefScope refScope)
         {
@@ -452,7 +452,7 @@ namespace Hrot.CGF.Orchestration
                 }
             }
 
-            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<long, long> map)
+            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<int, int> map)
             {
                 bool any = false;
                 foreach (var w in route.Waypoints) any |= w.HoldUnit != 0 && map.ContainsKey(w.HoldUnit);
@@ -501,7 +501,7 @@ namespace Hrot.CGF.Orchestration
 
         /// <summary>⭐ S0 — this load's <see cref="Fdp.Toolkit.Scenario.ScenarioRefScope"/>: every staging entity with a network id, by its
         /// <see cref="Fdp.Toolkit.Scenario.RefKey"/> and <see cref="Fdp.Toolkit.Scenario.EntityGuid"/>, answering with its NEW id and its position.</summary>
-        private static Fdp.Toolkit.Scenario.ScenarioRefScope BuildRefScope(EntityRepository stagingRepo, int maxIdx, Dictionary<long, long> oldToNewMap)
+        private static Fdp.Toolkit.Scenario.ScenarioRefScope BuildRefScope(EntityRepository stagingRepo, int maxIdx, Dictionary<int, int> oldToNewMap)
         {
             var scope = new Fdp.Toolkit.Scenario.ScenarioRefScope("this scenario");
             for (int i = 0; i <= maxIdx; i++)
@@ -509,7 +509,7 @@ namespace Hrot.CGF.Orchestration
                 var mask = stagingRepo.GetEntityIndex().GetComponentMask(i);
                 if (!stagingRepo.GetEntityIndex().GetMetadata(i).IsActive || !mask.IsSet(GlobalComponentIds.NetworkIdentity)) continue;
                 var e = stagingRepo.GetEntityByIndex(i);
-                if (e == Entity.Null || !oldToNewMap.TryGetValue(stagingRepo.GetComponent<NetworkIdentity>(e).Value, out long newId)) continue;
+                if (e == Entity.Null || !oldToNewMap.TryGetValue(stagingRepo.GetComponent<NetworkIdentity>(e).Value, out int newId)) continue;
                 string? key = mask.IsSet(GlobalComponentIds.RefKey) ? stagingRepo.GetComponent<Fdp.Toolkit.Scenario.RefKey>(e).Value.ToString() : null;
                 Guid guid = mask.IsSet(GlobalComponentIds.EntityGuid) ? stagingRepo.GetComponent<Fdp.Toolkit.Scenario.EntityGuid>(e).Value : Guid.Empty;
                 WorldPoint? at = mask.IsSet(GlobalComponentIds.SimTransform) ? stagingRepo.GetComponent<SimTransform>(e).Position : null;

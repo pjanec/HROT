@@ -128,7 +128,7 @@ public sealed class PlatoonBaselineRails
 
         foreach (var row in listed)
         {
-            var id = row?["networkId"]?.GetValue<long>();
+            var id = row?["networkId"]?.GetValue<int>();
             if (id is null) continue;
 
             var dump = await mcp.GetEntityAsync(id.Value);

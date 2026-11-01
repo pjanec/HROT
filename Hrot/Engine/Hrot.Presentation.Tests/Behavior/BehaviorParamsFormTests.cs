@@ -22,7 +22,7 @@ namespace Hrot.Presentation.Tests.Behavior
     {
         private sealed class PickingContext : IMapPickContext
         {
-            public long Entity;
+            public int Entity;
             public PointLink? Location;
             public readonly List<string> AskedPaths = new();
             public bool IsPickPendingFor(string path) => false;

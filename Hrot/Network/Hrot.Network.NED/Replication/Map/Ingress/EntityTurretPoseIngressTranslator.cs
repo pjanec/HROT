@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             repo.SetComponent(part, new TurretPose { Azimuth = pose.Azimuth, Elevation = pose.Elevation });
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static bool OwnsThePose(EntityRepository repo, Entity part, int partId)
             => TurretPartLookup.IsRecordedOwner(repo, part, OrdinalValue, partId);

@@ -10,7 +10,7 @@ namespace Hrot.Traffic.Tests;
 /// that moves it; it is taken back when the shadow is gone; a shadow is never a replica.</summary>
 public sealed class AHandedOverVehicleFollowsItsShadowTests
 {
-    private const long Id = 4242;
+    private const int Id = 4242;
 
     [Fact]
     public void G4_NoShadowYet_TheBodyHolds_AsADeliberateHold()

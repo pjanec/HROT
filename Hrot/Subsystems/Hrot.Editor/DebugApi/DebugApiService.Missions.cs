@@ -45,7 +45,7 @@ namespace Hrot.Editor.DebugApi
         /// version. An entity with no active mission is a valid answer, not an error: it returns an empty
         /// task list, so an agent can add the first task without a special case. Must run on the main thread.
         /// </summary>
-        public (JsonNode? result, string? error, string? hintCategory) GetMission(long networkId)
+        public (JsonNode? result, string? error, string? hintCategory) GetMission(int networkId)
         {
             if (_missionEditor is null)
                 return (null,
@@ -73,7 +73,7 @@ namespace Hrot.Editor.DebugApi
         /// <c>meta</c> — the payload the host merges the ack version into on success.
         /// </returns>
         public (Task<MissionCommitResult>? commit, JsonNode? meta, string? error, string? hintCategory) BeginAddMissionTask(
-            long networkId, string? behavior, JsonNode? paramsNode, JsonNode? triggersNode)
+            int networkId, string? behavior, JsonNode? paramsNode, JsonNode? triggersNode)
         {
             if (string.IsNullOrWhiteSpace(behavior))
                 return (null, null,
@@ -110,7 +110,7 @@ namespace Hrot.Editor.DebugApi
         /// by committing an empty plan through the same OCC path. Runs on the main thread; await the task off it.
         /// </summary>
         public (Task<MissionCommitResult>? commit, JsonNode? meta, string? error, string? hintCategory) BeginClearMissionTasks(
-            long networkId)
+            int networkId)
         {
             if (!TrySnapshotForEdit(networkId, out var plan, out var version, out var error, out var hint))
                 return (null, null, error, hint);
@@ -133,7 +133,7 @@ namespace Hrot.Editor.DebugApi
         /// jump-to-start operation the mechanism offers. Runs on the main thread; await the task off it.
         /// </summary>
         public (Task<MissionCommitResult>? commit, JsonNode? meta, string? error, string? hintCategory) BeginRunMission(
-            long networkId, bool restart)
+            int networkId, bool restart)
         {
             if (_missionEditor is null)
                 return (null, null,
@@ -159,7 +159,7 @@ namespace Hrot.Editor.DebugApi
         /// an entity with no mission yields an empty plan) plus the OCC version to commit against.
         /// </summary>
         private bool TrySnapshotForEdit(
-            long networkId, out MissionPlan plan, out long version, out string? error, out string? hintCategory)
+            int networkId, out MissionPlan plan, out long version, out string? error, out string? hintCategory)
         {
             plan    = new MissionPlan();
             version = 0;
@@ -213,7 +213,7 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>The mission plan as the API reports it: tasks with their behaviour, params, triggers, and OCC version.</summary>
-        private static JsonNode SerializeMission(long networkId, MissionPlan? plan, long version)
+        private static JsonNode SerializeMission(int networkId, MissionPlan? plan, long version)
         {
             var tasks = new JsonArray();
             if (plan?.Tasks is not null)

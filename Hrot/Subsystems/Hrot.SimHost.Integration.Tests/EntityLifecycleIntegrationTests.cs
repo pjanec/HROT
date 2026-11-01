@@ -76,7 +76,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
 
         _simHost.World.Bus.PublishManaged(spawnCmd);
 
-        long? networkId = null;
+        int? networkId = null;
         bool igHasEntity = false;
         bool igHasTransform = false;
         bool igHasStyle = false;
@@ -192,7 +192,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         };
     }
 
-    private static bool TryGetFirstNetworkId(EntityRepository world, out long networkId)
+    private static bool TryGetFirstNetworkId(EntityRepository world, out int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().Build();
         foreach (var entity in query)
@@ -205,7 +205,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static bool IgHasResolvedStyle(EntityRepository world, long networkId)
+    private static bool IgHasResolvedStyle(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<ResolvedStyle>().Build();
         foreach (var entity in query)
@@ -217,7 +217,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static bool IgHasEntity(EntityRepository world, long networkId)
+    private static bool IgHasEntity(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().Build();
         foreach (var entity in query)
@@ -229,7 +229,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
-    private static bool IgHasSimTransform(EntityRepository world, long networkId)
+    private static bool IgHasSimTransform(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<SimTransform>().Build();
         foreach (var entity in query)
@@ -242,7 +242,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
     }
 
 
-    private static bool IgHasNetworkPosition(EntityRepository world, long networkId)
+    private static bool IgHasNetworkPosition(EntityRepository world, int networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<NetworkTransform>().Build();
         foreach (var entity in query)

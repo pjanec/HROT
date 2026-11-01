@@ -7,7 +7,7 @@ namespace Hrot.Traffic;
 /// One SUMO pedestrian as this node sees it this frame: terrain-local metres, Z up, HROT yaw (0 = east, counter-clockwise, from its
 /// motion); its OWNER (the node that sent it), and its network id — its SUMO name, allocated by the serving node (AQ93 §15 K2).
 /// </summary>
-public readonly record struct TrafficPedPose(int Owner, long NetworkId, string Name, float X, float Y, float Z, float YawRad);
+public readonly record struct TrafficPedPose(int Owner, int NetworkId, string Name, float X, float Y, float Z, float YawRad);
 
 /// <summary>
 /// ⭐ AQ93 §15 K3 — the RECEIVING side of ONE sender's pedestrian wire: every live pedestrian at one instant of the cluster clock,
@@ -48,7 +48,7 @@ public sealed class TrafficPedMirror
                 yaw = d.LengthSquared() > 1e-4f ? MathF.Atan2(d.Y, d.X) : last.Yaw;
             }
             _last[p.Id] = (at, yaw);
-            long netId = long.TryParse(p.Name, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
+            int netId = int.TryParse(p.Name, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
             into.Add(new TrafficPedPose(_owner, netId, p.Name, at.X, at.Y, (float)p.Z, yaw));
         }
         _gone.Clear();

@@ -357,11 +357,11 @@ namespace Hrot.Editor.DebugApi
         // Group G — Breakpoints
         private readonly IDataBreakpointManager? _bpManager;
         private BreakpointId _lastHitBreakpointId;
-        private long         _lastHitNetworkId;
+        private int         _lastHitNetworkId;
 
         // Group H — Checkpoint / Restore / Diff
         private readonly IComponentDiffService _diffService;
-        private readonly Dictionary<string, Dictionary<long, JsonNode?>> _diffBaselines = new();
+        private readonly Dictionary<string, Dictionary<int, JsonNode?>> _diffBaselines = new();
         private int _nextBaselineId;
 
         // ⭐ The editor's ONE recorder (the shared host composition's): what /status reports as recording, and the replay file the
@@ -909,7 +909,7 @@ namespace Hrot.Editor.DebugApi
         /// <c>GET /entities/{networkId}</c> — full component dump via the serializer-injected
         /// extraction service. Returns <c>null</c> when the id is unknown (host → 404) (main thread).
         /// </summary>
-        public JsonNode? DumpEntity(long networkId)
+        public JsonNode? DumpEntity(int networkId)
         {
             // Resolve must go through the map so an unknown id is reported as 404,
             // not silently returned as an empty dump.
@@ -1717,10 +1717,10 @@ namespace Hrot.Editor.DebugApi
 
             public override Entity Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
             {
-                long id = reader.TokenType switch
+                int id = reader.TokenType switch
                 {
-                    JsonTokenType.Number => reader.GetInt64(),
-                    JsonTokenType.String when long.TryParse(reader.GetString(), out var parsed) => parsed,
+                    JsonTokenType.Number => reader.GetInt32(),
+                    JsonTokenType.String when int.TryParse(reader.GetString(), out var parsed) => parsed,
                     _ => throw new JsonException("An entity is given as its network id (a number)."),
                 };
                 if (!_map.TryGetEntity(id, out var entity))
@@ -1730,7 +1730,7 @@ namespace Hrot.Editor.DebugApi
 
             public override void Write(Utf8JsonWriter writer, Entity value, JsonSerializerOptions options)
             {
-                if (_map.TryGetNetworkId(value, out long id)) writer.WriteNumberValue(id);
+                if (_map.TryGetNetworkId(value, out int id)) writer.WriteNumberValue(id);
                 else writer.WriteNullValue();
             }
         }
@@ -2001,7 +2001,7 @@ namespace Hrot.Editor.DebugApi
         ///
         /// <para>Must run on the main thread.</para>
         /// </summary>
-        public JsonNode FocusEntity(long networkId)
+        public JsonNode FocusEntity(int networkId)
         {
             var cmd = new CenterOnEntityCommand { NetworkId = networkId };
             _world.Bus.Publish(cmd);
@@ -2061,7 +2061,7 @@ namespace Hrot.Editor.DebugApi
                     }
                     case "anchor":
                     {
-                        long  netId   = body["networkId"]?.GetValue<long>()    ?? 0L;
+                        int  netId   = body["networkId"]?.GetValue<int>()    ?? 0;
                         float x       = body["x"]?.GetValue<float>()           ?? 0f;
                         float y       = body["y"]?.GetValue<float>()           ?? 0f;
                         float z       = body["z"]?.GetValue<float>()           ?? 0f;
@@ -2204,7 +2204,7 @@ namespace Hrot.Editor.DebugApi
         /// entries. ⚠ Without a mission service wired, the entityId form resolves the entity's own
         /// TkbType and falls back to the catalog — same answer minus those BTree extras.</para>
         /// </summary>
-        public (JsonNode? result, string? error, string? hintCategory) GetBehaviors(long? tkbType, long? entityId)
+        public (JsonNode? result, string? error, string? hintCategory) GetBehaviors(long? tkbType, int? entityId)
         {
             if (_behaviorRegistry is null)
                 return (null, "Behavior registry not available.", null);
@@ -2434,7 +2434,7 @@ namespace Hrot.Editor.DebugApi
             => TerrainReport.QueryFire(_world, from, to, penetration, damage);
 
         /// <summary>GET /combat/shots — ⭐ tuning T-4: the last rounds fired on this node, as the combat systems recorded them.</summary>
-        public JsonNode GetShots(int last, long? shooter, long? target)
+        public JsonNode GetShots(int last, int? shooter, int? target)
             => CombatReport.Shots(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last, shooter, target);
 
         /// <summary>GET /combat/detonations — ⭐ CE-1032 (W-10): the last warhead bursts on this node, as the area effect decided them.</summary>
@@ -2442,11 +2442,11 @@ namespace Hrot.Editor.DebugApi
             => CombatReport.Detonations(_world, _editorEntityMap ?? _dispatcher?.EntityMap, last);
 
         /// <summary>GET /perception/los — ⭐ tuning T-4: why one unit does (not) see another, as this node's perception decides it.</summary>
-        public JsonNode ExplainLos(long observer, long target)
+        public JsonNode ExplainLos(int observer, int target)
             => CombatReport.Los(_world, _editorEntityMap ?? _dispatcher?.EntityMap, observer, target);
 
         /// <summary>GET /perception/hearing — ⭐ AQ106 L: what a unit could hear in the last seconds and why not, as this node's hearing decides it.</summary>
-        public JsonNode ExplainHearing(long listener, double seconds)
+        public JsonNode ExplainHearing(int listener, double seconds)
             => CombatReport.Hearing(_world, _editorEntityMap ?? _dispatcher?.EntityMap, listener, seconds);
 
         /// <summary>GET /doors — ⭐ buildings Stage 1: the doors the terrain defines.</summary>
@@ -2529,7 +2529,7 @@ namespace Hrot.Editor.DebugApi
             var filterNode = body?["filterNetworkId"];
             if (filterNode is not null)
             {
-                long filterNetworkId = filterNode.GetValue<long>();
+                int filterNetworkId = filterNode.GetValue<int>();
                 if (!_entityMap.TryGetEntity(filterNetworkId, out var fe))
                     throw new ArgumentException($"filterNetworkId {filterNetworkId} not found. List entities with GET /entities.");
                 filterEntity = fe;
@@ -2669,7 +2669,7 @@ namespace Hrot.Editor.DebugApi
         /// POST /diff/capture {entities?} — serialize current entity states and store as a named baseline.
         /// Returns { baselineId }.
         /// </summary>
-        public JsonNode CaptureBaseline(IEnumerable<long>? entityNetworkIds = null)
+        public JsonNode CaptureBaseline(IEnumerable<int>? entityNetworkIds = null)
         {
             var id = $"BL#{++_nextBaselineId}";
             var snapshot = SerializeEntitySnapshot(entityNetworkIds);
@@ -2681,7 +2681,7 @@ namespace Hrot.Editor.DebugApi
         /// POST /diff/compare {baselineId, entities?} — diff the specified baseline against current state.
         /// Returns a DiffNode tree per entity.
         /// </summary>
-        public JsonNode CompareBaseline(string baselineId, IEnumerable<long>? entityNetworkIds = null)
+        public JsonNode CompareBaseline(string baselineId, IEnumerable<int>? entityNetworkIds = null)
         {
             if (!_diffBaselines.TryGetValue(baselineId, out var before))
                 throw new ArgumentException($"Unknown baselineId: '{baselineId}'. Capture one with POST /diff/capture.");
@@ -2697,7 +2697,7 @@ namespace Hrot.Editor.DebugApi
         /// Requires an active checkpoint (inPreview:true). Captures "before" from the checkpoint
         /// (re-serializes current state as "after").
         /// </summary>
-        public JsonNode DiffFromCheckpoint(IEnumerable<long>? entityNetworkIds = null)
+        public JsonNode DiffFromCheckpoint(IEnumerable<int>? entityNetworkIds = null)
         {
             if (!_preview.IsInPreviewMode)
                 throw new InvalidOperationException("No checkpoint active. Use POST /checkpoint first, or use /diff/capture + /diff/compare for a checkpoint-independent diff.");
@@ -2712,10 +2712,10 @@ namespace Hrot.Editor.DebugApi
             throw new InvalidOperationException("diff-from-checkpoint requires a separate /diff/capture before mutation. Use POST /diff/capture (baselineId), mutate, then POST /diff/compare {baselineId}.");
         }
 
-        private Dictionary<long, JsonNode?> SerializeEntitySnapshot(IEnumerable<long>? networkIds = null)
+        private Dictionary<int, JsonNode?> SerializeEntitySnapshot(IEnumerable<int>? networkIds = null)
         {
-            var result = new Dictionary<long, JsonNode?>();
-            IEnumerable<long> ids = networkIds ?? GetAllNetworkIds();
+            var result = new Dictionary<int, JsonNode?>();
+            IEnumerable<int> ids = networkIds ?? GetAllNetworkIds();
             foreach (var nid in ids)
             {
                 var node = DumpEntity(nid);
@@ -2724,16 +2724,16 @@ namespace Hrot.Editor.DebugApi
             return result;
         }
 
-        private IEnumerable<long> GetAllNetworkIds()
+        private IEnumerable<int> GetAllNetworkIds()
         {
             var dumps = _extraction.ExtractEntities();
             foreach (var d in dumps)
                 yield return d.NetworkId;
         }
 
-        private JsonNode BuildDiffResult(Dictionary<long, JsonNode?> before, Dictionary<long, JsonNode?> after)
+        private JsonNode BuildDiffResult(Dictionary<int, JsonNode?> before, Dictionary<int, JsonNode?> after)
         {
-            var allIds = new HashSet<long>(before.Keys);
+            var allIds = new HashSet<int>(before.Keys);
             foreach (var id in after.Keys) allIds.Add(id);
 
             var entityDiffs = new JsonArray();
@@ -2797,7 +2797,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// <c>POST /trace/observe {networkId, on}</c> — arm or disarm trace buffer for an entity.
         /// </summary>
-        public JsonNode ObserveTrace(long networkId, bool on)
+        public JsonNode ObserveTrace(int networkId, bool on)
         {
             if (_editorTracer is null)
                 return new JsonObject { ["armed"] = false, ["note"] = "Trace coordinator not available." };
@@ -2816,7 +2816,7 @@ namespace Hrot.Editor.DebugApi
         /// <summary>
         /// <c>GET /entities/{networkId}/trace</c> — extract AI behavior trace for an entity.
         /// </summary>
-        public JsonNode GetEntityTrace(long networkId)
+        public JsonNode GetEntityTrace(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return new JsonObject { ["error"] = $"Entity {networkId} not found." };
@@ -2995,7 +2995,7 @@ namespace Hrot.Editor.DebugApi
         /// descriptor covers has no remote owner to ask (a networkless host, or a node-local component), and an
         /// entity with no network identity cannot be addressed — both answer an error, never <c>ok</c>.</para>
         /// </summary>
-        public (JsonNode? result, string? error) PatchEntityAttribute(long networkId, string? patchJson)
+        public (JsonNode? result, string? error) PatchEntityAttribute(int networkId, string? patchJson)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found. List entities with GET /entities.");
@@ -3075,7 +3075,7 @@ namespace Hrot.Editor.DebugApi
         /// Returns 400 if validation fails; the component is unchanged.
         /// Must run on the main thread.
         /// </summary>
-        public (JsonNode? result, string? error) EditEntityComponent(long networkId, string componentType, JsonNode? patch)
+        public (JsonNode? result, string? error) EditEntityComponent(int networkId, string componentType, JsonNode? patch)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found. List entities with GET /entities.");

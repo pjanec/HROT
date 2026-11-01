@@ -140,18 +140,18 @@ namespace Hrot.SimHost.Tests
             // Create 2 episode entities in the world with NetworkIdentity.
             var e1 = _world.CreateEntity();
             _world.SetComponent(e1, new EpisodeTag { EpisodeId = episodeId });
-            _world.SetComponent(e1, new NetworkIdentity(101L));
+            _world.SetComponent(e1, new NetworkIdentity(101));
 
             var e2 = _world.CreateEntity();
             _world.SetComponent(e2, new EpisodeTag { EpisodeId = episodeId });
-            _world.SetComponent(e2, new NetworkIdentity(102L));
+            _world.SetComponent(e2, new NetworkIdentity(102));
 
             // Create 3 entities NOT belonging to the episode.
             for (int i = 0; i < 3; i++)
             {
                 var e = _world.CreateEntity();
                 _world.SetComponent(e, new EpisodeTag { EpisodeId = Guid.NewGuid() });
-                _world.SetComponent(e, new NetworkIdentity(999L + i));
+                _world.SetComponent(e, new NetworkIdentity(999 + i));
             }
 
             var source  = new BusEntityCreationRequestSource(_world.Bus);
@@ -168,7 +168,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.Equal(2, commands.Count);
             var publishedIds = commands.Select(c => c.NetworkId).OrderBy(x => x).ToList();
-            Assert.Equal(new List<long> { 101L, 102L }, publishedIds);
+            Assert.Equal(new List<int> { 101, 102 }, publishedIds);
         }
 
         // ── Test 3: CanHandle ─────────────────────────────────────────────────

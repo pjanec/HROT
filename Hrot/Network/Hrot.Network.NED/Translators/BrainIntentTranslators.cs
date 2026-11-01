@@ -29,8 +29,8 @@ namespace Hrot.Network.Translators
 
         private readonly IDdsWriter<EntityBrainIntent> _writer;
         private readonly BehaviorRegistry _registry;
-        private readonly Dictionary<long, Signature> _lastSignature = new();
-        private readonly Dictionary<long, string> _lastSent = new();
+        private readonly Dictionary<int, Signature> _lastSignature = new();
+        private readonly Dictionary<int, string> _lastSent = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
@@ -70,7 +70,7 @@ namespace Hrot.Network.Translators
             foreach (var entity in query)
             {
                 if (!view.HasAuthority(entity, key)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
 
                 var signature = Signature.Of(repo, entity);
                 if (_lastSignature.TryGetValue(netId, out var last) && last.Equals(signature)) continue;
@@ -90,7 +90,7 @@ namespace Hrot.Network.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>The unit is gone: forget it and end its durable instance, so a late joiner is not handed a dead unit.</summary>
-        public void Dispose(long networkEntityId)
+        public void Dispose(int networkEntityId)
         {
             _lastSignature.Remove(networkEntityId);
             if (_lastSent.Remove(networkEntityId))
@@ -98,7 +98,7 @@ namespace Hrot.Network.Translators
         }
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget what was published so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             _lastSignature.Remove(networkEntityId);
             if (_lastSent.Remove(networkEntityId))
@@ -138,7 +138,7 @@ namespace Hrot.Network.Translators
     {
         private readonly DdsReader<EntityBrainIntent>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        private readonly Dictionary<long, string> _held = new();
+        private readonly Dictionary<int, string> _held = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
@@ -217,7 +217,7 @@ namespace Hrot.Network.Translators
                     else cmd.AddComponent(entity, roe);
                 }
             }
-            if (done != null) foreach (long id in done) _held.Remove(id);
+            if (done != null) foreach (int id in done) _held.Remove(id);
         }
 
         /// <inheritdoc/>
@@ -227,6 +227,6 @@ namespace Hrot.Network.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) => _held.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _held.Remove(networkEntityId);
     }
 }

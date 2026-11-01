@@ -125,7 +125,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
-        public void Dispose(long networkEntityId) { /* IG does not write EntityMaster */ }
+        public void Dispose(int networkEntityId) { /* IG does not write EntityMaster */ }
 
         // ── Private helpers ──────────────────────────────────────────────────
 
@@ -141,7 +141,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// accepted, as before: rejecting a real delete would leave exactly the stale entity <c>CE-4000</c> removes.
         /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §8.2.
         /// </remarks>
-        internal void ProcessDispose(long networkEntityId, int senderNodeId = UnknownOwner, ISimulationView? view = null)
+        internal void ProcessDispose(int networkEntityId, int senderNodeId = UnknownOwner, ISimulationView? view = null)
         {
             if (senderNodeId != UnknownOwner && view != null
                 && _entityMap.TryGetEntity(networkEntityId, out var target) && view.IsAlive(target)
@@ -178,7 +178,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         internal void ProcessSample(in EntityMaster master, IEntityCommandBuffer cmd, ISimulationView view,
                                     int writerNodeId = UnknownOwner)
         {
-            long netId = master.EntityId;
+            int netId = master.EntityId;
 
             if (!_entityMap.TryGetEntity(netId, out var entity))
             {

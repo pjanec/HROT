@@ -36,7 +36,7 @@ public static class EntityHeaderDrawer
         }
         else
         {
-            long? netId = GetNetworkId(session, entity);
+            int? netId = GetNetworkId(session, entity);
             ImGuiApi.TextUnformatted($"[{entity.Index}, v{entity.Generation}]");
             if (netId.HasValue)
             {
@@ -61,7 +61,7 @@ public static class EntityHeaderDrawer
     /// <summary>
     /// Gets the network ID component value if present, otherwise returns null.
     /// </summary>
-    private static long? GetNetworkId(IInspectableSession session, Entity entity)
+    private static int? GetNetworkId(IInspectableSession session, Entity entity)
     {
         if (session.HasComponent(entity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
         {

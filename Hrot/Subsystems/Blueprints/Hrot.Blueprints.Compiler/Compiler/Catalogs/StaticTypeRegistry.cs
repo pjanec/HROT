@@ -50,14 +50,14 @@ public sealed class StaticTypeRegistry : ITypeRegistry
                 IsEntityHandle = true,
             },
 
-            // ⭐ The AUTHORED entity reference (DESIGN_Entity_Reference.md) -- a network id, 8 bytes, unmanaged. ⛔ NOT an
+            // ⭐ The AUTHORED entity reference (DESIGN_Entity_Reference.md) -- a network id, 4 bytes (CE-4200: int32), unmanaged. ⛔ NOT an
             //   entity handle: it never compares with Entity and is resolved by a node (Entity From Ref), not by IsEntityHandle.
-            ["Fdp.Toolkit.Replication.EntityRef"] = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 8),
-            ["EntityRef"]                         = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 8),
+            ["Fdp.Toolkit.Replication.EntityRef"] = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 4),
+            ["EntityRef"]                         = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 4),
 
             // ⭐ S0 item 5 (DESIGN_Scenario_Rules §9.8.0) -- the AUTHORED types and the internal place / bearing: unmanaged structs a params DTO (and so a blueprint's
             //   "Get All Parameters" / SendIntent pins) now carries. Composite, so SizeReliable=false: the layout comes from the runtime (Marshal.OffsetOf), never baked offsets.
-            ["Fdp.Toolkit.Replication.EntityLink"] = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.EntityLink", IsUnmanaged = true, SizeBytes = 48, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.EntityLink"] = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.EntityLink", IsUnmanaged = true, SizeBytes = 40, SizeReliable = false },
             ["Fdp.Toolkit.Replication.PointLink"]  = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.PointLink",  IsUnmanaged = true, SizeBytes = 48, SizeReliable = false },
             ["Fdp.Toolkit.Replication.AreaLink"]   = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.AreaLink",   IsUnmanaged = true, SizeBytes = 72, SizeReliable = false },
             ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
@@ -141,7 +141,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
         "float", "double",
         "Vector2", "Vector3", "Vector4", "Quaternion",
         "FixedString32", "FixedString64", "FixedString128",
-        "EntityRef",   // ⭐ DESIGN_Entity_Reference.md D6 — its two rungs (long <-> EntityRef) are below
+        "EntityRef",   // ⭐ DESIGN_Entity_Reference.md D6 — its two rungs (int <-> EntityRef) are below
     };
 
     // Coercion table: (fromFullName, toFullName) --> C# expression template
@@ -218,7 +218,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // float -> double
             { ("System.Single", "System.Double"), "(double)$expr" },
 
-            // ⛔ No Int64 <-> EntityRef rung (DESIGN_Entity_Reference.md §5): a rung is inserted SILENTLY, and a silent
+            // ⛔ No Int32 <-> EntityRef rung (DESIGN_Entity_Reference.md §5): a rung is inserted SILENTLY, and a silent
             //   crossing between a bare number and a reference is exactly the ambiguity the type removes. A graph crosses
             //   explicitly — Ref From Entity / Entity From Ref.
         };

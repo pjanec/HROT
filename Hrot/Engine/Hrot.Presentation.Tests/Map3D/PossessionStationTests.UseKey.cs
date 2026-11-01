@@ -28,9 +28,9 @@ namespace Hrot.Presentation.Tests.Map3D;
 public sealed partial class PossessionStationTests
 {
     /// <summary>A picker that answers a unit 1 m ahead (network id <paramref name="id"/>).</summary>
-    private sealed class Ahead(long id) : IPicker3D
+    private sealed class Ahead(int id) : IPicker3D
     {
-        public long Id { get; set; } = id;
+        public int Id { get; set; } = id;
         public PickFilter Kind => PickFilter.EntityParts;
         public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
         {
@@ -71,7 +71,7 @@ public sealed partial class PossessionStationTests
 
         public void Dispose() => W.Dispose();
 
-        public Entity OfType(string name, Vector3 at, long netId, CarrierDefDto? carrier = null, WeaponSystemDto? weapon = null, InjuryDefDto? injury = null)
+        public Entity OfType(string name, Vector3 at, int netId, CarrierDefDto? carrier = null, WeaponSystemDto? weapon = null, InjuryDefDto? injury = null)
         {
             var e = W.CreateEntity();
             W.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
@@ -92,7 +92,7 @@ public sealed partial class PossessionStationTests
             return e;
         }
 
-        public Entity Soldier(Vector3 at, float health, long netId)
+        public Entity Soldier(Vector3 at, float health, int netId)
         {
             var e = OfType("Rifleman", at, netId, CarrierDefDto.PersonCarrier(), injury: new InjuryDefDto());
             W.AddComponent(e, new Health { Current = health, Max = 100f });
@@ -100,15 +100,15 @@ public sealed partial class PossessionStationTests
             return e;
         }
 
-        public Entity Vehicle(Vector3 at, long netId) => OfType("BMP-2", at, netId, new CarrierDefDto
+        public Entity Vehicle(Vector3 at, int netId) => OfType("BMP-2", at, netId, new CarrierDefDto
         {
             Seats = { new SeatDto { Role = SeatRole.Driver }, new SeatDto { Role = SeatRole.Passenger } },
         });
 
-        public Entity Tripod(Vector3 at, long netId) => OfType("ZU-23-2", at, netId,
+        public Entity Tripod(Vector3 at, int netId) => OfType("ZU-23-2", at, netId,
             new CarrierDefDto { Seats = { new SeatDto { Role = SeatRole.Gunner } } }, new WeaponSystemDto { NeedsOperator = true });
 
-        public Entity Door(Vector3 at, TerrainDoorState state, long netId)
+        public Entity Door(Vector3 at, TerrainDoorState state, int netId)
         {
             var d = W.CreateEntity();
             W.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
@@ -136,7 +136,7 @@ public sealed partial class PossessionStationTests
         }
     }
 
-    private static (PossessionStation Station, MapViewSwitch Switch, Ahead Crosshair) Station(UseWorld u, long aimAt)
+    private static (PossessionStation Station, MapViewSwitch Switch, Ahead Crosshair) Station(UseWorld u, int aimAt)
     {
         var (_, sw, _) = Map();
         var crosshair = new Ahead(aimAt);
@@ -372,7 +372,7 @@ public sealed partial class PossessionStationTests
         Assert.True(orders.Possess(4343).Accepted);
         u.ApplyPossession();
         Assert.False(u.W.HasComponent<PossessedBy>(u.Me));
-        Assert.Equal(other, PossessionStation.HeldHere(u.W, out long id));
+        Assert.Equal(other, PossessionStation.HeldHere(u.W, out int id));
         Assert.Equal(4343L, id);
 
         Assert.True(orders.Possess(4343, PossessionMode.Riding).Accepted);
@@ -424,7 +424,7 @@ public sealed partial class PossessionStationTests
     {
         using var u = new UseWorld();
         u.W.AddComponent(u.Me, new EntityInfo { ForceId = ForceId.Friend });      // this station is a blue player
-        Entity Rider(long netId, ForceId side, long station, Entity vehicle)
+        Entity Rider(int netId, ForceId side, long station, Entity vehicle)
         {
             var r = u.Soldier(new Vector3(8f, 1f, 0f), 100f, netId);
             u.W.AddComponent(r, new EntityInfo { ForceId = side });

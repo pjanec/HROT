@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityPartDamageEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityPartDamage>? _writer;
-        private readonly Dictionary<long, EntityPartDamage> _last = new();
+        private readonly Dictionary<int, EntityPartDamage> _last = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
@@ -41,7 +41,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<PartDamage>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var sample = ToSample(netId, view.GetComponentRO<PartDamage>(e));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -51,7 +51,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static unsafe EntityPartDamage ToSample(long netId, in PartDamage d)
+        internal static unsafe EntityPartDamage ToSample(int netId, in PartDamage d)
         {
             var s = new EntityPartDamage { EntityId = netId, Plan = (byte)d.Plan };
             s.L0 = d.LevelOf(0); s.L1 = d.LevelOf(1); s.L2 = d.LevelOf(2); s.L3 = d.LevelOf(3);
@@ -61,10 +61,10 @@ namespace Hrot.Map.Common.Replication.Egress
             return s;
         }
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityPartDamage { EntityId = networkEntityId });
         }
@@ -100,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var e in view.Query().With<HitMarks>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(e).Value;
                 var marks = view.GetComponentRO<HitMarks>(e);
                 if (_lastSeq.TryGetValue(netId, out var prev) && prev == marks.NextSeq) continue;
                 _lastSeq[netId] = marks.NextSeq;
@@ -110,7 +110,7 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityHitMarks ToSample(long netId, in HitMarks m)
+        internal static EntityHitMarks ToSample(int netId, in HitMarks m)
         {
             var list = new List<DdsHitMark>(m.Count);
             for (int seq = Math.Max(0, m.NextSeq - HitMarks.Capacity); seq < m.NextSeq; seq++)
@@ -125,10 +125,10 @@ namespace Hrot.Map.Common.Replication.Egress
             return new EntityHitMarks { EntityId = netId, NextSeq = m.NextSeq, Marks = list };
         }
 
-        public void Dispose(long networkEntityId) => _lastSeq.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _lastSeq.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_lastSeq.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityHitMarks { EntityId = networkEntityId });
         }
@@ -189,7 +189,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>⭐ <c>CE-3210</c> (HL-8) — applies a body's published <see cref="HitMarks"/> on this node (every renderer draws them).</summary>
@@ -249,6 +249,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

@@ -53,7 +53,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
         // Arrange: entity with sensor epoch=2
         var entity = _repo.CreateEntity();
         _repo.AddComponent(entity, new EqsSensor { Epoch = 2 });
-        _repo.AddComponent(entity, new NetworkIdentity { Value = 1L });
+        _repo.AddComponent(entity, new NetworkIdentity { Value = 1 });
 
         // Publish a managed event with stale epoch=1
         _repo.Bus.PublishManaged(new EqsResultUpdateEvent
@@ -63,7 +63,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             RefreshTick = 10,
             Results     = new List<EqsResultEntry>
             {
-                new() { EntityId = 99L, PositionX = 1f, PositionY = 2f, Score = 0.9f, Flags = 0 }
+                new() { EntityId = 99, PositionX = 1f, PositionY = 2f, Score = 0.9f, Flags = 0 }
             },
         });
         _repo.Bus.SwapBuffers();
@@ -86,7 +86,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
         // Arrange
         var entity = _repo.CreateEntity();
         _repo.AddComponent(entity, new EqsSensor { Epoch = 2 });
-        _repo.AddComponent(entity, new NetworkIdentity { Value = 2L });
+        _repo.AddComponent(entity, new NetworkIdentity { Value = 2 });
 
         _repo.Bus.PublishManaged(new EqsResultUpdateEvent
         {
@@ -95,8 +95,8 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             RefreshTick = 5,
             Results     = new List<EqsResultEntry>
             {
-                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1, Stance = 2, Kind = 2 },
-                new() { EntityId = 20L, PositionX = 300f, PositionY = 400f, PositionZ = 17.5f, Score = 0.5f, Flags = 2 },
+                new() { EntityId = 10, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1, Stance = 2, Kind = 2 },
+                new() { EntityId = 20, PositionX = 300f, PositionY = 400f, PositionZ = 17.5f, Score = 0.5f, Flags = 2 },
             },
         });
         _repo.Bus.SwapBuffers();
@@ -139,7 +139,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
         // Arrange
         var entity = _repo.CreateEntity();
         _repo.AddComponent(entity, new EqsSensor { Epoch = 3 });
-        _repo.AddComponent(entity, new NetworkIdentity { Value = 3L });
+        _repo.AddComponent(entity, new NetworkIdentity { Value = 3 });
 
         _repo.Bus.PublishManaged(new EqsResultUpdateEvent
         {
@@ -148,7 +148,7 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             RefreshTick = 7,
             Results     = new List<EqsResultEntry>
             {
-                new() { EntityId = 42L, PositionX = 11f, PositionY = 22f, Score = 1.0f, Flags = 3 },
+                new() { EntityId = 42, PositionX = 11f, PositionY = 22f, Score = 1.0f, Flags = 3 },
             },
         });
         _repo.Bus.SwapBuffers();

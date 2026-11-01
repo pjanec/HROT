@@ -46,7 +46,7 @@ namespace Hrot.Network.NED.IG
 
             foreach (var sample in loan)
             {
-                long entityId;
+                int entityId;
                 if (sample.IsValid)
                 {
                     entityId = sample.Data.EntityId;
@@ -98,7 +98,7 @@ namespace Hrot.Network.NED.IG
             }
         }
 
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         private static ActiveMissionPlan MapToPlan(EntityMission mission)
         {

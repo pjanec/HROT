@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// Rejects candidates whose <see cref="EntityInfo.ForceId"/> does not match
     /// the <see cref="EqsSensor.FactionFilter"/> bitmask. Runs in the FilterCheap phase.
-    /// Rejection sentinel: EntityId = -1L.
+    /// Rejection sentinel: EntityId = -1.
     /// </summary>
     public sealed class FactionFilterTest : IEqsTest
     {
@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                 if (!repo.IsAlive(target) || !repo.HasComponent<EntityInfo>(target))
                 {
-                    candidate.EntityId = -1L; // Reject dead or missing faction info.
+                    candidate.EntityId = -1; // Reject dead or missing faction info.
                     continue;
                 }
 
@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 uint forceBit = 1u << (int)info.ForceId;
                 if ((sensor.FactionFilter & forceBit) == 0)
                 {
-                    candidate.EntityId = -1L; // Reject faction mismatch.
+                    candidate.EntityId = -1; // Reject faction mismatch.
                 }
             }
         }

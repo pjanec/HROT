@@ -44,8 +44,8 @@ namespace Hrot.SimHost.Tests
             sender.AddComponent(door, new DoorState { State = TerrainDoorState.Closed });
             sender.AddComponent(door, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's door
             var actor = sender.CreateEntity();
-            map.Register(700L, door);
-            map.Register(42L, actor);
+            map.Register(700, door);
+            map.Register(42, actor);
             var writer = new CapturingWriter<EntityInteractionRequest>();
             var egress = new InteractionEgressTranslator(writer, map);
 
@@ -63,8 +63,8 @@ namespace Hrot.SimHost.Tests
             var ownerMap = new NetworkEntityMap();
             var ownersDoor = owner.CreateEntity();
             var ownersActor = owner.CreateEntity();
-            ownerMap.Register(700L, ownersDoor);
-            ownerMap.Register(42L, ownersActor);
+            ownerMap.Register(700, ownersDoor);
+            ownerMap.Register(42, ownersActor);
             var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
             using var cmd = new EntityCommandBuffer();
             ingress.ProcessSample(in sample, cmd);
@@ -88,7 +88,7 @@ namespace Hrot.SimHost.Tests
             var theirs = w.CreateEntity();
             w.AddComponent(theirs, new DoorState { State = TerrainDoorState.Closed });
             w.AddComponent(theirs, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
-            map.Register(1L, mine); map.Register(2L, theirs);
+            map.Register(1, mine); map.Register(2, theirs);
             var writer = new CapturingWriter<EntityInteractionRequest>();
             var egress = new InteractionEgressTranslator(writer, map);
 
@@ -127,8 +127,8 @@ namespace Hrot.SimHost.Tests
             var hostMap = new NetworkEntityMap();
             Entity brainsMan = brain.CreateEntity(), brainsRound = brain.CreateEntity();   // a replica round: no flight here
             Entity hostsMan = simHost.CreateEntity(), hostsRound = simHost.CreateEntity(); // a replica man: no brain here
-            brainMap.Register(500L, brainsMan); brainMap.Register(600L, brainsRound);
-            hostMap.Register(500L, hostsMan); hostMap.Register(600L, hostsRound);
+            brainMap.Register(500, brainsMan); brainMap.Register(600, brainsRound);
+            hostMap.Register(500, hostsMan); hostMap.Register(600, hostsRound);
 
             // ① the ask: brain → the round's flier
             var askWriter = new CapturingWriter<EntityInteractionRequest>();
@@ -173,7 +173,7 @@ namespace Hrot.SimHost.Tests
             station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
             var map = new NetworkEntityMap();
             var unit = station.CreateEntity();   // no BehaviorState here: the brain runs elsewhere
-            map.Register(900L, unit);
+            map.Register(900, unit);
             var writer = new CapturingWriter<EntityInteractionRequest>();
             var egress = new InteractionEgressTranslator(writer, map);
 
@@ -183,8 +183,8 @@ namespace Hrot.SimHost.Tests
             {
                 Unit = unit, StationNodeId = 300, Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
                 Trigger = 1, Mount = 2, AimPoint = new System.Numerics.Vector3(10f, 20f, 3f),
-                Stance = 2, ShotSeq = 5, CancelSeq = 3, AmmoSeq = 9, ShotTarget = 4242L,   // ⭐ CE-1074 / CE-1078 / CE-1079
-                UseSeq = 6, UseVerb = 1, UseTarget = 777L,   // ⭐ CE-1151
+                Stance = 2, ShotSeq = 5, CancelSeq = 3, AmmoSeq = 9, ShotTarget = 4242,   // ⭐ CE-1074 / CE-1078 / CE-1079
+                UseSeq = 6, UseVerb = 1, UseTarget = 777,   // ⭐ CE-1151
                 Lean = 2,                                    // ⭐ CE-1212
                 Binoculars = 1,                              // ⭐ CE-1219
                 LookFrom = new System.Numerics.Vector3(1f, 2f, 3f), LookDir = new System.Numerics.Vector3(0f, 0.6f, 0.8f), FirePref = 2,   // ⭐ CE-4143
@@ -205,7 +205,7 @@ namespace Hrot.SimHost.Tests
             brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
             var brainMap = new NetworkEntityMap();
             var brainsUnit = brain.CreateEntity();
-            brainMap.Register(900L, brainsUnit);
+            brainMap.Register(900, brainsUnit);
             var ingress = new InteractionIngressTranslator(participant: null, brainMap);
             using var cmd = new EntityCommandBuffer();
             foreach (var sample in writer.Written) ingress.ProcessSample(in sample, cmd);
@@ -259,8 +259,8 @@ namespace Hrot.SimHost.Tests
             soldiersNode.AddComponent(apc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
             soldiersNode.AddComponent(apc, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // node 2's vehicle
             var soldier = soldiersNode.CreateEntity();
-            map.Register(800L, apc);
-            map.Register(43L, soldier);
+            map.Register(800, apc);
+            map.Register(43, soldier);
             var writer = new CapturingWriter<EntityInteractionRequest>();
             var egress = new InteractionEgressTranslator(writer, map);
 
@@ -276,8 +276,8 @@ namespace Hrot.SimHost.Tests
             var ownersApc = owner.CreateEntity();
             owner.AddComponent(ownersApc, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
             var ownersSoldier = owner.CreateEntity();
-            ownerMap.Register(800L, ownersApc);
-            ownerMap.Register(43L, ownersSoldier);
+            ownerMap.Register(800, ownersApc);
+            ownerMap.Register(43, ownersSoldier);
             var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
             var applier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
             void Deliver(EntityInteractionRequest sample)
@@ -339,9 +339,9 @@ namespace Hrot.SimHost.Tests
             // ⭐ Team carry T-a (R-2017 T1; R-169 — EmbarkInteractionPayload.Assistant APPENDED) — a stretcher request names its second man,
             //   who crosses as a network id and arrives as the owner's entity. ✅ Red-proof: the codec without idsOut ⇒ 0 on the wire ⇒ red.
             var helper = soldiersNode.CreateEntity();
-            map.Register(44L, helper);
+            map.Register(44, helper);
             var ownersHelper = owner.CreateEntity();
-            ownerMap.Register(44L, ownersHelper);
+            ownerMap.Register(44, ownersHelper);
             owner.Bus.SwapBuffers();
             writer.Written.Clear();
             soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
@@ -394,8 +394,8 @@ namespace Hrot.SimHost.Tests
             brain.AddComponent(heli, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 24), Rotation = System.Numerics.Quaternion.Identity });
             brain.AddComponent(heli, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
             var man = Man(brain, local: 1);
-            map.Register(900L, heli);
-            map.Register(45L, man);
+            map.Register(900, heli);
+            map.Register(45, man);
             Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(brain, man, heli));
             var writer = new CapturingWriter<EntityInteractionRequest>();
             var egress = new InteractionEgressTranslator(writer, map);
@@ -422,8 +422,8 @@ namespace Hrot.SimHost.Tests
             var musclesHeli = muscle.CreateEntity();
             muscle.AddComponent(musclesHeli, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 24), Rotation = System.Numerics.Quaternion.Identity });
             var musclesMan = Man(muscle, local: 2);
-            muscleMap.Register(900L, musclesHeli);
-            muscleMap.Register(45L, musclesMan);
+            muscleMap.Register(900, musclesHeli);
+            muscleMap.Register(45, musclesMan);
             var ingress = new InteractionIngressTranslator(participant: null, muscleMap);
             using (var cmd = new EntityCommandBuffer())
             {
@@ -442,11 +442,11 @@ namespace Hrot.SimHost.Tests
             var payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { Exit = 2, AnchorIndex = 3, TargetX = 300f, TargetY = 20f, TargetZ = 1f } };
             using var other = Node();
             var otherMap = new NetworkEntityMap();
-            otherMap.Register(900L, other.CreateEntity());
-            otherMap.Register(45L, other.CreateEntity());
+            otherMap.Register(900, other.CreateEntity());
+            otherMap.Register(45, other.CreateEntity());
             using (var cmd = new EntityCommandBuffer())
             {
-                new InteractionIngressTranslator(participant: null, otherMap).ProcessSample(new EntityInteractionRequest { TargetId = 900L, ActorId = 45L, Payload = payload }, cmd);
+                new InteractionIngressTranslator(participant: null, otherMap).ProcessSample(new EntityInteractionRequest { TargetId = 900, ActorId = 45, Payload = payload }, cmd);
                 cmd.Playback(other);
             }
             other.Bus.SwapBuffers();
@@ -460,11 +460,11 @@ namespace Hrot.SimHost.Tests
         {
             using var w = World();
             var map = new NetworkEntityMap();
-            map.Register(700L, w.CreateEntity());
+            map.Register(700, w.CreateEntity());
             var ingress = new InteractionIngressTranslator(participant: null, map);
             using var cmd = new EntityCommandBuffer();
 
-            var unknown = new EntityInteractionRequest { TargetId = 700L, Payload = new InteractionPayload { Kind = (EInteractionKind)999 } };   // ⭐ CE-3110 — Embark (2) is known now; 999 is not
+            var unknown = new EntityInteractionRequest { TargetId = 700, Payload = new InteractionPayload { Kind = (EInteractionKind)999 } };   // ⭐ CE-3110 — Embark (2) is known now; 999 is not
             ingress.ProcessSample(in unknown, cmd);
             cmd.Playback(w);
             w.Bus.SwapBuffers();
@@ -490,8 +490,8 @@ namespace Hrot.SimHost.Tests
             var ownerMap = new NetworkEntityMap();
             Entity brainsMan = brain.CreateEntity(), brainsPistol = brain.CreateEntity();   // a replica man: no list here
             Entity ownersMan = owner.CreateEntity(), ownersPistol = owner.CreateEntity();
-            brainMap.Register(700L, brainsMan); brainMap.Register(701L, brainsPistol);
-            ownerMap.Register(700L, ownersMan); ownerMap.Register(701L, ownersPistol);
+            brainMap.Register(700, brainsMan); brainMap.Register(701, brainsPistol);
+            ownerMap.Register(700, ownersMan); ownerMap.Register(701, ownersPistol);
 
             var writer = new CapturingWriter<EntityInteractionRequest>();
             brain.Bus.Publish(new Fdp.Toolkit.Behavior.RestationEvent { Man = brainsMan, Thing = brainsPistol, Seat = 3 });
@@ -526,8 +526,8 @@ namespace Hrot.SimHost.Tests
             var ownerMap = new NetworkEntityMap();
             Entity brainsVest = brain.CreateEntity(), brainsMan = brain.CreateEntity();
             Entity ownersVest = owner.CreateEntity(), ownersMan = owner.CreateEntity();
-            brainMap.Register(800L, brainsVest); brainMap.Register(801L, brainsMan);
-            ownerMap.Register(800L, ownersVest); ownerMap.Register(801L, ownersMan);
+            brainMap.Register(800, brainsVest); brainMap.Register(801, brainsMan);
+            ownerMap.Register(800, ownersVest); ownerMap.Register(801, ownersMan);
             // the vest's position is owned elsewhere: the brain's node has a replica
             brain.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
             brain.AddComponent(brainsVest, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
@@ -568,8 +568,8 @@ namespace Hrot.SimHost.Tests
             var ownerMap = new NetworkEntityMap();
             Entity brainsMan = brain.CreateEntity(), brainsSoldier = brain.CreateEntity();
             Entity ownersMan = owner.CreateEntity(), ownersSoldier = owner.CreateEntity();
-            brainMap.Register(820L, brainsMan); brainMap.Register(821L, brainsSoldier);
-            ownerMap.Register(820L, ownersMan); ownerMap.Register(821L, ownersSoldier);
+            brainMap.Register(820, brainsMan); brainMap.Register(821, brainsSoldier);
+            ownerMap.Register(820, ownersMan); ownerMap.Register(821, ownersSoldier);
             brain.AddComponent(brainsMan, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));   // the man is node 2's
 
             var writer = new CapturingWriter<EntityInteractionRequest>();

@@ -331,8 +331,8 @@ public sealed class DebugApiScenarioLoadTests : IDisposable
     {
         private long _next;
         public SimpleSequentialIdAllocator(long startId) => _next = startId;
-        public long AllocateId()            => _next++;
-        public void Reset(long startId = 0) => _next = startId;
+        public int AllocateId()            => _next++;
+        public void Reset(int startId = 0) => _next = startId;
         public void Dispose() { }
     }
 }

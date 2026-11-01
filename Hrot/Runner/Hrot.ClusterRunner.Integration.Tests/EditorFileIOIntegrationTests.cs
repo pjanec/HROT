@@ -24,7 +24,7 @@ public sealed class EditorFileIOIntegrationTests
         // Spawn an entity so repo is non-empty
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType = 1L, NetworkId = 1L, OwnerNodeId = 0,
+            TkbType = 1L, NetworkId = 1, OwnerNodeId = 0,
             InitType = ReliableInitType.None,
         });
         Assert.True(harness.PumpUntil(() => harness.Repo.EntityCount == 1, PumpMs));

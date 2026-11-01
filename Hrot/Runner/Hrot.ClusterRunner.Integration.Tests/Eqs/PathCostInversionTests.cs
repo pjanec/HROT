@@ -111,7 +111,7 @@ public sealed class PathCostInversionTests : IDisposable
             Epoch        = 1,
             SearchRadius = 60f,
         });
-        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9001L });
+        _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9001 });
 
         // Spawn target A: (0,5) -- close but long detour.
         var targetA = _harness.Repo.CreateEntity();

@@ -30,7 +30,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public const uint HeartbeatInterval = 120;
 
         private readonly DdsWriter<EntityTurretPose>? _writer;
-        private readonly Dictionary<(long NetId, int PartId), TurretPose> _lastPublished = new();
+        private readonly Dictionary<(int NetId, int PartId), TurretPose> _lastPublished = new();
         private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityTurretPose>();
@@ -54,7 +54,7 @@ namespace Hrot.Map.Common.Replication.Egress
             bool stamped = false;
             foreach (var part in view.Query().With<PartMetadata>().With<TurretPose>().Build())
             {
-                if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out long hullNet, out int partId)) continue;
+                if (!TurretPartKey.TryResolve(view, part, DescriptorOrdinal, out int hullNet, out int partId)) continue;
 
                 var pose = view.GetComponentRO<TurretPose>(part);
                 var key = (hullNet, partId);
@@ -81,11 +81,11 @@ namespace Hrot.Map.Common.Replication.Egress
             }
         }
 
-        public void Dispose(long networkEntityId) => TurretPartKey.Forget(_lastPublished, networkEntityId);
+        public void Dispose(int networkEntityId) => TurretPartKey.Forget(_lastPublished, networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of every part instance of the hull this node published (WITHOUT disposing
         /// them) and forget what was published, so a reclaim republishes. <paramref name="instanceId"/> 0 = all parts.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
             => TurretPartKey.Release(_lastPublished, networkEntityId,
                 partId => _writer?.UnregisterInstance(new EntityTurretPose { ParentNetworkId = networkEntityId, PartId = partId }));
 

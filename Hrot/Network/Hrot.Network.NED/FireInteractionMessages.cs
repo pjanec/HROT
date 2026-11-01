@@ -32,10 +32,10 @@ namespace Hrot.NED.Messages
     public partial struct WeaponFireRequest
     {
         /// <summary>Network entity ID of the firing entity.</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
         /// <summary>Network entity ID of the intended target; ⭐ <c>CE-1032</c> (W-8) 0 = fire at the point (<see cref="PointX"/>…).</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Zero-based weapon slot index (POC: always 0).</summary>
         public int WeaponIndex;
@@ -82,10 +82,10 @@ namespace Hrot.NED.Messages
     public partial struct WeaponFire
     {
         /// <summary>Network entity ID of the firing entity.</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
         /// <summary>Network entity ID of the intended target.</summary>
-        public long TargetEntityId;
+        public int TargetEntityId;
 
         /// <summary>Zero-based weapon slot index.</summary>
         public int WeaponIndex;
@@ -95,7 +95,7 @@ namespace Hrot.NED.Messages
         public long AmmoGuid;
 
         /// <summary>⭐ CE-1111 — the network id of the round this shot spawned (a replicated round); 0 = none (a bullet, a decoy).</summary>
-        public long RoundEntityId;
+        public int RoundEntityId;
 
         /// <summary>⭐ CE-1111 — where it left, world metres.</summary>
         public float OriginX;
@@ -134,7 +134,7 @@ namespace Hrot.NED.Messages
     public partial struct NearMiss
     {
         /// <summary>Network entity ID of the unit the round passed.</summary>
-        public long UnitEntityId;
+        public int UnitEntityId;
 
         /// <summary>The closest point of the round's path to the unit.</summary>
         public float X;
@@ -160,8 +160,8 @@ namespace Hrot.NED.Messages
     public partial struct MeleeStrike
     {
         public long SourceNodeId;
-        public long StrikerEntityId;
-        public long TargetEntityId;
+        public int StrikerEntityId;
+        public int TargetEntityId;
         /// <summary><c>Fdp.Toolkit.Combat.MeleeWeapon</c>.</summary>
         public byte Weapon;
     }
@@ -179,7 +179,7 @@ namespace Hrot.NED.Messages
     public partial struct RoundImpact
     {
         /// <summary>Network entity ID of the shooter (0 = unknown).</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
         /// <summary>Where the round met the surface.</summary>
         public float X;
@@ -218,7 +218,7 @@ namespace Hrot.NED.Messages
     public partial struct MissileWarning
     {
         /// <summary>Network entity ID of the aircraft the missile was launched at.</summary>
-        public long UnitEntityId;
+        public int UnitEntityId;
         public float FromX;
         public float FromY;
         public float FromZ;
@@ -241,10 +241,10 @@ namespace Hrot.NED.Messages
     public partial struct MunitionDetonation
     {
         /// <summary>Network entity ID of the shooter.</summary>
-        public long ShooterEntityId;
+        public int ShooterEntityId;
 
         /// <summary>Network entity ID of the struck entity.</summary>
-        public long HitEntityId;
+        public int HitEntityId;
 
         /// <summary>World-space X coordinate of the hit position.</summary>
         public float HitX;
@@ -273,7 +273,7 @@ namespace Hrot.NED.Messages
     public partial struct EntityHitDamage
     {
         /// <summary>Network entity ID of the struck entity.</summary>
-        public long HitEntityId;
+        public int HitEntityId;
 
         /// <summary>Total computed HP loss.</summary>
         public float TotalDamage;
@@ -291,7 +291,7 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED) — network id of who caused it (the round's shooter, a melee striker);
         /// ⭐ 0 = unknown.</summary>
-        public long SourceEntityId;
+        public int SourceEntityId;
 
         /// <summary>⭐ <c>CE-3246</c> (BS-1 §6.4a, R-3015 — APPENDED) — the node that sent it, so a node drops its own sample; 0 = an older
         /// sender (taken).</summary>

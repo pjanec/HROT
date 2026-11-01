@@ -398,7 +398,7 @@ namespace Hrot.Editor.Tests.Adapters
         /// <para>⭐ The id is still DERIVED from the entity, so the tests keep asserting that the lookup
         /// finds the right one — ⛔ they are not weakened to a constant that any entity would match.</para>
         /// </summary>
-        private static long NetIdFor(Entity e) => 1000 + e.Index;
+        private static int NetIdFor(Entity e) => 1000 + e.Index;
 
         [Fact]
         public void GetAvailableBehaviors_InsurgentWithRegisteredCombatPosture_ReturnsIt()
@@ -645,7 +645,7 @@ namespace Hrot.Editor.Tests.Adapters
                 Tasks = new System.Collections.Generic.List<Hrot.Core.Mission.MissionTask>(),
             };
 
-            Task<MissionCommitResult> task = service.CommitMissionAsync((long)entity.Index, plan, 0L);
+            Task<MissionCommitResult> task = service.CommitMissionAsync(entity.Index, plan, 0);
 
             // Inject an ACK event that matches the published intent.
             // SwapBuffers is required — PublishManaged writes to the "next frame" buffer.
@@ -1285,7 +1285,7 @@ namespace Hrot.Editor.Tests.Adapters
         /// <para>⭐ The id is still DERIVED from the entity, so the tests keep asserting that the lookup
         /// finds the right one — ⛔ they are not weakened to a constant that any entity would match.</para>
         /// </summary>
-        private static long NetIdFor(Entity e) => 1000 + e.Index;
+        private static int NetIdFor(Entity e) => 1000 + e.Index;
 
         [Fact]
         public void IsInPreviewMode_OperatingPreview_ReturnsTrue()

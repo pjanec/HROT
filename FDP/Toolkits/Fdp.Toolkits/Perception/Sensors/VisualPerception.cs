@@ -180,7 +180,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 int total = 0;
                 int clear = unitOk && view.IsAlive(target) && view.HasComponent<SimTransform>(target)
                           ? _strategy.VisiblePoints(view, unit, target, out total) : 0;
-                if (clear <= 0) c.EntityId = -1L;
+                if (clear <= 0) c.EntityId = -1;
                 else Acquisition.Encode(ref c, clear, total);
             }
         }

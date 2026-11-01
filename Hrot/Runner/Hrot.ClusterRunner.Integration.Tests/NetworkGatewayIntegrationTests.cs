@@ -57,7 +57,7 @@ public sealed class NetworkGatewayIntegrationTests
         // Spawn via TestHook so we get back the allocated networkId immediately.
         // TestHook_SpawnEntity uses InitType = AllPeers internally.
         var spawnPos  = new GeoPoint { Latitude = 52.52, Longitude = 13.405, Altitude = 0.0 };
-        long networkId = harness.SimHost.TestHook_SpawnEntity(
+        int networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
             spawnPos);
 
@@ -91,7 +91,7 @@ public sealed class NetworkGatewayIntegrationTests
 
     // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private static bool SimHostEntityIsActive(HrotRunnerHarness harness, long networkId)
+    private static bool SimHostEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
         var world = harness.SimHost.World;
         if (world == null) return false;
@@ -101,7 +101,7 @@ public sealed class NetworkGatewayIntegrationTests
         return world.GetLifecycleState(entity) == EntityLifecycle.Active;
     }
 
-    private static bool IgEntityIsActive(HrotRunnerHarness harness, long networkId)
+    private static bool IgEntityIsActive(HrotRunnerHarness harness, int networkId)
     {
         var entityMap = harness.Ig.App.TestHook_EntityMap;
         if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
@@ -138,7 +138,7 @@ public sealed class NetworkGatewayIntegrationTests
 
         // CGF (Brain) creates a reliable (AllPeers) entity; the barrier stamps the present peers (SimHost=1).
         const int SimHostNodeId = 1;
-        long networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
+        int networkId = cgf.CgfSvc.TestHook_SpawnEntityWithSplitAuthority(
             TkbEntityTypes.Tank_M1Abrams, muscleNodeId: SimHostNodeId);
 
         // (1) The creator's own entity must reach Active — only possible once SimHost's Active status
@@ -161,7 +161,7 @@ public sealed class NetworkGatewayIntegrationTests
         Assert.Contains(SimHostNodeId, peerSet.ExpectedAckPeers);
     }
 
-    private static bool CgfEntityIsActive(CgfHarness cgf, long networkId)
+    private static bool CgfEntityIsActive(CgfHarness cgf, int networkId)
     {
         var world = cgf.CgfSvc.World;
         if (world == null) return false;

@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 // EntityId = 0 marks a positional candidate (no entity attached).
                 candidates[rawCount++] = new EqsResult
                 {
-                    EntityId  = 0L,
+                    EntityId  = 0,
                     PositionX = at.X,
                     PositionY = at.Y,
                     PositionZ = at.Z, // P3D-203: stream cover altitude.
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                         }
                         candidates[rawCount++] = new EqsResult
                         {
-                            EntityId  = 0L,
+                            EntityId  = 0,
                             PositionX = at.X,
                             PositionY = at.Y,
                             PositionZ = at.Z,

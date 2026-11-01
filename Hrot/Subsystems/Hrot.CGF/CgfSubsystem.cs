@@ -558,13 +558,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <para>Mirrors what a full <c>CreateEntityRequestSystem(isDefaultProcessor:true)</c> would do
     /// without requiring ExCon wiring in integration tests.</para>
     /// </summary>
-    internal long TestHook_SpawnEntityWithSplitAuthority(long tkbType, int muscleNodeId)
+    internal int TestHook_SpawnEntityWithSplitAuthority(long tkbType, int muscleNodeId)
     {
         if (_context == null)
             throw new System.InvalidOperationException("CgfSubsystem not initialized.");
 
-        long networkId = _context.IdAllocator?.AllocateId()
-            ?? unchecked((long)System.Threading.Interlocked.Increment(ref _testIdCounter));
+        int networkId = _context.IdAllocator?.AllocateId()
+            ?? System.Threading.Interlocked.Increment(ref _testIdCounter);
 
         // 1. Publish DeferredTakeOwnership FIRST (pre-genesis, before EntityMaster).
         //    ⭐ S6: grant WHOLE GROUPS, as RoleGroupOwnershipStrategy does when muscleNodeId is the chosen node for
@@ -2639,7 +2639,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// PIN time. ⛔ <c>0</c> for an unreplicated or dead entity — the same "nothing" the editor's own
     /// <c>RuntimeNetworkIdOf</c> answers.
     /// </summary>
-    private long RuntimeNetworkIdOf(Entity entity)
+    private int RuntimeNetworkIdOf(Entity entity)
         // ⭐ AX-008 — ROUTED to the shared resolver `2026-08-25`. 📐 This body and EditorSubsystem's were
         //   line-for-line identical, each commenting that the other existed; the Axis-B egress would have
         //   been the third. ⇒ NetworkIdResolver owns both directions now.

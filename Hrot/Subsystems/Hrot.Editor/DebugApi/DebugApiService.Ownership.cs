@@ -35,7 +35,7 @@ namespace Hrot.Editor.DebugApi
         /// the transfer. Returns <c>(null, error)</c> ⇒ 503 when no NED, <c>(null, null)</c> ⇒ 404 when the
         /// entity is unknown.
         /// </summary>
-        public (JsonNode? result, string? error) GetEntityOwnership(long networkId)
+        public (JsonNode? result, string? error) GetEntityOwnership(int networkId)
         {
             var map       = _dispatcher?.DescriptorMap;
             var entityMap = _dispatcher?.EntityMap;
@@ -171,7 +171,7 @@ namespace Hrot.Editor.DebugApi
         /// "descriptors": [long, …] }</c> — <c>descriptors</c> are NED descriptor type ids (required only for
         /// <c>SpecificDescriptors</c>). The publish is fire-and-forget; verify with <c>GET …/ownership</c>.
         /// </summary>
-        public (JsonNode? result, string? error) TransferEntityOwnership(long networkId, JsonNode? body)
+        public (JsonNode? result, string? error) TransferEntityOwnership(int networkId, JsonNode? body)
         {
             var publish   = _dispatcher?.RequestOwnershipTransfer;
             var entityMap = _dispatcher?.EntityMap;

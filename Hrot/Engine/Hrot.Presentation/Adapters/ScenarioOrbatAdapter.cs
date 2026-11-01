@@ -193,7 +193,7 @@ namespace Hrot.UI.Common.Adapters
             _spawn.StartPlacementMode(tkbType, null);
         }
 
-        private long NetworkIdOf(Entity entity)
+        private int NetworkIdOf(Entity entity)
             => _world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                && _world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
                 ? _world.GetComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value

@@ -55,9 +55,9 @@ public sealed class ScenarioChecksTests
 
     private sealed class Units : IShotWorld
     {
-        public readonly Dictionary<string, long> Ids = new(StringComparer.Ordinal);
-        public long? Resolve(string who) => Ids.TryGetValue(who, out var id) ? id : null;
-        public Vector3? PositionOf(long networkId) => null;
+        public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);
+        public int? Resolve(string who) => Ids.TryGetValue(who, out var id) ? id : null;
+        public Vector3? PositionOf(int networkId) => null;
         public IReadOnlyCollection<string> Names => Ids.Keys;
     }
 
@@ -70,16 +70,16 @@ public sealed class ScenarioChecksTests
         public EntityRepository? World => null;
         public IShotWorld Units => U;
         public string? BehaviourName(int hash) => null;
-        public JsonObject? Components(long id) => Comps.TryGetValue(id, out var c) ? c : null;
-        public IReadOnlyList<(long Id, string Name)> Named() => U.Ids.Select(kv => (kv.Value, kv.Key)).Concat(Extra).ToList();
+        public JsonObject? Components(int id) => Comps.TryGetValue(id, out var c) ? c : null;
+        public IReadOnlyList<(int Id, string Name)> Named() => U.Ids.Select(kv => (kv.Value, kv.Key)).Concat(Extra).ToList();
         /// <summary>Units that share a name with another (the name index keeps only one).</summary>
-        public readonly List<(long Id, string Name)> Extra = new();
+        public readonly List<(int Id, string Name)> Extra = new();
         public string? NameOfEntityIndex(int index) => U.Ids.FirstOrDefault(kv => kv.Value == index).Key;
         public JsonArray Shots() => (JsonArray)ShotRows.DeepClone();
         public JsonArray Blasts() => (JsonArray)BlastRows.DeepClone();
-        public string? SetComponent(long networkId, string component, JsonObject patch) => null;
+        public string? SetComponent(int networkId, string component, JsonObject patch) => null;
 
-        public FakeWorld Unit(string name, long id, double health, double x)
+        public FakeWorld Unit(string name, int id, double health, double x)
         {
             U.Ids[name] = id;
             Comps[id] = new JsonObject
@@ -91,7 +91,7 @@ public sealed class ScenarioChecksTests
         }
 
         /// <summary>A shot row as <c>/combat/shots</c> writes it (newest first).</summary>
-        public void Shot(long seq, double firedAt, long shooter, long? target, double penetration, long? hit = null)
+        public void Shot(long seq, double firedAt, int shooter, int? target, double penetration, long? hit = null)
             => ShotRows.Insert(0, new JsonObject
             {
                 ["seq"] = seq, ["firedAt"] = firedAt, ["shooter"] = shooter, ["target"] = target, ["penetration"] = penetration,

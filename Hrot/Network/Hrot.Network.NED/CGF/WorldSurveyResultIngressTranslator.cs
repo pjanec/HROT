@@ -24,7 +24,7 @@ namespace Hrot.Network.NED.CGF
 
         private readonly DdsReader<WorldSurveyResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
-        internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
+        internal readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<WorldSurveyResultTopic>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
@@ -104,6 +104,6 @@ namespace Hrot.Network.NED.CGF
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <inheritdoc/>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

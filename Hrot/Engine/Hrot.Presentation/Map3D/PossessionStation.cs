@@ -77,7 +77,7 @@ namespace Hrot.UI.Common.Map3D
         public int SelectedMount => _driver?.Mount ?? 0;
 
         /// <summary>⭐ <c>CE-1262</c> (AV-1) — what the crosshair rests on (network id, 0 = none) while in first person.</summary>
-        public long AimTarget => _driver?.AimTarget ?? 0L;
+        public int AimTarget => _driver?.AimTarget ?? 0;
 
         /// <summary>⭐ <c>CE-1262</c> — the zoomed field of view (binoculars / weapon zoom) while zooming, else null.</summary>
         public float? ZoomFovDegrees => _driver is { Zooming: true } d ? d.ZoomFovDegrees : null;
@@ -155,7 +155,7 @@ namespace Hrot.UI.Common.Map3D
         /// held as <see cref="PossessionMode.Riding"/> is skipped (the soldier sitting in the vehicle the station drives), and of two Fps
         /// units (a moment during a take-over) the newest possession wins (<see cref="PossessedBy.Epoch"/>).
         /// </summary>
-        public static Entity HeldHere(EntityRepository w, out long networkId)
+        public static Entity HeldHere(EntityRepository w, out int networkId)
         {
             networkId = 0;
             if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
@@ -168,7 +168,7 @@ namespace Hrot.UI.Common.Map3D
                 if (!w.IsAlive(unit)) continue;
                 var held = w.GetComponentRO<PossessedBy>(unit);
                 if (held.StationNodeId != orders.StationFor(unit) || held.Mode == PossessionMode.Riding) continue;
-                if (!map.TryGetNetworkId(unit, out long id)) continue;
+                if (!map.TryGetNetworkId(unit, out int id)) continue;
                 if (best.IsNull || held.Epoch > bestEpoch) { best = unit; bestEpoch = held.Epoch; networkId = id; }
             }
             return best;
@@ -219,7 +219,7 @@ namespace Hrot.UI.Common.Map3D
         {
             if (_world() is not { } w || Orders() is not { } orders) return false;
             var rider = RiderOf(w, vehicle);
-            if (rider.IsNull || !w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(rider, out long id)) return false;
+            if (rider.IsNull || !w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(rider, out int id)) return false;
             orders.Possess(id, PossessionMode.Fps);
             _getOutRider = rider;
             _getOutSince = Clock;
@@ -240,7 +240,7 @@ namespace Hrot.UI.Common.Map3D
             {
                 case HandOverStep.AwaitBoard:
                     if (!HeldByThis(w, _hoSoldier, out _)) { _step = HandOverStep.None; break; }   // released meanwhile (Esc)
-                    if (InDriverSeat(w, _hoSoldier, _hoVehicle) && map.TryGetNetworkId(_hoSoldier, out long soldierId))
+                    if (InDriverSeat(w, _hoSoldier, _hoVehicle) && map.TryGetNetworkId(_hoSoldier, out int soldierId))
                     {
                         orders.Possess(soldierId, PossessionMode.Riding);   // O-2 — his task stays paused
                         _step = HandOverStep.AwaitRiding;
@@ -249,7 +249,7 @@ namespace Hrot.UI.Common.Map3D
                 case HandOverStep.AwaitRiding:
                     if (!HeldByThis(w, _hoSoldier, out var mode)) { _step = HandOverStep.None; break; }
                     // ⚠ only once he RIDES: possessing the vehicle as Fps releases this station's other Fps unit — which he still was
-                    if (mode == PossessionMode.Riding && map.TryGetNetworkId(_hoVehicle, out long vehicleId))
+                    if (mode == PossessionMode.Riding && map.TryGetNetworkId(_hoVehicle, out int vehicleId))
                     {
                         orders.Possess(vehicleId, PossessionMode.Fps);
                         _step = HandOverStep.AwaitVehicle;
@@ -280,7 +280,7 @@ namespace Hrot.UI.Common.Map3D
                 if (!vehicle.IsNull && HeldByThis(w, vehicle, out var vehicleMode) && vehicleMode != PossessionMode.Riding) continue;
                 // ⭐ CE-1210 (§8n MS-7) — the station plays a GUN of his vehicle (seat switching): he stays held for the way back
                 if (!vehicle.IsNull && HeldHere(w, out _) is var fps && !fps.IsNull && SeatSwitch.VehicleOf(w, fps) == vehicle) continue;
-                if (map.TryGetNetworkId(unit, out long id)) orders.Unpossess(id);
+                if (map.TryGetNetworkId(unit, out int id)) orders.Unpossess(id);
             }
         }
 
@@ -298,7 +298,7 @@ namespace Hrot.UI.Common.Map3D
         {
             Fall = null;   // ⭐ CE-1220 — a squad mate taken from the fall screen
             _releasedAt = -1f;
-            HeldHere(w, out long netId);
+            HeldHere(w, out int netId);
             if (!_softLeft)
             {
                 _before = _view.CurrentPose;
@@ -312,8 +312,8 @@ namespace Hrot.UI.Common.Map3D
             // ⭐ CE-1158 (§8h U-4) — back in the rider after Get out: his first frame carries the Get-out press (his only action aboard)
             if (unit == _getOutRider)
             {
-                long vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit) && w.GetSingletonManaged<NetworkEntityMap>()!
-                    .TryGetNetworkId(w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity, out long v) ? v : 0L;
+                int vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit) && w.GetSingletonManaged<NetworkEntityMap>()!
+                    .TryGetNetworkId(w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity, out int v) ? v : 0;
                 _driver.QueueUse(0, vehicle);
                 _getOutRider = Entity.Null;
             }
@@ -338,20 +338,20 @@ namespace Hrot.UI.Common.Map3D
         }
 
         /// <summary>One control frame for the held unit (through <see cref="EntityOrders"/>, the one operator path — R-270).</summary>
-        internal void Send(long netId, OperatorControlFrameEvent frame)
+        internal void Send(int netId, OperatorControlFrameEvent frame)
         {
             if (Orders() is { } orders && orders.Control(netId, frame).Accepted) FramesSent++;
         }
 
         /// <summary>The operator lets the unit go (Esc); the view leaves FPS when <see cref="PossessedBy"/> says so.</summary>
-        internal void Release(long netId) => Orders()?.Unpossess(netId);
+        internal void Release(int netId) => Orders()?.Unpossess(netId);
 
         /// <summary>⭐ <c>CE-1214</c> (§8j T-1) — the operator jumps to <paramref name="next"/>: one possession, which also lets the unit he
         /// leaves go back to his brain (<see cref="EntityOrders.Possess(long, PossessionMode)"/> releases the station's other Fps unit —
         /// C-8); the view follows <see cref="PossessedBy"/>.</summary>
         internal void SwitchTo(Entity next)
         {
-            if (Orders() is { } orders && _world() is { } w && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(next, out long id))
+            if (Orders() is { } orders && _world() is { } w && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(next, out int id))
                 orders.Possess(id, PossessionMode.Fps);
         }
 
@@ -646,7 +646,7 @@ namespace Hrot.UI.Common.Map3D
             var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
             foreach (var friend in FriendMarks.Of(w, _driver!.Unit, camera.Eye))
             {
-                float top = map != null && map.TryGetNetworkId(friend.Unit, out long id) && Bodies?.TopAbove(id) is { } t ? t : 1.9f;
+                float top = map != null && map.TryGetNetworkId(friend.Unit, out int id) && Bodies?.TopAbove(id) is { } t ? t : 1.9f;
                 if (!OnScreen(camera, friend.At + new Vector3(0f, 0f, top + 0.1f), out var screen)) continue;
                 int tw = (int)HudText.Measure(font, friend.Name);
                 HudText.Draw(font, friend.Name, (int)screen.X - tw / 2, (int)screen.Y - HudFontSize,
@@ -1095,7 +1095,7 @@ namespace Hrot.UI.Common.Map3D
 
         private readonly PossessionStation _station;
         private readonly Func<EntityRepository?> _world;
-        private readonly long _netId;
+        private readonly int _netId;
         private IInputProvider? _locked;
         private float _yaw, _pitch, _roll;
         private float _hullLook, _hullYaw;   // ⭐ CE-1351 — the look off the hull while the view is hull-locked (V); the hull's heading
@@ -1112,14 +1112,14 @@ namespace Hrot.UI.Common.Map3D
         private float _arm;                                // ⭐ CE-1293 (UC-4) — the spring arm's length this frame
         private readonly List<Fdp.Toolkit.World.TraceCrossing> _armTrace = new();
         private byte _shotSeq, _cancelSeq, _ammoSeq;       // ⭐ CE-1078 / CE-1079 — presses, counted (DESIGN_Entity_Control §8e)
-        private long _shotTarget;
+        private int _shotTarget;
         private int _ammoAtPress;
         // ⭐ CE-1158 (§8h U-1, U-2, O-1) — the use key: presses counted, the verb (0 = the primary) and the target they carry
         private byte _useSeq, _useVerb;
-        private long _useTarget;
+        private int _useTarget;
         private bool _eHolding, _usedHere, _queuedUse;
         private float _eSince, _verdictSince = -1f;
-        private long _pressTarget, _queuedTarget;
+        private int _pressTarget, _queuedTarget;
         private int _listIndex;
         private byte _queuedVerb;
         private string _lastLabel = "Use";
@@ -1130,7 +1130,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1158 (§8h.6 ②) — how long the brain's verdict line stays (s).</summary>
         public const float VerdictSeconds = 2f;
 
-        internal FpsCameraDriver(PossessionStation station, Func<EntityRepository?> world, Entity unit, long netId)
+        internal FpsCameraDriver(PossessionStation station, Func<EntityRepository?> world, Entity unit, int netId)
         {
             _station = station;
             _world = world;
@@ -1193,7 +1193,7 @@ namespace Hrot.UI.Common.Map3D
         public const float ModeNoteSeconds = 1.5f;
 
         /// <summary>⭐ CE-1078 — the network id of the unit the last press locked on (0 = the ground point).</summary>
-        public long LockedTarget => _shotTarget;
+        public int LockedTarget => _shotTarget;
 
         /// <summary>⭐ CE-1078 — where the last press locked (the unit's box hit, or the ground).</summary>
         public Vector3 LockedPoint { get; private set; }
@@ -1204,7 +1204,7 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ CE-1078 / CE-1080 — what the crosshair rests on this frame: the point, and the unit's network id (0 = none).</summary>
         public Vector3 AimAt { get; private set; }
-        public long AimTarget { get; private set; }
+        public int AimTarget { get; private set; }
         public bool HullLocked { get; private set; }
         public bool IsVehicle => Scheme == ControlScheme.Vehicle;
 
@@ -1617,7 +1617,7 @@ namespace Hrot.UI.Common.Map3D
         /// <see cref="Hrot.Common.Orders.OrderDesignations"/>: the unit under the crosshair as their Target, else the point as their MapPoint —
         /// so the wheel's Attack / Move (and any order draft) then complete without a pick. Returns how many men got it.
         /// </summary>
-        public int Designate(Vector3 aimAt, long aimTarget)
+        public int Designate(Vector3 aimAt, int aimTarget)
         {
             if (_world() is not { } w) return 0;
             var store = Hrot.Common.Orders.OrderDesignations.For(w);
@@ -1627,7 +1627,7 @@ namespace Hrot.UI.Common.Map3D
                 : Hrot.ScenarioEditor.Map.RtsCommands.OrderPoint(w, new Vector2(aimAt.X, aimAt.Y));
             int count = 0;
             foreach (var man in CommandWheel.MenOf(w, Unit))
-                if (map != null && map.TryGetNetworkId(man, out long id)) { store.Set(id, kind, value); count++; }
+                if (map != null && map.TryGetNetworkId(man, out int id)) { store.Set(id, kind, value); count++; }
             _wheelVerdict = count == 0 ? "no men to designate for"
                 : $"{(aimTarget != 0 ? "Target" : "Point")} designated for {count} {(count == 1 ? "man" : "men")}";
             _wheelVerdictAt = _station.Clock;
@@ -1788,7 +1788,7 @@ namespace Hrot.UI.Common.Map3D
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
             // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, X drops it (CE-1211)
-            (var aimAt, long aimTarget) = Aim(camera);
+            (var aimAt, int aimTarget) = Aim(camera);
             AimAt = aimAt;
             AimTarget = aimTarget;
             // ⭐ CE-1264 (AV-5) — I selects what the crosshair rests on (the selection's one writer; nothing when it rests on no unit)
@@ -1864,13 +1864,13 @@ namespace Hrot.UI.Common.Map3D
         /// the operator's own body — <see cref="EntityPartPicker"/> skips it); ⭐ CE-1126 (§8g F-4) a unit by the PART the ray enters (the
         /// round's own boxes), giving that point and its network id. Nothing within <see cref="AimReach"/> ⇒ that far along the look.
         /// </summary>
-        public static (Vector3 Point, long Target) Aim(MapCamera3D camera)
+        public static (Vector3 Point, int Target) Aim(MapCamera3D camera)
         {
             // ⭐ CE-1126 (§8g F-4) — the terrain and the entities' PARTS (the round's own boxes): the point is on his head, arm or hull
             var hit = camera.Pick(camera.ViewCentre, PickFilter.Aim);   // ⭐ CE-4084 — the crosshair is at the VISIBLE map's centre
             if (hit.Kind == PickKind.None || !float.IsFinite(hit.Distance) || hit.Distance > AimReach)
-                return (camera.Eye + camera.Forward * AimReach, 0L);
-            return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0L);
+                return (camera.Eye + camera.Forward * AimReach, 0);
+            return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0);
         }
 
         private int AmmoOf(int mount)
@@ -1885,7 +1885,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1158 — the use presses sent (the frame's <c>UseSeq</c>), the last verb and target.</summary>
         public byte UseSeq => _useSeq;
         public byte UseVerb => _useVerb;
-        public long UseTarget => _useTarget;
+        public int UseTarget => _useTarget;
 
         /// <summary>⭐ CE-1158 (O-1) — <c>E</c> has been held long enough to show the other verbs.</summary>
         public bool UseListOpen => _eHolding && _station.Clock - _eSince >= HoldSeconds;
@@ -1894,7 +1894,7 @@ namespace Hrot.UI.Common.Map3D
         public int UseListIndex => _listIndex;
 
         /// <summary>⭐ CE-1158 — the next frame carries a use press of <paramref name="verb"/> on <paramref name="target"/> (the station's Get out).</summary>
-        internal void QueueUse(byte verb, long target)
+        internal void QueueUse(byte verb, int target)
         {
             _queuedUse = true;
             _queuedVerb = verb;
@@ -1906,7 +1906,7 @@ namespace Hrot.UI.Common.Map3D
         /// held past <see cref="HoldSeconds"/> it opens the list, and letting go sends the verb picked there. Sent on release, as a
         /// counter (§8e D-1: a coalesced frame never loses one). ⭐ In a vehicle with a rider, the use key is Get out (U-4).
         /// </summary>
-        private void UseKey(IInputProvider input, long aimTarget)
+        private void UseKey(IInputProvider input, int aimTarget)
         {
             if (_queuedUse) { _queuedUse = false; Press(_queuedVerb, _queuedTarget); }
             var e = (MapKeyboardKey)UseKeyCode;   // ⭐ CE-1212 (§8j L-2) — F (E before; E leans now)
@@ -1928,7 +1928,7 @@ namespace Hrot.UI.Common.Map3D
             if (action is { Verb: UseVerbKind.Drive or UseVerbKind.Pilot } drive) _station.ArmDrive(Unit, drive.Target);
         }
 
-        private UseAction? Press(byte verb, long target)
+        private UseAction? Press(byte verb, int target)
         {
             unchecked { _useSeq++; }
             _useVerb = verb;
@@ -1947,36 +1947,36 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1207</c> (§8m PK-3) — what the use key acts on this frame: the unit under the crosshair when it offers a verb, else
         /// the lying stone / round nearest the crosshair's point (a round has no pick box, LR-3).</summary>
-        public long UseAim { get; private set; }
+        public int UseAim { get; private set; }
 
         /// <summary>⭐ <c>CE-1207</c> (PK-3) — how far from the crosshair's point a lying round may be to be the use target (m).</summary>
         public const float RoundUnderCrosshairM = 1f;
 
         /// <summary>⭐ <c>CE-1207</c> (PK-3) — the use target for <paramref name="aimTarget"/> at <paramref name="aimAt"/>: see <see cref="UseAim"/>.</summary>
-        public long UseTargetFor(EntityRepository w, long aimTarget, Vector3 aimAt)
+        public int UseTargetFor(EntityRepository w, int aimTarget, Vector3 aimAt)
         {
             if (aimTarget != 0 && w.HasSingletonManaged<NetworkEntityMap>() && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(aimTarget, out var under))
             {
                 int n = OperatorUseActions.For(w, Unit, under, _actions);
                 for (int i = 0; i < n; i++) if (_actions[i].Target == under) return aimTarget;
             }
-            return RoundNear(w, aimAt) is long round ? round : aimTarget;
+            return RoundNear(w, aimAt) is int round ? round : aimTarget;
         }
 
         /// <summary>⭐ <c>CE-1207</c> (PK-3) — the network id of the lying hand-item round within <see cref="RoundUnderCrosshairM"/> of
         /// <paramref name="point"/> and within his reach, nearest the point; null when none.</summary>
-        public long? RoundNear(EntityRepository w, Vector3 point)
+        public int? RoundNear(EntityRepository w, Vector3 point)
         {
             if (!w.HasSingletonManaged<NetworkEntityMap>()) return null;
             var map = w.GetSingletonManaged<NetworkEntityMap>()!;
             float best = RoundUnderCrosshairM * RoundUnderCrosshairM;
-            long? found = null;
+            int? found = null;
             void Consider(Entity e)
             {
                 var at = w.GetComponentRO<SimTransform>(e).Position;
                 float d2 = (at.X - point.X) * (at.X - point.X) + (at.Y - point.Y) * (at.Y - point.Y);
                 if (d2 > best || !Fdp.Toolkit.Combat.RoundPickUp.IsLying(w, e) || !Fdp.Toolkit.Combat.RoundPickUp.IsHandItem(w, e)
-                    || !Fdp.Toolkit.Combat.RoundPickUp.InReach(w, Unit, e) || !map.TryGetNetworkId(e, out long id)) return;
+                    || !Fdp.Toolkit.Combat.RoundPickUp.InReach(w, Unit, e) || !map.TryGetNetworkId(e, out int id)) return;
                 best = d2;
                 found = id;
             }
@@ -1988,7 +1988,7 @@ namespace Hrot.UI.Common.Map3D
         }
 
         /// <summary>The actions on <paramref name="target"/> (a network id; 0 = nothing), primary first, into <see cref="_actions"/>.</summary>
-        private int Actions(EntityRepository w, long target)
+        private int Actions(EntityRepository w, int target)
         {
             var entity = Entity.Null;
             if (target != 0 && w.HasSingletonManaged<NetworkEntityMap>()) w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(target, out entity);

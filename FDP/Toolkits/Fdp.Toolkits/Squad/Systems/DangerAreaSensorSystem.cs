@@ -97,7 +97,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     if (candidate.Index == evt.LocalChildIndex) return candidate;
                     continue;
                 }
-                if (EqsSensorKey.Resolve(repo, candidate, out long net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy
+                if (EqsSensorKey.Resolve(repo, candidate, out int net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy
                     && net == evt.ParentNetworkId && index == evt.LocalChildIndex)
                     return candidate;
             }

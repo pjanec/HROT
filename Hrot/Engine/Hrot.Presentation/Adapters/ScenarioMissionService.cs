@@ -55,11 +55,11 @@ namespace Hrot.UI.Common.Adapters
         /// ⭐ <c>BP-508</c> — routed through the ONE resolver *(<c>R-77</c>)*. ⛔ This copy used
         /// <c>GetComponent</c> *(a struct copy)* and had no null-repo guard.
         /// </summary>
-        private Entity FindEntityByNetworkId(long networkId)
+        private Entity FindEntityByNetworkId(int networkId)
             => Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(_repo, networkId);
 
         /// <inheritdoc/>
-        public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
+        public IReadOnlyList<string> GetAvailableBehaviors(int entityId)
             => GetAvailableBehaviorChoices(entityId).Select(c => c.Name).ToList();
 
         /// <inheritdoc/>
@@ -67,7 +67,7 @@ namespace Hrot.UI.Common.Adapters
         /// ⭐ <c>CE-462</c> — the ONE list: names come from here, so the label and the name can never
         /// disagree. The technology is the definition's <see cref="BehaviorDefinition.BrainTier"/>.
         /// </remarks>
-        public IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(long entityId)
+        public IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(int entityId)
         {
             var entity = FindEntityByNetworkId(entityId);
             if (entity.IsNull || !_repo.IsAlive(entity))
@@ -146,7 +146,7 @@ namespace Hrot.UI.Common.Adapters
         }
 
         /// <inheritdoc/>
-        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(long entityId)
+        public (Hrot.Core.Mission.MissionPlan? Plan, long Version) GetMissionSnapshot(int entityId)
         {
             var entity = FindEntityByNetworkId(entityId);
             if (entity.IsNull || !_repo.IsAlive(entity))
@@ -162,7 +162,7 @@ namespace Hrot.UI.Common.Adapters
 
         /// <inheritdoc/>
         public System.Threading.Tasks.Task<MissionCommitResult> CommitMissionAsync(
-            long entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
+            int entityId, Hrot.Core.Mission.MissionPlan plan, long baseVersion)
         {
             var tcs       = new TaskCompletionSource<MissionCommitResult>();
             var requestId = Guid.NewGuid();
@@ -185,7 +185,7 @@ namespace Hrot.UI.Common.Adapters
 
         /// <inheritdoc/>
         public System.Threading.Tasks.Task<MissionCommitResult> SendControlCommandAsync(
-            long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
+            int entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId)
         {
             var tcs       = new TaskCompletionSource<MissionCommitResult>();
             var requestId = Guid.NewGuid();

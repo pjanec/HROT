@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Combat.Systems
             bool gas = w.Kind == Tkb.Domain.WarheadKind.Irritant;
             // ⭐ CE-3236 (B-14, §7.15 VC-2/VC-4) — a canister still lying where it burst is the cloud's SOURCE, and its burn is the cloud's time
             float seconds = w.CloudSeconds;
-            long source = 0;
+            int source = 0;
             if (!evt.Round.IsNull && repo.IsAlive(evt.Round) && repo.IsComponentTypeRegistered<BallisticProjectile>()
                 && repo.HasComponent<BallisticProjectile>(evt.Round))
             {

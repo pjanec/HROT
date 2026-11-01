@@ -342,8 +342,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var draw      = MakeBuffer();
             var dto       = new SimpleHeadlessDto { Value = 7 };
 
-            projector.EmitAndSync(draw, 100L, 1u, dto);
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.Single(publisher.Published);
         }
@@ -358,10 +358,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var draw      = MakeBuffer();
             var dto       = new SimpleHeadlessDto { Value = 7 };
 
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             dto.Value = 99;
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.Equal(2, publisher.Published.Count);
         }
@@ -377,7 +377,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var dto       = new SimpleHeadlessDto { Value = 7 };
 
             // First emit publishes the initial state.
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
             int countAfterFirst = publisher.Published.Count;
 
             // Build JSON payload by round-tripping through the edit service.
@@ -388,7 +388,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             projector.ApplyUpdate(payloadJson, ref dto);
 
             // Emit again with the same (unchanged) DTO — should NOT publish.
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.Equal(countAfterFirst, publisher.Published.Count);
         }
@@ -403,7 +403,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             var dto       = new SimpleHeadlessDto { Value = 3 };
 
             var countBefore = draw.Count;
-            projector.EmitAndSync(draw, 100L, 1u, dto);
+            projector.EmitAndSync(draw, 100, 1u, dto);
 
             Assert.True(draw.Count > countBefore);
         }

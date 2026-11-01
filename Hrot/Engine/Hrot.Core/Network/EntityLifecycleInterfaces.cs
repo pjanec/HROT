@@ -29,7 +29,7 @@ public sealed class EntityDeletionRequest
     public Guid RequestId { get; init; }
 
     /// <summary>Network entity ID to delete.</summary>
-    public long EntityId { get; init; }
+    public int EntityId { get; init; }
 }
 
 /// <summary>
@@ -61,5 +61,5 @@ public interface IEntityDeletionRequestSource
 public interface IEntityAckSink
 {
     /// <summary>Publishes a lifecycle ACK back to the original requester.</summary>
-    void WriteAck(Guid requestId, long entityId, EntityOperationStatus status);
+    void WriteAck(Guid requestId, int entityId, EntityOperationStatus status);
 }

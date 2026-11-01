@@ -20,7 +20,7 @@ namespace Hrot.NED.Messages
     {
         /// <summary>Network entity id.</summary>
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary><c>InitialBrainIntent</c> as JSON (<c>FdpJsonOptionsRegistry.DefaultRelaxed</c>).</summary>
         public string IntentJson;

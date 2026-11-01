@@ -97,7 +97,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
         public IReadOnlyList<CreateUpdateDeleteEntityAck> WrittenAcks => _written;
 
-        public void WriteAck(Guid requestId, long entityId, EntityOperationStatus status)
+        public void WriteAck(Guid requestId, int entityId, EntityOperationStatus status)
             => _written.Add(new CreateUpdateDeleteEntityAck
             {
                 RequestId  = requestId,
@@ -133,13 +133,13 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
     /// </summary>
     public sealed class StubIdAllocator : INetworkIdAllocator
     {
-        private long _next;
+        private int _next;
         public long LastAllocatedId { get; private set; }
 
-        public StubIdAllocator(long startId = 1000) => _next = startId;
+        public StubIdAllocator(int startId = 1000) => _next = startId;
 
-        public long AllocateId() { LastAllocatedId = _next; return _next++; }
-        public void Reset(long startId = 0) { _next = startId; LastAllocatedId = 0; }
+        public int AllocateId() { LastAllocatedId = _next; return _next++; }
+        public void Reset(int startId = 0) { _next = startId; LastAllocatedId = 0; }
         public void Dispose() { }
     }
 
@@ -604,7 +604,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// <c>DrainInstantComplete</c> only completes an ack-less destruction once
         /// <c>currentFrame &gt; StartFrame</c>.</para>
         /// </summary>
-        public void RequestDestroy(long networkId, string reason = "test")
+        public void RequestDestroy(int networkId, string reason = "test")
         {
             _world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
             {
@@ -644,7 +644,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         /// <paramref name="networkId"/> from its <see cref="SimTransform"/> ECS component (⭐ AQ107 B / D: the wire pose is the
         /// local-ENU one, a copy — no geodetic conversion). Returns <c>null</c> when no such entity is found.
         /// </summary>
-        public WorldPos? ReadGeoSpatial(long networkId)
+        public WorldPos? ReadGeoSpatial(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return null;

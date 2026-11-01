@@ -170,7 +170,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         /// <c>EntityPresentationGizmoShared.EmitPickBox</c> emits no pick box without one (constraint
         /// <c>C2</c>), so a rail using a bare entity was testing a state production cannot reach.</para>
         /// </summary>
-        public static Entity CreateNetworkedEntity(EntityRepository repo, long networkId)
+        public static Entity CreateNetworkedEntity(EntityRepository repo, int networkId)
         {
             var e = repo.CreateEntity();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
@@ -909,7 +909,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     {
         /// <summary>⭐ §6.7 — the anchor id every rail below routes on. A real network id, not an
         /// ECS index: 41 is deliberately far from any index this fixture will allocate.</summary>
-        private const long NetId = 7041L;
+        private const int NetId = 7041;
 
         private static (EntityRepository repo, DataDrivenGizmoSystem sys, TrackingGizmoDefinition def1, TrackingGizmoDefinition def2, Entity entity, FdpEventBus interactionBus)
             CreateRoutingFixture()

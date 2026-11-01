@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// Network ID of the parent agent (or the sensor entity itself for legacy single-sensor path).
         /// 0 for purely local (offline/editor) sensors.
         /// </summary>
-        public long ParentNetworkId;
+        public int ParentNetworkId;
         /// <summary>
         /// PartMetadata.InstanceId of the child sensor entity; 0 for the legacy single-sensor path
         /// where the sensor lives directly on the parent entity.

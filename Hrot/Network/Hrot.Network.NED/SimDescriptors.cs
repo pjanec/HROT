@@ -22,7 +22,7 @@ namespace Hrot.NED.Descriptors
     {
         // Primary Key: Which entity is being modified?
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         // Cluster-synced SIMULATION time (seconds) at which the sender sampled this pose — the anchor dead reckoning ages from
         // (`simNow - SimTime`). Time of day = `EntityScenarioClock` UTC at sim 0 + SimTime (W-4).
@@ -70,7 +70,7 @@ namespace Hrot.NED.Descriptors
     {
         // Primary Key: Which entity is being modified?
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>Current hit points on the authoritative node. 0 = destroyed.</summary>
         public float Current;
@@ -90,7 +90,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityDoorState
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary><c>TerrainDoorState</c>: 0 Closed · 1 Open · 2 Locked · 3 Destroyed (CE-3290: Closed is 0, the default).</summary>
         public byte State;
@@ -109,7 +109,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityWeaponSystemState
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary><c>WeaponDeploy</c>: 0 Stowed · 1 Deploying · 2 Deployed · 3 Packing.</summary>
         public byte Deploy;
@@ -131,7 +131,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityTrafficDemand
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary><c>TrafficDemand.TargetCars</c>.</summary>
         public int TargetCars;
@@ -161,7 +161,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityScenarioClock
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>UTC ticks at sim time 0 (<c>ScenarioClock.StartUtcTicks</c>).</summary>
         public long StartUtcTicks;
@@ -181,7 +181,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityWeather
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         // ⭐ AQ107 I — SI on the wire (the ECS WeatherConditions keeps °C / K per km / hPa / mm per h; the translator converts):
         /// <summary>The daily mean air temperature at the ground, KELVIN.</summary>
@@ -230,7 +230,7 @@ namespace Hrot.NED.Descriptors
     {
         /// <summary>Network id of the hull (the part's <c>PartMetadata.ParentEntity</c>).</summary>
         [DdsKey]
-        public long ParentNetworkId;
+        public int ParentNetworkId;
 
         /// <summary>The turret part's <c>PartMetadata.InstanceId</c> (<c>TurretParts.FirstPartId</c> + turret index).</summary>
         [DdsKey]
@@ -258,12 +258,12 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponTask
     {
-        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int ParentNetworkId;
         [DdsKey] public int PartId;
         /// <summary><c>WeaponTaskMode</c>: 0 Idle · 1 Track · 2 Engage.</summary>
         public byte Mode;
         /// <summary>The target's network id; 0 = aim at the point.</summary>
-        public long TargetNetworkId;
+        public int TargetNetworkId;
         public float PointX;
         public float PointY;
         public float PointZ;
@@ -285,7 +285,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponTaskStatus
     {
-        [DdsKey] public long ParentNetworkId;
+        [DdsKey] public int ParentNetworkId;
         [DdsKey] public int PartId;
         public uint Epoch;
         /// <summary><c>WeaponTaskState</c>.</summary>
@@ -303,11 +303,11 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponPosture
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         /// <summary><c>WeaponPostureKind</c>: 0 AtEase · 1 Ready · 2 Aimed.</summary>
         public byte Kind;
         /// <summary>The target's network id; 0 = the point (or nothing).</summary>
-        public long TargetNetworkId;
+        public int TargetNetworkId;
         public float PointX;
         public float PointY;
         public float PointZ;
@@ -325,7 +325,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityManualDrive
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public float Forward;
         public float Lateral;
         public float Steer;
@@ -342,7 +342,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityPossessedBy
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         /// <summary>1 = held, 0 = released.</summary>
         public byte Held;
         public long StationNodeId;
@@ -358,7 +358,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityWeaponAmmo
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Count;
         public int Ammo0;
         public int Ammo1;
@@ -400,7 +400,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityOperatorUseStatus
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte UseSeq;
         public ushort ActionId;
         public byte Outcome;
@@ -414,7 +414,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityEffectState
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public double StunnedUntil;
         public double IrritatedUntil;
         public double KnockedDownUntil;
@@ -431,7 +431,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityGesture
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Kind;
     }
 
@@ -446,7 +446,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityCustody
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Detained;
         public byte Restrained;
         public byte Searched;
@@ -460,7 +460,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityLean
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         /// <summary><c>Fdp.Toolkit.Combat.LeanSide</c>.</summary>
         public byte Side;
         /// <summary>⭐ AQ104 G — <c>Lean.Depth</c> (0 = the default 0.4 m).</summary>
@@ -474,7 +474,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityCombatProficiency
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public float Authored;
         public float Unit;
         public float TypeDefault;
@@ -488,7 +488,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityEngagementArea
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte ArcSet;
         public float ArcOriginX;
         public float ArcOriginY;
@@ -499,15 +499,15 @@ namespace Hrot.NED.Descriptors
         public float RightBearing;
         public float MinRange;
         public float MaxRange;
-        public long AllowArea;
+        public int AllowArea;
         /// <summary>Radians, compass (see <see cref="LeftBearing"/>).</summary>
         public float WatchBearing;
         public byte WatchSet;
         public int NoFireCount;
-        public long NoFire0;
-        public long NoFire1;
-        public long NoFire2;
-        public long NoFire3;
+        public int NoFire0;
+        public int NoFire1;
+        public int NoFire2;
+        public int NoFire3;
         public byte SetBy;
     }
 
@@ -517,10 +517,10 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityUtterance
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         /// <summary><c>Fdp.Toolkit.Civilians.UtteranceKind</c>.</summary>
         public byte Kind;
-        public long TargetId;
+        public int TargetId;
         public double Until;
     }
 
@@ -530,7 +530,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityDemeanour
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Mode;
         public byte Fear;
         public byte Anger;
@@ -542,7 +542,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntitySpawnLevel
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         /// <summary><c>Fdp.Toolkit.NetworkSpawning.SpawnHeightMode</c>.</summary>
         public byte Mode;
         public short Level;
@@ -555,7 +555,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityUnderFire
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public double LastTime;
     }
 
@@ -564,7 +564,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityLookState
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public float TargetX;
         public float TargetY;
         public float TargetZ;
@@ -578,7 +578,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityHostileAct
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public double SinceSimTime;
         public byte Kind;
     }
@@ -590,7 +590,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityAreaEffectCloud
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Kind;
         public float Radius;
         public float Height;
@@ -599,7 +599,7 @@ namespace Hrot.NED.Descriptors
         public double BornAtSimSeconds;
         public float Seconds;
         /// <summary>⭐ CE-3236 (B-14, VC-4) — the venting canister it sits on; 0 = free (APPENDED, R-169).</summary>
-        public long SourceNetworkId;
+        public int SourceNetworkId;
     }
 
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner
@@ -610,7 +610,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityPartDamage
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Plan;
         public byte L0; public byte L1; public byte L2; public byte L3; public byte L4; public byte L5; public byte L6; public byte L7;
         public byte L8; public byte L9; public byte L10; public byte L11; public byte L12; public byte L13; public byte L14; public byte L15;
@@ -638,7 +638,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityHitMarks
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public ushort NextSeq;
         [DdsManaged] public List<DdsHitMark> Marks;
     }
@@ -652,7 +652,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityDescent
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         /// <summary><c>DescentKind</c>: 0 none (over) · 1 FastRope · 2 StaticLine · 3 FreeFall · 4 Ejection.</summary>
         public byte Kind;
         /// <summary><c>DescentPhase</c> — the animation key (D-5).</summary>
@@ -661,7 +661,7 @@ namespace Hrot.NED.Descriptors
         public byte Canopy;
         public byte AnchorIndex;
         /// <summary>The carrier he hangs from or left, network id (0 = none).</summary>
-        public long AnchorNetworkId;
+        public int AnchorNetworkId;
         public double PhaseSince;
         public float TargetX;
         public float TargetY;
@@ -676,27 +676,27 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityPassengers
     {
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         public byte Count;
-        public long Passenger0;
-        public long Passenger1;
-        public long Passenger2;
-        public long Passenger3;
-        public long Passenger4;
-        public long Passenger5;
-        public long Passenger6;
-        public long Passenger7;
+        public int Passenger0;
+        public int Passenger1;
+        public int Passenger2;
+        public int Passenger3;
+        public int Passenger4;
+        public int Passenger5;
+        public int Passenger6;
+        public int Passenger7;
         /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — each seat's <c>CarryMode</c>, 2 bits per seat (the list's own <c>Modes</c>).</summary>
         public ushort Modes;
         /// <summary>⭐ Team carry T-a (R-2017 T1) — a person carrier's second man (<c>PassengerBuffer.Assistant</c>), network id; 0 = none.
         /// APPENDED (R-169).</summary>
-        public long Assistant;
+        public int Assistant;
         /// <summary>⭐ F4 (Air Ops §7a, 🔒 user `2026-10-14` "extend the wire capacity") — seats 8–11 (the list is 12 wide) and their carry
         /// modes (bits 16–23 of the list's <c>Modes</c>, as seat i at bits 2(i−8)). APPENDED (R-169).</summary>
-        public long Passenger8;
-        public long Passenger9;
-        public long Passenger10;
-        public long Passenger11;
+        public int Passenger8;
+        public int Passenger9;
+        public int Passenger10;
+        public int Passenger11;
         public ushort ModesHigh;
     }
 
@@ -710,7 +710,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityObstacleShape
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>Box length along the heading (m).</summary>
         public float Length;
@@ -732,7 +732,7 @@ namespace Hrot.NED.Descriptors
     public partial struct EntityStableGuid
     {
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>The first 8 bytes of the GUID's <c>ToByteArray()</c>, little-endian.</summary>
         public long Lo;
@@ -791,7 +791,7 @@ namespace Hrot.NED.Descriptors
     {
         /// <summary>Which entity this command targets.</summary>
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>Monotonically increasing order identifier; echoed by <see cref="NavigationStatus.IntentId"/>.</summary>
         public uint IntentId;
@@ -827,7 +827,7 @@ namespace Hrot.NED.Descriptors
         public byte ReverseAllowed;
         /// <summary>⭐⭐ CE-2171 / Air Ops B1 (R-169: APPENDED, reported) — the route ENTITY a FollowRoute follows (network id); the
         /// motion side resolves its own compiled path from it. 0 = none.</summary>
-        public long RouteEntityId;
+        public int RouteEntityId;
     }
 
     /// <summary>
@@ -841,7 +841,7 @@ namespace Hrot.NED.Descriptors
     {
         /// <summary>Which entity's navigation state is reported.</summary>
         [DdsKey]
-        public long EntityId;
+        public int EntityId;
 
         /// <summary>Echoes <see cref="NavigationIntent.IntentId"/> of the command being executed.</summary>
         public uint IntentId;
@@ -895,7 +895,7 @@ namespace Hrot.NED.Descriptors
         public RelativeVector3 Start;
         public RelativeVector3 End;
         public int            LayerMask;
-        public long           IgnoreEntityId;
+        public int           IgnoreEntityId;
     }
 
     /// <summary>Batched raycast request published by a Brain node toward the Navigation Solver.</summary>
@@ -915,7 +915,7 @@ namespace Hrot.NED.Descriptors
     {
         public long  RayId;
         public bool  HasHit;
-        public long  HitEntityId;
+        public int  HitEntityId;
         public float HitT;
     }
 
@@ -936,7 +936,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct SensorConfig
     {
-        [DdsKey] public long  EntityId;
+        [DdsKey] public int  EntityId;
         public float          VisionRange;
         public float          HearingRange;
         /// <summary>⭐ AQ107 I — the full field of view, RADIANS (was degrees).</summary>
@@ -947,7 +947,7 @@ namespace Hrot.NED.Descriptors
     [DdsStruct]
     public partial struct DdsTrackedTarget
     {
-        public long  TargetEntityId;
+        public int  TargetEntityId;
         public float ThreatScore;
         public float Distance;
         /// <summary>⭐ AQ107 I — the bearing to the target, RADIANS (was degrees).</summary>
@@ -959,7 +959,7 @@ namespace Hrot.NED.Descriptors
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile, AutodisposeUnregisteredInstances = false)]
     public partial struct SensorTargets
     {
-        [DdsKey] public long ObserverEntityId;
+        [DdsKey] public int ObserverEntityId;
         public uint          Tick;
         [DdsManaged] public List<DdsTrackedTarget> Targets;
     }
@@ -975,9 +975,9 @@ namespace Hrot.NED.Descriptors
     public partial struct SensorTrackState
     {
         /// <summary>ECS/network ID of the observer entity that holds the sensor.</summary>
-        [DdsKey] public long ObserverEntityId;
+        [DdsKey] public int ObserverEntityId;
         /// <summary>ECS/network ID of the detected (or lost) target entity.</summary>
-        [DdsKey] public long TargetEntityId;
+        [DdsKey] public int TargetEntityId;
         /// <summary>
         /// <c>1</c> = contact Acquired (target entered sensor coverage);
         /// <c>0</c> = contact Lost (target left coverage after hysteresis hold-off).
@@ -1076,7 +1076,7 @@ namespace Hrot.NED.Descriptors
     public partial struct GroundClampingOverride
     {
         /// <summary>Network entity ID matching <see cref="WorldPos.EntityId"/>.</summary>
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
 
         /// <summary>Desired clamping mode for this entity.</summary>
         public EClampingMode Mode;
@@ -1099,7 +1099,7 @@ namespace Hrot.NED.Descriptors
             HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
     public partial struct AudioTargetDetected
     {
-        public long  ListenerEntityId;
+        public int  ListenerEntityId;
         public float OriginX;
         public float OriginY;
         public float OriginZ;

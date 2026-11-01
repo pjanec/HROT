@@ -42,7 +42,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            long netId = data.EntityId;
+            int netId = data.EntityId;
             var repo = view as EntityRepository;
             if (repo == null)
             {
@@ -114,7 +114,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         ///
         /// <para>See <c>docs/DESIGN_Dead_Reckoning.md</c> rule R6.</para>
         /// </summary>
-        private double CheckSimStamp(double simTime, ISimulationView view, long entityId)
+        private double CheckSimStamp(double simTime, ISimulationView view, int entityId)
         {
             if (simTime > 0.0)
                 return simTime;

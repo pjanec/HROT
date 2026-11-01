@@ -339,7 +339,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         var world = harness.Repo;
 
         // Spawn an Insurgent entity with TkbIdentity and a stable NetworkIdentity.
-        const long insurgentNetId = 1001L;
+        const int insurgentNetId = 1001;
         var insurgent = world.CreateEntity();
         world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
         world.AddComponent(insurgent, new Fdp.Toolkit.Replication.Components.NetworkIdentity(insurgentNetId));

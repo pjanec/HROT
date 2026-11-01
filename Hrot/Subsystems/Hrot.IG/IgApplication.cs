@@ -1141,7 +1141,7 @@ public class IgApplication : IDisposable
 
                 // "Edit Overlay" ? only shown for area entities that carry an EditablePolyline.
                 if (_world.HasManagedComponent<EditablePolyline>(entity)
-                 && _entityMap.TryGetNetworkId(entity, out long editNetId))
+                 && _entityMap.TryGetNetworkId(entity, out int editNetId))
                 {
                     builder.AddSeparator();
                     builder.AddItem("Edit overlay", () => ActivateAreaEditingTool(editNetId));
@@ -1650,7 +1650,7 @@ public class IgApplication : IDisposable
     /// network entity ID (same code path as a CMD_START_AUTHORING command).
     /// Used by commit-handler safety tests (CT-1).
     /// </summary>
-    internal void TestHook_ActivateRouteEditToolForNetworkId(long networkEntityId)
+    internal void TestHook_ActivateRouteEditToolForNetworkId(int networkEntityId)
         => ActivateAreaEditingTool(networkEntityId);
 
     /// <summary>
@@ -1842,7 +1842,7 @@ public class IgApplication : IDisposable
         var view = (ISimulationView)_world;
         if (!view.HasComponent<NetworkIdentity>(entity)) return;
 
-        long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+        int netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
 
         // ⭐ CE-4073 — local ENU metres (keys x / y / z; they were geodetic lat / lon / alt, converted here and back at the NED boundary).
         //   A 2D map drag: Z is the ground reference 0.
@@ -1892,7 +1892,7 @@ public class IgApplication : IDisposable
     /// is sent to SimHost over DDS.  Network must be enabled and the entity must have a
     /// <see cref="NetworkIdentity"/> component.
     /// </summary>
-    internal void TestHook_SimulateDragDrop(long networkId, System.Numerics.Vector2 dropWorldPos)
+    internal void TestHook_SimulateDragDrop(int networkId, System.Numerics.Vector2 dropWorldPos)
     {
         if (!_entityMap.TryGetEntity(networkId, out var entity))
             throw new InvalidOperationException($"Entity with networkId={networkId} not found.");
@@ -1900,7 +1900,7 @@ public class IgApplication : IDisposable
         OnEntityDragEnded(entity);
     }
 
-    internal void TestHook_SimulateDragEnd(long networkId)
+    internal void TestHook_SimulateDragEnd(int networkId)
 
     {
 
@@ -1962,7 +1962,7 @@ public class IgApplication : IDisposable
     /// Pass <paramref name="isShiftHeld"/> = <c>true</c> to exercise the shift-key immediate-
     /// send path (BUG2-I001).
     /// </summary>
-    internal void TestHook_SimulateEntityMoved(long networkId, System.Numerics.Vector2 worldPos, float dt, bool isShiftHeld = false)
+    internal void TestHook_SimulateEntityMoved(int networkId, System.Numerics.Vector2 worldPos, float dt, bool isShiftHeld = false)
     {
         if (!_entityMap.TryGetEntity(networkId, out var entity))
             throw new InvalidOperationException($"Entity with networkId={networkId} not found in IG entity map.");
@@ -2000,7 +2000,7 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    internal void TestHook_SetEntitySimTransform(long networkId, SimTransform transform)
+    internal void TestHook_SetEntitySimTransform(int networkId, SimTransform transform)
 
     {
 
@@ -2062,7 +2062,7 @@ public class IgApplication : IDisposable
     /// Toggle behaviour likewise.
     /// </para>
     /// </summary>
-    private void ActivateAreaEditingTool(long networkEntityId)
+    private void ActivateAreaEditingTool(int networkEntityId)
     {
         if (!_entityMap.TryGetEntity(networkEntityId, out var entity))
         {

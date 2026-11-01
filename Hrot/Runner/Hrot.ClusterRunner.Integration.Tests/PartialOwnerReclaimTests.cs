@@ -76,7 +76,7 @@ public class PartialOwnerReclaimTests
         var matched = DateTime.UtcNow.AddSeconds(2);                                // let discovery match node 77
         PumpAlive(harness, hb, () => DateTime.UtcNow > matched, timeoutFrames: 5000);
 
-        long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
         var cgf = harness.Cgf!.World!;
         Entity tank = Entity.Null;
         Assert.True(PumpAlive(harness, hb, () => harness.Cgf!.GhostEntityMap!.TryGetEntity(net, out tank)
@@ -130,7 +130,7 @@ public class PartialOwnerReclaimTests
         Heartbeat(hb);
         PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
 
-        long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: FakeNode);
         var cgf = harness.Cgf!.World!;
 
         var seen = new List<(DdsInstanceState State, int? Sender)>();
@@ -204,7 +204,7 @@ public class PartialOwnerReclaimTests
 
         PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
 
-        long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
         var cgf = harness.Cgf!.World!;
         var sim = harness.SimHost.World!;
         Entity cgfTank = Entity.Null, simTank = Entity.Null;
@@ -261,7 +261,7 @@ public class PartialOwnerReclaimTests
         Heartbeat(hb);
         PumpAlive(harness, hb, () => false, timeoutFrames: 60);                     // let discovery match node 77
 
-        long net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+        int net = harness.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
         var cgf = harness.Cgf!.World!;
         var registry = harness.Cgf!.TestHook_BehaviorRegistry!;
         Entity tank = Entity.Null;

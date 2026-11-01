@@ -111,7 +111,7 @@ namespace Hrot.Editor.DebugApi
         /// Must run on the main thread.
         /// </summary>
         public (JsonNode? result, string? error, string? hintCategory) GetEntityVariables(
-            long networkId, string? asset)
+            int networkId, string? asset)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
@@ -143,7 +143,7 @@ namespace Hrot.Editor.DebugApi
         /// Must run on the main thread.
         /// </summary>
         public (JsonNode? result, string? error, string? hintCategory) GetEntityVariable(
-            long networkId, string? asset, string? path)
+            int networkId, string? asset, string? path)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return (null, "path is required — the variable's name.", DebugApiHints.Variable);
@@ -234,7 +234,7 @@ namespace Hrot.Editor.DebugApi
         /// its neighbour on a blackboard three subsystems share.
         /// </remarks>
         public (JsonNode? result, string? error, string? hintCategory) StageEntityVariable(
-            long networkId, string? asset, string? path, JsonNode? value)
+            int networkId, string? asset, string? path, JsonNode? value)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return (null, "path is required — the variable's name.", DebugApiHints.Variable);

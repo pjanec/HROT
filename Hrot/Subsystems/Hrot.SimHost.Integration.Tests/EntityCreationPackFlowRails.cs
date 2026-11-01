@@ -208,7 +208,7 @@ namespace Hrot.SimHost.Integration.Tests
             Assert.NotNull(ack);
             _host.RunForTicks(5);
 
-            long netId = ack!.Value.EntityId;
+            int netId = ack!.Value.EntityId;
             Assert.True(_host.EntityMap.TryGetEntity(netId, out Entity entity),
                 "Precondition: the entity must exist before its teardown can be asserted. A vacuous " +
                 "pass here would make the whole rail meaningless.");

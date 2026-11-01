@@ -5815,7 +5815,7 @@ namespace Hrot.SimHost.Tests
 
         // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the squad Embark drill, the mirror of Dismount ──
 
-        private static Entity Helicopter(Squad s, Vector3 at, long networkId)
+        private static Entity Helicopter(Squad s, Vector3 at, int networkId)
         {
             var v = Carrier(s, at);
             s.Repo.AddComponent(v, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
@@ -5883,7 +5883,7 @@ namespace Hrot.SimHost.Tests
         // ── CE-2173 slice 3 (B8, B10; Air Operations §9b) — riding, unloading, and the helicopter brain's hold release ──────────────
 
         /// <summary>A helicopter (Rotorcraft, a route phase) at <paramref name="at"/> with <paramref name="aboard"/> seated.</summary>
-        private static Entity AirCarrier(Squad s, Vector3 at, NavigationPhase phase, long networkId, params int[] aboard)
+        private static Entity AirCarrier(Squad s, Vector3 at, NavigationPhase phase, int networkId, params int[] aboard)
         {
             if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) s.Repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
@@ -7529,7 +7529,7 @@ namespace Hrot.SimHost.Tests
 
         // ── CE-2347 (R-2069) — PlatoonConvoy: ride, halt on contact, secure when quiet, remount, carry on (Defend & Attack §11a) ─────────
 
-        private static Entity ConvoyVehicle(Squad s, Vector3 at, long networkId, int passengerSeats, params Entity[] aboard)
+        private static Entity ConvoyVehicle(Squad s, Vector3 at, int networkId, int passengerSeats, params Entity[] aboard)
         {
             var v = s.Repo.CreateEntity();
             s.Repo.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
@@ -7545,7 +7545,7 @@ namespace Hrot.SimHost.Tests
             return v;
         }
 
-        private static void ConvoyRoute(Squad s, long networkId, params Vector3[] points)
+        private static void ConvoyRoute(Squad s, int networkId, params Vector3[] points)
         {
             var route = s.Repo.CreateEntity();
             s.Repo.AddComponent(route, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });

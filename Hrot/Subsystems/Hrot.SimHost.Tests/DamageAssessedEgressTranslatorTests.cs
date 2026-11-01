@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
             return (translator, writer);
         }
 
-        private Entity RegisterEntity(long netId)
+        private Entity RegisterEntity(int netId)
         {
             var entity = _world.CreateEntity();
             _entityMap.Register(netId, entity);
@@ -69,7 +69,7 @@ namespace Hrot.SimHost.Tests
         public void ScanAndPublish_WritesEntityHitDamage_ForSingleEvent()
         {
             var (translator, writer) = BuildTranslator();
-            var entity = RegisterEntity(netId: 7L);
+            var entity = RegisterEntity(netId: 7);
 
             PublishEvent(hitEntity: entity, totalDamage: 25.5f);
 
@@ -85,7 +85,7 @@ namespace Hrot.SimHost.Tests
         public void CE3210_ThePartCrosses_AsIdPlusOne_NoPartIsZero()
         {
             var (translator, writer) = BuildTranslator();
-            var entity = RegisterEntity(netId: 7L);
+            var entity = RegisterEntity(netId: 7);
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 5f, HasBodyPart = 1, BodyPart = 0 /* ThighL */ });
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 5f });
             _world.Bus.SwapBuffers();
@@ -101,15 +101,15 @@ namespace Hrot.SimHost.Tests
         public void CE3237_TheSourceCrosses_AsItsNetworkId_UnknownIsZero()
         {
             var (translator, writer) = BuildTranslator();
-            var victim = RegisterEntity(netId: 7L);
-            var shooter = RegisterEntity(netId: 42L);
+            var victim = RegisterEntity(netId: 7);
+            var shooter = RegisterEntity(netId: 42);
             var unmapped = _world.CreateEntity();
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = shooter });
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f });
             _world.Bus.Publish(new DamageAssessedEvent { HitEntity = victim, TotalDamage = 5f, Source = unmapped });
             _world.Bus.SwapBuffers();
             translator.ScanAndPublish(_world);
-            Assert.Equal(new[] { 42L, 0L, 0L }, new[] { writer.Written[0].SourceEntityId, writer.Written[1].SourceEntityId, writer.Written[2].SourceEntityId });
+            Assert.Equal(new[] { 42, 0, 0 }, new[] { writer.Written[0].SourceEntityId, writer.Written[1].SourceEntityId, writer.Written[2].SourceEntityId });
         }
 
         // ── SC-2: Zero events → no write ─────────────────────────────────────

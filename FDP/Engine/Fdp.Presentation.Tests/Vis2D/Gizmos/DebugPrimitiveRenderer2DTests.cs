@@ -324,7 +324,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
     public class DebugPrimitiveRenderer2DEntityLocalTests
     {
         /// <summary>The anchor the backend prepends for any entity emitting local graphics.</summary>
-        private static DebugPrimitive Anchor(long networkId, float x, float y, float headingDeg = 0f)
+        private static DebugPrimitive Anchor(int networkId, float x, float y, float headingDeg = 0f)
             => DebugPrimitive.MakeSpatialAnchor(networkId, x, y, 0f, headingDeg, target: PipelineTarget.Map2D);
 
         /// <summary>
@@ -333,7 +333,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         /// <c>DebugPrimitiveBuffer.DrawSemanticShape</c> writes (`(int)networkId`), and the 32-bit
         /// narrowing that constraint C7 / CE-259z pins.
         /// </summary>
-        private static DebugPrimitive Local(DebugPrimitiveShape shape, long networkId)
+        private static DebugPrimitive Local(DebugPrimitiveShape shape, int networkId)
         {
             var p = default(DebugPrimitive);
             p.Shape       = shape;
@@ -349,11 +349,11 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         public void SC_GZ012_1_EntityLocal_Line_TranslatesPosition()
         {
             var renderer = new CapturingRenderer2D();
-            var p = Local(DebugPrimitiveShape.Line, 42L);
+            var p = Local(DebugPrimitiveShape.Line, 42);
             p.LineStart = new Vector3(1f, 0f, 0f);
             p.LineEnd   = new Vector3(2f, 0f, 0f);
 
-            renderer.Render(new[] { Anchor(42L, 10f, 20f), p }, RenderTestHelpers.MakeCtx());
+            renderer.Render(new[] { Anchor(42, 10f, 20f), p }, RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
             Assert.Equal(11f, renderer.Dispatched[0].LineStart.X, precision: 3);
@@ -371,7 +371,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         public void SC_GZ012_2_EntityLocal_MissingAnchor_Skipped()
         {
             var renderer = new CapturingRenderer2D();
-            var p = Local(DebugPrimitiveShape.Line, 42L);
+            var p = Local(DebugPrimitiveShape.Line, 42);
             p.LineStart = Vector3.Zero;
             p.LineEnd   = Vector3.One;
 
@@ -387,11 +387,11 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         public void SC_GZ012_2b_EntityLocal_WrongAnchorId_Skipped()
         {
             var renderer = new CapturingRenderer2D();
-            var p = Local(DebugPrimitiveShape.Line, 42L);
+            var p = Local(DebugPrimitiveShape.Line, 42);
             p.LineStart = Vector3.Zero;
             p.LineEnd   = Vector3.One;
 
-            renderer.Render(new[] { Anchor(999L, 10f, 20f), p }, RenderTestHelpers.MakeCtx());
+            renderer.Render(new[] { Anchor(999, 10f, 20f), p }, RenderTestHelpers.MakeCtx());
 
             Assert.Equal(0, renderer.Dispatched.Count);
         }
@@ -410,7 +410,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         [Fact]
         public void CE259z_DrawEntityLocal_ResolvesAgainstItsSpatialAnchor()
         {
-            const long netId = 90210L;
+            const int netId = 90210;
             var buffer = new DebugPrimitiveBuffer(16);
             buffer.DrawSpatialAnchor(netId, worldX: 10f, worldY: 20f, worldZ: 0f, headingDeg: 0f);
             buffer.DrawEntityLocal(netId, new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f), Rgba32.Red);
@@ -435,7 +435,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
         [Fact]
         public void CE259z_DrawEntityLocalInteractive_HasNoRoomForAnIdentity()
         {
-            const long netId = 90210L;
+            const int netId = 90210;
             var buffer = new DebugPrimitiveBuffer(16);
             buffer.DrawEntityLocalInteractive(netId, Vector3.Zero, new Vector3(1f, 2f, 3f), Rgba32.Red,
                 subElementId: 3);
@@ -458,11 +458,11 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
 
     public class DebugPrimitiveRenderer2DEntityLocalAllShapesTests
     {
-        private static DebugPrimitive Anchor(long networkId, Vector3 pos, float headingDeg = 0f)
+        private static DebugPrimitive Anchor(int networkId, Vector3 pos, float headingDeg = 0f)
             => DebugPrimitive.MakeSpatialAnchor(networkId, pos.X, pos.Y, pos.Z, headingDeg,
                                                 target: PipelineTarget.Map2D);
 
-        private static DebugPrimitive Local(DebugPrimitiveShape shape, long networkId = 7L)
+        private static DebugPrimitive Local(DebugPrimitiveShape shape, int networkId = 7)
         {
             var p = default(DebugPrimitive);
             p.Shape       = shape;
@@ -482,7 +482,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             p.SphereRadius = 1f;
 
             renderer.Render(
-                new[] { Anchor(7L, new Vector3(10f, 20f, 0f)), p },
+                new[] { Anchor(7, new Vector3(10f, 20f, 0f)), p },
                 RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
@@ -501,7 +501,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             p.ArrowTo   = new Vector3(10f, 0f, 0f);
 
             renderer.Render(
-                new[] { Anchor(7L, Vector3.Zero, headingDeg: 90f), p },
+                new[] { Anchor(7, Vector3.Zero, headingDeg: 90f), p },
                 RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
@@ -521,7 +521,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             p.BoxExtentY = 5f;
 
             renderer.Render(
-                new[] { Anchor(7L, new Vector3(100f, 200f, 0f)), p },
+                new[] { Anchor(7, new Vector3(100f, 200f, 0f)), p },
                 RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
@@ -541,7 +541,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             p.TextY = 2f;
 
             renderer.Render(
-                new[] { Anchor(7L, new Vector3(30f, 40f, 0f)), p },
+                new[] { Anchor(7, new Vector3(30f, 40f, 0f)), p },
                 RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);
@@ -560,7 +560,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             p.LineEnd   = new Vector3(3f, 4f, 0f);
 
             renderer.Render(
-                new[] { Anchor(7L, new Vector3(10f, 10f, 0f), headingDeg: 0f), p },
+                new[] { Anchor(7, new Vector3(10f, 10f, 0f), headingDeg: 0f), p },
                 RenderTestHelpers.MakeCtx());
 
             Assert.Equal(1, renderer.Dispatched.Count);

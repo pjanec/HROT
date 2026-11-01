@@ -83,7 +83,7 @@ public sealed class AclBackdoorEliminationTests
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType     = 1L,
-            NetworkId   = 1L,
+            NetworkId   = 1,
             RequestId   = Guid.NewGuid(),
             OwnerNodeId = 0,
             InitType    = ReliableInitType.None,

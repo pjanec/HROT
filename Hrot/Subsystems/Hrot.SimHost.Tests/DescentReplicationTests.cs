@@ -17,7 +17,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class DescentReplicationTests
     {
-        private static (EntityRepository World, Entity Man, Entity Heli, NetworkEntityMap Map) Node(long manId, long heliId)
+        private static (EntityRepository World, Entity Man, Entity Heli, NetworkEntityMap Map) Node(int manId, int heliId)
         {
             var w = new EntityRepository();
             w.RegisterComponent<NetworkIdentity>();
@@ -37,8 +37,8 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void B1_ADescent_ReachesTheOtherNode_WithItsAnchorResolved_AndItsEndRemovesIt()
         {
-            var (owner, ownerMan, ownerHeli, _) = Node(51L, 52L);
-            var (replica, man, heli, map) = Node(51L, 52L);
+            var (owner, ownerMan, ownerHeli, _) = Node(51, 52);
+            var (replica, man, heli, map) = Node(51, 52);
             using (owner)
             using (replica)
             {
@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
                     Kind = DescentKind.FreeFall, Phase = DescentPhase.Canopy, Canopy = CanopyKind.RamAir, AnchorIndex = 1,
                     PhaseSince = 12.5, Anchor = ownerHeli, Target = new Vector3(400, -250, 3),
                 };
-                var sample = EntityDescentEgressTranslator.ToSample(51L, d, owner);
+                var sample = EntityDescentEgressTranslator.ToSample(51, d, owner);
                 Assert.Equal(52L, sample.AnchorNetworkId);
 
                 var ingress = new EntityDescentIngressTranslator(participant: null, map);
@@ -63,7 +63,7 @@ namespace Hrot.SimHost.Tests
 
                 using (var cmd = new EntityCommandBuffer())
                 {
-                    ingress.Apply(new Hrot.NED.Descriptors.EntityDescent { EntityId = 51L }, cmd, replica);   // the descent is over
+                    ingress.Apply(new Hrot.NED.Descriptors.EntityDescent { EntityId = 51 }, cmd, replica);   // the descent is over
                     cmd.Playback(replica);
                 }
                 Assert.False(replica.HasComponent<Descent>(man));
@@ -79,7 +79,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2210_AManCreatedComingDown_IsPublishedWhileConstructing()
         {
-            var (owner, man, _, _) = Node(61L, 62L);
+            var (owner, man, _, _) = Node(61, 62);
             using (owner)
             {
                 owner.SetLifecycleState(man, EntityLifecycle.Constructing);

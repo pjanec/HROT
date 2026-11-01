@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Replication.Messages
     public struct TransferEntityOwnershipRequest
     {
         /// <summary>The entity's network id (resolved to an <c>Entity</c> via <c>NetworkEntityMap</c>).</summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>The node to hand the descriptors to.</summary>
         public int NewOwnerNodeId;

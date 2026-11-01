@@ -15,7 +15,7 @@ public enum SubjectKind { Person, Vehicle, Aircraft, Group, Unknown }
 /// when the moment has no second party) and how film-worthy it is (<see cref="Score"/>). ⭐ <c>CE-4120</c> (§11n-1) — <see cref="Place"/>: a blast's ground point (its X / Y, z = the ground there),
 /// what the framing looks at when the blast struck no unit (the shooter may be 300 m up).
 /// </summary>
-public sealed record DraftMoment(string Lane, int EventIndex, int Frame, double Sim, long Actor, long? Subject, double Score, Vector3? Place = null);
+public sealed record DraftMoment(string Lane, int EventIndex, int Frame, double Sim, int Actor, int? Subject, double Score, Vector3? Place = null);
 
 /// <summary>
 /// ⭐ <c>CE-1305</c> (docs/DESIGN_Director_Timeline_Editor.md §11v T1; §2 "shot templates from a marker") — ONE camera of the drafter's grammar, picked by the person
@@ -32,7 +32,7 @@ public sealed record DraftOptions
     public string Name { get; init; } = "draft";
     public string? Caption { get; init; }
     /// <summary>The actor's kind, for the camera's height; null (or a kind it does not know) = <see cref="SubjectKind.Unknown"/>.</summary>
-    public Func<long, SubjectKind>? Kind { get; init; }
+    public Func<int, SubjectKind>? Kind { get; init; }
     /// <summary>Add a slow-motion replay from the reverse angle (a fast beat only: shot, hit, blast).</summary>
     public bool Replay { get; init; }
     public double AspectRatio { get; init; } = 16d / 9d;
@@ -77,7 +77,7 @@ public static class Drafter
     /// <c>combat.hit</c> (2) · <c>combat.blast</c> (3 + damage / 100). A moment within 2 s AFTER another merges into it (the earlier one is the cause and
     /// anchors the take; the merged score is the better of the two). ⏭ Behaviour lanes join when CR-5 grows the anchor cues.
     /// </summary>
-    public static IReadOnlyList<DraftMoment> Moments(TimelineIndex index, Func<long, string?> unitName, Func<float, float, float>? groundAt = null)
+    public static IReadOnlyList<DraftMoment> Moments(TimelineIndex index, Func<int, string?> unitName, Func<float, float, float>? groundAt = null)
     {
         var found = new List<DraftMoment>();
 
@@ -109,7 +109,7 @@ public static class Drafter
     /// unit that shot at it within 5 s; a blast with no shooter is about what it hit); null when the event is not one <see cref="EventAnchors"/> can name. ⭐ The ONE
     /// event → moment rule: <see cref="Moments"/> calls it for every candidate.
     /// </summary>
-    public static DraftMoment? MomentAt(TimelineIndex index, string lane, int eventIndex, Func<long, string?> unitName, Func<float, float, float>? groundAt = null)
+    public static DraftMoment? MomentAt(TimelineIndex index, string lane, int eventIndex, Func<int, string?> unitName, Func<float, float, float>? groundAt = null)
     {
         var events = index.Lane(lane);
         if ((uint)eventIndex >= (uint)events.Count) return null;
@@ -118,9 +118,9 @@ public static class Drafter
         switch (lane)
         {
             case Shot:
-                return new DraftMoment(Shot, eventIndex, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, 1d);
+                return new DraftMoment(Shot, eventIndex, e.Frame, anchor.EventSim, e.Subject, OtherId(e.Other), 1d);
             case Hit:
-                long shooter = ShooterOf(index, e.Subject, e.Frame, anchor.EventSim);
+                int shooter = ShooterOf(index, e.Subject, e.Frame, anchor.EventSim);
                 return shooter > 0
                     ? new DraftMoment(Hit, eventIndex, e.Frame, anchor.EventSim, shooter, e.Subject, 2d)
                     : new DraftMoment(Hit, eventIndex, e.Frame, anchor.EventSim, e.Subject, null, 2d);
@@ -128,8 +128,8 @@ public static class Drafter
                 double score = 3d + e.Value / 100d;
                 var place = new Vector3(e.X, e.Y, groundAt?.Invoke(e.X, e.Y) ?? 0f);   // ⭐ CE-4120 B1: the burst's own point, on the ground
                 return e.Subject > 0
-                    ? new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, e.Subject, e.Other > 0 ? e.Other : null, score, place)
-                    : new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, Math.Max(e.Other, 0L), null, score, place);
+                    ? new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, e.Subject, OtherId(e.Other), score, place)
+                    : new DraftMoment(Blast, eventIndex, e.Frame, anchor.EventSim, OtherId(e.Other) ?? 0, null, score, place);
             default:
                 return null;
         }
@@ -138,8 +138,11 @@ public static class Drafter
     /// <summary>The ids a drafted replay's two segments carry (⭐ §11q K5): the reverse-angle key names <see cref="ReplaySegmentId"/>.</summary>
     public const string MainSegmentId = "main", ReplaySegmentId = "replay";
 
+    /// <summary>⭐ CE-4200: a lane's <c>Other</c> is a 64-bit slot; read as an entity id it must be a positive 32-bit network id, else it names nothing.</summary>
+    private static int? OtherId(long other) => other > 0 && other <= int.MaxValue ? (int)other : null;
+
     /// <summary>The unit that last shot at <paramref name="target"/> within 5 s before <paramref name="sim"/> (0 when none): who a hit was by.</summary>
-    private static long ShooterOf(TimelineIndex index, long target, int frame, double sim)
+    private static int ShooterOf(TimelineIndex index, int target, int frame, double sim)
     {
         var shots = index.Lane(Shot);
         for (int i = index.Before(Shot, frame + 1) - 1; i >= 0; i--)
@@ -156,12 +159,12 @@ public static class Drafter
     /// ③ the moment (<c>t−0.7</c>, framed across the line — a telephoto follow past 100 m) · ④ consequence (<c>t+2</c>, or 0.3 s before the next hit / blast on
     /// the subject within 5 s, from above) · ⑤ with <see cref="DraftOptions.Replay"/> a slow replay from the other side of the line.
     /// </summary>
-    public static Take Draft(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options)
+    public static Take Draft(TimelineIndex index, DraftMoment moment, Func<int, string?> unitName, DraftOptions options)
     {
         double t = moment.Sim;
         var anchor = EventAnchors.Of(index, moment.Lane, moment.EventIndex, unitName);
         var framing = new Framing(index, moment, unitName, options, null);
-        long focusId = moment.Subject ?? moment.Actor;
+        int focusId = moment.Subject ?? moment.Actor;
 
         // time: a key is `t + offset` on the moment's anchor; ① and ③ that would fall before the run's start are a FIXED time 0 (nothing earlier to hang on)
         AtExpr Key(double offset) => t + offset < 0d || anchor is null ? new AtExpr(Math.Max(t + offset, 0d)) : new AtExpr(offset, anchor.Name);
@@ -226,16 +229,16 @@ public static class Drafter
     /// ⭐ <c>CE-4060</c> (docs/DESIGN_Film_Production.md §4a) — the camera of ③ "the moment" for <paramref name="moment"/>: the SAME camera
     /// <see cref="Draft"/> puts on its third key (one implementation — the private <c>Framing.Moment</c>), lens included. The documentation take's stills use it.
     /// </summary>
-    public static CameraSpec MomentCamera(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options)
+    public static CameraSpec MomentCamera(TimelineIndex index, DraftMoment moment, Func<int, string?> unitName, DraftOptions options)
         => WithLens(new Framing(index, moment, unitName, options, null).Moment(), options);
 
     /// <summary>
     /// ⭐ <c>CE-4060</c> (§4a) — ③'s framing for a moment with NO actor and no subject: the camera holds <paramref name="units"/> (every unit the caller knows)
     /// over the same window as ③ (<c>[t−0.7, t+2]</c>), from a high angle. The one place the drafter frames "everyone" — the documentation take's fallback.
     /// </summary>
-    public static CameraSpec GroupCamera(TimelineIndex index, double sim, IReadOnlyList<long> units, DraftOptions options)
+    public static CameraSpec GroupCamera(TimelineIndex index, double sim, IReadOnlyList<int> units, DraftOptions options)
     {
-        var moment = new DraftMoment("group", -1, Math.Max(0, EventAnchors.FrameAt(index, sim)), sim, 0L, null, 0d);
+        var moment = new DraftMoment("group", -1, Math.Max(0, EventAnchors.FrameAt(index, sim)), sim, 0, null, 0d);
         var group = options with { Kind = _ => SubjectKind.Group };
         return WithLens(new Framing(index, moment, _ => null, group, units).Moment(), group);
     }
@@ -248,7 +251,7 @@ public static class Drafter
     /// of that name, framed over the window the beat would hold from the key (<see cref="HoldOf"/>), lens included. ⇒ a template key at a drafted key's time
     /// IS that key's camera.
     /// </summary>
-    public static CameraSpec TemplateCamera(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options, ShotTemplate template, double keySim)
+    public static CameraSpec TemplateCamera(TimelineIndex index, DraftMoment moment, Func<int, string?> unitName, DraftOptions options, ShotTemplate template, double keySim)
         => WithLens(TemplateShot(new Framing(index, moment, unitName, options, null), template, keySim, keySim + HoldOf(template), options), options);
 
     /// <summary>The source seconds a template's camera is framed over from its key: the beat's own hold in <see cref="Draft"/> (③ 2.7 s, ⑤ 2.5 s), else 4 s.</summary>
@@ -326,7 +329,7 @@ public static class Drafter
     };
 
     /// <summary>Seconds after the moment of the NEXT hit / blast on the focus unit within 5 s (null when none).</summary>
-    private static double? ConsequenceOffset(TimelineIndex index, DraftMoment moment, long focus, double t)
+    private static double? ConsequenceOffset(TimelineIndex index, DraftMoment moment, int focus, double t)
     {
         double? best = null;
         foreach (var lane in new[] { Hit, Blast })
@@ -428,7 +431,7 @@ public static class Drafter
         public string? SubjectName { get; }
         public float MomentPitch { get; }
 
-        public Framing(TimelineIndex index, DraftMoment moment, Func<long, string?> unitName, DraftOptions options, IReadOnlyList<long>? everyone)
+        public Framing(TimelineIndex index, DraftMoment moment, Func<int, string?> unitName, DraftOptions options, IReadOnlyList<int>? everyone)
         {
             _t = moment.Sim;
             _options = options;
@@ -475,14 +478,14 @@ public static class Drafter
     private sealed class Scene
     {
         private readonly TimelineIndex _index;
-        private readonly long _actor;
-        private readonly long? _subject;
+        private readonly int _actor;
+        private readonly int? _subject;
         private readonly Vector3 _fallback;
         private readonly Vector3? _place;
-        private readonly IReadOnlyList<long>? _everyone;
+        private readonly IReadOnlyList<int>? _everyone;
 
         /// <summary><paramref name="everyone"/> (⭐ <c>CE-4060</c>): frame these units instead of the moment's actor and subject.</summary>
-        public Scene(TimelineIndex index, DraftMoment moment, IReadOnlyList<long>? everyone = null, Func<float, float, float>? groundAt = null)
+        public Scene(TimelineIndex index, DraftMoment moment, IReadOnlyList<int>? everyone = null, Func<float, float, float>? groundAt = null)
         {
             _index = index;
             _everyone = everyone;
@@ -510,7 +513,7 @@ public static class Drafter
         /// <summary>What the camera is about: the subject, else the PLACE (⭐ CE-4120), else the actor.</summary>
         public Vector3 Focus(double sim) => _subject.HasValue ? PositionOf(_subject.Value, sim) : _place ?? PositionOf(_actor, sim);
 
-        public float HeadingOf(long unit, double sim)
+        public float HeadingOf(int unit, double sim)
             => _index.PositionAt(unit, Math.Max(0, EventAnchors.FrameAt(_index, sim))) is { } p ? p.Heading : 0f;
 
         /// <summary>Every sim time of [from, to] that matters: both ends and each sample of either unit between them (the paths are straight between samples).</summary>
@@ -546,7 +549,7 @@ public static class Drafter
             return points;
         }
 
-        private void AddSamples(long unit, double from, double to, List<double> times)
+        private void AddSamples(int unit, double from, double to, List<double> times)
         {
             int lo = EventAnchors.FrameAt(_index, from), hi = EventAnchors.FrameAt(_index, to);
             foreach (var sample in _index.PositionsOf(unit, lo + 1, hi + 1))
@@ -556,7 +559,7 @@ public static class Drafter
             }
         }
 
-        private Vector3 PositionOf(long unit, double sim)
+        private Vector3 PositionOf(int unit, double sim)
         {
             var samples = _index.Positions.Samples(unit);
             if (samples.Count == 0) return _fallback;

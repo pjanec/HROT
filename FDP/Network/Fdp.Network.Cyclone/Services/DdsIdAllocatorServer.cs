@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Fdp.Network.Cyclone.Topics;
+using Fdp.Toolkit.NetworkSpawning;
 using CycloneDDS.Runtime;
 
 namespace Fdp.Network.Cyclone.Services
@@ -23,7 +24,8 @@ namespace Fdp.Network.Cyclone.Services
         /// </summary>
         private readonly object _idLock = new();
 
-        private ulong _nextId = 1;
+        // ⭐ CE-4200: a long so an overflow is DETECTED (and refused) instead of wrapping.
+        private long _nextId = 1;
         private readonly Dictionary<string, long> _clientRequestCounters = new();
 
         public DdsIdAllocatorServer(DdsParticipant participant)
@@ -66,12 +68,15 @@ namespace Fdp.Network.Cyclone.Services
 
         private void HandleAlloc(IdRequest request)
         {
-            ulong start;
-            ulong count = request.Count;
+            uint start;
+            uint count = request.Count;
 
             lock (_idLock)
             {
-                start = _nextId;
+                // ⭐ CE-4200: refuse LOUDLY, before moving the high-water mark, when the block's last id would exceed
+                // int.MaxValue — the one place every DDS client's block passes through.
+                if (count > 0) NetworkIdLimit.Checked(_nextId + count - 1);
+                start = (uint)_nextId;
                 _nextId += count;
             }
 
@@ -116,9 +121,9 @@ namespace Fdp.Network.Cyclone.Services
         /// <para>⚠⚠ Destructive by design: correct only where the world has just been cleared. The guard is
         /// the CALLER's — see <see cref="Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority"/>.</para>
         /// </summary>
-        public void ResetToBase(long firstId)
+        public void ResetToBase(int firstId)
         {
-            lock (_idLock) { _nextId = (ulong)firstId; }
+            lock (_idLock) { _nextId = firstId; }
             BroadcastReset();
             PublishStatus();
         }
@@ -138,12 +143,12 @@ namespace Fdp.Network.Cyclone.Services
 
         private void PublishStatus()
         {
-            ulong next;
+            long next;
             lock (_idLock) { next = _nextId; }
 
             _statusWriter.Write(new IdStatus
             {
-                HighestIdAllocated = next - 1
+                HighestIdAllocated = (uint)(next - 1)
             });
         }
 

@@ -119,13 +119,13 @@ namespace Fdp.Examples.Scenarios.Network
         public const long TankTurretTkbType = 101L;
 
         /// <summary>DIS network ID assigned to the Brain turret entity.</summary>
-        public const long BrainTurretNetId = 101L;
+        public const int BrainTurretNetId = 101;
 
         /// <summary>Fixed simulation delta shared by both kernels.</summary>
         public const float FixedDelta = 1.0f / 60.0f;
 
         /// <summary>DIS network ID assigned to the Brain hull entity.</summary>
-        public const long BrainHullNetId = 100L;
+        public const int BrainHullNetId = 100;
 
         /// <summary>TKB blueprint type for CommandTank.</summary>
         public const long CommandTankTkbType = 100L;

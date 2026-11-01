@@ -79,7 +79,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         {
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new SimTransform());
-            _world.AddComponent(entity, new NetworkIdentity(1L));
+            _world.AddComponent(entity, new NetworkIdentity(1));
 
             // ⚠⚠ Asserted on a PER-ENTITY probe, not on the buffer being non-empty. An earlier version of
             // this rail checked `Buffer.GetFrame().Length > 0` and stayed GREEN through the inverse edit,

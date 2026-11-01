@@ -19,7 +19,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityHostileActEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityHostileAct>? _writer;
-        private readonly Dictionary<long, EntityHostileAct> _last = new();
+        private readonly Dictionary<int, EntityHostileAct> _last = new();
         private int _worldEpoch;
 
         private static readonly int[] s_targetIds = { GlobalComponentIds.HostileAct };
@@ -49,7 +49,7 @@ namespace Hrot.Map.Common.Replication.Egress
             foreach (var unit in view.Query().With<HostileAct>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
-                long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
                 var sample = ToSample(netId, view.GetComponentRO<HostileAct>(unit));
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;
@@ -59,13 +59,13 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityHostileAct ToSample(long netId, in HostileAct a)
+        internal static EntityHostileAct ToSample(int netId, in HostileAct a)
             => new() { EntityId = netId, SinceSimTime = a.SinceSimTime, Kind = (byte)a.Kind };
 
-        public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
+        public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
 
         /// <summary>⭐ CE-4079 ② — the grantee confirmed (F7): let go of the instance WITHOUT disposing it, and forget the cache so a reclaim republishes.</summary>
-        public void ReleaseInstance(long networkEntityId, long instanceId)
+        public void ReleaseInstance(int networkEntityId, long instanceId)
         {
             if (_last.Remove(networkEntityId)) _writer?.UnregisterInstance(new EntityHostileAct { EntityId = networkEntityId });
         }
@@ -122,6 +122,6 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

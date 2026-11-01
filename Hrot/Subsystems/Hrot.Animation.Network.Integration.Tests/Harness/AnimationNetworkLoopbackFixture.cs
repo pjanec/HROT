@@ -273,7 +273,7 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
     /// intent components; the Muscle entity has all animation-pipeline components.
     /// Returns the Brain entity (the one callers write intents to).
     /// </summary>
-    public Entity SpawnPairedHumanoid(long networkId)
+    public Entity SpawnPairedHumanoid(int networkId)
     {
         // Brain entity: intent components + NetworkIdentity
         var brainEntity = BrainWorld.CreateEntity();
@@ -493,7 +493,7 @@ public sealed class AnimationNetworkLoopbackFixture : IDisposable
     public void ResetWorlds()
     {
         // Collect registered network IDs before destroying entities
-        var netIds = new System.Collections.Generic.List<long>(
+        var netIds = new System.Collections.Generic.List<int>(
             _brainEntityMap.Entries.Keys);
 
         foreach (var e in BrainWorld.Query().Build())

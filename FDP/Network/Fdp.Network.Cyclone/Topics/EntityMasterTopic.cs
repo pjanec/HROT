@@ -18,7 +18,7 @@ namespace Fdp.Network.Cyclone.Topics
     public partial struct EntityMasterTopic
     {
         /// <summary>Network-wide unique entity identifier</summary>
-        [DdsKey] public long EntityId;
+        [DdsKey] public int EntityId;
         
         /// <summary>Owner application ID</summary>
         public NetworkAppId OwnerId;

@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
         public void Inject_WithValidGuid_WritesInitialUnitSubordinateIntent()
         {
             var commander = _repo.CreateEntity();
-            _repo.SetComponent(commander, new NetworkIdentity { Value = 77L });
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 77 });
 
             var resolver = new StubResolver();
             resolver.Register(commander, "guid-commander");
@@ -90,7 +90,7 @@ namespace Hrot.SimHost.Tests
         public void CE3253_AScenarioRole_IsReadByName(string name, TacticalDesignation expected)
         {
             var commander = _repo.CreateEntity();
-            _repo.SetComponent(commander, new NetworkIdentity { Value = 78L });
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 78 });
             var resolver = new StubResolver();
             resolver.Register(commander, "guid-platoon");
             var dom = new Dictionary<string, object>
@@ -180,7 +180,7 @@ namespace Hrot.SimHost.Tests
         public void CE2281_TheFireTeam_RoundTripsThroughTheScenario()
         {
             var commander = _repo.CreateEntity();
-            _repo.SetComponent(commander, new NetworkIdentity { Value = 77L });
+            _repo.SetComponent(commander, new NetworkIdentity { Value = 77 });
             var subordinate = _repo.CreateEntity();
             _repo.SetComponent(subordinate, new UnitSubordinate { Commander = commander, Designation = TacticalDesignation.Wingman, FireTeam = FireTeam.B });
             var loner = _repo.CreateEntity();

@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             new NetworkSpawningSystem(tkb, elm, networkMap, idAllocator, LocalNodeId);
 
         /// <summary>Creates an entity, registers it in the map, adds a TestPositionComponent.</summary>
-        private static Entity PrepareEntity(EntityRepository repo, NetworkEntityMap map, long netId)
+        private static Entity PrepareEntity(EntityRepository repo, NetworkEntityMap map, int netId)
         {
             var e = repo.CreateEntity();
             repo.AddComponent(e, new TestPositionComponent { X = 0f, Y = 0f });
@@ -94,11 +94,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var idAlloc    = new StubIdAllocator();
             var system     = CreateSystem(tkb, elm, networkMap, idAlloc);
 
-            var entity = PrepareEntity(repo, networkMap, netId: 10L);
+            var entity = PrepareEntity(repo, networkMap, netId: 10);
 
             repo.Bus.PublishManaged(new UpdateEntityCommand
             {
-                NetworkId = 10L,
+                NetworkId = 10,
                 ComponentsToUpdate = new List<object>
                 {
                     new TestPositionComponent { X = 9.0f, Y = 5.5f }
@@ -123,7 +123,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             repo.Bus.PublishManaged(new UpdateEntityCommand
             {
-                NetworkId = 999L,   // not registered
+                NetworkId = 999,   // not registered
                 ComponentsToUpdate = new List<object> { new TestPositionComponent { X = 1f } }
             });
 
@@ -141,11 +141,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var idAlloc    = new StubIdAllocator();
             var system     = CreateSystem(tkb, elm, networkMap, idAlloc);
 
-            PrepareEntity(repo, networkMap, netId: 20L);
+            PrepareEntity(repo, networkMap, netId: 20);
 
             repo.Bus.PublishManaged(new UpdateEntityCommand
             {
-                NetworkId          = 20L,
+                NetworkId          = 20,
                 ComponentsToUpdate = null
             });
 
@@ -167,11 +167,11 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var idAlloc    = new StubIdAllocator();
             var system     = CreateSystem(tkb, elm, networkMap, idAlloc);
 
-            var entity = PrepareEntity(repo, networkMap, netId: 30L);
+            var entity = PrepareEntity(repo, networkMap, netId: 30);
 
             repo.Bus.PublishManaged(new DestroyEntityCommand
             {
-                NetworkId = 30L,
+                NetworkId = 30,
                 Reason    = "unit test destroy"
             });
             RunExecute(repo, system);
@@ -192,7 +192,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
 
             repo.Bus.PublishManaged(new DestroyEntityCommand
             {
-                NetworkId = 888L,   // not registered
+                NetworkId = 888,   // not registered
                 Reason    = "no such entity"
             });
 

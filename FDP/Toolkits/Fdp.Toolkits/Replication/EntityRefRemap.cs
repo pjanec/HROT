@@ -161,8 +161,8 @@ namespace Fdp.Toolkit.Replication
         private static readonly JsonSerializerOptions _options = FdpJsonOptionsRegistry.Derive(o =>
             o.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping);
 
-        private static readonly ConditionalWeakTable<Type, Func<string?, IReadOnlyDictionary<long, long>, string?>> _json = new();
-        private static readonly Func<string?, IReadOnlyDictionary<long, long>, string?> _identity = (json, _) => json;
+        private static readonly ConditionalWeakTable<Type, Func<string?, IReadOnlyDictionary<int, int>, string?>> _json = new();
+        private static readonly Func<string?, IReadOnlyDictionary<int, int>, string?> _identity = (json, _) => json;
 
         /// <summary>Number of remap delegates built (a cache probe for tests).</summary>
         internal static int JsonCompileCount { get; private set; }
@@ -172,7 +172,7 @@ namespace Fdp.Toolkit.Replication
         /// (<see cref="RefRemap"/> over <see cref="WalkJson"/>). <c>null</c>, empty, malformed or non-object JSON, and JSON with no id in
         /// the map, come back as the SAME string.
         /// </summary>
-        public static Func<string?, IReadOnlyDictionary<long, long>, string?> CompileJson(Type contractType)
+        public static Func<string?, IReadOnlyDictionary<int, int>, string?> CompileJson(Type contractType)
         {
             if (contractType == null) throw new ArgumentNullException(nameof(contractType));
             if (_json.TryGetValue(contractType, out var cached)) return cached;
@@ -289,7 +289,7 @@ namespace Fdp.Toolkit.Replication
         /// Rewrites, in place, every network id inside <paramref name="value"/> (a class instance, or a BOXED struct — mutations land in
         /// the box) by an old → new map. Returns <c>true</c> when any changed.
         /// </summary>
-        public static bool RemapObject(object? value, IReadOnlyDictionary<long, long> map)
+        public static bool RemapObject(object? value, IReadOnlyDictionary<int, int> map)
             => map.Count != 0 && WalkObject(value, new RefRemap(map));
 
         /// <summary>⭐ Applies <paramref name="applier"/> to every leaf inside <paramref name="value"/> (a class instance or a BOXED struct),
@@ -388,8 +388,8 @@ namespace Fdp.Toolkit.Replication
     /// <summary>⭐ Old → new network ids (scenario load, D3): every <see cref="EntityRef"/>, a link's answer, an area entity.</summary>
     public sealed class RefRemap : LeafApplier
     {
-        private readonly IReadOnlyDictionary<long, long> _map;
-        public RefRemap(IReadOnlyDictionary<long, long> oldToNew) => _map = oldToNew ?? throw new ArgumentNullException(nameof(oldToNew));
+        private readonly IReadOnlyDictionary<int, int> _map;
+        public RefRemap(IReadOnlyDictionary<int, int> oldToNew) => _map = oldToNew ?? throw new ArgumentNullException(nameof(oldToNew));
         public override EntityRef Ref(EntityRef r) => r.Remap(_map);
         public override EntityLink Link(EntityLink l) => l.Ref.IsNone ? l : l.WithRef(l.Ref.Remap(_map));
         public override AreaLink Area(AreaLink a) => a.IsShape || a.Area.IsNone ? a : a.WithArea(a.Area.Remap(_map));

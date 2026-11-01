@@ -10,7 +10,7 @@ namespace Hrot.Traffic;
 
 /// <summary>⭐ AQ93 §14 G3 — one of our vehicles handed to SUMO, as the stepping thread spawns its shadow: NET coordinates; (X, Y) is the
 /// FRONT BUMPER (SumoSharp H13's position convention); heading in radians, 0 = east, counter-clockwise (atan2).</summary>
-public readonly record struct TrafficHandover(long NetworkId, uint IntentId, double X, double Y, double Heading, double Speed,
+public readonly record struct TrafficHandover(int NetworkId, uint IntentId, double X, double Y, double Heading, double Speed,
                                               double DestX, double DestY, string? VType);
 
 /// <summary>

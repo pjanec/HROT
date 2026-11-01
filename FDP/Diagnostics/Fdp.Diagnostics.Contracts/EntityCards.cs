@@ -18,17 +18,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     public static class EntityCards
     {
         /// <summary>The card of the entity with network id <paramref name="networkId"/>, on debug layer <paramref name="layer"/>.</summary>
-        public static EntityCard Card(this IDebugDrawBuilder draw, long networkId, byte layer = 0) => new(draw, networkId, layer);
+        public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer = 0) => new(draw, networkId, layer);
     }
 
     /// <summary>An entity's card (see <see cref="EntityCards"/>).</summary>
     public readonly struct EntityCard
     {
         internal readonly IDebugDrawBuilder Draw;
-        internal readonly long NetworkId;
+        internal readonly int NetworkId;
         internal readonly byte Layer;
 
-        internal EntityCard(IDebugDrawBuilder draw, long networkId, byte layer)
+        internal EntityCard(IDebugDrawBuilder draw, int networkId, byte layer)
         {
             Draw = draw ?? throw new System.ArgumentNullException(nameof(draw));
             NetworkId = networkId;

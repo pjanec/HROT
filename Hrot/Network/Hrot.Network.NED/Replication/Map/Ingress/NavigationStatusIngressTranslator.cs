@@ -102,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>No DDS dispose needed.</summary>
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
 
         // ── Enum mapping ──────────────────────────────────────────────────────
 

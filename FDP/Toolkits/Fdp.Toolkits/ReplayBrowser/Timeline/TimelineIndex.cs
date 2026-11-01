@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
     /// registered id (R-4079 — no lane enum). Ids are NETWORK ids where the entity had one, else <c>-(index + 1)</c>, so they mean the same
     /// thing in the index, the sidecar and the live world.
     /// </summary>
-    public readonly record struct TimelineEvent(int Frame, string Lane, long Subject, long Other, float X, float Y, float Value);
+    public readonly record struct TimelineEvent(int Frame, string Lane, int Subject, long Other, float X, float Y, float Value);
 
     /// <summary>
     /// ⭐ <c>CE-1302</c> (§9 TL-4, §9c) — an IMMUTABLE snapshot of a recording's event index: per lane id, its events in frame order; one frame →
@@ -61,10 +61,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
         public PositionTrack Positions { get; }
 
         /// <summary>The unit's samples in frames [<paramref name="from"/>, <paramref name="to"/>) — see <see cref="PositionTrack.Between"/>.</summary>
-        public ReadOnlySpan<PositionSample> PositionsOf(long unit, int from, int to) => Positions.Between(unit, from, to);
+        public ReadOnlySpan<PositionSample> PositionsOf(int unit, int from, int to) => Positions.Between(unit, from, to);
 
         /// <summary>The unit's place at <paramref name="frame"/>, interpolated between its samples — see <see cref="PositionTrack.At"/>.</summary>
-        public PositionSample? PositionAt(long unit, int frame) => Positions.At(unit, frame);
+        public PositionSample? PositionAt(int unit, int frame) => Positions.At(unit, frame);
 
         /// <summary>Frames scanned so far (== <see cref="TotalFrames"/> when complete).</summary>
         public int ScannedFrames { get; }

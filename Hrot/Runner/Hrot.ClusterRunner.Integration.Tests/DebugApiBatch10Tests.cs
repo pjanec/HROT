@@ -34,7 +34,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("EditorOfflineTests")]
 public sealed class DebugApiBatch10Tests
 {
-    private const long TestNetworkId = 90_010L;
+    private const int TestNetworkId = 90_010;
     private const int PumpTimeoutMs = 10_000; // 10 s ceiling per kernel-await
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ public sealed class DebugApiBatch10Tests
         var svc = h.BuildDebugApiService();
 
         // Spawn entity and record a short preview run.
-        const long liveEntityId = 90_020L;
+        const long liveEntityId = 90_020;
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
             TkbType          = 1L,
@@ -225,7 +225,7 @@ public sealed class DebugApiBatch10Tests
 
         h.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType = 1L, NetworkId = 90_030L, OwnerNodeId = 0, InitType = ReliableInitType.None,
+            TkbType = 1L, NetworkId = 90_030, OwnerNodeId = 0, InitType = ReliableInitType.None,
         });
         h.PumpFrames(3);
 

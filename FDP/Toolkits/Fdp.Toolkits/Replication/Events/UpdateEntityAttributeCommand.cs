@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Replication.Events
         /// Network entity ID of the target entity.
         /// Resolved from <c>NetworkIdentity.Value</c> by the publishing tool.
         /// </summary>
-        public long NetworkId;
+        public int NetworkId;
 
         /// <summary>
         /// Hierarchical JSON attribute patch, e.g. <c>{"Heading":340.7}</c>.

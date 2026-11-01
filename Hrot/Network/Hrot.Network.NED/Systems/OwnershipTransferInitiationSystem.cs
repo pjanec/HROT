@@ -44,7 +44,7 @@ namespace Hrot.Network.Systems
         private readonly DescriptorOwnershipMap _descriptorMap;
         private readonly OwnershipApplier       _applier;
 
-        private readonly List<long> _scratch = new();
+        private readonly List<long> _scratch = new();   // descriptor type ids (not entity ids)
 
         public OwnershipTransferInitiationSystem(
             NetworkEntityMap       entityMap,

@@ -56,11 +56,11 @@ namespace Hrot.SimHost.Tests
             var translator = BuildTranslator();
 
             var entity = _world.CreateEntity();
-            _entityMap.Register(7L, entity);
+            _entityMap.Register(7, entity);
 
             var msg = new EntityHitDamage
             {
-                HitEntityId = 7L,
+                HitEntityId = 7,
                 TotalDamage = 30f,
             };
 
@@ -77,13 +77,13 @@ namespace Hrot.SimHost.Tests
         {
             var translator = BuildTranslator();
             var entity = _world.CreateEntity();
-            _entityMap.Register(7L, entity);
+            _entityMap.Register(7, entity);
 
-            var withPart = new EntityHitDamage { HitEntityId = 7L, TotalDamage = 5f, BodyPart = 6 /* Head + 1 */ };
+            var withPart = new EntityHitDamage { HitEntityId = 7, TotalDamage = 5f, BodyPart = 6 /* Head + 1 */ };
             var e = ProcessAndFlush(translator, in withPart);
             Assert.Equal(((byte)1, (byte)5), (e[0].HasBodyPart, e[0].BodyPart));
 
-            var none = new EntityHitDamage { HitEntityId = 7L, TotalDamage = 5f };
+            var none = new EntityHitDamage { HitEntityId = 7, TotalDamage = 5f };
             e = ProcessAndFlush(translator, in none);
             Assert.Equal((byte)0, e[0].HasBodyPart);
         }
@@ -95,13 +95,13 @@ namespace Hrot.SimHost.Tests
         {
             var translator = BuildTranslator();
             var entity = _world.CreateEntity();
-            _entityMap.Register(8L, entity);
+            _entityMap.Register(8, entity);
 
-            var blunt = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f, EffectKind = (byte)Fdp.Toolkit.Combat.HitEffect.Blunt, EffectSeconds = 4f };
+            var blunt = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, EffectKind = (byte)Fdp.Toolkit.Combat.HitEffect.Blunt, EffectSeconds = 4f };
             var e = ProcessAndFlush(translator, in blunt);
             Assert.Equal((Fdp.Toolkit.Combat.HitEffect.Blunt, 4f), (e[0].Effect, e[0].EffectSeconds));
 
-            var plain = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f };
+            var plain = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f };
             e = ProcessAndFlush(translator, in plain);
             Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Kinetic, e[0].Effect);
         }
@@ -116,18 +116,18 @@ namespace Hrot.SimHost.Tests
             var translator = BuildTranslator();
             var victim = _world.CreateEntity();
             var shooter = _world.CreateEntity();
-            _entityMap.Register(8L, victim);
-            _entityMap.Register(42L, shooter);
+            _entityMap.Register(8, victim);
+            _entityMap.Register(42, shooter);
 
-            var known = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f, SourceEntityId = 42L };
+            var known = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 42 };
             var e = ProcessAndFlush(translator, in known);
             Assert.Equal(shooter, e[0].Source);
 
-            var notHere = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f, SourceEntityId = 99L };
+            var notHere = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 99 };
             e = ProcessAndFlush(translator, in notHere);
             Assert.Equal((Entity.Null, 2f), (e[0].Source, e[0].TotalDamage));
 
-            var none = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f };
+            var none = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f };
             e = ProcessAndFlush(translator, in none);
             Assert.True(e[0].Source.IsNull);
         }
@@ -139,7 +139,7 @@ namespace Hrot.SimHost.Tests
         {
             var translator = BuildTranslator();
 
-            var msg = new EntityHitDamage { HitEntityId = 9999L, TotalDamage = 30f };
+            var msg = new EntityHitDamage { HitEntityId = 9999, TotalDamage = 30f };
 
             var ex = Record.Exception(() =>
             {

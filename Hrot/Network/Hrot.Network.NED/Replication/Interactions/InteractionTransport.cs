@@ -185,7 +185,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                                                Mode = (Fdp.Toolkit.Behavior.Components.CarryMode)p.Embark.Mode },
             // ⭐ T-a (R-2017 T1) — the team load's second man rides as a network id
             idsOut:      static (in EmbarkEntityCommand e, NetworkEntityMap map, ref InteractionPayload p)
-                => p.Embark.Assistant = !e.Assistant.IsNull && map.TryGetNetworkId(e.Assistant, out long id) ? id : 0,
+                => p.Embark.Assistant = !e.Assistant.IsNull && map.TryGetNetworkId(e.Assistant, out int id) ? id : 0,
             idsIn:       static (in InteractionPayload p, NetworkEntityMap map, ref EmbarkEntityCommand e)
                 => e.Assistant = p.Embark.Assistant != 0 && map.TryGetEntity(p.Embark.Assistant, out var a) ? a : Entity.Null);
 
@@ -332,14 +332,14 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         private void Send(Entity target, Entity actor, in InteractionPayload payload)
         {
-            if (!_entityMap.TryGetNetworkId(target, out long targetId)) return;
-            long actorId = !actor.IsNull && _entityMap.TryGetNetworkId(actor, out long a) ? a : 0;
+            if (!_entityMap.TryGetNetworkId(target, out int targetId)) return;
+            int actorId = !actor.IsNull && _entityMap.TryGetNetworkId(actor, out int a) ? a : 0;
             _writer.Write(new EntityInteractionRequest { TargetId = targetId, ActorId = actorId, Payload = payload });
             SentSampleCount++;
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 
     /// <summary>
@@ -395,6 +395,6 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
-        public void Dispose(long networkEntityId) { }
+        public void Dispose(int networkEntityId) { }
     }
 }

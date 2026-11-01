@@ -46,7 +46,7 @@ public struct RouteWaypoint
     public float HoldSeconds;
 
     /// <summary>The unit whose members a <see cref="Fdp.Toolkit.Navigation.RouteHold.Pickup"/> waits for (network id); 0 = none.</summary>
-    public long HoldUnit;
+    public int HoldUnit;
 }
 
 /// <summary>

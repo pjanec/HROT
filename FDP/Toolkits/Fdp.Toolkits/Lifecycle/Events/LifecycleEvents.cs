@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Lifecycle.Events
         /// <summary>The entity, on this node. ⚠ When <see cref="Succeeded"/> is false it is already being destroyed.</summary>
         public Entity Entity;
         /// <summary>Its cluster-wide id (<c>NetworkIdentity</c>); 0 when it has none.</summary>
-        public long NetworkId;
+        public int NetworkId;
         /// <summary>Its TKB type (the construction's blueprint id).</summary>
         public long TkbType;
         /// <summary>The creation request that made it (<c>CreationRequestId</c>); <see cref="Guid.Empty"/> when none did.</summary>
@@ -144,7 +144,7 @@ namespace Fdp.Toolkit.Lifecycle.Events
     {
         /// <summary>The entity's handle on this node — dead when the event is read; for matching only.</summary>
         public Entity Entity;
-        public long NetworkId;
+        public int NetworkId;
         public long TkbType;
         public Guid RequestId;
         public bool IsLocallyOwned;

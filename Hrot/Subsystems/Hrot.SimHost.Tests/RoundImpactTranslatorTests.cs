@@ -26,13 +26,13 @@ namespace Hrot.SimHost.Tests
             world.RegisterEvent<RoundImpactNotification>();
             var map = new NetworkEntityMap();
             var shooter = world.CreateEntity();
-            map.Register(7L, shooter);
+            map.Register(7, shooter);
             var view = (ISimulationView)world;
             var cmd = (EntityCommandBuffer)view.GetCommandBuffer();
 
             new RoundImpactIngressTranslator(participant: null, map, localNodeId: 0).ProcessSample(new RoundImpact
             {
-                ShooterEntityId = 7L, X = 1f, Y = 2f, Z = 3f, NormalY = -1f, TravelY = 4f, MunitionType = 6003L, Kind = 1,
+                ShooterEntityId = 7, X = 1f, Y = 2f, Z = 3f, NormalY = -1f, TravelY = 4f, MunitionType = 6003L, Kind = 1,
             }, cmd);
             cmd.Playback(world);
             world.Bus.SwapBuffers();

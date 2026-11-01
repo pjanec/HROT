@@ -662,7 +662,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
         var e = repo.CreateEntity();
-        repo.AddComponent(e, new NetworkIdentity { Value = nodeId * 100L });
+        repo.AddComponent(e, new NetworkIdentity { Value = nodeId * 100 });
         using (var rec = new AsyncRecorder(path, meta))
             rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
         return path;
@@ -1225,7 +1225,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
         using var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
-        repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = nodeId * 100L });
+        repo.AddComponent(repo.CreateEntity(), new NetworkIdentity { Value = nodeId * 100 });
         using (var rec = new AsyncRecorder(path, meta))
         {
             long t0 = TimeSpan.FromSeconds(startSeconds).Ticks;
@@ -1480,7 +1480,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             }
             return null;
         }
-        void Select(long id) { p.World!.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = id }); Frames(2); }
+        void Select(int id) { p.World!.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = id }); Frames(2); }
         void Frames(int n) { for (int i = 0; i < n; i++) _subsystem.Update(1f / 60f); }
 
         Select(100);
@@ -1631,7 +1631,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         if (named || alphaFires != null || blasts != null || alphaX != null)   // ⭐ CE-4059 — two named units (network ids 1 and 2) the drafter's names come from
         {
             repo.RegisterComponent<EntityInfo>();
-            foreach (var (id, name) in new[] { (1L, "Alpha"), (2L, "Bravo") })
+            foreach (var (id, name) in new[] { (1, "Alpha"), (2, "Bravo") })
             {
                 var e = repo.CreateEntity();
                 repo.AddComponent(e, new NetworkIdentity { Value = id });
@@ -2278,7 +2278,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             new Dictionary<string, Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<Fdp.Toolkit.ReplayBrowser.Timeline.TimelineEvent>> { ["combat.shot"] = new(new[] { shot }) },
             new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<long>(Enumerable.Range(0, 361).Select(f => (long)f * TimeSpan.TicksPerSecond / 60).ToArray()), 361, 361, null,
             new Fdp.Toolkit.ReplayBrowser.Timeline.SharedList<double>(Enumerable.Range(0, 361).Select(f => f / 60d).ToArray()),
-            new Fdp.Toolkit.ReplayBrowser.Timeline.PositionTrack(new Dictionary<long, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]>()));
+            new Fdp.Toolkit.ReplayBrowser.Timeline.PositionTrack(new Dictionary<int, Fdp.Toolkit.ReplayBrowser.Timeline.PositionSample[]>()));
         var menu = _subsystem.EventTimeline.EventMenu!(index, new Fdp.Toolkit.ReplayBrowser.Timeline.TimelineMenuContext("combat.shot", 0, 120, shot));
         var item = Assert.Single(menu);
         Assert.Equal(Hrot.UI.Common.Map3D.Director.DirectorDrafts.MenuLabel, item.Label);
