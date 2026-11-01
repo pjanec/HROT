@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-01 (parts 1–3: objective, trigger, exercise control — coordinator)
-current-answer: the whole file — an EXPLAINER of the design, not the design itself
-stale-below: nothing
-known-rot: none — ⚠ describes the DESIGN (nothing here is built yet); the decisions and their ids live in DESIGN_Scenario_Rules.md
+current-answer: §1 the objective · §2 the trigger · §3 exercise control (the building blocks, patterns, the ladder, the worked example, the rules view) — an EXPLAINER of the design, not the design itself
+stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/EXPLAINER_Scenario_Evaluation_And_Direction.md`)
+known-rot: none — ⚠ describes the DESIGN: objectives, triggers and the shared actions are not built yet (only the trigger PoC is, SR-108); the decisions and their ids live in DESIGN_Scenario_Rules.md
 known-conflict: none
 related-designs:
   - docs/DESIGN_Scenario_Rules.md — OWNS every decision explained here (SR-…, T1–T10); this file only explains them with examples
