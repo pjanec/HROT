@@ -535,7 +535,8 @@ the scenario clock as diamonds, and the dependencies as connectors. Selecting a 
 **When · Do · Rules · History**, an objective's **Status · Settings · Results · History** — and everything can be edited at any time, live
 included, each edit journaled. It is a host of the ONE shared timeline panel, not a copy of it.
 For the overview — *how is the mission going, at every level* — a separate, READ-ONLY **mission summary**: each side's score with its trend, the required objectives, forces, the items needing attention, and one table of scores by command chain (platoon ▸ squad ▸ person), by objective or by role, each row explaining *why* its score is what it is. It opens on a recording for the debrief too.
-📐 Mockup: [`docs/designs/rules-view/`](designs/rules-view/README.md) (standalone HTML, open in a browser) · decisions: SR-105, SR-109, SR-110, SR-111 in [`DESIGN_Scenario_Rules.md`](DESIGN_Scenario_Rules.md).
+And for the PLAYER: during play a HUD — in training his mission objectives, his standards and the messages; in a game the score bar, capture points, timer, kill feed and score pop-ups — and after it a debrief: in training GO / NO-GO per standard with *went well / work on* and a replay from his own eyes; in a game the scoreboard, awards and his best moment. One set of data, two profiles, each element a switchable feature.
+📐 Mockup: [`docs/designs/rules-view/`](designs/rules-view/README.md) (standalone HTML, open in a browser) · decisions: SR-105, SR-109, SR-110, SR-111, SR-112 in [`DESIGN_Scenario_Rules.md`](DESIGN_Scenario_Rules.md).
 
 ⚠ None of this is built yet — the trigger machinery is being proven by a proof of concept (runtime binding of actions, per-step blackboard
 slots, the condition language); see [SR-93…SR-100](DESIGN_Scenario_Rules.md).
