@@ -4,8 +4,10 @@ build-state: ⭐ CONSOLIDATED 2026-11-01 (§00) — S0 READY-TO-BUILD · S1 READ
   the rules run on the existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the director ride the same brain
 updated: 2026-11-01 (superseded revisions removed — the file states the current design only, every why kept)
 current-answer: ⭐ §00 THE BUILD SPEC — read it first. The decision record, by topic: §0 the user's founding rulings · §1–§2 the brain-runtime
-  inventory · §4 what a rule is, where it runs, what compiles (SR-1…SR-24) · §8 params and presets (SR-27…SR-33) · §9 scenario macros
-  (SR-37…SR-71), §9.4 the two links, §9.5–§9.6 references (SR-58…SR-68), §9.7 expansion at load (SR-80, GAP-1…5) · §9.8 relocation and the
+  inventory · §4 what a rule is, where it runs, what compiles (SR-1…SR-24) · §8 the objective params rows (SR-31, SR-33) · §9 the objective rows
+  §9 carried (SR-37, SR-47…SR-56, SR-61, SR-67, SR-71), §9.4 the two links · ⭐ scenario MACROS — the macro file and instance, params and
+  bindings, transient entities, references and RefKey, expansion at load (SR-27, SR-28, SR-32, SR-38…SR-45, SR-57, SR-58, SR-60, SR-63…SR-66,
+  SR-68…SR-70, SR-80, GAP-1…5) → docs/DESIGN_Scenario_Macros.md (split 2026-11-01) · §9.8 relocation and the
   reference / place / orientation types (SR-125…SR-143; §9.8.0 the summary, §9.8.8–§9.8.9 the declarations) · §10 objective kinds, measures,
   triggers (T1–T10), actions, the director, variants, injects, views (SR-72…SR-112) · §11 the lifecycle and the wire (SR-113…SR-124) ·
   §12 retired decision ids (what replaced each)
@@ -17,6 +19,7 @@ known-conflict: none
 ui-mockup: ⭐ docs/designs/rules-view/ (4 standalone HTML boards + README) — the rules view, trigger / objective detail tabs, editing while live (SR-109); also on the claude.ai canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k (the committed copy wins)
 proof-of-concept: ⭐⭐ FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TriggerPoc/ — 38 rails PROVING the trigger machinery (runtime binding of shared actions, per-step occurrence slots, RunActions, BTree host, the when, restore); findings SR-108; the build rows CE-4160…CE-4166. ⛔ A builder STARTS FROM IT — lift its code into production, keep its rails; do not re-derive
 related-designs:
+  - docs/DESIGN_Scenario_Macros.md — ⭐ OWNS scenario MACROS (split out of §8 / §9.1–§9.7 on 2026-11-01, user: "Scenario macros are definitely a separate feature."): the macro file and instance, params / overrides / bindings, expansion on the creation path (GAP-1…5), transient entities, RefKey and the reference forms, slice S3 — the rules are one user (InsertMacro, SR-99); §9.8 here is its relocation half until S0 lands
   - docs/DESIGN_Semantic_Value_Types.md — applies §9.8's semantic-type pattern (WorldPoint …) engine-wide: SimInstant / SimDuration, TkbTypeId, NodeId, Angle, StationId, ExerciseId / EpisodeId
   - docs/blueprints/DESIGN_Map_Picking_Unification.md — P5 OWNS "the type makes a location pickable" (PickableGeoPoint); §9.8 SR-125 merges it into WorldPoint
   - docs/SHOWCASE_Scenarios.md — the TARGET as two playable scenarios ("Bridgehead" training, "Crossfire" game): every mechanism here in use, with demo scripts and acceptance checks
@@ -61,7 +64,7 @@ A scenario's rules are **entities running generic, shipped behaviours with param
 is an entity whose task-slot behaviour is its KIND (`HoldArea`, `ReachArea`, …, `Composite`) and writes a replicated **`ObjectiveStatus`**;
 a **trigger** is an entity whose behaviour watches a `when` (the existing predicate language + `OnEntity` / `ScenarioTime` leaves) and runs a
 `do` list of **shared actions** (one vocabulary, SR-93); a **macro instance** is an entity that expands into ordinary transient entities —
-params bound, references resolved, literals relocated (§9.8.0). The **World Environment** carries the **`ExerciseResult`**. A director is a
+params bound, references resolved, literals relocated (§9.8.0) — the mechanism is [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md). The **World Environment** carries the **`ExerciseResult`**. A director is a
 macro of objectives + triggers (SR-99) — no director entity. Everything runs on the Brain node through the existing `BrainTickSystem`, crosses
 to every node as NED state topics, and is debugged by the existing brain inspector / journal (R-4111).
 
@@ -88,7 +91,7 @@ queries named in §1, §8.1, §9.8.1, §10.1, §11.1; ⚠ `check_index_coverage`
 | `ITimelineLaneProvider` · `ITimelineTrack` (the ONE timeline panel) | `Fdp.Toolkits/ReplayBrowser/Timeline/ITimelineLaneProvider.cs`; `Fdp.Presentation/ImGui/Panels/Timeline/ITimelineTrack.cs` | AAR highlights (SR-103), the rules view (SR-105, CE-4167) |
 | `IPickerSource` (the generic picker) | `NodeEdit/…/NodeEditor.Core/Interfaces/IPickerRegistry.cs` | the scenario and entity pickers (CE-4168) |
 | ⭐ the trigger PoC — 38 rails | `Fdp.Toolkits.Tests/Behavior/TriggerPoc/` | ⛔ a builder STARTS FROM IT (SR-108) |
-| ⛔ **not built anywhere** (checked `coordinator`, `backend`, `ui`, `behaviors`): `NodeFeatures` / `FeatureRegistry` | `DESIGN_Node_Features.md` (DESIGN) | the `scenario.rules` switch (R-4108) — a PREREQUISITE |
+| ⛔ **not built anywhere** (checked `coordinator`, `backend`, `ui`, `behaviors`): `NodeFeatures` / `FeatureRegistry` | `DESIGN_Node_Features.md` (S1 buildable) | ⛔ NOT a prerequisite here — the rules have no switch (SR-145) |
 | ⛔ **not built**: `RefKey` (PoC only), `ObjectiveStatus`, `ExerciseResult`, `PlayerMessage`, `EntityLink` / `PointLink` / `AreaLink` / `WorldPoint` / `WorldRotation` / `Bearing` | — | new |
 
 ### 00.3 Classes
@@ -135,7 +138,7 @@ classDiagram
 ```
 
 *What the picture shows that prose hid:* the only new RUNTIME is behaviours, one shared action and one expander — everything else is
-components and types; and every box that DECIDES runs under the one existing `BrainTickSystem`.
+components and types; and every box that DECIDES runs under the one existing `BrainTickSystem`. (`MacroInstance`, `ParamBindings`, `RefKey` and the `Expander` are owned by [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md))
 
 ### 00.4 Sequences
 
@@ -171,7 +174,7 @@ graph TD
     subgraph brainnode["Brain node — CgfNodeBootstrapper (and the EDITOR: EditorNodeBootstrapper)"]
         CLP["CgfLogicPack"] --> CRM["CognitiveRuntimeModule"] --> BTS["BrainTickSystem — EVERY advancing frame"]
         BTS --> RULES["objective kinds · Trigger · RunActions (registered in BehaviorRegistry by the scenario-rules pack)"]
-        CREATE["entity creation path"] --> EXP["Expander (NEW)"]
+        CREATE["entity creation path"] --> EXP["Expander (NEW) — DESIGN_Scenario_Macros.md"]
         RULES -- "InsertMacro" --> CREATE
         LOAD["scenario load — StagingEntityExtractor"] --> CREATE
     end
@@ -183,7 +186,6 @@ graph TD
     EG --> W(("NED / DDS"))
     W --> IG
     IG --> UI["HUD · rules view · summaries (Player / IOS / editor)"]
-    NF["NodeFeatures.On(scenario.rules) — NOT BUILT"]:::dead -. "gates the rules only, never the Expander (SR-144)" .-> RULES
     REPLAY["replay"]:::dead -. "no brain tick (T10) — statuses come from the recording, re-published by the egress" .-> BTS
     classDef dead fill:#fde2e2,stroke:#c33
 ```
@@ -197,9 +199,9 @@ built — a prerequisite) and the brain tick in replay (by design; the egress re
 | slice | builds | done when | prerequisites | build-state |
 |---|---|---|---|---|
 | **S0 — types and ids** | §9.8.0's types (`WorldPoint`, `WorldRotation`, `Bearing`, `EntityLink`, `PointLink`, `AreaLink`, `RefSpec`) + the type plan walker (resolve, relocate) + the SR-132 / SR-143 rails + `RefKey`; ⭐ in the SAME sweep: CE-4200 (32-bit ids, `TkbTypeId`, `NodeId`) — the files are touched once | the repo's params / components use the types; the rails pass; a scenario round-trips byte-for-byte except the migrated fields; the multiplayer and NED suites pass | CE-4153 S1–S7 ✅ | ⭐ **READY-TO-BUILD** |
-| **S1 — objectives + status on the wire** | objective entity type; kinds `ReachArea` / `HoldArea` / `ClearArea` / `DestroyTargets` / `Protect` / `NoHarm`; `Composite` + `WeightedMean` / `AllMustPass`; `ObjectiveStatus` / `ObjectiveLinks`; `EntityObjectiveStatus` translators; `AreaLink.Contains`; a minimal mission summary reading live statuses | Bridgehead's phase-1 objectives, authored by hand as entities (no macros), run LIVE on a cluster; statuses reach a Player node and the IOS; two scenarios use the same kinds with different params and nothing rebuilds | S0; `NodeFeatures` S1 (`DESIGN_Node_Features.md`) for the `scenario.rules` switch; CE-4155 for `NoHarm`'s indirect harm (gunfire + blasts work without it) | ⭐ **READY-TO-BUILD** once S0 lands |
+| **S1 — objectives + status on the wire** | objective entity type; kinds `ReachArea` / `HoldArea` / `ClearArea` / `DestroyTargets` / `Protect` / `NoHarm`; `Composite` + `WeightedMean` / `AllMustPass`; `ObjectiveStatus` / `ObjectiveLinks`; `EntityObjectiveStatus` translators; `AreaLink.Contains`; a minimal mission summary reading live statuses | Bridgehead's phase-1 objectives, authored by hand as entities (no macros), run LIVE on a cluster; statuses reach a Player node and the IOS; two scenarios use the same kinds with different params and nothing rebuilds | S0; CE-4155 for `NoHarm`'s indirect harm (gunfire + blasts work without it) | ⭐ **READY-TO-BUILD** once S0 lands |
 | **S2 — triggers + messages + the end** | CE-4160 … CE-4166 (lift the PoC); `when` leaves `OnEntity` / `ScenarioTime`; actions `Message`, `SetObjectiveActive`, `EndExercise` (multi-tick, §11 SR-116), `Order`, `MissionCommand`; `ExerciseResult` + `EntityExerciseResult`; `PlayerMessage`; subtitle + log on the Player | Bridgehead's counter-attack fires on its edge; the trainee sees the subtitle; the run ends by rule, closes every objective, then pauses; replay shows the same statuses at any seek | S1; CE-4159; CE-4157; ⚠ CE-4164 MEASURE first (the indexed-lane evaluator for area / event / lifecycle `when`s) | DESIGN — CE-4164's measurement |
-| **S3 — macros, variants, the director** | the `MacroInstance` type + `Expander` (bind, resolve, relocate, create — §9.7, §9.8.0); `InsertMacro`; `ParamBindings`; the scenario params + run variants (SR-101) in the picker's run setup (AQ108 D24); `SetSkillAmplifier` (SR-100) | the same platoon macro placed twice, rotated, both play; the counter-attack director is a macro used by two scenarios with different params; variant 3 replays identically | S2; CE-4153 S9 (GUID file form) for references INTO macro-made entities; GAP-1 … GAP-5 (§9.7) | DESIGN — S9 + GAP-1…5 |
+| **S3 — macros, variants, the director** | ⭐ moved to [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §1 (the row is copied there: the `MacroInstance` type + `Expander`, `InsertMacro`, `ParamBindings`, the scenario params + run variants, `SetSkillAmplifier`) | see there | see there | DESIGN — S9 + GAP-1…5 |
 | **S4 — evaluation per member + debrief / HUD** | `MemberEvaluation` (SR-72 / 72a), measures (`HitRatio`, `Count`, `ReportLatency`, `TimeTo`), the SR-20 adapters `InputAbove` / `Sample`, the trainee debrief + training / game HUD (SR-112, mockups `docs/designs/rules-view/`) | per-trainee results on the HUD live and in the debrief | S3; CE-4155 | DESIGN |
 | **S5 — the rules view** | CE-4167 (timeline TL-X1 … X5) + the rules view (SR-105, SR-109 / SR-110 mockups) — ui lane | the instructor reads and edits the dependency Gantt live (this run only) | S2 | DESIGN (ui) |
 | **S6 — the game profile** | Crossfire: domination, tickets, respawn score (SR-84), the game HUD | `docs/SHOWCASE_Scenarios.md` Crossfire acceptance | S2, S4 | DESIGN |
@@ -214,10 +216,11 @@ and CE-4154 (World Environment saved in the header) are needed before S1's objec
 |---|---|---|
 | CE-4164 — can the per-frame indexed-lane evaluator serve a `when` live? | S2 | one measurement batch |
 | SR-93 ③ — move the action catalogue from the test project into runtime | S2 | part of CE-4160 |
-| GAP-1 … GAP-5 (§9.7: end of expansion, who reads macro files, missing macro / cycle, re-expansion on edit, ids) | S3 | decided in the S3 design pass — leans are written |
+| GAP-1 … GAP-5 (DESIGN_Scenario_Macros.md §9: end of expansion, who reads macro files, missing macro / cycle, re-expansion on edit, ids) | S3 | decided in the S3 design pass — leans are written |
 | CE-4153 S9 — internal `EntityRef`s of saved components written as GUIDs | S3 | its own item (stopped: no save-direction remap yet) |
-| `NodeFeatures` not built | S1 | `DESIGN_Node_Features.md` S1 — ⭐ designed buildable `2026-11-01` (F-13 the scheduler gate, F-14 AtLoad in the load payload, F-17 `scenario.rules` declared by the Brain capability); build after S0 |
 | dismounted soldiers settle on the ground after relocation? (SR-127) | S3 | one rail |
+
+⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 
 ⭐ **SR-144** ✅ `2026-11-01` — **macro expansion is CORE infrastructure, not part of the rules.** 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The `Expander` lives on the entity CREATION path (§9.7) and serves forces, units, props and events alike; the rules are one user of it (`InsertMacro`). ⇒ composed wherever entities are created, ⛔ never gated by `scenario.rules` (`DESIGN_Node_Features.md` F-19), and its slice (S3) does not depend on the rules' slices except for `InsertMacro`
 
@@ -312,8 +315,8 @@ name. ⚠ `check_index_coverage` is not available through the CLI — absence cl
 | # | decision | ⭐ current answer |
 |---|---|---|
 | **SR-1** | what a rule is | **When** a condition rises (T1) **Do** actions, once or repeat — a `Trigger` entity (SR-88): `when` = the existing predicate language (SR-95), `do` = a data list of shared actions (SR-91, SR-93), timing T1–T10 |
-| **SR-6** | where it runs | the rule entities run on the Brain node that owns them (the role's least-loaded node, SR-96), ticked by the existing `BrainTickSystem` (§00.5); the feature `scenario.rules` composes the pack; a scenario with rules and no node advertising it ⇒ the master refuses to start |
-| **SR-9** | the end | `EndExercise` closes every objective, then writes the World Environment's `ExerciseResult` (SR-116, SR-122); the ingress raises **`ExerciseEnded`** once; pause = feature `scenario.rules.pause-on-end` (ON), AFTER the close; never an automatic unload. The engine's obligation is the data on NED (R-4105); our views (SR-105…SR-112) are one frontend over it |
+| **SR-6** | where it runs | the rule entities run on the Brain node that owns them (the role's least-loaded node, SR-96), ticked by the existing `BrainTickSystem` (§00.5) on every node that composes the Brain capability — no switch (SR-145); a scenario naming an objective kind or action this build does not register fails its LOAD loudly (the behaviour registry's check, as for any behaviour — ⚠ measure in S1 what an unknown behaviour name does today) |
+| **SR-9** | the end | `EndExercise` closes every objective, then writes the World Environment's `ExerciseResult` (SR-116, SR-122); the ingress raises **`ExerciseEnded`** once; pause = feature `exercise.pause-on-end` (ON), AFTER the close; never an automatic unload. The engine's obligation is the data on NED (R-4105); our views (SR-105…SR-112) are one frontend over it |
 | **SR-10** | authoring | objectives and triggers are ENTITIES the editor already places and edits — their task-slot params through the existing params form (SR-33), the `when` through the existing predicate builder (SR-95), the `do` as a list (SR-109); macros group them (§9). ⛔ no second format |
 | **SR-11** | ONE evaluator | the evaluator IS the brain runtime: every objective, measure and trigger is a behaviour ticked by `BrainTickSystem`; the `when` is the condition language data breakpoints, the Blueprint `When` node and the indexed timeline lanes already use (SR-95) |
 | **SR-12** | custom logic | a new objective kind = a reusable behaviour (SR-37); a new action = a shared action (SR-93); a custom aggregation = a C# or Blueprint behaviour (SR-78); logic beyond a list = a reusable director asset (SR-99's escape hatch) |
@@ -349,26 +352,16 @@ exception (SR-24), never the path.
 
 ## 7. Examples — ⭐ see §10.9 (the worked example) and [`SHOWCASE_Scenarios.md`](SHOWCASE_Scenarios.md); the result's shape is SR-122
 
-## 8. Params, presets and their overrides *(`2026-10-31`)*
+## 8. Params, presets and their overrides *(`2026-10-31`)* — ⭐ the macro params, presets and overrides moved to [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §4 (2026-11-01, user: *"Scenario macros are definitely a separate feature."*); the objective rows stay below
 
-> 🔒 **User, `2026-10-31`:** *"What I would like to avoid is to define the entities per every scenario, because the evaluation criteria might be
-> common across multiple scenarios, common across multiple team members … It needs to be simple and reusable."* · *"Such a block, probably at
-> every level … should need to come with its own parameters, and those entities and their objective would need to read and use those
-> parameters … What is baked in is good as a default, but it always needs to be replaceable when inserted into the final place … This very
-> principle is used for using behaviors on entities that the scenario can override the default parameters."* · *"Ticking cost should be no
-> issue."* · *"If there are some runtime catalogs missing, we will simply make them a shared code."*
-
-### 8.0 Why the override surface is FLAT
-
-⭐ measured: the existing override layering is FLAT — `BehaviorParams.OverlayFlat` merges top-level keys only (`DESIGN_Orders_Params_Entity_Classes.md` §13.10a). Macro params keep every override at the top level, so the existing mechanism serves unchanged; a deep merge into a child's nested args would be new code and ambiguous (arrays by index).
+### 8.0 Why the override surface is FLAT — ⭐ see [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §4.0
 
 ### 8.1 INVENTORY *(four measurements, `2026-10-31`: graph `.*(Template|Prefab|Recipe|EntityClass|Archetype|Composition).*` Class (35) + `.*(Parent|Hierarchy|ChildOf).*` Class (13) + grep; a throwaway probe; ⚠ coverage unchecked)*
 
+⭐ The template / layered-params / child-entity / include rows of this inventory moved to [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §2.1; the objective rows stay:
+
 | what exists | where | for objectives |
 |---|---|---|
-| ⭐⭐ **the TKB type is the one template applied at BOTH scenario load and runtime spawn** — `BehaviorProfileDto.DefaultSop` + `DefaultSopParamsJson`, applied by `BehaviorTkbTranslator.Inject` | `Tkb/Domain/BehaviorProfileDto.cs:44-49`; `BehaviorTkbTranslator.cs:113-125` | ⭐ the carrier of a block's DEFAULTS |
-| ⭐⭐ **layered params = the user's principle, built** — DTO initializers ▸ asset `ParamsDefaultJson` ▸ the scenario / order JSON (only the keys it sends); scenario wins by origin rank | `DESIGN_Orders_Params_Entity_Classes.md` §13.10a (R-3001); `InitialBrainMaterializationSystem.cs:16-50` | ⭐ a block inserted with `{area, deadline}` overrides only those |
-| ⭐⭐ **per-TYPE child entities, deterministic, rebuilt on every node, not saved** — the sensor pattern (`SensorChildFactory.EnsureTkbChild`, part ids 1000+i) | `PerceptionTkbTranslator.cs:78-80`; `SensorChildFactory.cs:13-44`; Sensors & Doctrine §4, §5.1 | ⭐ the shape for "every member of type X gets its evaluator" AND for expanding a block's template children |
 | params carry strings, enums, nested structs, ARRAYS (authored DTO) → a `[BehaviorResolver]` packs a fixed unmanaged block (≤ 16096 B) | `BehaviorParams.cs:211-230`; `PlatoonDefendParamsJsonDto.Squads` | ⭐ lists of children / actions fit as fixed-capacity arrays |
 | ⛔ managed per-instance working state — not supported (removed) | `DESIGN_Occurrence_Scoped_Storage.md` §30.29 | per-subject results = a fixed unmanaged table (`ThreatMatrixAssignmentState.cs:31` precedent) |
 | ⛔ **no runtime call of a condition BY NAME** — every shared method binds per site at compile time | `SharedNodeBinder.cs:243-330`, `HsmActionDispatcher` keyed by binding | ⭐ but the CATALOGUE exists: `ActionSchemaExporter` reflects every `[SharedAiCondition]` with its `MethodInfo` + `ref` params type (`Hrot.Editor.AiShared/Blackboard/ActionSchemaExporter.cs:135-150`), built on CGF and the editor — the user: make it shared code |
@@ -376,7 +369,6 @@ exception (SR-24), never the path.
 | a brain ticks on a bare entity (SopState + BehaviorState only, TKB 8810 too); with `gateOnAuthority` (CGF) it must be OWNED (networked) | probe `2026-10-31` (4/6, the 2 reds = the gate); `BrainTickSystem.cs:150, :224` | ✅ objective entities = networked, Brain-owned (as World Environment) |
 | hierarchy: `HierarchyNode` DEAD; `VisHierarchyNode` saved, NOT replicated, unused at runtime; the command chain (`UnitSubordinate`) replicated + used (ORBAT, ROE walk, reports) | `HierarchyNode.cs:11`; `VisHierarchyNodeTranslator.cs:23`; `UnitHierarchySystem.cs:35` | ⛔ none fits: objectives in the command chain would pollute the ORBAT and the ROE walk ⇒ the parent link lives in the objective's own replicated status |
 | a new replicated component ≈ 9 places (id · DataPolicy · registry · ownership group · descriptor · DDS topic · translators · mapping · packs) — latest: `Descent` bdc7827ec | `DESIGN_Airborne_Insertion.md` D-1 | `ObjectiveStatus` (state · progress · points · parent · results) |
-| ⛔ no include / fragment mechanism; recipes are one-time copies | `ContentLayout.cs:91-109`; `DESIGN_Content_Layout.md` §2 | the block TEMPLATE is a new asset kind |
 | Stories (per-trainee micro-exercises, evaluation filtered by story) — designed, NOT built | `docs/designs/mgmt-1/DESIGN.md` §10.0-10.1 | a story = one more evaluation scope (later) |
 | the default World Environment is created when a scenario has none | `ScenarioLoadStep.cs:185-243` | ⭐ precedent: a default exercise evaluation with zero authoring |
 
@@ -384,12 +376,11 @@ exception (SR-24), never the path.
 
 ### 8.3 Decisions
 
+⭐ SR-27, SR-28, SR-32 (who expands, how a child takes a macro's value, one mechanism for every preset) → [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §4.1; SR-31 stays:
+
 | # | decision | ⭐ current answer |
 |---|---|---|
-| **SR-27** | WHO expands — the entity CREATION path, not the scenario loader (`2026-10-31`) | the translator list (`TkbTranslatorSet.Base()`, called by `NetworkSpawningSystem.cs:144` and ghost promotion) runs for scenario load AND runtime spawn alike ⇒ a macro inserted at load, by the instructor mid-run or by a trigger expands the same way, through one path. What it creates: ordinary transient entities (SR-42′). ⛔ rejected: expansion in `ScenarioLoadStep` — a macro spawned at runtime would not expand (two paths) |
-| **SR-28** | how a child takes a macro's value (user, `2026-10-31`: *"The objectives inside a package can carry the values on their own, but they should be able to reference a parameter of the whole package instead of hard coding the values inside."*) | a child's value is EITHER a literal (fixed in the macro) OR bound to the enclosing macro's param (SR-40 / SR-57 `ParamBindings`, SR-129 `bind`). ⭐ The OVERRIDE surface is the macro's FLAT param list — exactly the existing `BehaviorParams.OverlayFlat` (DTO default ▸ macro default ▸ instance args, top-level keys only, §8.0) — so overriding never needs a deep merge into a child. ⇒ to make an inner literal overridable, the macro author PROMOTES it to a param. Applied once at expansion; a nested macro receives its args the same way (a binding refers only to the IMMEDIATE macro) |
 | **SR-31** | state and tree on the wire | a replicated `ObjectiveStatus` per objective entity (SR-120); the tree is `ObjectiveLinks.Parent` (SR-53); ⛔ not the command chain (it would pollute the ORBAT and the ROE walk), ⛔ not `VisHierarchyNode` (unreplicated) |
-| **SR-32** | one mechanism for every kind of preset | missions, objective sets, evaluation criteria, triggers / directors are all scenario MACROS (SR-38); a preset of a preset (e.g. `SeizeVillageFast` = `SeizeArea` with `deadline: 30 min` fixed) is a macro containing one macro instance with some args fixed — no inheritance mechanism |
 
 ### 8.4 Editing an objective's params with the existing means
 
@@ -407,92 +398,32 @@ exception (SR-24), never the path.
 | **SR-33** | an objective's params are edited by the EXISTING form | every objective / trigger entity's task-slot behaviour has a typed params DTO (SR-37) ⇒ the scenario editor's existing AI section and `BehaviorParamsForm` edit it, with map picking by type (§9.8), unchanged — ⛔ no new editor; a macro INSTANCE's args use SR-44a's rows |
 
 **Rejected — one line each:**
-- *A block-template asset `*.objective.json` (SR-25) / a package fragment file (SR-34) / a package as its own named behaviour with a package runner* — one scenario-like MACRO file serves every preset (SR-38), opened in the scenario editor.
-- *Inserting a block as a `Sop: {"Name": "ObjectiveBlock"}` entry (SR-26)* — a macro instance is an ordinary entity (SR-39a).
-- *`"^param"` strings inside typed fields (SR-35's first form)* — a float field cannot hold a string; the binding sits BESIDE the value (SR-57, SR-94, SR-129).
 - *Conditions by name — a `SharedConditionTable` from `ActionSchemaExporter` (SR-29) + a runtime-typed `ConditionRef` sub-form (SR-36)* — every condition then needs a by-name table and a nested runtime-typed editor; typed kinds use the existing form (SR-37) and the `when` uses the predicate language (SR-95).
 - *Per-member evaluators named by the unit's TKB type (SR-30)* — the TKB is static; criteria are per scenario (SR-72).
-- *Expanded children as sensor-pattern part entities (SR-27's first lean)* — parts have no authority, life or save identity of their own (§9.3).
+- ⭐ the macro alternatives (SR-25 / SR-34 the block template, SR-26 the `Sop` entry, SR-35 `"^param"`, SR-27's parts lean) → [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §4.2
 
-## 9. Scenario MACROS — the general mechanism *(`2026-10-31`)*
+## 9. Scenario MACROS — ⭐ moved to [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) (2026-11-01, user: *"Scenario macros are definitely a separate feature."*) — what stays here: the OBJECTIVE rows §9 carried (SR-37, SR-71 · SR-47…SR-51 · §9.4 · SR-61 · SR-67) and §9.8 (until slice S0 lands)
 
-> 🔒 **User, `2026-10-31`:** *"Isn't that SOP name the name of the behavior that should evaluate the objective?"* · *"Could we generalize this
-> package parameters into scenario parameters so we can get scenarios with parameters that looks like exactly the same principle as for
-> packages."* · *"Scenario editor is now saving the whole scenario and i would keep it like that. Those packages might need to be a special type
-> of assets, like scenario macros, stored likely in special folder. I would like to make this macros a general concept that is not used just
-> for objective, because it might be used also for inserting whole parts of the scenarios."* · *"We need to store just the reference to the
-> macro, which is itself living as an independent scenario-like assets in different folder."*
+> 🔒 **User, `2026-10-31`:** *"Isn't that SOP name the name of the behavior that should evaluate the objective?"* (SR-37, SR-51 below; the rest of
+> this quote block moved with the macros — DESIGN_Scenario_Macros.md §0)
 
-### 9.1 Measured
+### 9.1 Measured — ⭐ see [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §2.2
 
-| fact | where | so |
-|---|---|---|
-| a scenario entity = a GUID key → components by name: `SimTransform`, `NetworkIdentity`, **`TkbIdentity {TkbType: 305}`** (the type — ⛔ there is no `Type` attribute), `EntityInfo {Name, ForceId}`, brain slots **`Behavior`** (task) / **`Sop`** as `{Name, Params (a JSON string), Origin}`; the file = `$meta` · `header` · `entities` | `scenarios/uc-urban-battle/scenario.json` | the type is `TkbIdentity`; an objective's evaluator sits in the `Behavior` (task) slot (SR-51) |
-| a `.params.json` asset = `{AssetId, Name, Fields: [{Name, TypeId, DefaultJson, Comment}]}` → a generated DTO, defaults as initialisers | `assets/behaviors/Params/Tests/T41Params.params.json`; §13.10a | ⭐ the package / macro params type |
-| ⭐⭐ **derived entities are already kept out of saves**: `ScenarioIgnoreTag` (the serializer skips the whole entity; 22 users) + `PartMetadata {ParentEntity, InstanceId}` (the parent + part id, also the wire key) — the sensor children use both (CE-3045: *"rebuilt … on load, so saving it too duplicated it"*) | `Fdp.Toolkits/Scenario/ScenarioIgnoreTag.cs`; `Replication/Components/PartMetadata.cs:14`; `SensorChildFactory.cs` | ⭐⭐ the answer to *"how do we know what came from a macro"* — the save exclusion is BUILT; `PartMetadata` is the wrong carrier for macro entities (§9.3) |
-
-### 9.2 The model
-
-```mermaid
-classDiagram
-    direction LR
-    class ScenarioFile { <<existing, + header.params>> header · entities (top level) }
-    class MacroAsset { <<new asset kind, macros/ folder>> the SAME shape · header.params · entities }
-    class MacroInstanceEntity { <<new TKB type, SAVED>> SimTransform anchor · MacroInstance(macro, args) · MacroExpansionStatus }
-    class ParamBindings { <<new component, saved in the macro>> Component.field to macro param }
-    class ExpandedEntity { <<ordinary entity, TRANSIENT>> own network id · ScenarioIgnoreTag · derived EntityGuid }
-    ScenarioFile *-- MacroInstanceEntity : a top-level entity
-    MacroInstanceEntity ..> MacroAsset : by name
-    MacroAsset *-- ParamBindings
-    MacroInstanceEntity ..> ExpandedEntity : expands into
-    ExpandedEntity ..> MacroInstanceEntity : nested macros recurse
-```
-
-*What the picture shows that prose hid:* ONE file shape serves a scenario and a macro — both have a params declaration and entities — so a
-scenario with parameters IS a top-level macro. What is saved is only the top-level entities and the macro-instance entities; every expanded
-entity is created TRANSIENT (SR-42′) and carries the tag the serializer already skips.
+### 9.2 The model — ⭐ the macro model (class diagram, SR-38…SR-43, SR-69, SR-70) is [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §3 + §5; the objective rows stay:
 
 | # | decision | ⭐ current answer |
 |---|---|---|
 | **SR-37** | the brain slot names the EVALUATING behaviour (⭐ the TASK slot — SR-51) | ⭐ one small generic behaviour per objective KIND (the v1 set: §10.2), each with a TYPED params DTO ⇒ the existing params form edits every field (SR-33); no `ConditionRef`, no runtime-typed sub-form, no by-name table (the long tail may later get an optional `ConditionObjective`). ⛔ cost: a new kind = a new reusable behaviour (rare, shared, not per scenario) |
-| **SR-38** | a macro asset | `macros/<name>/macro.json` (its own folder in `ContentLayout`, like `scenarios/` and `recipes/scenarios/`) — the SAME shape as `scenario.json` (`$meta` · `header` · `entities`) + `header.params` naming its `.params.json`. Authored by opening it in the scenario editor, which saves the whole file as today |
-| **SR-39** | inserting a macro | a top-level scenario entity with a `MacroInstance {macro: "SeizeArea", args: {"area": "@Village", "side": "Blue", "deadline": "10:00"}}` component; the args override the params DTO's defaults key by key (`OverlayFlat`). Editable in the inspector as a params form over the macro's params type |
-| **SR-39a** | ✅ the INSTANCE is an ordinary entity (user, `2026-10-31`: *"Couldn't a scenario macro be saved as an entity that gets replaced by the macro? … that would avoid the need for special treatment like insert or delete as adding and deleting entities is handled already. picking the macro file would be an edit on the parameters of that entity, again in the details panel"*) | a "Scenario macro" entity type, placed / deleted / moved / copied like any entity; selecting it shows in Details: the MACRO picker (the scenario picker over `macros/`) + the ARGS form built from the picked macro's `header.params` (defaults shown, overridable). Changing the macro or an arg re-expands that instance; deleting it removes its expanded entities ⇒ ⛔ no special insert / delete command |
-| **SR-69** ✅ CONFIRMED `2026-10-31` (user: *"Group A confirmed."*) | positions inside a macro | ⭐ lean: RELATIVE to the instance entity's transform — a macro's entities are authored around its origin and the instance's position + heading place them, so one platoon macro can be dropped anywhere; an objective macro with no geometry ignores it |
-| **SR-70** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · the instance entity is on the MAP (user, `2026-10-31`: *"the scenario macro entity needs to have the position component as well to be displayed on the map and clickable from the map"*) | ✅ it carries a `SimTransform` — the anchor SR-69's relative positions use — and a map symbol of its own (a "macro" marker), so it is selected by a click and dragged like any entity; dragging it moves everything it expanded. ⭐ ORBAT: shown (it is on the map), its expanded entities beneath it. ⛔ unmeasured: how a non-unit positioned entity gets its symbol today (the visual family / `EntityClassShapeLibrary` path) |
 | **SR-71** | ✅ the World Environment is SAVED IN THE HEADER (user, `2026-10-31`: *"I don't think we should save the world entity state into the scenario as entity. I still think the translator for this entity components should write this into the header of the scenario file."* → *"Yes, please file it and file the task."*) | at RUNTIME it stays an entity (it replicates the clock and global weather — Weather W-0); only its SAVED form moves: save writes its components into `header.world` (one entry per component, by the SAME auto-serializer — a future component such as the rules lands there with no new translator) and skips the entity; load creates the entity from `header.world` (no section ⇒ today's C-3 defaults); the distributed merge takes `header.world` from the slice of its owner (the Brain — invariant I4, one source for globals); the 3 scenarios holding it as an entity are migrated, no compatibility path. Weather REGIONS stay entities. Precedent for a non-entity file section: `TerrainObjects` (`ScenarioMergeCore.cs:40`). Tracker **CE-4154** |
-| **SR-40** | binding a part's field to a macro param | stored as SR-57's `ParamBindings` (typed components) and SR-129's `bind` maps (JSON) — e.g. `"Behavior.Params.area": "area"` = *this entity's task param `area` takes the macro's `area`*. Flat (both sides are top-level names, SR-37's typed DTOs), applied after the literals at expansion |
-| **SR-41** | scenario parameters | the scenario `header.params` names a params type; its args live in the header (or are passed by whoever starts the run); top-level entities `Bind` to them exactly as macro parts do ⇒ ONE principle at every level |
-| **SR-43** | editing an expanded part in the editor | ⭐ v1: shown under its instance, READ-ONLY, with *"from macro SeizeArea — edit the macro or its args"*. ⏭ later: per-instance overrides of a part's field |
 
-**Still to measure before S3 builds:** ① the scenario editor opening and saving a file from `macros/` (SR-38) · ② the entity tree showing
-expanded entities under their instance (SR-43) · ③ how a non-unit positioned entity gets its map symbol (SR-70).
-
-### 9.3 Measured — macro entities are full, TRANSIENT entities, not parts *(`2026-10-31`)*
-
-| measured | where | so |
-|---|---|---|
-| `PartMetadata` IS the ECS side of NED's MULTI-INSTANCE descriptors (turret pose / weapon task, EQS sensor config / results): the key is (parent network id, instance id); instance ids are RANGES agreed in code (mounts 1…N, behaviour sensors 1–999 allocated, TKB sensors 1000+i, turrets 2000+i), not a protocol enum | AQ79 §0.10 (`Architect_Question_79_One_Ownership_Truth.md:206-240`); `BDC_NED_SST_Descriptor_Rules.md:29,49-57`; `TurretParts.cs:15-45` | — |
-| a part has NO `NetworkIdentity`; authority resolves to its PARENT (`AuthorityExtensions.cs:23`), ownership recompute skips it (`OwnershipRecomputeSystem.cs:251`), it dies with the parent (`SubEntityCleanupSystem.cs:24`), scenario extraction folds it into the parent (`StagingEntityExtractor.cs:292-310`) | as cited | ⛔⛔ a macro entity (a unit, an objective) built as a part would lose its own authority, life and save identity |
-| ⭐⭐ **the save exclusion already works per FULL entity**: `EntityCreationRequest.IsTransient` → `SpawnEntityCommand.IsTransient` → every node stamps `ScenarioIgnoreTag`; TKB children inherit it; save ⇔ primary owner AND NOT `ScenarioIgnoreTag` | `EntityCreationRequest.cs:~95-125`; `NetworkSpawningSystem.cs:199`; `ScenarioSaveCore.cs:16`; Node Roles §7.3 (R-140) | ⭐ macro entities = ordinary entities created TRANSIENT, each with its own network id |
-| network ids: ONE allocator per domain (orchestrator), blocks of 100, reset to 1000 per world; ⭐ **scenario load RE-ALLOCATES every id** (old → new map, `PreAllocatedNetworkId`) — the file's ids only look stable because of the reset | `DdsIdAllocatorServer.cs:119-136`; `StagingEntityExtractor.cs:~245-262`; `DESIGN_Deterministic_Network_Ids.md` §11b | a file id is a FILE-LOCAL key either way |
-| `EntityRefRemap` rewrites every `EntityRef` (nested, lists) by the old → new map at load; an id not in the map is left as is | `EntityRefRemap.cs:25`; `DESIGN_Entity_Reference.md` | ⚠ a reference to a macro-made entity (never saved) would dangle — or, with ids reset to 1000, hit an unrelated entity |
-| the scenario picker enumerates one root recursively | `ScenarioEnumeration.EnumerateRelPaths` | ⭐ macros = a second root |
+### 9.3 Measured — macro entities are full, TRANSIENT entities, not parts *(`2026-10-31`)* — ⭐ see [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §6; the objective rows stay:
 
 | # | decision | ⭐ lean |
 |---|---|---|
-| **SR-42′** | who creates a macro's entities, and what is saved | ⭐ creating a `MacroInstance` entity issues ordinary `EntityCreationRequest`s for its entities with **`IsTransient = true`** (own network ids from the allocator, own authority, own replication, own brain); save writes top-level entities + the instances. ⛔ not `PartMetadata` (above) |
-| **SR-44** | macro / scenario params | declared INLINE in the macro's or scenario's `header.params` (rows `{Name, TypeId, Default, Comment}`, the `.params.json` row shape) — ⛔ never compiled: only the expander reads them, copying values into the children's JSON params; each `Bind` is type-checked once against the child's compiled DTO field. the form: SR-44a |
-| **SR-44a** | ✅ MEASURED `2026-10-31` — the inline params list IS editable with existing parts (user: *"not an issue if the editor doesn't support the editing without the C# DTO. We will teach the editor"*) | the variable editor already edits ONE value of a runtime-chosen type: `VariableEditModal` wraps it in a generic one-field `ScalarEditBox<T>` (because `CreateLeafBinding` needs a member), then draws only the wrapper's child, renamed, through the public `ComponentEditDrawer.DrawEditNode` (`Hrot.Editor.AiShared/Variables/VariableEditModal.cs:340-380`); `EditNode` / `EditDocument` have public constructors and every per-type editor (`EntityRef` / `PickableGeoPoint` map picking, `FixedString*`, `Guid`, `UtilityDecisionRef`) is a registered `ICustomFieldEditor` that takes ANY `IValueBinding` (`ComponentEditServices.cs:17-27`, `StructEdit.Core/Plugins/ICustomFieldEditor.cs`). ⇒ a macro's params form = one `ScalarEditBox<T>` row per declared param, `T` resolved from its `TypeId` — no generated type, no new editor kind |
-| **SR-45** | ids inside a macro | a macro file's network ids are MACRO-LOCAL keys; each instance remaps them to fresh ids through the existing `EntityRefRemap` old → new map, so two instances never collide and refs between a macro's own entities stay right |
 | **SR-47** | two links on an objective | `Subject` (WHAT it is about — the World Environment = the scenario, a commander = his team, a soldier = that soldier) and `Parent` (which objective it COMPOSES into), held in `ObjectiveLinks` (SR-53). ⭐ They differ in the common case: a per-member criterion's subject is the soldier, its parent is "Blue member evaluation" |
 | **SR-48** | objectives replicate | yes — they are full entities: the instructor station and the trainee's HUD sit on other nodes, NED frontends (R-4105), the map on every node, the recording, a brain hand-over to another node |
 | **SR-49** | objectives have a position | a `SimTransform` used only for drawing / picking on the map (an area objective at its area's centre); nothing else reads it |
 | **SR-51** | WHICH brain slot runs the evaluator — (user, `2026-10-31`: *"SOP is the standard operational procedure and this is just a default behavior the entity is doing with special handling … there is also one main behavior that can be assigned"*) | ⭐ the **TASK slot** (scenario JSON `"Behavior": {Name, Params, Origin}`; TKB default `BehaviorProfileDto.DefaultBehaviorHash`). Measured why not the SOP slot (`DESIGN_Decision_Layer.md` glossary :1215, rules :1220-1225, §SOP channels :1448-1452): the SOP is the unit's OWN always-ticking logic (what to do when idle + reactions, woken or every 0.2 s), its slot REFUSES channel-writing behaviours and the editor's SOP row offers only SOP-shaped trees (CE-1019); the task is *"what the unit was told to do — one at a time"* — exactly an objective's evaluation, which an instructor may also re-assign. ⇒ the evaluator is never in the SOP slot (its use in early drafts was not intentional). ⭐ Consequence: a soldier's own slots are taken (his orders, his doctrine) ⇒ per-member evaluators are SEPARATE entities with `Subject` = the soldier (SR-47), never a brain on the soldier. ⛔ gap: the TKB default task is a bare HASH (no default params JSON, unlike `DefaultSopParamsJson`) — 🔒 user: *"the anomaly is historical only, not desired"* ⇒ tracker **CE-4151** |
-
-**Rejected — one line each:**
-- *Macro entities as `PartMetadata` parts (SR-42)* — authority, life and save identity fold into the parent (the rows above).
-- *Keying scenario entities by their network id (SR-50)* — the key stays a — now stable — GUID (`DESIGN_Scenario_Entity_Keys.md` rev 2); a network id is re-allocated on every load.
 
 ### 9.4 The two links in a hierarchy *(`2026-10-31`)*
 
@@ -540,86 +471,22 @@ DERIVED instead of authored.
 | **SR-55** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · `Subject` | a macro param by default (`^subject`, defaulting to the entity the instance is inserted on); a TKB-attached evaluator's subject = the unit it was attached for; the exercise result's = the World Environment |
 | **SR-56** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · how a user sees them | an **Objectives view** — the tree by `Parent`, each row naming its subject (click = jump to the subject on the map, the ORBAT's own jump); the subject's inspector lists *"objectives about this unit"* (reverse lookup by `Subject`) |
 | **SR-52** ✅ CONFIRMED `2026-10-31` (user: *"Group A confirmed."*) | the ORBAT — ⭐ refined `2026-10-31` (user: *"I have never seen any sensor displayed in the orbat"* · *"Area entities might need their own root in the orbat tree … Orbat item is also used as a landing point for entity picker, which might be a good reason for keeping the areas"*) | measured: the ORBAT lists every entity WITH `EntityInfo` (`ScenarioOrbatAdapter.cs:61`); sensors are absent only because sensor parts carry no `EntityInfo` — an accident of their shape, not a policy. Objective entities WILL carry `EntityInfo` (a label + a side) ⇒ an explicit inclusion policy is needed. ⭐ lean: units and platforms under their sides (as today) · areas under their OWN root (*Areas*) — kept, since the ORBAT is a landing point of the entity picker · objectives, triggers, the World Environment excluded (they live in the Objectives view, SR-56). Tracker **CE-4152** |
-| **SR-57** ✅ CONFIRMED `2026-10-31` (user: *"Group A confirmed."*) | where a macro entity's BINDINGS are saved — user, `2026-10-31`: *"we might need a new field on the behavior intention component for those bindings, correct? Otherwise, they would not be saved in the scenario."* | ⭐ yes, a new saved field — but ⭐ NOT on the brain intent alone: a general macro binds OTHER components too (a unit's `EntityInfo.ForceId` ← `side`, its `SimTransform` position ← `position`, a child's `Behavior` params ← `area`). ⇒ ONE generic per-entity component `ParamBindings {"<Component>.<field path>": "<macro param>"}` (e.g. `"Behavior.Params.area": "area"`, `"EntityInfo.ForceId": "side"`), saved and loaded by its own scenario translator, so it round-trips when a macro file is opened and saved in the scenario editor; the expander applies it when instantiating and does NOT copy it onto the created entities. The brain slot record (`SavedBrainSlot {Name, Params, Origin}`) stays as it is |
 
-### 9.5 References across macro scopes — a macro is CLOSED *(`2026-10-31`)*
+⭐ SR-57 (where a macro entity's BINDINGS are saved — `ParamBindings`) → [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §5.
 
-> 🔒 **User, `2026-10-31`:** *"if in the exercise objective there is a reference to an entity in the scenario, but that entity comes from a
-> scenario macro which is using its own internal IDs, and the exercise objective is also a scenario macro using its own scope of IDs. These two
-> can never reference each other reliably. Would we use some names for referencing?"*
-
-| measured | where |
-|---|---|
-| scenario tooling ALREADY names units: the checks verifier (*"no unit named 'X' in <scenario>"*), the film director's anchors and takes (*"no unit named 'X' (alike: …)"*) | `ScenarioVerification.cs:764`; `AnchorBook.cs:226`; `TakeStore.cs:289` |
-| `EntityInfo.Name` is unique within 114 of 117 scenarios; duplicates in `hill-attack` / `hill-attack-close` (`M1 Abrams` ×2), `test-fire` (`M2 Bradley IFV` ×2) | measured `2026-10-31` |
+### 9.5 References across macro scopes — a macro is CLOSED *(`2026-10-31`)* — ⭐ see [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §7; SR-61 stays:
 
 | # | decision | ⭐ current answer |
 |---|---|---|
-| **SR-58** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · a macro is CLOSED | inside a macro, references use its own local ids (remapped per instance, SR-45); ⛔ a macro never reaches OUT — anything outside it comes IN through its params (the exercise macro gets its `subject` / `area` as params) |
-| **SR-60** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · names unique per scope | a macro's entity names are unique within the macro; instance names unique within their parent scope; a duplicate that a path references is refused at load with the alike-names hint the director already gives. (Today 3 of 117 scenarios have duplicates — they only matter once a path names them) |
 | **SR-61** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · groups by the command chain, not by lists | an objective about "all of Blue Platoon" names the platoon (its `RefKey`, SR-64) as its `Subject` and quantifies over its members through the command chain (`ForUnits(members of …)`), so a macro's internal roster can change without touching the objective |
 
-**Rejected — one line each:**
-- *Name paths (`Blue Platoon/Squad 1/Rifleman 2`, resolved after expansion through a `MacroOrigin` index, SR-59)* — the user: an entity name is a label, not a stable identifier (SR-63).
-- *A stable GUID as THE cross-scope reference (SR-62)* — a GUID is the EXACT form only; a reusable macro needs a key each scenario supplies (SR-63, SR-64).
-- *A qualified `{instance, local id}` reference (SR-46)* — ids are file-local and change per load.
-
-⭐ Rejected — **macro EXPORTS** (declared public aliases) for v1: the macro's entity names already are its interface; add exports only if renaming internals breaks references in practice.
-
-### 9.6 Three reference forms; `RefKey` *(✅ user, `2026-10-31`: "ref key is fine. recorded.")*
-
-> 🔒 **User, `2026-10-31`:** *"Entity name is by no means a stable identifier during the authoring."* · *"sometimes the objectives might be written
-> in a generic way referencing some subjects that are expected to be in the scenario, but every scenario might have different ones … So the
-> entity would need some kind of extra key which is not the entity's label but is used for referencing it."*
+### 9.6 Three reference forms; `RefKey` *(✅ user, `2026-10-31`: "ref key is fine. recorded.")* — ⭐ see [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §8; SR-67 stays:
 
 | # | decision (✅ approved) |
 |---|---|
-| **SR-63** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · three reference forms: **exact** (the entity's GUID — *this one entity*) · **key** (`RefKey` — *whatever entity this scenario gives that key*) · **query** (side, class, command chain, `TacticalDesignation` — *the squad leader of @Squad1*, *all members of @BluePlatoon*). ⇒ `EntityInfo.Name` is a LABEL only, never a reference; ⛔ SR-59 (name paths) and SR-62 (GUIDs for cross-scope refs) are superseded |
-| **SR-64** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · `RefKey` — an author-assigned attribute on an entity (`"RefKey": "BlueHQ"`), separate from the label, set deliberately, rarely changed, unique within its scope; most entities have none. Precedent: `TacticalDesignation` (`Fdp.Core/CommandHierarchy/TacticalDesignation.cs`) is a role key scoped to one command group, a fixed enum on the wire |
-| **SR-65** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · reusable macros reference keys THROUGH PARAMS — `subject` defaults to `"@BlueHQ"`, a scenario with another key overrides it at insertion; lookup is LEXICAL: inside the enclosing macro instance first, then outward to the scenario; from outside, a key inside an instance is qualified by keys only (`@BluePlatoon/SL`) |
-| **SR-66** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · a missing key fails LOUDLY: the objective stays inactive with *"no entity with key 'BlueHQ' here"* (the director's *"no unit named …"* shape); duplicate keys in one scope are refused at save and load |
 | **SR-67** ✅ CONFIRMED `2026-10-31` (user: *"Group A confirmed."*) | per-member thresholds — who may override a criterion's params | ⭐ nearest wins, walking UP from the evaluator's SUBJECT: the unit's own scenario entry ▸ the nearest enclosing team / squad / platoon macro instance (found up the command chain) that sets that param in its `memberArgs` ▸ the side's ▸ the scenario's ▸ the criterion template's default. Same lexical rule as `RefKey` lookup (SR-65); ⛔ never a global table |
-| **SR-68** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · where a macro's (and a scenario's) PARAMS DECLARATION is shown and stored — ⭐ rev `2026-10-31` b (user: *"I am not aware that a scenario has a world entity saved as such. What world entity carries is usually written in the scenario header, and I think the scenario macro parameters should be the same case."*) | measured: the World Environment IS saved as an ENTITY (`ua-weather-regions`, `ua-weather-sensing`, `ua-night-sensing` carry `{NetworkIdentity, ScenarioClock, TkbIdentity, WeatherConditions}`; the others get a default at load and save it next time — Weather W-0 / C-3); the header holds `subsystemType · schemaVersion · terrainName · description` (`ScenarioHeader.cs:33`, `ScenarioHeaderDto.cs`). ⭐ lean (user's model): the declaration is FILE metadata ⇒ `header.params` (rows `{Name, TypeId, Default, Comment}`), by extending `ScenarioHeader` / `ScenarioHeaderDto` — ⛔ not a component on the World Environment entity (a macro file's World Environment would be a never-instantiated oddity). Shown and edited in a **Parameters** map-background Details view (the `DetailsViews.Add` pattern beside *Scenario* / *Zones*, `EditorSubsystem.cs:3141-3200`) with SR-44a's `ScalarEditBox<T>` rows. ⚠ small new code: the header gains an edit path (no view edits the header today — unmeasured) |
 
-⚠ The film director's takes keep naming units in a RECORDING by name for now — a GUID would need to exist at runtime and in the recording; a separate decision.
-
-### 9.7 Expanding a scenario macro at LOAD — the sequence *(`2026-10-31`; the gaps are marked ⚠ GAP)*
-
-> 🔒 **User, `2026-10-31`:** *"the scenario files are distributed by the orchestrator before the scenario load. And now we will need to distribute
-> not just a single scenario file, but also the macros … we distribute all the macro scenarios, because we do not know upfront the whole dependency
-> chain. So we might distribute a zipped package of all the macros together with the scenario."*
-
-```mermaid
-sequenceDiagram
-    participant OR as Orchestrator (prefetch)
-    participant ST as every node's staging dir
-    participant B as Brain (scenario load)
-    participant CP as entity creation path
-    participant N as every node
-    OR->>ST: copy the scenario dir AND the macros package (ALL of macros/, one zip)
-    B->>CP: create the scenario's own entities (as today)
-    CP->>CP: the MacroInstance entity is created: read its macro from staging
-    CP->>CP: resolve params = header defaults overlaid by the instance args
-    loop each entity of the macro
-        CP->>CP: apply ParamBindings · position relative to the instance · GUID = uuidv5(instance, local) · remap its internal refs
-        CP->>N: an ordinary TRANSIENT creation request (replicated, never saved), stamped with its origin
-    end
-    Note over CP: a created entity that is itself a MacroInstance repeats the loop (nesting)
-    B->>B: after ALL expansion: resolve RefKey references (nearest scope outwards), a missing key fails loudly
-    Note over B: save later writes the scenario's own entities + the MacroInstance (args), never the expanded ones
-```
-
-*Caption:* expansion is NOT a loader step — it happens where the instance entity is created, so a macro inserted at RUNTIME (a trigger's
-`InsertMacro`, the instructor) expands by the same path (SR-27). The orchestrator only has to make the macro files present beforehand.
-
-| # | decision / ⚠ GAP | lean — ✅ ACCEPTED by the user `2026-10-31` (*"Gap-X Leans accepted."*) |
-|---|---|---|
-| **SR-80** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · distributing the macros | the existing prefetch (`StorageGatewayModule.PrefetchScenarioAsync:229`, `DESIGN_Artifact_Staging.md` — *"an artifact a scenario NAMES must arrive before the scenario LOADS"*) also stages the WHOLE `macros/` tree as ONE zip (the TKB already travels as a zip, cached on its timestamp) — ALL macros, because the dependency chain is not known without expanding (user) |
-| ⚠ **GAP-1** | WHEN is expansion finished? | RefKey resolution (step "after ALL expansion") needs an end point, but creation is asynchronous across nodes — lean: hook the load gate that already waits for the scenario's entities to be constructed (CE-4087) and count the expanded entities into it |
-| ⚠ **GAP-2** | which nodes READ the macro files | the Brain (it owns the instances) and the editor (it expands to show the parts read-only) — both are in the prefetch's node set; a node that only receives replicated entities never reads a macro |
-| ⚠ **GAP-3** | a missing macro, a wrong `TypeId` in a binding, a cycle (macro A contains B contains A) | fail the LOAD loudly naming the instance — where the check lives (the creation path or a validation pass before load) is undecided; a cycle needs a depth guard |
-| ⚠ **GAP-4** | editing an instance's args in the editor | re-expand: destroy its parts, create them again — their GUIDs stay the same (derived); undecided whether references from OUTSIDE into those parts survive the re-expansion within one session (they should, by GUID) |
-| ⚠ **GAP-5** | ids | the expanded entities get fresh network ids from the allocator like any creation; a macro's internal ids are only its file-local keys (SR-45) |
+### 9.7 Expanding a scenario macro at LOAD — the sequence *(`2026-10-31`)* — ⭐ see [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §9 (the sequence, SR-80, GAP-1…GAP-5)
 
 ### 9.8 Relocating a macro, and ONE way to name a place or an entity *(✅ ACCEPTED `2026-11-01`)*
 
@@ -1150,7 +1017,7 @@ drops) are different and both optional.
 | **SR-93** | ✅ ACCEPTED `2026-11-01` (user: *"The actions vocabulary and how do runs is accepted."*) · ⭐ PROVEN by the PoC (SR-108; `TriggerPoc/PocCatalogue.cs`) — build: CE-4160 · ⭐ ONE ACTION VOCABULARY (user, `2026-11-01`: *"the actions to cover just the non-self stuff you enumerated, like insert macro, send a message to someone, ask an entity to execute a behavior etc. the sequencing the actions for sure requires that we wait for each to complete … insert macro is something that I would like to be called from basically any behavior as an action … So this is a real unification of action vocabulary."*) | ⭐ the scenario-directing verbs (InsertMacro · Order · MissionCommand · SetReporting · Message · SetObjectiveActive · SetSkillAmplifier · EndExercise) are ordinary **stateful `[SharedAiAction]`s** (`SharedNodeBinder.RegisterStatefulAction`, `SharedNodeBinder.cs:285`) that name their TARGET in their params — `self` is only *who asked*. ⇒ any BTree, HSM, director or trigger calls the same method. ⭐ Each returns `Running` until its effect is established, then `Success`/`Failure`: **InsertMacro** reads its instance's expansion status (SR-96) — any failure ⇒ `Failure` with its reason; **Order** completes when the unit has accepted the intent (waiting for the OUTCOME is a `when`, not the action). ⭐ A trigger's `do` stays a plain data list (SR-91) run as a **sequence** (T7). ⭐ The three things it rests on: ① binding a shared action at RUNTIME from data — ✅ proven (SR-108: one runner per action TYPE via `MakeGenericType` + `Delegate.CreateDelegate`, cached; the binders are generic over the param / working-state types, `SharedNodeBinder.cs:285`, `HsmSharedBinder.cs:109`); ② variable `args` — ✅ SR-97's `ActionArgs` side record (`TParams : unmanaged` cannot hold a list); ③ the catalogue (`ActionSchemaExporter`) is editor-side (`Hrot.Editor.AiShared`) — load-time validation on a cluster node needs it in shared runtime code (§00.7, part of CE-4160) |
 | **SR-94** | ✅ a `do` entry carries its OWN bindings (user, `2026-11-01`: *"The parambinding switch references the index of the action inside the action list. It seems pretty fragile. Couldn't we describe the bindings per action as part of its record? Imagine manual editing of the svenario file and the neet to reindex the binding - non practical."* → *"Yes"*) | each entry = `{act, args, bind}`; `bind` maps a path RELATIVE TO ITS OWN `args` to a scenario / macro param — `{"act":"InsertMacro","args":{"macro":"RedQRF","macroArgs":{"size":12}},"bind":{"macro":"qrfMacro","macroArgs.size":"qrfSize"}}`. ⭐ reordering moves the bindings with the entry; the literal stays as the unbound value. ⭐ The rule: **the binding lives NEXT TO the value it binds** — the shape SR-35 first proposed; SR-57's `ParamBindings` stays for ordinary component fields (a typed component cannot hold a sibling map). Applied ONCE at load, like every other binding (SR-44) — scenario params are fixed for a run. Chains unchanged: scenario param → action arg → macro param → a part's field |
 | **SR-95** | ⭐ PARTLY PROVEN by the PoC (SR-108; `TriggerPoc/PocTrigger.cs`, `TriggerPocTests.When.cs`) — build: CE-4159, CE-4163, CE-4164 ·  ✅ `when` is the EXISTING condition language, not a new one (user, `2026-11-01`: *"This looks like a special language describing the condition. Couldn't we reuse the existing conditions machinery? … We already have a way how to serialize even rich complex conditions in JSON. This is used for various places like data breakpoint conditions, etc."* → *"Yes"*) | ⭐ `when` = a `SearchPredicateDto` (`Fdp.Toolkits/ReplayBrowser/Search/SearchPredicateDto.cs:35` — Compound And/Or · PropertyMatch · Numeric · String · Lifecycle · TransientEvent · Spatial · BehaviorParam · BlueprintVariable …), compiled ONCE at load by `IPredicateCompiler.CompileComponentPredicate` → `Func<EntityRepository, Entity, bool>` (`IPredicateCompiler.cs:19`; already built on the CGF node, `CgfSubsystem.cs:859`) — the language data breakpoints AND the Blueprint `When` node (`ConditionMetPayload`, `Nodes.cs:800`) already use. ⭐ A trigger is one more **reactive guard** (`ReactiveGuardVocabulary.cs:7` — BTree observer selectors, HSM transition guards, Blueprint `When`): the predicate says WHAT, the trigger adds only the edge and timing (T1–T10). The editor authors it with the existing predicate builder. ⭐ Two ADDITIONS to the language (new `JsonDerivedType`s, not a second language): ① **`OnEntity {Ref, Predicate}`** — re-targets its child at a `RefKey`/GUID entity, so a condition can be about another entity and, nested in a Compound, about several (*"@A Active AND @B Failed"*); ② **`ScenarioTime {Clock: Elapsed\|Utc, Min, Max}`** — 📐 measured: NO component holds the current scenario time; `ScenarioTime.Utc(world)` (`Weather/ScenarioClock.cs:66`) computes it = `ScenarioClock.StartUtcTicks` (World Environment) + `GlobalTime.TotalTime` ⇒ a PropertyMatch cannot express it, a small leaf can. ⛔ `[SharedAiCondition]`s are NOT the `when` language (they need param blocks + runtime binding — SR-93 ①); one may become a predicate leaf later if a real need appears |
-| **SR-96** | ✅ a macro insertion reports its OWN completion (user, `2026-11-01`: *"maybe this is a process that runs on the brain node and takes care about all its subparts like creating entities and so on, and it reports the completion on its own. So the action that triggers the macro expansion just monitors this final completion signal from the node that executed the macro expansion and doesn't care about the individual subparts inside."* → *"Yes write those two leans down."*) | ⭐ the macro INSTANCE entity (`MacroInstance{macro,args}`) carries a small replicated `MacroExpansionStatus {State: Expanding\|Done\|Failed, Reason}`. ⭐ ONE writer — the node that expands it; it alone tracks its child creation requests (each closed by an `EntityConstructionCompleted` naming its `RequestId`, `LifecycleEvents.cs:114`). ⭐ The `InsertMacro` action (SR-93) only creates the instance and reads that status: `Expanding` ⇒ `Running`, `Done` ⇒ `Success`, `Failed` ⇒ `Failure` with its reason — ⛔ it never counts the parts. ⭐ STATE, not an event: readable on every node, survives save / restore / replay — the objective pattern (*"nobody calls it, everyone reads its status"*). ✅ decided `2026-11-01` — the BRAIN node expands (user: *"there is already a concept of finding the least loaded node of certain role … practically there will be just one brain node, that this is where the macro expansion should take place"*): the role's least-loaded node, the existing pick (`RoleGroupOwnershipStrategy.cs:56` → `IClusterStateCache.GetLeastLoadedNode(role)`); in practice ONE Brain node — CGF (+ SimHost split), the all-in-one editor or the server |
+| **SR-96** | ⭐ MOVED to [`DESIGN_Scenario_Macros.md`](DESIGN_Scenario_Macros.md) §9 (2026-11-01) — a macro insertion's completion (`MacroExpansionStatus`) is the macro mechanism; `InsertMacro` (here) only reads it | | | |
 | **SR-97** | ✅ an action's VARIABLE arguments live in ONE generic side record (user, `2026-11-01`: *"the managed side record pointed to from the struct sounds reasonable"* → *"Yes write those two leans down."*) | an action's params are a fixed-size `unmanaged` struct at an offset in the behaviour's block (`SharedNodeBinder.cs:288`), so a list cannot live there. ⭐ The struct carries an `int ArgsRef`; the list lives in ONE generic managed component on the CALLING entity — `sealed record ActionArgs { IReadOnlyList<string> Items }` (JSON per item) — and the action reads `world.GetManagedComponentRO<ActionArgs>(self).Items[p.ArgsRef]` (`self` is always the caller, so the record is always found). ⭐ Filled at ASSIGNMENT (after SR-94's bindings are applied), for a trigger's `do` list and a BTree/HSM asset's node args alike; the `do` list itself is held the same way. ⭐ ONE component for every caller and action ⇒ one translator, one saved/restored shape. Precedent: `SopStartRecord.JsonParams` (`Behavior/Components/SopState.cs:86`, a recorded managed record) |
 | **SR-98** | ⭐ PROVEN by the PoC (SR-108; `TriggerPoc/PocActions.cs` `PocRunActions`, `PocCatalogue.cs` `PocStepRunner`) — build: CE-4160, CE-4161 · ✅ the action LOOP is itself a shared action (user, `2026-11-01`: *"agreed that the action loop itself is a shared action."*) · ⭐ each step's params live in a blackboard slot made just before it starts and removed when it ends (user proposal, same day: *"Couldn't we create one as a blackboard slit Immediately before given action is to be started, and Delete it once the action completes?"*) | ⭐ `RunActions(listRef)` — a stateful `[SharedAiAction]`; its working state = the current step index; the trigger's `do` is one call to it, and any BTree / HSM / director can run a list the same way. ⭐ NO per-type scenario-loader hook is needed: the `do` list is just the JSON params of the trigger's task-slot behaviour, loaded generically like every brain slot (`SavedBrainSlot {Name, Params}` → `BehaviorStartRecord.JsonParams`); the steps are prepared when `RunActions` STARTS. The only load-time piece is SR-94's binding (a generic JSON-path copy, not per type — ⛔ scenario-param binding is not built yet, SR-41/44). ⚠ A per-component loader extension point exists if ever needed (`IEntityScenarioTranslator.Inject`, `Scenario/IEntityScenarioTranslator.cs:17`). ⭐ Delegates: ONE process-wide cache keyed by the action's key (method), built once per action TYPE from the catalogue — an entity holds only its list (names + `ActionArgs` indices), never delegates. ⭐ Per-step slot: the existing occurrence store already does attach-on-first-use and detach — `OccurrenceWorkingState.ResolveOrAttach<TParams, TWorkingState>` (`Behavior/OccurrenceWorkingState.cs:108`, params + working state in one slot, recorded with the entity) and `OccurrenceStoreAccess.TryDetachSlot` (`Blueprints/Partitioning/OccurrenceStoreAccess.cs:436`) ⇒ only ONE step's bytes exist at a time, nothing is composed for the whole list, and a restore mid-sequence resumes the live step. ⚠ The caller must SEED the params when the slot is freshly attached (that seam's own rule) — `RunActions` does it from the step's `args`. ⭐ the store itself is NOT a constraint (user, `2026-11-01`: *"where did you get that from? Is it true … that it can not be done inside tick?"*): the trigger's FIRST block is created by `BehaviorIngressSystem` when its behaviour is assigned (it declares a stateful slot, so it is provisioned — `DESIGN_Occurrence_Scoped_Storage.md` §27); a step slot that does not fit APPENDS a block, which moves nothing and is allowed mid-tick (§34.6, U-0, rail `O7_R9`). ⚠ the *"never inside a tick"* claim came from a stale doc comment (`OccurrenceWorkingState.cs:27`, now fixed) and §27.1, both overtaken by §34.6 |
 | **SR-99** | ✅ NO DIRECTOR ENTITY — a director is a MACRO of objectives + triggers (user, `2026-11-01`: *"I'm just interested if this all can be done on the objectives and trigger entity level, without introducing any new type of director entity."* → *"Yes, record the idea of not needing any special director entity"*) | ⭐ WATCHING = objectives / measures (`Score` 0..1 of a team's `Composite`); REACTING = triggers whose `Subject` is the World Environment (scenario-wide, tied to no side), `when` reads any `Score` / state + the scenario time (SR-95), `do` uses the out-of-world actions (`InsertMacro`, `SetSkillAmplifier` SR-100, `Message`, `EndExercise`). ⭐ Red HQ stays an ordinary COMMANDER fighting from its picture; an inserted force just gets an `Order`. ⭐ Example, a reusable `macros/control/AdaptivePressure {blue, red}`: *Counter-attack* (`@Hold` Active, delay 120 s, once → InsertMacro + Order) · *Ease off* (`Score < 0.35` AND elapsed > 20 min, holdFor 2 min, repeat, cooldown 10 min → SetSkillAmplifier(red, −1) + Message) · *Push harder* (`Score > 0.8` AND elapsed < 30 min, once → InsertMacro + Order). ⭐ T-rule added (lean): **`maxFires`** — a repeating trigger stops after N fires (its own `FireCount`, T8). ⚠ Where triggers get awkward: choosing ONE of several plays (independent triggers can fire in the same tick — exclusive score bands work for 2–3 plays) · a budget SHARED across triggers (a `Count` objective they read) · smooth control (bands, not continuous). ⭐ ESCAPE HATCH, not a new type: the same trigger-kind control entity running a different reusable behaviour in its task slot (`ChooseOption` over plays, `UtilityNodes.cs:64`; each play a `RunActions` list, SR-98). ⇒ `ExerciseControl` hosting (SR-17) is dropped; ending the exercise is a trigger with `EndExercise` |
@@ -1322,18 +1189,18 @@ ACTION, and actions do not run in replay; the red edge is that dead path, and SR
 | SR-15 | SR-21…SR-24 — one generated `.hsm.json` per scenario + hot reload rejected (R-4112, §4) |
 | SR-16 | SR-21 — a per-scenario block from the primitives' `P` / `WS` rejected; each generic behaviour carries its own params |
 | SR-22 | SR-37 + SR-95 (conditions), SR-93 (actions) — no `ConditionRef` / `ActionRef` by name |
-| SR-25 | SR-38 (the block template `*.objective.json` → a scenario macro) |
-| SR-26 | SR-39 / SR-39a (inserting = an ordinary macro-instance entity) |
+| SR-25 | SR-38 (the block template `*.objective.json` → a scenario macro) → DESIGN_Scenario_Macros.md |
+| SR-26 | SR-39 / SR-39a (inserting = an ordinary macro-instance entity) → DESIGN_Scenario_Macros.md |
 | SR-29 | SR-37 + SR-95 (no `SharedConditionTable`) |
 | SR-30 | SR-72 (by role, per scenario — the TKB is static) |
-| SR-34 | SR-38 (the macro file) |
-| SR-35 | SR-40 / SR-57 / SR-94 / SR-129 (bindings beside the value) |
-| SR-36 | SR-37 (typed kinds; no runtime-typed sub-form) |
-| SR-42 | SR-42′ (transient full entities, not `PartMetadata` parts) |
-| SR-46 | SR-63 (references by RefKey/GUID, not instance-local ids) |
-| SR-50 | `DESIGN_Scenario_Entity_Keys.md` rev 2 (the entity key stays a — now stable — GUID) |
-| SR-59 | SR-63 (names are labels; reusable refs use `RefKey`) |
-| SR-62 | SR-63 (a GUID is the exact form; cross-scope reuse goes through `RefKey` params) — `DESIGN_Scenario_Entity_Keys.md` rev 2 G1–G6; it was only ever an open question (user: *"It was a question, not a imperative"*) |
+| SR-34 | SR-38 (the macro file) → DESIGN_Scenario_Macros.md |
+| SR-35 | SR-40 / SR-57 / SR-94 / SR-129 (bindings beside the value) → DESIGN_Scenario_Macros.md |
+| SR-36 | SR-37 (typed kinds; no runtime-typed sub-form) → DESIGN_Scenario_Macros.md |
+| SR-42 | SR-42′ (transient full entities, not `PartMetadata` parts) → DESIGN_Scenario_Macros.md |
+| SR-46 | SR-63 (references by RefKey/GUID, not instance-local ids) → DESIGN_Scenario_Macros.md |
+| SR-50 | `DESIGN_Scenario_Entity_Keys.md` rev 2 (the entity key stays a — now stable — GUID) → DESIGN_Scenario_Macros.md |
+| SR-59 | SR-63 (names are labels; reusable refs use `RefKey`) → DESIGN_Scenario_Macros.md |
+| SR-62 | SR-63 (a GUID is the exact form; cross-scope reuse goes through `RefKey` params) — `DESIGN_Scenario_Entity_Keys.md` rev 2 G1–G6; it was only ever an open question (user: *"It was a question, not a imperative"*) → DESIGN_Scenario_Macros.md |
 | SR-89 | SR-90 (the mission plan stays as it is) |
 | SR-125′ | SR-125 + SR-141 (the authored point is `PointLink`, coordinates or an entity's position) + SR-135 (no geodetic form) |
 | SR-137 | SR-139 + SR-140 (the authored form inline in `RefSpec`, no table; the internal `EntityRef` stays small — 4 B after CE-4200) |

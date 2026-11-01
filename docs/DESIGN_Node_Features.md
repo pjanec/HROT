@@ -7,7 +7,8 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
-  - docs/DESIGN_Scenario_Rules.md — §00.6 S1 NEEDS this design's S1: the feature `scenario.rules` gates the scenario-rules pack (R-4108); SR-6 (a scenario with rules refuses to start when no node has it on); SR-101's run variant + params share F-15's recording seat
+  - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); F-19: the expander is core, never behind a switch
+  - docs/DESIGN_Scenario_Rules.md — SR-145: objectives / triggers are scenario CONTENT with NO switch (F-20); its features are `exercise.pause-on-end` and the `hud.*` set; SR-101's run variant + params share F-15's recording seat
   - docs/DESIGN_Cluster_Load_Phase.md — the load PREPARE payload (`EditLoadHandlerPayload`) F-14 stamps AtLoad features into, as CE-3354 ③ stamps MapInLoad
   - docs/DESIGN_Player_Join.md — §7c (R-4115): gameplay packs are composed by the shared bootstrap and their features default ON; a pack runs when any of its features is on
   - docs/PLAN_Training_And_Gameplay_Engine.md — every item there is delivered as features (P-7 scenario presets of these switches)
@@ -154,12 +155,12 @@ sequenceDiagram
     participant N as Brain node (NodeFeatures)
     participant K as SystemScheduler (Brain node)
     participant R as recorder (Brain node)
-    Note over M: FeatureOverrides holds (scenario.rules, all, on) — default anyway
+    Note over M: FeatureOverrides holds (gameplay.team-kill, all, off) — an AtLoad feature
     M->>N: LoadingLive PREPARE · payload.FeaturesAtLoad = the effective AtLoad ON set for THIS node
     N->>N: freeze the AtLoad set for this load (a Live override never changes it mid-run)
     N->>R: RecordingMetadata.FeaturesAtLoad = the frozen set
     loop every frame
-        K->>N: On("scenario.rules")? (for each [NodeFeature] system, cached type → id)
+        K->>N: On("gameplay.team-kill")? (for each [NodeFeature] system, cached type → id)
         N-->>K: true ⇒ the system runs · false ⇒ skipped, like a paused WhenTimeAdvances system
     end
 ```
@@ -188,9 +189,10 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 | **F-14** ✅ `2026-11-01` | ⭐ how an AtLoad switch arrives *(lean)* | the master stamps each node's effective **AtLoad** ON set into its load PREPARE payload (`EditLoadHandlerPayload.FeaturesAtLoad`, replacing `MapInLoad`) — exactly `FanOutLoadPrepare`'s path today; the node FREEZES it for the load. A **Live** feature reads `ClusterView` each time it changes. ⇒ an override of an AtLoad feature during a run applies at the NEXT load, and the grid says so |
 | **F-15** ✅ `2026-11-01` | ⭐ the recording *(lean)* | `RecordingMetadata.FeaturesAtLoad` (per node — each node records its own) = the frozen set; a REPLAY needs nothing (the outcome is already recorded); a BRANCH TO LIVE from a checkpoint re-applies it, so the continued run has the same rules. ⭐ The same metadata seat carries SR-101's run variant + params (`DESIGN_Scenario_Rules.md`) — one place for "how this run was set up". ⛔ not `CustomTags` (a typed field, read by code) |
 | **F-16** ✅ `2026-11-01` | ⭐ the wire shapes *(lean)* | `SetRunSettingsIntent.FeatureOverrides` + the cluster facts: a typed managed list `{Feature, Nodes (names, empty = all), On}` — ⛔ not another comma string; `NodeHeartbeat.FeaturesOn` (the effective ON set). `MapInLoadNodes` becomes the override `(map3d.in-load, nodes, on)` and is deleted (no compatibility, CE-4153 S10) |
-| **F-17** ✅ `2026-11-01` | ⭐ the first two features *(lean)* | **`map3d.in-load`** (migrated, declared by the Player's capability, AtLoad, default ON for `-m player` — R-1046 unchanged) and **`scenario.rules`** (declared by the Brain capability, AtLoad, default ON where composed — R-4115; it gates the scenario-rules systems, `DESIGN_Scenario_Rules.md` §00.6 S1). ⭐ SR-6 follows: the master refuses to START a scenario that carries rule entities when no node has `scenario.rules` on — *"no node runs scenario rules"* |
+| **F-17** ✅ `2026-11-01` · amended by F-20 | ⭐ the first feature | **`map3d.in-load`** (migrated, declared by the Player's capability, AtLoad, default ON for `-m player` — R-1046 unchanged). ⛔ `scenario.rules` was the second — withdrawn by F-20 |
 | **F-18** ✅ `2026-11-01` | an undeclared id *(lean)* | `On("x")` / `[NodeFeature("x")]` with no declaration THROWS at registration in every build (registration is boot, never mid-run — so throwing costs nothing in production); a rail lists every literal against the declarations. ⇒ supersedes the caption's "false in production" |
-| **F-19** ✅ `2026-11-01` | macro expansion is CORE, not a feature | 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The macro expander sits on the entity CREATION path and serves forces, units, props and events as much as rules (`DESIGN_Scenario_Rules.md` SR-144) ⇒ it is composed wherever entities are created and is ⛔ NOT gated by `scenario.rules` — nor by any switch: a scenario that uses a macro would become unloadable with it off. `scenario.rules` gates only the objective kinds, the trigger and their actions |
+| **F-19** ✅ `2026-11-01` | macro expansion is CORE, not a feature | 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The macro expander sits on the entity CREATION path and serves forces, units, props and events as much as rules (`DESIGN_Scenario_Rules.md` SR-144) ⇒ it is composed wherever entities are created and is ⛔ NOT gated by `scenario.rules` — nor by any switch: a scenario that uses a macro would become unloadable with it off |
+| **F-20** ✅ `2026-11-01` | objectives and triggers are CONTENT, not a feature | 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ No reason survived (`DESIGN_Scenario_Rules.md` SR-145: free play and debugging are per-scenario controls, performance is negligible, any Brain node runs every behaviour, brains do not tick in replay) ⇒ ⛔ no `scenario.rules` feature. ⭐ The rule for what IS a feature: something that changes how a run is PRESENTED or PLAYED on a node (a HUD element, team-kill, pause-on-end) — ⛔ not the presence of content the scenario itself carries |
 
 **Rejected — one line each:**
 - *Each system calling `NodeFeatures.On` at its top* — N copies of one check, and the one that forgets is the silent defect; the scheduler already gates by attribute.
@@ -206,7 +208,7 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 
 | slice | builds | done when |
 |---|---|---|
-| **S1** ⭐ READY-TO-BUILD | `FeatureDeclaration` on `INodeCapability`, `FeatureRegistry`, `NodeFeatures` (`IFeatureGate`), `[NodeFeature]` + the `SystemScheduler` gate (F-13), `--feature`, `FeatureOverrides` on the run settings + the cluster facts + `ClusterView` (F-16), `FeaturesAtLoad` in the load payload (F-14) and in `RecordingMetadata` (F-15), the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` deleted) and **`scenario.rules` declared** (F-17) | a Player builds its 3-D map in the load exactly as today (the R-1046 / CE-3354 ③ rails unchanged, re-pointed); an override switches it on a named node at the next load; an override for a node without the feature is refused; a `[NodeFeature]` system is skipped while off (a rail beside the TickMode rails); a branch to live re-applies the recorded set; rails: every literal is declared, every `[NodeFeature]` id is declared |
+| **S1** ⭐ READY-TO-BUILD | `FeatureDeclaration` on `INodeCapability`, `FeatureRegistry`, `NodeFeatures` (`IFeatureGate`), `[NodeFeature]` + the `SystemScheduler` gate (F-13), `--feature`, `FeatureOverrides` on the run settings + the cluster facts + `ClusterView` (F-16), `FeaturesAtLoad` in the load payload (F-14) and in `RecordingMetadata` (F-15), the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` deleted) | a Player builds its 3-D map in the load exactly as today (the R-1046 / CE-3354 ③ rails unchanged, re-pointed); an override switches it on a named node at the next load; an override for a node without the feature is refused; a `[NodeFeature]` system is skipped while off (a rail beside the TickMode rails); a branch to live re-applies the recorded set; rails: every literal is declared, every `[NodeFeature]` id is declared |
 | **S2** | the HUD features: `hud.hit-marker`, `hud.damage-arc`, `hud.kill-cam`, `hud.squad-takeover-after-death`, `hud.spread-ring`, `hud.near-miss` (CE-4148; Player Join §7a G1–G6) + the `FeatureGridPanel` | with each OFF nothing of it is drawn or recorded on any host; defaults: ON for `-m player`, OFF elsewhere (G5/G6 lean ON everywhere) |
 | **S3** | `gameplay.deploy-server` (Player Join D-3): "a server exists" = a node with the feature available AND on | a Player observes when no node has it on (R-4103) |
 
@@ -217,8 +219,7 @@ the same path `MapInLoad` takes today — so a run cannot change outcome-affecti
 | id | declared by (capability) | change | default | owning design / slice |
 |---|---|---|---|---|
 | `map3d.in-load` | Player (`cap:image-generator`) | AtLoad | ON for `-m player` | R-1046 · **S1** (migrated) |
-| `scenario.rules` — objectives, triggers and their actions (⛔ NOT macro expansion — core, F-19) | Brain (`cap:brain`) | AtLoad | ON where composed | `DESIGN_Scenario_Rules.md` §00.6 S1 · **S1** |
-| `scenario.rules.pause-on-end` | Brain | Live | ON | Scenario Rules SR-9 / SR-116 · its S2 |
+| `exercise.pause-on-end` | Brain | Live | ON | Scenario Rules SR-9 / SR-116 · its S2 |
 | `hud.objectives` · `hud.own-evaluation` · `hud.messages` | Player | Live | ON (demo profile, SR-83) | Scenario Rules SR-106 / SR-112 · its S2 / S4 |
 | `hud.hit-marker` · `hud.damage-arc` · `hud.kill-cam` · `hud.squad-takeover-after-death` · `hud.spread-ring` · `hud.near-miss` | Player | Live | ON for `-m player` | `DESIGN_Player_Join.md` §7a G1–G6 · S2 |
 | `hud.kill-feed` · `hud.score-popups` · `hud.coaching` | Player | Live | game profile ON, training OFF | Scenario Rules SR-112 · its S6 |

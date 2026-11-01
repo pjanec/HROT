@@ -37,6 +37,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); macro entities reuse IsTransient → ScenarioIgnoreTag (R-140)
   - docs/DESIGN_Scenario_Rules.md — §9.3 SR-42′: scenario-macro entities are created IsTransient (this §7.3 path) so only the macro reference is saved
   - docs/DESIGN_Node_Features.md — a ROLE sets feature DEFAULTS through composition; a feature declared by a composed capability is switched per node and per cluster (the three tiers)
   - docs/DESIGN_Player_Join.md — R-4102: gameplay (the deploy server and the Player's deploy screens) is composed as optional packs through this file's §3.2–§3.4 mechanism; a military-sim node composes none of it

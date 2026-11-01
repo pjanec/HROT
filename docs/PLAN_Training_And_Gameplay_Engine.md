@@ -30,7 +30,7 @@ related-designs:
 
 ## 2. The items — ranked by the user
 
-⭐ **R-4108:** every item ships as Node Features — e.g. `scenario.rules`, `ui.side-knowledge` (+ `ui.side-knowledge.last-known`), `ai.skill-amplifier`, `eval.performance`, `hud.kill-feed`, `game.round-timer`, `game.tickets`, `game.squad-spawn` — each declared by the capability that implements it, advertised, and switchable per node and per cluster.
+⭐ **R-4108:** every item ships as Node Features where it changes how a run is presented or played (⚠ `2026-11-01`: scenario rules themselves are content, not a feature — `DESIGN_Node_Features.md` F-20) — e.g. `ui.side-knowledge` (+ `ui.side-knowledge.last-known`), `ai.skill-amplifier`, `eval.performance`, `hud.kill-feed`, `game.round-timer`, `game.tickets`, `game.squad-spawn` — each declared by the capability that implements it, advertised, and switchable per node and per cluster.
 
 | # | item | the user | lean / next step |
 |---|---|---|---|

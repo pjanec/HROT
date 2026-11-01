@@ -7,6 +7,7 @@ stale-below: nothing — superseded revisions removed 2026-11-01; full history a
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); derived GUIDs for macro-made entities (G2) and RefKey scoping are used by the expander
   - docs/DESIGN_Scenario_Rules.md — §9.3 SR-50 asked for this (scenario macros need short, remappable entity keys; SR-45 remaps macro-local ids)
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b OWNS network id allocation and the per-load re-allocation (old → new map) that makes a file's key file-local either way
   - docs/blueprints/DESIGN_Entity_Reference.md — OWNS EntityRef (a network id) and EntityRefRemap, the load-time remap of references

@@ -19,6 +19,7 @@ known-rot: ⛔⛔ R-4018 (2026-10-15): the TKB is no longer NAMED by the scenari
   HEADER and false of the ARTIFACT — see §9.4.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); the prefetch stages the whole macros/ package (SR-80)
   - docs/DESIGN_Scenario_Rules.md — §9.7 SR-80: the prefetch also stages the whole macros/ tree as one zip (scenario macros, all of them — the dependency chain is unknown upfront)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-E2: the staged artifacts reach a node through a transfer provider (share or DDS) instead of a File.Copy into a shared tree; the NAS layout here is unchanged.
   - docs/DESIGN_Cluster_Load_Phase.md — §10 owns what a scenario naming NO terrain does on every node (unload, CE-3075); §9.7 here is the staging half that makes CGF see "none".
