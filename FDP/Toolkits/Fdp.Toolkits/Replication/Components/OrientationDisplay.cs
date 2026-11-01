@@ -1,4 +1,5 @@
 using System;
+using Fdp.Core;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
@@ -35,54 +36,18 @@ namespace Fdp.Toolkit.Replication.Components
             return sb.ToString();
         }
 
-        /// <summary>The same text as <see cref="Format"/>, split into the tokens <c>ddsmonitor</c>'s detail panel colours.</summary>
+        /// <summary>The same text as <see cref="Format"/>, split into the tokens <c>ddsmonitor</c>'s detail panel colours — ⭐ S0: the
+        /// tokens are <see cref="OrientationText"/>'s (Fdp.Core, the ONE text, also <see cref="WorldRotation"/>'s <c>ToString</c>); this maps their kinds.</summary>
         public static IEnumerable<FormattedToken> Tokens(float x, float y, float z)
         {
             Quaternion q = QuaternionWireCodec.Decode(x, y, z);   // all-zero => identity, never NaN
-
-            float heading = SimTransformBridgeSystem.RotationToHeadingDeg(q);
-            SimTransformBridgeSystem.RotationToPitchRollDeg(q, out float pitch, out float roll);
-
-            // A vertical nose (CE-4068) has no heading, and roll is then only a numerically arbitrary share of the same turn
-            // (it came out 180 for a clean "straight up"): show H and R as 0 and let the Quat part carry the pose.
-            // ⚠ Same gate as SimTransformBridgeSystem.RotationToHeadingDeg's own guard (forward projected on the ENU plane ~ 0).
-            Vector3 forward = Vector3.Transform(Vector3.UnitX, q);
-            if (new Vector2(forward.X, forward.Y).LengthSquared() < 1e-6f)
-                roll = 0f;
-
-            // Round BEFORE the wrap check so 359.96 prints as 000.0, not 360.0.
-            heading = MathF.Round(heading * 10f) / 10f;
-            if (heading >= 360f || heading < 0f) heading = 0f;
-
-            yield return new FormattedToken("HPR", TokenType.Keyword);
-            yield return new FormattedToken(" [", TokenType.Punctuation);
-            yield return Number(heading, "000.0");
-            yield return new FormattedToken(", ", TokenType.Punctuation);
-            yield return Number(pitch, "0.0");
-            yield return new FormattedToken(", ", TokenType.Punctuation);
-            yield return Number(roll, "0.0");
-            yield return new FormattedToken("] ", TokenType.Punctuation);
-            yield return new FormattedToken("deg", TokenType.Keyword);
-            yield return new FormattedToken(", ", TokenType.Punctuation);
-            yield return new FormattedToken("Quat", TokenType.Keyword);
-            yield return new FormattedToken(" [", TokenType.Punctuation);
-            yield return Number(q.X, "0.000");
-            yield return new FormattedToken(", ", TokenType.Punctuation);
-            yield return Number(q.Y, "0.000");
-            yield return new FormattedToken(", ", TokenType.Punctuation);
-            yield return Number(q.Z, "0.000");
-            yield return new FormattedToken(", ", TokenType.Punctuation);
-            yield return Number(q.W, "0.000");
-            yield return new FormattedToken("]", TokenType.Punctuation);
-        }
-
-        private static FormattedToken Number(float value, string format)
-        {
-            string s = value.ToString(format, CultureInfo.InvariantCulture);
-            // A value that rounds to zero must not print as "-0.0" / "-0.000".
-            if (s.Length > 1 && s[0] == '-' && s.AsSpan(1).IndexOfAnyExcept('0', '.') < 0)
-                s = s.Substring(1);
-            return new FormattedToken(s, TokenType.Number);
+            foreach (var (text, kind) in OrientationText.Tokens(q))
+                yield return new FormattedToken(text, kind switch
+                {
+                    OrientationTokenKind.Keyword     => TokenType.Keyword,
+                    OrientationTokenKind.Punctuation => TokenType.Punctuation,
+                    _                                => TokenType.Number,
+                });
         }
     }
 }
