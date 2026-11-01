@@ -9,6 +9,7 @@ related-designs:
   - docs/DESIGN_Scenario_Rules.md — OWNS every decision explained here (SR-…, T1–T10); this file only explains them with examples
   - docs/DESIGN_Scenario_Entity_Keys.md — the stable entity GUIDs references rest on
   - docs/OVERVIEW_Behaviour_Building_Blocks.md — the behaviours, orders and command chain objectives and triggers use
+  - docs/SHOWCASE_Scenarios.md — two full scenarios (training + game) that use everything explained here
 -->
 
 # EXPLAINER — **scenario evaluation and direction** *(objectives, triggers, …)*

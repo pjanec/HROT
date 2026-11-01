@@ -9,6 +9,7 @@ related-designs:
   - docs/DESIGN_Scenario_Rules.md — OWNS the decisions: SR-105 (the rules view), SR-106 (player messages), SR-107 (results + HUD), SR-109 (this UI, how it works), SR-110 (built on the ONE shared timeline), SR-111 (the mission summary), SR-112 (the player's debrief and HUD)
   - docs/DESIGN_Director_Timeline_Editor.md — OWNS the shared timeline panel this view is a host of (TE-21 / R-4075); the extensions it needs are TL-X1…X5 (CE-4167)
   - docs/EXPLAINER_Scenario_Evaluation_And_Direction.md — §3.5 explains the view in words
+  - docs/SHOWCASE_Scenarios.md — the two showcase scenarios whose screens these mockups show
 -->
 
 # Rules view — UI mockup
