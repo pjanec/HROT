@@ -216,7 +216,7 @@ and CE-4154 (World Environment saved in the header) are needed before S1's objec
 | SR-93 ③ — move the action catalogue from the test project into runtime | S2 | part of CE-4160 |
 | GAP-1 … GAP-5 (§9.7: end of expansion, who reads macro files, missing macro / cycle, re-expansion on edit, ids) | S3 | decided in the S3 design pass — leans are written |
 | CE-4153 S9 — internal `EntityRef`s of saved components written as GUIDs | S3 | its own item (stopped: no save-direction remap yet) |
-| `NodeFeatures` not built | S1 | `DESIGN_Node_Features.md` S1 |
+| `NodeFeatures` not built | S1 | `DESIGN_Node_Features.md` S1 — ⭐ designed buildable `2026-11-01` (F-13 the scheduler gate, F-14 AtLoad in the load payload, F-17 `scenario.rules` declared by the Brain capability); build after S0 |
 | dismounted soldiers settle on the ground after relocation? (SR-127) | S3 | one rail |
 
 **Rejected — one line each (the big ones; the rest are in each section):**

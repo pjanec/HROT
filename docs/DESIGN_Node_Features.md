@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down"); slice details to confirm at S1
-updated: 2026-10-31 (first version — coordinator)
-current-answer: §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-12 · §5 slices
+build-state: S1 READY-TO-BUILD (2026-11-01, §4 F-13…F-18 — leans await the user) · the model AGREED by the user 2026-10-31 ("Good, this sounds like what is needed", "Yes, please write it down") · S2, S3 DESIGN
+updated: 2026-11-01 (S1 made buildable: the gate, the two delivery paths, the recording, the first two features — coordinator)
+current-answer: §2 the three tiers · §3 the diagrams · §4 decisions F-1…F-18 · §5 slices (S1 buildable)
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — §00.6 S1 NEEDS this design's S1: the feature `scenario.rules` gates the scenario-rules pack (R-4108); SR-6 (a scenario with rules refuses to start when no node has it on); SR-101's run variant + params share F-15's recording seat
+  - docs/DESIGN_Cluster_Load_Phase.md — the load PREPARE payload (`EditLoadHandlerPayload`) F-14 stamps AtLoad features into, as CE-3354 ③ stamps MapInLoad
   - docs/DESIGN_Player_Join.md — §7c (R-4115): gameplay packs are composed by the shared bootstrap and their features default ON; a pack runs when any of its features is on
   - docs/PLAN_Training_And_Gameplay_Engine.md — every item there is delivered as features (P-7 scenario presets of these switches)
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.2–§3.4 OWN composition by role (R-4000, R-4005): a role sets DEFAULTS through composition; a switch never replaces composition
@@ -53,7 +55,12 @@ gizmo `*Settings`, `UnitDebugSettings`, `MapUserConfig`; `HrotNodeConfig`) · gr
 | availability may ride the capability tokens | ✅ tokens are namespaced, extensible (`fdp.reliable-init`) | ✅ AQ-70 §Q70-B ("feature tokens") |
 | the on/off state may NOT ride them (published once) | ✅ `NodeCapabilitiesEvent` *"Published ONCE at join"* | — |
 | the cluster override has a home | ✅ `MapInLoadNodes` on the run settings | ✅ AQ108 D15, CE-3354 ③ |
-| an AtLoad feature's state is recorded with the run | ⛔ **not measured** — whether the run settings are written into a recording; S1 measures it | — |
+| an AtLoad feature's state is recorded with the run | ⛔ **measured `2026-11-01`: NO** — `RecordingMetadata` (`Fdp.Core/FlightRecorder/Metadata/RecordingMetadata.cs:8-117`) holds scenario, terrain, exercise / parent ids, checkpoints, reviews and a free `CustomTags` map, but no run settings ⇒ F-15 adds them | — |
+| ⭐ an AtLoad switch already reaches a node FROZEN per load | ✅ `ClusterMaster.FanOutLoadPrepare` stamps `EditLoadHandlerPayload.MapInLoad = true` per node whose name is in `MapInLoadNodes` (`ClusterMaster.cs:2392-2400`) | ✅ CE-3354 ③ ⇒ F-14 generalises it |
+| ⭐ a Live switch already reaches every node | ✅ `MapInLoadNodes` crosses as a comma string on the cluster facts and is folded into `ClusterView` (`ClusterFactsIngress.cs:180-181`); the master keeps it on `ClusterMaster.RunSettings.cs:43-47, :97` | ✅ AQ108 D15 |
+| ⭐ the scheduler already gates systems by a cached ATTRIBUTE | ✅ `SystemScheduler` reads each system's `[TickMode]` once (`TickModes.OfSystem`, `Scheduling/SystemScheduler.cs:24-95`) and skips a `WhenTimeAdvances` system on a paused frame | ✅ CE-3293 / R-3036 ⇒ F-13 puts the feature gate beside it |
+| the capability interface today | `INodeCapability { Key; Needs; PopulateSystems(…); ProvideModules(); Register(…) }` — no features (`NodeCapability.cs:142-178`) | — |
+| the command line | `--map-in-load` is a `CommandLineParser` option with a sentinel for "no names" (`HrotRunnerConfiguration.cs:28-40`) | ⇒ `--feature` copies it |
 
 ## 2. The three tiers
 
@@ -78,6 +85,16 @@ classDiagram
     class NodeCapabilitiesEvent { <<existing>> + hrot.feature.id tokens for every Available feature }
     class NodeHeartbeat { <<existing, grows>> + FeaturesOn (the effective ON set, for the operator grid) }
     class FeatureGridPanel { <<new, operator UI>> nodes × features · not available / on / off · toggles send SetRunSettings }
+    class IFeatureGate { <<new, in Fdp.ModuleHost>> On(id) — what the scheduler asks }
+    class NodeFeatureAttribute { <<new>> [NodeFeature(id)] on a system or its module }
+    class SystemScheduler { <<existing, grows>> caches TickMode AND NodeFeature per system type; skips a system whose feature is off }
+    class EditLoadHandlerPayload { <<existing, grows>> MapInLoad → FeaturesAtLoad: the node's effective AtLoad ON set }
+    class RecordingMetadata { <<existing, grows>> + FeaturesAtLoad (and SR-101's variant + params) }
+    NodeFeatures ..|> IFeatureGate
+    SystemScheduler ..> IFeatureGate : asks per frame
+    SystemScheduler ..> NodeFeatureAttribute : reads once per type
+    NodeFeatures ..> EditLoadHandlerPayload : AtLoad set, frozen per load
+    RecordingMetadata ..> EditLoadHandlerPayload : records what the load received
     INodeCapability *-- FeatureDeclaration : declares
     FeatureRegistry ..> INodeCapability : collects at boot
     NodeFeatures ..> FeatureRegistry
@@ -89,8 +106,9 @@ classDiagram
     FeatureGridPanel ..> ClusterView : reads availability + state
 ```
 
-*What the picture shows that prose hid:* the ONLY reader a system ever calls is `NodeFeatures.On(id)` — the three layers and the wire are
-behind it, so a feature's code never knows who switched it.
+*What the picture shows that prose hid:* the ONLY reader is `NodeFeatures.On(id)` — and most systems never call even that: the SCHEDULER
+asks it for every system marked `[NodeFeature]`, beside the `[TickMode]` gate it already applies, so a feature's code cannot forget the
+check. The AtLoad set arrives FROZEN in the load payload and is what the recording keeps.
 
 ```mermaid
 sequenceDiagram
@@ -128,7 +146,26 @@ graph TD
 
 *Caption:* `NodeFeatures` is built by the SHARED bootstrap on every ECS node (the `ClusterView` it reads already exists there), so no
 host can lack it; ⚠ the edge that could go silently dead is a feature whose owner forgets to DECLARE it — `On(id)` of an undeclared id is a
-**thrown** error in a test build and `false` in production, and a rail lists every `On("…")` literal against the declarations.
+**thrown** error at registration in every build (F-18), and a rail lists every `On("…")` literal against the declarations.
+
+```mermaid
+sequenceDiagram
+    participant M as Master (run settings)
+    participant N as Brain node (NodeFeatures)
+    participant K as SystemScheduler (Brain node)
+    participant R as recorder (Brain node)
+    Note over M: FeatureOverrides holds (scenario.rules, all, on) — default anyway
+    M->>N: LoadingLive PREPARE · payload.FeaturesAtLoad = the effective AtLoad ON set for THIS node
+    N->>N: freeze the AtLoad set for this load (a Live override never changes it mid-run)
+    N->>R: RecordingMetadata.FeaturesAtLoad = the frozen set
+    loop every frame
+        K->>N: On("scenario.rules")? (for each [NodeFeature] system, cached type → id)
+        N-->>K: true ⇒ the system runs · false ⇒ skipped, like a paused WhenTimeAdvances system
+    end
+```
+
+*What the picture shows that prose hid:* an AtLoad feature is decided ONCE, by the master, per node, in the payload the load already carries —
+the same path `MapInLoad` takes today — so a run cannot change outcome-affecting features half-way, and the recording knows exactly which were on.
 
 ## 4. Decisions
 
@@ -147,7 +184,17 @@ host can lack it; ⚠ the edge that could go silently dead is a feature whose ow
 | **F-11** | what the operator sees | each node reports its effective ON set on its heartbeat; a `FeatureGridPanel` shows nodes × features (not available / on / off) and toggles through the run settings |
 | **F-12** | composition is untouched | a switch NEVER loads code; a feature that needs its own code or wire is still a pack (R-4102), and the switch decides whether it is active |
 
+| **F-13** | ⭐ the GATE *(lean, `2026-11-01`)* | `[NodeFeature("id")]` on a system (or on its module — inherited by its systems), read ONCE per type by `SystemScheduler` beside `[TickMode]`; each frame the scheduler asks `IFeatureGate.On(id)` (an interface in `Fdp.ModuleHost`, implemented by `NodeFeatures`) and SKIPS the system when off ⇒ a pack is idle while its features are off **by construction** (R-4115). `NodeFeatures.On(id)` stays for finer checks INSIDE a system (one HUD element of several) |
+| **F-14** | ⭐ how an AtLoad switch arrives *(lean)* | the master stamps each node's effective **AtLoad** ON set into its load PREPARE payload (`EditLoadHandlerPayload.FeaturesAtLoad`, replacing `MapInLoad`) — exactly `FanOutLoadPrepare`'s path today; the node FREEZES it for the load. A **Live** feature reads `ClusterView` each time it changes. ⇒ an override of an AtLoad feature during a run applies at the NEXT load, and the grid says so |
+| **F-15** | ⭐ the recording *(lean)* | `RecordingMetadata.FeaturesAtLoad` (per node — each node records its own) = the frozen set; a REPLAY needs nothing (the outcome is already recorded); a BRANCH TO LIVE from a checkpoint re-applies it, so the continued run has the same rules. ⭐ The same metadata seat carries SR-101's run variant + params (`DESIGN_Scenario_Rules.md`) — one place for "how this run was set up". ⛔ not `CustomTags` (a typed field, read by code) |
+| **F-16** | ⭐ the wire shapes *(lean)* | `SetRunSettingsIntent.FeatureOverrides` + the cluster facts: a typed managed list `{Feature, Nodes (names, empty = all), On}` — ⛔ not another comma string; `NodeHeartbeat.FeaturesOn` (the effective ON set). `MapInLoadNodes` becomes the override `(map3d.in-load, nodes, on)` and is deleted (no compatibility, CE-4153 S10) |
+| **F-17** | ⭐ the first two features *(lean)* | **`map3d.in-load`** (migrated, declared by the Player's capability, AtLoad, default ON for `-m player` — R-1046 unchanged) and **`scenario.rules`** (declared by the Brain capability, AtLoad, default ON where composed — R-4115; it gates the scenario-rules systems, `DESIGN_Scenario_Rules.md` §00.6 S1). ⭐ SR-6 follows: the master refuses to START a scenario that carries rule entities when no node has `scenario.rules` on — *"no node runs scenario rules"* |
+| **F-18** | an undeclared id *(lean)* | `On("x")` / `[NodeFeature("x")]` with no declaration THROWS at registration in every build (registration is boot, never mid-run — so throwing costs nothing in production); a rail lists every literal against the declarations. ⇒ supersedes the caption's "false in production" |
+
 **Rejected — one line each:**
+- *Each system calling `NodeFeatures.On` at its top* — N copies of one check, and the one that forgets is the silent defect; the scheduler already gates by attribute.
+- *Live-reading AtLoad features from `ClusterView`* — a run could change outcome-affecting rules half-way; the load payload freezes them.
+- *Run settings in `CustomTags`* — an untyped map nobody can rely on.
 - *One bespoke setting per feature, the MapInLoad way, repeated* — N copies of one plumbing; MapInLoad becomes the first member instead.
 - *Compile-time switches, or packs only* — no run-time mixture.
 - *One "game mode" flag* — too coarse for "a mixture that suits the needs of the training or the gameplay".
@@ -158,6 +205,6 @@ host can lack it; ⚠ the edge that could go silently dead is a feature whose ow
 
 | slice | builds | done when |
 |---|---|---|
-| **S1** | `FeatureDeclaration`, `FeatureRegistry`, `NodeFeatures`, `--feature`, `FeatureOverrides` on the run settings + `ClusterView`, the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` read through it) | a Player builds its 3-D map in the load exactly as today (the R-1046 rails unchanged); an override switches it on a named node; an override for a node without the feature is refused; a rail: every `On("…")` literal is declared |
+| **S1** ⭐ READY-TO-BUILD | `FeatureDeclaration` on `INodeCapability`, `FeatureRegistry`, `NodeFeatures` (`IFeatureGate`), `[NodeFeature]` + the `SystemScheduler` gate (F-13), `--feature`, `FeatureOverrides` on the run settings + the cluster facts + `ClusterView` (F-16), `FeaturesAtLoad` in the load payload (F-14) and in `RecordingMetadata` (F-15), the availability tokens, `FeaturesOn` on the heartbeat; **`map3d.in-load` migrated** (`MapInLoad` / `MapInLoadNodes` deleted) and **`scenario.rules` declared** (F-17) | a Player builds its 3-D map in the load exactly as today (the R-1046 / CE-3354 ③ rails unchanged, re-pointed); an override switches it on a named node at the next load; an override for a node without the feature is refused; a `[NodeFeature]` system is skipped while off (a rail beside the TickMode rails); a branch to live re-applies the recorded set; rails: every literal is declared, every `[NodeFeature]` id is declared |
 | **S2** | the HUD features: `hud.hit-marker`, `hud.damage-arc`, `hud.kill-cam`, `hud.squad-takeover-after-death`, `hud.spread-ring`, `hud.near-miss` (CE-4148; Player Join §7a G1–G6) + the `FeatureGridPanel` | with each OFF nothing of it is drawn or recorded on any host; defaults: ON for `-m player`, OFF elsewhere (G5/G6 lean ON everywhere) |
 | **S3** | `gameplay.deploy-server` (Player Join D-3): "a server exists" = a node with the feature available AND on | a Player observes when no node has it on (R-4103) |
