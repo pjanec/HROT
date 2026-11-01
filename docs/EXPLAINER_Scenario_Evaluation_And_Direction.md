@@ -270,25 +270,35 @@ graph LR
 sequenceDiagram
     participant C as caller (trigger, tree or director)
     participant IM as InsertMacro (shared action)
-    participant EC as entity creation
-    participant LM as lifecycle module (every node)
+    participant MI as macro instance entity
+    participant X as expanding node
     C->>IM: tick (first time)
-    IM->>EC: one creation request per macro entity, ids kept in its working state
+    IM->>MI: create it (MacroInstance RedQRF, args = ActionArgs item)
     IM-->>C: Running
-    LM-->>IM: EntityConstructionCompleted (RequestId = ours)
+    X->>X: expand: create the parts, wait for their construction acks
+    X->>MI: MacroExpansionStatus = Expanding
     C->>IM: tick
-    IM-->>C: Running (some still pending)
-    LM-->>IM: the last one completed
+    IM->>MI: read the status
+    IM-->>C: Running (Expanding)
+    X->>MI: MacroExpansionStatus = Done
     C->>IM: tick
-    IM-->>C: Success (or Failure, with the refusing module's reason)
+    IM-->>C: Success (Failed would be Failure, with its reason)
 ```
 
-*Caption:* what "waits for it to complete" means in practice — the action, not the caller, knows when it is done, so every caller gets the
-same behaviour for free.
+*Caption:* the macro expansion is its own process and reports ONE outcome on the instance entity (SR-96); the action just reads it and never
+counts the parts. Because the outcome is STATE, any node can read it, and it survives save, restore and replay.
 
-⛔ **Not yet buildable** — three things to measure first: binding an action from data at runtime (today bindings are generated code), where
-InsertMacro's variable arguments live (an action's params must be a fixed-size struct), and moving the action catalogue from the editor into
-shared runtime code so a cluster node can validate the list. See [SR-93](DESIGN_Scenario_Rules.md).
+Where InsertMacro's variable `args` live (SR-97): an action's params are a fixed-size struct, so the struct holds only an index and the list
+lives in one generic managed record on the calling entity:
+
+```
+InsertMacroParams { Macro="RedQRF", At=@VillageEdge, ArgsRef=0 }      // in the behaviour's block
+ActionArgs.Items  = [ 0: {"size":12,"side":"Hostile"}, 1: "Red counter-attack launched" ]   // on the trigger entity
+```
+
+⛔ **Not yet buildable** — two things to measure first: binding an action from data at runtime (the binders exist; today only generated code
+supplies their type arguments), and moving the action catalogue from the editor into shared runtime code so a cluster node can validate the
+list. See [SR-93](DESIGN_Scenario_Rules.md).
 
 ### 2.4 How it fits with the others
 
