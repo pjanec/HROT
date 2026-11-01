@@ -183,7 +183,7 @@ graph TD
     EG --> W(("NED / DDS"))
     W --> IG
     IG --> UI["HUD · rules view · summaries (Player / IOS / editor)"]
-    NF["NodeFeatures.On(scenario.rules) — NOT BUILT"]:::dead -. "gates the pack" .-> RULES
+    NF["NodeFeatures.On(scenario.rules) — NOT BUILT"]:::dead -. "gates the rules only, never the Expander (SR-144)" .-> RULES
     REPLAY["replay"]:::dead -. "no brain tick (T10) — statuses come from the recording, re-published by the egress" .-> BTS
     classDef dead fill:#fde2e2,stroke:#c33
 ```
@@ -218,6 +218,8 @@ and CE-4154 (World Environment saved in the header) are needed before S1's objec
 | CE-4153 S9 — internal `EntityRef`s of saved components written as GUIDs | S3 | its own item (stopped: no save-direction remap yet) |
 | `NodeFeatures` not built | S1 | `DESIGN_Node_Features.md` S1 — ⭐ designed buildable `2026-11-01` (F-13 the scheduler gate, F-14 AtLoad in the load payload, F-17 `scenario.rules` declared by the Brain capability); build after S0 |
 | dismounted soldiers settle on the ground after relocation? (SR-127) | S3 | one rail |
+
+⭐ **SR-144** ✅ `2026-11-01` — **macro expansion is CORE infrastructure, not part of the rules.** 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The `Expander` lives on the entity CREATION path (§9.7) and serves forces, units, props and events alike; the rules are one user of it (`InsertMacro`). ⇒ composed wherever entities are created, ⛔ never gated by `scenario.rules` (`DESIGN_Node_Features.md` F-19), and its slice (S3) does not depend on the rules' slices except for `InsertMacro`
 
 **Rejected — one line each (the big ones; the rest are in each section):**
 - *A rules interpreter / a scenario-control system* — a second brain runtime with its own debugging (R-4109).
