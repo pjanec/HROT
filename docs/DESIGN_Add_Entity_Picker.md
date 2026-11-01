@@ -320,8 +320,7 @@ ONE more level as chips inside a group, pictures on the right, search that ignor
 | **G9** | LIST ⇄ THUMBNAILS | one toggle + the tile size, remembered per picker (P4); List = today's tree rows with a small thumbnail | the Tree and Grid layouts exist |
 | **G10** | RECENT & FAVOURITES | the first group: the last 8 placed + ☆ starred types (F on a tile) | the picker's `RecentStore` (CE-4098) |
 
-⭐ **Cost:** thumbnails load lazily on first show and are cached (P5); a group of ~30 tiles is the usual page. ⛔ open: who makes the PNGs
-(hand-made, a render from the 3-D model through the film's capture — lean, as for scenario previews) and the tile size default.
+⭐ **Cost:** thumbnails load lazily on first show and are cached (P5); a group of ~30 tiles is the usual page. ✅ decided `2026-11-01` (user: *"The thumbnail PNG, of course, will be a snapshot. Very likely doable automatically through the film director's capture, yes - You as an AI model has the full API via AI debug HTTP already available for that."*): the PNGs are SNAPSHOTS made AUTOMATICALLY through the film director's capture (`POST /director/stills` over the ai-debug HTTP API — one placed entity per type, framed, rendered, written to `assets/thumbnails/`), runnable by an AI session; ⛔ open: the tile size default.
 
 ## 3. Diagrams
 
