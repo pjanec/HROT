@@ -565,24 +565,7 @@ every `WorldPoint` / `EntityRef` / `*Link` on the map. **Open, not this design's
 | ground clamping | `GroundClampWhilePausedSystem`, `GroundClampingConfig`, `TerrainClampBaseline` | ⚠ vehicles measured; dismounted soldiers NOT measured (SR-127) |
 | entity references in a FILE become stable GUIDs | `DESIGN_Scenario_Entity_Keys.md` G4 / S9 (⚠ S9 stopped: there is no save-direction remap yet) | ⭐ SR-126 builds on it |
 
-#### 9.8.2 The relocation sequence
-
-```mermaid
-sequenceDiagram
-    participant X as Expander (one macro instance)
-    participant J as each entity's JSON (components, params, when, do)
-    participant P as TypePlan
-    participant C as creation path
-    X->>J: ① bind — every "bind" map and ParamBindings: copy the macro / scenario param values in
-    X->>P: ② resolve — every EntityLink / PointLink / AreaLink written as GUID or @Key
-    P-->>J: EntityLink to a network id · PointLink to that entity's position · AreaLink to its polygon
-    X->>P: ③ relocate — every LITERAL point / area, every WorldPoint, WorldRotation and Bearing
-    P-->>J: anchor transform applied · the few untyped vectors by their relocators
-    X->>C: ④ create the entity (live form: ids and metres only)
-```
-
-*What the picture shows that prose hid:* RESOLVE runs BEFORE RELOCATE, so a point that came from a reference is never moved — that is the
-"do not relocate this" switch the user asked for, with no flag. The FILE keeps `@Key` / GUID; only the live copy holds resolved numbers.
+#### 9.8.2 The relocation sequence — ⭐ MOVED to [`DESIGN_Scenario_Macros.md`](DESIGN_Scenario_Macros.md) §10 (2026-11-01, user: *"the macro relocation should be made part of this design"*)
 
 #### 9.8.3 Decisions — places, references, relocation *(SR-125…SR-132)*
 
@@ -590,11 +573,11 @@ sequenceDiagram
 |---|---|---|
 | **SR-125** | places are TYPES | ⭐ a TYPE, not an attribute (the D5 / P5 precedent above: the type already makes a field pickable, and an attribute "says nothing the type does not"). Internal: `WorldPoint` · authored: `PointLink` (SR-141), with SR-133's forms — `[x, y, z]` local metres, or an ENTITY'S position (`"@Key"` / a GUID, SR-130); ⛔ no geodetic form (SR-135). It REPLACES `PickableGeoPoint`, the 38 point `Vector3` params fields and the 2 lat / lon pairs: picked on the map by its type (everything P5 built keys on it), relocated by its type, resolved by its type. Compass angles are `Bearing` (SR-143). ⛔ No backward compatibility (CE-4153 S10): the repo's scenarios are migrated by one script in the same change |
 | **SR-126** | ONE param name, several ways to point | an authored entity reference is an `EntityLink` (SR-140): its live answer is the network id (orders, the wire, `BrainIntent` JSON unchanged) and its FILE form is a string: a **GUID** = *this exact entity* (stable, `DESIGN_Scenario_Entity_Keys.md` G1 / G2) · **`@Key`** = *whatever entity has that `RefKey` here* (SR-64 / SR-65) · **`@Outer/Inner`** = a key inside a macro instance. The FORM of the value says which — the field name stays one. ⏭ the query form (*"the squad leader of @Squad1"*, SR-63) is a later `EntitySet` / single-result query; not v1 |
-| **SR-127** | the relocation transform | the macro file records its AUTHORED ANCHOR (position + heading — where it was built, on real terrain); every entity keeps its authored coordinates; placing an instance applies *authored anchor → instance anchor* (translate X / Y, rotate by the heading difference, Z + the anchors' height difference). Heights ABOVE GROUND (`RoutePlan.HeightAgl`) unchanged. Vehicles settle through the existing ground clamp; ⚠ dismounted soldiers — measure with one rail before building. A macro whose plan needs particular buildings declares `relocatable: false`: its instance is pinned at the anchor and the editor refuses the drag, saying why |
+| **SR-127** | the relocation transform | ⭐ MOVED to [`DESIGN_Scenario_Macros.md`](DESIGN_Scenario_Macros.md) §10 — relocation is the macro mechanism; the TYPES it moves stay here |
 | **SR-128** | the ONE walker | `EntityRefRemap`'s type plan generalised over SR-136's leaves — resolved (`EntityLink`, an entity-form `PointLink` / `AreaLink`), remapped (`EntityRef`), relocated (`WorldPoint`, literal `PointLink` / `AreaLink`, `WorldRotation`, `Bearing`); appliers over JSON and over objects, as today. It walks params, `do` args and the `when` tree alike — the predicate tree is polymorphic, so the plan dispatches on each node's concrete type. ⭐ Because component positions are `WorldPoint`s and rotations `WorldRotation`s (SR-141, SR-142), the type plan finds them in any component; hand-written relocators remain only for what has no type of its own — `SimVelocity` (rotate) and `EditablePolyline`'s 2-D points; `NavState` road / trajectory ids are CLEARED. `SpatialBoundingPredicateDto.Bounds` becomes an `AreaLink` (SR-134) |
 | **SR-129** | parameter binding inside nested JSON (the `when`, `do`, macro args) | ⭐ SR-94 generalised: **any JSON object may carry a `bind` map, its paths relative to that object** — a `do` entry, a `when` node, a `macroArgs` object, a behaviour's params. The expander walks the JSON generically and applies each `bind` where it stands; the literal stays as the unbound value. ⇒ ONE rule, no per-DTO code, and moving a node moves its bindings (SR-94's reason). Typed components keep SR-57's `ParamBindings`. A bound param's declared type must match the target member's type — checked at expansion, a mismatch fails loudly (GAP-3) |
 | **SR-130** | named points | a NAMED POINT is just an entity whose position is wanted: a `PointLink` written `"@Key"` takes that entity's position — a new `TacGraphic_Point` (a control point, drawn on the map, carrying a `RefKey`), an area (its centroid), or any unit. ⭐ Resolved ONCE when the params are assigned (a snapshot: the behaviour still reads metres, its code unchanged); ⛔ it does not follow the entity — a param that must follow is an `EntityRef` |
-| **SR-131** | not relocating a value | ⭐ the user's rule, by construction: a LITERAL point moves with the macro; a REFERENCE does not (resolved first — step ② of the sequence above). A point entity INSIDE the macro moves (it is one of the macro's entities); one OUTSIDE, passed in through a param, stays where it is. ⛔ no `relocate: false` flag per field |
+| **SR-131** | not relocating a value | ⭐ MOVED to [`DESIGN_Scenario_Macros.md`](DESIGN_Scenario_Macros.md) §10 |
 | **SR-132** | the audit that rides the migration | while every params field is retyped, CLASSIFY it: 38 `Vector3` + 5 `PickableGeoPoint` + 2 lat / lon pairs → `PointLink`; 2 → `Bearing`; the 21 `EntityRef` params fields and the 2 raw `long` targets → `EntityLink` if authored (SR-140); `HeardId` / `CachedEqsRequestId` confirmed as working state (not params). ⭐ A RAIL lists every member of every `[ParamsDto]` and predicate DTO and fails on a `Vector2` / `Vector3` / `double` lat-lon / `long` id / `EntityRef` that is not a known type or an explicit allow-list entry; a second rail fails on a scenario-saved component with a vector member that is neither a typed `WorldPoint` / `WorldRotation` / `Bearing`, nor relocated, nor a "not spatial" entry — ⇒ a new behaviour cannot silently be unrelocatable |
 
 **Rejected — one line each:**

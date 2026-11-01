@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN → READY-TO-BUILD once SR-146…SR-151 are approved (§9.y closes GAP-1 … GAP-5: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
+build-state: DESIGN → READY-TO-BUILD once SR-152…SR-157 (§10 relocation) are approved — SR-146…SR-151 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -252,9 +252,9 @@ sequenceDiagram
 
 | # | decision | lean |
 |---|---|---|
-| **SR-96** | ✅ a macro insertion reports its OWN completion (user, `2026-11-01`: *"maybe this is a process that runs on the brain node and takes care about all its subparts like creating entities and so on, and it reports the completion on its own. So the action that triggers the macro expansion just monitors this final completion signal from the node that executed the macro expansion and doesn't care about the individual subparts inside."* → *"Yes write those two leans down."*) | ⭐ the macro INSTANCE entity (`MacroInstance{macro,args}`) carries a small replicated `MacroExpansionStatus {State: Expanding\|Done\|Failed, Reason}`. ⭐ ONE writer — the node that expands it; it alone tracks its child creation requests (each closed by an `EntityConstructionCompleted` naming its `RequestId`, `LifecycleEvents.cs:114`). ⭐ The `InsertMacro` action (SR-93) only creates the instance and reads that status: `Expanding` ⇒ `Running`, `Done` ⇒ `Success`, `Failed` ⇒ `Failure` with its reason — ⛔ it never counts the parts. ⭐ STATE, not an event: readable on every node, survives save / restore / replay — the objective pattern (*"nobody calls it, everyone reads its status"*). ✅ decided `2026-11-01` — the BRAIN node expands (user: *"there is already a concept of finding the least loaded node of certain role … practically there will be just one brain node, that this is where the macro expansion should take place"*): the role's least-loaded node, the existing pick (`RoleGroupOwnershipStrategy.cs:56` → `IClusterStateCache.GetLeastLoadedNode(role)`); in practice ONE Brain node — CGF (+ SimHost split), the all-in-one editor or the server |
+| **SR-96** | ✅ a macro insertion reports its OWN completion (user, `2026-11-01`: *"maybe this is a process that runs on the brain node and takes care about all its subparts like creating entities and so on, and it reports the completion on its own. So the action that triggers the macro expansion just monitors this final completion signal from the node that executed the macro expansion and doesn't care about the individual subparts inside."* → *"Yes write those two leans down."*) | ⭐ the macro INSTANCE entity (`MacroInstance{macro,args}`) carries a small replicated `MacroExpansionStatus {State: Expanding\|Done\|Failed, Reason}`. ⭐ ONE writer — the node that expands it; it alone tracks its child creation requests (each closed by an `EntityConstructionCompleted` naming its `RequestId`, `LifecycleEvents.cs:114`). ⭐ The `InsertMacro` action (SR-93) only creates the instance and reads that status: `Expanding` ⇒ `Running`, `Done` ⇒ `Success`, `Failed` ⇒ `Failure` with its reason — ⛔ it never counts the parts. ⭐ STATE, not an event: readable on every node, survives save / restore / replay — the objective pattern (*"nobody calls it, everyone reads its status"*). ⚠ amended `2026-11-01` by SR-148: the node that processes the instance's creation request expands — any ECS node may; the original reading (user: *"there is already a concept of finding the least loaded node of certain role … practically there will be just one brain node, that this is where the macro expansion should take place"*): the role's least-loaded node, the existing pick (`RoleGroupOwnershipStrategy.cs:56` → `IClusterStateCache.GetLeastLoadedNode(role)`); in practice ONE Brain node — CGF (+ SimHost split), the all-in-one editor or the server) still describes who USUALLY creates, not a rule |
 
-### 9.y The gaps, closed — the expander IS the creation path's child branch *(`2026-11-01` — leans SR-146 … SR-151 await the user)*
+### 9.y The gaps, closed — the expander IS the creation path's child branch *(✅ ACCEPTED `2026-11-01` — user: *"Approved"*, with the note in SR-148)*
 
 > 🔒 **User, `2026-11-01`:** *"Macro gaps"* (close them before S3) · earlier: *"Gap-X Leans accepted."* (the direction) · *"Macro expansion is
 > … a standalone feature … the core system feature."* (SR-144)
@@ -271,12 +271,12 @@ sequenceDiagram
 
 | # | decision | ⭐ lean |
 |---|---|---|
-| **SR-146** | ⭐⭐ ONE child-spawn routine, two sources | the `Expander` is `CreateEntityRequestSystem`'s child branch GENERALISED: it takes child definitions from a TKB template's `ChildBlueprints` OR from a macro file's entities, and spawns each the same way — overrides, fresh id, derived GUID (`macro:<local GUID>` beside today's `child:<id>` / `seat:<n>`), owner / init type / transience inherited, plus the macro steps (bind · resolve · relocate, §10). ⛔ never a second spawning loop (one implementation per concept). A nested macro is a child that is itself an instance — the same branch recurses |
-| **SR-147** | GAP-1 — when expansion is finished | ⭐ BY CONSTRUCTION: the children are ordinary creation requests issued in the parent's pass, so `ScenarioLoadStep` ①–② already wait for them, as for TKB children today. ⭐ `@Key` / GUID references are carried as one more transient intent (`InitialLinksIntent`) that `GenesisMaterializationSystem` resolves once every entity exists — so condition ③ waits for it too, and a missing key fails there loudly (SR-66). ⭐ A runtime `InsertMacro` reads `MacroExpansionStatus` (SR-96): `Done` when every child's `EntityConstructionCompleted` arrived and its links resolved. ⚠ The one thing to prove with a rail: no frame where the queue is empty and the children's commands are still in flight |
-| **SR-148** | GAP-2 — who reads the macro files | the node that PROCESSES the instance's creation request — its owner (the Brain, SR-96; the editor's own world when it creates locally in edit). The files are staged on every node (SR-80, one zip) because the owner is chosen at runtime; ⛔ a node that only receives ghosts never reads a macro |
-| **SR-149** | GAP-3 — a missing macro, a wrong binding type, a cycle | ⭐ a VALIDATOR runs BEFORE anything is created: on a load, inside the creating node's PREPARE (the load is two-phase — a failed prepare aborts it on every node, nothing half-built); on a runtime `InsertMacro`, before the first child request. It walks the instance tree: the macro file exists · every `bind` names a declared param of the right type · no macro appears twice on one path (a cycle) · depth ≤ 8. The reason names the path (*"Blue Platoon / Squad 2: macro 'FireTeam' not found"*). A runtime failure sets `MacroExpansionStatus = Failed` with that reason and creates nothing |
-| **SR-150** | GAP-4 — editing an instance's args | ⭐ RECONCILE by derived GUID, not destroy + recreate: a child whose GUID persists KEEPS its entity and network id and gets its components re-applied; a new GUID is created; a vanished one destroyed; a child whose TKB type changed is destroyed and created. ⇒ every reference from outside survives — an authored `EntityLink` by its GUID, an internal `EntityRef` by its unchanged id. The same path serves a live edit (SR-109, this run only) |
-| **SR-151** | GAP-5 — ids | ⭐ as TKB children today: a fresh id from the allocator per child, or the override's pre-allocated id; a macro file's own ids are only file-local keys (SR-45); width per CE-4200 (`int32`) |
+| **SR-146** ✅ `2026-11-01` | ⭐⭐ ONE child-spawn routine, two sources | the `Expander` is `CreateEntityRequestSystem`'s child branch GENERALISED: it takes child definitions from a TKB template's `ChildBlueprints` OR from a macro file's entities, and spawns each the same way — overrides, fresh id, derived GUID (`macro:<local GUID>` beside today's `child:<id>` / `seat:<n>`), owner / init type / transience inherited, plus the macro steps (bind · resolve · relocate, §10). ⛔ never a second spawning loop (one implementation per concept). A nested macro is a child that is itself an instance — the same branch recurses |
+| **SR-147** ✅ `2026-11-01` | GAP-1 — when expansion is finished | ⭐ BY CONSTRUCTION: the children are ordinary creation requests issued in the parent's pass, so `ScenarioLoadStep` ①–② already wait for them, as for TKB children today. ⭐ `@Key` / GUID references are carried as one more transient intent (`InitialLinksIntent`) that `GenesisMaterializationSystem` resolves once every entity exists — so condition ③ waits for it too, and a missing key fails there loudly (SR-66). ⭐ A runtime `InsertMacro` reads `MacroExpansionStatus` (SR-96): `Done` when every child's `EntityConstructionCompleted` arrived and its links resolved. ⚠ The one thing to prove with a rail: no frame where the queue is empty and the children's commands are still in flight |
+| **SR-148** ✅ `2026-11-01` · amended | GAP-2 — who reads the macro files | the node that PROCESSES the instance's creation request — ⭐ ANY ECS node can create entities, so ANY node may read and expand a macro; ⛔ nothing depends on it being the Brain (user: *"the scenario expansion should not be made dependent on the brain for no good reason"*); the Brain is merely who usually creates (scenario load, a trigger's `InsertMacro`), the editor's world when it creates locally. ⭐ The orchestrator therefore deploys the macros package to EVERY node (SR-80, one zip — user: *"we never know which one we'll need to load them"*); ⛔ a node that only receives ghosts never reads a macro |
+| **SR-149** ✅ `2026-11-01` | GAP-3 — a missing macro, a wrong binding type, a cycle | ⭐ a VALIDATOR runs BEFORE anything is created: on a load, inside the creating node's PREPARE (the load is two-phase — a failed prepare aborts it on every node, nothing half-built); on a runtime `InsertMacro`, before the first child request. It walks the instance tree: the macro file exists · every `bind` names a declared param of the right type · no macro appears twice on one path (a cycle) · depth ≤ 8. The reason names the path (*"Blue Platoon / Squad 2: macro 'FireTeam' not found"*). A runtime failure sets `MacroExpansionStatus = Failed` with that reason and creates nothing |
+| **SR-150** ✅ `2026-11-01` | GAP-4 — editing an instance's args | ⭐ RECONCILE by derived GUID, not destroy + recreate: a child whose GUID persists KEEPS its entity and network id and gets its components re-applied; a new GUID is created; a vanished one destroyed; a child whose TKB type changed is destroyed and created. ⇒ every reference from outside survives — an authored `EntityLink` by its GUID, an internal `EntityRef` by its unchanged id. The same path serves a live edit (SR-109, this run only) |
+| **SR-151** ✅ `2026-11-01` | GAP-5 — ids | ⭐ as TKB children today: a fresh id from the allocator per child, or the override's pre-allocated id; a macro file's own ids are only file-local keys (SR-45); width per CE-4200 (`int32`) |
 
 ```mermaid
 sequenceDiagram
@@ -321,12 +321,58 @@ must stay dead, or a macro would expand once per node.
 - *Validating while creating* — a failure halfway leaves a half-built macro; the prepare / pre-flight leaves nothing.
 - *Destroy + recreate on an args edit* — every outside reference would dangle.
 
-## 10. Relocation and reference types — currently `DESIGN_Scenario_Rules.md` §9.8 (moves here, or to its own types document, after slice S0 lands)
+## 10. Relocation — placing a macro anywhere *(moved here `2026-11-01`; ⭐ leans SR-152…SR-157 await the user)*
 
-⭐ Relocation runs INSIDE expansion, four steps: ① bind · ② resolve (GUID / `@Key` → network id or position) · ③ relocate every literal point /
-area / bearing by *authored anchor → instance anchor* · ④ create — a reference never moves (SR-125…SR-143). The types (`EntityLink` / `PointLink` /
-`AreaLink` over `EntityRef` / `WorldPoint` + `RefSpec`, `WorldRotation`, `Bearing`) are `DESIGN_Scenario_Rules.md` **§9.8.0** — left there because
-the running S0 batch (`docs/blueprints/batches/HANDOFF_Coordinator_To_Backend_S0_Types_And_Ids.md`) cites it by section and folds its as-built into it.
+🔒 **User, `2026-11-01`:** *"every node can potentially create entities, so it might mean that every node can potentially read and expand scenario macros if that happens to be performed by that node. It likely doesn't mean anything new for us, just that the scenario expansion should not be made dependent on the brain for no good reason. This is also the reason why the scenario macros should be deployed to every node by the orchestrator as we never know which one we'll need to load them. And the macro relocation should be made part of this design, I guess. Until then, I don't think it's buildable."*
+
+⭐ The TYPES relocation moves (`WorldPoint`, `WorldRotation`, `Bearing`, `PointLink`, `AreaLink`, `EntityLink`) and the ONE walker that finds them are `DESIGN_Scenario_Rules.md` §9.8 (built by slice S0 — its as-built is §9.8.11: the walker is one type plan with three appliers, remap · resolve · **`Relocation`**). This section owns WHEN and HOW a macro is relocated.
+
+### 10.1 The sequence *(moved from `DESIGN_Scenario_Rules.md` §9.8.2)*
+
+```mermaid
+sequenceDiagram
+    participant X as Expander (one macro instance)
+    participant J as each entity's JSON (components, params, when, do)
+    participant P as TypePlan
+    participant C as creation path
+    X->>J: ① bind — every "bind" map and ParamBindings: copy the macro / scenario param values in
+    X->>P: ② resolve — every EntityLink / PointLink / AreaLink written as GUID or @Key
+    P-->>J: EntityLink to a network id · PointLink to that entity's position · AreaLink to its polygon
+    X->>P: ③ relocate — every LITERAL point / area, every WorldPoint, WorldRotation and Bearing
+    P-->>J: anchor transform applied · the few untyped vectors by their relocators
+    X->>C: ④ create the entity (live form: ids and metres only)
+```
+
+*What the picture shows that prose hid:* RESOLVE runs BEFORE RELOCATE, so a point that came from a reference is never moved — that is the
+"do not relocate this" switch the user asked for, with no flag. The FILE keeps `@Key` / GUID; only the live copy holds resolved numbers.
+
+### 10.2 What is measured
+
+| fact | where |
+|---|---|
+| ⭐ the `Relocation` applier is BUILT (S0): translate X / Y, turn about the anchor by the heading difference (compass clockwise), Z by the anchors' height difference, `WorldRotation` pre-multiplied, `Bearing` + turn; a link written as an entity is not moved | `DESIGN_Scenario_Rules.md` §9.8.11 (backend, `2026-11-01`), rails `S0WalkerTests.Relocate_*` |
+| route waypoints are absolute world points (`RouteWaypoint.Position` `Vector3`) ⇒ a `WorldPoint` after S0 item 6 ⇒ moved by the walker by type | `Hrot.Core/Components/Map/RoutePlan.cs:14-20, :70-74` |
+| ⭐ an area entity's outline is RELATIVE to its `SimTransform` position (`WeatherField` adds the origin, `:207`; S0 as-built: *"an area entity's outline is relative to its SimTransform"*) — but the outline is NOT rotated by `SimTransform.Rotation` | `Fdp.Toolkits/Weather/WeatherField.cs:201-243` |
+| the creation path spawns children in the parent's pass and any ECS node can process a creation request targeted at it | `CreateEntityRequestSystem.cs:296-575`; its header (Q65) |
+
+### 10.3 Decisions
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-127** *(moved)* | the relocation transform | the macro file records its AUTHORED ANCHOR (position + heading — where it was built, on real terrain); every entity keeps its authored coordinates; placing an instance applies *authored anchor → instance anchor* (translate X / Y, rotate by the heading difference, Z + the anchors' height difference). Heights ABOVE GROUND (`RoutePlan.HeightAgl`) unchanged. Vehicles settle through the existing ground clamp; ⚠ dismounted soldiers — measure with one rail before building. A macro whose plan needs particular buildings declares `relocatable: false`: its instance is pinned at the anchor and the editor refuses the drag, saying why |
+| **SR-131** *(moved)* | not relocating a value | ⭐ the user's rule, by construction: a LITERAL point moves with the macro; a REFERENCE does not (resolved first — step ② of the sequence above). A point entity INSIDE the macro moves (it is one of the macro's entities); one OUTSIDE, passed in through a param, stays where it is. ⛔ no `relocate: false` flag per field |
+| **SR-152** | where the anchors live | the AUTHORED anchor is in the macro file's header (`anchor: {position: [x,y,z], heading: deg}`, written when the macro is saved — the editor's *Save selection as macro* takes the selection's centre and heading 0); the INSTANCE anchor is the `MacroInstance` entity's `SimTransform` (position + `WorldRotation`'s heading). ⇒ the transform is computed ONCE per instance, at the start of its expansion |
+| **SR-153** | when, and by whom | step ③ of the expansion (§10.1), inside the creation path's child branch (SR-146), per child, after bind and resolve — by WHICHEVER node processes the instance's creation request (SR-148 as amended: not the Brain by rule) |
+| **SR-154** | what moves | ⭐ by TYPE through the walker: every `WorldPoint` / `WorldRotation` / `Bearing` in a child's components and params (after S0 item 6 that is `SimTransform`, `NavigationIntent.FinalDestination`, `RouteWaypoint.Position`, engagement bearings …) and every LITERAL `PointLink` / `AreaLink`. ⭐ Two relocators, for what the walker cannot see by type: **`EditablePolyline`** — its points are relative to the entity's position, so they only TURN by the heading difference (the position moves with `SimTransform`); **`SimVelocity.Linear`** — a direction, turned only. ⭐ Cleared: `NavState`'s road / trajectory ids (they name terrain features of the authoring place). ⇒ a rail fails on a saved component with a vector member that is neither a typed point nor one of these |
+| **SR-155** | nesting | a child that is itself an instance is relocated like any child (its anchor moves with the parent); ITS children are then relocated from its OWN authored anchor to its now-moved instance anchor — the transforms COMPOSE, nothing special |
+| **SR-156** | a pinned macro (`relocatable: false`) | the expansion uses the IDENTITY transform whatever the instance's `SimTransform` says, and a load whose instance stands elsewhere is REFUSED loudly by the validator (SR-149: *"macro 'VillageDefence' is pinned at its anchor"*); the editor draws the instance at the anchor and refuses the drag, saying why |
+| **SR-157** | moving an instance | the editor's drag or a changed heading is an anchor change ⇒ RECONCILE (SR-150): every child keeps its entity and id and gets its relocated values re-applied. ⭐ A runtime `InsertMacro` names its anchor in its args — `at: PointLink` (coordinates or `@Key`) + `heading: Bearing` (or `facing: PointLink`) — the instance entity is created there and expands like any other. ⚠ Still open, one rail before the build: do dismounted soldiers settle on the ground after a Z change, as vehicles do through `GroundClampWhilePausedSystem` / `GroundClampingConfig`? |
+
+**Rejected — one line each:**
+- *Anchors at (0,0) — macros authored around an origin* — authors would build on empty ground or convert coordinates (SR-127).
+- *Rotating area outlines by `SimTransform.Rotation` at draw time* — every outline reader would change; turning the stored points once at expansion keeps one frame.
+- *A per-field `relocate: false`* — a reference already means the world, not the macro (SR-131).
+- *Relocating on the Brain only* — any node that creates the instance expands it (user).
 
 ## 11. Rows that stayed in `DESIGN_Scenario_Rules.md` — macro-adjacent, owned by the rules
 
