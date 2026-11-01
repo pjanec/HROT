@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-136; §9.8.4 rev b amends SR-125 / 126 / 128) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-137; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -734,7 +734,7 @@ nothing, and the three types nest: a point may BE an entity's position, an area 
 
 | # | decision | ⭐ lean |
 |---|---|---|
-| **SR-133** | how one field holds several ways of referencing — the C# shape | ⭐ the value carries its FORM next to its live answer, all unmanaged: `EntityRef { long NetworkId; RefForm Form; Guid Exact; int KeyId }` (`Form`: `Live` = only a network id · `Exact` = a stable GUID · `Key` = a `RefKey`, the text interned in a process-wide `RefKeyTable`). The JSON converter derives the form from the JSON shape — a GUID string ⇒ `Exact`, `"@…"` ⇒ `Key`, a number ⇒ `Live` — and writes it back the same way, so a hand-edited file needs no `"kind"` field. Resolution FILLS `NetworkId` and KEEPS the form ⇒ ⭐ save writes the authored form back untouched (this is also the missing save direction of `DESIGN_Scenario_Entity_Keys.md` S9 — nothing to convert back). Live JSON on the wire (`BrainIntent`, orders) stays the bare number. The editor's leaf shows a form switch *[Exact \| Key]* + the value; the map pick writes `Exact` (the picked entity's GUID), or `Key` when the picked entity has a `RefKey` and a MACRO is being edited. Cost: `EntityRef` grows 8 → 32 bytes (blob layouts regenerate) |
+| **SR-133** ⚠ LAYOUT SUPERSEDED by §9.8.5 SR-137 (packed, 16 bytes); the forms, the converter and resolve-keeps-the-form STAND | how one field holds several ways of referencing — the C# shape | ⭐ the value carries its FORM next to its live answer, all unmanaged: `EntityRef { long NetworkId; RefForm Form; Guid Exact; int KeyId }` (`Form`: `Live` = only a network id · `Exact` = a stable GUID · `Key` = a `RefKey`, the text interned in a process-wide `RefKeyTable`). The JSON converter derives the form from the JSON shape — a GUID string ⇒ `Exact`, `"@…"` ⇒ `Key`, a number ⇒ `Live` — and writes it back the same way, so a hand-edited file needs no `"kind"` field. Resolution FILLS `NetworkId` and KEEPS the form ⇒ ⭐ save writes the authored form back untouched (this is also the missing save direction of `DESIGN_Scenario_Entity_Keys.md` S9 — nothing to convert back). Live JSON on the wire (`BrainIntent`, orders) stays the bare number. The editor's leaf shows a form switch *[Exact \| Key]* + the value; the map pick writes `Exact` (the picked entity's GUID), or `Key` when the picked entity has a `RefKey` and a MACRO is being edited. Cost: `EntityRef` grows 8 → 32 bytes (blob layouts regenerate) |
 | **SR-125′** | `WorldPoint` *(amends SR-125)* | `WorldPoint { Vector3 Local; PointForm Form; EntityRef Of }` — `Coordinates` (JSON `[x, y, z]`, local metres; relocated) or `Entity` (JSON `"@Key"` / GUID — that entity's position, resolved into `Local`; NOT relocated, SR-131). ⛔ the geodetic form is DROPPED (SR-135) |
 | **SR-134** | areas — several shapes | ⭐ ONE `WorldArea { AreaForm Form; WorldPoint Center; float Radius; Vector2 HalfSize; Bearing Heading; EntityRef Of }`: `Circle` (`{"circle": {"center": [x,y,z], "radius": 50}}`) · `Rectangle`, rotated (`{"rect": {"center": …, "size": [w, h], "heading": 30}}`) · `Entity` (`"@Village"` — an area entity's polygon, `EditablePolyline`). A free polygon IS an area entity (as areas are authored today) — so the type stays unmanaged. ⭐ ONE containment, `WorldArea.Contains(world, point)` (circle / oriented-rectangle maths + `PolygonMath.Contains`), shared by the spatial condition (`SpatialBoundingPredicateDto.Bounds` becomes a `WorldArea`), the area objectives (`ReachArea` / `HoldArea` / `ClearArea`) and any behaviour that tests a zone. Relocation moves `Center` and turns `Heading`; an `Entity` area moves only if that entity is inside the macro. ⇒ ⛔ SR-128's "a rotated axis-aligned box fails loudly" is moot |
 | **SR-135** | latitude / longitude | ⭐ the inside of the engine is LOCAL METRES (AQ107 B): no geodetic value in a behaviour param, a condition or a scenario file. The 5 `PickableGeoPoint` + 2 lat / lon pairs become `WorldPoint`s in the migration (SR-132); `PickableGeoPoint` and `OrderGeo`'s conversions are deleted. Geodetic exists only at the OUTER edge — an external gateway, an API that accepts lat / lon — and converts THERE, through the one `IGeographicTransform`. ⚠ not measured: whether an external system sends orders in lat / lon today — if one does, its ingress converts; the type decision does not depend on it |
@@ -743,9 +743,45 @@ nothing, and the three types nest: a point may BE an entity's position, an area 
 **Rejected — one line each:**
 - *A separate `"kind"` field in the JSON* — the shapes (number / GUID / `@…` / array / object) already tell them apart; a field can disagree with its value.
 - *A side table of authored forms keyed by JSON path* — path-fragile (the user's SR-94 objection).
-- *Encoding the form in `NetworkId`'s high bits to stay 8 bytes* — opaque in every debugger and log; 24 bytes are cheap in params.
+- ~~*Encoding the form in `NetworkId`'s high bits to stay 8 bytes* — opaque in every debugger and log~~ ⛔ withdrawn by §9.8.5 (user: the types print themselves) — a packed layout is SR-137.
 - *An axis-aligned box plus a separate polygon type* — two containment codes; one `WorldArea` covers both plus circle and rectangle.
 - *A literal polygon inside the area value* — not unmanaged; an area entity already is a polygon, drawn and editable on the map.
+
+#### 9.8.5 Rev c (`2026-11-01`) — PACKED layouts *(lean SR-137 awaits the user; supersedes SR-133's 32-byte layout — its JSON forms and behaviour stand)*
+
+> 🔒 **User, `2026-11-01`:** *"every log and dumper and debugger are probably using some serializer of the entity ref or world point types
+> anyway for better UX. So it's not so unachievable to pack all the fields into a shorter memory layout. might be worth revising."*
+
+| measured | where |
+|---|---|
+| `EntityRef` already shows itself through its own `ToString()` (`"#" + NetworkId`) and its JSON converter | `EntityRef.cs:76` ⇒ a packed field costs no readability: logs, dumps and the inspector go through the type |
+| ⚠ brain state CROSSES nodes (a brain snapshot on hand-over) and is RECORDED | `BrainSnapshotTranslator` (`Hrot.SimHost.Tests/BrainSnapshotTranslatorTests.cs`); `BehaviorState` recorded (§11 SR-118) ⇒ a packed handle may be read in another process — it must fail SAFE there |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityRef { <<16 bytes>> long NetworkId — the live answer · AuthoredRef Authored }
+    class AuthoredRef { <<8 bytes>> 2 bits form · 14 bits table tag · 48 bits index }
+    class AuthoredRefTable { <<per world, managed singleton>> tag · index to GUID or key text }
+    class WorldPoint { <<24 bytes>> Vector3 Local — the live answer · AuthoredRef Authored (none = coordinates) }
+    class WorldArea { <<40 bytes>> AuthoredRef Authored (form + source) · long NetworkId (area entity) · Vector3 Center · Vector2 Size (radius in X) · float Heading }
+    EntityRef *-- AuthoredRef
+    WorldPoint *-- AuthoredRef
+    WorldArea *-- AuthoredRef
+    AuthoredRef ..> AuthoredRefTable : index, checked by tag
+```
+
+*What the picture shows that prose hid:* the live answer stays INLINE (no lookup on the hot path); only the authored form — read by the
+editor and by save — goes through a table, and a `WorldPoint` needs no network id at all (its position is already in `Local`).
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-137** | the packed layouts | ⭐ `EntityRef` = **16 bytes**: `long NetworkId` (inline, so `Resolve` is unchanged and costs nothing) + `AuthoredRef` (8 bytes: 2 bits form — none / exact / key · 14 bits table tag · 48 bits index into the world's `AuthoredRefTable`, which interns each distinct GUID or key text ONCE). `WorldPoint` = **24 bytes**: `Vector3 Local` + `AuthoredRef` (none ⇒ coordinates; a GUID / key ⇒ that entity's position, already resolved into `Local`). `WorldArea` = **40 bytes**: `AuthoredRef` (also carries circle / rectangle / entity) · `long NetworkId` (the area entity) · `Vector3 Center` · `Vector2 Size` (a circle's radius in X) · `float Heading`. ⭐ **Fail-safe by construction:** a handle read in a world whose table has another tag (another node after a hand-over, a recording restored in a new process) reads as "no authored form" — the live `NetworkId` / `Local` still works; only the editor's round-trip of THAT copy is lost, and the editor always edits the scenario's authored copy, never a live blob. The table is a per-world managed singleton, recorded with the world. Readability: `ToString`, `[DebuggerDisplay]` and the JSON converter print `@BlueHQ → #9812` / `3f2a… → #9812` |
+
+**Rejected — one line each:**
+- *SR-133's 32-byte struct (GUID inline)* — 2× the size for a value read only by the editor and save.
+- *8 bytes, the network id behind the handle too* — every `Resolve` on the hot path would become a table lookup, and a resolved ref would need one table entry per occurrence (a macro-local key resolves differently in each instance).
+- *A process-wide table with no tag* — a handle that crossed nodes or a restore would silently read someone else's text.
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
