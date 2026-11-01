@@ -215,6 +215,23 @@ sequenceDiagram
 | actions | run in their listed order; `Order` / `InsertMacro` are fire-and-forget; a failed action is written into `Reason`, the others still run |
 | the instructor | can fire, disarm or re-arm it by hand (journaled with who did it) |
 
+### 2.5 What `do` is — a plain list, not a script
+
+```mermaid
+graph LR
+    P["the trigger's params (JSON)<br/>do: InsertMacro · Order · Message"]
+    TB["Trigger behaviour<br/>ONE, compiled once"]
+    H["compiled action handlers<br/>a small closed set"]
+    E["existing events<br/>macro insertion · AssignTacticalIntent · message"]
+    P --> TB
+    TB -- "at fire time, in order" --> H
+    H --> E
+```
+
+*Caption:* the `do` list is DATA in the trigger's params; the one shipped `Trigger` behaviour walks it when it fires and hands each entry to a
+compiled handler by its kind — no sub-behaviour, no Blueprint, nothing compiled per scenario. An unknown kind is refused when the scenario
+loads. `when` can be an objective's status OR the scenario clock directly (`scenarioTime >= 09:30`).
+
 ### 2.4 How it fits with the others
 
 ```mermaid
