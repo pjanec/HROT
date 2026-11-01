@@ -66,19 +66,19 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 3 | 10 |
 | `RW-S` | 173 | 792 |
-| `RW-L` | 142 | 243 |
+| `RW-L` | 143 | 243 |
 | `RW-M` | 231 | 793 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **586** | **2032** |
+| **Total** | **587** | **2032** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
 |---|---:|---:|
 | `AX-` | 4 | 23 |
 | `BP-` | 105 | 386 |
-| `CE-` | 423 | 1465 |
+| `CE-` | 424 | 1465 |
 | `HN-` | 11 | 41 |
 | `MA-` | 2 | 21 |
 | `MD-` | 0 | 7 |
@@ -4530,6 +4530,7 @@ collides with work in flight.
 - [ ] **CE-4166** · `RW-XS` 📋 **OPEN `2026-11-01` (coordinator, from the trigger PoC, SR-108) — **Pin the T-rule: a condition already TRUE when the trigger arms is NOT an edge** (SR-108 ⑦).** 📐 rail `P5_AConditionAlreadyTrueWhenTheTriggerArms_IsNotAnEdge_UntilItDropsAndRises` (`FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TriggerPoc/`) chose it because T1–T10 were silent. ⭐ Lean keep (a trigger armed late must not fire on stale truth); write it into §10.11 as T1's corollary, or flip it with an `armedFiresIfTrue` option if the user wants the other — a documentation decision
 - [ ] **CE-4167** · `RW-M` 📋 **OPEN `2026-11-01` (coordinator → ui lane, SR-110) — extend the ONE shared timeline panel for the RULES VIEW: TL-X1 dependency connectors between items on different rows · TL-X2 item styles (expected = dashed, delay / cooldown = hatched, pinned = diamond) · TL-X3 tree row headers with status text + icon · TL-X4 drag-from-handle onto another row (connect) · TL-X5 a *Coming up* summary.** ⭐ All on `TimelinePanel` + `ITimelineTrack` (`FDP/Engine/Fdp.Presentation/ImGui/Panels/Timeline/`), general for every host (R-4075: one panel, never a copy); the rules view itself is a host over SR-105's derived rows. Design: `docs/DESIGN_Scenario_Rules.md` SR-109 / SR-110 · mockup `docs/designs/rules-view/` (standalone HTML boards; also the canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k). ⚠ Depends on objectives / triggers existing (`ObjectiveStatus`) for real rows; TL-X1…X5 can be built and railed on synthetic tracks first
 - [ ] **CE-4168** · `RW-M` 📋 **OPEN `2026-11-01` (coordinator → **ui**, owner of the generic picker) — EXTEND THE ONE GENERIC PICKER for the scenario picker (CE-4141) AND the thumbnail entity picker (CE-4142): P1 side preview pane · P2 interactive pane state handed back on confirm · P3 source-supplied footer actions · P4 a remembered List ⇄ Thumbnails layout toggle · P5 a shared lazy image cache.** Design `docs/blueprints/Architect_Question_108_Run_Mode_Picker.md` D26 (+ D24 / D25), mockup `docs/designs/scenario-picker/`. 📐 The picker is already source-driven (`IPickerSource<T>`: `RenderItem` / `RenderPreview` by the source, `IsPreviewExpensive`, layouts Tree / Grid / Wide). ⛔ No scenario-only or entity-only picker. Done when: both CE-4141 and CE-4142 are sources of the one picker, each using P1–P5, with rails on a synthetic source
+- [ ] **CE-4169** · `RW-L` 📋 **OPEN `2026-11-01` (coordinator, user request; ⚖️ DESIGN FIRST — owner to be chosen) — SMART TACTICAL GRAPHICS: every tactical symbol is a TYPE that owns its drawing; a smart one offers HANDLE POINTS and, when the user drags them, draws itself by its own logic (not just the lines the user clicked).** 🔒 User: *"The tactical symbols, they might have their own type, which determines how they are drawn. Sometimes are smart, meaning they are not just a set of lines clicked by the user, but they offer some handle points, and when the user moves them, the shape draws itself according to its own internal logic. This is not yet implemented"*. 📐 Today: graphics are drawn by the map's tactical-graphics layer (`MilStd2525Renderer` placeholder shapes) and the film's graphics are a closed enum (`GraphicKind`, `Map3D/Director/FilmGraphics.cs:10`); searched `docs/` for a smart / handle-point graphic design — none found. ⭐ The design must settle: the type registry (one per symbol, data-described where possible), the handle model (which points, constraints), how the map and the film draw from ONE painter (shared, never two), how a type is drawn at its default handles (its thumbnail — `DESIGN_Add_Entity_Picker.md` §2f G8), and how instances are saved / replicated. Done when: the design is approved, then built
 
 ## Out of scope
 
