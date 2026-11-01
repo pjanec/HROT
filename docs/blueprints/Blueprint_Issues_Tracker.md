@@ -67,18 +67,18 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | `RW-XS` | 4 | 10 |
 | `RW-S` | 176 | 792 |
 | `RW-L` | 145 | 243 |
-| `RW-M` | 231 | 793 |
+| `RW-M` | 232 | 793 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **593** | **2032** |
+| **Total** | **594** | **2032** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
 |---|---:|---:|
 | `AX-` | 4 | 23 |
 | `BP-` | 105 | 386 |
-| `CE-` | 430 | 1465 |
+| `CE-` | 431 | 1465 |
 | `HN-` | 11 | 41 |
 | `MA-` | 2 | 21 |
 | `MD-` | 0 | 7 |
@@ -4537,6 +4537,7 @@ collides with work in flight.
 - [ ] **CE-4203** · `RW-XS` 📋 **OPEN `2026-11-01` (coordinator, user approved `2026-11-01` — `DESIGN_Semantic_Value_Types.md`; the type pattern = `DESIGN_Scenario_Rules.md` §9.8.9 `WorldPoint`: identical memory + JSON, natural implicit conversions, the TYPE drives the tools, one rail per type) — SV-5: `StationId` (`int`) from birth** for SR-76a's physical station key (`PhysicalStation {Id}`, `ExternalMeasurement`'s key) — tools show the station's name. Done when: the field is born typed (with SR-76a's build)
 - [ ] **CE-4204** · `RW-S` 📋 **OPEN `2026-11-01` (coordinator, user approved `2026-11-01` — `DESIGN_Semantic_Value_Types.md`; the type pattern = `DESIGN_Scenario_Rules.md` §9.8.9 `WorldPoint`: identical memory + JSON, natural implicit conversions, the TYPE drives the tools, one rail per type) — SV-6: typed `ExerciseId` and `EpisodeId`** (`Guid`; 4 + 3 fields) — the two `Guid` kinds a tool can OPEN (the exercise inventory, the recording); ⛔ `RequestId` ×28 / `TransactionId` / `SessionId` stay `Guid` (correlation tokens nobody navigates to). Done when: the fields are typed and the debug API / inspector render them as links
 - [ ] **CE-4205** · `RW-S` 📋 **OPEN `2026-11-01` (coordinator, found measuring CE-4164) — ONE live evaluation of the loop predicates: `DataBreakpointManager` keeps PRIVATE spatial / lifecycle / event trackers (`Hrot.Diagnostics.Breakpoints/DataBreakpointManager.cs:81-110`) while the shared `PredicateCompiler` returns constant TRUE for those DTOs and the timeline's `TimelineLaneCompiler` has no spatial / lifecycle arm.** ⭐ Route the breakpoint manager's trackers to the level arms CE-4164 adds to `PredicateCompiler` (`DESIGN_Scenario_Rules.md` SR-158) — the edge / enter-exit semantics stay in the breakpoint layer, the evaluation is the one compiler's. ⚠ `RecordingSearchService` (over a file) keeps its scan loop but compiles through the same arms. Done when: one implementation per leaf, the breakpoint rails and the search rails unchanged and green
+- [ ] **CE-4206** · `RW-M` 📋 **OPEN `2026-11-01` (coordinator → **ui**, owner of the editor; ⚖️ DESIGN FIRST — extend `docs/blueprints/DESIGN_Map_Picking_Unification.md`, which owns picking, + a mockup board) — THE EDITOR AUTHORS THE REFERENCE TYPES' FORMS: `EntityLink`, `PointLink`, `AreaLink`, `Bearing`, `WorldRotation` (and shows the internal `WorldPoint` / `EntityRef` on the map).** 🔒 User: *"we will need to update the editor to support those XXXLink types."* 📐 **Measured on `backend` (S0 item 5, `489774f21`):** the params / predicate DTOs ARE retyped (`PickableGeoPoint` and `OrderGeo` deleted; the predicate's drawn box becomes an `AreaLink`, `AreaBoxes.FromBox`), and the ONE leaf (`ComponentEditDrawer` / `PickableLeafFieldEditor`) keys on the new types — but only in their PLAIN form: a pick writes a bare `EntityLink(EntityRef)` (no GUID, so the file keeps a number) and `PointLink` coordinates (x, y, z); there is no form switch, no `@Key`, no circle / rotated-rectangle editing, no bearing gizmo. ⭐ **Scope (one leaf per type, in the ONE params form — so the AI section, the mission panel, the component editor, the predicate builder and the trigger `when` / `do` editors all get it):** ① `EntityLink` — a form switch *[Exact | Key]*; Exact shows the target's NAME (GUID → entity), the map / ORBAT pick writes the picked entity's `EntityGuid` (or its `RefKey` while a MACRO is edited — SR-133, CE-4153 S9′ (e)); Key = a text field completing the `RefKey`s in scope; an unresolved one shown red with its reason · ② `PointLink` — *[Coordinates | Entity]*: x, y, z + the map pick, or an entity as for ①; *show on map* · ③ `AreaLink` — *[Circle | Rectangle | Area entity]*: centre + radius / size + heading edited on the map with handles (the map's existing gizmo machinery), or pick an area entity · ④ `Bearing` — degrees + a compass dial and an arrow drawn at the owner on the map; `WorldRotation` — heading (HPR read-out through `OrientationText`) · ⑤ the internal `WorldPoint` / `WorldRotation` / `EntityRef` read-only in the inspector / watch / brain view with *show on map* (SR-141 ①) · ⑥ the `RefKey` component editable in the entity details (unique-per-scope check, loud on a duplicate) · ⑦ `DtoJsonSchemaExtractor` emits a picker hint per type so an agent over the debug API sees the forms (SR-138 ④). ⛔ one leaf per type — never a second editor for the same type on another screen (`DESIGN_Map_Picking_Unification.md` P4 / P5). Depends on: S0 merged (the types) · CE-4153 S9′ (the GUID file form). Done when: each form can be authored, round-trips through save / load unchanged, and the predicate builder edits a rotated rectangle and a circle; frame rails under `xvfb-run -a`
 
 ## Out of scope
 
