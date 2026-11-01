@@ -3,9 +3,9 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §11 the objective LIFECYCLE + the WIRE (B3 / B4 draft, SR-113…SR-124) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
-known-rot: ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
+known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
 ui-mockup: ⭐ docs/designs/rules-view/ (4 standalone HTML boards + README) — the rules view, trigger / objective detail tabs, editing while live (SR-109); also on the claude.ai canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k (the committed copy wins)
 proof-of-concept: ⭐⭐ FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TriggerPoc/ — 38 rails PROVING the trigger machinery (runtime binding of shared actions, per-step occurrence slots, RunActions, BTree host, the when, restore); findings SR-108; the build rows CE-4160…CE-4166. ⛔ A builder STARTS FROM IT — lift its code into production, keep its rails; do not re-derive
@@ -861,6 +861,147 @@ mission: a list"*.
 | **SR-111** | ✅ ACCEPTED `2026-11-01` as the starting point (user: *"the views section and the designs, they are accepted. Again, that's the case where I need to start with something, and that might be subject to change later."*) · ⭐ the MISSION SUMMARY — a read-only, aggregated view of the whole exercise at every level (user, `2026-11-01`: *"what i mean is some aggregated, summarized output of the whole scenario mission, with scoring at different levels. Intended for the overview of the mission status and not for editing objectives."*) — leans; mockup [`docs/designs/rules-view/mockup/MissionSummary.html`](designs/rules-view/mockup/MissionSummary.html) | ⭐ **headline cards** per side: the overall `Score` with its trend and the pass mark · required objectives n / N (each state) · forces (strength, casualties, inserted forces) · ATTENTION items = measures past their threshold and required objectives at risk. ⭐ **scores by level** — one table, three groupings: **command chain** (side ▸ platoon ▸ squad ▸ person — the SR-72 member evaluation rolled up the `UnitSubordinate` chain, a node's score = the aggregation its evaluation macro declares, default the mean of its members), **objectives** (the composite tree), **roles** (all riflemen, all MGs); columns = the score + a trend + the top-level measure groups (mission · fire · reports …, taken from the evaluation's own groups, not hard-coded); a row selected ⇒ **why this score** (each measure, its value vs threshold, its weight) + *show the moments on the timeline* (SR-103 lanes). ⭐ **mission objectives** list and **key events** (state changes, trigger fires, casualties — each a timeline link). ⭐ Strictly READ-ONLY — editing lives in the rules view (SR-109); ⭐ the same view opens on a RECORDING for the debrief, and **Export report** writes it out (the R-4105 data is on NED, so an external debrief tool can draw its own). ⭐ Nothing computed twice: every number is a replicated `ObjectiveStatus` or a measure the evaluation already publishes; trends come from the recorded statuses. ✅ decided `2026-11-01` — the pass mark is a PARAMETER of the evaluation macro with a DEFAULT (user: *"Pass mark could be a default of the scenario macro parameter."*); a scenario overrides it through the macro instance's params / a scenario-param binding (SR-94) |
 | **SR-112** | ✅ ACCEPTED `2026-11-01` as the starting point (user: *"the views section and the designs, they are accepted. Again, that's the case where I need to start with something, and that might be subject to change later."*) · ⭐ what the PLAYER sees — the DEBRIEF after and the HUD during, in a TRAINING and a GAME profile (user, `2026-11-01`: *"design the resulting summary view for the trainee to be shown to him as part of the debriefing, and then also what to show on his head-up display panel during the play. It's not just about the training, it could be part of the fun gameplay as well. I guess there could be two versions for fun gameplay, when players are killing each other and competing, and different one for serious military training."*) — leans; mockups [`docs/designs/rules-view/mockup/`](designs/rules-view/README.md) TraineeDebrief · GameSummary · HudTraining · HudGame | ⭐ **ONE data model, TWO profiles** — the same replicated statuses and measures (SR-72 member evaluation, SR-75 Score, CE-4155 attribution for kills / assists); the profile only CHOOSES and STYLES. ⭐ Every element is its own **Node Feature** (R-4108, R-4114 — game feedback is features only), so a scenario / cluster picks a profile = a feature set: **training** — `hud.objectives` (my mission objectives + progress) · `hud.own-evaluation` (SR-83: my standards, value vs target) · `hud.coaching` (a live hint when a measure is breaking — *you are in the open*; OFF by default) · `hud.messages` (SR-106); **game** — `game.tickets` + `game.capture-points` + `game.round-timer` (top bar) · `hud.kill-feed` · `hud.hit-marker` · `hud.score-popups` (*+100 elimination, streak ×3*) · `hud.messages`. ⭐ **debrief, training**: GO / NO-GO per standard (a standard = an objective / measure with its threshold, SR-67), own score vs squad and platoon, each standard as a card with its facts, the player's OWN moments (SR-103 lanes filtered to him) with *replay from my eyes* (the film director / review, from his possession view), *went well / work on* GENERATED from the measures (passed with the best margin · failed with the worst), the instructor's note, progress across runs (⛔ needs the trainee record, gap G7). ⭐ **debrief, game** (end of round): winner + team scores, a scoreboard (K / D / A / points / score; AI-driven units listed as bots), *your round* stats, AWARDS (= named measures crossing a threshold — *Bridge keeper* = longest on a capture point, *Sharpshooter* = accuracy, *First aid*), *your best moment* (a clip the film director cuts automatically from the round's lanes — the highest-scoring burst of events), level / XP (⛔ persistent progression needs the same per-person record as G7). ⭐ Both debriefs are views over a RECORDING, so they also open later; the data is on NED (R-4105) so a game frontend can draw its own. ✅ decided `2026-11-01` (user: *"You are correct that the instructor should see it first and add notes before the trainee sees it, but we are in a demo stage, so it would be better if the information comes up without the need of any interaction and are basically always available. And for production use, we will add these 'correct process' details later. Reusable awards macro sounds good"*): ① **DEMO: the debrief is ALWAYS AVAILABLE, no release step** — it shows the moment the run ends (and on any recording); the instructor's note is optional and appears when written; the release-by-instructor process is a LATER production item · ② **awards are a reusable AWARDS MACRO** of measures (the evaluation-library pattern) — a scenario names it with params; never authored per scenario |
 | **SR-92** | ✅ `when` may be the scenario clock directly (user, `2026-11-01`: *"The scenario time condition in the when, yes, of course. No need for extra objective just for specifying time condition."*) | ⚠ the SHAPE below is SUPERSEDED by SR-95 (the decision stands — the clock is a `when` leaf, no extra objective): ~~`when: {scenarioTime: ">= 09:30"}` beside `when: {status: "@X", is: "Active"}`~~ |
+
+## 11. B3 + B4 — the objective LIFECYCLE and the WIRE *(draft `2026-11-01` — leans SR-113…SR-124 await the user)*
+
+### 11.1 INVENTORY *(queries run `2026-11-01`; ⚠ `check_index_coverage` is not available through the CLI — absence claims are graph + grep, coverage unchecked)*
+
+`search_graph` Class `.*(Objective|Exercise|PlayerMessage|Subtitle|Score).*` (33 — ⛔ no objective status, no exercise result, no player
+message: only `PlatoonAttackBehavior.AttackObjectives`, `ExerciseBranch` / `ExerciseRetention` (orchestration), the film's subtitles) ·
+`.*(Chat|Notice|Announcement|Broadcast|Toast|Alert|TextMessage|Message)(Topic|Event|Notification|Sample|Descriptor)?$` (3 — ⛔ no text-to-players
+topic) · `.*(Weather|ScenarioClock|WorldEnvironment).*(Translator|Topic|Descriptor).*` (4) · grep `ExerciseEnded` (docs only).
+
+| what exists | where | used for |
+|---|---|---|
+| ⭐ a per-entity STATE topic from the owner, change-only, Reliable + TransientLocal + KeepLast 1, wiped on `WorldEpoch` (dispose every instance), released on hand-over | `EntityScenarioClockTranslators.cs:22-78`; `SimDescriptors.cs:158-171` | `EntityObjectiveStatus`, `EntityExerciseResult` copy it |
+| ⭐ an EVENT topic with managed fields: published once by the raising node, raised again as the local event on every other node, `OriginNodeId` skips its own | `SquadReportMessages.cs:5-58` (`[DdsManaged]`) | `PlayerMessage` copies it |
+| strings on the wire | `MissionDescriptors.cs:30-45` (`string`), `BrainIntentMessages.cs:26` (`IntentJson`) | `Title`, `Reason`, `Text` |
+| ⭐ the brain's params already reach every node: `EntityBrainIntent.IntentJson` | `BrainIntentMessages.cs:19-26` | the source of the display fields (§11.4) |
+| the brain ticks only when sim time advances | `BrainTickSystem.cs:58` `[TickMode(WhenTimeAdvances)]` | ⚠ shapes the end (SR-116): a paused world runs no closing tick |
+| replay: owners restore recorded chunks; the egress re-publishes them; brains do not tick | `mgmt-1/DESIGN.md` §8.10; T10 | statuses are right at any seek with no new code |
+| `DataPolicy.NoScenario` — recorded, not saved into the scenario | `Fdp.Core/DataPolicyAttribute.cs:48` | runtime status is never authored data |
+| a multi-tick action (`Running` until done) | the PoC, `TriggerPoc/PocActions.cs` (SR-108) | `EndExercise` waits for the close (SR-116) |
+
+### 11.2 Claim table
+
+| the design rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a status topic per entity is the established shape | ✅ `EntityScenarioClockTranslators.cs:22-78` | ✅ R-4105 (data over NED); Weather W-4 |
+| nothing pauses-and-closes today | ✅ `BrainTickSystem.cs:58` (no tick while paused) | ⛔ searched `docs/`+`.dev/` for an end-of-exercise close, none found |
+| replay needs no status code | ✅ §8.10 egress re-floods restored state | ✅ `mgmt-1` §8.10; T10 |
+| the brain's working state restores mid-step | ✅ PoC restore rails (SR-108) | ✅ SR-98 |
+| a late joiner needs current statuses, not history | ✅ every state topic is TransientLocal KeepLast 1 | ✅ SR-48 |
+| message history after a late join | ⛔ not measured — the lean (SR-121) does NOT depend on it | — |
+
+### 11.3 The lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Active : activeWhen holds (or none)
+    Active --> Achieved : success condition
+    Active --> Failed : fail condition or deadline
+    Active --> Inactive : SetObjectiveActive false
+    Pending --> Inactive : SetObjectiveActive false
+    Inactive --> Active : SetObjectiveActive true
+    Achieved --> Active : SetObjectiveActive true with reset
+    Failed --> Active : SetObjectiveActive true with reset
+    Active --> Closed : exercise closing
+    Pending --> Closed : exercise closing
+    Closed --> [*]
+```
+
+*What the picture shows that prose hid:* only an ACTION (or the instructor) leaves a terminal state, and every state reaches `Closed` through
+ONE door — the exercise closing — so the result never waits on a behaviour that is still undecided.
+
+```mermaid
+sequenceDiagram
+    participant T as trigger "end" (Acting)
+    participant WE as World Environment · ExerciseResult
+    participant O as every objective / measure / trigger
+    participant N as every node
+    T->>WE: EndExercise · Phase = Closing · reason
+    Note over T: returns Running (a multi-tick action)
+    O->>O: next tick sees Closing · runs its OnClose rule · State final
+    T->>O: each tick: all statuses final? (or 2 s passed)
+    T->>WE: Phase = Ended · outcome per side · totals
+    WE-->>N: EntityExerciseResult (state topic)
+    N->>N: ingress raises ExerciseEnded once · pause-on-end · summaries open
+```
+
+*What the picture shows that prose hid:* the pause comes AFTER the close, because a paused world runs no brain tick (`BrainTickSystem.cs:58`);
+`EndExercise` is the existing multi-tick action shape, so no end-of-exercise system is added.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-113** | the states | `Pending` (waiting for `activeWhen`) · `Active` · `Achieved` · `Failed` · `Inactive` (switched off by an action or the instructor; `activeWhen` is ignored until switched on) · `Closed`-with-a-final-state (below). ⭐ `Capture` (HoldArea `capture`) never leaves `Active` — its `Owner` is the state |
+| **SR-114** | switching off and on | `SetObjectiveActive(id, false)` keeps the working state (progress frozen); `true` resumes it. A hold timer that needs continuity restarts anyway (continuity was broken). `reset: true` clears the working state — the only way out of `Achieved` / `Failed` (a repeated drill). ⛔ nothing else leaves a terminal state |
+| **SR-115** | a composite | its state is its children's: `Pending` until any child is active, then its aggregation behaviour's verdict (SR-78) |
+| **SR-116** | the end | `EndExercise` is multi-tick: ① writes `ExerciseResult.Phase = Closing`; ② every objective's next tick runs its kind's **OnClose** rule; ③ when every status is final (or after a 2 s sim-time timeout, logged with the stragglers), it writes the outcome per side, `Phase = Ended`; ④ only then pause-on-end (SR-9). ⭐ the instructor's *End* button fires the default evaluation macro's `instructor-end` trigger (SR-111), so it takes the same path |
+| **SR-117** | OnClose per kind | `Protect` / `NoHarm` (judged at the end) → `Achieved` if within limits, else `Failed` · every other `Active` → `Failed`, reason *"not achieved by the end"* · `Pending` / `Inactive` → **`Skipped`**: excluded from aggregation unless `required` (then it counts as failed) · measures freeze their value · a capture objective freezes its `Owner` |
+| **SR-118** | restore, replay, branch | statuses and brain working state are RECORDED (`DataPolicy` default) and `NoScenario` (never saved into the scenario). Replay: brains do not tick (T10); the owner's restored chunks are re-published, so every HUD and view is right at any seek with no new code. Branching to live from a checkpoint: brains continue from the restored working state (proved, SR-108). A late joiner gets the current statuses (TransientLocal) |
+| **SR-119** | a live edit (SR-109) | this run only; a changed param reaches the behaviour through the existing params path and the state is KEPT; the edit dialog offers *"restart this objective"* = `SetObjectiveActive(true, reset)` |
+
+### 11.4 The wire *(B4)*
+
+```mermaid
+classDiagram
+    direction LR
+    class ScenarioClockTopic { <<existing>> EntityScenarioClock · the per-entity state shape }
+    class SquadReportTopic { <<existing>> SquadReport · the event shape, managed fields }
+    class EntityBrainIntent { <<existing>> IntentJson · the params, on every node }
+    class ObjectiveStatus { <<new component>> on objective, measure and trigger entities · NoScenario }
+    class ExerciseResult { <<new component>> on the World Environment · NoScenario }
+    class EntityObjectiveStatus { <<new state topic>> key EntityId }
+    class EntityExerciseResult { <<new state topic>> key EntityId }
+    class PlayerMessage { <<new event topic>> To · Text · Seconds }
+    class ExternalMeasurement { <<RESERVED, not built — SR-76>> }
+    class ExerciseEnded { <<new local event>> raised once by the ingress }
+    ObjectiveStatus ..> EntityObjectiveStatus : egress, owner only
+    ExerciseResult ..> EntityExerciseResult : egress, owner only
+    EntityObjectiveStatus ..|> ScenarioClockTopic : same shape
+    EntityExerciseResult ..|> ScenarioClockTopic : same shape
+    PlayerMessage ..|> SquadReportTopic : same shape
+    EntityExerciseResult ..> ExerciseEnded : ingress, Phase becomes Ended
+    EntityBrainIntent ..> ObjectiveStatus : display fields projected from the params
+```
+
+*What the picture shows that prose hid:* three new topics, each a COPY of a shape that ships today — no new transport mechanism; the objective
+TREE is not on the result topic, it is the statuses (one owner per fact).
+
+```mermaid
+graph TD
+    subgraph brain["Brain node (owns the rule entities)"]
+        BT["BrainTickSystem — every advancing frame"] --> OS["ObjectiveStatus / ExerciseResult written"]
+        ACT["Message action"] --> PM["PlayerMessage published"]
+        OS --> EG["egress translators — ExportSystemGroup, every frame"]
+    end
+    EG --> W(("DDS"))
+    PM --> W
+    W --> IG["ingress on Player / IOS / editor nodes"]
+    IG --> HUD["HUD · rules view · summaries · ExerciseEnded"]
+    REP["replay: owner restores chunks"] --> EG
+    REP -. "no brain tick, no Message action" .-> PMX["no PlayerMessage in replay"]:::dead
+    classDef dead fill:#fde2e2,stroke:#c33
+```
+
+*Caption:* in replay the status path still runs (the egress re-publishes restored state), but the message path does not — a message is an
+ACTION, and actions do not run in replay; the red edge is that dead path, and SR-121 says where the AAR gets messages instead.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-120** | `EntityObjectiveStatus` | key `EntityId` · `Role` (Objective / Measure / Trigger) · `State` (per role: SR-113 or T8's) · `Owner` (side) · `ProgressCur`, `ProgressNeed` · `Value`, `Target`, `Score` (0..1) · `Points` · `ChangedAt` (sim s) · `Reason` (string) · `Subject`, `Parent` (net ids) · `FireCount`, `LastFired` (triggers) · ⭐ the DISPLAY fields `Title`, `Kind`, `Required`, `Scored`, `Weight`, `VisibleSides` (a mask) — a PROJECTION of the params (which already reach every node in `EntityBrainIntent`), so a HUD reads one topic and never parses JSON; ⛔ never written back. Egress: a state change at once; progress-only changes at most 2 per second |
+| **SR-121** | `PlayerMessage` | the `SquadReport` event shape: `MessageId`, `OriginNodeId`, `ToKind` (All / Side / Station / Unit / Instructor) + `ToValue`, `Text`, `Seconds` (subtitle duration), `Priority`, `SentAt`, `Source` (the trigger's net id). Each Player node shows the ones addressed to its station, its side or the unit it holds, as a subtitle, and appends them to its log; the IOS shows all. ⭐ the AAR takes messages from the trigger's JOURNAL (recorded), not from the topic; a late joiner does not get old messages (accepted for the demo) |
+| **SR-122** | `EntityExerciseResult` | state on the World Environment: `Phase` (Running / Closing / Ended) · per side `{Side, Outcome, Points, Score}` · `EndedAt` · `Reason`. The ingress raises the local `ExerciseEnded` event ONCE when `Phase` becomes `Ended` (pause-on-end, summaries). ⭐ it replaces §7c's big result object: the tree is the statuses |
+| **SR-123** | `ExternalMeasurement` | RESERVED (SR-76): the shape stays in this design; ⛔ no topic, no ordinal until it is built |
+| **SR-124** | ids and files | one IDL file `hrot-scenario-rules`; descriptor ordinals and component ids allocated at build time from the building lane's block. ⚠ `visibleTo` is filtered on the RECEIVER — fine for training, ⛔ not anti-cheat for competitive games |
+
+**Rejected — one line each:**
+- *An end-of-exercise system* — `EndExercise` as a multi-tick action does it with what the PoC proved.
+- *Pause first, then close* — a paused world runs no brain tick (`BrainTickSystem.cs:58`), so the close would never run.
+- *The full result tree in `ExerciseEnded`* — it copies every status into a second owner.
+- *Display fields parsed from `IntentJson` on each frontend* — every HUD would parse JSON; a projection on the status costs bytes, not owners.
+- *`PlayerMessage` as a state topic (late joiners see history)* — it needs an id-keyed history and disposal; the journal already gives the AAR its history.
 
 ## ⛔ HISTORY — rev 3 / 3a / 3b (superseded `2026-10-31` by rev 4, R-4112)
 
