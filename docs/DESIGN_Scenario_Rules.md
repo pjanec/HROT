@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-141; §9.8.8 rev e + §9.8.9 rev f = the current types — EntityRef / EntityLink, WorldPoint / PointLink, AreaLink; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-141 — ⭐ READ §9.8.0, the current answer; §9.8.1–9.8.9 are the record of revs a–f; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -602,6 +602,52 @@ sequenceDiagram
 > the desired position"* · *"how to make it possible to reference an entity via different ways while keeping one single parameter name"* ·
 > *"if the macro doesn't want the concrete specific parameter to be relocated … the macro should reference a point entity and not use
 > coordinates."*
+
+#### 9.8.0 ⭐ CURRENT ANSWER — relocation and the reference types *(the summary of rev a–f, `2026-11-01`; read THIS, the subsections below are the record)*
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityRef { <<internal, 8 B, unchanged>> long NetworkId }
+    class WorldPoint { <<internal, NEW, 12 B = Vector3>> X, Y, Z local metres }
+    class RefSpec { <<36 B, unmanaged>> Form · FixedString32 Key or Guid Exact }
+    class EntityLink { <<authored, 48 B>> EntityRef Ref · RefSpec Spec }
+    class PointLink { <<authored, 48 B>> WorldPoint Local · RefSpec Spec }
+    class AreaLink { <<authored, 72 B>> EntityRef Area · RefSpec Spec · Center · Size · Heading }
+    class TypePlan { <<EntityRefRemap, generalised>> finds every one of these by TYPE }
+    EntityLink *-- EntityRef
+    EntityLink *-- RefSpec
+    PointLink *-- WorldPoint
+    PointLink *-- RefSpec
+    AreaLink *-- EntityRef
+    AreaLink *-- RefSpec
+    TypePlan ..> EntityLink
+    TypePlan ..> PointLink
+    TypePlan ..> AreaLink
+    TypePlan ..> WorldPoint
+```
+
+*What the picture shows that prose hid:* every authored type is an internal answer PLUS one shared `RefSpec`; the walker knows them all by type, so
+the picker, the "show on map", resolution and relocation need no per-field code.
+
+| | what | where it is used |
+|---|---|---|
+| **internal** | `EntityRef` (network id) · `WorldPoint` (local metres, Vector3-identical) | everything CODE writes: components, lists, recordings, the wire — no authored data, no size growth |
+| **authored** | `EntityLink` · `PointLink` · `AreaLink` = the resolved answer + `RefSpec` (how a person wrote it) | everything a PERSON writes: params DTOs, trigger `when` / `do` args, macro params — saved in the scenario in their authored form |
+| **authored forms (JSON)** | entity: GUID (*exact*) · `"@Key"` / `"@Outer/Inner"` (*by key*) · point: `[x, y, z]` or an entity reference (*its position*) · area: `{"circle": …}` · `{"rect": …, "heading": …}` · an area entity | the JSON shape says which — no `kind` field; the editor shows a form switch; resolution keeps the form, so save writes it back |
+| **places** | local ENU metres only; ⛔ no lat / lon inside the engine (AQ107 B) — converted at the outer edge | — |
+
+**Relocation, in four steps at expansion (§9.7):** ① **bind** — every `bind` map (on any JSON object) and `ParamBindings` copy the macro /
+scenario params in · ② **resolve** — every GUID / `@Key` becomes a network id, a point's or area's entity becomes its position / polygon ·
+③ **relocate** — every LITERAL point / area and every bearing is moved by *authored anchor → instance anchor* (translate X / Y, rotate by the
+heading difference, Z by the anchors' height difference; heights above ground kept); internal `WorldPoint`s in components move the same way;
+rotations and velocities turn; road / nav ids are cleared · ④ **create**. ⭐ Because ② runs before ③, a REFERENCE never moves — the way to keep a
+value fixed is to point at an entity outside the macro; a point entity inside the macro moves with it. `relocatable: false` pins a macro that
+depends on particular buildings.
+
+**By construction:** a rail fails on a bare `Vector3` point, an internal `EntityRef` in an authored DTO, or a lat / lon in params; tools show
+every `WorldPoint` / `EntityRef` / `*Link` on the map. **Open, not this design's:** writing internal `EntityRef`s of SAVED components as GUIDs
+(CE-4153 S9) — needed for references to macro-made entities and once S8 drops `NetworkIdentity` from the file.
 
 #### 9.8.1 INVENTORY *(`2026-11-01`; ⚠ coverage unchecked — `check_index_coverage` is not available through the CLI)*
 
