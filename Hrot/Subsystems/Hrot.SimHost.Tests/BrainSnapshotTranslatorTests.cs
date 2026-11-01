@@ -47,6 +47,9 @@ namespace Hrot.SimHost.Tests
             {
                 var e = Repo.CreateEntity();
                 Repo.AddComponent(e, new BehaviorState());
+                // ⭐ CE-4153 — a unit that is to be SAVED carries the stable key a real creation gives it (a save of an unstamped entity fails loudly)
+                if (Repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>())
+                    Repo.AddComponent(e, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
                 return e;
             }
 

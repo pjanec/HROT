@@ -603,6 +603,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             OwnerNodeId = _context.NodeId,
             InitType    = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
             RequestId   = System.Guid.Empty,
+            // ⭐ CE-4153 — the ONE visible exception to "CreateEntityRequestSystem mints the EntityGuid": this test hook publishes the spawn
+            //   itself (see above), so it stamps its own stable key. Not marked transient: a hook-made entity must stay saveable, or a cluster
+            //   test that saves a hook-spawned unit would silently lose it from the file. ⛔ A production caller never does this.
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()) },
         });
 
         return networkId;

@@ -251,6 +251,16 @@ namespace Hrot.Common.Systems
                     ? new List<object>(pending.Request.InitialComponents)
                     : new List<object>();
 
+                // 1b. ⭐ CE-4153 (S2) — a scenario load carries the file key as an EntityGuid (StagingEntityExtractor keeps every staging
+                //     component). An entity AUTHORED now gets its identity minted ONCE at step 4 below, where this system decides to materialise it
+                //     (and its composite children / seat presets DERIVE theirs from it, EntityGuidDerivation) — this is the one creation point:
+                //     both the wire CreateEntityRequest and the in-process intent converge here. ⛔ A scenario-load request WITHOUT a key is a defect
+                //     of the loader: logged loudly (the mint below would otherwise give it a key that is not the file's). Rail:
+                //     ScenarioEntityKeySweepTests.EveryShippedScenario_ExtractsEveryEntityWithItsFileKey.
+                if (pending.Request.IsScenarioLoad && !allComponents.Exists(c => c is Fdp.Toolkit.Scenario.EntityGuid))
+                    FdpLog<CreateEntityRequestSystem>.Error(
+                        $"[Node-{_localNodeId}] CreateEntity {pending.Request.RequestId}: a SCENARIO-LOAD request carries no EntityGuid (tkb {pending.TkbType}) — the loader stamps every entity, so this is a defect. (CE-4153)");
+
                 // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
                 //    Patches are applied AFTER descriptor-based defaults so fine-grained
                 //    overrides win over template values.
@@ -340,6 +350,21 @@ namespace Hrot.Common.Systems
                         ? _localNodeId
                         : pending.Request.OwnerAppInstanceId;
 
+                    // 4-guid. ⭐ CE-4153 (S2) — the entity's stable identity: the file's key if the request brought one, else minted ONCE now
+                    //   (non-transient only: a sketch never reaches a scenario). The children and presets below derive theirs from it.
+                    Guid parentGuid = Guid.Empty;
+                    if (!pending.Request.IsTransient)
+                    {
+                        fallbackComponents ??= new List<object>();
+                        foreach (var c in fallbackComponents)
+                            if (c is Fdp.Toolkit.Scenario.EntityGuid g) { parentGuid = g.Value; break; }
+                        if (parentGuid == Guid.Empty)
+                        {
+                            parentGuid = Guid.NewGuid();
+                            fallbackComponents.Add(new Fdp.Toolkit.Scenario.EntityGuid(parentGuid));
+                        }
+                    }
+
                     repo.Bus.PublishManaged(new SpawnEntityCommand
                     {
                         NetworkId         = pending.NetworkId,
@@ -419,7 +444,7 @@ namespace Hrot.Common.Systems
                                 {
                                     new Fdp.Core.EntityInfo { Name = presetTemplate?.Name ?? $"preset-{seat}", ForceId = force },
                                     new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = pending.NetworkId, Seat = (byte)seat },
-                                },
+                                }.WithDerivedGuid(parentGuid, $"seat:{seat}"),   // ⭐ CE-4153 — derived from the host, like a child
                                 RequestId           = Guid.NewGuid(),
                             });
                             if (_ownershipStrategy != null)
@@ -499,6 +524,10 @@ namespace Hrot.Common.Systems
                             {
                                 childComponents.AddRange(overrideEntry.Components!);
                             }
+
+                            // ⭐ CE-4153 (S2) — a child gets its GUID DERIVED from the parent's and its slot (the file's own key, carried in
+                            //   its override, wins): the same parent gives the same child GUID on every load and node.
+                            childComponents.WithDerivedGuid(parentGuid, $"child:{childDef.InstanceId}");
 
                             repo.Bus.PublishManaged(new SpawnEntityCommand
                             {
@@ -606,3 +635,17 @@ namespace Hrot.Common.Systems
     }
 }
 
+namespace Hrot.Common.Systems
+{
+    internal static class EntityGuidListExtensions
+    {
+        /// <summary>Adds the GUID derived from <paramref name="parent"/> and <paramref name="slot"/> unless the list already carries an
+        /// <c>EntityGuid</c> (a scenario's own key) or the entity is transient (<paramref name="parent"/> empty).</summary>
+        public static List<object> WithDerivedGuid(this List<object> components, Guid parent, string slot)
+        {
+            if (parent == Guid.Empty || components.Exists(c => c is Fdp.Toolkit.Scenario.EntityGuid)) return components;
+            components.Add(new Fdp.Toolkit.Scenario.EntityGuid(Fdp.Toolkit.Scenario.EntityGuidDerivation.Derive(parent, slot)));
+            return components;
+        }
+    }
+}

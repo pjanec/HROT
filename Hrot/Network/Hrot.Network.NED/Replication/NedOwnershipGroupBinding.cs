@@ -132,6 +132,8 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtLookState, GlobalComponentIds.LookState);     // ⭐ CE-3252 — where a person looks
         map.RegisterMapping((long)EDescriptorType.dtHitMarks, GlobalComponentIds.HitMarks);       // ⭐ CE-3210 — where rounds struck
         map.RegisterMapping((long)EDescriptorType.dtDescent, GlobalComponentIds.Descent);          // ⭐ airborne B-1 — a man coming down
+        // ⭐ CE-4153 — no group: the entity's creator keeps its stable scenario key (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
+        map.RegisterMapping((long)EDescriptorType.dtEntityGuid, GlobalComponentIds.EntityGuid);
         map.RegisterMapping((long)EDescriptorType.dtPassengerBuffer, GlobalComponentIds.PassengerBuffer);   // ⭐ CE-3110 I-2b — the vehicle's passengers (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtWeaponSystemState, GlobalComponentIds.WeaponSystemState);
         map.RegisterMapping((long)EDescriptorType.dtTrafficDemand, GlobalComponentIds.TrafficDemand);   // ⭐ AQ93 N4 — the traffic settings (Traffic group)

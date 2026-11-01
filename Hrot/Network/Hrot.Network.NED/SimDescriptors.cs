@@ -722,6 +722,25 @@ namespace Hrot.NED.Descriptors
         public float Height;
     }
 
+    // ⭐ CE-4153 (docs/DESIGN_Scenario_Entity_Keys.md S3) — an entity's STABLE scenario identity (a GUID as two longs), published by the node
+    //   that owns the descriptor (the entity's creator — no ownership group, the dtObstacleShape shape) so EVERY node knows it: ownership
+    //   moves (brain hand-over), and whichever node owns the entity when a scenario is saved writes the same key. TransientLocal + KeepLast(1)
+    //   keyed by entity: a late joiner gets every entity's key. Never changes after creation.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityStableGuid
+    {
+        [DdsKey]
+        public long EntityId;
+
+        /// <summary>The first 8 bytes of the GUID's <c>ToByteArray()</c>, little-endian.</summary>
+        public long Lo;
+
+        /// <summary>The last 8 bytes of the GUID's <c>ToByteArray()</c>, little-endian.</summary>
+        public long Hi;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,

@@ -166,9 +166,31 @@ namespace Fdp.Toolkit.Scenario
             var entityToGuid = new Dictionary<Entity, Guid>();
             var liveEntities = CollectSaveableEntities(repo);
 
+            // ⭐ CE-4153 (S4) — the key is the entity's STABLE EntityGuid, never a fresh Guid per save. ⛔ No tolerant fallback: an entity that
+            //   reaches save without one is a DEFECT of whatever created it (a scenario load stamps it from the file key; an authored
+            //   entity gets one at creation), so it fails loudly naming the entity instead of minting a key that would not repeat.
+            // ⭐ A repo that never REGISTERED EntityGuid does not track stable identity at all (a bare toolkit-level repo in a unit test):
+            //   there the keys stay what they always were here, ephemeral per save. ⛔ Every Hrot host registers it (HrotSharedComponentRegistry),
+            //   and on a registered repo an entity without one is a defect — never a quiet mint.
+            bool tracksGuids = repo.IsComponentTypeRegistered<EntityGuid>();
             foreach (var entity in liveEntities)
             {
-                var guid = Guid.NewGuid();
+                Guid guid;
+                if (!tracksGuids)
+                    guid = Guid.NewGuid();
+                else if (repo.HasComponent<EntityGuid>(entity))
+                    guid = repo.GetComponent<EntityGuid>(entity).Value;
+                else
+                {
+                    var msg = $"[ScenarioSerializer] Serialize: entity {entity} has no EntityGuid — it reached a scenario save without a stable identity. " +
+                              "A scenario load stamps one from the file key and an authored entity gets one at creation (CreateEntityRequestSystem); " +
+                              "this entity was created by a path that does neither. (CE-4153)";
+                    Fdp.Core.Logging.FdpLog<ScenarioSerializer>.Error(msg);
+                    throw new InvalidOperationException(msg);
+                }
+                if (guidToEntity.TryGetValue(guid, out var other))
+                    throw new InvalidOperationException(
+                        $"[ScenarioSerializer] Serialize: entities {other} and {entity} carry the same EntityGuid {guid} — saving would merge them into one key. (CE-4153 I2)");
                 entityToGuid[entity] = guid;
                 guidToEntity[guid]   = entity;
             }
@@ -428,6 +450,9 @@ namespace Fdp.Toolkit.Scenario
                         "The scenario file is invalid or corrupt.");
                 var entity = repo.CreateEntity();
                 guidToEntity[guid] = entity;
+                // ⭐ CE-4153 (S2) — the file key IS the entity's identity from now on: stamped here, carried through the creation request
+                //   (StagingEntityExtractor keeps every staging component), and written back as the key on the next save.
+                if (repo.IsComponentTypeRegistered<EntityGuid>()) repo.AddComponent(entity, new EntityGuid(guid));
             }
 
             IGuidResolver loadResolver = new LoadResolver(guidToEntity);

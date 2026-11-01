@@ -1177,5 +1177,10 @@ namespace Fdp.Core
         /// <summary><c>SquadDrillState</c> — the recorded headline of a commander's squad drill (active, kind, phase, since), written beside the
         /// transient SquadDrillTrace (CE-4047, the coordinator's replay-UI-state handoff ③); NoScenario — recorded, never saved.</summary>
         public const int SquadDrillState = 466;
+
+        /// <summary><c>EntityGuid</c> — ⭐ CE-4153 (docs/DESIGN_Scenario_Entity_Keys.md S1): the entity's STABLE identity in a scenario file — the
+        /// file's entity key. Optional (bullets and effects never carry one), <c>NoScenario</c> (written only AS the key, never as a component),
+        /// replicated by <c>dtEntityGuid</c> (no group: the creator keeps it). ⚠ 467 measured free in this tree 2026-10-31.</summary>
+        public const int EntityGuid = 467;
     }
 }
