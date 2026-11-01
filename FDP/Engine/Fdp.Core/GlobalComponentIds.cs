@@ -1182,5 +1182,10 @@ namespace Fdp.Core
         /// file's entity key. Optional (bullets and effects never carry one), <c>NoScenario</c> (written only AS the key, never as a component),
         /// replicated by <c>dtEntityGuid</c> (no group: the creator keeps it). ⚠ 467 measured free in this tree 2026-10-31.</summary>
         public const int EntityGuid = 467;
+
+        /// <summary><c>RefKey</c> — ⭐ S0 (docs/DESIGN_Scenario_Rules.md SR-63…SR-66, §9.8.3 SR-126): an entity's AUTHORED name a reference
+        /// may use (<c>"@BlueHQ"</c>), unique per scope. Saved with the scenario. ⚠ 468 measured free in backend, ui, behaviors and
+        /// coordinator 2026-11-01.</summary>
+        public const int RefKey = 468;
     }
 }

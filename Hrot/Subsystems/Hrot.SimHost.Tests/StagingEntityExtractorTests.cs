@@ -371,6 +371,71 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(episodeId, ((EpisodeTag)last).EpisodeId);
         }
 
+        // ── S0 item 3: authored references (RefKey) resolve at SCENARIO scope during the load ──────
+
+        public sealed class LinkParams { public EntityLink Target { get; set; } public PointLink At { get; set; } }
+
+        private (Entity Hq, Entity Unit) KeyedHqAndAUnitThatNamesIt(string paramsJson, string hqKey = "BlueHQ")
+        {
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();
+            var hq = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(hq, new NetworkIdentity { Value = 1001 });
+            _goldRepo.SetComponent(hq, new SimTransform { Position = new System.Numerics.Vector3(40, 50, 2) });
+            _goldRepo.SetComponent(hq, new Fdp.Toolkit.Scenario.RefKey(hqKey));
+            var unit = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(unit, new NetworkIdentity { Value = 1002 });
+            _goldRepo.SetComponent(unit, new ActiveMissionPlan
+            {
+                Plan = new DomainMissionPlan { Tasks = new List<DomainMissionTask> { new() { BehaviorName = "LinkProbe", BehaviorParams = paramsJson } } },
+            });
+            return (hq, unit);
+        }
+
+        private IReadOnlyList<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> ExtractWithLinkProbe()
+        {
+            var serializer = BuildSerializer(extraTranslator: new MissionPlanTranslator());
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+            var remapper = new ScenarioBehaviorRemapper();
+            remapper.Register<LinkParams>("LinkProbe");
+            return new StagingEntityExtractor().Extract(serializer, json, new StubIdAllocator(2001), behaviorRemapper: remapper);
+        }
+
+        /// <summary>⭐ S0 item 3 (SR-126 / SR-130) — <c>"@BlueHQ"</c> in a unit's params becomes the HQ's NEW network id (and a point
+        /// written <c>"@BlueHQ"</c> its position); the authored form is kept beside the answer.</summary>
+        [Fact]
+        public void S0_AKeyedReference_ResolvesToTheEntitysNewId_AndAPointToItsPosition_KeepingTheForm()
+        {
+            KeyedHqAndAUnitThatNamesIt("{\"Target\":\"@BlueHQ\",\"At\":\"@BlueHQ\"}");
+            var requests = ExtractWithLinkProbe();
+            var hq = requests.Single(r => r.InitialComponents!.OfType<Fdp.Toolkit.Scenario.RefKey>().Any());
+            var plan = requests.Single(r => r.InitialComponents!.OfType<ActiveMissionPlan>().Any()).InitialComponents!.OfType<ActiveMissionPlan>().Single();
+            var p = System.Text.Json.JsonSerializer.Deserialize<LinkParams>(plan.Plan.Tasks[0].BehaviorParams!, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
+            Assert.Equal(new EntityRef(hq.PreAllocatedNetworkId), p.Target.Ref);
+            Assert.Equal("@BlueHQ", p.Target.Spec.ToString());
+            Assert.Equal(new WorldPoint(40, 50, 2), p.At.Local);
+        }
+
+        /// <summary>⭐ S0 item 3 — a key that names nothing fails the load LOUDLY, naming it (never a silent 0).</summary>
+        [Fact]
+        public void S0_AKeyThatNamesNothing_FailsTheLoadLoudly()
+        {
+            KeyedHqAndAUnitThatNamesIt("{\"Target\":\"@RedHQ\"}");
+            var ex = Assert.Throws<InvalidOperationException>(() => ExtractWithLinkProbe());
+            Assert.Contains("no entity with key 'RedHQ' here", ex.Message);
+        }
+
+        /// <summary>⭐ S0 item 3 — two entities with one key fail the load LOUDLY (a key is unique per scope).</summary>
+        [Fact]
+        public void S0_ADuplicateKey_FailsTheLoadLoudly()
+        {
+            KeyedHqAndAUnitThatNamesIt("{}");
+            var twin = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(twin, new NetworkIdentity { Value = 1003 });
+            _goldRepo.SetComponent(twin, new Fdp.Toolkit.Scenario.RefKey("BlueHQ"));
+            var ex = Assert.Throws<InvalidOperationException>(() => ExtractWithLinkProbe());
+            Assert.Contains("two entities carry the key 'BlueHQ'", ex.Message);
+        }
+
         // ── Test 4: Network ID remapping in ActiveMissionPlan BehaviorParams ──────
 
         // (A stale "STABILITY(Broken)" label sat here — the test runs and passes; removed 2026-10-01.)

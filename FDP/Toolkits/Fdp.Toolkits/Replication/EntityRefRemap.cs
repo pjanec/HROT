@@ -1,36 +1,48 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Fdp.Core;
 using Fdp.Core.Serialization;
 
 namespace Fdp.Toolkit.Replication
 {
     /// <summary>
-    /// ⭐⭐ Rewrites every <see cref="EntityRef"/> inside a value by an old→new network-id map — the ONE remap of authored
-    /// entity references at scenario load. 📄 <c>docs/blueprints/DESIGN_Entity_Reference.md</c> D3.
+    /// ⭐⭐ THE ONE WALKER of referencing and spatial values — finds every leaf of the reference and place types BY TYPE inside a value,
+    /// and applies one operation to each. 📄 <c>docs/blueprints/DESIGN_Entity_Reference.md</c> D3 (the remap it began as);
+    /// <c>docs/DESIGN_Scenario_Rules.md</c> §9.8.0 / SR-128 / SR-136 (S0: generalised).
     /// <para>
-    /// The PLAN is a property of the TYPE, built once per type: members of type <see cref="EntityRef"/>, arrays and lists of
-    /// it, and nested classes, structs, arrays and lists that contain it. Two appliers share it:
+    /// The PLAN is a property of the TYPE, built once per type: members of a LEAF type (<see cref="EntityRef"/>, <see cref="EntityLink"/>,
+    /// <see cref="WorldPoint"/>, <see cref="PointLink"/>, <see cref="AreaLink"/>, <see cref="WorldRotation"/>, <see cref="Bearing"/>),
+    /// arrays and lists of them, and nested classes, structs, arrays and lists that contain them. Each OPERATION is a
+    /// <see cref="LeafApplier"/> — <see cref="RefRemap"/> (old → new network ids, scenario load), <see cref="RefResolve"/> (an authored
+    /// <c>@Key</c> / GUID → its answer), <see cref="Relocation"/> (authored anchor → instance anchor) — over either target:
     /// <list type="bullet">
-    ///   <item><see cref="CompileJson"/> — a behaviour's params JSON, rewritten IN PLACE (the original string comes back when
-    ///     nothing changed, so an absent key is never written back as 0 over a declared default — S8o);</item>
-    ///   <item><see cref="RemapObject"/> — an in-memory component (the scenario genesis intents), mutated in place.</item>
+    ///   <item><see cref="WalkJson"/> — a params / predicate JSON, rewritten IN PLACE (the original string comes back when nothing
+    ///     changed, so an absent key is never written back as a default — S8o; a present leaf is rewritten through its own converter);</item>
+    ///   <item><see cref="WalkObject"/> — an in-memory value (a component, a boxed struct), mutated in place.</item>
     /// </list>
+    /// ⛔ No second plan or walker beside this one (CLAUDE.md, shared and unified).
     /// </para>
     /// </summary>
     public static class EntityRefRemap
     {
         // ── the plan ──────────────────────────────────────────────────────────────────────────────────────────────
 
-        private enum Kind : byte { Ref, RefSequence, Nested, NestedSequence }
+        /// <summary>The leaf types the plan finds.</summary>
+        private enum LeafKind : byte { EntityRef, EntityLink, WorldPoint, PointLink, AreaLink, WorldRotation, Bearing }
+
+        private enum Kind : byte { Leaf, LeafSequence, Nested, NestedSequence }
 
         private sealed class Entry
         {
             public Kind Kind;
+            public LeafKind Leaf;
             public string JsonKey = "";
             public bool JsonIgnored;
             public MemberInfo Member = null!;
@@ -42,13 +54,34 @@ namespace Fdp.Toolkit.Replication
         {
             public readonly List<Entry> Entries = new();
             public Dictionary<string, Entry>? ByJsonKey;   // case-insensitive, built on demand
+            public bool HoldsIds;                          // any leaf that carries a network id (EntityRef / EntityLink / AreaLink), here or nested
         }
 
         private static readonly ConditionalWeakTable<Type, StrongBox<Plan?>> _plans = new();
         private static readonly object _gate = new();
 
-        /// <summary><c>true</c> when values of <paramref name="type"/> can hold an <see cref="EntityRef"/> anywhere inside.</summary>
-        public static bool HoldsRefs(Type type) => type == typeof(EntityRef) || IsRefSequence(type) || PlanOf(type) != null;
+        private static LeafKind? LeafOf(Type t)
+            => t == typeof(EntityRef)     ? LeafKind.EntityRef
+             : t == typeof(EntityLink)    ? LeafKind.EntityLink
+             : t == typeof(WorldPoint)    ? LeafKind.WorldPoint
+             : t == typeof(PointLink)     ? LeafKind.PointLink
+             : t == typeof(AreaLink)      ? LeafKind.AreaLink
+             : t == typeof(WorldRotation) ? LeafKind.WorldRotation
+             : t == typeof(Bearing)       ? LeafKind.Bearing
+             : null;
+
+        private static bool CarriesIds(LeafKind leaf) => leaf is LeafKind.EntityRef or LeafKind.EntityLink or LeafKind.AreaLink;
+
+        /// <summary><c>true</c> when values of <paramref name="type"/> can hold a network id anywhere inside (an <see cref="EntityRef"/>,
+        /// <see cref="EntityLink"/> or <see cref="AreaLink"/>) — what a scenario load must remap.</summary>
+        public static bool HoldsRefs(Type type)
+            => LeafOf(type) is { } l ? CarriesIds(l)
+             : ElementType(type) is { } e && LeafOf(e) is { } el ? CarriesIds(el)
+             : PlanOf(type)?.HoldsIds == true;
+
+        /// <summary><c>true</c> when values of <paramref name="type"/> hold ANY leaf (a reference, a place, an orientation, a bearing).</summary>
+        public static bool HoldsLeaves(Type type)
+            => LeafOf(type) != null || (ElementType(type) is { } e && LeafOf(e) != null) || PlanOf(type) != null;
 
         private static Plan? PlanOf(Type type)
         {
@@ -82,28 +115,29 @@ namespace Fdp.Toolkit.Replication
         private static void Add(ref Plan? plan, MemberInfo member, Type memberType, HashSet<Type> visiting)
         {
             Entry? e = null;
-            if (memberType == typeof(EntityRef))
-                e = new Entry { Kind = Kind.Ref };
-            else if (IsRefSequence(memberType))
-                e = new Entry { Kind = Kind.RefSequence };
-            else if (ElementType(memberType) is { } elem && (Existing(elem, visiting) ?? Build(elem, visiting)) is { } elemPlan)
-                e = new Entry { Kind = Kind.NestedSequence, Nested = elemPlan };
+            bool ids = false;
+            if (LeafOf(memberType) is { } leaf)
+            { e = new Entry { Kind = Kind.Leaf, Leaf = leaf }; ids = CarriesIds(leaf); }
+            else if (ElementType(memberType) is { } elem && LeafOf(elem) is { } elemLeaf)
+            { e = new Entry { Kind = Kind.LeafSequence, Leaf = elemLeaf }; ids = CarriesIds(elemLeaf); }
+            else if (ElementType(memberType) is { } elem2 && (Existing(elem2, visiting) ?? Build(elem2, visiting)) is { } elemPlan)
+            { e = new Entry { Kind = Kind.NestedSequence, Nested = elemPlan }; ids = elemPlan.HoldsIds; }
             else if ((Existing(memberType, visiting) ?? Build(memberType, visiting)) is { } nested)
-                e = new Entry { Kind = Kind.Nested, Nested = nested };
+            { e = new Entry { Kind = Kind.Nested, Nested = nested }; ids = nested.HoldsIds; }
             if (e is null) return;
 
             e.Member      = member;
             e.MemberType  = memberType;
             e.JsonKey     = member.GetCustomAttribute<JsonPropertyNameAttribute>(inherit: true)?.Name ?? member.Name;
             e.JsonIgnored = member.IsDefined(typeof(JsonIgnoreAttribute), inherit: true);
-            (plan ??= new Plan()).Entries.Add(e);
+            plan ??= new Plan();
+            plan.Entries.Add(e);
+            plan.HoldsIds |= ids;
         }
 
         /// <summary>An already-built plan (outside a cycle), so a shared nested type is planned once.</summary>
         private static Plan? Existing(Type type, HashSet<Type> visiting)
             => !visiting.Contains(type) && _plans.TryGetValue(type, out var box) ? box.Value : null;
-
-        private static bool IsRefSequence(Type t) => ElementType(t) == typeof(EntityRef);
 
         /// <summary>The element type of an array or a generic list/collection, else <c>null</c>.</summary>
         private static Type? ElementType(Type t)
@@ -113,28 +147,30 @@ namespace Fdp.Toolkit.Replication
             return null;
         }
 
-        /// <summary>A user class or struct that can carry references in its members — not a primitive or a framework type.</summary>
+        /// <summary>A user class or struct that can carry leaves in its members — not a primitive, a leaf or a framework type.</summary>
         private static bool IsWalkable(Type type)
             => !type.IsPrimitive && !type.IsEnum && !type.IsPointer && !type.IsArray && type != typeof(string)
-               && type != typeof(decimal) && !type.IsGenericTypeDefinition && type != typeof(EntityRef)
+               && type != typeof(decimal) && !type.IsGenericTypeDefinition && LeafOf(type) == null
+               && type != typeof(RefSpec) && type != typeof(FixedString32)
                && type.Namespace != "System"
                && !(type.Namespace?.StartsWith("System.", StringComparison.Ordinal) ?? false);
 
         // ── the JSON applier ──────────────────────────────────────────────────────────────────────────────────────
 
+        // CE-3187: the shared options plus one delta — the relaxed encoder, so untouched strings in a params blob keep their bytes.
+        private static readonly JsonSerializerOptions _options = FdpJsonOptionsRegistry.Derive(o =>
+            o.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping);
+
         private static readonly ConditionalWeakTable<Type, Func<string?, IReadOnlyDictionary<long, long>, string?>> _json = new();
         private static readonly Func<string?, IReadOnlyDictionary<long, long>, string?> _identity = (json, _) => json;
 
-        // CE-3187: the shared options plus one delta — the relaxed encoder, so untouched strings in a params blob keep their bytes.
-        private static readonly System.Text.Json.JsonSerializerOptions _writeOptions = FdpJsonOptionsRegistry.Derive(o =>
-            o.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping);
-
-        /// <summary>Number of JSON delegates built (a cache probe for tests).</summary>
+        /// <summary>Number of remap delegates built (a cache probe for tests).</summary>
         internal static int JsonCompileCount { get; private set; }
 
         /// <summary>
-        /// The cached delegate that rewrites every <see cref="EntityRef"/> in <paramref name="contractType"/>'s JSON.
-        /// <c>null</c>, empty, malformed or non-object JSON, and JSON with no id in the map, come back as the SAME string.
+        /// The cached delegate that rewrites every network id in <paramref name="contractType"/>'s JSON by an old → new map
+        /// (<see cref="RefRemap"/> over <see cref="WalkJson"/>). <c>null</c>, empty, malformed or non-object JSON, and JSON with no id in
+        /// the map, come back as the SAME string.
         /// </summary>
         public static Func<string?, IReadOnlyDictionary<long, long>, string?> CompileJson(Type contractType)
         {
@@ -145,20 +181,32 @@ namespace Fdp.Toolkit.Replication
                 if (_json.TryGetValue(contractType, out cached)) return cached;
                 JsonCompileCount++;
                 var plan  = PlanOf(contractType);
-                var built = plan is null ? _identity : (json, map) => RemapJson(json, map, plan);
+                var built = plan is null || !plan.HoldsIds ? _identity
+                          : (json, map) => map.Count == 0 ? json : WalkJson(json, plan, new RefRemap(map));
                 _json.Add(contractType, built);
                 return built;
             }
         }
 
-        private static string? RemapJson(string? json, IReadOnlyDictionary<long, long> map, Plan plan)
+        /// <summary>
+        /// ⭐ Applies <paramref name="applier"/> to every leaf of <paramref name="contractType"/> inside <paramref name="json"/> (an
+        /// object). Returns the SAME string when nothing changed (or the JSON is null, malformed or not an object).
+        /// </summary>
+        public static string? WalkJson(Type contractType, string? json, LeafApplier applier)
         {
-            if (string.IsNullOrEmpty(json) || map.Count == 0) return json;
+            if (contractType == null) throw new ArgumentNullException(nameof(contractType));
+            var plan = LeafOf(contractType) == null ? PlanOf(contractType) : null;
+            return plan is null ? json : WalkJson(json, plan, applier);
+        }
+
+        private static string? WalkJson(string? json, Plan plan, LeafApplier applier)
+        {
+            if (string.IsNullOrEmpty(json)) return json;
             JsonNode? root;
             try { root = JsonNode.Parse(json); }
-            catch (System.Text.Json.JsonException) { return json; }   // malformed: the parser downstream reports it
+            catch (JsonException) { return json; }   // malformed: the parser downstream reports it
             if (root is not JsonObject obj) return json;
-            return WalkObject(obj, map, plan) ? root.ToJsonString(_writeOptions) : json;
+            return WalkObject(obj, plan, applier) ? root.ToJsonString(_options) : json;
         }
 
         private static Dictionary<string, Entry> Keys(Plan plan)
@@ -169,61 +217,91 @@ namespace Fdp.Toolkit.Replication
             return plan.ByJsonKey = d;
         }
 
-        private static bool WalkObject(JsonObject obj, IReadOnlyDictionary<long, long> map, Plan plan)
+        private static bool WalkObject(JsonObject obj, Plan plan, LeafApplier applier)
         {
             var keys = Keys(plan);
             bool changed = false;
-            List<(string Key, long Id)>? rewrites = null;
+            List<(string Key, JsonNode? Node)>? rewrites = null;
             foreach (var (key, node) in obj)
             {
                 if (node is null || !keys.TryGetValue(key, out var e)) continue;
                 switch (e.Kind)
                 {
-                    case Kind.Ref:
-                        if (TryRemapNumber(node, map, out long id)) (rewrites ??= new()).Add((key, id));
+                    case Kind.Leaf:
+                        if (TryApply(node, e.Leaf, applier, out var replaced)) (rewrites ??= new()).Add((key, replaced));
                         break;
-                    case Kind.RefSequence when node is JsonArray arr:
+                    case Kind.LeafSequence when node is JsonArray arr:
                         for (int i = 0; i < arr.Count; i++)
-                            if (arr[i] is { } item && TryRemapNumber(item, map, out long nid)) { arr[i] = nid; changed = true; }
+                            if (arr[i] is { } item && TryApply(item, e.Leaf, applier, out var ni)) { arr[i] = ni; changed = true; }
                         break;
                     case Kind.Nested when node is JsonObject child:
-                        changed |= WalkObject(child, map, e.Nested!);
+                        changed |= WalkObject(child, e.Nested!, applier);
                         break;
                     case Kind.NestedSequence when node is JsonArray seq:
                         foreach (var item in seq)
-                            if (item is JsonObject o) changed |= WalkObject(o, map, e.Nested!);
+                            if (item is JsonObject o) changed |= WalkObject(o, e.Nested!, applier);
                         break;
                 }
             }
             if (rewrites is not null)
             {
-                foreach (var (key, id) in rewrites) obj[key] = id;
+                foreach (var (key, n) in rewrites) obj[key] = n;
                 changed = true;
             }
             return changed;
         }
 
-        private static bool TryRemapNumber(JsonNode node, IReadOnlyDictionary<long, long> map, out long newId)
+        /// <summary>One JSON leaf through its own converter: read, apply, and — only when the value changed — write it back.</summary>
+        private static bool TryApply(JsonNode node, LeafKind leaf, LeafApplier applier, out JsonNode? replaced)
         {
-            newId = 0;
-            return node is JsonValue v && v.TryGetValue(out long oldId) && oldId != 0
-                && map.TryGetValue(oldId, out newId) && newId != oldId;
+            replaced = null;
+            switch (leaf)
+            {
+                case LeafKind.EntityRef:     return Step<EntityRef>(node, applier.Ref, out replaced);
+                case LeafKind.EntityLink:    return Step<EntityLink>(node, applier.Link, out replaced);
+                case LeafKind.WorldPoint:    return Step<WorldPoint>(node, applier.Point, out replaced);
+                case LeafKind.PointLink:     return Step<PointLink>(node, applier.PointLink, out replaced);
+                case LeafKind.AreaLink:      return Step<AreaLink>(node, applier.Area, out replaced);
+                case LeafKind.WorldRotation: return Step<WorldRotation>(node, applier.Rotation, out replaced);
+                case LeafKind.Bearing:       return Step<Bearing>(node, applier.Bearing, out replaced);
+                default:                 return false;
+            }
+        }
+
+        private static bool Step<T>(JsonNode node, Func<T, T> op, out JsonNode? replaced) where T : struct, IEquatable<T>
+        {
+            replaced = null;
+            T before;
+            // A value the leaf type cannot read is left as it is (the remap always skipped a non-number): the params parse that
+            // follows reads it with the same converter and reports it loudly there. ⭐ An authored reference that names NOTHING is the
+            // applier's to refuse (RefResolve), not this read's.
+            try { before = node.Deserialize<T>(_options); }
+            catch (Exception) { return false; }
+            T after = op(before);
+            if (after.Equals(before)) return false;
+            replaced = JsonSerializer.SerializeToNode(after, _options);
+            return true;
         }
 
         // ── the object applier ────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Rewrites, in place, every <see cref="EntityRef"/> inside <paramref name="value"/> (a class instance, or a BOXED
-        /// struct — mutations land in the box). Returns <c>true</c> when any changed.
+        /// Rewrites, in place, every network id inside <paramref name="value"/> (a class instance, or a BOXED struct — mutations land in
+        /// the box) by an old → new map. Returns <c>true</c> when any changed.
         /// </summary>
         public static bool RemapObject(object? value, IReadOnlyDictionary<long, long> map)
+            => map.Count != 0 && WalkObject(value, new RefRemap(map));
+
+        /// <summary>⭐ Applies <paramref name="applier"/> to every leaf inside <paramref name="value"/> (a class instance or a BOXED struct),
+        /// in place. Returns <c>true</c> when any changed.</summary>
+        public static bool WalkObject(object? value, LeafApplier applier)
         {
-            if (value is null || map.Count == 0) return false;
+            if (value is null) return false;
             var plan = PlanOf(value.GetType());
-            return plan != null && Apply(value, map, plan);
+            return plan != null && Apply(value, applier, plan);
         }
 
-        private static bool Apply(object target, IReadOnlyDictionary<long, long> map, Plan plan)
+        private static bool Apply(object target, LeafApplier applier, Plan plan)
         {
             bool changed = false;
             foreach (var e in plan.Entries)
@@ -232,30 +310,29 @@ namespace Fdp.Toolkit.Replication
                 if (v is null) continue;
                 switch (e.Kind)
                 {
-                    case Kind.Ref:
-                        var r = (EntityRef)v;
-                        var nr = r.Remap(map);
-                        if (nr != r && TrySet(e.Member, target, nr)) changed = true;
+                    case Kind.Leaf:
+                        var nv = ApplyLeaf(v, e.Leaf, applier);
+                        if (!Equals(nv, v) && TrySet(e.Member, target, nv)) changed = true;
                         break;
-                    case Kind.RefSequence:
+                    case Kind.LeafSequence:
                         var list = (IList)v;
                         for (int i = 0; i < list.Count; i++)
                         {
-                            var item = (EntityRef)list[i]!;
-                            var ni = item.Remap(map);
-                            if (ni != item) { list[i] = ni; changed = true; }
+                            var item = list[i]!;
+                            var ni = ApplyLeaf(item, e.Leaf, applier);
+                            if (!Equals(ni, item)) { list[i] = ni; changed = true; }
                         }
                         break;
                     case Kind.Nested:
                         // A struct comes back BOXED: rewrite the box, then store it back into the member.
-                        if (Apply(v, map, e.Nested!) && (!e.MemberType.IsValueType || TrySet(e.Member, target, v))) changed = true;
+                        if (Apply(v, applier, e.Nested!) && (!e.MemberType.IsValueType || TrySet(e.Member, target, v))) changed = true;
                         break;
                     case Kind.NestedSequence:
                         var seq = (IList)v;
                         for (int i = 0; i < seq.Count; i++)
                         {
                             var item = seq[i];
-                            if (item is null || !Apply(item, map, e.Nested!)) continue;
+                            if (item is null || !Apply(item, applier, e.Nested!)) continue;
                             if (item.GetType().IsValueType) seq[i] = item;   // store the rewritten box back
                             changed = true;
                         }
@@ -264,6 +341,18 @@ namespace Fdp.Toolkit.Replication
             }
             return changed;
         }
+
+        private static object ApplyLeaf(object v, LeafKind leaf, LeafApplier a) => leaf switch
+        {
+            LeafKind.EntityRef     => a.Ref((EntityRef)v),
+            LeafKind.EntityLink    => a.Link((EntityLink)v),
+            LeafKind.WorldPoint    => a.Point((WorldPoint)v),
+            LeafKind.PointLink     => a.PointLink((PointLink)v),
+            LeafKind.AreaLink      => a.Area((AreaLink)v),
+            LeafKind.WorldRotation => a.Rotation((WorldRotation)v),
+            LeafKind.Bearing       => a.Bearing((Bearing)v),
+            _                  => v,
+        };
 
         private static object? Get(MemberInfo m, object target)
             => m is PropertyInfo p ? p.GetValue(target) : ((FieldInfo)m).GetValue(target);
@@ -277,5 +366,117 @@ namespace Fdp.Toolkit.Replication
                 default: return false;
             }
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+    // The operations — each maps a leaf to its new value (the identity by default). One applier per concept; ⛔ no per-field code.
+    // ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>An operation the walker applies to every leaf (<see cref="EntityRefRemap.WalkJson"/> / <see cref="EntityRefRemap.WalkObject"/>).
+    /// Each method returns the leaf's new value; the default leaves it as is.</summary>
+    public abstract class LeafApplier
+    {
+        public virtual EntityRef Ref(EntityRef r) => r;
+        public virtual EntityLink Link(EntityLink l) => l;
+        public virtual WorldPoint Point(WorldPoint p) => p;
+        public virtual PointLink PointLink(PointLink p) => p;
+        public virtual AreaLink Area(AreaLink a) => a;
+        public virtual WorldRotation Rotation(WorldRotation r) => r;
+        public virtual Bearing Bearing(Bearing b) => b;
+    }
+
+    /// <summary>⭐ Old → new network ids (scenario load, D3): every <see cref="EntityRef"/>, a link's answer, an area entity.</summary>
+    public sealed class RefRemap : LeafApplier
+    {
+        private readonly IReadOnlyDictionary<long, long> _map;
+        public RefRemap(IReadOnlyDictionary<long, long> oldToNew) => _map = oldToNew ?? throw new ArgumentNullException(nameof(oldToNew));
+        public override EntityRef Ref(EntityRef r) => r.Remap(_map);
+        public override EntityLink Link(EntityLink l) => l.Ref.IsNone ? l : l.WithRef(l.Ref.Remap(_map));
+        public override AreaLink Area(AreaLink a) => a.IsShape || a.Area.IsNone ? a : a.WithArea(a.Area.Remap(_map));
+    }
+
+    /// <summary>What resolution needs from the world it resolves in (a scenario's entities while it loads — S0 item 3; a macro scope later).</summary>
+    public interface IRefScope
+    {
+        /// <summary>The entity a <see cref="RefForm.Key"/> / <see cref="RefForm.Exact"/> spec names here; <c>false</c> when none does.</summary>
+        bool TryResolve(in RefSpec spec, out EntityRef entity);
+        /// <summary>An entity's position (a <see cref="PointLink"/> written as a reference takes it); <c>false</c> when it has none.</summary>
+        bool TryPositionOf(EntityRef entity, out WorldPoint position);
+        /// <summary>A name for the scope in a refusal (<c>"scenario 'hill-attack'"</c>).</summary>
+        string Describe { get; }
+    }
+
+    /// <summary>
+    /// ⭐ RESOLVE (SR-126 / SR-130): every authored <c>@Key</c> / GUID becomes its answer — an <see cref="EntityLink"/>'s entity, a
+    /// <see cref="PointLink"/>'s position (a snapshot; it does not follow the entity), an <see cref="AreaLink"/>'s area entity. The
+    /// authored form is KEPT. ⛔ A reference that names nothing here is a LOUD error: <c>no entity with key 'X' here</c>.
+    /// </summary>
+    public sealed class RefResolve : LeafApplier
+    {
+        private readonly IRefScope _scope;
+        public RefResolve(IRefScope scope) => _scope = scope ?? throw new ArgumentNullException(nameof(scope));
+
+        private EntityRef Find(in RefSpec spec)
+            => _scope.TryResolve(spec, out var r) && !r.IsNone ? r
+             : throw new InvalidOperationException(spec.Form == RefForm.Key
+                   ? $"no entity with key '{spec.KeyText}' here ({_scope.Describe})"
+                   : $"no entity with GUID {spec.Exact:D} here ({_scope.Describe})");
+
+        public override EntityLink Link(EntityLink l)
+            => l.Spec.Form is RefForm.Key or RefForm.Exact ? l.WithRef(Find(l.Spec)) : l;
+
+        public override PointLink PointLink(PointLink p)
+        {
+            if (p.Spec.Form is not (RefForm.Key or RefForm.Exact)) return p;
+            var e = Find(p.Spec);
+            return _scope.TryPositionOf(e, out var at) ? p.WithLocal(at)
+                 : throw new InvalidOperationException($"the point '{p.Spec}' names an entity with no position ({_scope.Describe})");
+        }
+
+        public override AreaLink Area(AreaLink a)
+            => a.Spec.Form is RefForm.Key or RefForm.Exact ? a.WithArea(Find(a.Spec)) : a;
+    }
+
+    /// <summary>
+    /// ⭐ RELOCATE (SR-127): moves every LITERAL place from the authored anchor to the instance anchor — translate X / Y, turn about the
+    /// anchor by the heading difference (compass, clockwise), Z by the anchors' height difference. ⭐ A REFERENCE never moves (a
+    /// <see cref="PointLink"/> / <see cref="AreaLink"/> written as an entity is resolved, not relocated — SR-131). Orientations turn,
+    /// bearings add the heading difference. 📌 Unused by the runtime until S3's expander; S0 proves it with rails.
+    /// </summary>
+    public sealed class Relocation : LeafApplier
+    {
+        private readonly WorldPoint _from, _to;
+        private readonly float _turnDeg, _cos, _sin;
+        private readonly Quaternion _turn;
+
+        /// <param name="from">The authored anchor (where the content was built) and its heading.</param>
+        /// <param name="to">The instance anchor and its heading.</param>
+        public Relocation(WorldPoint from, Bearing fromHeading, WorldPoint to, Bearing toHeading)
+        {
+            _from = from; _to = to;
+            _turnDeg = toHeading.Degrees - fromHeading.Degrees;
+            float rad = _turnDeg * (MathF.PI / 180f);
+            _cos = MathF.Cos(rad); _sin = MathF.Sin(rad);
+            _turn = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -rad);   // compass clockwise = mathematically negative about +Z (up)
+        }
+
+        /// <summary>The heading difference applied, compass degrees.</summary>
+        public float TurnDeg => _turnDeg;
+
+        public override WorldPoint Point(WorldPoint p)
+        {
+            float dx = p.X - _from.X, dy = p.Y - _from.Y;
+            // clockwise by the turn: east → south for +90
+            return new WorldPoint(_to.X + dx * _cos + dy * _sin, _to.Y - dx * _sin + dy * _cos, p.Z + (_to.Z - _from.Z));
+        }
+
+        public override PointLink PointLink(PointLink p) => p.Spec.IsNone ? p.WithLocal(Point(p.Local)) : p;
+
+        public override AreaLink Area(AreaLink a) => a.IsShape ? a.WithPlacement(Point(a.Center), Bearing(a.Heading)) : a;
+
+        public override WorldRotation Rotation(WorldRotation r)
+            => ((Quaternion)r).LengthSquared() < 1e-6f ? r : (WorldRotation)Quaternion.Normalize(_turn * (Quaternion)r);
+
+        public override Bearing Bearing(Bearing b) => new Bearing(b.Degrees + _turnDeg).Normalized;
     }
 }
