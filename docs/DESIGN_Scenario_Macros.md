@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — slice S3 (the rules doc's §00.6 S3, copied in §1); GAP-1 … GAP-5 open (§9); CE-4153 S9 (GUID file form) a prerequisite
+build-state: DESIGN → READY-TO-BUILD once SR-146…SR-151 are approved (§9.y closes GAP-1 … GAP-5: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -242,17 +242,84 @@ sequenceDiagram
 | # | decision / ⚠ GAP | lean — ✅ ACCEPTED by the user `2026-10-31` (*"Gap-X Leans accepted."*) |
 |---|---|---|
 | **SR-80** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · distributing the macros | the existing prefetch (`StorageGatewayModule.PrefetchScenarioAsync:229`, `DESIGN_Artifact_Staging.md` — *"an artifact a scenario NAMES must arrive before the scenario LOADS"*) also stages the WHOLE `macros/` tree as ONE zip (the TKB already travels as a zip, cached on its timestamp) — ALL macros, because the dependency chain is not known without expanding (user) |
-| ⚠ **GAP-1** | WHEN is expansion finished? | RefKey resolution (step "after ALL expansion") needs an end point, but creation is asynchronous across nodes — lean: hook the load gate that already waits for the scenario's entities to be constructed (CE-4087) and count the expanded entities into it |
-| ⚠ **GAP-2** | which nodes READ the macro files | the Brain (it owns the instances) and the editor (it expands to show the parts read-only) — both are in the prefetch's node set; a node that only receives replicated entities never reads a macro |
-| ⚠ **GAP-3** | a missing macro, a wrong `TypeId` in a binding, a cycle (macro A contains B contains A) | fail the LOAD loudly naming the instance — where the check lives (the creation path or a validation pass before load) is undecided; a cycle needs a depth guard |
-| ⚠ **GAP-4** | editing an instance's args in the editor | re-expand: destroy its parts, create them again — their GUIDs stay the same (derived); undecided whether references from OUTSIDE into those parts survive the re-expansion within one session (they should, by GUID) |
-| ⚠ **GAP-5** | ids | the expanded entities get fresh network ids from the allocator like any creation; a macro's internal ids are only its file-local keys (SR-45) |
+| ⚠ **GAP-1** → closed by **SR-147** (§9.y) | WHEN is expansion finished? | RefKey resolution (step "after ALL expansion") needs an end point, but creation is asynchronous across nodes — lean: hook the load gate that already waits for the scenario's entities to be constructed (CE-4087) and count the expanded entities into it |
+| ⚠ **GAP-2** → closed by **SR-148** (§9.y) | which nodes READ the macro files | the Brain (it owns the instances) and the editor (it expands to show the parts read-only) — both are in the prefetch's node set; a node that only receives replicated entities never reads a macro |
+| ⚠ **GAP-3** → closed by **SR-149** (§9.y) | a missing macro, a wrong `TypeId` in a binding, a cycle (macro A contains B contains A) | fail the LOAD loudly naming the instance — where the check lives (the creation path or a validation pass before load) is undecided; a cycle needs a depth guard |
+| ⚠ **GAP-4** → closed by **SR-150** (§9.y) | editing an instance's args in the editor | re-expand: destroy its parts, create them again — their GUIDs stay the same (derived); undecided whether references from OUTSIDE into those parts survive the re-expansion within one session (they should, by GUID) |
+| ⚠ **GAP-5** → closed by **SR-151** (§9.y) | ids | the expanded entities get fresh network ids from the allocator like any creation; a macro's internal ids are only its file-local keys (SR-45) |
 
 ### 9.x The completion of an expansion *(moved here from `DESIGN_Scenario_Rules.md` §10.13, `2026-11-01`)*
 
 | # | decision | lean |
 |---|---|---|
 | **SR-96** | ✅ a macro insertion reports its OWN completion (user, `2026-11-01`: *"maybe this is a process that runs on the brain node and takes care about all its subparts like creating entities and so on, and it reports the completion on its own. So the action that triggers the macro expansion just monitors this final completion signal from the node that executed the macro expansion and doesn't care about the individual subparts inside."* → *"Yes write those two leans down."*) | ⭐ the macro INSTANCE entity (`MacroInstance{macro,args}`) carries a small replicated `MacroExpansionStatus {State: Expanding\|Done\|Failed, Reason}`. ⭐ ONE writer — the node that expands it; it alone tracks its child creation requests (each closed by an `EntityConstructionCompleted` naming its `RequestId`, `LifecycleEvents.cs:114`). ⭐ The `InsertMacro` action (SR-93) only creates the instance and reads that status: `Expanding` ⇒ `Running`, `Done` ⇒ `Success`, `Failed` ⇒ `Failure` with its reason — ⛔ it never counts the parts. ⭐ STATE, not an event: readable on every node, survives save / restore / replay — the objective pattern (*"nobody calls it, everyone reads its status"*). ✅ decided `2026-11-01` — the BRAIN node expands (user: *"there is already a concept of finding the least loaded node of certain role … practically there will be just one brain node, that this is where the macro expansion should take place"*): the role's least-loaded node, the existing pick (`RoleGroupOwnershipStrategy.cs:56` → `IClusterStateCache.GetLeastLoadedNode(role)`); in practice ONE Brain node — CGF (+ SimHost split), the all-in-one editor or the server |
+
+### 9.y The gaps, closed — the expander IS the creation path's child branch *(`2026-11-01` — leans SR-146 … SR-151 await the user)*
+
+> 🔒 **User, `2026-11-01`:** *"Macro gaps"* (close them before S3) · earlier: *"Gap-X Leans accepted."* (the direction) · *"Macro expansion is
+> … a standalone feature … the core system feature."* (SR-144)
+
+**INVENTORY** *(grep `class CreateEntityRequestSystem|GenesisMaterializationSystem|ScenarioLoadStep|EntityCreationPack`, read the bodies; ⚠ coverage unchecked)*
+
+| what exists | where | for the gaps |
+|---|---|---|
+| ⭐⭐ the creation path ALREADY expands children: a TKB template's `ChildBlueprints` become child `SpawnEntityCommand`s in the SAME pass as the parent — each with per-child overrides (`ChildComponentOverrides` → `(PreAllocatedId, Components)`), a fresh id (`_idAllocator.AllocateId()`) unless pre-allocated, a DERIVED GUID (`WithDerivedGuid(parentGuid, "child:<InstanceId>")`, CE-4153), and the parent's owner, init type, transience and spawn height INHERITED; seat presets use the same pattern (`"seat:<n>"`) | `Hrot.Common/Systems/CreateEntityRequestSystem.cs:296-575` | ⭐ the macro expander is THIS branch with a second SOURCE (SR-146) |
+| it processes requests targeted at the LOCAL node (the owner), on every ECS node | the same file's header (Q65: *"processes a request targeted at the LOCAL node regardless of that flag"*); composed by `EntityCreationPack` (`Hrot.Common/EntityCreation/EntityCreationPack.cs:71`) | who reads macro files (SR-148) |
+| ⭐ the ONE readiness owner of a scenario load: ① request queue drained · ② nothing `Constructing` · ③ every `Initial*Intent` (passengers, vehicle, hierarchy, targets, route, subordinate) resolved · plus the awaited requested ids | `Hrot.Core/Services/LoadPhase/ScenarioLoadStep.cs:280-305` (`DESIGN_Cluster_Load_Phase.md` — it replaced three drifted handlers) | when expansion is finished (SR-147) |
+| ⭐ cross-entity references are resolved AFTER creation by one system, through transient intent DTOs it removes when done | `Hrot.EcsNode/Systems/GenesisMaterializationSystem.cs:31`, registered by `GenesisTail.cs:20` | `@Key` / GUID resolution rides it (SR-147) |
+| ⛔ the old GAP-1 lean's anchor | CE-4087 is the MANDATORY-ROLES wait before a load (`ClusterMaster.Bootstrap.cs`), not an entity-construction wait | corrected here |
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-146** | ⭐⭐ ONE child-spawn routine, two sources | the `Expander` is `CreateEntityRequestSystem`'s child branch GENERALISED: it takes child definitions from a TKB template's `ChildBlueprints` OR from a macro file's entities, and spawns each the same way — overrides, fresh id, derived GUID (`macro:<local GUID>` beside today's `child:<id>` / `seat:<n>`), owner / init type / transience inherited, plus the macro steps (bind · resolve · relocate, §10). ⛔ never a second spawning loop (one implementation per concept). A nested macro is a child that is itself an instance — the same branch recurses |
+| **SR-147** | GAP-1 — when expansion is finished | ⭐ BY CONSTRUCTION: the children are ordinary creation requests issued in the parent's pass, so `ScenarioLoadStep` ①–② already wait for them, as for TKB children today. ⭐ `@Key` / GUID references are carried as one more transient intent (`InitialLinksIntent`) that `GenesisMaterializationSystem` resolves once every entity exists — so condition ③ waits for it too, and a missing key fails there loudly (SR-66). ⭐ A runtime `InsertMacro` reads `MacroExpansionStatus` (SR-96): `Done` when every child's `EntityConstructionCompleted` arrived and its links resolved. ⚠ The one thing to prove with a rail: no frame where the queue is empty and the children's commands are still in flight |
+| **SR-148** | GAP-2 — who reads the macro files | the node that PROCESSES the instance's creation request — its owner (the Brain, SR-96; the editor's own world when it creates locally in edit). The files are staged on every node (SR-80, one zip) because the owner is chosen at runtime; ⛔ a node that only receives ghosts never reads a macro |
+| **SR-149** | GAP-3 — a missing macro, a wrong binding type, a cycle | ⭐ a VALIDATOR runs BEFORE anything is created: on a load, inside the creating node's PREPARE (the load is two-phase — a failed prepare aborts it on every node, nothing half-built); on a runtime `InsertMacro`, before the first child request. It walks the instance tree: the macro file exists · every `bind` names a declared param of the right type · no macro appears twice on one path (a cycle) · depth ≤ 8. The reason names the path (*"Blue Platoon / Squad 2: macro 'FireTeam' not found"*). A runtime failure sets `MacroExpansionStatus = Failed` with that reason and creates nothing |
+| **SR-150** | GAP-4 — editing an instance's args | ⭐ RECONCILE by derived GUID, not destroy + recreate: a child whose GUID persists KEEPS its entity and network id and gets its components re-applied; a new GUID is created; a vanished one destroyed; a child whose TKB type changed is destroyed and created. ⇒ every reference from outside survives — an authored `EntityLink` by its GUID, an internal `EntityRef` by its unchanged id. The same path serves a live edit (SR-109, this run only) |
+| **SR-151** | GAP-5 — ids | ⭐ as TKB children today: a fresh id from the allocator per child, or the override's pre-allocated id; a macro file's own ids are only file-local keys (SR-45); width per CE-4200 (`int32`) |
+
+```mermaid
+sequenceDiagram
+    participant L as load PREPARE / InsertMacro (owner node)
+    participant V as validator
+    participant C as CreateEntityRequestSystem (owner node)
+    participant G as GenesisMaterializationSystem
+    participant S as ScenarioLoadStep
+    L->>V: the instance tree (files, binds, cycles, depth)
+    V-->>L: ok — or FAIL: the prepare aborts / status Failed, nothing created
+    L->>C: the instance's creation request
+    C->>C: child branch: TKB ChildBlueprints OR the macro's entities — bind · resolve literals · relocate · derived GUID · fresh id
+    C->>C: one SpawnEntityCommand per child, same pass (a child instance recurses)
+    G->>G: once all exist — resolve InitialLinksIntent (@Key / GUID), remove it
+    S->>S: ① queue drained · ② none Constructing · ③ no Initial*Intent left ⇒ load done
+    C-->>L: MacroExpansionStatus Done (runtime InsertMacro reads it)
+```
+
+*What the picture shows that prose hid:* nothing new waits for anything — the load step's existing three conditions cover macros because the
+children travel the TKB children's road, and reference resolution is one more intent for the existing resolver.
+
+```mermaid
+graph TD
+    subgraph every["every ECS node — EntityCreationPack (shared bootstrap)"]
+        CERS["CreateEntityRequestSystem — child branch = the Expander (SR-146)"]
+        GEN["GenesisMaterializationSystem (GenesisTail)"]
+        LS["ScenarioLoadStep (the load part)"]
+    end
+    OWNER["the instance's OWNER node processes its request"] --> CERS
+    CERS --> GEN --> LS
+    GHOST["a node that only receives the instance as a ghost"]:::dead -. "never expands, never reads a macro" .-> CERS
+    classDef dead fill:#fde2e2,stroke:#c33
+```
+
+*Caption:* every node composes the expander (it is the creation path), but only the instance's owner runs it — the red edge is the path that
+must stay dead, or a macro would expand once per node.
+
+**Rejected — one line each:**
+- *A separate macro-expansion system beside the creation path* — a second spawning loop that would drift from the TKB children's (ids, GUIDs, ownership, transience).
+- *A new "expansion finished" barrier* — `ScenarioLoadStep` already waits for exactly this, by construction.
+- *Resolving `@Key` in a pass of the expander* — `GenesisMaterializationSystem` already resolves cross-entity references after creation.
+- *Validating while creating* — a failure halfway leaves a half-built macro; the prepare / pre-flight leaves nothing.
+- *Destroy + recreate on an args edit* — every outside reference would dangle.
 
 ## 10. Relocation and reference types — currently `DESIGN_Scenario_Rules.md` §9.8 (moves here, or to its own types document, after slice S0 lands)
 
