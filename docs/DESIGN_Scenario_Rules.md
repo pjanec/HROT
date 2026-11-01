@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (✅ ACCEPTED 2026-11-01, SR-125…SR-141 — ⭐ READ §9.8.0, the current answer; §9.8.1–9.8.9 are the record of revs a–f; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (✅ ACCEPTED 2026-11-01, SR-125…SR-141; §9.8.10 orientation SR-142…143 draft — ⭐ READ §9.8.0, the current answer; §9.8.1–9.8.9 are the record of revs a–f; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -1038,6 +1038,28 @@ public readonly struct AreaLink  { … }                                        
 - *Plain `Vector3` internally (§9.8.8)* — 124 fields mix points and directions; no tool can tell which to show on the map (the user's point).
 - *Explicit-only conversions* — strict, but ~1000 call sites would change for no runtime benefit; the type's value is MEANING for tools, not arithmetic safety.
 - *Keeping the authored name `WorldPoint`* — the internal type deserves the plain name; authored ones read `*Link`, like `EntityLink`.
+
+#### 9.8.10 Orientation — `WorldRotation` and `Bearing` *(draft `2026-11-01`, leans SR-142…SR-143 await the user)*
+
+> 🔒 **User, `2026-11-01`:** *"What about the world orientation of an entity? Wouldn't it deserve also a special type? Or maybe it is already having one?"*
+
+| measured | where |
+|---|---|
+| ⭐ the CONVENTION exists, once: `SimTransform.Rotation` (`Quaternion`) in local ENU, body-forward = +X; compass heading 0 = north, 90 = east, clockwise — `SimTransformBridgeSystem.HeadingDegToRotation` / `RotationToHeadingDeg` | `Geographic/Systems/SimTransformBridgeSystem.cs:23, :63`; routed to, not copied, by `SimTransformHeadingInstaller` |
+| ⭐ the ONE human display: `OrientationDisplay` → `HPR [045.0, 3.2, -1.0] deg, Quat […]` (ddsmonitor, the compass gizmo) | `Replication/Components/OrientationDisplay.cs` |
+| ⛔ no orientation TYPE: graph `.*(Heading\|Bearing\|Orientation\|Rotation\|Yaw\|Azimuth\|Attitude\|Pose\|Facing).*` Class (63, paginated) — wire / display / gizmo / pose classes, `NetworkOrientation`, `TurretPose`, none a world-orientation value type | graph |
+| world quaternions are few: `SimTransform.Rotation`, `NetworkTransform.LastRotation` (grep `public Quaternion \w+;` over Fdp.Core / Fdp.Toolkits / Hrot.Core) | grep |
+| ⚠ compass bearings are plain `float`s with MIXED units in the names: `LeftBearing` / `RightBearing` / `WatchBearing` (`EngagementArea.cs:42-75`), `Bearing`, `LastBearing`, `BearingDeg`, `RunInBearingDeg`, `Azimuth`, `Yaw`, `AngleRad` … beside RELATIVE angles (`SteerAngle`, `HeadingOffset`, `HeadYaw`, `WedgeAngleRad`) | grep `public (float\|double) \w*(Heading\|Yaw\|Bearing\|Azimuth\|Facing\|Direction\|Angle)\w*;` over Fdp.Core, Fdp.Toolkits, Hrot.Core, Hrot.AI.Behaviors |
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-142** | a world-orientation type | ⭐ YES, the `WorldPoint` pattern: **`WorldRotation`** = 16 bytes, `Quaternion`-identical in memory and JSON, implicit conversions both ways, `X / Y / Z / W` fields; meaning *"an orientation in the world frame — local ENU, body-forward +X"*. Its members ROUTE to the existing convention (`HeadingDeg` ⇄ `SimTransformBridgeSystem`), `ToString` routes to `OrientationDisplay` (HPR) — ⛔ no second copy of either. Used by `SimTransform.Rotation` and `NetworkTransform.LastRotation`; a body-LOCAL rotation (a turret's, a bone's) stays `Quaternion`. ⇒ tools draw a heading arrow on the map for it; the relocation walker turns it by type (SR-128's hand-written `SimTransform` rotation case goes away). Recordings and files byte-identical |
+| **SR-143** | a world compass bearing | ⭐ **`Bearing`** (SR-125's tiny type, now defined): 4 bytes, `float` DEGREES, compass (0 = north, clockwise, [0, 360)) — the same convention; implicit to / from `float`. Used for WORLD directions — `EngagementArea`'s `Left / Right / WatchBearing`, `PlatoonDefend`'s `Left / Right`, the `*BearingDeg` fields, `AreaLink`'s heading — internally AND in params (a bearing needs no authored form: "face toward X" is a `PointLink` param). ⇒ the unit is in the type, not in a name suffix; tools draw it as an arrow at its owner; relocation adds the heading difference. RELATIVE angles (steering, offsets, arcs, body yaw) stay `float` — they do not turn with a macro. ⭐ The SR-132 rail extends: a `float` named `*Bearing*` / `*Heading*` / `*Azimuth*` / `*Yaw*` must be a `Bearing` or on the relative allow-list |
+
+**Rejected — one line each:**
+- *Keep `Quaternion` for world rotations* — tools cannot tell a world orientation from a turret's local one, so none can draw it.
+- *An authored `BearingLink` (with `RefSpec`)* — a heading "toward an entity" is a point (`PointLink`), not an angle.
+- *Bearings in radians, math convention (CCW from east)* — every authored and displayed heading in the engine is compass degrees; one convention.
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
