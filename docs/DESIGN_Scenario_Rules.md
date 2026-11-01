@@ -3,13 +3,14 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-132) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
 ui-mockup: ⭐ docs/designs/rules-view/ (4 standalone HTML boards + README) — the rules view, trigger / objective detail tabs, editing while live (SR-109); also on the claude.ai canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k (the committed copy wins)
 proof-of-concept: ⭐⭐ FDP/Toolkits/Fdp.Toolkits.Tests/Behavior/TriggerPoc/ — 38 rails PROVING the trigger machinery (runtime binding of shared actions, per-step occurrence slots, RunActions, BTree host, the when, restore); findings SR-108; the build rows CE-4160…CE-4166. ⛔ A builder STARTS FROM IT — lift its code into production, keep its rails; do not re-derive
 related-designs:
+  - docs/blueprints/DESIGN_Map_Picking_Unification.md — P5 OWNS "the type makes a location pickable" (PickableGeoPoint); §9.8 SR-125 merges it into WorldPoint
   - docs/SHOWCASE_Scenarios.md — the TARGET as two playable scenarios ("Bridgehead" training, "Crossfire" game): every mechanism here in use, with demo scripts and acceptance checks
   - docs/designs/rules-view/README.md — the rules view's MOCKUP (SR-109): standalone HTML boards
   - docs/EXPLAINER_Scenario_Evaluation_And_Direction.md — the EXPLAINER of this design (objective, trigger … with examples); this file keeps the decisions
@@ -590,6 +591,105 @@ sequenceDiagram
 | ⚠ **GAP-3** | a missing macro, a wrong `TypeId` in a binding, a cycle (macro A contains B contains A) | fail the LOAD loudly naming the instance — where the check lives (the creation path or a validation pass before load) is undecided; a cycle needs a depth guard |
 | ⚠ **GAP-4** | editing an instance's args in the editor | re-expand: destroy its parts, create them again — their GUIDs stay the same (derived); undecided whether references from OUTSIDE into those parts survive the re-expansion within one session (they should, by GUID) |
 | ⚠ **GAP-5** | ids | the expanded entities get fresh network ids from the allocator like any creation; a macro's internal ids are only its file-local keys (SR-45) |
+
+### 9.8 Relocating a macro, and ONE way to name a place or an entity *(draft `2026-11-01` — leans SR-125…SR-132 await the user)*
+
+> 🔒 **User, `2026-11-01`:** *"how can we make the scenario macros relocatable to given location?"* → *"there already are some attributes
+> like map pickable point … We need to unify those. I like your naming better … your attribute means both at once relocatability and
+> inherently also pickability from map"* · *"The scenario entities might contain various serialized JSON conditions, like the ones for the
+> trigger entity in its when part. How could we make the parameter expansion work for those as well? And also the relocation"* · *"macros
+> and entities in general might use named points instead of coordinates … third option … reference to an entity whose position serves as
+> the desired position"* · *"how to make it possible to reference an entity via different ways while keeping one single parameter name"* ·
+> *"if the macro doesn't want the concrete specific parameter to be relocated … the macro should reference a point entity and not use
+> coordinates."*
+
+#### 9.8.1 INVENTORY *(`2026-11-01`; ⚠ coverage unchecked — `check_index_coverage` is not available through the CLI)*
+
+`search_graph` Class `.*(MapPick|Pickable|MapEditable|MapPoint|MapPosition).*` (13) · `.*(Position|Point|Location|Waypoint|Spatial|MapPick|WorldPoint).*Attribute$` (2) ·
+`.*(EntityRefRemap|ParamsRemap|RefRemap|Remapper).*` (3) · `.*(Paste|Clipboard|Duplicate|CloneEntit|Copy).*` (32 — ⛔ no scenario-entity copy / paste / group move) ·
+`.*(Ground|Terrain).*(Snap|Clamp|Height|Drop).*` (13) · a scan of all 117 `scenarios/*/scenario.json` · grep over the 58 `[ParamsDto]` types.
+
+| what exists | where | for relocation / references |
+|---|---|---|
+| ⭐⭐ **the TYPE makes a field pickable — the ruled precedent, twice** | `DESIGN_Entity_Reference.md` D5 (`EntityRef`); `DESIGN_Map_Picking_Unification.md` P5 — *"`MapPickableWorldLocationAttribute` (both copies) is deleted … keep the attribute — it marks exactly the members of that type, so it says nothing the type does not"* (rejected) | ⇒ the unified place is a TYPE, not an attribute (SR-125) |
+| `PickableGeoPoint {Latitude, Longitude}` — the map-pickable location TYPE, JSON `[lat, lon]` | `Fdp.Toolkits/Behavior/Params/PickableGeoPoint.cs:16-31`; 5 fields (orders, `PlatoonHillAttack`, `AirArmedSearch`) | ⭐ merged into `WorldPoint` |
+| ⭐ `EntityRef {NetworkId}` — JSON the bare number; picked, remapped at load and resolved by its TYPE | `Fdp.Toolkits/Replication/EntityRef.cs:26`; 21 fields in the params types | ⭐ gains the other reference forms (SR-126) |
+| ⭐⭐ `EntityRefRemap` — ONE type plan per type (members, lists, nested), appliers `RemapJson` / `RemapObject`; `ScenarioBehaviorRemapper` gets every behaviour's contract type from the registry | `EntityRefRemap.cs:25-280`; `ScenarioBehaviorRemapper.cs:33-95` | ⭐⭐ the walker relocation and resolution reuse (SR-128) |
+| the params types' locations: **38 `Vector3`** (sim metres — every one a POINT by name: `Position`, `Objective`, `FallBackTo`, `WatchTowards` …), **5 `PickableGeoPoint`**, **2 lat / lon `double` pairs** (`MoveToLocation.TargetLat/Lon`, `CenterLat/Lon`); **2 compass bearings** (`PlatoonDefend.Left/Right`) | grep `[ParamsDto]` | ⭐ three spellings of one concept ⇒ one type |
+| raw `long` entity ids in params: `HsmFireActivityParams.TargetNetworkId` (`BlueprintDemoParams.cs:35`), `HillAttackDtos.cs:243 TargetNetworkId`; `HeardId` ×3 / `CachedEqsRequestId` look like WORKING state | grep | ⚠ the audit (SR-131) |
+| positions in saved components: `SimTransform` (1012 entities), `EditablePolyline.Points` (11), `RoutePlan.Waypoints` (12, `HeightAgl` = above ground), `NavigationIntent.FinalDestination` / `NavState.FinalDestination` (26); a NON-point vector `SimVelocity.Linear`; terrain ids `NavState.CurrentSegmentId` / `TrajectoryId` | the scenario scan | ⭐ engine structs — relocated by small per-component relocators (SR-128) |
+| the condition DTOs: `SearchPredicateDto` tree; one location — `SpatialBoundingPredicateDto.Bounds` (`BoundingBox2D`, an axis-aligned box); no entity field (the `OnEntity` leaf, SR-95, is unbuilt) | `ReplayBrowser/Search/SearchPredicateDto.cs:166-186` | ⚠ an axis-aligned box cannot ROTATE (SR-128) |
+| a single-point marker entity type | ⛔ none — `TacGraphic_FireLine 8801`, `_Route 8802`, `_Area 8803` (`TkbEntityTypes.cs:87-89`) | a `TacGraphic_Point` is new (SR-130) |
+| ground clamping | `GroundClampWhilePausedSystem`, `GroundClampingConfig`, `TerrainClampBaseline` | ⚠ vehicles measured; dismounted soldiers NOT measured (SR-127) |
+| entity references in a FILE become stable GUIDs | `DESIGN_Scenario_Entity_Keys.md` G4 / S9 (⚠ S9 stopped: there is no save-direction remap yet) | ⭐ SR-126 builds on it |
+
+#### 9.8.2 The model
+
+```mermaid
+classDiagram
+    direction LR
+    class WorldPoint { <<NEW TYPE, replaces PickableGeoPoint, point Vector3, lat-lon pairs>> live: Vector3 local metres · file: [x,y,z] / lat-lon / @Key / GUID }
+    class Bearing { <<NEW TYPE>> degrees from north · rotated by the heading }
+    class EntityRef { <<existing TYPE, extended>> live: NetworkId · file: GUID / @Key }
+    class ParamsDto { <<58 existing>> behaviour / order / mission params }
+    class PredicateDto { <<existing tree>> the when conditions }
+    class TypePlan { <<existing EntityRefRemap, generalised>> one plan per type · leaves EntityRef, WorldPoint, Bearing }
+    class ComponentRelocator { <<NEW, one per spatial component>> SimTransform · EditablePolyline · RoutePlan · NavigationIntent }
+    class Expander { <<the macro expander, §9.7>> bind · resolve · relocate · create }
+    class RelocationTransform { authored anchor to instance anchor · position + heading }
+    ParamsDto *-- WorldPoint
+    ParamsDto *-- EntityRef
+    ParamsDto *-- Bearing
+    PredicateDto *-- WorldPoint
+    PredicateDto *-- EntityRef
+    TypePlan ..> ParamsDto : walks JSON by type
+    TypePlan ..> PredicateDto : walks JSON by type
+    Expander ..> TypePlan
+    Expander ..> ComponentRelocator
+    Expander ..> RelocationTransform
+```
+
+*What the picture shows that prose hid:* every place and every entity reference is ONE type with ONE walker over it — the picker, the
+load-time remap, the reference resolution and the relocation all key on the same three types; only the engine's own components need
+explicit relocators.
+
+```mermaid
+sequenceDiagram
+    participant X as Expander (one macro instance)
+    participant J as each entity's JSON (components, params, when, do)
+    participant P as TypePlan
+    participant C as creation path
+    X->>J: ① bind — every "bind" map and ParamBindings: copy the macro / scenario param values in
+    X->>P: ② resolve — every EntityRef and WorldPoint written as GUID or @Key
+    P-->>J: EntityRef to a network id · WorldPoint to that entity's position (local metres)
+    X->>P: ③ relocate — every WorldPoint still a LITERAL, every Bearing
+    P-->>J: anchor transform applied · ComponentRelocators do the components
+    X->>C: ④ create the entity (live form: numbers and metres only)
+```
+
+*What the picture shows that prose hid:* RESOLVE runs BEFORE RELOCATE, so a point that came from a reference is never moved — that is the
+"do not relocate this" switch the user asked for, with no flag. The FILE keeps `@Key` / GUID; only the live copy holds resolved numbers.
+
+#### 9.8.3 Decisions
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-125** | ONE place type — `WorldPoint` | ⭐ a TYPE, not an attribute (the D5 / P5 precedent above: the type already makes a field pickable, and an attribute "says nothing the type does not"). It REPLACES `PickableGeoPoint`, the 38 point `Vector3` fields and the 2 lat / lon pairs: picked on the map by its type (everything P5 built keys on it), relocated by its type, resolved by its type. Live form = local metres (`Vector3`, unmanaged, 12 bytes — behaviour code reads `.Local`); FILE forms: `[x, y, z]` (local metres) · `{"lat": …, "lon": …}` (geodetic, converted through the host's `IGeographicTransform`) · `"@Key"` / a GUID string (an ENTITY'S position, SR-130). A tiny `Bearing` type for compass angles (2 fields today). ⛔ No backward compatibility (CE-4153 S10): the repo's scenarios are migrated by one script in the same change |
+| **SR-126** | ONE entity reference type, ONE param name, several ways to point | `EntityRef` keeps its live form (the network id — orders, the wire, `BrainIntent` JSON unchanged) and its FILE form becomes a string: a **GUID** = *this exact entity* (stable, `DESIGN_Scenario_Entity_Keys.md` G1 / G2) · **`@Key`** = *whatever entity has that `RefKey` here* (SR-64 / SR-65) · **`@Outer/Inner`** = a key inside a macro instance. The FORM of the value says which — the field name stays one. ⏭ the query form (*"the squad leader of @Squad1"*, SR-63) is a later `EntitySet` / single-result query; not v1 |
+| **SR-127** | the relocation transform | the macro file records its AUTHORED ANCHOR (position + heading — where it was built, on real terrain); every entity keeps its authored coordinates; placing an instance applies *authored anchor → instance anchor* (translate X / Y, rotate by the heading difference, Z + the anchors' height difference). Heights ABOVE GROUND (`RoutePlan.HeightAgl`) unchanged. Vehicles settle through the existing ground clamp; ⚠ dismounted soldiers — measure with one rail before building. A macro whose plan needs particular buildings declares `relocatable: false`: its instance is pinned at the anchor and the editor refuses the drag, saying why |
+| **SR-128** | the ONE walker | `EntityRefRemap`'s type plan generalised: leaves `EntityRef` (remap, resolve), `WorldPoint` (resolve, relocate), `Bearing` (rotate); appliers over JSON and over objects, as today. It walks params, `do` args and the `when` tree alike — the predicate tree is polymorphic, so the plan dispatches on each node's concrete type. ⭐ The engine COMPONENTS keep their `Vector3`s (hot-path structs, a type change would touch physics everywhere) and get one small relocator each: `SimTransform` (position + rotation), `EditablePolyline`, `RoutePlan`, `NavigationIntent`; `SimVelocity` rotates only; `NavState` road / trajectory ids are CLEARED. ⚠ `SpatialBoundingPredicateDto.Bounds` is an axis-aligned box: translated, and a rotated instance fails the expansion LOUDLY naming it — the fix is to name an AREA entity instead |
+| **SR-129** | parameter binding inside nested JSON (the `when`, `do`, macro args) | ⭐ SR-94 generalised: **any JSON object may carry a `bind` map, its paths relative to that object** — a `do` entry, a `when` node, a `macroArgs` object, a behaviour's params. The expander walks the JSON generically and applies each `bind` where it stands; the literal stays as the unbound value. ⇒ ONE rule, no per-DTO code, and moving a node moves its bindings (SR-94's reason). Typed components keep SR-57's `ParamBindings`. A bound param's declared type must match the target member's type — checked at expansion, a mismatch fails loudly (GAP-3) |
+| **SR-130** | named points | a NAMED POINT is just an entity whose position is wanted: a `WorldPoint` written `"@Key"` takes that entity's position — a new `TacGraphic_Point` (a control point, drawn on the map, carrying a `RefKey`), an area (its centroid), or any unit. ⭐ Resolved ONCE when the params are assigned (a snapshot: the behaviour still reads metres, its code unchanged); ⛔ it does not follow the entity — a param that must follow is an `EntityRef` |
+| **SR-131** | not relocating a value | ⭐ the user's rule, by construction: a LITERAL point moves with the macro; a REFERENCE does not (resolved first — step ② of the sequence above). A point entity INSIDE the macro moves (it is one of the macro's entities); one OUTSIDE, passed in through a param, stays where it is. ⛔ no `relocate: false` flag per field |
+| **SR-132** | the audit that rides the migration | while every params field is retyped, CLASSIFY it: 38 `Vector3` + 5 `PickableGeoPoint` + 2 lat / lon pairs → `WorldPoint`; 2 → `Bearing`; the 2 raw `long` targets → `EntityRef` if authored; `HeardId` / `CachedEqsRequestId` confirmed as working state (not params). ⭐ A RAIL lists every member of every `[ParamsDto]` and predicate DTO and fails on a `Vector2` / `Vector3` / `double` lat-lon / `long` id that is not a known type or an explicit allow-list entry; a second rail fails on a scenario-saved component with a vector member but no relocator and no "not spatial" entry — ⇒ a new behaviour cannot silently be unrelocatable |
+
+**Rejected — one line each:**
+- *An attribute (`[WorldPoint]`) on `Vector3` fields* — ruled against twice (D5, P5), and an attribute cannot carry the `@Key` / GUID / lat-lon value forms.
+- *Three param names per reference (`targetId`, `targetKey`, `targetGuid`)* — the user's objection; the value's form says which.
+- *A `relocate: false` flag per field* — a reference already means "the world, not the macro".
+- *Following a named point live* — every behaviour would need world access in its params; that is what `EntityRef` is for.
+- *Retyping the engine components too* — hot-path structs; four relocators cost less.
+- *Inline `"^param"` strings inside typed values* — a typed number field cannot hold a string in the editor; the sibling `bind` keeps the literal typed (SR-55's `^subject` is shorthand for such a `bind` entry).
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
