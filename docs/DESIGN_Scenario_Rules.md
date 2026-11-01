@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-138; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-139; §9.8.7 rev d = the current layout; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -747,7 +747,7 @@ nothing, and the three types nest: a point may BE an entity's position, an area 
 - *An axis-aligned box plus a separate polygon type* — two containment codes; one `WorldArea` covers both plus circle and rectangle.
 - *A literal polygon inside the area value* — not unmanaged; an area entity already is a polygon, drawn and editable on the map.
 
-#### 9.8.5 Rev c (`2026-11-01`) — PACKED layouts *(lean SR-137 awaits the user; supersedes SR-133's 32-byte layout — its JSON forms and behaviour stand)*
+#### 9.8.5 Rev c (`2026-11-01`) — PACKED layouts *(⛔ SUPERSEDED by §9.8.7 rev d — the managed table is withdrawn; supersedes SR-133's 32-byte layout — its JSON forms and behaviour stand)*
 
 > 🔒 **User, `2026-11-01`:** *"every log and dumper and debugger are probably using some serializer of the entity ref or world point types
 > anyway for better UX. So it's not so unachievable to pack all the fields into a shorter memory layout. might be worth revising."*
@@ -783,7 +783,7 @@ editor and by save — goes through a table, and a `WorldPoint` needs no network
 - *8 bytes, the network id behind the handle too* — every `Resolve` on the hot path would become a table lookup, and a resolved ref would need one table entry per occurrence (a macro-local key resolves differently in each instance).
 - *A process-wide table with no tag* — a handle that crossed nodes or a restore would silently read someone else's text.
 
-#### 9.8.6 The declarations, and how a TOOL reads them *(lean SR-138 awaits the user)*
+#### 9.8.6 The declarations, and how a TOOL reads them *(⛔ the DECLARATIONS are SUPERSEDED by §9.8.7; SR-138's rules ①–④ stand)*
 
 ```csharp
 public enum AuthoredForm : byte { None = 0, Exact = 1, Key = 2, Shape = 3 }   // Shape: WorldArea's circle / rectangle
@@ -835,6 +835,62 @@ public readonly struct WorldArea                      // 40 bytes (8 + 8 + 12 + 
 | # | decision | ⭐ lean |
 |---|---|---|
 | **SR-138** | what a TOOL sees (AI agents over the debug API / MCP, logs, the inspector, a raw dump) | ⭐ ① **raw memory in the default form is today's**: an unauthored `EntityRef` is the network id at offset 0 followed by eight zero bytes; a `WorldPoint` is three floats followed by zeros — a hex dump, a blob-offset reader or a trace buffer reads the same id / metres it reads now. ② **every structured reader goes through the TYPE**: the debug API serializes with System.Text.Json (`DebugApiDumpOptions`, `DebugApiService.cs:470`), which honours `[JsonConverter]`; logs and the debugger use `ToString` / `[DebuggerDisplay]`. ③ **the converter writes by context, and every output reads back** (the dump is also the PATCH input, HN-002): not authored ⇒ the bare number `9812` (unchanged — every skill doc and client keeps working) · file / save ⇒ the authored text `"@BlueHQ"` · diagnostics (`DebugApiDumpOptions`) ⇒ BOTH: `{"NetworkId": 9812, "Ref": "@BlueHQ"}` — the reader already accepts `{"NetworkId": n}` (`EntityRef.cs:100-108`), extended to read `Ref`. `WorldPoint`: `[x, y, z]` · `"@Key"` · diagnostics `{"Local": [x, y, z], "Ref": "@Key"}`. ④ the ai-debug skill doc (`tools/ai-debug-mcp/SKILL.md`) gets one paragraph on the three forms in the same change. ⚠ The one opaque case: a REFLECTION dump that ignores converters and `ToString` would print `Authored._bits` as a number — the type exposes `Form` / `Text` as properties so even that shows meaning |
+
+#### 9.8.7 Rev d (`2026-11-01`) — the authored form INLINE, fully unmanaged, no table *(lean SR-139 awaits the user; supersedes §9.8.5 SR-137's handle + table and §9.8.6's declarations; SR-138's tool rules ①–④ stand)*
+
+> 🔒 **User, `2026-11-01`:** *"The world position was so far used as plain unmanaged structure, and it is saved as such in components, and they
+> are recorded as such, and the general desire is to never use managed types. So the optional string in the offered reference seems weird and
+> undesired, isn't it?"*
+
+⛔ **What was wrong with rev c:** the struct was unmanaged, but its authored form lived in a MANAGED per-world table — the managed type was only
+moved one level down, and it is what forced the 14-bit tag guard for hand-over and restore. ⭐ **Precedent for the fix:** `TerrainObjectRef`
+already references by an inline `FixedString64 Key` (`Fdp.Toolkits/Terrain/TerrainObjectRef.cs:21`); `EntityInfo.Name` is a `FixedString64`
+(`Fdp.Core/Components/EntityInfo.cs:15`); `FixedString32` = 31 UTF-8 bytes (`Fdp.Core/FixedString32.cs:13`).
+
+```csharp
+public enum AuthoredForm : byte { None = 0, Exact = 1, Key = 2, Circle = 3, Rectangle = 4 }
+
+[StructLayout(LayoutKind.Explicit, Size = 32)]
+public readonly unsafe struct AuthoredRef              // 32 bytes, unmanaged; all zero = not authored
+{
+    [FieldOffset(0)]  public readonly AuthoredForm Form;
+    [FieldOffset(1)]  private readonly byte _keyLength;          // Form == Key
+    [FieldOffset(2)]  private readonly fixed byte _key[30];      // Form == Key: UTF-8, "BlueHQ" or "BluePlatoon/SL" (no '@')
+    [FieldOffset(16)] public readonly Guid Exact;                // Form == Exact (overlaps the key's tail — one or the other)
+    public ReadOnlySpan<byte> KeyUtf8 => …;                      // no allocation
+    public override string ToString() => …;                      // "@BlueHQ" / "3f2a…" / "" — built on demand, for display only
+}
+
+public readonly struct EntityRef                        // 40 bytes
+{
+    public readonly long        NetworkId;              // offset 0 — exactly today's 8 bytes
+    public readonly AuthoredRef Authored;               // offset 8
+}
+
+public readonly struct WorldPoint                       // 44 bytes
+{
+    public readonly Vector3     Local;                  // offset 0 — local metres
+    public readonly AuthoredRef Authored;               // offset 12 — None = plain coordinates
+}
+
+public readonly struct WorldArea                        // 64 bytes
+{
+    public readonly long        AreaNetworkId;          // offset 0  — Exact / Key form: the resolved area entity
+    public readonly AuthoredRef Authored;               // offset 8  — Circle / Rectangle / Exact / Key
+    public readonly Vector3     Center;                 // offset 40
+    public readonly Vector2     Size;                   // offset 52 — rectangle w, h · circle: X = radius
+    public readonly float       HeadingDeg;             // offset 60
+}
+```
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-139** | the authored form is stored INLINE | ⭐ everything is a plain unmanaged value — no table, no handle, no managed type anywhere — so it is saved, recorded, snapshotted and sent on a brain hand-over AS IS, and reads the same in any process. ⭐ The default (unauthored) form is unchanged in meaning: the id / metres at offset 0, zeros after. A key is at most **30 UTF-8 bytes** including a qualified path (`BluePlatoon/SL`) — RefKeys are short identifiers (SR-64); a longer one is refused LOUDLY where it is typed and at load. Strings appear only on demand for display (`ToString`) and in JSON. ⚠ **Cost, stated:** `EntityRef` 8 → 40 bytes, `WorldPoint` 12 → 44, a new `WorldArea` 64. 📐 `EntityRef` is a field in 27 places, mostly params DTOs; the 45 location fields are params — none is a hot per-frame array. Blob layouts regenerate. ⇒ ⭐ the rev-c tag guard, the table and its recording are DROPPED |
+
+**Rejected — one line each:**
+- *Rev c's handle into a per-world managed table* — a managed type one level down, plus a tag trap on every hand-over and restore (the user's objection).
+- *A key HASH inline (8 bytes)* — the editor could not show the text of a key that does not exist in the open file (a macro's default `@BlueHQ`).
+- *Two types — an 8-byte runtime ref and a 40-byte authored ref* — two types for one concept; the authored form must survive in the editor's live world, which IS where save reads from.
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
