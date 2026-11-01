@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
+build-state: ⭐ CONSOLIDATED 2026-11-01 (§00) — S0 READY-TO-BUILD · S1 READY-TO-BUILD after S0 · S2…S6 DESIGN (gaps named in §00.7) · prior: rev 4 … rev 7 + §9.8 / §11 decisions (the record)
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
-updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (✅ ACCEPTED 2026-11-01, SR-125…SR-141; §9.8.10 orientation SR-142…143 ✅ accepted — ⭐ READ §9.8.0, the current answer; §9.8.1–9.8.9 are the record of revs a–f; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
-stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
+updated: 2026-11-01 (§00 consolidated build spec — coordinator)
+current-answer: ⭐ §00 THE BUILD SPEC (what is built, inventory, classes, sequences, modules, slices S0…S6, open gaps) — read it first; §0…§11 are the decision record (SR-1…SR-143): §9.8.0 the reference types, §11 the lifecycle + wire
+stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3) · ⭐ every §0…§11 statement that §00 restates is OWNED by §00 for building; a section conflicting with §00 is history
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
 ui-mockup: ⭐ docs/designs/rules-view/ (4 standalone HTML boards + README) — the rules view, trigger / objective detail tabs, editing while live (SR-109); also on the claude.ai canvas https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k (the committed copy wins)
@@ -42,6 +42,182 @@ related-designs:
 
 > 🔒 **User, `2026-10-31`:** *"The point number one seems to have the most value for me."* — P-1: objectives, end conditions, triggers at
 > SCENARIO scope (training: *"secure the bridge by 10:00"*, phase lines, evaluation; game: capture points, time limit, tickets, win / lose).
+
+## 00. ⭐⭐ BUILD SPEC — the consolidated design *(`2026-11-01`; READ THIS FIRST — §0 … §11 below are the decision record SR-1 … SR-143)*
+
+> 🔒 **User, `2026-11-01`:** *"Let's please clarify the unclear parts, and then we will proceed to designing the pieces that are not done yet"* →
+> the pieces were designed (§11 B3 / B4, §9.8 relocation + types, §9.8.10 orientation) → *"Yes, please."* (consolidate).
+
+### 00.1 What is built — in one breath
+
+A scenario's rules are **entities running generic, shipped behaviours with params** (R-4112: nothing compiles per scenario). An **objective**
+is an entity whose task-slot behaviour is its KIND (`HoldArea`, `ReachArea`, …, `Composite`) and writes a replicated **`ObjectiveStatus`**;
+a **trigger** is an entity whose behaviour watches a `when` (the existing predicate language + `OnEntity` / `ScenarioTime` leaves) and runs a
+`do` list of **shared actions** (one vocabulary, SR-93); a **macro instance** is an entity that expands into ordinary transient entities —
+params bound, references resolved, literals relocated (§9.8.0). The **World Environment** carries the **`ExerciseResult`**. A director is a
+macro of objectives + triggers (SR-99) — no director entity. Everything runs on the Brain node through the existing `BrainTickSystem`, crosses
+to every node as NED state topics, and is debugged by the existing brain inspector / journal (R-4111).
+
+### 00.2 INVENTORY — what is REUSED *(declarations located `2026-11-01` by grep `(class|interface|struct|record) <Name>`; seams found by the graph
+queries named in §1, §8.1, §9.8.1, §10.1, §11.1; ⚠ `check_index_coverage` is not available through the CLI — absence claims are graph + grep)*
+
+| seam | file | used for |
+|---|---|---|
+| `BehaviorRegistry` (runtime registration, params DTO type, hot reload) | `Fdp.Toolkits/Behavior/BehaviorRegistry.cs` | every objective kind, the trigger, the aggregators |
+| `BrainTickSystem` — ticks any entity with a brain, `[TickMode(WhenTimeAdvances)]`, `gateOnAuthority` | `Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs`; created by `CognitiveRuntimeModule` (`…/Modules/CognitiveRuntimeModule.cs:71`) inside `CgfLogicPack` | the ONE per-frame caller of every rule entity |
+| `CgfLogicPack` — composed by the Brain node (`CgfNodeBootstrapper.cs:128`, `CgfCapabilities.Brain`) AND the editor (`EditorNodeBootstrapper.cs:278`) | `Hrot.CGF/CgfLogicPack.cs` | the hosts — editor Live / preview and the cluster Brain alike |
+| `HsmSharedBinder` / `SharedNodeBinder` (a shared method at a runtime offset) | `Fdp.Toolkits/Behavior/HsmSharedBinder.cs`, `SharedNodeBinder.cs` | the action runners (PoC, SR-108) |
+| `OccurrenceWorkingState` + `OccurrenceStoreAccess` (per-step slots, mid-tick append, §34.6) | `Fdp.Toolkits/Behavior/OccurrenceWorkingState.cs`; `Fdp.Toolkits/Blueprints/Partitioning/OccurrenceStoreAccess.cs` | a `do` step's params / working state |
+| `BehaviorParams` (`OverlayFlat`, `JsonOptions`) | `Fdp.Toolkits/Behavior/BehaviorParams.cs` | seeding params; the one options object both ways |
+| `PredicateCompiler.CompileComponentPredicate` + `SearchPredicateDto` | `Fdp.Toolkits/ReplayBrowser/Search/PredicateCompiler.cs` | a trigger's `when` (⚠ CE-4159 first) |
+| `EntityRefRemap` (one type plan) + `ScenarioBehaviorRemapper` | `Fdp.Toolkits/Replication/EntityRefRemap.cs`; `Fdp.Toolkits/Behavior/ScenarioBehaviorRemapper.cs` | generalised into the ONE walker (bind · resolve · relocate) |
+| `StagingEntityExtractor` (load-time remap) | `Hrot.CGF/Orchestration/StagingEntityExtractor.cs` | where scenario-load resolution runs |
+| `EntityGuid` (stable, derived for macro-made entities — CE-4153 S1–S7 BUILT) | `Fdp.Toolkits/Scenario/EntityGuid.cs` | exact references; macro children's identity |
+| `RoleGroupOwnershipStrategy` (least-loaded node of a role) | `Hrot.Network.NED/Routing/RoleGroupOwnershipStrategy.cs` | which Brain node owns a macro instance (SR-96) |
+| the per-entity STATE topic shape (`EntityScenarioClock` egress / ingress) registered in `SharedTranslatorPack` | `Hrot.Network.NED/Replication/Map/EntityScenarioClockTranslators.cs`; `Translators/Map/SharedTranslatorPack.cs:179-182` | `EntityObjectiveStatus`, `EntityExerciseResult` |
+| the EVENT topic shape (`SquadReport`, `[DdsManaged]`) | `Hrot.Network.NED/SquadReportMessages.cs` | `PlayerMessage` |
+| `ScenarioClock` / `ScenarioTime` | `Fdp.Toolkits/Weather/ScenarioClock.cs` | deadlines, the clock leaf, display time |
+| `ProficiencyFillSystem` + `CombatProficiency` | `Fdp.Toolkits/Behavior/Systems/ProficiencyFillSystem.cs` | the skill amplifier overlay (SR-100) |
+| `ITimelineLaneProvider` · `ITimelineTrack` (the ONE timeline panel) | `Fdp.Toolkits/ReplayBrowser/Timeline/ITimelineLaneProvider.cs`; `Fdp.Presentation/ImGui/Panels/Timeline/ITimelineTrack.cs` | AAR highlights (SR-103), the rules view (SR-105, CE-4167) |
+| `IPickerSource` (the generic picker) | `NodeEdit/…/NodeEditor.Core/Interfaces/IPickerRegistry.cs` | the scenario and entity pickers (CE-4168) |
+| ⭐ the trigger PoC — 38 rails | `Fdp.Toolkits.Tests/Behavior/TriggerPoc/` | ⛔ a builder STARTS FROM IT (SR-108) |
+| ⛔ **not built anywhere** (checked `coordinator`, `backend`, `ui`, `behaviors`): `NodeFeatures` / `FeatureRegistry` | `DESIGN_Node_Features.md` (DESIGN) | the `scenario.rules` switch (R-4108) — a PREREQUISITE |
+| ⛔ **not built**: `RefKey` (PoC only), `ObjectiveStatus`, `ExerciseResult`, `PlayerMessage`, `EntityLink` / `PointLink` / `AreaLink` / `WorldPoint` / `WorldRotation` / `Bearing` | — | new |
+
+### 00.3 Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class ObjectiveEntity { <<NEW TKB type>> task slot = an objective KIND · ObjectiveLinks · ObjectiveStatus }
+    class TriggerEntity { <<NEW TKB type>> task slot = Trigger · ActionArgs · ObjectiveStatus (role Trigger) }
+    class MacroInstance { <<NEW TKB type>> SimTransform anchor · macro name + args · MacroExpansionStatus }
+    class WorldEnvironment { <<existing 8810>> ScenarioClock · ExerciseResult }
+    class ObjectiveKinds { <<NEW behaviours, shipped>> ReachArea · HoldArea · ClearArea · DestroyTargets · Protect · NoHarm · measures }
+    class Aggregators { <<NEW behaviours>> WeightedMean · AllMustPass · RequiredGateThenWeighted }
+    class Trigger { <<NEW behaviour, from the PoC>> Disarmed · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done }
+    class RunActions { <<NEW shared action, PoC>> one step at a time, a per-step occurrence slot }
+    class SharedActions { <<existing + NEW>> Order · SetReporting · InsertMacro · Message · SetObjectiveActive · SetSkillAmplifier · EndExercise · MissionCommand }
+    class ObjectiveStatus { <<NEW component, NoScenario>> Role · State · Progress · Value · Target · Score · Points · Reason · display fields }
+    class ObjectiveLinks { <<NEW component>> Subject EntityRef · Parent EntityRef }
+    class ExerciseResult { <<NEW component, NoScenario>> Phase · per side outcome · EndedAt · Reason }
+    class ActionArgs { <<NEW managed record>> the do list + variable args (SR-97) }
+    class ParamBindings { <<NEW component, saved>> Component.field to macro param (SR-57) }
+    class RefKey { <<NEW component, saved>> FixedString32 }
+    class EntityGuid { <<existing, CE-4153>> stable · derived for macro children }
+    class Links { <<NEW types §9.8>> EntityLink · PointLink · AreaLink over EntityRef · WorldPoint · RefSpec }
+    class Expander { <<NEW, on the creation path>> bind · resolve · relocate · create }
+    class BrainTickSystem { <<existing>> }
+    ObjectiveEntity ..> ObjectiveKinds : runs
+    ObjectiveEntity ..> Aggregators : runs (Composite)
+    TriggerEntity ..> Trigger : runs
+    Trigger ..> RunActions
+    RunActions ..> SharedActions
+    SharedActions ..> MacroInstance : InsertMacro creates
+    SharedActions ..> ExerciseResult : EndExercise writes
+    ObjectiveKinds ..> ObjectiveStatus : writes
+    Trigger ..> ObjectiveStatus : writes
+    ObjectiveEntity *-- ObjectiveLinks
+    MacroInstance ..> Expander : expands through
+    Expander ..> ParamBindings
+    Expander ..> RefKey : resolves @Key
+    Expander ..> EntityGuid : exact + derived
+    ObjectiveKinds ..> Links : params use
+    BrainTickSystem ..> ObjectiveEntity : ticks
+    BrainTickSystem ..> TriggerEntity : ticks
+```
+
+*What the picture shows that prose hid:* the only new RUNTIME is behaviours, one shared action and one expander — everything else is
+components and types; and every box that DECIDES runs under the one existing `BrainTickSystem`.
+
+### 00.4 Sequences
+
+```mermaid
+sequenceDiagram
+    participant L as scenario load (Brain node)
+    participant X as Expander
+    participant B as BrainTickSystem (Brain node, each advancing frame)
+    participant O as objective "Hold the crossroads"
+    participant T as trigger "counter-attack"
+    participant E as egress (SharedTranslatorPack)
+    participant N as Player / IOS / editor nodes
+    L->>X: a MacroInstance is created (scenario entity or InsertMacro)
+    X->>X: bind params · resolve @Key / GUID · relocate literals · create transient entities
+    X->>L: MacroExpansionStatus Done (counted into the load gate, GAP-1)
+    loop every advancing frame
+        B->>O: tick HoldArea — members in @Crossroads, held += dt
+        O->>O: ObjectiveStatus Active · "5/4, held 312 of 600 s"
+        B->>T: tick — when = status of "Seize" is Achieved (rising edge)
+        T->>T: Acting · RunActions step 1 InsertMacro RedQRF · step 2 Message
+    end
+    E->>N: EntityObjectiveStatus (change-only) · PlayerMessage (event)
+    N->>N: HUD · rules view · mission summary
+```
+
+*What the picture shows that prose hid:* expansion is a CREATION-path step (a runtime `InsertMacro` takes the same path as load), and the wire
+is fed by the existing egress pass — no rule system pushes anything. The END is §11's sequence (close first, then pause).
+
+### 00.5 Modules — who registers, who calls each frame
+
+```mermaid
+graph TD
+    subgraph brainnode["Brain node — CgfNodeBootstrapper (and the EDITOR: EditorNodeBootstrapper)"]
+        CLP["CgfLogicPack"] --> CRM["CognitiveRuntimeModule"] --> BTS["BrainTickSystem — EVERY advancing frame"]
+        BTS --> RULES["objective kinds · Trigger · RunActions (registered in BehaviorRegistry by the scenario-rules pack)"]
+        CREATE["entity creation path"] --> EXP["Expander (NEW)"]
+        RULES -- "InsertMacro" --> CREATE
+        LOAD["scenario load — StagingEntityExtractor"] --> CREATE
+    end
+    subgraph shared["every node — SharedTranslatorPack"]
+        EG["egress: EntityObjectiveStatus · EntityExerciseResult · PlayerMessage"]
+        IG["ingress: status / result / message → local components + ExerciseEnded"]
+    end
+    RULES --> EG
+    EG --> W(("NED / DDS"))
+    W --> IG
+    IG --> UI["HUD · rules view · summaries (Player / IOS / editor)"]
+    NF["NodeFeatures.On(scenario.rules) — NOT BUILT"]:::dead -. "gates the pack" .-> RULES
+    REPLAY["replay"]:::dead -. "no brain tick (T10) — statuses come from the recording, re-published by the egress" .-> BTS
+    classDef dead fill:#fde2e2,stroke:#c33
+```
+
+*Caption:* the ONE per-frame caller is the existing `BrainTickSystem`, inside `CgfLogicPack` — so the rules run on the Brain node AND in the
+editor, never on a Player node (it does not compose that pack). The red edges are the two things that do NOT run: the feature switch (not
+built — a prerequisite) and the brain tick in replay (by design; the egress re-publishes the recorded statuses).
+
+### 00.6 Slices *(build order; each a batch with its own rails — T-1 first: the trigger PoC suite and the feature suites named)*
+
+| slice | builds | done when | prerequisites | build-state |
+|---|---|---|---|---|
+| **S0 — types and ids** | §9.8.0's types (`WorldPoint`, `WorldRotation`, `Bearing`, `EntityLink`, `PointLink`, `AreaLink`, `RefSpec`) + the type plan walker (resolve, relocate) + the SR-132 / SR-143 rails + `RefKey`; ⭐ in the SAME sweep: CE-4200 (32-bit ids, `TkbTypeId`, `NodeId`) — the files are touched once | the repo's params / components use the types; the rails pass; a scenario round-trips byte-for-byte except the migrated fields; the multiplayer and NED suites pass | CE-4153 S1–S7 ✅ | ⭐ **READY-TO-BUILD** |
+| **S1 — objectives + status on the wire** | objective entity type; kinds `ReachArea` / `HoldArea` / `ClearArea` / `DestroyTargets` / `Protect` / `NoHarm`; `Composite` + `WeightedMean` / `AllMustPass`; `ObjectiveStatus` / `ObjectiveLinks`; `EntityObjectiveStatus` translators; `AreaLink.Contains`; a minimal mission summary reading live statuses | Bridgehead's phase-1 objectives, authored by hand as entities (no macros), run LIVE on a cluster; statuses reach a Player node and the IOS; two scenarios use the same kinds with different params and nothing rebuilds | S0; `NodeFeatures` S1 (`DESIGN_Node_Features.md`) for the `scenario.rules` switch; CE-4155 for `NoHarm`'s indirect harm (gunfire + blasts work without it) | ⭐ **READY-TO-BUILD** once S0 lands |
+| **S2 — triggers + messages + the end** | CE-4160 … CE-4166 (lift the PoC); `when` leaves `OnEntity` / `ScenarioTime`; actions `Message`, `SetObjectiveActive`, `EndExercise` (multi-tick, §11 SR-116), `Order`, `MissionCommand`; `ExerciseResult` + `EntityExerciseResult`; `PlayerMessage`; subtitle + log on the Player | Bridgehead's counter-attack fires on its edge; the trainee sees the subtitle; the run ends by rule, closes every objective, then pauses; replay shows the same statuses at any seek | S1; CE-4159; CE-4157; ⚠ CE-4164 MEASURE first (the indexed-lane evaluator for area / event / lifecycle `when`s) | DESIGN — CE-4164's measurement |
+| **S3 — macros, variants, the director** | the `MacroInstance` type + `Expander` (bind, resolve, relocate, create — §9.7, §9.8.0); `InsertMacro`; `ParamBindings`; the scenario params + run variants (SR-101) in the picker's run setup (AQ108 D24); `SetSkillAmplifier` (SR-100) | the same platoon macro placed twice, rotated, both play; the counter-attack director is a macro used by two scenarios with different params; variant 3 replays identically | S2; CE-4153 S9 (GUID file form) for references INTO macro-made entities; GAP-1 … GAP-5 (§9.7) | DESIGN — S9 + GAP-1…5 |
+| **S4 — evaluation per member + debrief / HUD** | `MemberEvaluation` (SR-72 / 72a), measures (`HitRatio`, `Count`, `ReportLatency`, `TimeTo`), the trainee debrief + training / game HUD (SR-112, mockups `docs/designs/rules-view/`) | per-trainee results on the HUD live and in the debrief | S3; CE-4155 | DESIGN |
+| **S5 — the rules view** | CE-4167 (timeline TL-X1 … X5) + the rules view (SR-105, SR-109 / SR-110 mockups) — ui lane | the instructor reads and edits the dependency Gantt live (this run only) | S2 | DESIGN (ui) |
+| **S6 — the game profile** | Crossfire: domination, tickets, respawn score (SR-84), the game HUD | `docs/SHOWCASE_Scenarios.md` Crossfire acceptance | S2, S4 | DESIGN |
+
+⭐ **Unrelated prerequisites stated once:** CE-4080 (multiplayer acceptance — in progress) gates every "on a cluster" done-when; CE-4158 (the
+cluster integration batch hangs) means a slice's cluster rail runs `--filter`ed, not the full batch; CE-4152 (the ORBAT hides virtual entities)
+and CE-4154 (World Environment saved in the header) are needed before S1's objectives are AUTHORED in the editor rather than by hand.
+
+### 00.7 Open gaps — measured or decided BEFORE their slice, never during *(each names its owner slice)*
+
+| gap | slice | how it closes |
+|---|---|---|
+| CE-4164 — can the per-frame indexed-lane evaluator serve a `when` live? | S2 | one measurement batch |
+| SR-93 ③ — move the action catalogue from the test project into runtime | S2 | part of CE-4160 |
+| GAP-1 … GAP-5 (§9.7: end of expansion, who reads macro files, missing macro / cycle, re-expansion on edit, ids) | S3 | decided in the S3 design pass — leans are written |
+| CE-4153 S9 — internal `EntityRef`s of saved components written as GUIDs | S3 | its own item (stopped: no save-direction remap yet) |
+| `NodeFeatures` not built | S1 | `DESIGN_Node_Features.md` S1 |
+| dismounted soldiers settle on the ground after relocation? (SR-127) | S3 | one rail |
+
+**Rejected — one line each (the big ones; the rest are in each section):**
+- *A rules interpreter / a scenario-control system* — a second brain runtime with its own debugging (R-4109).
+- *A director entity* — a macro of objectives and triggers does it (SR-99).
+- *Compiling anything per scenario* — R-4112.
+- *A big result object on the wire* — the tree is the statuses (SR-122).
+- *Building S1 on today's `EntityRef` / polyline areas and migrating later* — the same files twice; S0 first.
 
 ## 0. ✅ The user's answers, rev 2 (`2026-10-31`)
 
