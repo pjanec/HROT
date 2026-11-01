@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-132) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-136; §9.8.4 rev b amends SR-125 / 126 / 128) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -674,10 +674,10 @@ sequenceDiagram
 
 | # | decision | ⭐ lean |
 |---|---|---|
-| **SR-125** | ONE place type — `WorldPoint` | ⭐ a TYPE, not an attribute (the D5 / P5 precedent above: the type already makes a field pickable, and an attribute "says nothing the type does not"). It REPLACES `PickableGeoPoint`, the 38 point `Vector3` fields and the 2 lat / lon pairs: picked on the map by its type (everything P5 built keys on it), relocated by its type, resolved by its type. Live form = local metres (`Vector3`, unmanaged, 12 bytes — behaviour code reads `.Local`); FILE forms: `[x, y, z]` (local metres) · `{"lat": …, "lon": …}` (geodetic, converted through the host's `IGeographicTransform`) · `"@Key"` / a GUID string (an ENTITY'S position, SR-130). A tiny `Bearing` type for compass angles (2 fields today). ⛔ No backward compatibility (CE-4153 S10): the repo's scenarios are migrated by one script in the same change |
-| **SR-126** | ONE entity reference type, ONE param name, several ways to point | `EntityRef` keeps its live form (the network id — orders, the wire, `BrainIntent` JSON unchanged) and its FILE form becomes a string: a **GUID** = *this exact entity* (stable, `DESIGN_Scenario_Entity_Keys.md` G1 / G2) · **`@Key`** = *whatever entity has that `RefKey` here* (SR-64 / SR-65) · **`@Outer/Inner`** = a key inside a macro instance. The FORM of the value says which — the field name stays one. ⏭ the query form (*"the squad leader of @Squad1"*, SR-63) is a later `EntitySet` / single-result query; not v1 |
+| **SR-125** ⚠ AMENDED by §9.8.4 SR-125′ / SR-135 (no geodetic form) | ONE place type — `WorldPoint` | ⭐ a TYPE, not an attribute (the D5 / P5 precedent above: the type already makes a field pickable, and an attribute "says nothing the type does not"). It REPLACES `PickableGeoPoint`, the 38 point `Vector3` fields and the 2 lat / lon pairs: picked on the map by its type (everything P5 built keys on it), relocated by its type, resolved by its type. Live form = local metres (`Vector3`, unmanaged, 12 bytes — behaviour code reads `.Local`); FILE forms: `[x, y, z]` (local metres) · `{"lat": …, "lon": …}` (geodetic, converted through the host's `IGeographicTransform`) · `"@Key"` / a GUID string (an ENTITY'S position, SR-130). A tiny `Bearing` type for compass angles (2 fields today). ⛔ No backward compatibility (CE-4153 S10): the repo's scenarios are migrated by one script in the same change |
+| **SR-126** ⚠ the C# shape is §9.8.4 SR-133 | ONE entity reference type, ONE param name, several ways to point | `EntityRef` keeps its live form (the network id — orders, the wire, `BrainIntent` JSON unchanged) and its FILE form becomes a string: a **GUID** = *this exact entity* (stable, `DESIGN_Scenario_Entity_Keys.md` G1 / G2) · **`@Key`** = *whatever entity has that `RefKey` here* (SR-64 / SR-65) · **`@Outer/Inner`** = a key inside a macro instance. The FORM of the value says which — the field name stays one. ⏭ the query form (*"the squad leader of @Squad1"*, SR-63) is a later `EntitySet` / single-result query; not v1 |
 | **SR-127** | the relocation transform | the macro file records its AUTHORED ANCHOR (position + heading — where it was built, on real terrain); every entity keeps its authored coordinates; placing an instance applies *authored anchor → instance anchor* (translate X / Y, rotate by the heading difference, Z + the anchors' height difference). Heights ABOVE GROUND (`RoutePlan.HeightAgl`) unchanged. Vehicles settle through the existing ground clamp; ⚠ dismounted soldiers — measure with one rail before building. A macro whose plan needs particular buildings declares `relocatable: false`: its instance is pinned at the anchor and the editor refuses the drag, saying why |
-| **SR-128** | the ONE walker | `EntityRefRemap`'s type plan generalised: leaves `EntityRef` (remap, resolve), `WorldPoint` (resolve, relocate), `Bearing` (rotate); appliers over JSON and over objects, as today. It walks params, `do` args and the `when` tree alike — the predicate tree is polymorphic, so the plan dispatches on each node's concrete type. ⭐ The engine COMPONENTS keep their `Vector3`s (hot-path structs, a type change would touch physics everywhere) and get one small relocator each: `SimTransform` (position + rotation), `EditablePolyline`, `RoutePlan`, `NavigationIntent`; `SimVelocity` rotates only; `NavState` road / trajectory ids are CLEARED. ⚠ `SpatialBoundingPredicateDto.Bounds` is an axis-aligned box: translated, and a rotated instance fails the expansion LOUDLY naming it — the fix is to name an AREA entity instead |
+| **SR-128** ⚠ AMENDED by §9.8.4 SR-134 / SR-136 (areas are a `WorldArea`; the box clause is moot) | the ONE walker | `EntityRefRemap`'s type plan generalised: leaves `EntityRef` (remap, resolve), `WorldPoint` (resolve, relocate), `Bearing` (rotate); appliers over JSON and over objects, as today. It walks params, `do` args and the `when` tree alike — the predicate tree is polymorphic, so the plan dispatches on each node's concrete type. ⭐ The engine COMPONENTS keep their `Vector3`s (hot-path structs, a type change would touch physics everywhere) and get one small relocator each: `SimTransform` (position + rotation), `EditablePolyline`, `RoutePlan`, `NavigationIntent`; `SimVelocity` rotates only; `NavState` road / trajectory ids are CLEARED. ⚠ `SpatialBoundingPredicateDto.Bounds` is an axis-aligned box: translated, and a rotated instance fails the expansion LOUDLY naming it — the fix is to name an AREA entity instead |
 | **SR-129** | parameter binding inside nested JSON (the `when`, `do`, macro args) | ⭐ SR-94 generalised: **any JSON object may carry a `bind` map, its paths relative to that object** — a `do` entry, a `when` node, a `macroArgs` object, a behaviour's params. The expander walks the JSON generically and applies each `bind` where it stands; the literal stays as the unbound value. ⇒ ONE rule, no per-DTO code, and moving a node moves its bindings (SR-94's reason). Typed components keep SR-57's `ParamBindings`. A bound param's declared type must match the target member's type — checked at expansion, a mismatch fails loudly (GAP-3) |
 | **SR-130** | named points | a NAMED POINT is just an entity whose position is wanted: a `WorldPoint` written `"@Key"` takes that entity's position — a new `TacGraphic_Point` (a control point, drawn on the map, carrying a `RefKey`), an area (its centroid), or any unit. ⭐ Resolved ONCE when the params are assigned (a snapshot: the behaviour still reads metres, its code unchanged); ⛔ it does not follow the entity — a param that must follow is an `EntityRef` |
 | **SR-131** | not relocating a value | ⭐ the user's rule, by construction: a LITERAL point moves with the macro; a REFERENCE does not (resolved first — step ② of the sequence above). A point entity INSIDE the macro moves (it is one of the macro's entities); one OUTSIDE, passed in through a param, stays where it is. ⛔ no `relocate: false` flag per field |
@@ -690,6 +690,62 @@ sequenceDiagram
 - *Following a named point live* — every behaviour would need world access in its params; that is what `EntityRef` is for.
 - *Retyping the engine components too* — hot-path structs; four relocators cost less.
 - *Inline `"^param"` strings inside typed values* — a typed number field cannot hold a string in the editor; the sibling `bind` keeps the literal typed (SR-55's `^subject` is shorthand for such a `bind` entry).
+
+#### 9.8.4 Rev b (`2026-11-01`) — the C# shape of a multi-way reference, areas, no geodetic params *(leans SR-133…SR-136 await the user; amends SR-125 / SR-126 / SR-128)*
+
+> 🔒 **User, `2026-11-01`:** *"the spatial condition should support multiple shapes, either a rotated rectangle or also something else like a
+> circle. axis-aligned bounding box is certainly not enough"* · *"the engine was switched recently to using local coordinates, so whenever there
+> are latitude, longitude coordinates, these are probably part of the outer API … not meant to be used directly as parameters of behaviors or
+> whatever stored in the scenario"* · *"when we are editing this field, we need to store the information what kind of reference it is … how we
+> represent this multi way of referencing in the C# DTO."*
+
+| measured | where |
+|---|---|
+| ✅ the wire is LOCAL ENU metres; `GeoPoint` left it (8 fields, 44 conversions) | `Architect_Question_107_NED_Wire_Frame_And_Names.md` row B (RULED, BUILT `2026-10-27`) |
+| the geodetic leftovers in params: 5 `PickableGeoPoint` + 2 lat / lon pairs; `MapPickGeo` calls a mission location *"geodetic by authoring convention"*; `OrderGeo.ToLocal / ToGeo` converts | `MapPickGeo.cs:8`; `Orders/OrderGeo.cs:9-31` |
+| the params form HYDRATES the JSON into the params TYPE, edits the object, writes it back | `BehaviorParamsForm.cs:43-55` (`Hydrate`) ⇒ ⭐ the TYPE must hold the authored form, or an edit loses it |
+| a params type is often deserialized straight into an UNMANAGED struct (blueprint `ParseParams` honours `[JsonConverter]`) | `DESIGN_Entity_Reference.md` D1 ⇒ ⭐ the reference types must stay unmanaged (no `string`) |
+| `EntityRef` fields: 27 in code, mostly JSON DTOs; a few in runtime node structs (`UtilityNodes`, `SensorNodes`, `GenesisIntentComponents`) | grep |
+| no authoring area-shape type (graph `.*(Shape\|Circle\|Polygon\|OrientedBox\|Obb\|Rect\|Region\|Zone)$` — 23, none for authoring); areas are `EditablePolyline` entities tested by `PolygonMath.Contains`; `KillZone` is a private radius test | `Terrain/PolygonMath.cs:29`; `TriggerIedBehavior.cs:90` |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityRef { <<existing, EXTENDED, unmanaged>> long NetworkId — the live answer · RefForm Form · Guid Exact · int KeyId }
+    class RefForm { <<enum>> Live · Exact · Key }
+    class RefKeyTable { <<new, process-wide intern>> KeyId to "BlueHQ" or "BluePlatoon/SL" }
+    class WorldPoint { <<NEW, unmanaged>> Vector3 Local — the live answer · PointForm Form · EntityRef Of }
+    class PointForm { <<enum>> Coordinates · Entity }
+    class WorldArea { <<NEW, unmanaged>> AreaForm Form · WorldPoint Center · float Radius · Vector2 HalfSize · Bearing Heading · EntityRef Of }
+    class AreaForm { <<enum>> Circle · Rectangle · Entity }
+    class AreaEntity { <<existing>> EditablePolyline + SimTransform (TacGraphic_Area 8803, weather region …) }
+    EntityRef --> RefForm
+    EntityRef ..> RefKeyTable : Key form
+    WorldPoint --> PointForm
+    WorldPoint *-- EntityRef : Entity form
+    WorldArea --> AreaForm
+    WorldArea *-- WorldPoint : Center
+    WorldArea *-- EntityRef : Entity form
+    EntityRef ..> AreaEntity : an area is an entity
+```
+
+*What the picture shows that prose hid:* the authored FORM is a FIELD of the value, beside the live answer — so hydrate → edit → write loses
+nothing, and the three types nest: a point may BE an entity's position, an area may BE an area entity, and both use the one `EntityRef`.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-133** | how one field holds several ways of referencing — the C# shape | ⭐ the value carries its FORM next to its live answer, all unmanaged: `EntityRef { long NetworkId; RefForm Form; Guid Exact; int KeyId }` (`Form`: `Live` = only a network id · `Exact` = a stable GUID · `Key` = a `RefKey`, the text interned in a process-wide `RefKeyTable`). The JSON converter derives the form from the JSON shape — a GUID string ⇒ `Exact`, `"@…"` ⇒ `Key`, a number ⇒ `Live` — and writes it back the same way, so a hand-edited file needs no `"kind"` field. Resolution FILLS `NetworkId` and KEEPS the form ⇒ ⭐ save writes the authored form back untouched (this is also the missing save direction of `DESIGN_Scenario_Entity_Keys.md` S9 — nothing to convert back). Live JSON on the wire (`BrainIntent`, orders) stays the bare number. The editor's leaf shows a form switch *[Exact \| Key]* + the value; the map pick writes `Exact` (the picked entity's GUID), or `Key` when the picked entity has a `RefKey` and a MACRO is being edited. Cost: `EntityRef` grows 8 → 32 bytes (blob layouts regenerate) |
+| **SR-125′** | `WorldPoint` *(amends SR-125)* | `WorldPoint { Vector3 Local; PointForm Form; EntityRef Of }` — `Coordinates` (JSON `[x, y, z]`, local metres; relocated) or `Entity` (JSON `"@Key"` / GUID — that entity's position, resolved into `Local`; NOT relocated, SR-131). ⛔ the geodetic form is DROPPED (SR-135) |
+| **SR-134** | areas — several shapes | ⭐ ONE `WorldArea { AreaForm Form; WorldPoint Center; float Radius; Vector2 HalfSize; Bearing Heading; EntityRef Of }`: `Circle` (`{"circle": {"center": [x,y,z], "radius": 50}}`) · `Rectangle`, rotated (`{"rect": {"center": …, "size": [w, h], "heading": 30}}`) · `Entity` (`"@Village"` — an area entity's polygon, `EditablePolyline`). A free polygon IS an area entity (as areas are authored today) — so the type stays unmanaged. ⭐ ONE containment, `WorldArea.Contains(world, point)` (circle / oriented-rectangle maths + `PolygonMath.Contains`), shared by the spatial condition (`SpatialBoundingPredicateDto.Bounds` becomes a `WorldArea`), the area objectives (`ReachArea` / `HoldArea` / `ClearArea`) and any behaviour that tests a zone. Relocation moves `Center` and turns `Heading`; an `Entity` area moves only if that entity is inside the macro. ⇒ ⛔ SR-128's "a rotated axis-aligned box fails loudly" is moot |
+| **SR-135** | latitude / longitude | ⭐ the inside of the engine is LOCAL METRES (AQ107 B): no geodetic value in a behaviour param, a condition or a scenario file. The 5 `PickableGeoPoint` + 2 lat / lon pairs become `WorldPoint`s in the migration (SR-132); `PickableGeoPoint` and `OrderGeo`'s conversions are deleted. Geodetic exists only at the OUTER edge — an external gateway, an API that accepts lat / lon — and converts THERE, through the one `IGeographicTransform`. ⚠ not measured: whether an external system sends orders in lat / lon today — if one does, its ingress converts; the type decision does not depend on it |
+| **SR-136** | the walker's leaves *(amends SR-128)* | `EntityRef` · `WorldPoint` · `WorldArea` · `Bearing` — all resolved and relocated by the one type plan |
+
+**Rejected — one line each:**
+- *A separate `"kind"` field in the JSON* — the shapes (number / GUID / `@…` / array / object) already tell them apart; a field can disagree with its value.
+- *A side table of authored forms keyed by JSON path* — path-fragile (the user's SR-94 objection).
+- *Encoding the form in `NetworkId`'s high bits to stay 8 bytes* — opaque in every debugger and log; 24 bytes are cheap in params.
+- *An axis-aligned box plus a separate polygon type* — two containment codes; one `WorldArea` covers both plus circle and rectangle.
+- *A literal polygon inside the area value* — not unmanaged; an area entity already is a polygon, drawn and editable on the map.
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
