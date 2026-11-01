@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-01 (coordinator — the mockup committed as standalone HTML)
-current-answer: the four mockup files below; the decisions they illustrate are SR-105 / SR-109 / SR-110 in docs/DESIGN_Scenario_Rules.md
+current-answer: the five mockup files below; the decisions they illustrate are SR-105 / SR-109 / SR-110 / SR-111 in docs/DESIGN_Scenario_Rules.md
 stale-below: nothing
 known-rot: none — ⚠ a MOCKUP of an unbuilt UI: names, numbers and layout are illustrative (the village-attack example); the design rows win where they differ
 known-conflict: none
@@ -26,7 +26,7 @@ related-designs:
 | [`mockup/EditAtRuntime.html`](mockup/EditAtRuntime.html) | editing at any run state: the **+ Add** menu · **drag to connect** (writes a condition into the target's `when`) · what each live edit does · the live-edit dialog (*this run only* / *also in the scenario file*) · the **Graph** view |
 
 **How to look at them:** open a file in any browser (each is self-contained: inline styles, no scripts, no network). On GitHub the blob page
-shows the source; download it or use the *Raw* view and open it locally. The same four boards are also on a private claude.ai canvas,
+shows the source; download it or use the *Raw* view and open it locally. The same five boards are also on a private claude.ai canvas,
 [Rules View Mockup](https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k) — ⚠ the committed files are the copy future work should read; the
 canvas may drift.
 
