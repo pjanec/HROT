@@ -1,55 +1,91 @@
 {
   "title": "Crew weapons",
-  "caption": "Weapons are entities: a sentry gun fires by itself; a crew sets up an M2; a man picks up a Javelin",
+  "caption": "A sentry gun fires on its own; a crew mans an M2; a man takes a Javelin",
+  "clip": "F-60",
+  "chapter": 12,
+  "state": "ready",
+  "endAt": "m+14",
   "anchors": {
-    "sentry": {
+    "m": {
       "on": "shot",
       "by": "Sentry Gun",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "sentry": 0.85
-    },
-    "tickHz": 60,
-    "scenarioHash": "d6ccd48c11a70781",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "sentry-1",
-      "seconds": 4,
+      "at": 0.3,
+      "follow": "Sentry Gun",
+      "distance": 60,
+      "yaw": 30,
+      "pitch": -25,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": "m-0.7",
       "over": "Sentry Gun",
       "toward": "Intruder",
-      "back": 3,
-      "height": 1.5,
-      "ahead": 0.7,
-      "why": "the sentry gun engages"
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 32,
+      "segment": "a"
     },
     {
-      "at": 2,
-      "seconds": 5,
+      "at": "m+4",
       "follow": "M2 Gunner",
-      "distance": 7,
-      "yaw": 90,
-      "pitch": -15,
-      "replay": true,
-      "why": "the crew sets up the M2"
+      "distance": 14,
+      "yaw": 120,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "b"
     },
     {
-      "at": 2,
-      "seconds": 4,
+      "at": "m+9",
       "follow": "Javelin Man",
-      "distance": 6,
-      "yaw": 90,
-      "pitch": -15,
-      "replay": true,
-      "why": "the Javelin picked up"
+      "distance": 14,
+      "yaw": 60,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "c"
     }
   ],
-  "clip": "F-60",
-  "chapter": 12,
-  "state": "ready",
-  "needs": "⚠ the M2 is not checked to fire"
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.3,
+      "to": "m+3"
+    },
+    {
+      "id": "b",
+      "from": "m+3",
+      "to": "m+8"
+    },
+    {
+      "id": "c",
+      "from": "m+8",
+      "to": "m+14"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.3,
+      "until": "m+3",
+      "text": "A sentry gun fires on its own"
+    },
+    {
+      "at": "m+3",
+      "until": "m+8",
+      "text": "A crew sets up and mans an M2"
+    },
+    {
+      "at": "m+8",
+      "until": "m+14",
+      "text": "A man picks up a Javelin"
+    }
+  ]
 }

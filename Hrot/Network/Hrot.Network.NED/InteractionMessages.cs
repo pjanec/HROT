@@ -97,6 +97,12 @@ namespace Hrot.NED.Messages
         public byte Lean;
         /// <summary>⭐ CE-1219 (appended after Lean; §8k B-1) — 1 while his binoculars are held up.</summary>
         public byte Binoculars;
+        /// <summary>⭐ CE-4143 (appended after Binoculars; DESIGN_Entity_Control §8r) — the look ray: origin (the camera eye) …</summary>
+        public float LookFromX, LookFromY, LookFromZ;
+        /// <summary>… and its unit direction (the crosshair ray a SIGHT shot on a turret follows).</summary>
+        public float LookDirX, LookDirY, LookDirZ;
+        /// <summary>⭐ CE-4143 (R-2) — the fire-mode preference: 0 default, 1 SIGHT, 2 LOCK.</summary>
+        public byte FirePref;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =

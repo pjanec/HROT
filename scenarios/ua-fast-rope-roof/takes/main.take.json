@@ -1,46 +1,81 @@
 {
   "title": "Fast rope",
-  "caption": "Eight men slide down ropes onto a roof in under eight seconds",
-  "anchors": {},
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "c2c20c22aee519d7",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 12,
-      "seconds": 4,
-      "follow": "UH-60 (doors off)",
-      "distance": 40,
-      "pitch": -10,
-      "why": "the hover over the roof"
-    },
-    {
-      "at": 18,
-      "seconds": 5,
-      "follow": "SF operator 1",
-      "distance": 10,
-      "yaw": 90,
-      "pitch": 15,
-      "why": "from below: down the rope"
-    },
-    {
-      "at": 26,
-      "seconds": 5,
-      "lookAt": [
-        65,
-        255,
-        8
-      ],
-      "distance": 50,
-      "yaw": 45,
-      "pitch": -25,
-      "why": "the ring on the roof, the helicopter leaves"
-    }
-  ],
+  "caption": "Eight men slide down onto a roof; the helicopter leaves",
   "clip": "F-55",
   "chapter": 10,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+12",
+  "anchors": {
+    "m": {
+      "on": "embark",
+      "who": "SF operator 8",
+      "is": false
+    }
+  },
+  "keys": [
+    {
+      "at": "m-12",
+      "follow": "UH-60 (doors off)",
+      "distance": 70,
+      "yaw": 60,
+      "pitch": -15,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "UH-60 (doors off)",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "SF operator 8",
+      "distance": 15,
+      "yaw": 120,
+      "pitch": -20,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "UH-60 (doors off)",
+      "distance": 50,
+      "yaw": 30,
+      "pitch": -25,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-12",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+12"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-12",
+      "until": "m+12",
+      "text": "Eight men slide down onto a roof; the helicopter leaves"
+    }
+  ]
 }

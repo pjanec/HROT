@@ -24,8 +24,9 @@ public static unsafe class OccurrenceWorkingState
     /// the old bytes are not this type's.</para>
     ///
     /// <para>⛔⛔ <b>A missing STORE is a hard failure, and a DIFFERENT one from a missing slot.</b>
-    /// Adding a tier component is a STRUCTURAL change and must never happen inside a tick; the entity
-    /// must already carry one. ⚠ The two messages say which, because conflating them is how a caller
+    /// The unit's FIRST block is ingress's to create (it sizes it for the behaviour); a FURTHER block is an
+    /// append that moves nothing and is allowed mid-tick (U-0, DESIGN_Occurrence_Scoped_Storage.md §34.6 —
+    /// the older "structural change, never in a tick" wording is superseded). ⚠ The two messages say which, because conflating them is how a caller
     /// fixes the wrong thing.</para>
     /// </summary>
     /// <param name="freshlyAttached">

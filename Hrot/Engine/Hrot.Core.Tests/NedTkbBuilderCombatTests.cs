@@ -232,7 +232,7 @@ namespace Hrot.Map.Common.Tests
             var db = BuildDatabase();
             var carrier = db.GetByType(TkbEntityTypes.Truck_HMMWV)!.GetDescriptor<CarrierDefDto>()!;
             Assert.Equal(Fdp.Toolkit.Behavior.Components.PassengerExposure.Enclosed, carrier.Exposure);
-            Assert.Equal(5, carrier.Seats.Count);
+            Assert.Equal(6, carrier.Seats.Count);   // ⭐ 2026-10-31 — + the driver seat (5): a player can drive, shoot or ride
             for (int i = 0; i < 3; i++) Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, carrier.Seats[i].Role);
             var gunner = carrier.Seats[3];
             Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, TkbEntityTypes.Infantry_Rifleman, (bool?)true),
@@ -243,6 +243,68 @@ namespace Hrot.Map.Common.Tests
             Assert.Null(ring.TraverseMinDeg);   // all round: the M2's own pintle limits
             var m2Turret = db.GetByType(TkbEntityTypes.WeaponSystem_M2Hmg)!.GetDescriptor<TurretSuiteDto>()!.Turrets[0];
             Assert.Equal(2.3f, ring.Z + m2Turret.PivotZ, 4);
+            var driver = carrier.Seats[5];   // appended: the saved indices 0–4 above are unchanged; empty, so a player can take it
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Driver, 0L), (driver.Role, driver.StartWith));
+            Assert.True(ring.Exposed == true, "the roof ring is EXPOSED — enclosed, its M2 was a hidden passenger and never drawn (2026-10-31)");
+
+            // ⭐ 2026-10-31 — the NO-CREW variant (111): the same vehicle, the M2 mounted, the gunner seat empty
+            var bare = db.GetByType(TkbEntityTypes.Truck_HMMWV_NoCrew)!;
+            Assert.Equal(("HMMWV (M2, crewed)", "HMMWV (M2, no crew)"), (db.GetByType(TkbEntityTypes.Truck_HMMWV)!.Name, bare.Name));
+            var bareSeats = bare.GetDescriptor<CarrierDefDto>()!.Seats;
+            Assert.Equal((6, 0L, TkbEntityTypes.WeaponSystem_M2Hmg), (bareSeats.Count, bareSeats[3].StartWith, bareSeats[4].StartWith));
+            Assert.Equal(db.GetByType(TkbEntityTypes.Truck_HMMWV)!.DisType, bare.DisType);
+        }
+
+        /// <summary>
+        /// ⭐ 2026-10-31 — every weapon STATION a vehicle shows is exposed: on an enclosed carrier a station seat that does not say so counts as a hidden
+        /// passenger and its weapon is never drawn (the HMMWV's M2). Only a station meant to be unseen — stowed or concealed (a car bomb's boot) — may
+        /// stay enclosed.
+        /// </summary>
+        [Fact]
+        public void EveryVisibleWeaponStation_IsExposed()
+        {
+            var db = BuildDatabase();
+            var bad = new List<string>();
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<CarrierDefDto>() is not { } c) continue;
+                for (int i = 0; i < c.Seats.Count; i++)
+                {
+                    var seat = c.Seats[i];
+                    if (seat.Role != Fdp.Toolkit.Behavior.Components.SeatRole.Station || seat.Stowed || seat.Concealed) continue;
+                    bool exposed = seat.Exposed ?? c.Exposure == Fdp.Toolkit.Behavior.Components.PassengerExposure.Open;
+                    if (!exposed) bad.Add($"{t.Name} ({t.TkbType}) seat {i}");
+                }
+            }
+            Assert.Empty(bad);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4146</c> — every built-in mount that fires a BULLET (5.56, 7.62, 9 mm) names its category, so its barrel heat is a rifle's or a
+        /// machine gun's (Weapon Layers §5k-1). An untagged mount falls to the single-shot rule (too hot after ~7 rounds, 60 s to cool) — the
+        /// three inline rifles of the urban soldiers did, the AssaultRifleman's among them. 🔴 Red-proof: one inline copy back ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4146_EveryBulletMount_NamesItsCategory_AndTheAssaultRiflesBarrelLasts150Rounds()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var bullets = new HashSet<long> { Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball,
+                                              Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm };
+            var bad = new List<string>();
+            foreach (var t in tkb.GetAll())
+            {
+                if (t.GetDescriptor<WeaponSuiteDto>() is not { } suite) continue;
+                for (int i = 0; i < suite.Mounts.Count; i++)
+                    if (bullets.Contains(unchecked((long)suite.Mounts[i].AmmoGuid))
+                        && suite.Mounts[i].Category is not (WeaponCategory.SmallArms or WeaponCategory.MachineGun))
+                        bad.Add($"{t.Name} ({t.TkbType}) mount {i}: {suite.Mounts[i].Category}");
+            }
+            Assert.Empty(bad);
+
+            var assault = tkb.GetAll().Single(t => t.TkbType == Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman);
+            var (perRound, cool) = Fdp.Toolkit.Combat.BarrelHeat.For(assault.GetDescriptor<WeaponSuiteDto>()!.Mounts[0]);
+            Assert.Equal(150, (int)System.MathF.Round(1f / perRound));
+            Assert.Equal(Fdp.Toolkit.Combat.BarrelHeat.SmallArmsCoolSeconds, cool);
         }
 
         /// <summary>

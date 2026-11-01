@@ -1,15 +1,15 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-12
-build-state: BUILDING - the NON-UI half is BUILT (2026-09-12); the UI half is not started.
+build-state: BUILT (2026-10-31) - the non-UI half (CE-259aw, 2026-09-12) AND the UI half (CE-259ax, 2026-10-31; see §9 for the AS-BUILT,
+  which SUPERSEDES §5/§5b/§6's per-host tail plan where they differ - the tree had moved under that plan, so §9 re-measured it).
+  [superseded 2026-10-31 - was: "BUILDING - the NON-UI half is BUILT (2026-09-12); the UI half is not started."]
   SPLIT BY USER ORDERING (2026-09-12, verbatim): "best do the non ui half of authoring surface first,
   then p3, then the ui". §8 now carries which half owns each acceptance row.
   ✅ BUILT: §4's API (on EntityCreation), §4b's one-method shape, ①b's routing constant, §2's
   author/translator rule written down at the affordance and at both translator sites, and rails
   ④/⑤/⑤b/①c in Hrot.SimHost.Tests/EntityCreationPackRails.cs (the feature's own suite).
-  ⛔ NOT BUILT - the UI half, acceptance ②③⑧⑨⑩⑪⑫: §5/§5b's per-host authoring tails (IG stops building
-  its own gizmo and IgEntityCreationRequests dies, StrideHrotGame's 12-line DTO, ScenarioSpawnAdapter as
-  a thin caller closing G1+G2, SimHost + ReplayBrowser gaining the adapter).
+  [superseded 2026-10-31 - was "NOT BUILT - the UI half": built by CE-259ax, see §9 and §8's updated rows.]
 as-built: TWO deviations from the dispatched design, both folded in where they stood -
   (a) the signature has NINE parameters, not eight: `disType`.
       ⛔⛔ THE REASON ORIGINALLY GIVEN HERE WAS WRONG AND IS RETRACTED (2026-09-12). It read: "added
@@ -26,7 +26,7 @@ as-built: TWO deviations from the dispatched design, both folded in where they s
       FALSE - EntityCreation had no NodeId; it was added in the same commit. §4's row and §6's new caption
       carry the correction, and the caption states the general trap: a <<EXISTS>> stereotype labels the
       BOX, so a NEW member on an existing class inherits "exists" silently.
-current-answer: §4 is the API - ONE method, RequestEntityCreation, with an `owner` parameter; §4b is why
+current-answer: §9 is the AS-BUILT of the UI half (CE-259ax) and wins over §5/§5b/§6 where they differ; §4 is the API - ONE method, RequestEntityCreation, with an `owner` parameter; §4b is why
   one and not two; §4c is the creation sequence including the double ACK; §1.3b is the GESTURE STACK
   inventory (what is already shared) plus defects G1/G2; §5 the per-host fit; §5b is where the per-host
   variation belongs - the four-point tail design, the R-141 sharing ruling, and §5b.3's proof that the
@@ -660,15 +660,87 @@ first, then p3, then the ui"*. ⛔ The rows are unchanged; what is new is **whic
 | ① | `RequestEntityCreation` exists on `EntityCreation`, `owner` defaulted to `EntityCreationRouting.DefaultEntityCreationRequestProcessor` and `initType` to `AllPeers` | ✅ **DONE** *(non-UI)* — ⚠ nine parameters, not eight; §3's `disType` row says why |
 | ①b | ⭐ `EntityCreationRouting` **carries the constant and uses it** — `:49`'s literal `0` is gone. ⛔ Not a second definition of the number | ✅ **DONE** *(non-UI)* |
 | ①c | ⭐ **ADDED** — `EntityCreation.NodeId` is surfaced, so *"mine"* needs no host lookup | ✅ **DONE** *(non-UI)* — it was **not** there, contra §4/§6 |
-| ② | `IgEntityCreationRequests` is **deleted**; IG's two controllers call the affordance | ⛔ **UI half** |
-| ③ | `StrideHrotGame` and `ScenarioSpawnAdapter` call the affordance — ⭐ **three authors, one call** | ⛔ **UI half** |
+| ② | `IgEntityCreationRequests` is **deleted**; IG's two controllers call the affordance | ✅ **DONE** *(CE-259ax)* — file deleted (it had zero callers). ⚠ "IG's two controllers" no longer exist (`MapCommandController` retired by `R-3067`); IG authors through the shared adapter, §9 |
+| ③ | `StrideHrotGame` and `ScenarioSpawnAdapter` call the affordance — ⭐ **three authors, one call** | ✅ **DONE** *(CE-259ax)* — `ScenarioSpawnAdapter.Request` is one `RequestEntityCreation` call; `StrideHrotGame`'s DTO was already gone (CE-209 / S9); SimHost's six spawners joined them |
 | ④ | a rail on a **production-built** pack: the default yields `OwnerAppInstanceId == 0`; `owner: NodeId` yields `== NodeId`; ⭐ **`owner: 7` yields `== 7`** — the third case the two-method shape could not express | ✅ **DONE** *(non-UI)* — `RequestEntityCreation_ExpressesAllThreeOwnerValues_IncludingAThirdNode`. ⚠ the third node is `42`, because the rail fixture's own `NodeId` **is** `7` and reusing it would make row 2 and row 3 the same assertion |
 | ⑤ | a rail: the returned `Guid` equals a caller-supplied `requestId`, and is non-empty when omitted | ✅ **DONE** *(non-UI)* |
 | ⑤b | ⭐ **ADDED** — a rail that every argument reaches the **spawn order** through the production request system, `transform` included | ✅ **DONE** *(non-UI)* — ⛔ a DTO-only rail would pass while the `InitialComponents` fold ↔ `SimTransform` extraction hand-off was broken |
 | ⑥ | ① and ④ *(the two translators)* still construct the DTO directly, and §2's rule says so in writing | ✅ **DONE** *(non-UI)* — the rule is on `RequestEntityCreation`'s own doc comment and at both translator sites |
 | ⑦ | `design-digest.py --check` and `mermaid-check.mjs` pass | ✅ **DONE** |
-| ⭐ **⑧** | 🔴 **`G1` closed**: all three affordances of `ScenarioSpawnAdapter` end in `RequestEntityCreation`. ⛔ **zero `_bus.PublishManaged(cmd)` left in the file** — a rail asserts an authored AREA reaches the request source, which reddens today | ⛔ **UI half** |
-| ⭐ **⑨** | 🔴 **`G2` closed**: `_ = _nameResolver` is gone; a rail asserts the resolver's string reaches the request's `EntityInfo` | ⛔ **UI half** |
-| ⭐ **⑩** | `ScenarioSpawnAdapter.BeginPlacement` returns a gesture whose `Exited` fires; ⭐ **a rail drives IG's full session** — place → exit → ack → **Finished published and `ClearSession` ran**, and a **cancel with nothing placed publishes Cancelled**. ⛔ Without this the §5b.3 hang ships | ⛔ **UI half** |
-| ⭐ **⑪** | `ISpawnController` is **unchanged** *(still three `void` methods)*; `Hrot.IG` still holds **zero** references to it; ⭐ ExCon's shim is untouched | ⛔ **UI half** |
-| ⭐ **⑫** | `SimHostApp` and `ReplayBrowserSubsystem` construct the adapter — ⭐ **no per-host justification required or given** *(`R-141`)* | ⛔ **UI half** |
+| ⭐ **⑧** | 🔴 **`G1` closed**: all three affordances of `ScenarioSpawnAdapter` end in `RequestEntityCreation`. ⛔ **zero `_bus.PublishManaged(cmd)` left in the file** — a rail asserts an authored AREA reaches the request source, which reddens today | ✅ **DONE** *(CE-259ax)* — rails `CE259ax_AnAuthoredArea/Route/APlacement_ReachesTheRequestPath…` + the source guard `CE259ax_TheAdapterSource_PublishesNothingItself`, red-proved |
+| ⭐ **⑨** | 🔴 **`G2` closed**: `_ = _nameResolver` is gone; a rail asserts the resolver's string reaches the request's `EntityInfo` | ✅ **DONE** *(CE-259ax)* — gizmo rail `CE259ax_G2_…` + adapter rail `CE259ax_TheNameResolver_ReachesTheRequestsEntityInfo`, red-proved. ⚠ no production caller supplies a resolver today (§9.4) |
+| ⭐ **⑩** | `ScenarioSpawnAdapter.BeginPlacement` returns a gesture whose `Exited` fires; ⭐ **a rail drives IG's full session** — place → exit → ack → **Finished published and `ClearSession` ran**, and a **cancel with nothing placed publishes Cancelled**. ⛔ Without this the §5b.3 hang ships | ⛔ **WITHDRAWN - premise gone** *(CE-259ax)*: the only consumer, IG's `MapCommandController` session, was retired (`R-3067` / AQ109 X3). Nothing to hang; building `BeginPlacement` would add an uncalled method. §9.2 |
+| ⭐ **⑪** | `ISpawnController` is **unchanged** *(still three `void` methods)*; `Hrot.IG` still holds **zero** references to it; ⭐ ExCon's shim is untouched | ✅ **DONE** *(CE-259ax)* — measured: the port is untouched and `Hrot.IG` has zero `ISpawnController` references |
+| ⭐ **⑫** | `SimHostApp` and `ReplayBrowserSubsystem` construct the adapter — ⭐ **no per-host justification required or given** *(`R-141`)* | ✅ **already true** *(measured CE-259ax)* — hosts get the adapter from `MapInteractionPack`'s `EntityAuthoring`; `SimHostApp` passes `Creation: () => EntityCreation`. ⚠ no `ReplayBrowserSubsystem` type exists in the tree now, so nothing to wire there |
+
+---
+
+## 9. ⭐⭐⭐ AS-BUILT — `CE-259ax` (the UI half), `2026-10-31`
+
+> ⛔ **Binding constraint (user, via the coordinator, `2026-10-31`):** the NED **wire** path — an external node's `CreateEntityRequest`
+> received through an `IEntityCreationRequestSource` into `CreateEntityRequestSystem` (`NedCommandGateway`, `NedEntityCreationRequestSource`,
+> `NedCgfEntityLifecycleAdapters`) — is **not replaced, removed or changed**. This batch moves only IN-PROCESS authoring sites onto
+> `EntityCreation.RequestEntityCreation`.
+
+### 9.1 Step 0 — the RE-MEASURED INVENTORY *(the design is 7 weeks old; the tree moved under it)*
+
+Queries: `scripts/cbm.sh search_code SpawnEntityCommand` (limit 200, 77 results), `search_graph` for `.*(SpawnAdapter|Authoring|PlacementGizmo|EntityCreationRequests).*`
+(Class), and `grep -rn "new SpawnEntityCommand\|PublishManaged(cmd" Hrot FDP Stride`. ⚠ Coverage of the graph could not be checked (`check_index_coverage`
+is not available through the CLI).
+
+⭐ **What changed since §1–§5 were written** (CE-3228 / CE-3219, `R-3067` / AQ109 X3): the authoring tools no longer publish a `SpawnEntityCommand` ORDER at all.
+`SpawnEntityCommand` survives in the tools only as a **value shape** the gizmo hands its callback; `ScenarioSpawnAdapter.Request` maps it to an
+`EntityCreationRequest` and publishes THAT on the pack's bus. `MapCommandController` (IG's remote session) is **retired**, and `IgEntityCreationRequests` has
+**zero callers**. So G1 is already closed *in effect*, and what remains is that the request is built in **two** places (the adapter's `RequestFor` and the pack's
+`RequestEntityCreation`) instead of one.
+
+| # | site | R-145 class | state at the base sha | disposition |
+|---|---|---|---|---|
+| 1 | `EntityPlacementGizmo.BuildAndPublishSpawnCommand` (`:248`) | AUTHOR *(tool)* | builds a `SpawnEntityCommand` **value** and hands it to a callback; publishes nothing | stays a value shape; `_nameResolver` (G2) dead at `:255` |
+| 2 | `AreaAuthoringArm.Arm` (`:133`) | AUTHOR *(tool)* | same — value to the `OnCommit` callback | stays |
+| 3 | `ScenarioSpawnAdapter.ArmPlacement / ArmAreaAuthoring / ArmRouteAuthoring → Request → RequestFor` | AUTHOR | maps the value to an `EntityCreationRequest` **itself** and `_bus.PublishManaged`s it — ⛔ a second copy of the mapping | **→ `EntityCreation.RequestEntityCreation`** |
+| 4 | `SimHostScenarioManager` ×6 (`SpawnVehicle`, `SpawnRoamers`, `SpawnRoadUsers`, `SpawnFormation` ×2, `SpawnNetworkedTrajectoryVehicle`) | AUTHOR *(UI buttons)* | publishes `SpawnEntityCommand` **orders** straight on `repo.Bus` — bypasses `CreateEntityRequestSystem` (no routing, no ack, no grants) | **→ `RequestEntityCreation`** |
+| 5 | `CgfSubsystem.TestHook_SpawnEntityWithSplitAuthority` (`:561`) | AUTHOR *(test hook)* | order with a **pre-allocated network id**, preceded by a `DeferredTakeOwnership` keyed by that id | see 9.3 |
+| 6 | `IgEntityCreationRequests.FromSpawnCommand` | *(dead code)* | zero callers; the shared adapter replaced it | **deleted** |
+| 7 | `StrideHrotGame` hand-rolled DTO | — | **gone** (slice S9 / CE-209 retired the self-contained Stride mode); `StrideHrotGame` constructs no request outside the harness | nothing to do |
+| 8 | `CreateEntityRequestSystem` (×3 `PublishManaged(new SpawnEntityCommand)`) | *the standard path* | request → order | **keep** |
+| 9 | `StagingEntityExtractor`, `NedCgfEntityLifecycleAdapters` | **TRANSLATOR** | construct the DTO directly | **keep** (§2) — and the wire path is off limits |
+| 10 | `OneManCommand`, `TrafficPanic`, `AreaEffectClouds`, `TerrainObjectRequests`, Stride harness cases | AUTHOR *(systems/harness)* | construct an `EntityCreationRequest` and publish it on the bus; they **are** on the request path (no order bypass) but hold no `EntityCreation` handle | **out of scope** — listed in the report as a follow-up |
+| — | `DebugApiService` (`:1892`), `EditorZoneAuthoringSystem` (`:69`) | AUTHOR | already call `RequestEntityCreation` | done earlier |
+
+### 9.2 Premises of §5/§5b that no longer hold *(STOP that item, not the batch)*
+
+* ⛔ **§5b.3 / acceptance ⑩ (the gesture-returning `BeginPlacement`) is MOOT.** Its only consumer was `MapCommandController`'s IG session (`_toolFinished`,
+  `Finished` / `Cancelled`, `ClearSession`) — **retired** by `R-3067` / AQ109 X3 (`IgApplication.cs:797`, `:1056`; `IIgNetworkAdapter.cs:29`).
+  `rg MapCommandController --glob '*.cs'` finds only comments. No caller needs `Exited` / `OnCommandPublished` surfaced through the adapter, so building
+  it would add an **uncalled** method (the silent-default shape). `ISpawnController` is unchanged either way.
+* ⛔ **Acceptance ② / ⑪** (IG builds its own gizmo; `IgEntityCreationRequests` dies) — already true in effect; the file is deleted here.
+* ⛔ **Acceptance ③ (Stride)** — the DTO was retired with the self-contained Stride mode.
+
+### 9.3 What was built *(per piece)*
+
+| piece | built | where |
+|---|---|---|
+| ③ **`ScenarioSpawnAdapter` = thin caller** *(closes G1 in the strong sense)* | ctor takes **`EntityCreation`** (was `FdpEventBus`); `Request(cmd)` is ONE `creation.RequestEntityCreation(...)`; the adapter's own `RequestFor` mapping (a second copy of the affordance's DTO build) is **deleted**. `EntityAuthoringInputs.Requests : Func<FdpEventBus?>` became **`Creation : Func<EntityCreation?>`**; Editor / CGF / SimHost / IG pass `() => EntityCreation` (they already held it). `Hrot.Presentation` references `Hrot.Common` explicitly (it already reached it through `Hrot.Traffic`; no cycle) | `Hrot.Presentation/Adapters/ScenarioSpawnAdapter.cs`, `AddEntity/EntityAuthoring.cs`, the four host files |
+| **G2** `nameResolver` | the gizmo no longer drops it: the resolved name rides on the command as an `EntityInfo`; the adapter seeds its TKB-default `EntityInfo` only when none is present; an explicit `name` in the properties JSON is compiled on top and still wins (doc comment corrected - it claimed the resolver took priority over JSON). The adapter gained an optional `nameResolver` ctor argument | `EntityPlacementGizmo.cs`, `ScenarioSpawnAdapter.cs` |
+| ① **IG / Player** | `IgEntityCreationRequests` **deleted** (zero callers). IG authors through the pack's shared adapter (`IgApplication.cs:799`) | `Hrot.IG/EntityCreation/` |
+| ② **Stride** | nothing to build - the 12-line DTO was removed with the self-contained Stride mode (CE-209 / S9) | - |
+| ④ **SimHost** | `SimHostScenarioManager`: all six spawners -> one private `Author(...)` = `RequestEntityCreation(owner: creation.NodeId, initType: AllPeers)`. Ctor takes `EntityCreation` (**required** - the old `spawnBus ?? repo.Bus` default published an order nobody routed). `SimHostVisualization.Initialize` takes it; `SimHostApp` passes `EntityCreation` | `Hrot.SimHost/UI/SimHostScenarioManager.cs`, `SimHostVisualization.cs`, `SimHostApp.cs` |
+
+### 9.4 Deviations from §5/§5b *(prior text above is SUPERSEDED where it differs)*
+
+* ⛔ **`BeginPlacement` / `AuthoringGesture` (§5b.3, §6) NOT built** - premise false, §9.2. The §6 `classDiagram` boxes `AuthoringGesture`, `MapCommandController` and `IgEntityCreationRequests`-as-live are **superseded**.
+* ⚠ **`SpawnFormation`'s leader id is no longer PRE-allocated.** It was allocated and then used by nothing (the followers never read it - the old comment claimed they would). The affordance deliberately has no pre-allocated-id parameter (§3).
+* ⚠ **Owner = `creation.NodeId`, not `SimHostNetworkConstants.LocalNodeId`.** Identical unless a node-id override is in force (`SimHostApp.cs:324`); with one, the old code owned by the constant `1` while the pack ran as another node - a latent mismatch the call removes by construction.
+* ⚠ **Timing:** a SimHost spawn is now request -> next-frame order -> entity (it was order -> entity), i.e. one frame later, in exchange for the routing, the ack and the ownership grants it used to skip.
+* ⚠ **No production caller passes `nameResolver`** (IG's session generator died with `MapCommandController`). The parameter is live and railed, not dead; it is a seam for a session-name generator, not a feature anyone uses today.
+
+### 9.5 Sites that STAY, and why *(R-145)*
+
+* `StagingEntityExtractor`, `NedCgfEntityLifecycleAdapters` - **translators**; and the NED wire path (`NedCommandGateway` -> `IEntityCreationRequestSource` -> `CreateEntityRequestSystem`) is untouched by order of the user.
+* `CgfSubsystem.TestHook_SpawnEntityWithSplitAuthority` - **stays on the order path**: it must hold the network id *before* genesis (it returns it, and its `DeferredTakeOwnership` is keyed by it; ~35 cluster tests call it) and the affordance has no pre-allocated-id parameter by design (§3). It is a test harness, not a gesture. Expressing split authority through the real request path would need that parameter **or** an ownership grant on the request - a design call, not done here.
+* `OneManCommand`, `TrafficPanic`, `AreaEffectClouds`, `TerrainObjectRequests`, the Stride harness cases - authors by §2's definition that publish an `EntityCreationRequest` on the bus from systems that hold no `EntityCreation`. They ARE on the request path (no order bypass). **Follow-up, not done:** give those systems the handle or a thin shared function so they too call `RequestEntityCreation`.
+
+### 9.6 Evidence
+
+Gates, base `2aa3bd06b` vs after: see the CE-259ax report / tracker row. Rails (feature suites, no parallel class): `Hrot.Editor.Tests/Adapters/AdapterTests.cs` `EditorSpawnAdapterTests.CE259ax_*` (6), `Hrot.Presentation.Tests/EntityPlacementGizmoTests.cs` `CE259ax_G2_*` (2), `Hrot.SimHost.Tests/SimHostScenarioManagerTests` `EverySpawner_AsksForAnEntityThisNodeOwns_ThroughTheAffordance` + `SpawnFormation_LeaderIsNotPreallocated_…`. Test helper: `Hrot/TestShared/TestEntityCreation.cs` (the PRODUCTION pack over a world).

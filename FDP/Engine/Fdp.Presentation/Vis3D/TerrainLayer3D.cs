@@ -160,6 +160,9 @@ namespace Fdp.Toolkit.Vis3D
 
         public static readonly Color WaterColor = new(66, 112, 158, 255);
         public static readonly Color ForestColor = new(66, 100, 54, 255);
+        /// <summary>⭐ The apron round the terrain (<c>TerrainWorldMesh.BuildApron</c>): the ground's grass pattern on a slightly duller, browner green, so
+        /// the real terrain's edge stays visible.</summary>
+        public static readonly Color ApronColor = new(104, 124, 84, 255);
 
         /// <summary>
         /// ⭐ CE-1033 S4 — a triangle's colour from its kind and its material (the shared material library's names). A building's
@@ -168,7 +171,7 @@ namespace Fdp.Toolkit.Vis3D
         public static Color ColourOf(TerrainSurfaceKind kind, string? material)
         {
             if (kind == TerrainSurfaceKind.Water) return WaterColor;
-            if (kind == TerrainSurfaceKind.Ground) return material == "forest" ? ForestColor : GroundColor;
+            if (kind == TerrainSurfaceKind.Ground) return material switch { "forest" => ForestColor, "apron" => ApronColor, _ => GroundColor };
             Color? own = material switch
             {
                 "brick" => new Color(172, 96, 72, 255),

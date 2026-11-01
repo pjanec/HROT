@@ -1,74 +1,112 @@
 {
   "title": "Only the witness remembers",
-  "caption": "A man aims, hides his rifle and walks off: the patrol that saw it engages him, the one that did not, never does",
+  "caption": "He aims, hides the rifle and walks off: patrol A, who saw it, fires once he is clear — patrol B never does",
+  "clip": "F-10",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+4",
   "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Patrol A",
+      "n": 1
+    },
     "aim": {
       "on": "side",
       "who": "Insurgent",
       "is": "Hostile"
-    },
-    "fire": {
-      "on": "shot",
-      "by": "Patrol A",
-      "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "aim": 6.4167,
-      "fire": 58.8
-    },
-    "tickHz": 60,
-    "scenarioHash": "0b853360a37bd5ed",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "aim-1",
-      "seconds": 3,
+      "at": "aim-3",
       "follow": "Insurgent",
-      "distance": 7,
-      "yaw": 180,
-      "pitch": -6,
-      "why": "the act, close"
+      "distance": 60,
+      "yaw": 35,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "aim"
     },
     {
-      "at": "aim+4",
-      "seconds": 4,
-      "lookAt": [
-        170,
-        200,
-        1
-      ],
-      "distance": 120,
-      "yaw": 90,
-      "fov": 35,
-      "why": "wide: A at one end, B walking in at the other"
+      "at": "aim+0.5",
+      "follow": "Insurgent",
+      "distance": 9,
+      "yaw": 120,
+      "pitch": -8,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "aim"
     },
     {
-      "at": "fire-1",
-      "seconds": 3,
+      "at": "m-6",
+      "follow": "Insurgent",
+      "distance": 55,
+      "yaw": 50,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "clear"
+    },
+    {
+      "at": "m-3.5",
       "over": "Patrol A",
       "toward": "Insurgent",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.9,
-      "fov": 25,
-      "why": "A fires"
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "fire"
     },
     {
-      "at": "fire+1",
-      "seconds": 3,
-      "over": "Patrol B",
+      "at": "m-0.7",
+      "over": "Patrol A",
       "toward": "Insurgent",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.9,
-      "fov": 25,
-      "why": "B sees an unarmed walker — and holds"
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "fire"
+    },
+    {
+      "at": "m+2",
+      "follow": "Insurgent",
+      "distance": 40,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "fire"
     }
   ],
-  "clip": "F-10",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "aim",
+      "from": "aim-3",
+      "to": "aim+6"
+    },
+    {
+      "id": "clear",
+      "from": "aim+6",
+      "to": "m-4",
+      "speed": 4
+    },
+    {
+      "id": "fire",
+      "from": "m-4",
+      "to": "m+4"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "aim-3",
+      "until": "aim+6",
+      "text": "He draws and aims at patrol A, then hides the rifle"
+    },
+    {
+      "at": "m-4",
+      "until": "m+4",
+      "text": "Only patrol A remembers: it fires once he is clear"
+    }
+  ]
 }

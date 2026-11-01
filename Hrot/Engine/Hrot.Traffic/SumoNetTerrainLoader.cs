@@ -37,7 +37,28 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
         var roads = TrafficRoadScene.Build(model, placement, world.BoundsMin, world.BoundsMax);
         FdpLog<SumoNetTerrainLoader>.Info($"[Traffic] '{terrainName}': road scene built in {sw.ElapsedMilliseconds} ms — {roads.TriangleCount} triangles, "
           + $"{roads.Signals.Count} signal heads.");
+        AttachBeyond(world, model, placement);
         return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement, roads);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4122 (HB2, <c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-2) — the ground beyond our terrain follows SUMO's own height field where the net is:
+    /// the field is built once, and handed to the world in LOCAL metres through the placement (its footprint is the net's bounds, which a UTM
+    /// placement may rotate). ⭐ Runs in <see cref="Prepare"/> — before the world is published — so the world is immutable by the time anyone reads it
+    /// (and the render geometry's identity, the world object, is new for the load). A world with no rectangle (no world file) has no "beyond".
+    /// </summary>
+    private static void AttachBeyond(TerrainWorld world, NetworkModel model, SumoNetPlacement placement)
+    {
+        if (!(world.BoundsMax.X > world.BoundsMin.X && world.BoundsMax.Y > world.BoundsMin.Y) || world.Beyond != null) return;
+        var field = Sim.Scene.TerrainField.FromNetwork(model);
+        var (minX, minY, maxX, maxY) = TrafficRoadScene.NetBounds(model);
+        System.Numerics.Vector2 Corner(double nx, double ny) { var (lx, ly) = placement.ToLocal(nx, ny); return new System.Numerics.Vector2((float)lx, (float)ly); }
+        var quad = new[] { Corner(minX, minY), Corner(maxX, minY), Corner(maxX, maxY), Corner(minX, maxY) };
+        world.AttachBeyond(new BeyondGround((lx, ly) =>
+        {
+            var (nx, ny) = placement.ToNet(lx, ly);
+            return (float)field.HeightAt(nx, ny);
+        }, quad));
     }
 
     /// <inheritdoc/>

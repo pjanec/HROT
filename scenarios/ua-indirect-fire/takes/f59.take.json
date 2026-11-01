@@ -1,0 +1,91 @@
+{
+  "title": "Time on target",
+  "caption": "Rounds from several guns land together",
+  "clip": "F-59",
+  "chapter": 11,
+  "state": "ready",
+  "endAt": "hit+7",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "M109 3",
+      "n": 1
+    },
+    "hit": {
+      "on": "blast",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-0.7",
+      "follow": "M109 3",
+      "distance": 30,
+      "yaw": 60,
+      "pitch": -10,
+      "lift": 2,
+      "fov": 45,
+      "segment": "fire"
+    },
+    {
+      "at": "m+3",
+      "follow": "M109 1",
+      "distance": 30,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 2,
+      "fov": 45,
+      "segment": "fire"
+    },
+    {
+      "at": "hit-4",
+      "follow": "Enemy 1",
+      "distance": 110,
+      "yaw": 30,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 50,
+      "segment": "impact"
+    },
+    {
+      "at": "hit+3",
+      "follow": "Enemy 1",
+      "distance": 70,
+      "yaw": 120,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "impact"
+    }
+  ],
+  "segments": [
+    {
+      "id": "fire",
+      "from": "m-0.7",
+      "to": "m+6"
+    },
+    {
+      "id": "fly",
+      "from": "m+6",
+      "to": "hit-5",
+      "speed": 4
+    },
+    {
+      "id": "impact",
+      "from": "hit-5",
+      "to": "hit+7"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-0.7",
+      "until": "m+6",
+      "text": "Three guns fire"
+    },
+    {
+      "at": "hit-5",
+      "until": "hit+7",
+      "text": "The rounds land together"
+    }
+  ]
+}

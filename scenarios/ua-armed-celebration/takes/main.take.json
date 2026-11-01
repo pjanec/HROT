@@ -1,61 +1,103 @@
 {
   "title": "Celebratory fire",
-  "caption": "A wedding guest fires into the air and is only warned; when he aims at the patrol, he is shot",
+  "caption": "A guest fires in the air: warned, no shot — when he aims at the police, he is shot",
+  "clip": "F-14",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+5",
   "anchors": {
-    "volley": {
-      "on": "shot",
-      "by": "Celebrant's rifle",
-      "n": 1
-    },
-    "fire": {
+    "m": {
       "on": "shot",
       "by": "Patrol rifle",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "volley": 3.0833,
-      "fire": 20.5833
-    },
-    "tickHz": 60,
-    "scenarioHash": "a6ab67284974b0cb",
-    "buildSha": "0.1.1+85069170eaa56fe8db4eb9c6b858547966ca6dab"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "volley-1",
-      "seconds": 4,
-      "lookAt": [
-        126,
-        212,
-        1.5
-      ],
-      "distance": 18,
-      "pitch": -5,
-      "why": "the party, the rifle up"
+      "at": "m-17.5",
+      "follow": "Celebrant",
+      "distance": 60,
+      "yaw": 35,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
     },
     {
-      "at": "volley+2",
-      "seconds": 3,
+      "at": "m-4",
+      "over": "Police patrol",
+      "toward": "Celebrant",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
       "over": "Police patrol",
       "toward": "Celebrant",
       "back": 4,
-      "height": 2,
-      "fov": 30,
-      "why": "the patrol watches and warns"
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
     },
     {
-      "at": "fire-1",
-      "seconds": 3,
+      "at": "m+2",
       "follow": "Celebrant",
-      "distance": 7,
-      "yaw": 180,
-      "pitch": -6,
-      "why": "he turns the rifle on them — shot"
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Celebrant",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
     }
   ],
-  "clip": "F-14",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-17.5",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-17.5",
+      "until": "m-1.5",
+      "text": "He fires in the air: warned — the patrol holds fire"
+    },
+    {
+      "at": "m-1.5",
+      "until": "m+5",
+      "text": "He aims at the police: shot"
+    }
+  ]
 }

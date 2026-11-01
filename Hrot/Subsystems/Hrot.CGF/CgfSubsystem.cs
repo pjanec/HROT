@@ -1,4 +1,4 @@
-﻿using CycloneDDS.Runtime;
+using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
@@ -592,6 +592,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.World.Bus.PublishManaged(dtoCmd);
 
         // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).
+        //    ⭐ CE-259ax — deliberately NOT routed through EntityCreation.RequestEntityCreation: this hook (a) must know the network id BEFORE
+        //    genesis — it returns it, and the DeferredTakeOwnership above is keyed by it — and the affordance has no pre-allocated-id
+        //    parameter (design §3: that belongs to the scenario extractor, a TRANSLATOR); (b) is a TEST harness, not a gesture. ~35 cluster
+        //    tests depend on that synchronous id. 📄 DESIGN_Entity_Authoring_Surface.md §9.3.
         _context.World.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId   = networkId,
@@ -599,6 +603,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             OwnerNodeId = _context.NodeId,
             InitType    = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
             RequestId   = System.Guid.Empty,
+            // ⭐ CE-4153 — the ONE visible exception to "CreateEntityRequestSystem mints the EntityGuid": this test hook publishes the spawn
+            //   itself (see above), so it stamps its own stable key. Not marked transient: a hook-made entity must stay saveable, or a cluster
+            //   test that saves a hook-spawned unit would silently lose it from the file. ⛔ A production caller never does this.
+            InitialComponents = new System.Collections.Generic.List<object> { new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()) },
         });
 
         return networkId;
@@ -705,7 +713,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //   no submenu. No SuspendedReason: CGF has no Preview state (its world ticks from boot).
                 EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                     Tkb:          () => _context?.TkbDb,
-                    Requests:     () => EntityCreation?.World.Bus)   // ⭐ CE-3228 — the creation pack reads this world's bus
+                    Creation:     () => EntityCreation)   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
                 {
                     HostPickers = () => _shellPickers,
                 },
@@ -2408,6 +2416,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 openSaveAsDialog: _saveAsBrowser != null
                     ? onNamed => OpenScenarioSaveAsDialog(catalog, onNamed)
                     : null,
+                // ⭐ CE-4140 — New Scenario… is new FROM A SCENARIO RECIPE, which needs ScenarioNewAssetService — and this host composes none (WireAssetCreation: it takes an IEditorLogic adapter, CGF has no IEditorLogic).
+                //   Said here, not defaulted: the item is greyed with its reason (ruling 49). ⚠ The day CGF gains the Scenario kind in _newAssetServices it passes () => _newAssetLauncher.Open(AssetKind.Scenario).
+                openNewScenario:  null,
                 // ⭐⭐⭐ Ruling 53 + UX_Feature_Modal_Surfaces.md §2.0b — this host is headless-first: a
                 //    modal on an unattended node is a hang, not a prompt. ⇒ it PROCEEDS, and the log IS
                 //    the safety net. ⛔ Passing null would proceed SILENTLY, which is the one option the

@@ -39,6 +39,17 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public byte Operator;
 
+        /// <summary>
+        /// ⭐ <c>CE-4143</c> (docs/DESIGN_Entity_Control.md §8r R-3/R-4) — the <see cref="Operator"/> value of a SIGHT shot on a TURRET: the
+        /// aim is along the player's look ray at the zero range and the muscle fires every cooldown along the barrel as it points
+        /// (<see cref="Components.WeaponTask.AlongBarrel"/>), with no on-target gate. ⚠ Deviation from §8r ("+AlongBarrel byte"): this
+        /// struct is exactly its 32 bytes, so the flag rides in the operator byte (every reader asks <c>Operator != 0</c>), not a new field.
+        /// </summary>
+        public const byte OperatorAlongBarrel = 2;
+
+        /// <summary>⭐ CE-4143 — 1 when this is an operator shot along the barrel (<see cref="OperatorAlongBarrel"/>).</summary>
+        public readonly byte AlongBarrel => Operator == OperatorAlongBarrel ? (byte)1 : (byte)0;
+
         /// <summary>⭐ <c>CE-3172</c> S4d — operator fire only: 1 = the trigger is held (fire), 0 = aim only (a turret tracks
         /// <see cref="Point"/>).</summary>
         public byte Trigger;

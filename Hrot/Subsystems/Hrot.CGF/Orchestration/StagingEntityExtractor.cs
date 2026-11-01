@@ -234,6 +234,10 @@ namespace Hrot.CGF.Orchestration
                 // FdpAutoSerializer.TryInject can call SetComponent<T> without
                 // encountering "component not registered" exceptions.
                 RegisterAllGlobalTypesInRepo(stagingRepo);
+                // ⭐ CE-4153 — the staging load stamps every entity's file key as its EntityGuid, which then rides InitialComponents into the
+                //   created entity. The staging repo must know the type even when no host has registered it globally yet.
+                if (!stagingRepo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>())
+                    stagingRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
 
                 // Hydrate the staging repository from the scenario JSON.
                 serializer.Deserialize(stagingRepo, json);

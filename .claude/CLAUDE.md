@@ -664,6 +664,7 @@ ever considered, which is what obligation ① exists to prevent.
   |---|---|
   | ⭐⭐⭐ **The brief hands over what Opus measured** — file:line, the seam, the test class to extend — and **checkable success conditions**; Opus writes any design first | ⛔ never "make it work", never ask it to re-discover |
   | ⭐⭐ **Gates in the brief: the touched test classes + every class that exercises the changed seam (integration included)**, each new rail red-proved by a compiling mutation; exact build/test commands | broad suites once, after the merge, by Opus in the background |
+  | ⭐⭐⭐ **PROOF IS PROPORTIONATE TO RISK** *(user, `2026-10-30`: "half an hour testing for outside terrain area? isnt that a bit too much?")* — a VISUAL / cosmetic change (a mesh, a shader, a pose, a colour) red-proves ONE key rail and gates only the touched test classes; the full mutation set and the broad gates are for sim, wire, scheduler, replay and cross-node changes | 📌 the hilly apron spent ~15 min on 8 mutations (a rebuild each) for drawn ground outside the playable area |
   | ⭐⭐⭐ **Sonnet writes its own tests and works until they pass; Opus does NOT re-run them** — the review is: do the tests assert what matters, and is the code right (read the diff) | a test that misses what matters goes back to the worker with the missing case named |
   | ⛔⛔⛔ **Verify every "cannot be done / does not exist / not reachable" claim before accepting it** — one grep for a precedent | 📌 a worker claimed `EditorSubsystem` cannot run headless; `TheEditorRunsTheOrchestratorCoreTests` already did it |
 
@@ -710,6 +711,12 @@ ever considered, which is what obligation ① exists to prevent.
     MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <file.md>   # parses every block
     ```
   - ⭐ Keep box labels short so text is not clipped.
+- ### ⛔⛔ NO SCREENSHOTS IN GIT *(user, `2026-10-30`)*
+  > 🔒 **User, verbatim:** *"no screenshots to repo please. to big and wastefull for git."*
+
+  ⛔ Never commit a rendered PNG/JPG (a rail's frame, a live still, a before/after) — it bloats every clone for good. ⭐ Render to the scratchpad and
+  show it in chat (`SendUserFile`); a doc names the rail that renders it (`HROT_RAIL_SHOTS=<dir>`) instead of linking an image. ⭐ Hand-authored SVG
+  diagrams (small text) are not screenshots and stay allowed.
 - **Keep documentation prose short.** Lead with visuals and terse tables; no long prose walls — they go unread. ⭐⭐⭐ **For DESIGN documents this is not a preference but an obligation — see *"DIAGRAM FIRST — the diagrams ARE the design; the prose SUPPORTS them"*** in the `NO IMPLEMENTATION WITHOUT UML` section: draw after the inventory and before you write, let the prose carry only *why*, and apply the deletion test to your own draft.
 
 ## ⛔⛔⛔ NO IMPLEMENTATION WITHOUT UML — **the design must name the CLASSES and the SEQUENCES** *(user, `2026-08-20`)*

@@ -108,7 +108,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </param>
         /// <param name="nameResolver">
         /// Optional delegate invoked on each left-click to obtain the entity name.
-        /// When provided it takes priority over any <c>name</c> in <paramref name="initialPropertiesJson"/>.
+        /// When provided it replaces the TKB-default name (⭐ <c>CE-259ax</c> G2: it is no longer dropped). ⚠ An explicit <c>name</c> in
+        /// <paramref name="initialPropertiesJson"/> is compiled on top by the adapter and still wins.
         /// </param>
         /// <param name="onRemove">
         /// Callback invoked when the gizmo wants to exit. Typically calls
@@ -251,8 +252,6 @@ namespace Hrot.ScenarioEditor.Gizmos
             // Store it verbatim as the InitialTransform. The ACL egress translator
             // (SpawnEntityCommandEgressTranslator) converts this position to geodetic lat/lon
             // via the IGeographicTransform when building the DDS CreateEntityRequest.
-            // nameResolver is retained for future wiring (session-scoped sequential names).
-            _ = _nameResolver; // retained for future use
 
             var cmd = new SpawnEntityCommand
             {
@@ -276,6 +275,16 @@ namespace Hrot.ScenarioEditor.Gizmos
                 InitialAttributesJson = _initialPropertiesJson,
                 RequestId             = Guid.NewGuid(),
             };
+
+            // ⭐ CE-259ax G2 — the resolver was accepted and DROPPED (`_ = _nameResolver`). Its name now rides on the command as the
+            //   entity's EntityInfo, which the adapter keeps instead of seeding its TKB-default one; an explicit `name` in the properties
+            //   JSON is compiled on top and still wins.
+            var resolved = _nameResolver?.Invoke();
+            if (!string.IsNullOrWhiteSpace(resolved))
+                cmd.InitialComponents = new System.Collections.Generic.List<object>
+                {
+                    new EntityInfo { Name = new FixedString64(resolved), ForceId = ForceId.Neutral },
+                };
 
             _onEntityCreated(cmd);
             OnCommandPublished?.Invoke(cmd);

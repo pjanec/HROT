@@ -91,16 +91,47 @@ namespace Fdp.Toolkit.Combat
         /// round loaded — <c>NeedsLock</c>); SIGHT for everything else (hand weapons, a pintle or tripod MG, an unguided rocket). 🔒 User,
         /// 2026-10-16: <i>"The locking mode is good for grenade throwing and grenade launcher and mortar and howitzer and similar"</i> ·
         /// <i>"locking mode for slow turrets as well"</i> · <i>"RPG-type unguided rockets: SIGHT"</i>.
+        /// ⭐ <c>CE-4143</c> (§8r) amends it: a RAPID-FIRE turret weapon (MG, small arms, autocannon) defaults to SIGHT, and
+        /// <paramref name="pref"/> (the operator's <c>L</c>: 1 sight, 2 lock, 0 = the default) overrides it where <see cref="CanChoose"/>.
         /// </summary>
-        public static OperatorFireMode Of(EntityRepository world, Entity unit, WeaponMountDto? mount, long loadedAmmo = 0)
+        public static OperatorFireMode Of(EntityRepository world, Entity unit, WeaponMountDto? mount, long loadedAmmo = 0, byte pref = 0)
         {
             if (mount == null) return OperatorFireMode.Sight;
             if (mount.TurretIndex >= 0 && world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
-                && !TurretParts.Find(world, unit, mount.TurretIndex).IsNull) return OperatorFireMode.Lock;
+                && !TurretParts.Find(world, unit, mount.TurretIndex).IsNull)
+            {
+                // ⭐ CE-4143 (§8r R-1, R-2) — a turret weapon that is DIRECT fire may be fought either way: a rapid-fire one (MG, small
+                //   arms, autocannon) defaults to SIGHT (the round goes where he looks), a tank gun to LOCK; the operator's preference
+                //   (1 sight, 2 lock) overrides the default only where both make sense. A guided or indirect round loaded forces LOCK.
+                if (!CanChoose(mount) || ForcesLock(world, mount, loadedAmmo)) return OperatorFireMode.Lock;
+                if (pref == 1) return OperatorFireMode.Sight;
+                if (pref == 2) return OperatorFireMode.Lock;
+                return IsRapidFire(mount.Category) ? OperatorFireMode.Sight : OperatorFireMode.Lock;
+            }
             if (mount.Category is WeaponCategory.Grenade or WeaponCategory.Mortar or WeaponCategory.Howitzer or WeaponCategory.Bomb
                                or WeaponCategory.Atgm or WeaponCategory.Sam) return OperatorFireMode.Lock;
-            if (CombatTkb.WarheadOf(world, loadedAmmo != 0 ? loadedAmmo : unchecked((long)mount.AmmoGuid)) is { Indirect: true }) return OperatorFireMode.Lock;
-            return Executors.AimAndFireExecutor.NeedsLock(world, mount, loadedAmmo) ? OperatorFireMode.Lock : OperatorFireMode.Sight;
+            return ForcesLock(world, mount, loadedAmmo) ? OperatorFireMode.Lock : OperatorFireMode.Sight;
         }
+
+        /// <summary>⭐ <c>CE-4143</c> (§8r R-3) — the zero range of a SIGHT shot on a turret when the mount states none: the aim point is
+        /// <c>LookFrom + LookDir × SightZeroMetres</c>. Named for <c>CE-1130</c> (the per-mount sight zero), which has no DTO field yet.</summary>
+        public const float SightZeroMetres = 300f;
+
+        /// <summary>⭐ <c>CE-4143</c> (§8r R-2) — true when the operator may switch this weapon between SIGHT and LOCK: a direct-fire weapon on a
+        /// TURRET (<see cref="WeaponCategory.MachineGun"/>, <see cref="WeaponCategory.SmallArms"/>, <see cref="WeaponCategory.Autocannon"/>,
+        /// <see cref="WeaponCategory.TankGun"/>). A hand weapon is SIGHT only; an arc or guided one LOCK only. The station's <c>L</c> key
+        /// asks this; <see cref="Of"/> applies the same test.</summary>
+        public static bool CanChoose(WeaponMountDto? mount)
+            => mount is { TurretIndex: >= 0, Hands: false }
+               && mount.Category is WeaponCategory.MachineGun or WeaponCategory.SmallArms or WeaponCategory.Autocannon or WeaponCategory.TankGun;
+
+        /// <summary>⭐ <c>CE-4143</c> (R-1) — the rapid-fire turret weapons that default to SIGHT for a player.</summary>
+        private static bool IsRapidFire(WeaponCategory c)
+            => c is WeaponCategory.MachineGun or WeaponCategory.SmallArms or WeaponCategory.Autocannon;
+
+        /// <summary>An indirect warhead or a guided round loaded: the weapon cannot be fired by SIGHT.</summary>
+        private static bool ForcesLock(EntityRepository world, WeaponMountDto mount, long loadedAmmo)
+            => CombatTkb.WarheadOf(world, loadedAmmo != 0 ? loadedAmmo : unchecked((long)mount.AmmoGuid)) is { Indirect: true }
+               || Executors.AimAndFireExecutor.NeedsLock(world, mount, loadedAmmo);
     }
 }

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-16 (ExCon ORBAT New Unit picker built, §5 S4 table); 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — ONE entity-authoring wiring on Editor, CGF, SimHost, IG)
 build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
-current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
+current-answer: ⭐ §2f rev 8 THE THUMBNAIL GALLERY (2026-11-01, CE-4142, mockup docs/designs/add-entity-picker/) · §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
   submenu, spawn panels retired). Do NOT quote them.
 known-rot: the §3 sequence diagram and the §5 S3 acceptance said Shift+click — rev 4 (always-multi) replaced that; both now say click / right-click. Fixed in place.
@@ -11,6 +11,7 @@ known-rot: (2026-10-12) D2b (DIS names in a data table, DisNames.json) is SUPERS
 known-conflict: none — rev 1's conflict with canvas-context-menu-design.md §5.6 (no clicked point) is gone: rev 2 always
   arms a placement tool, so the menu action needs no position.
 related-designs:
+  - docs/blueprints/Architect_Question_108_Run_Mode_Picker.md — D26 OWNS the generic picker's extensions (P1 side pane … P5 image cache) that §2f's gallery is built on, shared with the scenario picker (D25)
   - blueprints/Architect_Question_94_Brain_Geometry_Sites.md — §5.2a owns WHERE the level is resolved (the position's owner, CE-3271); this doc owns the rule and the wire fields
   - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): the picker path from the class chain; DisNames.json deleted
   - DESIGN_Building_Interiors.md — resolves CE-1031 (ground inside buildings); storeys become levels through SurfacesAt
@@ -296,6 +297,30 @@ public SpawnHeight? SpawnHeight;   // set only by the CREATOR; replica/ghost ing
 | **`CreateEntityRequestSystem` copies** the request's `SpawnHeight` into the `SpawnEntityCommand` it publishes (parent AND TKB children, so children resolve to the same level at their own x,y) | |
 | **`NetworkSpawningSystem` resolves** when `SpawnHeight` is set: `Z = TerrainWorld.ResolveLevel(x, y, Level)` (+ sent Z for `AboveLevel`) before writing `SimTransform`; no terrain singleton ⇒ the sent Z. Direct publishers (the placement gizmo, SimHost scenario manager, …) set the field themselves | resolving in `CreateEntityRequestSystem` (rev 6) — eleven direct publishers bypass it |
 | ⚠ to verify while building: no replica/ghost ingress path sets the field (it is creator-only by construction — the wire field travels only on the request topic, never on replication descriptors) | |
+
+## 2f. Rev 8 — the THUMBNAIL GALLERY — ✅ ACCEPTED `2026-11-01` (user: *"G points accepted with one note"* — G8 amended) *(CE-4142; user `2026-11-01`: "design the new add entity picker with the thumbnails … some grouping of the thumbnails into few groups, like soldiers, vehicles, aircraft, tactical symbols, these groups could be selected on left side from a list, and on right side there could be the grid of thumbnails, each with short line of description … A fresh look on the problematics might be useful.")* — leans
+
+📐 Mockup: [`docs/designs/add-entity-picker/`](designs/add-entity-picker/README.md). ⭐ Built as a SOURCE of the one generic picker on its
+extensions P1–P5 (`Architect_Question_108_Run_Mode_Picker.md` D26, CE-4168) — ⛔ no entity-only picker.
+
+**The fresh look, in one paragraph.** Today's tree mirrors the DIS hierarchy (4–7 levels: Kind ▸ Domain ▸ Country ▸ Category …); an author
+thinks *"I want an IFV"*, not *"Platform ▸ Land ▸ Russia ▸ Armored fighting vehicle"*. ⇒ ⭐ a SHORT list of user-meaning groups on the left,
+ONE more level as chips inside a group, pictures on the right, search that ignores groups — and the DIS tree stays one toggle away (List).
+
+| # | decision | lean | measured basis |
+|---|---|---|---|
+| **G1** | the GROUPS | ⭐ ~10 curated groups (Recent & favourites · Soldiers · Ground vehicles · Aircraft · Weapon systems · Units · Civilians · Tactical symbols · Areas & routes · Props), each = a list of `DisTypeMask`s (+ *Units* = DIS Kind 11, *Tactical symbols* / *Areas & routes* = `PlacementToolRegistry.Graphics`) in ONE data file beside the thumbnails (`assets/thumbnails/groups.json`); a type in no group lands in *Other* (shown only when non-empty) | the masks and their `Specificity` exist (`DisTypeMask`, `Fdp.Core`; `EntityClassTable` uses them); the catalogue already groups by DIS path (`EntityTypeCatalog.cs:35`) |
+| **G2** | inside a group | ⭐ CHIPS for the NEXT DIS level below the group's masks (Tanks · IFV / APC · Trucks …), named by `DisNameTable`; *All* first; no deeper folders | `DisNameTable.Path` names every level (CE-2138) |
+| **G3** | a TILE | ⭐ thumbnail (default 160 × 92, a size slider) + the name + ONE line: the TKB master's short description if set, else *class · main weapon* composed from the TKB | `EntityTypeEntry{Name, Category, DisText, IconName}` (`EntityTypeCatalog.cs:19`) — the one line is new data or composed |
+| **G4** | which THUMBNAIL | the TKB type's explicit thumbnail → the most specific `DisTypeMask` match in `assets/thumbnails/map.json` → today's DIS glyph (`assets/icons/_tank.png` …) on a dashed tile (*no thumbnail yet*) — CE-4142's precedence | 18 icons in `assets/icons/` today; `EntityIconLibrary` packs icons |
+| **G5** | the SIDE | ⭐ chosen ONCE at the top (Friendly · Hostile · Neutral), tinting the preview; the map menu's *Add Entity ▸ Friendly / Hostile / Neutral* opens the gallery with it preset | D6 (`HasSide`) |
+| **G6** | the SIDE PANE (P1) | big picture, description, facts from the TKB (crew / seats, speed, weapons, DIS), *with crew* (D4 / unit composition), **Place on map**; Shift = place many (D5); drag a tile onto the map (the picker's `AllowsDragOut`) | D4, D5 rev 3 |
+| **G7** | SEARCH | over ALL groups (name, role line, DIS text, keywords — D8's fuzzy match); tiles show their group; the sidebar shows per-group counts and fades empty ones | D8 |
+| **G8** | TACTICAL SYMBOLS | ⚠ AMENDED `2026-11-01` (user: *"The tactical symbols, they might have their own type, which determines how they are drawn. Sometimes are smart, meaning they are not just a set of lines clicked by the user, but they offer some handle points, and when the user moves them, the shape draws itself according to its own internal logic. This is not yet implemented, but it means that we can show thumbnails also for the tactical symbols."*): ⭐ every tactical symbol is a TYPE that owns its drawing (a *smart* graphic: handle points the user drags, the shape drawn by the type's own logic — CE-4169, not built); ⇒ its THUMBNAIL is that type drawn at its DEFAULT handles, made by the SAME automatic snapshot pipeline as every other thumbnail (one mechanism, G4's precedence unchanged); the side colour is applied in the side pane's live preview and at placement | the map draws graphics today (`MilStd2525Renderer` placeholder shapes, the tactical-graphics layer); the film's graphics are a closed enum (`GraphicKind { Ring, Arrow, Route, Area, Label }`, `Map3D/Director/FilmGraphics.cs:10`) — no typed / smart graphic exists yet |
+| **G9** | LIST ⇄ THUMBNAILS | one toggle + the tile size, remembered per picker (P4); List = today's tree rows with a small thumbnail | the Tree and Grid layouts exist |
+| **G10** | RECENT & FAVOURITES | the first group: the last 8 placed + ☆ starred types (F on a tile) | the picker's `RecentStore` (CE-4098) |
+
+⭐ **Cost:** thumbnails load lazily on first show and are cached (P5); a group of ~30 tiles is the usual page. ✅ decided `2026-11-01` (user: *"The thumbnail PNG, of course, will be a snapshot. Very likely doable automatically through the film director's capture, yes - You as an AI model has the full API via AI debug HTTP already available for that."*): the PNGs are SNAPSHOTS made AUTOMATICALLY through the film director's capture (`POST /director/stills` over the ai-debug HTTP API — one placed entity per type, framed, rendered, written to `assets/thumbnails/`), runnable by an AI session; ⛔ open: the tile size default.
 
 ## 3. Diagrams
 

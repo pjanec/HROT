@@ -12,6 +12,7 @@ current-answer: §3 is the resolution — Q70-A (degradation via capabilities + 
   bit-backed SUBSET of capabilities — the token set is the SOLE wire source and the NodeRole mask is
   DERIVED at ingest, superseding CE-282's roles-on-heartbeat) are all settled. §2 is the INVENTORY.
 related-designs:
+  - ../DESIGN_Node_Features.md — a feature's AVAILABILITY is advertised as a feature token hrot.feature.<id> on the NodeCapabilities topic
   - Architect_Question_72_Asset_Lifecycle_And_Distribution.md — the FIRST real feature-token
     vocabulary proposed on this facility (hrot.asset.needs.*). Q72-A/B build on §Q70-B/C and add no
     new facility; §Q70-C's roles-derived-from-tokens is the precedent they lean on.

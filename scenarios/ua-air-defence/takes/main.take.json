@@ -1,44 +1,81 @@
 {
-  "title": "Missile warning",
-  "caption": "A Stinger is launched; the Apache's missile warning makes it break low",
-  "anchors": {
-    "launch": {
-      "on": "shot",
-      "by": "Stinger Gunner",
-      "n": 1
-    }
-  },
-  "baked": {
-    "times": {
-      "launch": 87.7833
-    },
-    "tickHz": 60,
-    "scenarioHash": "dc8cfe83f0c231f5",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": "launch-1",
-      "seconds": 3,
-      "over": "Stinger Gunner",
-      "toward": "Apache",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.9,
-      "fov": 20,
-      "why": "the gunner's view"
-    },
-    {
-      "at": "launch+0.5",
-      "seconds": 4,
-      "follow": "Apache",
-      "distance": 40,
-      "pitch": -5,
-      "why": "the break"
-    }
-  ],
+  "title": "AA fire, aircraft break",
+  "caption": "The ground fires back: the Stinger and the ZU-23 against the aircraft",
   "clip": "F-52",
   "chapter": 10,
   "state": "ready",
-  "needs": "⚠ the decoys are not drawn (§2 G-2) — the clip shows the break only"
+  "endAt": "m+6",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Stinger (MANPADS)",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-12",
+      "follow": "Door Gunship UH-60",
+      "distance": 90,
+      "yaw": 60,
+      "pitch": 5,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "Door Gunship UH-60",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Door Gunship UH-60",
+      "distance": 40,
+      "yaw": 120,
+      "pitch": 5,
+      "lift": 2,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Stinger Gunner",
+      "distance": 30,
+      "yaw": 60,
+      "pitch": -10,
+      "lift": 1.5,
+      "fov": 50,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-12",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-12",
+      "until": "m+6",
+      "text": "The ground fires back: the Stinger and the ZU-23 against the aircraft"
+    }
+  ]
 }

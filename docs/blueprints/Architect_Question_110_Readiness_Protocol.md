@@ -6,6 +6,7 @@ current-answer: §3 (A–E, each APPROVED with its lean) · §4 the slices
 stale-below: nothing
 known-rot: nothing known
 related-designs:
+  - ../DESIGN_Player_Join.md — the join starts once a Player is admitted (AdmissionPolicy) and caught up
   - ../DESIGN_Cluster_Load_Phase.md — §11 owns cluster ready / play ready (R-3069–R-3071) and the UML this question builds on
   - Architect_Question_91_Player_Nodes.md — owns the late joiner (I1 in sync, K6 "a best-effort node never gates", C7 catch-up, L2′ the join gate); this question only makes its admission an explicit policy
   - ../DESIGN_Cluster_View.md — owns ClusterView, the one read model every gate reads (R-3066)

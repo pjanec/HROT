@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: docs/DESIGN_Entity_Control.md §8p (OS-1…OS-6, built overnight, not yet confirmed) — OS-2's fixed offset and OS-4's fixed chase camera become points on §4's continuum; nothing there is reverted
 related-designs:
+  - docs/DESIGN_Player_Join.md — J-10: an observer joins into this Observer camera
   - docs/DESIGN_Entity_Control.md — OWNS the FPS station (PossessionStation, FpsCameraDriver): §8p the shoulder view as built, §8l the free look (neck ±70°, torso twist, DragBody), §8n seats, §8o crew eyes, §8j zoom / lean keys
   - docs/DESIGN_Map_3D_Mode.md — OWNS MapCamera3D (the map's orbit camera: LookAt, Distance, Yaw, Pitch) the observer follow camera rides on, and the body drawing (torso twist, head turn)
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — OWNS where a unit's eyes sit and point (LookOf.EyeForward, the neck, the vision cone) — the "through his eyes" diagnostic view reads it

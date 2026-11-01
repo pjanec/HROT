@@ -9,6 +9,7 @@ known-conflict:
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md §7.6 (wall-clock QueryTimeSliced) — SUPERSEDED by §5.3–§5.4 here (S4 landed 2026-10-04, marker added there); its §7.5 band SHARES are kept, counted in work units.
   - docs/designs/modularizing/MOD1-DESIGN.md §3.6.2 (one receptor COMPONENT per modality) — replaced by sensor CHILDREN (§4); its TargetMemory modality OR-merge is kept.
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — §8 SR-27 / SR-30 reuse the per-TKB-type child-entity pattern for objective blocks and per-member evaluators
   - docs/DESIGN_Entity_Brain_View.md — §12g (R-1041) OWNS the live params / working-state write (no restart, the start record kept true) that revises §7.5's "changing them = re-assigning"
   - docs/DESIGN_Entity_Brain_View.md — §12a (R-1036) RETIRES the AI tab: §7.6's editing moves into the Brain tab's expanders, full only on the node running the brain
   - docs/DESIGN_Behaviour_Debugging.md — DBG-9 reads (opens) the unit's SOP as its running BTree; editing stays §7.6

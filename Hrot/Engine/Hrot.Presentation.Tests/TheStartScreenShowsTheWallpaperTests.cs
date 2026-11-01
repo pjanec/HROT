@@ -27,7 +27,8 @@ public sealed class TheStartScreenShowsTheWallpaperTests
         using var frame = UiFrameHarness.Begin();
         var wm = new WM(new IconAtlas(nint.Zero, 1, 1, 16f));
         wm.GlobalMenu.RegisterItem("File/Open Scenario", () => { }, allowedInIdle: true);
-        wm.RegisterWindow(new StartSurfaceWindow(wm.GlobalMenu, () => StartVariant.Actions));
+        var surface = new StartSurfaceWindow(wm.GlobalMenu, () => StartVariant.Actions, () => wm.StatusBar.Height);
+        wm.RegisterWindow(surface);
         wm.SwitchPerspective(WM.StartPerspectiveName);
         Assert.True(wm.IsStartShowing);
 
@@ -55,6 +56,18 @@ public sealed class TheStartScreenShowsTheWallpaperTests
                 for (int x = (int)(size.X * 0.35f); x < size.X * 0.65f; x++)
                 { var p = Raylib.GetImageColor(shot, x, y); if (p.R > 235 && p.G > 235 && p.B > 235) white++; }
             Assert.True(white >= 40, $"the menu text is drawn over the wallpaper ({white} near-white pixels)");
+
+            // ⭐ 2026-10-30 (user: "seem off center" · "the transparency need to be much less") — the panel is centred on the SURFACE (both axes, ±1.5 px) and
+            //   opaque enough that the wallpaper does not show through its padding (the arrow under it is bright)
+            var (pmin, pmax) = surface.PanelRect;
+            Assert.InRange((pmin.X + pmax.X) / 2f - (pos.X + size.X / 2f), -1.5f, 1.5f);
+            Assert.True(wm.StatusBar.Height > 0f, "the status bar is drawn here, so the centring must account for it");
+            Assert.InRange((pmin.Y + pmax.Y) / 2f - (pos.Y + (size.Y - wm.StatusBar.Height) / 2f), -1.5f, 1.5f);   // centred on the VISIBLE area
+            foreach (var (px, py) in new[] { (pmin.X + 12f, pmax.Y - 5f), (pmax.X - 12f, pmin.Y + 5f), (pmin.X + 5f, (pmin.Y + pmax.Y) / 2f) })
+            {
+                var p = Raylib.GetImageColor(shot, (int)px, (int)py);
+                Assert.True(Math.Max(p.R, Math.Max(p.G, p.B)) <= 40, $"the panel at ({px:0},{py:0}) lets the wallpaper through: {p.R},{p.G},{p.B}");
+            }
 
             string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-start");
             Directory.CreateDirectory(dir);

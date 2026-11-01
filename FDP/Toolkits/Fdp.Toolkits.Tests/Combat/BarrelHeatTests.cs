@@ -39,6 +39,52 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal((0.1f, 5f), stated);
         }
 
+        /// <summary>⭐ <c>CE-4144</c> (§5k-1 H-1) — a rifle is too hot on round 150, not 149, whatever its rate: the M24 (40 /min) and the
+        /// M4 (700 /min) alike. 🔴 Red-proof: restore the rate-based rule for SmallArms ⇒ the M24 is hot after 3 rounds.</summary>
+        [Theory]
+        [InlineData(40f)]
+        [InlineData(700f)]
+        public void CE4144_ARifle_IsTooHot_OnRound150_WhateverItsRate(float rateOfFire)
+        {
+            var w = Loaded(new WeaponMountDto { Category = WeaponCategory.SmallArms, RateOfFire = rateOfFire });
+            for (int i = 0; i < 149; i++) { Assert.True(Magazine.Ready(w)); Magazine.Spend(ref w); }
+            Assert.False(BarrelHeat.IsOverheated(w));
+            Assert.True(Magazine.Ready(w));
+            Magazine.Spend(ref w);   // round 150
+            Assert.True(BarrelHeat.IsOverheated(w));
+            Assert.False(Magazine.Ready(w));
+        }
+
+        /// <summary>⭐ <c>CE-4144</c> H-2 — a hot rifle takes 60 s to go cold; it fires again at half (30 s).</summary>
+        [Fact]
+        public void CE4144_ARifle_Cools_In60Seconds()
+        {
+            var mount = new WeaponMountDto { Category = WeaponCategory.SmallArms, RateOfFire = 700f };
+            Assert.Equal(BarrelHeat.SmallArmsCoolSeconds, BarrelHeat.For(mount).CoolSeconds);
+            Assert.Equal(60f, BarrelHeat.SmallArmsCoolSeconds);
+            var w = Loaded(mount);
+            for (int i = 0; i < 150; i++) Magazine.Spend(ref w);
+            Assert.True(BarrelHeat.IsOverheated(w));
+            BarrelHeat.Tick(ref w, 29f);
+            Assert.True(BarrelHeat.IsOverheated(w));
+            BarrelHeat.Tick(ref w, 2f);    // 31 s: below half
+            Assert.False(BarrelHeat.IsOverheated(w));
+            BarrelHeat.Tick(ref w, 29f);   // 60 s from hot
+            Assert.Equal(0f, w.Heat, 3);
+        }
+
+        /// <summary>⭐ <c>CE-4144</c> H-3 — the machine gun keeps the 4-s-at-cyclic rule (3000/min ⇒ round 200) and its 12 s cool.</summary>
+        [Fact]
+        public void CE4144_TheMachineGun_IsUnchanged_FourSecondsAtCyclic()
+        {
+            var w = Loaded(new WeaponMountDto { Category = WeaponCategory.MachineGun, RateOfFire = 600f });   // 600/min = 10/s ⇒ 40 rounds in 4 s
+            for (int i = 0; i < 39; i++) Magazine.Spend(ref w);
+            Assert.False(BarrelHeat.IsOverheated(w));
+            Magazine.Spend(ref w);
+            Assert.True(BarrelHeat.IsOverheated(w));
+            Assert.Equal(BarrelHeat.AutomaticCoolSeconds, BarrelHeat.For(new WeaponMountDto { Category = WeaponCategory.Autocannon, RateOfFire = 600f }).CoolSeconds);
+        }
+
         /// <summary>Every round spent heats; at 1 the barrel latches too hot — <see cref="Magazine.Ready"/> refuses — and opens again only
         /// once it has cooled to half. 🔴 Red-proof: drop the latch (open the moment it is below 1) ⇒ red at the 0.9 check.</summary>
         [Fact]

@@ -1,73 +1,98 @@
 {
   "title": "Air rescue",
-  "caption": "The medic carries the downed pilot aboard; the helicopter lifts off",
-  "anchors": {
-    "pick": {
-      "on": "near",
-      "who": "Medic",
-      "point": [
-        190,
-        318
-      ],
-      "within": 2
-    },
-    "lift": {
-      "on": "near",
-      "who": "UH-60 (doors off)",
-      "point": [
-        190,
-        340
-      ],
-      "within": 8
-    }
-  },
-  "baked": {
-    "times": {
-      "lift": 10.1333,
-      "pick": 31.3
-    },
-    "tickHz": 60,
-    "scenarioHash": "41735d1ab242f7dc",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 22,
-      "seconds": 4,
-      "lookAt": [
-        190,
-        330,
-        1
-      ],
-      "distance": 50,
-      "yaw": 45,
-      "pitch": -15,
-      "why": "the landing near the pilot"
-    },
-    {
-      "at": "pick",
-      "seconds": 5,
-      "follow": "Medic",
-      "distance": 8,
-      "yaw": 90,
-      "pitch": -12,
-      "why": "carried back"
-    },
-    {
-      "at": 68,
-      "seconds": 4,
-      "lookAt": [
-        190,
-        340,
-        5
-      ],
-      "distance": 60,
-      "yaw": 45,
-      "pitch": -5,
-      "why": "lift-off"
-    }
-  ],
+  "caption": "The medic carries the pilot aboard; the helicopter lifts off",
   "clip": "F-54",
   "chapter": 10,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+24",
+  "anchors": {
+    "m": {
+      "on": "embark",
+      "who": "Downed pilot",
+      "is": true
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Medic",
+      "distance": 50,
+      "yaw": 30,
+      "pitch": -30,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "follow": "Medic",
+      "distance": 14,
+      "yaw": 150,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Medic",
+      "distance": 12,
+      "yaw": 120,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "UH-60 (doors off)",
+      "distance": 50,
+      "yaw": 60,
+      "pitch": -15,
+      "lift": 2,
+      "fov": 50,
+      "segment": "moment"
+    },
+    {
+      "at": "m+6",
+      "follow": "UH-60 (doors off)",
+      "distance": 80,
+      "yaw": 60,
+      "pitch": 0,
+      "lift": 2,
+      "fov": 50,
+      "segment": "tail"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "tail",
+      "from": "m+6",
+      "to": "m+24",
+      "speed": 2
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m+24",
+      "text": "The medic carries the pilot aboard; the helicopter lifts off"
+    }
+  ]
 }

@@ -1,72 +1,97 @@
 {
-  "title": "RPG from the windows",
-  "caption": "An RPG man fires from one window, moves along the floor, and fires from the next",
+  "title": "RPG from windows",
+  "caption": "An RPG man at a window hits an IFV; the IFVs answer",
+  "clip": "F-43",
+  "chapter": 9,
+  "state": "ready",
+  "endAt": "m+5",
   "anchors": {
-    "rpg": {
+    "m": {
       "on": "shot",
       "by": "RPG Man",
       "n": 1
-    },
-    "rpg2": {
-      "on": "shot",
-      "by": "RPG Man",
-      "n": 2
     }
   },
-  "baked": {
-    "times": {
-      "rpg": 4.4333,
-      "rpg2": 15.6333
-    },
-    "tickHz": 60,
-    "scenarioHash": "b5f56415552e3834",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "rpg-2",
-      "seconds": 3,
+      "at": "m-8.2",
       "follow": "IFV",
-      "distance": 25,
-      "yaw": 90,
-      "pitch": -10,
-      "why": "the IFVs come up the street"
+      "distance": 70,
+      "yaw": 30,
+      "pitch": -20,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
     },
     {
-      "at": "rpg-0.5",
-      "seconds": 3,
+      "at": "m-4",
       "over": "RPG Man",
       "toward": "IFV",
-      "back": 3,
-      "height": 1,
-      "ahead": 0.6,
-      "why": "from the window"
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
     },
     {
-      "at": "rpg-0.5",
-      "seconds": 2.5,
+      "at": "m-0.7",
+      "over": "RPG Man",
+      "toward": "IFV",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
       "follow": "IFV",
-      "distance": 15,
-      "pitch": -6,
-      "speed": 0.5,
-      "replay": true,
-      "why": "the hit, slow"
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
     },
     {
-      "at": "rpg2-3",
-      "seconds": 4,
-      "lookAt": [
-        105,
-        101,
-        4
-      ],
-      "distance": 25,
-      "yaw": 90,
-      "pitch": -5,
-      "why": "the facade: he fires again from another window"
+      "at": "m-0.6",
+      "follow": "IFV",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
     }
   ],
-  "clip": "F-43",
-  "chapter": 9,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-8.2",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-8.2",
+      "until": "m+5",
+      "text": "An RPG man at a window hits an IFV; the IFVs answer"
+    }
+  ]
 }

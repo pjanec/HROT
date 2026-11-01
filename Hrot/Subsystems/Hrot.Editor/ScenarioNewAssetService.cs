@@ -159,6 +159,26 @@ public sealed class ScenarioNewAssetService : INewAssetService
     public static string SeedNameToScenarioName(string seedName)
         => Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName(seedName);
 
+    /// <summary>
+    /// ⭐ <c>CE-4140</c> — the description the New Scenario picker shows for a scenario RECIPE: the <c>header.description</c> of its <c>scenario.json</c> under <paramref name="recipesRoot"/>
+    /// (default <see cref="AssetRoots.ScenariosRecipesRoot"/>). Null for a non-scenario asset, a missing / unreadable file or an empty description.
+    /// </summary>
+    public static string? DescribeRecipe(IEditableAsset recipe, string? recipesRoot = null)
+    {
+        if (recipe is not ScenarioEditableAssetAdapter) return null;
+        try
+        {
+            var file = System.IO.Path.Combine(recipesRoot ?? AssetRoots.ScenariosRecipesRoot, recipe.Name, "scenario.json");
+            if (!System.IO.File.Exists(file)) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
+            if (doc.RootElement.TryGetProperty("header", out var header) && header.TryGetProperty("description", out var d)
+                && d.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrWhiteSpace(d.GetString()))
+                return d.GetString();
+        }
+        catch (Exception) { /* an unreadable file simply has no description */ }
+        return null;
+    }
+
     private static bool IsEmptyRecipe(IEditableAsset recipe)
         => string.Equals(recipe.Name, "Empty", StringComparison.OrdinalIgnoreCase);
 }

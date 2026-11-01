@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
@@ -71,6 +72,9 @@ namespace Fdp.Toolkit.Combat.Systems
             return status;
         }
 
+        /// <summary>⭐ CE-4143 — the shortest distance at which a barrel-direction point is placed ahead of the muzzle (metres).</summary>
+        private const float MinAlongBarrelRange = 50f;
+
         /// <summary>
         /// ⭐ WL-3 (§5e, W-4, W-7) — on target, with a granted round left and the fire clock run down, the round leaves through the
         /// ordinary path (a <see cref="Fdp.Toolkit.Combat.Events.WeaponFireIntent"/> that <see cref="FireProcessingSystem"/> turns
@@ -84,7 +88,16 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (task.RoundsGranted > 0) status.State = WeaponTaskState.Done;
                 return;
             }
-            if (status.State != WeaponTaskState.OnTarget || !repo.IsComponentTypeRegistered<WeaponMuscleState>()) return;
+            // ⭐ CE-4143 (§8r R-4) — a player's SIGHT shot (AlongBarrel) needs no on-target gate: the round leaves along the barrel as it
+            //   points NOW (a fast sweep shows the gun lagging). A mount with no muzzle data keeps the gate.
+            Vector3 point = task.Point;
+            bool along = false;
+            if (task.AlongBarrel != 0 && Muzzle.TryOf(repo, hull, task.MountIndex, out var muzzle, out var forward))
+            {
+                point = muzzle + forward * MathF.Max(MinAlongBarrelRange, Vector3.Distance(muzzle, task.Point));
+                along = true;
+            }
+            if ((!along && status.State != WeaponTaskState.OnTarget) || !repo.IsComponentTypeRegistered<WeaponMuscleState>()) return;
             if (!repo.HasComponent<WeaponMuscleState>(part)) repo.AddComponent(part, default(WeaponMuscleState));
             ref var clock = ref repo.GetComponentRW<WeaponMuscleState>(part);
             if (clock.CooldownRemaining > 0f) return;
@@ -94,7 +107,7 @@ namespace Fdp.Toolkit.Combat.Systems
             if (CombatTkb.WarheadOf(repo, unchecked((long)task.AmmoGuid)) is not { Indirect: true })
             {
                 float sigma = HitModel.Sigma(repo, hull, CombatTkb.MountOf(repo, hull, task.MountIndex), HitModel.Now(repo));
-                if (task.Target.IsNull ? LineOfFire.BlockedByNeutral(repo, hull, task.Point, sigma)
+                if (task.Target.IsNull ? LineOfFire.BlockedByNeutral(repo, hull, point, sigma)
                                        : LineOfFire.BlockedByNeutral(repo, hull, task.Target, sigma)) return;
             }
 
@@ -107,7 +120,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   WeaponFireIntentEgressTranslator), so a Brain+Muscle node cannot fire the round twice.
                 IsRemote    = true,
                 AtPoint     = task.Target.IsNull,
-                TargetPoint = task.Point,
+                TargetPoint = point,
                 AmmoGuid    = unchecked((long)task.AmmoGuid),   // ⭐ M8 — the round the weapon brain loaded
             });
             // ⭐ CE-2323 (R-2063) — the turret's own gap per round (an automatic weapon's cyclic rate too), so two guns never stay in step

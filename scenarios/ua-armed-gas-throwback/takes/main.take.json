@@ -1,54 +1,97 @@
 {
   "title": "Gas thrown back",
-  "caption": "A hardened rioter picks up the gas canister and throws it back at the police",
+  "caption": "A hardened rioter picks up the tear-gas canister and throws it back at the police",
+  "clip": "F-12",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+6",
   "anchors": {
-    "throw": {
+    "m": {
       "on": "shot",
       "by": "Hardened rioter",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "throw": 4.3
-    },
-    "tickHz": 60,
-    "scenarioHash": "7823ae933fba393f",
-    "buildSha": "0.1.1+85069170eaa56fe8db4eb9c6b858547966ca6dab"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": 1,
-      "seconds": 3,
-      "lookAt": [
-        100,
-        200,
-        1
-      ],
-      "distance": 28,
-      "yaw": 90,
-      "pitch": -15,
-      "why": "establish"
+      "at": "m-5",
+      "follow": "Policeman",
+      "distance": 60,
+      "yaw": 35,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
     },
     {
-      "at": "throw-3",
-      "seconds": 4,
-      "follow": "Hardened rioter",
-      "distance": 6,
-      "yaw": 160,
-      "pitch": -15,
-      "why": "he goes for the canister"
+      "at": "m-4",
+      "over": "Hardened rioter",
+      "toward": "Policeman",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
     },
     {
-      "at": "throw-0.5",
-      "seconds": 4,
+      "at": "m-0.7",
+      "over": "Hardened rioter",
+      "toward": "Policeman",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Policeman",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
       "follow": "Policeman",
       "distance": 12,
+      "yaw": 200,
       "pitch": -10,
-      "why": "it lands among the police"
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
     }
   ],
-  "clip": "F-12",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-5",
+      "to": "m-4"
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-5",
+      "until": "m+6",
+      "text": "A hardened rioter picks up the tear-gas canister and throws it back at the police"
+    }
+  ]
 }

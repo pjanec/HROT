@@ -164,7 +164,7 @@ namespace Hrot.SimHost.Tests
             var statusOut = new EntityWeaponTaskStatusEgressTranslator(participant);
             var statusIn = new EntityWeaponTaskStatusIngressTranslator(participant, brainMap);
             Assert.True(brainMap.TryGetEntity(6301L, out var brainTarget));
-            brain.AddComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3, Arc = ArcPreference.High });
+            brain.AddComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3, Arc = ArcPreference.High, AlongBarrel = 1 });
             Assert.True(brainMap.TryGetEntity(6300L, out var brainHull));
             Assert.True(muscleMap.TryGetEntity(6300L, out var muscleHull));
             brain.AddComponent(brainHull, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = brainTarget, ActiveMount = 33, HeldItem = HeldItemKind.Binoculars });
@@ -182,6 +182,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(muscleTarget, muscle.GetComponentRO<WeaponTask>(muscleTurret).Target);
             Assert.Equal(3u, muscle.GetComponentRO<WeaponTask>(muscleTurret).Epoch);
             Assert.Equal(ArcPreference.High, muscle.GetComponentRO<WeaponTask>(muscleTurret).Arc);   // ⭐ ui P2
+            Assert.Equal((byte)1, muscle.GetComponentRO<WeaponTask>(muscleTurret).AlongBarrel);      // ⭐ CE-4143 — a player's SIGHT shot keeps its flag on the wire
             Assert.Equal((byte)33, muscle.GetComponentRO<WeaponPosture>(muscleHull).ActiveMount);    // ⭐ ui P4
             Assert.Equal(HeldItemKind.Binoculars, muscle.GetComponentRO<WeaponPosture>(muscleHull).HeldItem);   // ⭐ CE-3234 (B-12, HI-1)
             Assert.Equal(muscleTarget, muscle.GetComponentRO<WeaponPosture>(muscleHull).Target);
@@ -196,6 +197,15 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new WeaponTaskStatus { Epoch = 3, State = WeaponTaskState.Slewing }, brain.GetComponentRO<WeaponTaskStatus>(brainTurret));
             Assert.Equal(1, taskOut.SentSampleCount);
             Assert.Equal(1, statusOut.SentSampleCount);
+
+            // ⭐ CE-4143 (§8r) — and 0 crosses as 0: the same order with AlongBarrel dropped (a LOCK press, an AI task) is a new sample
+            //   the muscle reads back as 0 — so the muscle keeps its on-target gate. (Red by construction if either translator drops the byte.)
+            brain.SetComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3, Arc = ArcPreference.High, AlongBarrel = 0 });
+            taskOut.ScanAndPublish(brain);
+            Thread.Sleep(300);
+            using (var cmd = new EntityCommandBuffer()) { taskIn.PollIngress(cmd, muscle); cmd.Playback(muscle); }
+            Assert.Equal((byte)0, muscle.GetComponentRO<WeaponTask>(muscleTurret).AlongBarrel);
+            Assert.Equal(2, taskOut.SentSampleCount);
         }
     }
 }

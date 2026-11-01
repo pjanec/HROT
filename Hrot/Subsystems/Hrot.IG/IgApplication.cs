@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using System.Collections.Generic;
 
@@ -794,12 +794,12 @@ public class IgApplication : IDisposable
                     //   the shared spawn adapter (also the toolbar's Spawn tool, which IG never serviced), the Add Entity
                     //   picker + submenu, the canvas menu. 📐 Equivalent to IG's own path: the shared adapter publishes
                     //   on the SAME bus (CE-3228) with OwnerAppInstanceId 0 — untargeted, exactly what
-                    //   IgEntityCreationRequests.FromSpawnCommand writes. (R-3067 / AQ109 X3: the MapCommandController that serviced ExCon's
+                    //   the retired IgEntityCreationRequests.FromSpawnCommand wrote (deleted by CE-259ax; the adapter now calls RequestEntityCreation). (R-3067 / AQ109 X3: the MapCommandController that serviced ExCon's
                     //   remote CMD_PLACE_ENTITY / CMD_START_AUTHORING is retired.)
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => ctx.World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                             ? ctx.World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
-                        Requests:     () => EntityCreation?.World.Bus),   // ⭐ CE-3228 — the creation pack reads this world's bus
+                        Creation:     () => EntityCreation),   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
                 });
             _igMapInteraction = igMapInteraction;
             // ⭐ CE-3169 — the menu orders' follow-up picks (a resolver: the adapter is built lazily, once the canvas exists).

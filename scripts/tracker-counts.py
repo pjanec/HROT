@@ -16,9 +16,13 @@ So stop doing that. Run this, paste the table.
   python3 scripts/tracker-counts.py            # print the table
   python3 scripts/tracker-counts.py --check    # exit 1 if the file's table disagrees
 
-Counting rules (these match how the programme has always read the tracker):
-  * an issue row is a top-level "- [ ] " / "- [x] " line that names a BP id
-  * a row's complexity is its FIRST `RW-x` tag; rows with none are counted under WIRING
+Counting rules:
+  * an issue row is a top-level "- [ ] " / "- [x] " line whose FIRST bold token is an id of ANY family
+    (BP- CE- HN- AX- MA- MD- MX- QA- ST- TM- …). ⭐ CE-073 (`2026-11-01`): it used to count BP- rows only,
+    so every `--check` OK ignored the majority of the file.
+  * a row's complexity is its FIRST `RW-x` tag: the size buckets in ORDER; an unknown letter buckets as
+    OTHER (a handful of rows used RW-N/O/P/Q/W as private labels); rows with none are counted under WIRING
+  * a second table breaks the same rows down by id family (open / done)
   * the *(refuted on verification)* row sits OUTSIDE the Total, so the checkbox tally of
     done rows is exactly one higher than the Total. That is correct, not a discrepancy.
 """
@@ -28,29 +32,31 @@ from collections import Counter
 from pathlib import Path
 
 TRACKER = Path(__file__).resolve().parent.parent / "docs" / "blueprints" / "Blueprint_Issues_Tracker.md"
-ORDER = ["WIRING", "RW-L", "RW-M", "RW-H"]
+ORDER = ["WIRING", "RW-XS", "RW-S", "RW-L", "RW-M", "RW-H", "RW-XL", "OTHER"]
 
 
 def scan(text):
-    """Return (counter keyed by (state, bucket), refuted_count, total_rows)."""
+    """Return (counter keyed by (state, bucket), refuted_count, total_rows, counter keyed by (state, family))."""
     counts = Counter()
+    families = Counter()
     refuted = 0
     rows = 0
     for line in text.split("\n"):
-        m = re.match(r"^- \[( |x)\] ", line)
-        if not m or not re.search(r"\*\*\[?BP-\d+", line):
+        m = re.match(r"^- \[( |x)\] (?:~~)?\*\*\[?([A-Z]{2,3})-\d+", line)
+        if not m:
             continue
         rows += 1
         state = m.group(1)
-        tag = re.search(r"`(RW-[LMH])`", line)          # FIRST tag wins
-        bucket = tag.group(1) if tag else "WIRING"
+        tag = re.search(r"`(RW-[A-Z]+)`", line)         # FIRST tag wins
+        bucket = (tag.group(1) if tag.group(1) in ORDER else "OTHER") if tag else "WIRING"
         # A refuted row is a done row struck through and marked REFUTED; it is excluded
         # from the Total by the table's own convention.
         if state == "x" and "REFUTED" in line:
             refuted += 1
             continue
         counts[(state, bucket)] += 1
-    return counts, refuted, rows
+        families[(state, m.group(2))] += 1
+    return counts, refuted, rows, families
 
 
 def render(counts, refuted):
@@ -69,14 +75,23 @@ def render(counts, refuted):
     return "\n".join(out), to, td
 
 
+def render_families(families):
+    out = ["| Id family | Open | Done |", "|---|---:|---:|"]
+    for fam in sorted({f for _, f in families}):
+        out.append(f"| `{fam}-` | {families.get((' ', fam), 0)} | {families.get(('x', fam), 0)} |")
+    return "\n".join(out)
+
+
 def main():
     text = TRACKER.read_text(encoding="utf-8")
-    counts, refuted, rows = scan(text)
+    counts, refuted, rows, families = scan(text)
     table, to, td = render(counts, refuted)
 
     check = "--check" in sys.argv
     if not check:
         print(table)
+        print()
+        print(render_families(families))
         print()
         print(f"# rows scanned: {rows}  (open {to} + done {td} + refuted {refuted})")
         return 0

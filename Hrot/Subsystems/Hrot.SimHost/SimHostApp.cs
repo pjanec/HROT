@@ -421,7 +421,7 @@ namespace Hrot.SimHost
                         EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                             Tkb:          () => _world is { } w && w.HasSingletonManaged<ITkbDatabase>()
                                                 ? w.GetSingletonManaged<ITkbDatabase>() : null,
-                            Requests:     () => EntityCreation?.World.Bus),   // ⭐ CE-3228 — the creation pack reads this world's bus
+                            Creation:     () => EntityCreation),   // ⭐ CE-259ax — the pack itself: authors call its RequestEntityCreation
                         // ⭐ W1 (VE-R) — in a replay the effect systems stand down through the world's ReplayState (CE-3329 P2).
                         ContributeExtras = static regs =>
                             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
@@ -572,7 +572,7 @@ namespace Hrot.SimHost
                     _simCorePack!.FormationTemplates,
                     configuredFactory?.CreateSimHostMissionSender() ?? new NullSimHostMissionSender(),
                     _eventHistoryService,
-                    idAllocator: _idAllocator,
+                    EntityCreation ?? throw new InvalidOperationException("SimHost visualization needs the node's creation pack (built by the bootstrapper before step 12)."),
                     localNodeId: localNodeId,
                     worldPosDescriptorId: _networkFactory?.WorldPosDescriptorId ?? 0,
                     gizmoBuffer: _gizmoBuffer,

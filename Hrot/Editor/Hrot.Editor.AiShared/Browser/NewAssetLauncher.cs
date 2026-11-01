@@ -85,14 +85,24 @@ public sealed class NewAssetLauncher
     /// </summary>
     public void Open(AuthoringProduct product) => OpenCore(product);
 
-    private void OpenCore(AuthoringProduct? product)
+    /// <summary>
+    /// ⭐ <c>CE-4140</c> (File › New Scenario…) — the SAME picker and the SAME <c>showNewAssetDialog</c> (Save-As naming, then the ONE create-core), over the recipes of ONE
+    /// <paramref name="kind"/> only. ⛔ No second picker or dialog. A kind this launcher has no service for lists nothing.
+    /// </summary>
+    public void Open(AssetKind kind) => OpenCore(product: null, only: kind);
+
+    private void OpenCore(AuthoringProduct? product, AssetKind? only = null)
     {
-        var source = new RecipePickerSource(_services, _describe, _recipeCategory, product);
+        var services = only is { } k
+            ? _services.Where(s => s.Key == k).ToDictionary(s => s.Key, s => s.Value)
+            : _services;
+        var source = new RecipePickerSource(services, _describe, _recipeCategory, product);
 
         var request = new PickerRequest
         {
-            ContextKey = product is { } p ? $"assets.new.{p.ToString().ToLowerInvariant()}" : "assets.new",
-            Title = source.Title,
+            ContextKey = only is { } ok ? $"assets.new.{ok.ToString().ToLowerInvariant()}"
+                       : product is { } p ? $"assets.new.{p.ToString().ToLowerInvariant()}" : "assets.new",
+            Title = only is { } tk ? $"New {tk}" : source.Title,
             // ⭐ CE-460 (D2) — the product's default technology is pre-selected: Enter takes it.
             InitialSelectionId = source.DefaultEntryId(),
             Layout = PickerLayout.Tree,

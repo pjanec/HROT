@@ -1,8 +1,12 @@
 {
-  "title": "The sentry turns",
-  "caption": "A sentry notices a man creeping up behind him and turns to face him",
+  "title": "Sentry turns",
+  "caption": "A man creeps up behind the sentry — with a 360° view, he turns to face him",
+  "clip": "F-22",
+  "chapter": 5,
+  "state": "ready",
+  "endAt": "m+6",
   "anchors": {
-    "near": {
+    "m": {
       "on": "near",
       "who": "Hostile B",
       "point": [
@@ -12,44 +16,71 @@
       "within": 5
     }
   },
-  "baked": {
-    "times": {
-      "near": 20.5667
-    },
-    "tickHz": 60,
-    "scenarioHash": "30acb6149472068d",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": 2,
-      "seconds": 3,
+      "at": "m-20",
       "follow": "Sentry",
-      "distance": 8,
-      "yaw": 90,
+      "distance": 70,
+      "yaw": 0,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Hostile B",
+      "toward": "Sentry",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "follow": "Sentry",
+      "distance": 9,
+      "yaw": 170,
       "pitch": -8,
-      "why": "the sentry watching his front"
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "moment"
     },
     {
-      "at": "near-6",
-      "seconds": 4,
-      "follow": "Hostile B",
-      "distance": 10,
-      "yaw": 90,
-      "pitch": -15,
-      "why": "behind him, someone creeping in"
-    },
-    {
-      "at": "near-1",
-      "seconds": 4,
+      "at": "m+2",
       "follow": "Sentry",
-      "distance": 7,
-      "yaw": 300,
-      "pitch": -6,
-      "why": "he turns"
+      "distance": 30,
+      "yaw": 60,
+      "pitch": -35,
+      "lift": 1.5,
+      "fov": 45,
+      "segment": "moment"
     }
   ],
-  "clip": "F-22",
-  "chapter": 5,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-20",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-20",
+      "until": "m+6",
+      "text": "A man creeps up behind the sentry — with a 360° view, he turns to face him"
+    }
+  ]
 }

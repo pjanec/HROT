@@ -7,6 +7,7 @@ using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Scenarios;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.UI.Picker;
 using System.Linq;
 using Xunit;
 
@@ -139,7 +140,8 @@ public sealed class ScenarioMenuTests
             Action<AssetKindFilter, Action<IEditableAsset?>>? openPicker         = null,
             Action<Action<string>>?                          openSaveAsDialog   = null,
             Action<IReadOnlyList<SidecarFileInfo>>?           showMigrationHistory = null,
-            FakeScenarioSession?                             session            = null)
+            FakeScenarioSession?                             session            = null,
+            Action?                                          openNewScenario    = null)
     {
         var s        = session ?? new FakeScenarioSession { LoadedScenarioNameValue = loadedScenarioName };
         var commands = new RecordingCommandSet();
@@ -152,7 +154,8 @@ public sealed class ScenarioMenuTests
             session:              s,
             openPicker:           openPicker       ?? ((kinds, cb) => { }),
             openSaveAsDialog:     openSaveAsDialog ?? (cb => { }),
-            showMigrationHistory: showMigrationHistory);
+            showMigrationHistory: showMigrationHistory,
+            openNewScenario:      openNewScenario);
 
         return (s, commands, menu);
     }
@@ -320,19 +323,125 @@ public sealed class ScenarioMenuTests
     /// <summary>
     /// ⚠⚠ <b>NEW SCENARIO IS NOT CLOSE, and this rail is why both ids exist</b> (it kept the New-Exercise rail's point). 📐 The deferred-load state machine calls the LOCAL wipe as step 1 of its own sequence, so if <c>scenario.new</c> had been pointed at the
     /// cluster-wide leave every load would publish a second <c>Idle</c> intent from inside the handler for the first. ⇒ two verbs, asserted apart.
+    /// ⭐ <c>CE-4140</c> — New Scenario… is no longer the local wipe at all (it opens the scenario-recipe picker): neither verb wipes here, and Close still only leaves.
     /// </summary>
     [Fact]
-    public void NewScenarioClearsLocally_WhileCloseLeavesTheCluster()
+    public void NewScenarioOpensTheRecipePicker_WhileCloseLeavesTheCluster_AndNeitherWipesLocally()
     {
-        var (session, commands, _) = CreateRegistrar();
+        int opened = 0;
+        var (session, commands, _) = CreateRegistrar(openNewScenario: () => opened++);
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.NewId).Success);
-        Assert.Equal(1, session.ClearWorldCallCount);
+        Assert.Equal(1, opened);
+        Assert.Equal(0, session.ClearWorldCallCount);   // ⭐ CE-4140 — it WAS the local wipe, which on the Start screen (no world) did nothing
         Assert.Equal(0, session.CloseCallCount);
 
         Assert.True(commands.Invoke(ScenarioMenuCommands.CloseId).Success);
         Assert.Equal(1, session.CloseCallCount);
-        Assert.Equal(1, session.ClearWorldCallCount);   // Close did not wipe locally
+        Assert.Equal(0, session.ClearWorldCallCount);   // Close did not wipe locally
+        Assert.Equal(1, opened);
+    }
+
+    // ══ ③a New Scenario… from a recipe (CE-4140) ═══════════════════════════════
+
+    private sealed class FakeNewService : Hrot.Editor.AiShared.Recipes.INewAssetService
+    {
+        private readonly List<IEditableAsset> _recipes;
+        public FakeNewService(AssetKind kind, params string[] recipes)
+        {
+            Kind = kind;
+            _recipes = recipes.Select(n => (IEditableAsset)new Hrot.Editor.ScenarioEditableAssetAdapter(Guid.Empty, n, string.Empty, isRecipe: true)).ToList();
+        }
+        public AssetKind Kind { get; }
+        public IEditableAsset CreateNew(IEditableAsset? recipe, string name, string relPath) => throw new NotSupportedException();
+        public IReadOnlyList<IEditableAsset> AvailableRecipes() => _recipes;
+        public bool IsBlankTemplate(IEditableAsset recipe) => false;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4140</c> (a) — <b>New Scenario… from the Start screen opens the New picker for the SCENARIO kind, listing exactly the scenario recipes</b> (a BTree recipe in the same registry is not listed), each with its
+    /// description; the command is offered in Idle and enabled with nothing loaded. 🔴 Red-proof: the old handler (<c>session.ClearWorld()</c>) ⇒ no request is ever opened (the user's "does nothing").
+    /// </summary>
+    [Fact]
+    public void CE4140_NewScenario_FromIdle_OpensThePickerOverExactlyTheScenarioRecipes()
+    {
+        var services = new Dictionary<AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>
+        {
+            [AssetKind.Scenario] = new FakeNewService(AssetKind.Scenario, "basic-desert", "demo-city"),
+            [AssetKind.BTree]    = new FakeNewService(AssetKind.BTree, "patrol"),
+        };
+        var requests = new List<PickerRequest>();
+        var launcher = new NewAssetLauncher((r, cb) => requests.Add(r), services, (k, r) => { },
+                                            describe: a => $"about {a.Name}");
+        var (session, commands, menu) = CreateRegistrar(openNewScenario: () => launcher.Open(AssetKind.Scenario));
+        Assert.Equal(ClusterState.Idle, session.CurrentClusterState);                       // nothing loaded: the Start screen
+        Assert.Contains(menu.AllowedInIdleItems(), a => a.Path == FileMenuLayout.NewScenario);
+        Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+
+        Assert.True(commands.Invoke(ScenarioMenuCommands.NewId).Success);
+
+        var request = Assert.Single(requests);
+        Assert.Equal("New Scenario", request.Title);
+        var entries = request.ItemsProvider!();
+        Assert.Equal(new[] { "basic-desert", "demo-city" }, entries.Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal));
+        Assert.All(entries, e => Assert.Equal(AssetKind.Scenario, ((RecipeChoice)e.Tag!).Kind));
+        Assert.Equal("about basic-desert", entries.Single(e => e.Name == "basic-desert").Description);   // the description shows
+        Assert.Equal(0, session.ClearWorldCallCount);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4140</c> (b) — <b>picking a recipe creates a NEW scenario under the chosen name and leaves the recipe untouched.</b> The pick reaches the host's naming dialog; <c>ScenarioNewAssetService.CreateNew</c> then
+    /// loads the recipe BY ITS RECIPE NAME and saves what it loaded under the NEW name (never the recipe's own) — so a later Save cannot overwrite the recipe; the recipe's <c>scenario.json</c> is byte-identical afterwards.
+    /// The description a recipe shows is its <c>scenario.json</c> header's. 🔴 Red-proof: <c>SaveScenarioAs(recipe name)</c> in <c>CreateNew</c> ⇒ the save-name assertion.
+    /// </summary>
+    [Fact]
+    public void CE4140_PickingARecipe_CreatesANewScenarioUnderTheNewName_AndTheRecipeFileIsUntouched()
+    {
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce4140-" + Guid.NewGuid().ToString("N"));
+        var dir = System.IO.Path.Combine(root, "basic-desert");
+        System.IO.Directory.CreateDirectory(dir);
+        var file = System.IO.Path.Combine(dir, "scenario.json");
+        System.IO.File.WriteAllText(file, "{\"header\":{\"terrainName\":\"basic-desert\",\"description\":\"What: the empty seed.\"}}");
+        var before = System.IO.File.ReadAllBytes(file);
+        try
+        {
+            var creation = new FakeScenarioCreationSession();
+            var service = new Hrot.Editor.ScenarioNewAssetService(creation, new[] { "basic-desert" });
+            var services = new Dictionary<AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService> { [AssetKind.Scenario] = service };
+            (AssetKind Kind, IEditableAsset Recipe)? named = null;
+            PickerRequest? request = null; Action<PickerResult>? answer = null;
+            var launcher = new NewAssetLauncher((r, cb) => { request = r; answer = cb; }, services, (k, r) => named = (k, r),
+                                                describe: a => Hrot.Editor.ScenarioNewAssetService.DescribeRecipe(a, root));
+            launcher.Open(AssetKind.Scenario);
+
+            var entry = Assert.Single(request!.ItemsProvider!());
+            Assert.Equal("What: the empty seed.", entry.Description);                       // the header's description
+            answer!(new PickerResult(new[] { entry }));                              // the user picks it
+            Assert.Equal((AssetKind.Scenario, "basic-desert"), (named!.Value.Kind, named.Value.Recipe.Name));
+
+            // the host's naming dialog confirms "MyScenario": the ONE create-core
+            var created = service.CreateNew(named.Value.Recipe, "MyScenario", "Combat");
+            Assert.False(created.IsEditorOwned && created.Name == "basic-desert");
+            Assert.Equal("MyScenario", created.Name);
+            Assert.Equal(new[] { "Combat/MyScenario" }, creation.SaveScenarioAsCalls);        // saved under the NEW name …
+            Assert.DoesNotContain("basic-desert", creation.SaveScenarioAsCalls);               // … never the recipe's own
+            Assert.Equal(new[] { Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipeName("basic-desert") }, creation.LoadScenarioByNameCalls);
+            Assert.Equal(before, System.IO.File.ReadAllBytes(file));                          // the recipe file is untouched
+        }
+        finally { System.IO.Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>⭐ <c>CE-4140</c> (c) — a host with no scenario-recipes dialog (CGF, the Orchestrator host) shows New Scenario… GREYED with its reason, like Load Scenario…; it does not wipe or do nothing silently.</summary>
+    [Fact]
+    public void CE4140_AHostWithNoDialog_ShowsNewScenarioGreyed_WithItsReason()
+    {
+        var (session, commands, _) = CreateRegistrar();   // openNewScenario: null
+        var d = commands.Get(ScenarioMenuCommands.NewId)!;
+        Assert.False(d.IsEnabled());
+        Assert.Contains("unavailable", d.DynamicDisplayName!(), StringComparison.Ordinal);
+        Assert.Contains("no scenario recipes", d.DynamicDisplayName!(), StringComparison.Ordinal);
+        Assert.False(commands.Invoke(ScenarioMenuCommands.NewId).Success);
+        Assert.Equal(0, session.ClearWorldCallCount);
     }
 
     // ══ ④ Checkpoint ════════════════════════════════════════════════════════
@@ -549,7 +658,7 @@ public sealed class ScenarioMenuTests
 
         // ⭐ And the always-serviceable ones stay live — a blanket disable would be just as wrong.
         Assert.True(cmds.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
-        Assert.True(cmds.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+        Assert.False(cmds.Get(ScenarioMenuCommands.NewId)!.IsEnabled());   // ⭐ CE-4140 — New Scenario… needs the host's recipe picker: greyed with no seam
         Assert.True(cmds.Get(ScenarioMenuCommands.TakeCheckpointId)!.IsEnabled());
     }
 
@@ -573,7 +682,7 @@ public sealed class ScenarioMenuTests
     [Fact]
     public void EveryAlwaysServiceableCommand_IsEnabled_WhenScenarioLoaded()
     {
-        var (_, commands, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario");
+        var (_, commands, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario", openNewScenario: () => { });
 
         Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
         Assert.True(commands.Get(ScenarioMenuCommands.CloseId)!.IsEnabled());
@@ -634,14 +743,16 @@ public sealed class ScenarioMenuTests
     [Fact]
     public void New_MenuItem_OnClick_InvokesCommand()
     {
-        var (session, _, menu) = CreateRegistrar();
+        int opened = 0;
+        var (session, _, menu) = CreateRegistrar(openNewScenario: () => opened++);
 
         Assert.True(menu.Root.Children.TryGetValue("File", out var fileNode));
         Assert.True(fileNode.Children.TryGetValue("New Scenario…", out var leaf));   // ⭐ CE-1443: File/New Scenario…
         Assert.NotNull(leaf.OnClick);
 
         leaf.OnClick();
-        Assert.Equal(1, session.ClearWorldCallCount);
+        Assert.Equal(1, opened);   // ⭐ CE-4140 — it opens the scenario-recipe picker (it was ClearWorld)
+        Assert.Equal(0, session.ClearWorldCallCount);
     }
 
     // ── BATCH-26: scenario.load → unified modal opens ──────────────────────

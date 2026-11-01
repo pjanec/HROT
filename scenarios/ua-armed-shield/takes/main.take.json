@@ -1,59 +1,103 @@
 {
   "title": "No shot through bystanders",
-  "caption": "Civilians in the line of fire hold the shot; the rifleman fires once the line is clear",
+  "caption": "A civilian stands in the line of fire: the rifleman holds, then fires once the line is clear",
+  "clip": "F-09",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+4",
   "anchors": {
-    "fire": {
+    "m": {
       "on": "shot",
       "by": "Rifleman",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "fire": 41.6667
-    },
-    "tickHz": 60,
-    "scenarioHash": "5ebfd3f4e66765b8",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": 2,
-      "seconds": 4,
+      "at": "m-14",
+      "follow": "Rifleman",
+      "distance": 80,
+      "yaw": 35,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
       "over": "Rifleman",
       "toward": "Insurgent",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.6,
-      "fov": 25,
-      "why": "through his sights: the insurgent behind a row of civilians"
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
     },
     {
-      "at": 10,
-      "seconds": 4,
-      "lookAt": [
-        80,
-        205,
-        1
-      ],
-      "distance": 50,
-      "yaw": 90,
-      "pitch": -30,
-      "why": "high side: the line, the row on it, the man walking off it"
-    },
-    {
-      "at": "fire-1.5",
-      "seconds": 3,
+      "at": "m-0.7",
       "over": "Rifleman",
       "toward": "Insurgent",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.9,
-      "fov": 20,
-      "why": "clear line — the shot"
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Insurgent",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Insurgent",
+      "distance": 12,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 35,
+      "segment": "replay"
     }
   ],
-  "clip": "F-09",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+4"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m-1.5",
+      "text": "Civilians in the line: the rifleman holds"
+    },
+    {
+      "at": "m-1.5",
+      "until": "m+4",
+      "text": "The line is clear: he fires"
+    }
+  ]
 }

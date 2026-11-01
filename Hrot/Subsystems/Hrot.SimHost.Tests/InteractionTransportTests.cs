@@ -187,6 +187,7 @@ namespace Hrot.SimHost.Tests
                 UseSeq = 6, UseVerb = 1, UseTarget = 777L,   // ⭐ CE-1151
                 Lean = 2,                                    // ⭐ CE-1212
                 Binoculars = 1,                              // ⭐ CE-1219
+                LookFrom = new System.Numerics.Vector3(1f, 2f, 3f), LookDir = new System.Numerics.Vector3(0f, 0.6f, 0.8f), FirePref = 2,   // ⭐ CE-4143
             });
             station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = 300 });
             station.Bus.SwapBuffers();
@@ -224,6 +225,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(((byte)6, (byte)1, 777L), (frame.UseSeq, frame.UseVerb, frame.UseTarget));   // ⭐ CE-1151 — the use press arrives unchanged
             Assert.Equal((byte)2, frame.Lean);                                                           // ⭐ CE-1212 — and the lean held
             Assert.Equal((byte)1, frame.Binoculars);                                                     // ⭐ CE-1219 — and the binoculars
+            Assert.Equal((new System.Numerics.Vector3(1f, 2f, 3f), new System.Numerics.Vector3(0f, 0.6f, 0.8f), (byte)2), (frame.LookFrom, frame.LookDir, frame.FirePref));   // ⭐ CE-4143 — the look ray and L preference cross
             Assert.True(frame.IsRemote);
             var release = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>().ToArray());
             Assert.Equal(300L, release.StationNodeId);

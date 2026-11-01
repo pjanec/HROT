@@ -114,7 +114,7 @@ public sealed class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(17, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
+        Assert.Equal(21, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -123,6 +123,41 @@ public sealed class EffectTests
         }
         Assert.Equal(EffectTkbCatalog.ExplosionLarge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb81mmMortarHe, 0f).Explosion);
         Assert.Equal(0, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbM67Grenade, 0f).MuzzleFlash);   // a thrown grenade: no flash
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4145</c> (docs/DESIGN_Visual_Effects.md §12 K-1 … K-3) — an INERT round (an ammo the TKB knows, whose warhead carries no explosive)
+    /// never explodes, whatever its damage: the M2's 12.7 mm (damage 60) draws a dust puff and an 8 cm hole, an APFSDS a bigger puff and a 30 cm
+    /// gouge — the muzzle flash and tracer stay those of the damage class (K-3). An explosive round, a round with its own set, an ammo the TKB does
+    /// not know and a rifle round are unchanged. 🔒 User: <i>"hit effect from M2 … looks like explosive ammo (orange ball) and does very big
+    /// decal … there should be just dust puffs and way smaller decals (8cm)"</i>. 🔴 Red-proof: drop the kinetic line in <c>EffectsFor</c> ⇒ the
+    /// M2 drew <c>ExplosionMedium</c> (5 m) + <c>DecalMedium</c> (1.8 m).
+    /// </summary>
+    [Fact]
+    public void CE4145_AnInertRound_DrawsDustAndAHole_NeverAnExplosion()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var m2 = EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbHmgAp, 60f);
+        Assert.Equal((EffectTkbCatalog.ImpactPuffMedium, EffectTkbCatalog.DecalHoleMedium), (m2.Explosion, m2.Decal));
+        Assert.Equal((EffectTkbCatalog.MuzzleFlashMedium, EffectTkbCatalog.Tracer), (m2.MuzzleFlash, m2.Tracer));   // K-3: by the damage class
+        var apfsds = EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb120mmApfsds, 1100f);
+        Assert.Equal((EffectTkbCatalog.ImpactPuffLarge, EffectTkbCatalog.DecalGouge, EffectTkbCatalog.MuzzleFlashLarge), (apfsds.Explosion, apfsds.Decal, apfsds.MuzzleFlash));
+        Assert.Equal(EffectTkbCatalog.ImpactPuffMedium, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb25mmApdsT, 60f).Explosion);
+
+        // unchanged: a round with its own set, an explosive round, an ammo the TKB does not know, a rifle round, the damage-0 path
+        Assert.Equal((EffectTkbCatalog.ExplosionMedium, EffectTkbCatalog.DecalMedium), (EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbM67Grenade, 400f).Explosion, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbM67Grenade, 400f).Decal));
+        Assert.Equal(EffectTkbCatalog.ExplosionLarge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb81mmMortarHe, 400f).Explosion);
+        Assert.Equal(EffectTkbCatalog.ExplosionMedium, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.TkbGau8Hei, 60f).Explosion);   // 0.03 kg of explosive: still a burst
+        Assert.Equal((EffectTkbCatalog.ExplosionMedium, EffectTkbCatalog.DecalMedium), (EffectTkbCatalog.EffectsFor(tkb, 0, 60f).Explosion, EffectTkbCatalog.EffectsFor(tkb, 0, 60f).Decal));   // unknown ammo: the damage default
+        var rifle = EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb556Ball, 25f);
+        Assert.Equal((EffectTkbCatalog.ExplosionSmall, EffectTkbCatalog.DecalSmall), (rifle.Explosion, rifle.Decal));
+        Assert.Equal(EffectTkbCatalog.ExplosionHuge, EffectTkbCatalog.EffectsFor(tkb, MunitionTkbCatalog.Tkb155mmHowitzerHe, 0f).Explosion);   // the CH-1 path
+
+        // the looks: dust, not fire; the user's 8 cm
+        Assert.Equal(0.08f, EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.DecalHoleMedium)!.Size, 3);
+        Assert.Equal(0.3f, EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.DecalGouge)!.Size, 3);
+        Assert.Equal((EffectKind.Explosion, 1.4f, "#C8B89A"), (EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ImpactPuffMedium)!.Kind, EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ImpactPuffMedium)!.Size, EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ImpactPuffMedium)!.ColorHex));
+        Assert.Equal((EffectKind.Explosion, 3f), (EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ImpactPuffLarge)!.Kind, EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.ImpactPuffLarge)!.Size));
     }
 
     /// <summary>
@@ -349,7 +384,9 @@ public sealed class EffectTests
 
         var fx = Effects(world);
         Vector3 At(Entity e) => world.GetComponentRO<SimTransform>(e).Position;
-        Assert.Equal(10f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalLarge).Entity).X);
+        // ⭐ CE-4145 (§12 K-2) — the tank's round is INERT (APFSDS): a LARGE-class mark is the 30 cm gouge now, not the 4.5 m crater — still the
+        //   tank's size class, still bigger than the bullet's
+        Assert.Equal(10f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalGouge).Entity).X);
         Assert.Equal(30f, At(fx.Single(f => f.Type == EffectTkbCatalog.DecalSmall).Entity).X);
     }
 

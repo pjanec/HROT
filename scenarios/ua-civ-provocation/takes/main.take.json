@@ -1,94 +1,87 @@
 {
-  "title": "Protest, provocation, riot",
-  "caption": "Police facing a crowd make it angry; after a baton charge some — never the friendly ones — riot",
-  "anchors": {
-    "arrive": {
-      "on": "near",
-      "who": "Police shield",
-      "point": [
-        194,
-        259
-      ],
-      "within": 4
-    },
-    "charge": {
-      "on": "task",
-      "who": "Police baton 1",
-      "is": "BatonCharge"
-    },
-    "riot": {
-      "on": "side",
-      "who": "*Protester",
-      "is": "Hostile"
-    }
-  },
-  "baked": {
-    "times": {
-      "riot": 57.15
-    },
-    "tickHz": 60,
-    "scenarioHash": "b240734d4d839098",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "arrive",
-      "charge"
-    ]
-  },
-  "shots": [
-    {
-      "at": 3,
-      "seconds": 4,
-      "lookAt": [
-        200,
-        265,
-        1.5
-      ],
-      "distance": 22,
-      "pitch": -6,
-      "why": "eye level in the crowd: placards and fists"
-    },
-    {
-      "at": "arrive-6",
-      "seconds": 4,
-      "over": "Police shield",
-      "toward": "Protester 6",
-      "back": 7,
-      "height": 2.2,
-      "why": "the police walk up: their view"
-    },
-    {
-      "at": "charge-0.5",
-      "seconds": 4,
-      "follow": "Police baton 1",
-      "distance": 10,
-      "pitch": -12,
-      "why": "the charge"
-    },
-    {
-      "at": "charge-0.5",
-      "seconds": 3,
-      "follow": "Police baton 1",
-      "distance": 7,
-      "yaw": 180,
-      "pitch": -8,
-      "speed": 0.5,
-      "replay": true,
-      "why": "replay from the crowd's side, slow"
-    },
-    {
-      "at": "riot-1",
-      "seconds": 5,
-      "lookAt": [
-        190,
-        265,
-        1
-      ],
-      "distance": 60,
-      "pitch": -35,
-      "why": "wide: a few break out, most stand"
-    }
-  ],
+  "title": "Protest, police, riot",
+  "caption": "Placards and fists: the police walk up and charge with batons — one protester riots",
   "clip": "F-07",
   "chapter": 3,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+6",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Police shield",
+      "n": 1
+    }
+  },
+  "keys": [
+    {
+      "at": "m-40",
+      "follow": "Police shield",
+      "distance": 90,
+      "yaw": 35,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Police shield",
+      "toward": "Protester 6",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Police shield",
+      "toward": "Protester 6",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Protester 6",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-40",
+      "to": "m-4",
+      "speed": 6
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+6"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-40",
+      "until": "m-4",
+      "text": "A protest; the police walk up and hold the line"
+    },
+    {
+      "at": "m-4",
+      "until": "m+6",
+      "text": "The baton charge: one protester riots"
+    }
+  ]
 }

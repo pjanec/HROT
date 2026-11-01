@@ -1,34 +1,66 @@
 {
   "title": "Platoon march",
-  "caption": "Two squads march in column while the third lies back",
-  "anchors": {},
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "15725bb74b6f1dc4",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 5,
-      "seconds": 6,
-      "follow": "Alpha 1",
-      "distance": 70,
-      "yaw": 90,
-      "pitch": -50,
-      "why": "high, moving with the columns"
-    },
-    {
-      "at": 60,
-      "seconds": 5,
-      "follow": "Bravo 2",
-      "distance": 15,
-      "yaw": 135,
-      "pitch": -12,
-      "why": "in the file"
-    }
-  ],
+  "caption": "Two squads march in column; the third lies back",
   "clip": "F-30",
   "chapter": 7,
-  "state": "ready"
+  "state": "ready",
+  "endAt": 91.5,
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "Alpha 1",
+      "point": [
+        200,
+        150
+      ],
+      "within": 30
+    }
+  },
+  "keys": [
+    {
+      "at": 0.5,
+      "follow": "Alpha 1",
+      "distance": 38,
+      "yaw": 20,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": 40,
+      "follow": "Bravo 1",
+      "distance": 38,
+      "yaw": 90,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": 80,
+      "follow": "Alpha 1",
+      "distance": 38,
+      "yaw": 160,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.5,
+      "to": 91.5,
+      "speed": 5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.5,
+      "until": 91.5,
+      "text": "A platoon marches in column: two squads move, one lies back"
+    }
+  ]
 }

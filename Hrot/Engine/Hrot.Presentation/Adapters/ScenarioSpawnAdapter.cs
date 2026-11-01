@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -18,6 +19,7 @@ using Hrot.UI.Common.Facades;
 using Hrot.ScenarioEditor.Gizmos;
 using Fdp.Toolkit.Replication;
 using Hrot.Core.Network;
+using Hrot.Common.EntityCreation;
 
 namespace Hrot.UI.Common.Adapters
 {
@@ -34,7 +36,8 @@ namespace Hrot.UI.Common.Adapters
     /// </summary>
     public sealed class ScenarioSpawnAdapter : ISpawnController
     {
-        private readonly FdpEventBus        _bus;
+        private readonly EntityCreation     _creation;
+        private readonly Func<string>?      _nameResolver;
         private readonly JsonAttributeCompiler? _jsonCompiler;
         private readonly ITkbDatabase?      _tkbDb;
         private readonly GlobalGizmoManager? _globalGizmoManager;
@@ -67,8 +70,11 @@ namespace Hrot.UI.Common.Adapters
         /// </summary>
         public long LastSelectedTkbType { get; private set; } = TkbEntityTypes.Tank_M1Abrams;
 
-        /// <param name="bus">⭐ <c>CE-3228</c> — the bus the host's creation pack reads: every affordance (placement, area, zone, route) ends in
-        /// an <c>EntityCreationRequest</c> published here (Entity Authoring Surface G1 / acceptance ⑧; Entity Creation §3.4d).</param>
+        /// <param name="creation">⭐ <c>CE-259ax</c> — the host's creation pack: every affordance (placement, area, zone, route) ends in ONE call,
+        /// <see cref="EntityCreation.RequestEntityCreation"/> (Entity Authoring Surface G1 / acceptance ⑧, §4). ⛔ This adapter no longer maps a
+        /// request itself — that was a second copy of what the affordance does.</param>
+        /// <param name="nameResolver">⭐ <c>G2</c> — optional: supplies the NAME of each placed entity (a session-sequential generator).
+        /// It replaces the TKB-default name; an explicit <c>name</c> in the properties JSON still wins, being compiled on top.</param>
         /// <param name="jsonCompiler">
         /// The JSON->ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
         /// Used to parse <c>InitialAttributesJson</c> into concrete ECS component objects
@@ -91,13 +97,15 @@ namespace Hrot.UI.Common.Adapters
         /// <c>Activate(Spawn)</c>, while area/route bring their own ids.</para>
         /// </param>
         public ScenarioSpawnAdapter(
-            FdpEventBus bus,
+            EntityCreation creation,
             JsonAttributeCompiler? jsonCompiler = null,
             ITkbDatabase? tkbDb = null,
             GlobalGizmoManager? globalGizmoManager = null,
-            Hrot.ScenarioEditor.Tools.ToolController? tools = null)
+            Hrot.ScenarioEditor.Tools.ToolController? tools = null,
+            Func<string>? nameResolver = null)
         {
-            _bus          = bus;
+            _creation     = creation ?? throw new ArgumentNullException(nameof(creation));
+            _nameResolver = nameResolver;
             _jsonCompiler = jsonCompiler;
             _tkbDb        = tkbDb;
             _globalGizmoManager = globalGizmoManager;
@@ -206,11 +214,13 @@ namespace Hrot.UI.Common.Adapters
                         defaultName = template.Name;
                     }
 
-                    cmd.InitialComponents.Add(new EntityInfo
-                    {
-                        Name    = new Fdp.Core.FixedString64(defaultName),
-                        ForceId = ForceId.Neutral,
-                    });
+                    // ⭐ G2 — a resolver-supplied name (the gizmo put an EntityInfo on the command) replaces the TKB default.
+                    if (!cmd.InitialComponents.Exists(c => c is EntityInfo))
+                        cmd.InitialComponents.Add(new EntityInfo
+                        {
+                            Name    = new Fdp.Core.FixedString64(defaultName),
+                            ForceId = ForceId.Neutral,
+                        });
 
                     // Apply JSON overrides (e.g. Affiliation) on top of the baseline.
                     if (!string.IsNullOrEmpty(cmd.InitialAttributesJson) && _jsonCompiler != null)
@@ -227,6 +237,7 @@ namespace Hrot.UI.Common.Adapters
                 // ⭐ CE-1017 S2 (D5 rev 3, approved): ALWAYS MULTI for physical entities — each click places,
                 //   right-click / Esc ends. (Areas, routes and zones keep their own single-shot tools.)
                 autoPopOnPlace:        false,
+                nameResolver:          _nameResolver,
                 onRemove:              () => _globalGizmoManager!.Unregister(id),
                 displayName:           _tkbDb != null && _tkbDb.TryGetByType(tkbType, out var shown)
                                             && !string.IsNullOrWhiteSpace(shown.Name) ? shown.Name : null);
@@ -418,35 +429,30 @@ namespace Hrot.UI.Common.Adapters
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <c>CE-3228</c> — THE one mapping from what a tool produced to a creation REQUEST, for every affordance (placement,
-        /// area, zone, route). ⛔ No <c>SpawnEntityCommand</c> is published here any more: that is the ORDER level, which skips the
-        /// routing and the load-balanced grants (Entity Authoring Surface G1 / acceptance ⑧). Owner 0 ⇒ the system picks (the default
-        /// processor). The transform and velocity ride in the component list, as every request carries them.
-        /// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4d.
+        /// ⭐⭐⭐ <c>CE-259ax</c> — THE one tail, for every affordance (placement, area, zone, route): an AUTHOR calls
+        /// <see cref="EntityCreation.RequestEntityCreation"/> (R-145). ⛔ No <c>SpawnEntityCommand</c> is published and no request is built here:
+        /// the command is only the SHAPE the tools hand over. Owner 0 ⇒ the system picks (the default processor). The velocity rides in the
+        /// component list; the transform is the affordance's own parameter.
+        /// 📄 docs/DESIGN_Entity_Authoring_Surface.md §4, §9.
         /// </summary>
         public void Request(SpawnEntityCommand cmd)
-            => _bus.PublishManaged(RequestFor(cmd));
-
-        /// <summary>⭐ <c>CE-3228</c> — the pure mapping behind <see cref="Request"/>.</summary>
-        public static EntityCreationRequest RequestFor(SpawnEntityCommand cmd)
         {
-            var components = cmd.InitialComponents ?? new System.Collections.Generic.List<object>();
-            if (cmd.InitialTransform.HasValue) components.Add(cmd.InitialTransform.Value);
-            if (cmd.InitialVelocity.HasValue)  components.Add(cmd.InitialVelocity.Value);
-            return new EntityCreationRequest
-            {
-                RequestId             = cmd.RequestId == System.Guid.Empty ? System.Guid.NewGuid() : cmd.RequestId,
-                OwnerAppInstanceId    = cmd.OwnerNodeId,
-                TkbType               = cmd.TkbType,
-                DisType               = cmd.DisType,
-                InitialComponents     = components,
-                InitialAttributesJson = cmd.InitialAttributesJson,
-                PreAllocatedNetworkId = cmd.NetworkId,
-                InitType              = cmd.InitType,
-                ReliableInitTimeout   = cmd.ReliableInitTimeout,
-                IsTransient           = cmd.IsTransient,
-                SpawnHeight           = cmd.SpawnHeight,   // CE-1017 S2 — the creator resolves the level
-            };
+            var components = cmd.InitialComponents;
+            if (cmd.InitialVelocity.HasValue)
+                (components ??= new System.Collections.Generic.List<object>()).Add(cmd.InitialVelocity.Value);
+
+            _creation.RequestEntityCreation(
+                tkbType:               cmd.TkbType,
+                transform:             cmd.InitialTransform,
+                initialComponents:     components,
+                owner:                 cmd.OwnerNodeId,
+                initType:              cmd.InitType,
+                initialAttributesJson: cmd.InitialAttributesJson,
+                isTransient:           cmd.IsTransient,
+                disType:               cmd.DisType,
+                requestId:             cmd.RequestId,
+                reliableInitTimeout:   cmd.ReliableInitTimeout,
+                spawnHeight:           cmd.SpawnHeight);
         }
     }
 }

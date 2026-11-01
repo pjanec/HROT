@@ -1,47 +1,100 @@
 {
   "title": "Doors",
-  "caption": "A locked door is avoided, a closed one opened on the way; a locksmith unlocks the front",
-  "anchors": {},
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "333beb8deec90cc3",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 2,
-      "seconds": 4,
-      "follow": "Visitor",
-      "distance": 10,
-      "yaw": 90,
-      "pitch": -15,
-      "why": "he walks round the locked front"
-    },
-    {
-      "at": 20,
-      "seconds": 4,
-      "lookAt": [
-        107,
-        108,
-        1.5
-      ],
-      "distance": 10,
-      "yaw": 270,
-      "pitch": -8,
-      "why": "the back door opens"
-    },
-    {
-      "at": 40,
-      "seconds": 4,
-      "follow": "Locksmith",
-      "distance": 6,
-      "yaw": 90,
-      "pitch": -8,
-      "why": "the locksmith at the front"
-    }
-  ],
+  "caption": "A visitor skips the locked front door and opens the back door; the locksmith unlocks the front",
   "clip": "F-35",
   "chapter": 8,
-  "state": "ready"
+  "state": "ready",
+  "endAt": 30,
+  "anchors": {
+    "m": {
+      "on": "near",
+      "who": "Visitor",
+      "point": [
+        102,
+        104
+      ],
+      "within": 3
+    }
+  },
+  "keys": [
+    {
+      "at": 0.3,
+      "follow": "Visitor",
+      "distance": 35,
+      "yaw": 200,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "a"
+    },
+    {
+      "at": 3,
+      "follow": "Visitor",
+      "distance": 10,
+      "yaw": 150,
+      "pitch": -15,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "a"
+    },
+    {
+      "at": 9,
+      "follow": "Visitor",
+      "distance": 14,
+      "yaw": 60,
+      "pitch": -20,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "b"
+    },
+    {
+      "at": 14,
+      "follow": "Locksmith",
+      "distance": 14,
+      "yaw": 120,
+      "pitch": -20,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "b"
+    },
+    {
+      "at": 22,
+      "follow": "Locksmith",
+      "distance": 40,
+      "yaw": 120,
+      "pitch": -40,
+      "lift": 2,
+      "fov": 50,
+      "segment": "c"
+    }
+  ],
+  "segments": [
+    {
+      "id": "a",
+      "from": 0.3,
+      "to": 9
+    },
+    {
+      "id": "b",
+      "from": 9,
+      "to": 22
+    },
+    {
+      "id": "c",
+      "from": 22,
+      "to": 30
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.3,
+      "until": 9,
+      "text": "The front door is locked: the visitor goes round to the back"
+    },
+    {
+      "at": 9,
+      "until": 30,
+      "text": "The locksmith unlocks the front"
+    }
+  ]
 }

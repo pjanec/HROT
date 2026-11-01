@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Rules view mockup (SR-109, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Source of truth for the live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Editing while live</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 900px; height: 900px; box-sizing: border-box; padding: 24px; background: #17191c; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; flex-direction: column; gap: 20px;">
+
+  <div style="display: flex; gap: 20px;">
+    <div style="width: 300px; background: #202328; border: 1px solid #353941; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 2px;">
+      <span style="padding: 6px 10px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">+ ADD</span>
+      <button style="text-align: left; background: #2a3342; color: #e4e6ea; border: 0; border-radius: 6px; padding: 8px 10px; font: inherit;">◎ Objective ▸ <span style="color: #9aa0a8;">Reach · Hold · Clear · Destroy · Protect · No harm · Composite</span></button>
+      <button style="text-align: left; background: transparent; color: #e4e6ea; border: 0; border-radius: 6px; padding: 8px 10px; font: inherit;">⚡ Trigger</button>
+      <button style="text-align: left; background: transparent; color: #e4e6ea; border: 0; border-radius: 6px; padding: 8px 10px; font: inherit;">⚡◎ Inject <span style="color: #9aa0a8;">— trigger + expected response</span></button>
+      <button style="text-align: left; background: transparent; color: #e4e6ea; border: 0; border-radius: 6px; padding: 8px 10px; font: inherit;">▦ From library ▸ <span style="color: #9aa0a8;">macros/control, missions, evaluation</span></button>
+      <div style="height: 1px; background: #353941; margin: 4px 6px;"></div>
+      <button style="text-align: left; background: transparent; color: #e4e6ea; border: 0; border-radius: 6px; padding: 8px 10px; font: inherit;">✉ Message players now…</button>
+      <button style="text-align: left; background: transparent; color: #e4e6ea; border: 0; border-radius: 6px; padding: 8px 10px; font: inherit;">▶ Run an action now…</button>
+    </div>
+
+    <div style="flex-grow: 1; background: #202328; border: 1px solid #353941; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-weight: 600;">Drag to connect</span>
+      <span style="color: #9aa0a8; font-size: 12px;">Drag from a row's handle onto another row. The link is written as a condition in the target's When, so the view and the data stay one thing.</span>
+      <div style="position: relative; height: 150px; border-radius: 6px; background: #1b1d21;">
+        <div style="position: absolute; left: 20px; top: 26px; width: 150px; height: 22px; border-radius: 4px; background: #3d7fd9; color: #fff; font-size: 11px; box-sizing: border-box; padding: 4px 8px;">Hold the bridge</div>
+        <div style="position: absolute; left: 166px; top: 31px; width: 12px; height: 12px; border-radius: 6px; background: #b38cf0; border: 2px solid #1b1d21;"></div>
+        <div style="position: absolute; left: 176px; top: 36px; width: 120px; height: 2px; background: #b38cf0;"></div>
+        <div style="position: absolute; left: 294px; top: 36px; width: 2px; height: 62px; background: #b38cf0;"></div>
+        <div style="position: absolute; left: 230px; top: 96px; width: 200px; height: 26px; box-sizing: border-box; border: 2px dashed #b38cf0; border-radius: 4px; color: #d7c2fb; font-size: 11px; padding: 5px 8px;">Reinforce the village ⚡</div>
+        <div style="position: absolute; left: 230px; top: 126px; padding: 3px 8px; border-radius: 4px; background: #2c2440; color: #d7c2fb; font-size: 11px;">adds: when @Hold the bridge is ▾ Achieved</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #202328; border: 1px solid #353941; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+    <span style="font-weight: 600;">What an edit does while the exercise runs</span>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid #30343b; border-radius: 6px; overflow: hidden; font-size: 12px;">
+      <div style="padding: 8px 10px; background: #262a30; color: #9aa0a8;">You change…</div>
+      <div style="padding: 8px 10px; background: #262a30; color: #9aa0a8;">…and it</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">a pending objective or an armed trigger</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">uses the new values when it starts or next evaluates</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">an active objective's settings</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">applies now; progress already made is kept</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">a trigger that is waiting or acting</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">finishes the running delay / step with the old values; later steps use the new list</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">a trigger that already fired once</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">offers <b>Re-arm with these rules</b></div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">delete an active item</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">asks first, then deactivates it (its history stays)</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">anything</div>
+      <div style="padding: 8px 10px; border-top: 1px solid #30343b;">is journaled with who and when, shows on the timeline, and lasts for this run only (the scenario file changes in edit mode)</div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 20px;">
+    <div style="flex-grow: 1; background: #202328; border: 1px solid #353941; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-weight: 600;">Live edit of "Ease off" — cooldown</span>
+      <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #9aa0a8;">Cooldown</span><input value="5 min" style="width: 90px; background: #2b2f35; color: #e4e6ea; border: 1px solid #5aa8ff; border-radius: 4px; padding: 5px 6px; font: inherit;"><span style="color: #9aa0a8; font-size: 12px;">was 10 min</span></div>
+      <div style="padding: 8px 10px; border-radius: 6px; border: 1px solid #3a4560; background: #1f2633; color: #a9ceff; font-size: 12px;">Live edits apply to THIS RUN only and are journaled. The scenario file changes only in edit mode — to keep this change, take a checkpoint and make a scenario from it.</div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 5px; padding: 6px 12px; font: inherit;">Cancel</button>
+        <button style="background: #2f6fd6; color: #fff; border: 0; border-radius: 5px; padding: 6px 12px; font: inherit; font-weight: 600;">Apply</button>
+      </div>
+    </div>
+
+    <div style="width: 330px; background: #202328; border: 1px solid #353941; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-weight: 600;">Graph view</span>
+      <span style="color: #9aa0a8; font-size: 12px;">Same items without the time axis — for authoring chains.</span>
+      <div style="position: relative; height: 150px; border-radius: 6px; background: #1b1d21;">
+        <div style="position: absolute; left: 10px; top: 14px; padding: 4px 8px; border-radius: 4px; background: #2f8f5e; font-size: 11px;">Reach</div>
+        <div style="position: absolute; left: 62px; top: 24px; width: 30px; height: 2px; background: #b38cf0;"></div>
+        <div style="position: absolute; left: 92px; top: 14px; padding: 4px 8px; border-radius: 4px; background: #3d7fd9; font-size: 11px;">Hold</div>
+        <div style="position: absolute; left: 138px; top: 24px; width: 30px; height: 2px; background: #b38cf0;"></div>
+        <div style="position: absolute; left: 168px; top: 14px; padding: 4px 8px; border-radius: 4px; border: 1px dashed #6b7280; font-size: 11px; color: #9aa0a8;">Clear</div>
+        <div style="position: absolute; left: 112px; top: 34px; width: 2px; height: 40px; background: #b38cf0;"></div>
+        <div style="position: absolute; left: 84px; top: 74px; padding: 4px 8px; border-radius: 4px; background: #d8762f; font-size: 11px;">⚡ Counter-attack</div>
+        <div style="position: absolute; left: 206px; top: 34px; width: 2px; height: 76px; background: #b38cf0;"></div>
+        <div style="position: absolute; left: 176px; top: 110px; padding: 4px 8px; border-radius: 4px; border: 1px solid #9aa0a8; font-size: 11px; color: #c9ccd2;">⚡ End</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

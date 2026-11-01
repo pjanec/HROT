@@ -681,6 +681,56 @@ public sealed class DirectorPackTests : IDisposable
         }
     }
 
+    /// <summary>A sink that notes, for every captured film frame, the host's sim time when the frame was ASKED for (the moment it was framed).</summary>
+    private sealed class MomentSink : IFrameSink
+    {
+        private readonly Func<double> _sim;
+        public MomentSink(Func<double> sim) => _sim = sim;
+        public readonly List<double> AskedAt = new();
+        public System.Threading.Tasks.Task Frame(string path, int width, int height, int supersample, SubtitleFrame? subtitle)
+        {
+            AskedAt.Add(_sim());
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+        public System.Threading.Tasks.Task Card(string path, int width, int height, string text)
+        {
+            File.WriteAllText(path, "");
+            return System.Threading.Tasks.Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4127</c> (PLAN_Feature_Films §1d, F-18) — on a SEEKING host each captured frame is DRAWN at the moment it was framed. The map draws after the
+    /// runner's tick; a recording moves at once when stepped, so a step taken at the END of the tick drew every picture one step past the moment its camera
+    /// was placed for — an over-the-shoulder camera and the body it follows jumped against each other (measured ±20 px at 30 fps on an ~18 Hz recording).
+    /// Here: after the tick that asked for a frame, the host is still at that frame's sim time.
+    /// 🔴 Mutation: <c>DirectorRunner.TickPlaying</c> stepping at the end of the tick again (<c>StepOnce(paced)</c> for a seeking host) ⇒ the host is one step on ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4127_OnASeekingHost_EachCapturedFrame_IsDrawnAtTheMomentItWasFramed()
+    {
+        FilmStudio.Reset();
+        var (a, _) = TwoRecordingsWithTheirTakes();
+        var recordings = new FakeRecordings(a);
+        Assert.Null(recordings.Open(Hrot.Presentation.DebugApi.RecordingName.Files(new[] { a }), 0d));
+        var host = new RecordingHost(recordings, _root);
+        var sink = new MomentSink(() => host.SimTime);
+        var runner = new DirectorRunner(host, new WindowCinema(() => null), new MapLayerOverride(() => null), sink) { Recordings = recordings };
+        Assert.Empty(runner.Play(new PlayRequest(Reel.Of("s-a", "main"), Capture: new CaptureOptions(Path.Combine(_root, "film-4127"), Fps: 30, Encode: false))));
+
+        var drawnAt = new List<double>();
+        for (int i = 0; i < 5000 && runner.Busy; i++)
+        {
+            int before = sink.AskedAt.Count;
+            runner.Tick();
+            if (sink.AskedAt.Count > before) drawnAt.Add(host.SimTime);   // what the map would draw after this tick
+        }
+        Assert.True(drawnAt.Count >= 20, $"{drawnAt.Count} frames captured");
+        for (int i = 0; i < drawnAt.Count; i++)
+            Assert.True(Math.Abs(drawnAt[i] - sink.AskedAt[sink.AskedAt.Count - drawnAt.Count + i]) < 1e-9,
+                        $"frame {i}: framed at {sink.AskedAt[sink.AskedAt.Count - drawnAt.Count + i]:0.####} s, drawn at {drawnAt[i]:0.####} s");
+    }
+
     private static readonly System.Numerics.Vector3 AAt = new(1f, 0f, 0f), BAt = new(0f, 2f, 0f);
 
     /// <summary>Recording folders A and B under <see cref="_root"/>, each with its take s-a/main BESIDE it: A's looks at <see cref="AAt"/> for 1 s, B's at
@@ -932,5 +982,47 @@ public sealed class DirectorPackTests : IDisposable
         Assert.Null(FilmStudio.Shot);
         for (int i = 0; i < 30; i++) frame.Run(Tick);
         Assert.Equal((DirectorPhase.Stopped, -1), (pack.Runner.Phase, pack.Runner.CurrentItem));   // and it stays stopped
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4119</c> part 1 — a stills plan whose take hangs its SEGMENTS on an anchor the run does not show names it in <c>problems</c>, for <c>times:[…]</c> and for every key alike — never a silent 1:1 film map
+    /// (<c>FilmTimeMap.Of</c> falls back to identity when a segment's anchor is unresolved). 🔴 Mutation: the <c>film.Unresolved</c> forwarding removed from <c>DirectorStills.PlanOf</c> ⇒ no problem ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4119_AStillsPlan_NamesAnUnresolvedSegmentAnchor_InItsProblems_NeverASilentOneToOneMap()
+    {
+        var take = new Take
+        {
+            Scenario = "s", Name = "main",
+            Anchors = new Dictionary<string, AnchorSpec> { ["blast#1"] = new() { On = "blast", N = 1 } },
+            Keys = new[] { new CameraKey { At = new AtExpr(1d), Camera = new CameraSpec { LookAt = System.Numerics.Vector3.Zero, Distance = 20f } } },
+            Segments = new[] { new TimeSegment { From = new AtExpr(-2d, "blast#1"), To = new AtExpr(0.5d, "blast#1") } },
+            EndAt = new AtExpr(4d),
+        };
+
+        var (plan, problems) = DirectorStills.PlanOf(take, new double[] { 1d, 2d }, everyKey: false, anchors: _ => null);   // the run shows no blast
+        Assert.Contains(problems, p => p.Contains("blast#1") && p.Contains("1:1"));
+        Assert.Equal(2, plan.Count);                                                  // the plan is still made (1:1) — but it SAYS so
+        Assert.All(plan, p => Assert.Equal(-1, p.Segment));   // the identity map: no segment
+
+        var (_, keyed) = DirectorStills.PlanOf(take, null, everyKey: true, anchors: _ => null);
+        Assert.Contains(keyed, p => p.Contains("blast#1") && p.Contains("1:1"));
+
+        var (_, resolved) = DirectorStills.PlanOf(take, new double[] { 1d }, everyKey: false, anchors: n => n == "blast#1" ? 3d : null);   // the run shows it: nothing to say
+        Assert.DoesNotContain(resolved, p => p.Contains("1:1"));
+    }
+
+    /// <summary>⭐ <c>CE-4119</c> part 1 — <c>DirectorUnits.Census</c>: the shown world's entity count and how many carry a name (the figures <c>skippedWhy</c> quotes); null for no world. 🔴 Mutation: counting unnamed entities as named ⇒ red.</summary>
+    [Fact]
+    public void CE4119_TheCensus_CountsTheShownWorldsEntities_AndTheNamedOnes()
+    {
+        Assert.Null(DirectorUnits.Census(null));
+        using var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        world.RegisterComponent<Fdp.Core.EntityInfo>();
+        var named = world.CreateEntity(); world.AddComponent(named, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1 }); world.AddComponent(named, new Fdp.Core.EntityInfo { Name = "Alpha" });
+        var blank = world.CreateEntity(); world.AddComponent(blank, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2 }); world.AddComponent(blank, new Fdp.Core.EntityInfo());
+        world.CreateEntity();
+        Assert.Equal((3, 1), DirectorUnits.Census(world));
     }
 }

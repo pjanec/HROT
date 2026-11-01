@@ -79,8 +79,19 @@ namespace Hrot.Editor.Tests.Adapters
 
     public sealed class EditorSpawnAdapterTests
     {
-        private readonly FdpEventBus          _bus     = new();
+        private readonly EntityRepository     _world   = new();
+        private readonly Fdp.Interfaces.ITkbDatabase _tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        private readonly Hrot.Common.EntityCreation.EntityCreation _creation;
         private readonly DebugPrimitiveBuffer _buffer  = new();
+
+        public EditorSpawnAdapterTests()
+        {
+            _world.RegisterEvent<GizmoDragUpdateEvent>();
+            _world.RegisterEvent<GizmoMouseEvent>();
+            _world.RegisterEvent<GizmoKeyEvent>();
+            // ⭐ CE-259ax — the PRODUCTION pack: the adapter's tail is `creation.RequestEntityCreation`, so a fake would hide a drift.
+            _creation = Hrot.TestShared.TestEntityCreation.For(_world, _tkb);
+        }
 
         private GlobalGizmoManager MakeManager() => new GlobalGizmoManager(_buffer);
 
@@ -89,7 +100,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void StartPlacementMode_RegistersGizmoWithManager()
         {
             var manager = MakeManager();
-            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
             adapter.StartPlacementMode(2001L, null);
 
             Assert.Equal(1, manager.ActiveCount);
@@ -99,7 +110,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void StartAreaAuthoringMode_RegistersGizmoWithManager()
         {
             var manager = MakeManager();
-            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
             adapter.StartAreaAuthoringMode("");
 
             Assert.Equal(1, manager.ActiveCount);
@@ -109,7 +120,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {
             var manager = MakeManager();
-            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
             adapter.StartRouteAuthoringMode();
 
             Assert.Equal(1, manager.ActiveCount);
@@ -143,7 +154,7 @@ namespace Hrot.Editor.Tests.Adapters
                                            ToolModality.Modal, ToolArbiter.Global);
             controller.Register(spawn, _ => adapter!.ArmPlacement());
 
-            adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+            adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager, tools: controller);
             adapter.StartPlacementMode(2001L, null);
 
             Assert.Same(spawn, controller.ActiveModal);
@@ -155,7 +166,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var manager    = MakeManager();
             var controller = MakeController(manager);
-            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+            var adapter    = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager, tools: controller);
 
             adapter.StartAreaAuthoringMode("");
 
@@ -178,7 +189,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var manager    = MakeManager();
             var controller = MakeController(manager);
-            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+            var adapter    = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager, tools: controller);
 
             adapter.StartZoneAuthoringMode("");
 
@@ -196,7 +207,7 @@ namespace Hrot.Editor.Tests.Adapters
         public void ArmZoneAuthoring_AsksTheArmForTheTerrainZoneType()
         {
             var manager = MakeManager();
-            var adapter = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
 
             Assert.Equal(ToolActivationOutcome.Armed, adapter.ArmZoneAuthoring());
             Assert.Equal(1, manager.ActiveCount);
@@ -208,7 +219,7 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var manager    = MakeManager();
             var controller = MakeController(manager);
-            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+            var adapter    = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager, tools: controller);
 
             adapter.StartRouteAuthoringMode();
 
@@ -226,13 +237,125 @@ namespace Hrot.Editor.Tests.Adapters
         {
             var manager    = MakeManager();
             var controller = MakeController(manager);
-            var adapter    = new ScenarioSpawnAdapter(_bus, globalGizmoManager: manager, tools: controller);
+            var adapter    = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager, tools: controller);
 
             adapter.StartAreaAuthoringMode("");
             adapter.StartRouteAuthoringMode();
 
             Assert.Equal(ScenarioToolIds.PlaceRoute, controller.ActiveModal?.Id);
             Assert.Equal(1, manager.ActiveCount);
+        }
+
+        // ── CE-259ax — the adapter's tail is ONE call: EntityCreation.RequestEntityCreation ───────────────────
+        //
+        // 📄 DESIGN_Entity_Authoring_Surface.md §9. Driven the way an operator does: the real gizmo is armed through the real
+        // GlobalGizmoManager and fed GizmoMouseEvents; the PRODUCTION pack's request lands on the world bus.
+
+        private void Click(GlobalGizmoManager manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton button, bool pressed, float x, float y)
+        {
+            _world.Bus.Publish(new GizmoMouseEvent { Button = button, IsPressed = pressed, WorldPos = new Vector3(x, y, 0f) });
+            _world.Bus.SwapBuffers();
+            manager.Execute(_world, 0.016f);
+        }
+
+        private List<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> Requests()
+        {
+            _world.Bus.SwapBuffers();
+            return ((Fdp.ModuleHost.Abstractions.ISimulationView)_world)
+                .ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>().ToList();
+        }
+
+        /// <summary>🔴 <c>G1</c> / acceptance ⑧ — an authored AREA becomes a REQUEST (it used to be a node-local ORDER on some paths).</summary>
+        [Fact]
+        public void CE259ax_AnAuthoredArea_ReachesTheRequestPath_WithItsPolylineAndTheAreaType()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
+            Assert.Equal(ToolActivationOutcome.Armed, adapter.ArmAreaAuthoring());
+
+            foreach (var (x, y) in new[] { (100f, 200f), (300f, 400f), (500f, 600f) })
+                Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, x, y);
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, 500f, 600f);
+
+            var req = Assert.Single(Requests());
+            Assert.Equal(TkbEntityTypes.TacGraphic_Area, req.TkbType);
+            Assert.Equal(0, req.OwnerAppInstanceId);   // the default processor
+            Assert.Contains(req.InitialComponents!, c => c is Hrot.IG.Components.EditablePolyline);
+            Assert.Contains(req.InitialComponents!, c => c is SimTransform);
+        }
+
+        [Fact]
+        public void CE259ax_AnAuthoredRoute_ReachesTheRequestPath_WithItsPlan()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
+            Assert.Equal(ToolActivationOutcome.Armed, adapter.ArmRouteAuthoring());
+
+            foreach (var (x, y) in new[] { (10f, 20f), (30f, 40f) })
+                Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, x, y);
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Right, true, 30f, 40f);
+
+            var req = Assert.Single(Requests());
+            Assert.Equal(TkbEntityTypes.TacGraphic_Route, req.TkbType);
+            Assert.Contains(req.InitialComponents!, c => c is Hrot.Map.Common.Components.RoutePlan);
+        }
+
+        [Fact]
+        public void CE259ax_APlacement_ReachesTheRequestPath_AtTheClickedPoint()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, globalGizmoManager: manager);
+            adapter.StartPlacementMode(TkbEntityTypes.Tank_M1Abrams, null);   // no arbiter: arms directly
+
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, 12f, 34f);
+
+            var req = Assert.Single(Requests());
+            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, req.TkbType);
+            var t = Assert.Single(req.InitialComponents!.OfType<SimTransform>());
+            Assert.Equal(12f, t.Position.X);
+            Assert.Equal(34f, t.Position.Y);
+        }
+
+        /// <summary>🔴 <c>G2</c> / acceptance ⑨ — the resolver's string reaches the request's EntityInfo (it used to be dropped).</summary>
+        [Fact]
+        public void CE259ax_TheNameResolver_ReachesTheRequestsEntityInfo()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager, nameResolver: () => "Alpha-7");
+            adapter.StartPlacementMode(TkbEntityTypes.Tank_M1Abrams, null);
+
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, 1f, 2f);
+
+            var req = Assert.Single(Requests());
+            var info = Assert.Single(req.InitialComponents!.OfType<EntityInfo>());
+            Assert.Equal("Alpha-7", info.Name.ToString());
+        }
+
+        /// <summary>Non-vacuity for the rail above: with NO resolver the TKB-default name is used, so it is the resolver that changes it.</summary>
+        [Fact]
+        public void CE259ax_WithoutAResolver_TheTkbDefaultNameIsUsed()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager);
+            adapter.StartPlacementMode(TkbEntityTypes.Tank_M1Abrams, null);
+
+            Click(manager, Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, 1f, 2f);
+
+            var info = Assert.Single(Assert.Single(Requests()).InitialComponents!.OfType<EntityInfo>());
+            Assert.NotEqual("Alpha-7", info.Name.ToString());
+        }
+
+        /// <summary>
+        /// Acceptance ⑧ as a source guard: the adapter builds NO request and publishes NO order — its only tail is the affordance.
+        /// ⚠ A text rail (it cannot see a renamed bus), so it pairs with the behavioural rails above.
+        /// </summary>
+        [Fact]
+        public void CE259ax_TheAdapterSource_PublishesNothingItself()
+        {
+            var text = System.IO.File.ReadAllText(System.IO.Path.Combine(Fdp.Testing.TestRepo.Root, "Hrot/Engine/Hrot.Presentation/Adapters/ScenarioSpawnAdapter.cs"));
+            Assert.DoesNotContain("PublishManaged", text);
+            Assert.DoesNotContain("new EntityCreationRequest", text);
+            Assert.Contains("RequestEntityCreation(", text);
         }
     }
 

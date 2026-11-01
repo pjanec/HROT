@@ -1,59 +1,183 @@
 {
   "title": "Hold at a watched road",
   "caption": "A soldier holds short of a road an enemy can see, and rushes across only when it is clear",
-  "anchors": {
-    "hold": {
-      "on": "task",
-      "who": "Rifleman",
-      "is": "HoldShort"
-    },
-    "rush": {
-      "on": "task",
-      "who": "Rifleman",
-      "is": "Cross"
-    }
-  },
-  "baked": {
-    "times": {},
-    "tickHz": 60,
-    "scenarioHash": "c1eb5ebfe5d3e076",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "hold",
-      "rush"
-    ]
-  },
-  "shots": [
-    {
-      "at": "hold-1",
-      "seconds": 4,
-      "follow": "Rifleman",
-      "distance": 9,
-      "yaw": 45,
-      "pitch": -10,
-      "why": "he stops at the edge"
-    },
-    {
-      "at": "hold+2",
-      "seconds": 3,
-      "over": "Rifleman",
-      "toward": "Watcher",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.8,
-      "fov": 20,
-      "why": "what he sees: the watcher down the road"
-    },
-    {
-      "at": "rush-0.5",
-      "seconds": 4,
-      "follow": "Rifleman",
-      "distance": 14,
-      "pitch": -15,
-      "why": "the dash"
-    }
-  ],
   "clip": "F-18",
   "chapter": 5,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "there+1",
+  "anchors": {
+    "hold": {
+      "on": "near",
+      "who": "Rifleman",
+      "point": [
+        235.7,
+        186.9
+      ],
+      "within": 2
+    },
+    "gone": {
+      "on": "near",
+      "who": "Watcher",
+      "point": [
+        395,
+        290
+      ],
+      "within": 5
+    },
+    "there": {
+      "on": "near",
+      "who": "Rifleman",
+      "point": [
+        285,
+        220
+      ],
+      "within": 6
+    }
+  },
+  "keys": [
+    {
+      "at": "hold-60",
+      "eye": [
+        120,
+        128,
+        45
+      ],
+      "target": [
+        205,
+        165,
+        0
+      ],
+      "fov": 55,
+      "segment": "walk"
+    },
+    {
+      "at": "hold-3",
+      "over": "Rifleman",
+      "toward": "Watcher",
+      "back": 5,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 35,
+      "segment": "hold"
+    },
+    {
+      "at": "hold+3",
+      "eye": [
+        238,
+        188,
+        1.7
+      ],
+      "target": [
+        370,
+        212,
+        1.5
+      ],
+      "fov": 12,
+      "segment": "hold"
+    },
+    {
+      "at": "hold+6",
+      "eye": [
+        300,
+        150,
+        70
+      ],
+      "target": [
+        310,
+        235,
+        0
+      ],
+      "fov": 60,
+      "segment": "wait"
+    },
+    {
+      "at": "gone",
+      "eye": [
+        250,
+        175,
+        3
+      ],
+      "target": [
+        236,
+        187,
+        1.2
+      ],
+      "fov": 30,
+      "segment": "after"
+    },
+    {
+      "at": "there-24",
+      "eye": [
+        262,
+        180,
+        3
+      ],
+      "target": [
+        240,
+        190,
+        1
+      ],
+      "fov": 45,
+      "segment": "rush"
+    },
+    {
+      "at": "there-10",
+      "eye": [
+        290,
+        200,
+        10
+      ],
+      "target": [
+        270,
+        210,
+        0
+      ],
+      "fov": 50,
+      "segment": "rush"
+    }
+  ],
+  "segments": [
+    {
+      "id": "walk",
+      "from": "hold-60",
+      "to": "hold-3",
+      "speed": 12
+    },
+    {
+      "id": "hold",
+      "from": "hold-3",
+      "to": "hold+6"
+    },
+    {
+      "id": "wait",
+      "from": "hold+6",
+      "to": "gone",
+      "speed": 12
+    },
+    {
+      "id": "after",
+      "from": "gone",
+      "to": "there-24",
+      "speed": 8
+    },
+    {
+      "id": "rush",
+      "from": "there-24",
+      "to": "there+1",
+      "speed": 2.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "hold-3",
+      "until": "gone",
+      "text": "The road is watched: he stops short"
+    },
+    {
+      "at": "gone",
+      "until": "there+1",
+      "text": "The watcher leaves: he crosses"
+    }
+  ],
+  "needs": "cut from a 4-min Live recording on three NEAR cues (PLAN_Feature_Films §1c, 2026-10-30) — the hold is not a task change, so task cues cannot see it"
 }

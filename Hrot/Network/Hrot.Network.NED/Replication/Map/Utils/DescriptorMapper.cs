@@ -93,6 +93,10 @@ namespace Hrot.Map.Common.Replication.Utils
                         result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
                         break;
 
+                    case EDescriptorType.dtEntityGuid:   // ⭐ CE-4153 — the entity's stable scenario key travels with its creation request
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityStableGuidIngressTranslator.ComponentFrom(in d.StableGuid));
+                        break;
+
                     case EDescriptorType.dtEntityInfo:
                         result.Add(new Fdp.Core.EntityInfo
                         {

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Mission summary mockup (SR-111, docs/DESIGN_Scenario_Rules.md). Static, self-contained: open in a browser. Live canvas: https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k -->
+<title>Mission summary</title>
+</head>
+<body>
+<style>
+body{margin:0}
+a{color:#7fb6ff}a:hover{color:#a9ceff}
+</style>
+<div style="width: 1440px; height: 980px; box-sizing: border-box; background: #1b1d21; color: #e4e6ea; font-family: Inter, Segoe UI, system-ui, sans-serif; font-size: 13px; display: flex; flex-direction: column;">
+
+  <div style="height: 52px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 12px; background: #23262b; border-bottom: 1px solid #353941;">
+    <span style="font-size: 15px; font-weight: 600;">Mission summary</span>
+    <span style="color: #9aa0a8;">Platoon attack on the village</span>
+    <span style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; background: #3a1f1f; color: #ff8a80; font-size: 12px; font-weight: 600;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #ff5f56;"></span>LIVE · 09:24:10</span>
+    <span style="color: #9aa0a8;">elapsed 24:10 · ends by 10:30</span>
+    <div style="flex-grow: 1;"></div>
+    <div style="display: flex; border: 1px solid #3c4048; border-radius: 6px; overflow: hidden;">
+      <button style="background: #3a4150; color: #fff; border: 0; padding: 6px 12px; font: inherit;">Blue</button>
+      <button style="background: transparent; color: #b8bcc4; border: 0; padding: 6px 12px; font: inherit;">Red</button>
+      <button style="background: transparent; color: #b8bcc4; border: 0; padding: 6px 12px; font: inherit;">Both</button>
+    </div>
+    <button style="background: #2b2f35; color: #e4e6ea; border: 1px solid #3c4048; border-radius: 6px; padding: 7px 12px; font: inherit;">Export report</button>
+  </div>
+
+  <div style="padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+      <div style="padding: 14px 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">BLUE — OVERALL</span>
+        <div style="display: flex; align-items: baseline; gap: 8px;"><span style="font-size: 34px; font-weight: 700;">0.42</span><span style="color: #e5534b; font-size: 12px;">↘ 0.06 in 10 min</span></div>
+        <div style="height: 8px; border-radius: 4px; background: #2a3a55; overflow: hidden;"><div style="width: 42%; height: 8px; background: #5aa8ff;"></div></div>
+        <span style="color: #9aa0a8; font-size: 12px;">pass mark 0.60 · not yet decided</span>
+      </div>
+      <div style="padding: 14px 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">REQUIRED OBJECTIVES</span>
+        <span style="font-size: 34px; font-weight: 700;">1 / 3</span>
+        <span style="font-size: 12px;"><span style="color: #4fbf85;">✓ Reach</span> · <span style="color: #5aa8ff;">● Hold (6:10 / 10:00)</span> · <span style="color: #8a9099;">○ Clear</span></span>
+        <span style="color: #4fbf85; font-size: 12px;">No fratricide — holding</span>
+      </div>
+      <div style="padding: 14px 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">FORCES</span>
+        <span style="font-size: 15px;">Blue <b>27</b> / 30 · 2 wounded · 1 KIA</span>
+        <span style="font-size: 15px;">Red <b>14</b> / 24 + QRF 12 inserted</span>
+        <span style="color: #9aa0a8; font-size: 12px;">force ratio at the bridge 1 : 0.4</span>
+      </div>
+      <div style="padding: 14px 16px; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column; gap: 6px;">
+        <span style="color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em;">ATTENTION</span>
+        <span style="color: #f0b27a;">⚠ Riflemen hit ratio 0.18 (target 0.25)</span>
+        <span style="color: #f0b27a;">⚠ Squad 2 exposure 31 % (max 20 %)</span>
+        <span style="color: #a9ceff;">ℹ Red counter-attack under way</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 20px;">
+
+      <div style="flex-grow: 1; border-radius: 10px; background: #202328; border: 1px solid #353941; display: flex; flex-direction: column;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid #353941; display: flex; align-items: center; gap: 12px;">
+          <span style="font-weight: 600;">Scores by level</span>
+          <div style="display: flex; border: 1px solid #3c4048; border-radius: 6px; overflow: hidden; font-size: 12px;">
+            <button style="background: #3a4150; color: #fff; border: 0; padding: 4px 10px; font: inherit;">Command chain</button>
+            <button style="background: transparent; color: #b8bcc4; border: 0; padding: 4px 10px; font: inherit;">Objectives</button>
+            <button style="background: transparent; color: #b8bcc4; border: 0; padding: 4px 10px; font: inherit;">Roles</button>
+          </div>
+          <span style="margin-left: auto; color: #9aa0a8; font-size: 12px;">click a row to see why</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 8px 16px; color: #9aa0a8; font-size: 11px; letter-spacing: 0.04em; border-bottom: 1px solid #2c3036;">
+          <span>UNIT / PERSON</span><span>SCORE</span><span>TREND (since start)</span><span>MISSION</span><span>FIRE</span><span>REPORTS</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 9px 16px; align-items: center; border-bottom: 1px solid #2c3036; font-weight: 600;">
+          <span>▾ 1st Platoon (Blue)</span><span>0.42</span>
+          <div style="position: relative; height: 22px;"><div style="position: absolute; left: 0; bottom: 4px; width: 100%; height: 1px; background: #33373d;"></div><div style="position: absolute; left: 0; bottom: 4px; width: 30%; height: 14px; border-top: 2px solid #5aa8ff;"></div><div style="position: absolute; left: 30%; bottom: 4px; width: 40%; height: 11px; border-top: 2px solid #5aa8ff;"></div><div style="position: absolute; left: 70%; bottom: 4px; width: 30%; height: 8px; border-top: 2px solid #5aa8ff;"></div></div>
+          <span>0.48</span><span style="color: #f0b27a;">0.31</span><span>0.62</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 9px 16px; align-items: center; border-bottom: 1px solid #2c3036;">
+          <span style="padding-left: 16px;">PL Novak <span style="color: #9aa0a8; font-size: 11px;">trainee</span></span><span>0.61</span>
+          <div style="height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 61%; height: 6px; background: #4fbf85;"></div></div>
+          <span>0.48</span><span>0.55</span><span>0.80</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 9px 16px; align-items: center; border-bottom: 1px solid #2c3036;">
+          <span style="padding-left: 16px;">▸ Squad 1</span><span>0.47</span>
+          <div style="height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 47%; height: 6px; background: #5aa8ff;"></div></div>
+          <span>0.48</span><span>0.36</span><span>0.66</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 9px 16px; align-items: center; border-bottom: 1px solid #2c3036; background: #2b2620;">
+          <span style="padding-left: 16px;">▾ Squad 2</span><span style="color: #f0b27a;">0.29</span>
+          <div style="height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 29%; height: 6px; background: #d9a83f;"></div></div>
+          <span>0.48</span><span style="color: #f0b27a;">0.18</span><span>0.40</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 7px 16px; align-items: center; border-bottom: 1px solid #2c3036; color: #c9ccd2; font-size: 12px;">
+          <span style="padding-left: 34px;">SL Dvorak</span><span>0.38</span>
+          <div style="height: 5px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 38%; height: 5px; background: #d9a83f;"></div></div>
+          <span>—</span><span>0.30</span><span>0.45</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 7px 16px; align-items: center; border-bottom: 1px solid #2c3036; color: #c9ccd2; font-size: 12px;">
+          <span style="padding-left: 34px;">Rifleman Kral</span><span>0.22</span>
+          <div style="height: 5px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 22%; height: 5px; background: #e5534b;"></div></div>
+          <span>—</span><span style="color: #e5534b;">0.12</span><span>0.35</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 7px 16px; align-items: center; border-bottom: 1px solid #2c3036; color: #c9ccd2; font-size: 12px;">
+          <span style="padding-left: 34px;">MG Holub</span><span>0.41</span>
+          <div style="height: 5px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 41%; height: 5px; background: #5aa8ff;"></div></div>
+          <span>—</span><span>0.33</span><span>0.40</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 300px 90px 1fr 110px 110px 110px; padding: 9px 16px; align-items: center; color: #9aa0a8;">
+          <span style="padding-left: 16px;">▸ Squad 3</span><span style="color: #e4e6ea;">0.51</span>
+          <div style="height: 6px; border-radius: 3px; background: #2a3a55; overflow: hidden;"><div style="width: 51%; height: 6px; background: #5aa8ff;"></div></div>
+          <span style="color: #e4e6ea;">0.48</span><span style="color: #e4e6ea;">0.44</span><span style="color: #e4e6ea;">0.70</span>
+        </div>
+      </div>
+
+      <div style="width: 400px; display: flex; flex-direction: column; gap: 20px;">
+        <div style="border-radius: 10px; background: #202328; border: 1px solid #353941; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+          <span style="font-weight: 600;">Why Squad 2 is at 0.29</span>
+          <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+            <div style="display: flex; justify-content: space-between;"><span>Hit ratio 0.14</span><span style="color: #e5534b;">below 0.25 · weight 30</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Exposure 31 %</span><span style="color: #e5534b;">over 20 % · weight 20</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Report latency 58 s</span><span style="color: #4fbf85;">under 60 s · weight 20</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>No harm</span><span style="color: #4fbf85;">✓ required</span></div>
+          </div>
+          <a href="#" style="font-size: 12px;">Show the moments on the timeline →</a>
+        </div>
+
+        <div style="border-radius: 10px; background: #202328; border: 1px solid #353941; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-weight: 600;">Mission objectives</span>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #4fbf85;">✓</span>Reach the village<span style="margin-left: auto; color: #9aa0a8; font-size: 12px;">09:14 · 1.00</span></div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #5aa8ff;">●</span>Hold the bridge<span style="margin-left: auto; color: #9aa0a8; font-size: 12px;">6:10 / 10:00 · 0.62</span></div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #8a9099;">○</span>Clear the village<span style="margin-left: auto; color: #9aa0a8; font-size: 12px;">pending</span></div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="color: #4fbf85;">✓</span>No fratricide<span style="margin-left: auto; color: #9aa0a8; font-size: 12px;">required · holding</span></div>
+        </div>
+
+        <div style="border-radius: 10px; background: #202328; border: 1px solid #353941; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-weight: 600;">Key events</span>
+          <span style="font-size: 12px;"><a href="#">09:14</a> Reach the village achieved</span>
+          <span style="font-size: 12px;"><a href="#">09:16</a> Red counter-attack launched (QRF 12)</span>
+          <span style="font-size: 12px;"><a href="#">09:21</a> Red eased: skill −1</span>
+          <span style="font-size: 12px;"><a href="#">09:22</a> Blue KIA: Rifleman Svoboda</span>
+        </div>
+      </div>
+    </div>
+
+    <span style="color: #8a9099; font-size: 12px;">Read-only. Every number is a replicated objective status (nothing is computed twice); the same view opens on a recording for the debrief, and "Export report" writes it out.</span>
+  </div>
+</div>
+</body>
+</html>

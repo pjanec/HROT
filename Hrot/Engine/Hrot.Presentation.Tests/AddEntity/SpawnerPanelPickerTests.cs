@@ -52,7 +52,7 @@ public sealed class SpawnerPanelPickerTests
         Assert.True(req.FoldSingleChildFolders && req.ShowPreview);
         Assert.DoesNotContain(req.ItemsProvider(), e => e.Category == EntityTypeCatalog.MapGraphicsFolder);
 
-        cb!(new PickerResult(new[] { req.ItemsProvider().Single(e => e.Name == "HMMWV") }));
+        cb!(new PickerResult(new[] { req.ItemsProvider().Single(e => e.Name == "HMMWV (M2, crewed)") }));
 
         Assert.Equal(TkbEntityTypes.Truck_HMMWV, panel.SelectedType);
         Assert.Equal($"point {TkbEntityTypes.Truck_HMMWV} {{\"Affiliation\":\"FORCE_NEUTRAL\"}}", Assert.Single(spawn.Calls));

@@ -21,6 +21,7 @@ known-rot: ⛔ §4 ④ says "hook it in PreviewClusterOpHandler so 'what preview
   ("the two pooled ones do not implement it") is SUPERSEDED by §4c — all five implement it. Do not quote
   §4 ③/④ or §4b's recommendation without §4c and §4d.
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — §9.3 SR-45 / SR-50: macro-local ids remapped per instance; the scenario entity key becomes the network id
   - DESIGN_Scenario_Regression.md — relies on §11 (ids repeat per world) to compare scenario goldens without masking
   - docs/DESIGN_Checkpoint_And_Dry_Run_Restore.md — §1b U1/D14: the two preview handlers (§2b) become ONE dry-run handler; the dry run moves off SyncFrom to the recorder keyframe; the §2b participants shrink to the allocator until it is a singleton (CE-3299).
   - docs/blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f (CE-3294): every SYSTEM holding entities now pulls `WorldEpoch` too, not only the translators.

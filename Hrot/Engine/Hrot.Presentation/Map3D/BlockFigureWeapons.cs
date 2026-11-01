@@ -42,11 +42,42 @@ public static partial class BlockFigure
                 break;
             case HeldLook.Pistol:
             {
-                // in the right hand (where the rifle's grip was), the left hand closing on it — both hands on a pistol
-                var grip = Ends(parts[9]).B;
-                held[WeaponIndex] = Reshaped(rifle, grip - dir * 0.04f, grip + dir * (PistolLength - 0.04f), 0.04f, 0.12f);
-                var (elbowL, _) = Ends(parts[7]);
-                held[7] = Reshaped(parts[7], elbowL, grip + new Vector3(0f, 0.05f, -0.01f), ArmWidth * 0.9f, ArmWidth * 0.9f);
+                // both hands on it, the arms posed from his shoulders by the posture. 🔒 User, 2026-10-30: "a pistol is usually held with both
+                //   hands forward from the body if aiming and both hands lowered (but still holding the pistol) if weapon at ease" — ⛔ was: the
+                //   pistol where the rifle's grip was, his hands on his chest in every posture
+                var shoulderL = Ends(parts[6]).A;
+                var shoulderR = Ends(parts[8]).A;
+                var chest = (shoulderL + shoulderR) / 2f;
+                bool prone = chest.Z < 0.5f;   // on his front there is no room to lower the arms: the hands stay forward
+                Vector3 grip, aim;
+                switch (prone ? WeaponPostureKind.Aimed : posture)
+                {
+                    case WeaponPostureKind.Aimed:                                        // arms out, the hands at shoulder height, level
+                        grip = chest + new Vector3(0.52f, 0f, -0.02f);
+                        aim = Vector3.UnitX;
+                        break;
+                    case WeaponPostureKind.Ready:                                        // drawn in, in front of the chest, pointing forward
+                        grip = chest + new Vector3(0.36f, 0f, -0.14f);
+                        aim = Vector3.UnitX;
+                        break;
+                    default:                                                             // at ease: both hands lowered in front, muzzle down
+                        grip = chest + new Vector3(0.24f, 0f, -0.42f);
+                        aim = Vector3.Normalize(new Vector3(1f, 0f, -1f));
+                        break;
+                }
+                held[WeaponIndex] = Reshaped(rifle, grip - aim * 0.04f, grip + aim * (PistolLength - 0.04f), 0.04f, 0.12f);
+                for (int side = 0; side < 2; side++)
+                {
+                    int upper = side == 0 ? 6 : 8;
+                    float y = side == 0 ? 1f : -1f;
+                    var shoulder = side == 0 ? shoulderL : shoulderR;
+                    var hand = grip + new Vector3(-0.01f, 0.025f * y, 0f);   // the two hands clasped round the grip
+                    var reach = hand - shoulder;
+                    if (reach.Length() > ArmReach) hand = shoulder + Vector3.Normalize(reach) * ArmReach;
+                    var elbow = (shoulder + hand) / 2f + new Vector3(0f, 0.07f * y, -0.06f);   // a little out and down
+                    held[upper] = Reshaped(parts[upper], shoulder, elbow, ArmWidth, ArmWidth);
+                    held[upper + 1] = Reshaped(parts[upper + 1], elbow, hand, ArmWidth * 0.9f, ArmWidth * 0.9f);
+                }
                 break;
             }
             case HeldLook.Rpg or HeldLook.Manpads or HeldLook.MissileTube:

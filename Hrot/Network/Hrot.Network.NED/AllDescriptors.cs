@@ -153,6 +153,9 @@ namespace Hrot.NED.Descriptors
         dtSpawnLevel                  = 155,
         // ⭐ CE-1223 (Entity Control §8k S-2, R-1010) — when a man was last under fire (Muscle group → every node): a remote station's spread ring reads it. Measured free on ui, behaviors, backend, coordinator 2026-10-19.
         dtUnderFire                   = 156,
+        // ⭐ CE-4153 (docs/DESIGN_Scenario_Entity_Keys.md S3) — an entity's STABLE scenario identity (its creator → every node, no group): whichever
+        //   node owns the entity at save time writes the same file key. 157 measured free in this tree 2026-10-31 (the 160–169 block is Traffic's).
+        dtEntityGuid                  = 157,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,
@@ -186,6 +189,11 @@ namespace Hrot.NED.Descriptors
         //   processor): the forwarded request must carry the cloud, or the creator builds a bare type-7202 entity nothing ends.
         [DdsCase(EDescriptorType.dtAreaEffectCloud)]
         public EntityAreaEffectCloud AreaEffectCloud;
+
+        // ⭐ CE-4153 — a scenario-loaded (or authored) entity's stable key rides the forwarded creation request, so the node that CREATES it
+        //   stamps the same EntityGuid the loading node read from the file.
+        [DdsCase(EDescriptorType.dtEntityGuid)]
+        public EntityStableGuid StableGuid;
 
     }
 }

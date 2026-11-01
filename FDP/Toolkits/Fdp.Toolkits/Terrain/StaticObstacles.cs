@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Terrain
             prisms.AddRange(obstacles);
             var min = terrain.BoundsMin; var max = terrain.BoundsMax;
             foreach (var o in obstacles) { min = Vector2.Min(min, o.Min); max = Vector2.Max(max, o.Max); }
-            return new TerrainWorld
+            var derived = new TerrainWorld
             {
                 Name      = terrain.Name,
                 BoundsMin = min,
@@ -118,6 +118,8 @@ namespace Fdp.Toolkit.Terrain
                 Doors     = terrain.Doors,
                 Materials = terrain.Materials,
             };
+            if (terrain.Beyond is { } beyond) derived.AttachBeyond(beyond);   // ⭐ CE-4122 — the ground beyond the terrain is the base's, kept
+            return derived;
         }
 
         /// <summary>

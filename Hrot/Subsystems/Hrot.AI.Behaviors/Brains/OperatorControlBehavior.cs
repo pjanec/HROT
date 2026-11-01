@@ -251,13 +251,20 @@ namespace Hrot.AI.Behaviors.Brains
             //   that weapon's own mount 0: its type decides the fire mode and the per-press rule, and its WeaponState carries the ammo
             var (platform, platformMount) = OperatedMount(world, self, input.Mount);
             var mountDto = CombatTkb.MountOf(world, platform, platformMount);
+            // ⭐ CE-1127 (§8g F-1) — a thrown / arc or a guided weapon LOCKS; a rifle, a mount with no turret, an unguided rocket fires by
+            //   SIGHT (the round goes where the crosshair is when it leaves). ⭐ CE-4143 (§8r) — a rapid-fire TURRET weapon is SIGHT too
+            //   (and the operator's L preference, input.FirePref, switches a direct-fire turret weapon between the two).
+            var mode = OperatorFireModes.Of(world, platform, mountDto,
+                AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, platform, platformMount)), input.FirePref);
+            // ⭐ CE-4143 (R-3, R-4) — SIGHT on a TURRET weapon: aim along the look ray at the zero range, fire along the barrel
+            //   (a frame with no look ray — an older station — keeps the crosshair point and the on-target gate)
+            bool alongBarrel = mode == OperatorFireMode.Sight && input.LookDir.LengthSquared() > 0.5f
+                && Fdp.Toolkit.Combat.WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown)
+                       .UsesTurretTask(world, platform, mountDto);
+            var lookPoint = input.LookFrom + input.LookDir * OperatorFireModes.SightZeroMetres;
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
-                // ⭐ CE-1127 (§8g F-1) — a turret, a thrown / arc or a guided weapon LOCKS; a rifle, a mount with no turret, an unguided
-                //   rocket fires by SIGHT (the round goes where the crosshair is when it leaves)
-                var mode = OperatorFireModes.Of(world, platform, mountDto,
-                    AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, platform, platformMount)));
                 if (mode == OperatorFireMode.Lock)
                 {
                     ws.Pending = 1;
@@ -288,14 +295,16 @@ namespace Hrot.AI.Behaviors.Brains
             p = ws.Pending != 0
                 ? new AimAndFireParams
                 {
-                    Operator = 1, Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Rounds = ws.Cap,
-                    Point = ws.Pending == 2 ? input.AimPoint   // ⭐ CE-1127 — SIGHT: this tick's crosshair
+                    Operator = ws.Pending == 2 && alongBarrel ? AimAndFireParams.OperatorAlongBarrel : (byte)1,   // ⭐ CE-4143
+                    Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Rounds = ws.Cap,
+                    Point = ws.Pending == 2 ? (alongBarrel ? lookPoint : input.AimPoint)   // ⭐ CE-1127 — SIGHT: this tick's crosshair (CE-4143: a turret's look ray)
                           : ws.PendingTarget.IsNull ? ws.PendingPoint : AimPoint.FromUnitFrame(world, ws.PendingTarget, ws.PendingPoint),
                     CooldownSeconds = OperatorCooldownFor(mountDto),
                 }
                 : new AimAndFireParams
                 {
-                    Operator = 1, Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = input.AimPoint,
+                    Operator = alongBarrel ? AimAndFireParams.OperatorAlongBarrel : (byte)1,   // ⭐ CE-4143
+                    Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = alongBarrel ? lookPoint : input.AimPoint,
                     CooldownSeconds = OperatorCooldownFor(mountDto),
                 };
         }

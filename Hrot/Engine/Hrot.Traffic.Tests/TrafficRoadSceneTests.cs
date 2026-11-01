@@ -67,6 +67,48 @@ public sealed class TrafficRoadSceneTests
         Assert.DoesNotContain(net.LanesByHandle, l => TrafficRoadScene.IsSidewalk(l) && (l.AllowsRoadVehicle || CrosswalkBuilder.IsCrossingLaneId(l.Id)));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4122</c> (<c>docs/DESIGN_Map_3D_Mode.md</c> §6ad-2) — the ground beyond our terrain follows the SUMO net's own height field where the net is:
+    /// loading a terrain with a net attaches a <c>BeyondGround</c> to the PUBLISHED world (the loader attaches in Prepare, before publish), in local metres through
+    /// the placement, its footprint the net's bounds. A point deep inside the footprint, far from our terrain, is exactly the field there.
+    /// </summary>
+    [Fact]
+    public void CE4122_TheNetsHeightField_IsAttachedToThePublishedWorld_AsTheGroundBeyond()
+    {
+        using var world = new EntityRepository();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { TerrainRoot() }), new CarKinem.Road.RoadNetworkHolder());
+        residency.AttachContent(new SumoNetTerrainLoader());
+        residency.Commit(world, residency.Prepare("demo-city"));
+        var cache = TrafficNetCache.Of(world)!;
+        var terrain = world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!;
+        var beyond = terrain.Beyond;
+        Assert.NotNull(beyond);
+        Assert.True(beyond!.HasField);
+
+        var field = Sim.Scene.TerrainField.FromNetwork(cache.Model);
+        var (minX, minY, maxX, maxY) = TrafficRoadScene.NetBounds(cache.Model);
+        // the footprint's corners are the net's corners, placed
+        foreach (var (nx, ny) in new[] { (minX, minY), (maxX, minY), (maxX, maxY), (minX, maxY) })
+        {
+            var (lx, ly) = cache.Placement.ToLocal(nx, ny);
+            Assert.True(beyond.DistanceToField((float)lx, (float)ly) < 0.01f, $"the net corner ({nx}, {ny}) is on the footprint");
+        }
+        // a point of the net, far (> 300 m) from our terrain's rectangle: the ground there IS the net's field
+        int checkedPoints = 0;
+        var (rmin, rmax, _) = terrain.GroundRect;
+        for (double nx = minX; nx <= maxX; nx += (maxX - minX) / 23.0)
+            for (double ny = minY; ny <= maxY; ny += (maxY - minY) / 19.0)
+            {
+                var (lx, ly) = cache.Placement.ToLocal(nx, ny);
+                float fx = (float)lx, fy = (float)ly;
+                float dx = System.Math.Max(System.Math.Max(rmin.X - fx, fx - rmax.X), 0f), dy = System.Math.Max(System.Math.Max(rmin.Y - fy, fy - rmax.Y), 0f);
+                if (System.Math.Sqrt(dx * dx + dy * dy) < 320.0 || !beyond.InField(fx, fy)) continue;
+                Assert.Equal((float)field.HeightAt(nx, ny), terrain.GroundHeightAt(fx, fy), 2);
+                checkedPoints++;
+            }
+        Assert.True(checkedPoints > 0, "the net reaches more than 300 m past our terrain (the demo city's net is 4.75 km)");
+    }
+
     internal static TrafficNetCache Load()
     {
         using var world = new EntityRepository();

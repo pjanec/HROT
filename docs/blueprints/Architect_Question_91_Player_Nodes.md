@@ -31,7 +31,7 @@ current-answer: "THE PROPOSAL IN ONE PAGE" (directly below the rulings) is the a
   AMEND the section above them and WIN over it; ⭐ §4-H (operator cancel → Idle, R-4004) is new and has no
   earlier version. ⛔ Do not quote §4-A, §4-D or §4-E without reading the prime section that follows it.
 stale-below: nothing
-known-rot: ⛔ R-4018 (2026-10-15): the TKB FILE reaches a node by the JOIN SYNC (designs/tkb-1/DESIGN.md §0a), never by
+known-rot: R-4101 (2026-10-31) — "IG" is the OBSOLETE name of the Player; where this file says an IG node / no Player role, read: the Player host, a player by COMPOSITION (DESIGN_Player_Join.md §2) ·  ⛔ R-4018 (2026-10-15): the TKB FILE reaches a node by the JOIN SYNC (designs/tkb-1/DESIGN.md §0a), never by
   the catch-up. Every "LoadingLive (KB + terrain)" below still holds for the LOAD — the knowledge-base step loads the file the
   join sync left — but no TKB is transferred in the catch-up.
   ALSO: ⚠ TWO claims this document made that the review measured FALSE, both corrected in place:
@@ -47,6 +47,7 @@ known-conflict: §4-G vs NodeRolePersistenceRails / DESIGN_Node_Roles_And_Polici
   §4.2 (a node compares the epoch and self-heals) design a NODE-DRIVEN join; §4-E and §4-I here choose MASTER-DRIVEN.
   §4-I keeps the epoch as telemetry only (I4). Unreconciled in mgmt-1 until §4-I is approved.
 related-designs:
+  - docs/DESIGN_Player_Join.md — OWNS how an admitted Player JOINS: side, placed unit / role, spawn, possess, observer (J-1…J-14)
   - ../DESIGN_Replay_Time_Axis_And_Review.md — the cluster's replay time map (intersected per node, beside §4-P's zero) and the review's end pause at the live point
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.3 / R-4000 is the rule this question obeys (one code path on every node;
     a behaviour that must differ comes from the ROLE). It owns the role table that §4-A reads.

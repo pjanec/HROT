@@ -41,6 +41,8 @@ public sealed class TerrainResidency
     {
         internal TerrainDefinition? Definition;
         internal TerrainWorld?      World;
+        /// <summary>⭐ CE-4122 — the empty world a terrain with NO world file hands its content loaders, published as the singleton (one object, so what a loader attaches survives).</summary>
+        internal TerrainWorld?      PreparedEmptyWorld;
         internal RoadNetworkBlob    RoadNetwork;
         internal bool               HasRoadNetwork;
         internal string?            TerrainName;
@@ -265,7 +267,7 @@ public sealed class TerrainResidency
         string folder = Path.GetDirectoryName(definitionPath)!;
         AttachRegisteredContent();
         foreach (var loader in _contentLoaders)
-            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? new TerrainWorld())));
+            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? (staged.PreparedEmptyWorld ??= new TerrainWorld { Name = terrainName }))));
 
         return staged;
     }
@@ -304,7 +306,7 @@ public sealed class TerrainResidency
         //   with no world file still publishes an EMPTY world, so a re-load never leaves the previous
         //   terrain's buildings behind.
         world.RegisterManagedComponent<TerrainWorld>();
-        world.SetSingletonManaged(staged.World ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
+        world.SetSingletonManaged(staged.World ?? staged.PreparedEmptyWorld ?? new TerrainWorld { Name = staged.TerrainName });   // CE-3028: named even when it has no world file
         _baseWorld = world.GetSingletonManaged<TerrainWorld>() ?? new TerrainWorld();   // ⭐ CE-3136 P-7a — the base the obstacle bake builds on
         BaseVersion++;
         PublishBakery(world);

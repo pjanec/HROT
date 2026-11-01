@@ -275,6 +275,8 @@ namespace Hrot.NED.Descriptors
         public uint Epoch;
         /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — <c>ArcPreference</c> the laid indirect mount's solution chose (APPENDED, R-169).</summary>
         public byte Arc;
+        /// <summary>⭐ CE-4143 (DESIGN_Entity_Control §8r; APPENDED, R-169) — <c>WeaponTask.AlongBarrel</c>: 1 = fire along the barrel, no on-target gate.</summary>
+        public byte AlongBarrel;
     }
 
     // ⭐ WL-2b (CE-1049) — the weapon muscle's report on that order (W-3), Muscle → Brain, same key.
@@ -718,6 +720,25 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>Box height (m).</summary>
         public float Height;
+    }
+
+    // ⭐ CE-4153 (docs/DESIGN_Scenario_Entity_Keys.md S3) — an entity's STABLE scenario identity (a GUID as two longs), published by the node
+    //   that owns the descriptor (the entity's creator — no ownership group, the dtObstacleShape shape) so EVERY node knows it: ownership
+    //   moves (brain hand-over), and whichever node owns the entity when a scenario is saved writes the same key. TransientLocal + KeepLast(1)
+    //   keyed by entity: a late joiner gets every entity's key. Never changes after creation.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityStableGuid
+    {
+        [DdsKey]
+        public long EntityId;
+
+        /// <summary>The first 8 bytes of the GUID's <c>ToByteArray()</c>, little-endian.</summary>
+        public long Lo;
+
+        /// <summary>The last 8 bytes of the GUID's <c>ToByteArray()</c>, little-endian.</summary>
+        public long Hi;
     }
 
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────

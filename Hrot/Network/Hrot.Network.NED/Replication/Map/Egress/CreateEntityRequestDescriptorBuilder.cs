@@ -108,6 +108,13 @@ namespace Hrot.Map.Common.Replication.Egress
                     else if (component is MapOverlayStyle  ms) style    = ms;
                     else if (component is RoutePlan        rp) route    = rp;
                     // ⭐ CE-3228 — a cloud rides the forwarded request (Entity Creation §3.4d; the wire form carries what the local one does)
+                    // ⭐ CE-4153 — the entity's stable scenario key travels with the request (the creator stamps the same EntityGuid)
+                    else if (component is Fdp.Toolkit.Scenario.EntityGuid guid)
+                        descriptors.Add(new EntityDescriptorUnion
+                        {
+                            _d         = EDescriptorType.dtEntityGuid,
+                            StableGuid = Hrot.Map.Common.Replication.Egress.EntityStableGuidEgressTranslator.ToSample(0, guid),
+                        });
                     else if (component is Fdp.Toolkit.Combat.AreaEffectCloud cloud)
                         descriptors.Add(new EntityDescriptorUnion
                         {

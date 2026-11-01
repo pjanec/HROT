@@ -15,6 +15,7 @@ known-rot: (otherwise) none.
 known-conflict: Architect_Question_75 §4-B / §5 S5 — its "per-slot ExpressionTargetField" gain and its "six sites"
   count are both refined here (§2 F1, F3). This document is its build design and wins on those two points.
 related-designs:
+  - ../DESIGN_Scenario_Rules.md — rev 3 binds shared primitives at RUNTIME offsets through §5.7's HsmSharedBinder to build the scenario's brain from data (needs a by-offset overload)
   - DESIGN_Occurrence_Scoped_Storage.md — owns E3a (§28: a hosted occurrence's params in its own slot) and §28.6a (one HSM thunk per action id); §5.7 here makes every HSM action read that block (CE-3163)
   - ../DESIGN_Decision_Layer.md — §3.3c OWNS CE-3082 D2 (HSM exits run the activity's deactivator, §5.3c here) and the CombatPostureHsm that needed it.
   - docs/DESIGN_Eqs_Consuming_Behaviours.md — the first hand-written stateful nodes a designer would pick (TakeCover / FallBack), which §5.6's gap blocks from editor authoring.

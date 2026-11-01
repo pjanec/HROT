@@ -7,6 +7,8 @@ stale-below: none
 known-rot: TE-16's "sequence row in the same panel" — NOT built: §11u D1 (the composer is the Director window's); its "an item may name {recording, take}" IS built (§11u-1, CE-1391) · §11u D4 ("the HTTP host sets the queue's OpenRecording", "a DirectorPackHost.OpenRecording seam rejected"), its class / sequence / host diagrams' "OpenRecording = DebugApiHost.OpenRecording" and deviation ① — SUPERSEDED by §11u-1 (the pack holds the RB's ONE opener, IRecordingOpener; it is the same opener POST /replay ends in, not a second one) · TE-5's premise "the runner's usings are already only director, window-manager and ImGui types" — FALSE, the runner carries the verifier (§11 INVENTORY, CR-1) · §9's D3 "Hrot.ReplayBrowser does not reference Hrot.Presentation" — it does, through Hrot.CGF (§11) · §2 Markers "double-click jumps there", §2b "drag to pan; drag on the ruler to zoom to a range", §2a's Replay Browser "a click in the past seeks", §9a's built "click seeks" and TL-4 "time is frame index + wall ticks" — SUPERSEDED by §2c (R-4087, R-3059) · gap ① (§9b: the builder decodes FrameSimTime) — SUPERSEDED: the v7 frame index carries the sim time (DAR P0, §8 rows 1–3, 11) · TE-19's and §2a's "a live host never seeks" — SUPERSEDED by R-3060 (the review, DESIGN_Replay_Time_Axis_And_Review §9) · §9c's `LaneProjection` is the model's `ResultProjectionDto`, and its Life lanes are structural (not `LifecyclePredicateDto`) — §9d · §9a's lane enum, extractors and `TimelineLane` mentions are SUPERSEDED by §9c/§9d · §9's TL-3 (ITimelineRowProvider + adapter) and the hard-coded lanes of §9 / §9a (TimelineLane, TimelineLaneGroup, the three extractors) are SUPERSEDED by §9c (R-4078, R-4079) · §1, §3 and §4b draw ReplayDirectorHost seeking through ReplayBrowserContext.SeekToFrame — overtaken by D1 the same way: it binds to the panel's ITimelineCursor (§9b ②) · §2a's ReplayBrowserTransportAdapter → ReplayBrowserContext.SeekToFrame and "TimelinePanel (NEW, Hrot.Presentation)" are overtaken by §9 D1 / D3 (TL-1, TL-2) · TE-4's first wording (a scout per take, AnchorBook watching the sandbox) and TE-3's first wording (three new anchor kinds) are SUPERSEDED the same day by the amended rows; nothing else quotes them
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — SR-109 / SR-110 OWN the RULES VIEW (objectives + triggers as a dependency Gantt): a host of THIS panel through ITimelineTrack, asking for five general extensions TL-X1…TL-X5 (connectors between items, dashed / hatched / pinned item styles, tree row headers with status, drag-to-connect, a coming-up summary); mockup docs/designs/rules-view/
+  - docs/DESIGN_Scenario_Rules.md — rule outcomes become the registered lanes rules.objective / rules.outcome
   - DESIGN_Film_Production.md — OWNS the INTENT of the whole film process (the workflow, its principles, the overnight documentation); §11 here is its build plan
   - DESIGN_Replay_Time_Axis_And_Review.md — OWNS the SIM axis (FrameSimTime in the frame index, paused stretches), the review (DAR) a live host's right-click seek enters, and §10 the panel's defects and input map (CE-3330); amended here in §2c (R-4087)
   - DESIGN_Replay_Browser_Debug_Http.md — GET /timeline/lanes, /timeline/events, POST /timeline/lanes over this design's index (RB-6), and seek to the next event in a lane
@@ -2662,6 +2664,25 @@ changed deliberately: `DrafterTests.CE4059_CR8_TheLine_IsCrossedOnlyByTheReplay`
 key's new scope and time are asserted by the new `CE4059_CR7_*` rail beside it.
 
 ### 11r. P3 — `recording=`, stills, render in the RB *(ui, `2026-10-27`, CE-4059 P3 (the routes' remaining half); build-state: ✅ BUILT `2026-10-27` — as built at the end)*
+
+> ⭐ **CE-4125 (coordinator, `2026-10-30`; ui's `6a83ec363` did the segment half; as built):** an anchor with no time on the shown run
+> says WHY. `AnchorBook.WhyUnseen` (the ONE resolver's own book and names) answers: no unit named X (with the names alike) · the recording has
+> K such events, #n asked · a `near` never met (its closest approach) · a state cue that awaits play. `DirectorRunner.AnchorsOf` returns it
+> with the times; `DirectorStills.PlanOf` puts `anchor '<name>': <why>` in `problems` for each anchor the take hangs something on. Rail
+> `FilmDirectorTests.CE4125_AnUnresolvedAnchor_SaysWhy_AndTheStillsPlanCarriesIt`.
+>
+> ⭐ **CE-4127 / CE-4128 (coordinator, `2026-10-30`, found filming F-18; as built):**
+> - **A frame rendered from a recording is drawn at the moment it was framed.** A seeking host moves at once when stepped, and the map draws
+>   AFTER the runner's tick. `TickPlaying` used to step at the END of the tick, so every picture showed the world one step past the moment
+>   its camera, subtitle and graphics were placed for. 📐 Measured on F-18: an over-the-shoulder camera and the soldier it follows jumped
+>   ±20 px against each other at 30 fps on an ~18 Hz recording. ⭐ Now a seeking host's step is OWED to the next tick and taken at its start
+>   (`_seekStepDue`); a live run keeps the end-of-tick step (its master steps a frame later anyway). Rail
+>   `DirectorPackTests.CE4127_OnASeekingHost_EachCapturedFrame_IsDrawnAtTheMomentItWasFramed` (red-proved). ⚠ What remains: the recording's
+>   ~18 Hz states still reach a 30 fps film in uneven steps (1–2 film frames each) — the camera and the body now move TOGETHER, the residual is
+>   CE-1401 (interpolated drawn poses).
+> - **The burned-in film text is the editor's face (Roboto), not raylib's bitmap font:** `FilmText` (captions, title cards, graphic labels)
+>   draws through `HudText` — the ONE raylib text path, already the HUD's (CE-1140) — now with size overloads, a 64 px bake and Latin-1 +
+>   dashes/quotes. 🔒 User: *"the font used for subtitles looks terrible, it is the default ugly raylib font. pls use same font as imgui is using"*.
 
 ⭐ Frame: [NOTE_Coordinator_To_Ui_RB_Director_Routes_Done](blueprints/batches/NOTE_Coordinator_To_Ui_RB_Director_Routes_Done.md) "Still yours" — `recording=`
 (TE-15), `/director/stills`, MP4 in the RB, the MCP catalog. Basis: CR-10 (stills + contact sheet, the night's documentation), CR-12 (rendering is the

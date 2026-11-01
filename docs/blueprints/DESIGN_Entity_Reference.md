@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - ../DESIGN_Scenario_Rules.md — §9.8 SR-126 / SR-128 (draft 2026-11-01): EntityRef's FILE form gains GUID / @Key; the EntityRefRemap type plan is generalised to WorldPoint and Bearing for macro relocation
   - DESIGN_Map_Picking_Unification.md — applies D5 ("the type makes a field pickable") to locations and collapses the picking machinery (one service, adapter, context, broker, gizmo).
   - Behavior_Parameter_Resolver_Detailed_Design.md — §4.2 named the authored "Entity reference" as `long` + `[RemapNetworkId]`
     + `[MapPickableEntity]`; this document replaces that triple with one TYPE (that row is SUPERSEDED here).

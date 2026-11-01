@@ -782,6 +782,7 @@ public sealed class FilmDirectorTests
         var repo = TestRepo.Root;
         var roots = new[] { Path.Combine(repo, "scenarios"), Fdp.Toolkit.Orchestration.ContentLayout.ScenarioRecipes(repo) };
         int count = 0, withTo = 0;
+        var recordingEra = new List<(string Scenario, string Name, Take Take)>();
         foreach (var root in roots)
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
@@ -791,6 +792,7 @@ public sealed class FilmDirectorTests
                     var loaded = store.Load(scenario, t);
                     Assert.True(loaded.Ok, $"{scenario}/{t}: {string.Join("; ", loaded.Problems)}");
                     var take = loaded.Value!;
+                    if (IsRecordingEra(take)) { recordingEra.Add((scenario, t, take)); count++; continue; }   // ⭐ CE-4127 — v2: checked below
                     var keys = CameraKeys.Of(take);
                     int plain = take.Shots.Count(s => s.Replay == null), flies = take.Shots.Count(s => s.Replay == null && s.To is { Count: > 0 });
                     withTo += flies;
@@ -807,6 +809,17 @@ public sealed class FilmDirectorTests
         }
         Assert.True(count >= 55, $"{count} seeded takes");
         Assert.True(withTo > 0, "no seeded take has a `to` — the fly derivation went unexercised");
+        // ⭐ CE-4127 (user 2026-10-30: "replace the main takes") — the recording-era takes (PLAN_Feature_Films §1c) write back exactly what they read
+        Assert.True(recordingEra.Count >= 5, $"{recordingEra.Count} recording-era takes");
+        foreach (var (scenario, name, take) in recordingEra)
+        {
+            var problems = new List<string>();
+            var again = TakeJson.ParseTake(TakeJson.WriteTake(take), scenario, name, problems);
+            Assert.Empty(problems);
+            Assert.Equal(take.Keys, again.Keys);
+            Assert.Equal(take.Segments, again.Segments);
+            Assert.Equal(take.Subtitles, again.Subtitles);
+        }
     }
 
     private static CameraKey Key(AtExpr at, string follow, KeyTransition? @in = null) =>
@@ -935,7 +948,8 @@ public sealed class FilmDirectorTests
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
-                foreach (var n in names) takes.Add(($"{scenario}/{n}", store.Load(scenario, n).Value!));
+                foreach (var n in names)
+                    if (store.Load(scenario, n).Value! is var t && !IsRecordingEra(t)) takes.Add(($"{scenario}/{n}", t));   // ⭐ CE-4127 — v1 takes only
         }
         takes.Add(("hand-made", new Take
         {
@@ -946,7 +960,7 @@ public sealed class FilmDirectorTests
                 Shot("""{"at":8,"seconds":2,"eye":[0,0,5],"target":[10,10,0]}"""),
             },
         }));
-        Assert.True(takes.Count >= 56);
+        Assert.True(takes.Count >= 45, $"{takes.Count} v1 takes");
 
         var units = new HashUnits();
         int compared = 0;
@@ -1089,6 +1103,7 @@ public sealed class FilmDirectorTests
                 {
                     var loaded = store.Load(scenario, n);
                     Assert.True(loaded.Ok, $"{scenario}/{n}: {string.Join("; ", loaded.Problems)}");
+                    if (IsRecordingEra(loaded.Value!)) { count++; continue; }   // ⭐ CE-4127 — a v2 take carries its subtitles
                     Assert.Empty(loaded.Value!.Subtitles);
                     Assert.False(TakeJson.WriteTake(loaded.Value).ContainsKey("subtitles"), $"{scenario}/{n} wrote subtitles");
                     count++;
@@ -1140,6 +1155,7 @@ public sealed class FilmDirectorTests
                 foreach (var n in names)
                 {
                     var loaded = store.Load(scenario, n).Value!;
+                    if (IsRecordingEra(loaded)) { count++; continue; }   // ⭐ CE-4127 — a v2 take scopes keys to its segments
                     Assert.All(CameraKeys.Of(loaded), k => Assert.Null(k.Segment));
                     Assert.All(loaded.Segments, s => Assert.Null(s.Id));
                     var keys = CameraKeys.Of(loaded);
@@ -1169,6 +1185,7 @@ public sealed class FilmDirectorTests
                 foreach (var n in names)
                 {
                     var take = store.Load(scenario, n).Value!;
+                    if (IsRecordingEra(take)) continue;   // ⭐ CE-4127 — a v2 take's subtitles are its own, not its captions
                     var baked = take.Baked?.Times;
                     Func<string, double?> anchors = baked != null ? a => baked.TryGetValue(a, out var bt) ? bt : null : a => 5d + 3d * (a.Sum(c => c) % 7);
                     var plan = TakeTimeline.Plan(take, anchors);
@@ -1393,6 +1410,10 @@ public sealed class FilmDirectorTests
         Assert.Equal(new Vector2(700, 150), arrow.Head[0]);                                    // the head's tip is on the head unit
         Assert.Null(GraphicLayout.Of(at3[2] with { Points = new[] { new Vector3(0, 0, 0), new Vector3(0, 0, 500) } }, project, 500));   // behind the camera
     }
+
+    /// <summary>⭐ <c>CE-4127</c> — a seeded take rewritten for films from recordings (PLAN_Feature_Films §1c): keys, segments or subtitles of its own.
+    /// ⛔ Not a v1 take — the rails that pin how an OLD take still reads skip it.</summary>
+    private static bool IsRecordingEra(Take take) => take.Keys.Count > 0 || take.Segments.Count > 0 || take.Subtitles.Count > 0;
 
     private static IEnumerable<(TakeStore Store, string Scenario, string Name)> SeededTakes()
     {
@@ -1649,5 +1670,44 @@ public sealed class FilmDirectorTests
         Assert.Null(moved.TimeOf("near:A"));                                         // changed (a wider radius): not carried
         var w = Assert.Single(moved.NearWindows(world));
         Assert.Equal((100 - 30) / 15d, w.Estimate, 3);                               // it gets the coarse estimate of the NEW spec
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4125</c> — an anchor with no time says WHY: a wrong name (with the names alike) · an event the recording has too few of · a <c>near</c> never met (its closest
+    /// approach) · a state cue the index cannot answer ahead (awaits play); none for an anchor that resolved. And a stills plan carries the reason in its problems.
+    /// 🔴 Mutation: <c>WhyUnseen</c> counting shots by any unit ⇒ "has 2 shots" not 1 ⇒ red; the plan dropping the reason ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4125_AnUnresolvedAnchor_SaysWhy_AndTheStillsPlanCarriesIt()
+    {
+        var index = LaneIndex(20, Ev("combat.shot", 2, 1), Ev("combat.shot", 4, 2));
+        var units = new Units(); units.Ids["Police rifleman"] = 1; units.Ids["Gunman"] = 2;
+        var specs = new Dictionary<string, AnchorSpec>
+        {
+            ["typo"] = new() { On = "shot", By = "Police rifelman" },
+            ["second"] = new() { On = "shot", By = "Police rifleman", N = 2 },
+            ["first"] = new() { On = "shot", By = "Police rifleman", N = 1 },
+            ["task"] = new() { On = "task", Who = "Gunman", Is = JsonValue.Create("HoldShort") },
+        };
+        var book = new AnchorBook(specs, null, null, () => index, 0d, indexIsTheRun: false);
+        book.ObserveEvents(units);
+        Assert.Null(book.WhyUnseen("first", units));
+        Assert.Contains("no unit named 'Police rifelman'", book.WhyUnseen("typo", units));
+        Assert.Contains("Police rifleman", book.WhyUnseen("typo", units));                 // the names alike
+        Assert.Contains("has 1 shots by 'Police rifleman'; #2 asked", book.WhyUnseen("second", units));
+        Assert.Contains("awaits play", book.WhyUnseen("task", units));
+
+        var moving = PositionIndex(20, 0.5, (1, 0, t => 100 - 5 * t));                     // closest 100 − 5 × 9.5 = 52.5 m
+        var near = NearBook(moving, "Alpha"); var alpha = new Units(); alpha.Ids["Alpha"] = 1;
+        Assert.Contains("no closer than 52.5 m", near.WhyUnseen("near:A", alpha));
+
+        var take = new Take
+        {
+            Scenario = "s", Name = "main", Anchors = specs,
+            Keys = new[] { new CameraKey { At = new AtExpr(0d, "second"), Camera = new CameraSpec { LookAt = Vector3.Zero, Distance = 20f } } },
+            EndAt = new AtExpr(4d),
+        };
+        var (_, problems) = DirectorStills.PlanOf(take, null, everyKey: true, anchors: book.TimeOf, whyUnseen: a => book.WhyUnseen(a, units));
+        Assert.Contains(problems, p => p.StartsWith("anchor 'second':") && p.Contains("#2 asked"));
     }
 }

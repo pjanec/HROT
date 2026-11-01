@@ -497,7 +497,7 @@ possession HUD names a `Bomb` and `Rocket` mount. The rack stays mount 0 of 405,
 per side a door gunner (rifleman) and a `Door` station with an M134 operated by him — the DoorGunOrbit profile's two guns; its 8 riders
 are unchanged. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree`.
 ⚠ **`2026-10-15` (ui, CE-1106 — a cross-lane data edit):** the gunner's seat sat at |Y| 0.95, inside the drawn fuselage; it now sits in the
-door like the riders (|Y| 1.05, `SitLegsOut`) and the station stands in front of him (|Y| 1.35, Z −0.7: the pintle pivot at his chest). Seat
+door like the riders (|Y| 1.05, `SitLegsOut`) and the station stands in front of him (|Y| 1.35, Z −1.1: the pintle pivot at his lap — ⭐ `2026-10-30` 40 cm lower than the first Z −0.7, user: at his chest the gun blocked a possessed gunner's view). Seat
 indices, roles, presets and arcs unchanged ([DESIGN_Map_3D_Mode §6u](../../DESIGN_Map_3D_Mode.md)).
 
 ### 7b. Weapon choice, a moving target, how long an Attack lasts — 🔒 `2026-10-15` (R-2020)

@@ -1,80 +1,112 @@
 {
-  "title": "Panic, then shelter",
-  "caption": "Gunfire panics the civilians; they run to the open house, open its door and hide inside",
+  "title": "Panic into a house",
+  "caption": "Under fire, civilians run to a house, open the door and vanish inside — about 20 s later they are gone",
+  "clip": "F-03",
+  "chapter": 3,
+  "state": "ready",
+  "endAt": "in+26",
   "anchors": {
-    "fire": {
+    "shot": {
       "on": "shot",
+      "by": "Rifleman",
       "n": 1
     },
-    "door": {
+    "in": {
       "on": "near",
       "who": "Civilian 1",
       "point": [
-        105,
-        100
+        103,
+        99
       ],
       "within": 3
     }
   },
-  "baked": {
-    "times": {
-      "fire": 1.1
-    },
-    "tickHz": 60,
-    "scenarioHash": "0d4c88ac6bc619e2",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f",
-    "missing": [
-      "door"
-    ]
-  },
-  "shots": [
+  "keys": [
     {
-      "at": "fire-2",
-      "seconds": 3,
-      "lookAt": [
-        105,
-        75,
-        1
-      ],
-      "distance": 55,
-      "yaw": 90,
-      "pitch": -22,
-      "why": "establish: civilians on the street, the house behind them"
-    },
-    {
-      "at": "fire-0.3",
-      "seconds": 3,
+      "at": 0.2,
       "follow": "Civilian 2",
-      "distance": 9,
-      "yaw": 60,
-      "pitch": -8,
-      "why": "eye level as the shots ring out: the flinch"
+      "distance": 70,
+      "yaw": 200,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "wide"
     },
     {
-      "at": "fire+3",
-      "seconds": 4,
-      "over": "Civilian 1",
-      "toward": "Civilian 4",
-      "back": 8,
-      "height": 2,
-      "ahead": 0.6,
-      "why": "running with them toward the door"
-    },
-    {
-      "at": "door-1",
-      "seconds": 4,
-      "lookAt": [
-        105,
-        100,
-        1.5
-      ],
+      "at": "in-5",
+      "follow": "Civilian 1",
       "distance": 14,
-      "yaw": 90,
-      "pitch": -6,
-      "why": "the door: they open it and disappear"
+      "yaw": 160,
+      "pitch": -12,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "run"
+    },
+    {
+      "at": "in-1.5",
+      "follow": "Civilian 3",
+      "distance": 9,
+      "yaw": 120,
+      "pitch": -10,
+      "lift": 1.6,
+      "fov": 45,
+      "segment": "run"
+    },
+    {
+      "at": "in+5",
+      "follow": "Civilian 4",
+      "distance": 55,
+      "yaw": 30,
+      "pitch": -45,
+      "lift": 1,
+      "fov": 50,
+      "segment": "inside"
+    },
+    {
+      "at": "in+21",
+      "follow": "Civilian 4",
+      "distance": 55,
+      "yaw": 30,
+      "pitch": -45,
+      "lift": 1,
+      "fov": 50,
+      "segment": "gone"
     }
   ],
-  "clip": "F-03",
-  "chapter": 3,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "wide",
+      "from": 0.2,
+      "to": "in-5",
+      "speed": 1.5
+    },
+    {
+      "id": "run",
+      "from": "in-5",
+      "to": "in+5"
+    },
+    {
+      "id": "inside",
+      "from": "in+5",
+      "to": "in+20",
+      "speed": 3
+    },
+    {
+      "id": "gone",
+      "from": "in+20",
+      "to": "in+26"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": 0.2,
+      "until": "in+5",
+      "text": "Shots: the civilians run for House A"
+    },
+    {
+      "at": "in+5",
+      "until": "in+26",
+      "text": "Inside — and gone about 20 s later"
+    }
+  ]
 }

@@ -7,6 +7,7 @@ stale-below: §5's D-7 and D-10, the "TWO call sites" line under §5's module gr
 known-rot: §0's inventory table describes the layout BEFORE CE-4089 (it is the "from" state)
 known-conflict: designs/main-toolbar-1/DESIGN.md §16 placed Assets/ and Recipes/ INSIDE the Hrot.AI.Behaviors project; this design keeps its rule (final assets and recipes in disjoint roots, AssetRoots the one authority) and moves both roots to the repository root
 related-designs:
+  - docs/DESIGN_Scenario_Rules.md — §9 SR-38: a macros/ folder of scenario-like macro assets (parameterised, inserted by reference)
   - designs/main-toolbar-1/DESIGN.md — §16 OWNS the assets-vs-recipes split and the AssetRoots authority this design relocates; §10 the ONE asset browser
   - DESIGN_Artifact_Staging.md — OWNS how a node stages artifacts from the shared root (unchanged; it now reads the seeded tree)
   - DESIGN_Terrain_Zones_And_Assets.md — OWNS what a terrain is and how a node resolves one (TerrainCatalog: staging → shared → shipped); the shipped arm goes

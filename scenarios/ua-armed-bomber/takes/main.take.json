@@ -1,83 +1,97 @@
 {
   "title": "Suicide bomber",
-  "caption": "The vest stays hidden until he sets it off; the casualties fall with the distance from the blast",
+  "caption": "A civilian walks into a crowd; the hidden vest bursts — casualties by distance",
+  "clip": "F-16",
+  "chapter": 4,
+  "state": "ready",
+  "endAt": "m+3.7",
   "anchors": {
-    "blast": {
+    "m": {
       "on": "blast",
       "n": 1
     }
   },
-  "baked": {
-    "times": {
-      "blast": 36.2333
-    },
-    "tickHz": 60,
-    "scenarioHash": "284bb89ee533966a",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
+  "keys": [
     {
-      "at": 2,
-      "seconds": 4,
-      "lookAt": [
-        205,
-        200,
-        1
-      ],
-      "distance": 60,
-      "yaw": 90,
-      "pitch": -12,
-      "why": "establish: a crowd, a rifleman, a man walking in"
-    },
-    {
-      "at": "blast-6",
-      "seconds": 4,
+      "at": "m-16",
       "follow": "Bomber",
-      "distance": 6,
-      "pitch": -5,
-      "why": "close behind him: an ordinary man"
+      "distance": 45,
+      "yaw": 30,
+      "pitch": -35,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
     },
     {
-      "at": "blast-0.5",
-      "seconds": 3,
-      "lookAt": [
-        200,
-        200,
-        1
-      ],
-      "distance": 50,
-      "pitch": -25,
-      "why": "the blast, wide"
-    },
-    {
-      "at": "blast-0.3",
-      "seconds": 2,
-      "lookAt": [
-        200,
-        200,
-        1
-      ],
-      "distance": 25,
-      "yaw": 270,
+      "at": "m-4",
+      "follow": "Bomber",
+      "distance": 14,
+      "yaw": 150,
       "pitch": -10,
-      "speed": 0.5,
-      "replay": true,
-      "why": "replay, the reverse angle, slow"
+      "lift": 1.6,
+      "fov": 40,
+      "segment": "setup"
     },
     {
-      "at": "blast+3",
-      "seconds": 4,
-      "lookAt": [
-        200,
-        200,
-        0
-      ],
-      "distance": 35,
-      "pitch": -60,
-      "why": "overhead: who fell, by distance"
+      "at": "m-0.7",
+      "follow": "Bomber",
+      "distance": 10,
+      "yaw": 150,
+      "pitch": -8,
+      "lift": 1.6,
+      "fov": 30,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Civilian 5",
+      "distance": 30,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    },
+    {
+      "at": "m-0.6",
+      "follow": "Civilian 5",
+      "distance": 15,
+      "yaw": 200,
+      "pitch": -10,
+      "lift": 1.4,
+      "fov": 40,
+      "segment": "replay"
     }
   ],
-  "clip": "F-16",
-  "chapter": 4,
-  "state": "ready"
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-16",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+3.7"
+    },
+    {
+      "id": "replay",
+      "from": "m-0.6",
+      "to": "m+1.2",
+      "speed": 0.5
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-16",
+      "until": "m+3.7",
+      "text": "A civilian walks into a crowd; the hidden vest bursts — casualties by distance"
+    }
+  ]
 }

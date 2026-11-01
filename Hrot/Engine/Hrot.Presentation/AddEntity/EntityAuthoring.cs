@@ -14,11 +14,11 @@ namespace Hrot.UI.Common.AddEntity;
 /// CALL time — hosts compose their creation pack, TKB and picker shell after the map.
 /// </summary>
 /// <param name="Tkb">The host's TKB.</param>
-/// <param name="Requests">⭐ <c>CE-3228</c> — the bus the host's creation pack reads (its world's bus), once that pack is composed; null
-/// before. Every authoring affordance publishes an <c>EntityCreationRequest</c> on it (Entity Creation §3.4d).</param>
+/// <param name="Creation">⭐ <c>CE-259ax</c> — the host's creation pack (<c>EntityCreation</c>), once it is composed; null before. Every
+/// authoring affordance ends in <c>creation.RequestEntityCreation(...)</c> — ONE call, the affordance (Entity Authoring Surface §4).</param>
 public sealed record EntityAuthoringInputs(
     Func<ITkbDatabase?> Tkb,
-    Func<FdpEventBus?> Requests)
+    Func<Hrot.Common.EntityCreation.EntityCreation?> Creation)
 {
     /// <summary>Why authoring is suspended now (Preview, loading), or null. Greys the Add Entity submenu.</summary>
     public Func<string?>? SuspendedReason { get; init; }
@@ -51,7 +51,7 @@ public sealed class EntityAuthoring
                              Hrot.ScenarioEditor.Tools.ToolController tools)
     {
         _in = inputs ?? throw new ArgumentNullException(nameof(inputs));
-        _ = worldBus;   // ⭐ CE-3228 — requests go on the creation pack's bus (Requests), which is this world's
+        _ = worldBus;   // ⭐ CE-259ax — requests go through the creation pack (Creation), which owns this world's bus
         _gizmos = gizmos;
         _tools = tools;
         if (inputs.HostPickers is null) _ownPickers = CreatePickers();
@@ -65,12 +65,12 @@ public sealed class EntityAuthoring
         get
         {
             if (_spawn != null) return _spawn;
-            var requests = _in.Requests();
-            if (requests is null) return null;
+            var creation = _in.Creation();
+            if (creation is null) return null;
             // ⭐ CE-4073 — the attribute compiler needs no geographic transform (local ENU metres), so it is built on every host:
             //   `geo is null ? null : …` used to leave a host with no terrain without one, silently dropping every request's attributes.
             var json = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build();
-            _spawn = new ScenarioSpawnAdapter(requests, json, _in.Tkb(), _gizmos, _tools);
+            _spawn = new ScenarioSpawnAdapter(creation, json, _in.Tkb(), _gizmos, _tools);
             return _spawn;
         }
     }

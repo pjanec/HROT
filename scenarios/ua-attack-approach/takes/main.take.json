@@ -1,57 +1,87 @@
 {
   "title": "Flank a lost target",
-  "caption": "When the target ducks out of sight, the soldier moves to a new firing position",
-  "anchors": {
-    "fire": {
-      "on": "shot",
-      "by": "Rifleman",
-      "n": 1
-    }
-  },
-  "baked": {
-    "times": {
-      "fire": 1.1167
-    },
-    "tickHz": 60,
-    "scenarioHash": "4440d212220101ed",
-    "buildSha": "0.1.1+414c21083c82d0e7a4f1065987fc0094f8da4f8f"
-  },
-  "shots": [
-    {
-      "at": 1,
-      "seconds": 3,
-      "lookAt": [
-        320,
-        120,
-        1
-      ],
-      "distance": 80,
-      "yaw": 90,
-      "pitch": -40,
-      "why": "high: the wall between them"
-    },
-    {
-      "at": 4,
-      "seconds": 5,
-      "follow": "Rifleman",
-      "distance": 10,
-      "yaw": 60,
-      "pitch": -12,
-      "why": "with him as he moves round"
-    },
-    {
-      "at": "fire-1",
-      "seconds": 3,
-      "over": "Rifleman",
-      "toward": "Hidden Hostile",
-      "back": 3,
-      "height": 1.7,
-      "ahead": 0.8,
-      "fov": 30,
-      "why": "sight regained, fire"
-    }
-  ],
+  "caption": "The hostile ducks behind a wall: the rifleman does not stand and shoot — he moves to a new firing spot",
   "clip": "F-19",
   "chapter": 5,
-  "state": "ready"
+  "state": "ready",
+  "endAt": "m+5",
+  "anchors": {
+    "m": {
+      "on": "shot",
+      "by": "Rifleman",
+      "n": 8
+    }
+  },
+  "keys": [
+    {
+      "at": "m-14",
+      "follow": "Rifleman",
+      "distance": 90,
+      "yaw": 35,
+      "pitch": -45,
+      "lift": 2,
+      "fov": 50,
+      "segment": "intro"
+    },
+    {
+      "at": "m-4",
+      "over": "Rifleman",
+      "toward": "Hidden Hostile",
+      "back": 6,
+      "height": 2,
+      "lift": 1.7,
+      "fov": 40,
+      "segment": "setup"
+    },
+    {
+      "at": "m-0.7",
+      "over": "Rifleman",
+      "toward": "Hidden Hostile",
+      "back": 4,
+      "height": 1.8,
+      "lift": 1.6,
+      "fov": 28,
+      "segment": "moment"
+    },
+    {
+      "at": "m+2",
+      "follow": "Hidden Hostile",
+      "distance": 42,
+      "yaw": 60,
+      "pitch": -50,
+      "lift": 1,
+      "fov": 45,
+      "segment": "moment"
+    }
+  ],
+  "segments": [
+    {
+      "id": "intro",
+      "from": "m-14",
+      "to": "m-4",
+      "speed": 2
+    },
+    {
+      "id": "setup",
+      "from": "m-4",
+      "to": "m-1.5"
+    },
+    {
+      "id": "moment",
+      "from": "m-1.5",
+      "to": "m+5"
+    }
+  ],
+  "subtitles": [
+    {
+      "at": "m-14",
+      "until": "m-1.5",
+      "text": "The hostile is behind the wall: he moves to a new firing spot"
+    },
+    {
+      "at": "m-1.5",
+      "until": "m+5",
+      "text": "From the new spot he fires again"
+    }
+  ]
 }

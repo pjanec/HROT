@@ -123,6 +123,9 @@ public sealed class TrafficRoadScene
         return new Vector3((float)x, (float)y, (float)(fz + frame.OriginZ));
     }
 
+    /// <summary>⭐ CE-4122 — the net's bounds in NET metres: the rectangle the SUMO ambient ground covers (and so the footprint of the ground beyond our terrain).</summary>
+    public static (double MinX, double MinY, double MaxX, double MaxY) NetBounds(NetworkModel net) => Bounds(net);
+
     private static (double MinX, double MinY, double MaxX, double MaxY) Bounds(NetworkModel net)
     {
         if (net.Location is { } loc && loc.ConvBoundary.MaxX > loc.ConvBoundary.MinX)
