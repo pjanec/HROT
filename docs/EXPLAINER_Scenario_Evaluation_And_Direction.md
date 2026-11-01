@@ -178,7 +178,10 @@ stateDiagram-v2
     Armed --> Holding : the condition rises (false to true)
     Holding --> Armed : drops before holdFor
     Holding --> Waiting : held for holdFor
-    Waiting --> Fired : delay elapsed, actions run in order
+    Waiting --> Acting : delay elapsed
+    Acting --> Acting : current action Success, next one starts
+    Acting --> Fired : last action Success
+    Acting --> Fired : an action Failure (stops, Reason written)
     Fired --> Cooldown : repeat
     Cooldown --> Armed : cooldown over and condition false again
     Fired --> Done : once
@@ -199,8 +202,12 @@ sequenceDiagram
     CA->>HB: reads the status, sees the edge
     CA->>CA: Armed to Waiting (delay 120 s)
     Note over CA: 09:43:10 — the delay elapsed
-    CA->>EC: InsertMacro RedQRF at @VillageEdge (12 transient entities)
+    CA->>EC: InsertMacro RedQRF at @VillageEdge (12 creation requests)
+    Note over CA: InsertMacro is Running — the next action waits
+    EC-->>CA: EntityConstructionCompleted x12 (every node acked)
+    Note over CA: InsertMacro Success
     CA->>RC: Order @RedQRF Attack @Bridge (AssignTacticalIntent)
+    RC-->>CA: intent accepted — Order Success
     CA->>IOS: Message "Red counter-attack launched"
     CA->>CA: Fired to Done · Reason written · journaled
 ```
@@ -212,25 +219,55 @@ sequenceDiagram
 | `once` / `repeat` | `repeat` re-arms only after the condition went false again, plus `cooldown` |
 | time | simulation time only — paused ⇒ nothing fires |
 | several in one tick | each is independent; up to one tick of latency; where order matters, CHAIN — a trigger's own `Fired` is a condition another can watch |
-| actions | run in their listed order; `Order` / `InsertMacro` are fire-and-forget; a failed action is written into `Reason`, the others still run |
+| actions | run in their listed order, each WAITED for — the next starts only when the previous succeeded; a failure stops the list and is written into `Reason` |
 | the instructor | can fire, disarm or re-arm it by hand (journaled with who did it) |
 
-### 2.5 What `do` is — a plain list, not a script
+### 2.5 What `do` is — a plain list of the SAME actions every behaviour uses (SR-93)
 
 ```mermaid
 graph LR
-    P["the trigger's params (JSON)<br/>do: InsertMacro · Order · Message"]
-    TB["Trigger behaviour<br/>ONE, compiled once"]
-    H["compiled action handlers<br/>a small closed set"]
-    E["existing events<br/>macro insertion · AssignTacticalIntent · message"]
+    P["trigger params (JSON)<br/>do: InsertMacro · Order · Message"]
+    TB["Trigger behaviour<br/>runs the list as a sequence"]
+    BT["any BTree / HSM<br/>e.g. a squad leader"]
+    DR["a director"]
+    V["ONE action vocabulary<br/>[SharedAiAction]s with an explicit target<br/>InsertMacro · Order · MissionCommand · Message …"]
+    E["existing machinery<br/>entity creation · AssignTacticalIntent · messages"]
     P --> TB
-    TB -- "at fire time, in order" --> H
-    H --> E
+    TB --> V
+    BT --> V
+    DR --> V
+    V --> E
 ```
 
-*Caption:* the `do` list is DATA in the trigger's params; the one shipped `Trigger` behaviour walks it when it fires and hands each entry to a
-compiled handler by its kind — no sub-behaviour, no Blueprint, nothing compiled per scenario. An unknown kind is refused when the scenario
-loads. `when` can be an objective's status OR the scenario clock directly (`scenarioTime >= 09:30`).
+*Caption:* the verbs are not trigger-only handlers — they are ordinary shared actions that say WHO they act on, so a trigger, a squad
+leader's tree or a director all call the same `InsertMacro`. Each one reports `Running` until it is really done (InsertMacro: until every
+entity it asked for is constructed and acked on all nodes), so the list can wait for it. The `do` list itself is still just data — nothing is
+compiled per scenario, and an unknown action or bad argument is refused when the scenario loads. `when` can be an objective's status OR the
+scenario clock directly (`scenarioTime >= 09:30`).
+
+```mermaid
+sequenceDiagram
+    participant C as caller (trigger, tree or director)
+    participant IM as InsertMacro (shared action)
+    participant EC as entity creation
+    participant LM as lifecycle module (every node)
+    C->>IM: tick (first time)
+    IM->>EC: one creation request per macro entity, ids kept in its working state
+    IM-->>C: Running
+    LM-->>IM: EntityConstructionCompleted (RequestId = ours)
+    C->>IM: tick
+    IM-->>C: Running (some still pending)
+    LM-->>IM: the last one completed
+    C->>IM: tick
+    IM-->>C: Success (or Failure, with the refusing module's reason)
+```
+
+*Caption:* what "waits for it to complete" means in practice — the action, not the caller, knows when it is done, so every caller gets the
+same behaviour for free.
+
+⛔ **Not yet buildable** — three things to measure first: binding an action from data at runtime (today bindings are generated code), where
+InsertMacro's variable arguments live (an action's params must be a fixed-size struct), and moving the action catalogue from the editor into
+shared runtime code so a cluster node can validate the list. See [SR-93](DESIGN_Scenario_Rules.md).
 
 ### 2.4 How it fits with the others
 
