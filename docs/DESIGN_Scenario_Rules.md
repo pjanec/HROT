@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-139; §9.8.7 rev d = the current layout; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-140; §9.8.8 rev e = the current types and layout; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -836,7 +836,7 @@ public readonly struct WorldArea                      // 40 bytes (8 + 8 + 12 + 
 |---|---|---|
 | **SR-138** | what a TOOL sees (AI agents over the debug API / MCP, logs, the inspector, a raw dump) | ⭐ ① **raw memory in the default form is today's**: an unauthored `EntityRef` is the network id at offset 0 followed by eight zero bytes; a `WorldPoint` is three floats followed by zeros — a hex dump, a blob-offset reader or a trace buffer reads the same id / metres it reads now. ② **every structured reader goes through the TYPE**: the debug API serializes with System.Text.Json (`DebugApiDumpOptions`, `DebugApiService.cs:470`), which honours `[JsonConverter]`; logs and the debugger use `ToString` / `[DebuggerDisplay]`. ③ **the converter writes by context, and every output reads back** (the dump is also the PATCH input, HN-002): not authored ⇒ the bare number `9812` (unchanged — every skill doc and client keeps working) · file / save ⇒ the authored text `"@BlueHQ"` · diagnostics (`DebugApiDumpOptions`) ⇒ BOTH: `{"NetworkId": 9812, "Ref": "@BlueHQ"}` — the reader already accepts `{"NetworkId": n}` (`EntityRef.cs:100-108`), extended to read `Ref`. `WorldPoint`: `[x, y, z]` · `"@Key"` · diagnostics `{"Local": [x, y, z], "Ref": "@Key"}`. ④ the ai-debug skill doc (`tools/ai-debug-mcp/SKILL.md`) gets one paragraph on the three forms in the same change. ⚠ The one opaque case: a REFLECTION dump that ignores converters and `ToString` would print `Authored._bits` as a number — the type exposes `Form` / `Text` as properties so even that shows meaning |
 
-#### 9.8.7 Rev d (`2026-11-01`) — the authored form INLINE, fully unmanaged, no table *(lean SR-139 awaits the user; supersedes §9.8.5 SR-137's handle + table and §9.8.6's declarations; SR-138's tool rules ①–④ stand)*
+#### 9.8.7 Rev d (`2026-11-01`) — the authored form INLINE, fully unmanaged, no table *(⚠ the INLINE + unmanaged ruling stands; its DECLARATIONS and single-type choice are SUPERSEDED by §9.8.8 rev e; supersedes §9.8.5 SR-137's handle + table and §9.8.6's declarations; SR-138's tool rules ①–④ stand)*
 
 > 🔒 **User, `2026-11-01`:** *"The world position was so far used as plain unmanaged structure, and it is saved as such in components, and they
 > are recorded as such, and the general desire is to never use managed types. So the optional string in the offered reference seems weird and
@@ -891,6 +891,66 @@ public readonly struct WorldArea                        // 64 bytes
 - *Rev c's handle into a per-world managed table* — a managed type one level down, plus a tag trap on every hand-over and restore (the user's objection).
 - *A key HASH inline (8 bytes)* — the editor could not show the text of a key that does not exist in the open file (a macro's default `@BlueHQ`).
 - *Two types — an 8-byte runtime ref and a 40-byte authored ref* — two types for one concept; the authored form must survive in the editor's live world, which IS where save reads from.
+
+#### 9.8.8 Rev e (`2026-11-01`) — TWO types: the internal `EntityRef` stays 8 bytes; an AUTHORED `EntityLink` for edited params *(lean SR-140 awaits the user; supersedes §9.8.7's declarations and its "two types" rejection)*
+
+> 🔒 **User, `2026-11-01`:** *"Couldn't we use the already existing fixed string 32 type instead of breaking the string into the length and the
+> array of bytes? What about components that are storing a list of entity references? These are usually not user editable, they are used
+> internally, but the byte size of them matters because they will be saved to recordings … Having two types for entity reference, one is for
+> internal use and the other is for user editable use, saving the authored information."*
+
+⭐ **Why two types is right after all** (rev d rejected it as *"two types for one concept"* — wrong): they are TWO concepts. `EntityRef` is a
+RESOLVED identity (*which* entity — written by code, held in lists, recorded every frame); `EntityLink` is an AUTHORED intent (*how to find*
+it — written by a person, kept so save can write it back). The codebase already separates authored from runtime once (`DESIGN_Entity_Reference.md`
+D7: authored `EntityRef` vs runtime `Entity`); this is the same cut one level up. ⭐ `FixedString32` (`Fdp.Core/FixedString32.cs:13`, 31 UTF-8
+bytes) is reused for the key, overlaid with the GUID.
+
+```csharp
+public enum RefForm : byte { None = 0, Exact = 1, Key = 2, Circle = 3, Rectangle = 4 }
+
+[StructLayout(LayoutKind.Explicit, Size = 36)]
+public readonly struct RefSpec                          // 36 B — HOW it was authored; all zero = not authored
+{
+    [FieldOffset(0)]  public readonly FixedString32 Key; // Form == Key: "BlueHQ", "BluePlatoon/SL" (no '@'), ≤ 31 UTF-8 bytes
+    [FieldOffset(0)]  public readonly Guid Exact;        // Form == Exact — overlays the key; one or the other
+    [FieldOffset(32)] public readonly RefForm Form;
+}
+
+public readonly struct EntityRef                        // 8 B — UNCHANGED: internal, lists, components, the wire
+{
+    public readonly long NetworkId;
+}
+
+public readonly struct EntityLink                       // 48 B — an AUTHORED reference (params, `when` / `do` args)
+{
+    public readonly EntityRef Ref;                      // offset 0 — the resolved answer; behaviour code reads link.Ref
+    public readonly RefSpec   Spec;                     // offset 8
+}
+
+public readonly struct WorldPoint                       // 48 B — authored by nature (params only)
+{
+    public readonly Vector3 Local;                      // offset 0 — metres
+    public readonly RefSpec Spec;                       // offset 12 — None = plain coordinates
+}
+
+public readonly struct WorldArea                        // 72 B — authored by nature
+{
+    public readonly EntityRef Area;                     // Exact / Key form: the resolved area entity
+    public readonly RefSpec   Spec;                     // Circle / Rectangle / Exact / Key
+    public readonly Vector3   Center;
+    public readonly Vector2   Size;                     // rectangle w, h · circle: X = radius
+    public readonly float     HeadingDeg;
+}
+```
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-140** | two reference types, and where each goes | ⭐ **`EntityRef` stays exactly as today** (8 bytes, the network id) for everything code writes: components, lists (`PassengerNetworkIds`, buffers, target memories), runtime node structs, the wire, `BrainIntent` JSON — ⇒ recordings do not grow. ⭐ **`EntityLink`** (48 bytes) for everything a PERSON writes: params-DTO fields (the 21 `EntityRef` params fields change type), the `when` / `do` args, macro params. It converts to `EntityRef` (`link.Ref`), so behaviour code changes one member access. `WorldPoint` and `WorldArea` are authored by nature and carry the same `RefSpec`. ⭐ A RAIL fails on an `EntityRef` member of a `[ParamsDto]` / predicate DTO (it must be `EntityLink`) — the split cannot drift. The picker keys on BOTH types (D5): an `EntityRef` pick writes an id, an `EntityLink` pick writes `Exact` or `Key`. ⚠ What it does NOT solve: an internal `EntityRef` inside a component SAVED to a scenario (`UnitSubordinate`'s parent …) still needs `DESIGN_Scenario_Entity_Keys.md` S9's file-boundary GUID conversion — those components already save through translators keyed by GUID (§0a there), so that is S9's open item, not this one's |
+
+**Rejected — one line each:**
+- *One 40–48-byte `EntityRef` everywhere (rev d)* — every internal list and every recorded frame pays for text nobody authored (the user's point).
+- *A hand-rolled length + byte array* — `FixedString32` exists (the user's point).
+- *`EntityLink` for components too* — components are written by code; an authored form there would always be empty.
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
