@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: CGF-1-DESIGN.md:557 removed `RunningEdit → LoadingLive` ("would … leave edit-session resources dangling"); §4 D3 reinstates it as a world-CONTINUING load (the shape of the replay → live branch), which leaves nothing dangling because the edit world is parked in the go-live snapshot
 related-designs:
+  - ../DESIGN_Add_Entity_Picker.md — §2f the thumbnail gallery (CE-4142), the second source on D26's generic picker extensions
   - ../DESIGN_Scenario_Rules.md — SR-101 OWNS run variants (presence, one-of-N, random delay / place) and SR-41 the scenario params that D24's run setup chooses at start
   - ../DESIGN_Node_Features.md — the run settings gain FeatureOverrides (F-8); MapInLoadNodes becomes the first of them
   - ../DESIGN_Replay_Time_Axis_And_Review.md — §9a OWNS the mode indicator and its rule "a click opens a menu, never acts" (R-3060, R-3061); this question grows that menu with the mode choice and keeps the rule
