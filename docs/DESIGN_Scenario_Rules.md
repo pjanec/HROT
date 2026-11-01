@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-137; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (draft, SR-125…SR-138; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -782,6 +782,58 @@ editor and by save — goes through a table, and a `WorldPoint` needs no network
 - *SR-133's 32-byte struct (GUID inline)* — 2× the size for a value read only by the editor and save.
 - *8 bytes, the network id behind the handle too* — every `Resolve` on the hot path would become a table lookup, and a resolved ref would need one table entry per occurrence (a macro-local key resolves differently in each instance).
 - *A process-wide table with no tag* — a handle that crossed nodes or a restore would silently read someone else's text.
+
+#### 9.8.6 The declarations, and how a TOOL reads them *(lean SR-138 awaits the user)*
+
+```csharp
+public enum AuthoredForm : byte { None = 0, Exact = 1, Key = 2, Shape = 3 }   // Shape: WorldArea's circle / rectangle
+
+[StructLayout(LayoutKind.Sequential)]
+public readonly struct AuthoredRef                    // 8 bytes; default (0) = NOT authored
+{
+    private readonly ulong _bits;                     // [63..62] form · [61..48] table tag · [47..0] index
+    public AuthoredForm Form  => (AuthoredForm)(_bits >> 62);
+    public ushort       Tag   => (ushort)((_bits >> 48) & 0x3FFF);
+    public long         Index => (long)(_bits & 0xFFFF_FFFF_FFFF);
+    public bool         IsNone => _bits == 0;
+    public string?      Text  => AuthoredRefTables.TryText(this);   // "@BlueHQ" / "3f2a…"; null if the tag is not this world's
+    public override string ToString() => Text ?? (IsNone ? "" : "(authored elsewhere)");
+}
+
+[StructLayout(LayoutKind.Sequential)]
+[JsonConverter(typeof(EntityRefJsonConverter)), DebuggerDisplay("{ToString()}")]
+public readonly struct EntityRef                      // 16 bytes
+{
+    public readonly long        NetworkId;            // offset 0 — EXACTLY today's 8 bytes; 0 = none / unresolved
+    public readonly AuthoredRef Authored;             // offset 8 — 0 when not authored
+    public override string ToString() => Authored.IsNone ? (NetworkId == 0 ? "(none)" : "#" + NetworkId)
+                                                         : $"{Authored} → " + (NetworkId == 0 ? "unresolved" : "#" + NetworkId);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+[JsonConverter(typeof(WorldPointJsonConverter)), DebuggerDisplay("{ToString()}")]
+public readonly struct WorldPoint                     // 24 bytes (12 + 4 padding + 8)
+{
+    public readonly Vector3     Local;                // offset 0 — metres, local ENU; the live answer
+    public readonly AuthoredRef Authored;             // offset 16 — 0 = plain coordinates
+}
+
+[StructLayout(LayoutKind.Sequential)]
+[JsonConverter(typeof(WorldAreaJsonConverter)), DebuggerDisplay("{ToString()}")]
+public readonly struct WorldArea                      // 40 bytes
+{
+    public readonly AreaShape   Shape;                // Circle · Rectangle · Entity (byte, + padding)
+    public readonly Vector3     Center;               // Circle / Rectangle
+    public readonly Vector2     Size;                 // Rectangle w, h · Circle: X = radius
+    public readonly float       HeadingDeg;           // Rectangle, degrees from north, clockwise
+    public readonly long        AreaNetworkId;        // Entity: the area entity
+    public readonly AuthoredRef Authored;             // Entity: "@Village" / GUID
+}
+```
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-138** | what a TOOL sees (AI agents over the debug API / MCP, logs, the inspector, a raw dump) | ⭐ ① **raw memory in the default form is today's**: an unauthored `EntityRef` is the network id at offset 0 followed by eight zero bytes; a `WorldPoint` is three floats followed by zeros — a hex dump, a blob-offset reader or a trace buffer reads the same id / metres it reads now. ② **every structured reader goes through the TYPE**: the debug API serializes with System.Text.Json (`DebugApiDumpOptions`, `DebugApiService.cs:470`), which honours `[JsonConverter]`; logs and the debugger use `ToString` / `[DebuggerDisplay]`. ③ **the converter writes by context, and every output reads back** (the dump is also the PATCH input, HN-002): not authored ⇒ the bare number `9812` (unchanged — every skill doc and client keeps working) · file / save ⇒ the authored text `"@BlueHQ"` · diagnostics (`DebugApiDumpOptions`) ⇒ BOTH: `{"NetworkId": 9812, "Ref": "@BlueHQ"}` — the reader already accepts `{"NetworkId": n}` (`EntityRef.cs:100-108`), extended to read `Ref`. `WorldPoint`: `[x, y, z]` · `"@Key"` · diagnostics `{"Local": [x, y, z], "Ref": "@Key"}`. ④ the ai-debug skill doc (`tools/ai-debug-mcp/SKILL.md`) gets one paragraph on the three forms in the same change. ⚠ The one opaque case: a REFLECTION dump that ignores converters and `ToString` would print `Authored._bits` as a number — the type exposes `Form` / `Text` as properties so even that shows meaning |
 
 ## 10. Objective KINDS, measures, status, the result *(rev 7 draft, `2026-10-31` — leans for the user)*
 
