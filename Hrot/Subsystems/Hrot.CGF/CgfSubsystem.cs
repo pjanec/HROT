@@ -599,7 +599,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.World.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId   = networkId,
-            TkbType     = tkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(tkbType),
             OwnerNodeId = _context.NodeId,
             InitType    = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
             RequestId   = System.Guid.Empty,

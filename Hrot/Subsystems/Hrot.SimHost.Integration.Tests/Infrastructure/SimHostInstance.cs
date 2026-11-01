@@ -454,7 +454,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = 1,
-                TkbType            = tkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
                 DisType            = 0,
             };
 

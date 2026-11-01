@@ -83,7 +83,7 @@ public sealed class NedEntityCreationRequestSource : IEntityCreationRequestSourc
             {
                 RequestId             = msg.RequestId,
                 OwnerAppInstanceId    = msg.Owner.AppInstanceId,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 PreAllocatedNetworkId = preAllocated,
                 DisType               = disType,
                 InitialAttributesJson = msg.InitialAttributesJson,

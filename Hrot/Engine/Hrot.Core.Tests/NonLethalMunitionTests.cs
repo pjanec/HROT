@@ -110,7 +110,7 @@ namespace Hrot.Map.Common.Tests
             world.SetSingletonManaged<ITkbDatabase>(db);
             var source = world.CreateEntity();
             world.AddComponent(source, new SimTransform { Position = new System.Numerics.Vector3(100, 100, 0), Rotation = System.Numerics.Quaternion.Identity });
-            world.AddComponent(source, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.StoneSource });
+            world.AddComponent(source, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.StoneSource) });
             world.SetManagedComponent(source, new Hrot.IG.Components.EditablePolyline
                 { Points = new System.Collections.Generic.List<System.Numerics.Vector2> { new(-5, -5), new(5, -5), new(5, 5), new(-5, 5) } });
 
@@ -118,7 +118,7 @@ namespace Hrot.Map.Common.Tests
             {
                 var e = world.CreateEntity();
                 world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, y, 0), Rotation = System.Numerics.Quaternion.Identity });
-                world.AddComponent(e, new TkbIdentity { TkbType = CivilianTkbCatalog.TkbCivilianAdultMale });
+                world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CivilianTkbCatalog.TkbCivilianAdultMale) });
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(world, e, db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale)!);
                 return e;
             }
@@ -337,7 +337,7 @@ namespace Hrot.Map.Common.Tests
             {
                 var e = world.CreateEntity();
                 world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
-                world.AddComponent(e, new TkbIdentity { TkbType = type });
+                world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
                 world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(world, e, db.GetByType(type)!);
                 return e;

@@ -238,7 +238,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-                TkbType            = TkbEntityTypes.Infantry_Pilot,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Pilot),
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new SimTransform { Position = new System.Numerics.Vector3(100, 200, 300), Rotation = System.Numerics.Quaternion.Identity },
@@ -308,7 +308,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-                TkbType            = TkbEntityTypes.WorldEnvironment,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WorldEnvironment),
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = 180 },
@@ -382,7 +382,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-                TkbType            = TkbEntityTypes.Infantry_Rifleman,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman),
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new SimTransform { Position = new System.Numerics.Vector3(10, 20, 0), Rotation = System.Numerics.Quaternion.Identity },
@@ -440,7 +440,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-                TkbType            = TkbEntityTypes.Infantry_Rifleman,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman),
                 SpawnHeight        = Fdp.Toolkit.NetworkSpawning.SpawnHeight.OnGround,
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
@@ -545,7 +545,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             {
                 RequestId          = request,
                 OwnerAppInstanceId = owner,
-                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new SimTransform { Position = new System.Numerics.Vector3(40, 60, 0), Rotation = System.Numerics.Quaternion.Identity },

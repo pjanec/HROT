@@ -197,9 +197,9 @@ public sealed class OrderVocabularyTests
     {
         var info = Probe(typeof(NeedsAll));
         var store = new OrderDesignations();
-        store.Set(7, DesignationKind.Target, 11L);
-        store.Set(7, DesignationKind.Route, 22L);
-        store.Set(7, DesignationKind.Area, 33L);
+        store.Set(7, DesignationKind.Target, 11);
+        store.Set(7, DesignationKind.Route, 22);
+        store.Set(7, DesignationKind.Area, 33);
         store.Set(7, DesignationKind.MapPoint, new JsonArray(1.0, 2.0));
         var lookup = store.Lookup(_ => true);
 

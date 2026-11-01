@@ -640,7 +640,7 @@ public sealed class AudioTests
     {
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(e, new TkbIdentity { TkbType = type });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         return e;
     }
 

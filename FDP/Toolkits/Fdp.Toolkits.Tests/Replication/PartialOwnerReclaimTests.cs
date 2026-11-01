@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             var e = repo.CreateEntity();
             repo.AddComponent(e, new NetworkAuthority(primary, local));
-            repo.AddComponent(e, new TkbIdentity { TkbType = 1 });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
             repo.AddComponent(e, new NetworkTransform());
             repo.AddComponent(e, new NetworkVelocity());
 

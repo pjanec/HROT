@@ -579,7 +579,7 @@ public sealed class MenuOrdersTests : IDisposable
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = at });
-            _w.AddComponent(e, new TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _w.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = kind, Point = aim });
             return e;
         }

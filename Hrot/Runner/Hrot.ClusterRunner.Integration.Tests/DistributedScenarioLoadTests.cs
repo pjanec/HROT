@@ -204,7 +204,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         // Spawn the attacker (offline ID 5000).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = TkbEntityTypes.Tank_M1Abrams,   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
             NetworkId  = OfflineAttackerId,
             OwnerNodeId = 0,
             InitType   = ReliableInitType.None,
@@ -213,7 +213,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         // Spawn the target (offline ID 5001).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = TkbEntityTypes.Tank_M1Abrams,   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            TkbType    = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
             NetworkId  = OfflineTargetId,
             OwnerNodeId = 0,
             InitType   = ReliableInitType.None,

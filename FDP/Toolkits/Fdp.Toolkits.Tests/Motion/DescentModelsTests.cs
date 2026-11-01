@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var man = Body(new Vector3(0, 0, 300), new Descent { Kind = DescentKind.Ejection, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round },
                            velocity: new Vector3(150f, 0f, ParachuteModel.EjectUpMps));
-            _w.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 206 });
+            _w.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(206) });
             const float dt = 1f / 60f;
             double openAt = -1;
             float zOpen = 0f, apex = 0f;

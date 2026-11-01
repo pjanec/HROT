@@ -46,7 +46,7 @@ public sealed class OfflineEditorIntegrationTests
 
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
             OwnerNodeId = 0,
             InitType    = ReliableInitType.None,
@@ -74,7 +74,7 @@ public sealed class OfflineEditorIntegrationTests
         // 1. Spawn
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
             OwnerNodeId = 0,
             InitType    = ReliableInitType.None,
@@ -118,7 +118,7 @@ public sealed class OfflineEditorIntegrationTests
         // 1. Spawn
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
             OwnerNodeId = 0,
             InitType    = ReliableInitType.None,

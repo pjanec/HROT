@@ -561,8 +561,8 @@ public sealed class DebugApiOrdersTests
         db.Register(thrower);
         r.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
         if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-        if (r.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)) r.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9300 });
-        else r.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9300 });
+        if (r.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)) r.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9300) });
+        else r.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9300) });
 
         Assert.Null(svc.PostPossess(UnitId).error);
         h.PumpFrames(4);

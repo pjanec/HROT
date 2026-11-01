@@ -345,7 +345,7 @@ public sealed class APreviewLeavesNoTraceTests
 
         // The world as the log restored it: Constructing, carrying its TkbIdentity, in NOBODY's queue.
         var restored = repo.CreateEntity();
-        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4242 });
+        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4242) });
         repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
 
         var bracket = new PreviewStateBracket(new[] { PreviewParticipants.LifecycleModule(elm) });
@@ -383,7 +383,7 @@ public sealed class APreviewLeavesNoTraceTests
         for (int i = 0; i < 2; i++)
         {
             var restored = repo.CreateEntity();
-            repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4242 + i });
+            repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4242 + i) });
             repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
         }
         Fdp.Toolkit.Replay.AfterRestore.Run(repo);
@@ -434,7 +434,7 @@ public sealed class APreviewLeavesNoTraceTests
 
         // A restored Constructing entity is present — but we are ENTERING a replay, not resuming.
         var restored = repo.CreateEntity();
-        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 7 });
+        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(7) });
         repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
 
         elm.OnWorldReplaced(resumingToLive: false);
@@ -456,7 +456,7 @@ public sealed class APreviewLeavesNoTraceTests
         var elm = NewElm();
 
         var restored = repo.CreateEntity();
-        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 7 });
+        repo.AddComponent(restored, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(7) });
         repo.SetLifecycleState(restored, EntityLifecycle.Constructing);
 
         elm.OnWorldReplaced(resumingToLive: true);
@@ -477,7 +477,7 @@ public sealed class APreviewLeavesNoTraceTests
         var elm = NewElm();
 
         var ghost = repo.CreateEntity();
-        repo.AddComponent(ghost, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 7 });
+        repo.AddComponent(ghost, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(7) });
         repo.SetLifecycleState(ghost, EntityLifecycle.Ghost);
 
         var promotion = new Fdp.Toolkit.Replication.Systems.GhostPromotionSystem(

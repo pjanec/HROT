@@ -137,7 +137,7 @@ public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
                 var childEntity = repo.CreateEntity();
                 repo.SetManagedComponent(childEntity, newPlan);
                 repo.AddComponent(childEntity, new PartMetadata { ParentEntity = vehicleEntity });
-                repo.AddComponent(childEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+                repo.AddComponent(childEntity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route) });
                 repo.AddComponent(childEntity, new SimTransform { Position = vehiclePos });
 
                 repo.AddComponent(vehicleEntity, new PersonalRouteRef { RouteEntity = childEntity, FollowPending = 1 });

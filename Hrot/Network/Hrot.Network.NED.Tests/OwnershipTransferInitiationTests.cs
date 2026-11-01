@@ -37,7 +37,7 @@ namespace Hrot.Network.NED.Tests
             var e = repo.CreateEntity();
             repo.AddComponent(e, new NetworkIdentity(NetId));
             repo.AddComponent(e, new NetworkAuthority(Local, Local));   // this node owns it
-            repo.AddComponent(e, new TkbIdentity { TkbType = 1 });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
 
             var map = new NetworkEntityMap();
             map.Register(NetId, e);

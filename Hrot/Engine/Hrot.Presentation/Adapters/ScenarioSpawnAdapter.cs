@@ -61,14 +61,14 @@ namespace Hrot.UI.Common.Adapters
         private string  _pendingStyleJson = string.Empty;
         // ⭐ CE-1161 (Weather and Time §7 E-4) — the TKB type the next area tool activation births (a Weather Region, 8811); the plain
         //   StartAreaAuthoringMode resets it to the tactical area.
-        private long    _pendingAreaTkbType = TkbEntityTypes.TacGraphic_Area;
+        private TkbTypeId    _pendingAreaTkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area);
 
         /// <summary>
         /// The TKB entity type most recently passed to <see cref="StartPlacementMode"/>.
         /// Used by <see cref="StartPlacementModeWithLastType"/> to re-activate placement
         /// without needing a new type selection.
         /// </summary>
-        public long LastSelectedTkbType { get; private set; } = TkbEntityTypes.Tank_M1Abrams;
+        public TkbTypeId LastSelectedTkbType { get; private set; } = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams);
 
         /// <param name="creation">⭐ <c>CE-259ax</c> — the host's creation pack: every affordance (placement, area, zone, route) ends in ONE call,
         /// <see cref="EntityCreation.RequestEntityCreation"/> (Entity Authoring Surface G1 / acceptance ⑧, §4). ⛔ This adapter no longer maps a
@@ -152,7 +152,7 @@ namespace Hrot.UI.Common.Adapters
         /// </remarks>
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null)
         {
-            LastSelectedTkbType    = tkbType;
+            LastSelectedTkbType    = (Fdp.Core.TkbTypeId)(tkbType);
             _pendingPropertiesJson = initialPropertiesJson;
 
             // ⭐⭐⭐ UXI-07 step 4a — ACTIVATE through the arbiter instead of arming directly.
@@ -271,7 +271,7 @@ namespace Hrot.UI.Common.Adapters
         public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "")
         {
             _pendingStyleJson = styleOverrideJson;
-            _pendingAreaTkbType = tkbType == 0 ? TkbEntityTypes.TacGraphic_Area : tkbType;
+            _pendingAreaTkbType = (Fdp.Core.TkbTypeId)(tkbType == 0 ? TkbEntityTypes.TacGraphic_Area : tkbType);
 
             // ⭐⭐⭐ UXI-07 step 4a — see StartPlacementMode. ⭐ Area/route bring their OWN tool ids
             //   (PlaceArea/PlaceRoute) because nothing else registers them, and §4.9 ④ measured that
@@ -321,7 +321,7 @@ namespace Hrot.UI.Common.Adapters
             }
 
             var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
-                TkbType:    tkbType,
+                TkbType:    (Fdp.Core.TkbTypeId)(tkbType),
                 StyleJson:  _pendingStyleJson,
                 OnCommit:   Request,
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
@@ -411,7 +411,7 @@ namespace Hrot.UI.Common.Adapters
                     var cmd = new SpawnEntityCommand
                     {
                         NetworkId         = 0,
-                        TkbType           = TkbEntityTypes.TacGraphic_Route,
+                        TkbType           = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route),
                         OwnerNodeId       = 0,
                         InitType          = ReliableInitType.AllPeers,
                         RequestId         = System.Guid.NewGuid(),

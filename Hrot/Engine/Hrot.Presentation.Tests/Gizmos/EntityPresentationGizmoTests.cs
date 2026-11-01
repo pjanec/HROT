@@ -531,7 +531,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             _repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
             var ied = Spawn(4401, new Vector3(50f, 60f, 0f));
-            _repo.AddComponent(ied, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_ExplosiveCharge });
+            _repo.AddComponent(ied, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_ExplosiveCharge) });
 
             var draw = new DebugPrimitiveBuffer();
             new EntityPresentationGizmo().Draw(_repo, ied, draw);

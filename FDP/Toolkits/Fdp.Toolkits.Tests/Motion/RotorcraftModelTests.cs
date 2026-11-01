@@ -288,7 +288,7 @@ namespace Fdp.Toolkit.Tests.Motion
             var e = Drone(at);
             _w.SetComponent(e, FlightParams.From(new FlightParamsDto { MaxSpeedMps = 40f, ClimbMps = 8f, HoverHeightM = 30f, TurnRadiusM = 60f }));
             _w.SetComponent(e, new FlightState { Airborne = (byte)(onTheGround ? 0 : 1) });
-            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HeliType });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(HeliType) });
             var routes = new Routes();
             return (e, new AirMotionSystem { RouteSource = routes }, routes);
         }

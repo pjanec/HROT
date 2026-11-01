@@ -245,9 +245,9 @@ namespace Hrot.SimHost.Tests
                 rpg.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Range = 300, Penetration = 300, DamagePerHit = 400, AimSeconds = 2f } } });
                 db.Register(tank); db.Register(technical); db.Register(rpg);
                 Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-                Repo.AddComponent(Self, new TkbIdentity { TkbType = TankType });
+                Repo.AddComponent(Self, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TankType) });
                 Repo.AddComponent(Self, new Health { Current = 2500, Max = 2500 });
-                Repo.AddComponent(Enemy, new TkbIdentity { TkbType = RpgManType });
+                Repo.AddComponent(Enemy, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(RpgManType) });
                 Repo.AddComponent(Enemy, new Health { Current = 100, Max = 100 });
                 Repo.AddComponent(Enemy, new WeaponState { Ammo = 4, MaxAmmo = 4 });
             }
@@ -613,7 +613,7 @@ namespace Hrot.SimHost.Tests
             db.Register(rifle);
             var rifleman = d.Repo.CreateEntity();
             d.Repo.AddComponent(rifleman, new SimTransform { Position = new Vector3(60f, 0f, 0f), Rotation = Quaternion.Identity });
-            d.Repo.AddComponent(rifleman, new TkbIdentity { TkbType = RiflemanType });
+            d.Repo.AddComponent(rifleman, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(RiflemanType) });
             d.Repo.AddComponent(rifleman, new Health { Current = 100, Max = 100 });
             d.Repo.AddComponent(rifleman, new WeaponState { Ammo = 30, MaxAmmo = 30 });
             ref var mem = ref d.Repo.GetComponentRW<TargetMemory>(d.Self);
@@ -1052,7 +1052,7 @@ namespace Hrot.SimHost.Tests
             var d = new Duel(default);
             d.UseTkb();
             Assert.False(VehicleFightFromCoverNodes.Scoots(default, d.Repo, d.Self));
-            d.Repo.GetComponentRW<TkbIdentity>(d.Self).TkbType = TechnicalType;
+            d.Repo.GetComponentRW<TkbIdentity>(d.Self).TkbType = (Fdp.Core.TkbTypeId)(TechnicalType);
             Assert.True(VehicleFightFromCoverNodes.Scoots(default, d.Repo, d.Self));
             Assert.False(VehicleFightFromCoverNodes.Scoots(new VehicleFightFromCoverParams { WithdrawMode = WithdrawMode.Reverse }, d.Repo, d.Self));
             Assert.Equal(1, VehicleFightFromCoverNodes.Effective(default, scoot: true).ExposuresPerPosition);

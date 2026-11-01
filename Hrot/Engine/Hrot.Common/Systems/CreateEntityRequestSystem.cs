@@ -431,7 +431,7 @@ namespace Hrot.Common.Systems
                             repo.Bus.PublishManaged(new SpawnEntityCommand
                             {
                                 NetworkId           = presetId,
-                                TkbType             = presetType,
+                                TkbType             = (Fdp.Core.TkbTypeId)(presetType),
                                 OwnerNodeId         = assignedOwner,
                                 DisType             = presetDis,
                                 InitType            = pending.Request.InitType,
@@ -629,7 +629,7 @@ namespace Hrot.Common.Systems
         {
             public EntityCreationRequest Request;
             public int                  NetworkId;
-            public long                  TkbType;
+            public TkbTypeId                  TkbType;
             public ulong                 DisType;
         }
     }

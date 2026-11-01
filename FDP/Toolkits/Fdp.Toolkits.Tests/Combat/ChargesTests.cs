@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             var e = _world.CreateEntity();
             _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            _world.AddComponent(e, new TkbIdentity { TkbType = type });
+            _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
             var t = _db.GetByType(type);
             new CarrierTkbTranslator().Inject(_world, e, t);

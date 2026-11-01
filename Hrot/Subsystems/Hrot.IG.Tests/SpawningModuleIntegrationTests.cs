@@ -116,7 +116,7 @@ public class SpawningModuleIntegrationTests
         repo.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId         = TestNetworkId,
-            TkbType           = TestTkbType,
+            TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
             OwnerNodeId       = IgNetworkConstants.LocalNodeId,
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
@@ -144,7 +144,7 @@ public class SpawningModuleIntegrationTests
         repo.Bus.PublishManaged(new SpawnEntityCommand
         {
             NetworkId         = TestNetworkId,
-            TkbType           = TestTkbType,
+            TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
             OwnerNodeId       = IgNetworkConstants.LocalNodeId,
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),
@@ -172,7 +172,7 @@ public class SpawningModuleIntegrationTests
         var cmd = new SpawnEntityCommand
         {
             NetworkId         = TestNetworkId,
-            TkbType           = TestTkbType,
+            TkbType           = (Fdp.Core.TkbTypeId)(TestTkbType),
             OwnerNodeId       = IgNetworkConstants.LocalNodeId,
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object>(),

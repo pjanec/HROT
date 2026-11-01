@@ -74,7 +74,7 @@ public sealed class AreaAuthoringArmTests
         var arm     = new AreaAuthoringArm(manager);
 
         var outcome = arm.Arm(new AreaAuthoringRequest(
-            TkbEntityTypes.TacGraphic_Area, string.Empty, _ => { }));
+            (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, _ => { }));
 
         Assert.Equal(ToolActivationOutcome.Armed, outcome);
         Assert.Equal(1, manager.ActiveCount);
@@ -91,7 +91,7 @@ public sealed class AreaAuthoringArmTests
     {
         var manager = MakeManager();
         var arm     = new AreaAuthoringArm(manager);
-        var req     = new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, _ => { });
+        var req     = new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, _ => { });
 
         arm.Arm(req);
         var first = arm.ActiveGizmoId;
@@ -106,7 +106,7 @@ public sealed class AreaAuthoringArmTests
     {
         var manager = MakeManager();
         var arm     = new AreaAuthoringArm(manager);
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, _ => { }));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, _ => { }));
 
         arm.Disarm();
         arm.Disarm();
@@ -142,7 +142,7 @@ public sealed class AreaAuthoringArmTests
         void Draw(Vector3 at)
         {
             committed = null;
-            arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, c => committed = c));
+            arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, c => committed = c));
             var gizmo = arm.ActiveGizmo!;
             gizmo.UpdateAndDraw(world, 0f, new DebugPrimitiveBuffer());   // the gizmo learns the world it picks in
             foreach (var d in new[] { Vector3.Zero, new Vector3(1f, 0f, 0f), new Vector3(0f, 1f, 0f) })
@@ -167,7 +167,7 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(gizmos: null);
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
 
         Assert.Single(captured);
@@ -181,7 +181,7 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(MakeManager());
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
 
         var cmd = Assert.Single(captured);
@@ -203,7 +203,7 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(MakeManager());
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
 
         var polyline = (EditablePolyline)captured[0].InitialComponents!.Find(c => c is EditablePolyline)!;
@@ -226,7 +226,7 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(MakeManager());
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
 
         var pos = captured[0].InitialTransform!.Value.Position;
@@ -248,7 +248,7 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(MakeManager(), new DoublingTransform());
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
 
         // canvas centroid (300, 400) -> geodetic (150, 200) -> cartesian (300, 400)... the round trip
@@ -274,7 +274,7 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(MakeManager());
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TerrainZone, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
 
         Assert.Equal(TkbEntityTypes.TerrainZone, Assert.Single(captured).TkbType);
@@ -288,14 +288,14 @@ public sealed class AreaAuthoringArmTests
         var arm      = new AreaAuthoringArm(MakeManager());
         var captured = new List<SpawnEntityCommand>();
 
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.WeatherRegion, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.WeatherRegion), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
         var region = Assert.Single(captured);
         Assert.Equal(TkbEntityTypes.WeatherRegion, region.TkbType);
         Assert.Contains(region.InitialComponents!, c => c is Fdp.Toolkit.Weather.WeatherConditions);
 
         captured.Clear();
-        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add));
         Commit(arm, ThreePoints);
         Assert.DoesNotContain(Assert.Single(captured).InitialComponents!, c => c is Fdp.Toolkit.Weather.WeatherConditions);
     }
@@ -315,7 +315,7 @@ public sealed class AreaAuthoringArmTests
         var cancelled = 0;
 
         arm.Arm(new AreaAuthoringRequest(
-            TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add, () => cancelled++));
+            (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, captured.Add, () => cancelled++));
         Commit(arm, new[] { new Vector2(1f, 1f), new Vector2(2f, 2f) });
 
         Assert.Empty(captured);
@@ -330,7 +330,7 @@ public sealed class AreaAuthoringArmTests
     {
         var arm = new AreaAuthoringArm(MakeManager());
         Assert.Throws<ArgumentException>(() => arm.Arm(
-            new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, null!)));
+            new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, null!)));
     }
 
     /// <summary>

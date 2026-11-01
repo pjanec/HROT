@@ -35,7 +35,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.SetDisType(entity, new DISEntityType { Value = 0 });
 
             Thread.Sleep(200);
@@ -74,7 +74,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
 
             Thread.Sleep(200);
             translator.ScanAndPublish(repo);
@@ -114,7 +114,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(43));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.AddComponent(entity, new ReplicationRoute(ReplicationRoute.SumoSharp));
 
             Thread.Sleep(200);
@@ -140,7 +140,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(420));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.SetDisType(entity, new DISEntityType { Value = 0 });
 
             Thread.Sleep(200);
@@ -177,7 +177,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(777) });
             repo.SetDisType(entity, new DISEntityType { Value = 0 });
             translator.ScanAndPublish(repo);
             Thread.Sleep(200);
@@ -228,7 +228,7 @@ namespace Hrot.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(55));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 1001 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1001) });
             repo.SetDisType(entity, new DISEntityType
             {
                 Kind        = 1,

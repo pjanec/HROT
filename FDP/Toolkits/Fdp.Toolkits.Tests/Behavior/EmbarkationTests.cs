@@ -338,7 +338,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = Fdp.Toolkit.Motion.CanopyKind.RamAir });
             db.Register(t);
             _world.SetSingletonManaged<ITkbDatabase>(db);
-            _world.AddComponent(sf, new TkbIdentity { TkbType = 991L });
+            _world.AddComponent(sf, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(991L) });
             foreach (var m in new[] { para, sf }) Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, m, heli));
 
             foreach (var m in new[] { para, sf })   // ⭐ CE-1118 H-1 (D-18) — each with his landing point

@@ -540,7 +540,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var tank = SpawnCollider(new Vector2(10f, 0f), radius: 4f, layer: 1);
             _world.GetComponentRW<PhysicsCollider>(tank).Height = 2.4f;
-            _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TankType });
+            _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TankType) });
             var turret = Fdp.Toolkit.Combat.TurretParts.Ensure(_world, tank, 0);
             _world.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret).Azimuth = azimuth;
             return tank;
@@ -645,7 +645,7 @@ namespace Fdp.Toolkit.Physics.Tests
             db.Register(t);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var hmg = SpawnCollider(new Vector2(10f, 0f), radius: 2.5f, layer: 1);   // the 2.5 m fallback collider, no height (CE-2182)
-            _world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HmgType });
+            _world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(HmgType) });
             _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
             _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = deploy });
             if (embarked) _world.AddComponent(hmg, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
@@ -700,7 +700,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var heli = SpawnCollider(new Vector2(10f, 0f), radius: 8f, layer: 1);
             _world.GetComponentRW<PhysicsCollider>(heli).Height = 5.1f;
-            _world.AddComponent(heli, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HeliType });
+            _world.AddComponent(heli, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(HeliType) });
             _world.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = 8f });   // a measured grid (production's), not the hand-built pad
             return heli;
         }

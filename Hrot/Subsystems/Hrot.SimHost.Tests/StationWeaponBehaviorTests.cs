@@ -253,7 +253,7 @@ namespace Hrot.SimHost.Tests
                 if (phone) man.AddDescriptor(new PocketItemsDto { Phone = true });
                 db.Register(man);
                 repo.SetSingletonManaged<ITkbDatabase>(db);
-                repo.AddComponent(W.Man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TriggerManType });
+                repo.AddComponent(W.Man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TriggerManType) });
                 if (!repo.HasComponent<WeaponPosture>(W.Man)) repo.AddComponent(W.Man, new WeaponPosture());
                 repo.GetComponentRW<EntityInfo>(W.Man).ForceId = ForceId.Hostile;
                 repo.AddComponent(W.Man, new Fdp.Toolkit.Perception.Components.TargetMemory());

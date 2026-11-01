@@ -186,7 +186,7 @@ namespace Fdp.Toolkit.Combat
             {
                 RequestId = id,
                 OwnerAppInstanceId = 0,             // the system picks
-                TkbType = TkbType,
+                TkbType = (Fdp.Core.TkbTypeId)(TkbType),
                 InitType = ReliableInitType.None,   // a burst's cloud waits for no peer
                 InitialComponents = new List<object>
                 {

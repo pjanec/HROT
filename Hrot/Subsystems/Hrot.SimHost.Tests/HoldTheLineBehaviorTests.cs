@@ -86,7 +86,7 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(Police, new LocomotionChannel());
                 Repo.AddComponent(Police, new WeaponChannel());
                 Repo.AddComponent(Police, new TargetMemory());
-                Repo.AddComponent(Police, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = PolicemanType });
+                Repo.AddComponent(Police, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(PolicemanType) });
                 db.TryGetByType(PolicemanType, out var t);
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(Repo, Police, t!);
                 Tick();

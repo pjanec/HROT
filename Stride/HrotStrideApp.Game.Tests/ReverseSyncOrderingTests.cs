@@ -193,7 +193,7 @@ public sealed class ReverseSyncOrderingTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = CapsuleTkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(CapsuleTkbType),
             InitialComponents  = new List<object> { new SimTransform() },
         });
 
@@ -256,7 +256,7 @@ public sealed class ReverseSyncOrderingTests : IDisposable
 
         // Spawn a single owned entity.
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new TkbIdentity { TkbType = 500L });
+        world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(500L) });
         world.AddComponent(entity, new SimTransform());
         world.AddComponent(entity, new SimVelocity());
         world.SetAuthority<SimTransform>(entity, true);
@@ -344,7 +344,7 @@ public sealed class ReverseSyncOrderingTests : IDisposable
             "TestReverseSync2", reverseSync2);
 
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new TkbIdentity { TkbType = 501L });
+        world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(501L) });
         world.AddComponent(entity, new SimTransform { Position = new Vector3(5f, 5f, 5f) });
         world.AddComponent(entity, new SimVelocity());
         world.SetAuthority<SimTransform>(entity, true);

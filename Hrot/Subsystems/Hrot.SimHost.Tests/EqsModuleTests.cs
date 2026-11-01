@@ -1355,7 +1355,7 @@ namespace Hrot.SimHost.Tests
             _world.AddComponent(tube, new EntityInfo { ForceId = ForceId.Hostile });
             new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator().Inject(_world, tube,
                 Hrot.Map.Common.HrotEnvironment.CreateTkb().GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81)!);
-            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81 });
+            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Mortar81) });
             var man = _world.CreateEntity();
             _world.AddComponent(man, new SimTransform { Position = new Vector3(1530f, 100f, 0f), Rotation = Quaternion.Identity });
             _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });

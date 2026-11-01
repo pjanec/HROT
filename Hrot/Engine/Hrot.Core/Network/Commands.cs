@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Hrot.Core.Network;
 
 // ── Egress commands ───────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ public sealed class CreateEntityCommand
 {
     /// <summary>Correlation ID for tracking the create request lifecycle.</summary>
     public Guid RequestId { get; set; } = Guid.NewGuid();
-    public long TkbType { get; set; }
+    public TkbTypeId TkbType { get; set; }
     /// <summary>Local ENU east, metres.</summary>
     public double X { get; set; }
     /// <summary>Local ENU north, metres.</summary>

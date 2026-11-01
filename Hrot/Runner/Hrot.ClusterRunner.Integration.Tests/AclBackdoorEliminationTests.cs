@@ -82,7 +82,7 @@ public sealed class AclBackdoorEliminationTests
         // is a sequential stub starting at 1000, not a DDS server.
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = 1L,
+            TkbType     = (Fdp.Core.TkbTypeId)(1L),
             NetworkId   = 1,
             RequestId   = Guid.NewGuid(),
             OwnerNodeId = 0,

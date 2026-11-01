@@ -3,6 +3,7 @@ using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Tkb;
 using NodeEditor.UI.Picker;
+using Fdp.Core;
 
 namespace Hrot.UI.Common.AddEntity;
 
@@ -17,7 +18,7 @@ namespace Hrot.UI.Common.AddEntity;
 /// <param name="HasSide">True for a type placed as Friendly/Hostile/Neutral (D6).</param>
 /// <param name="DisabledReason">Why it cannot be picked, or null when it can.</param>
 public sealed record EntityTypeEntry(
-    long TkbType, string Name, string Category, string? DisText, string? IconName,
+    TkbTypeId TkbType, string Name, string Category, string? DisText, string? IconName,
     PlacementToolKind Tool, bool HasSide, string? DisabledReason = null)
 {
     /// <summary>True when the entry can be picked.</summary>

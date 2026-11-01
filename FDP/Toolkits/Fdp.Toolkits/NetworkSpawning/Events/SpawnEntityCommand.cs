@@ -27,7 +27,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
         /// <summary>
         /// TKB template type to instantiate. Must match a registered TkbDatabase entry.
         /// </summary>
-        public long TkbType;
+        public TkbTypeId TkbType;
 
         /// <summary>
         /// Raw DIS entity type associated with this spawn (from network descriptors).

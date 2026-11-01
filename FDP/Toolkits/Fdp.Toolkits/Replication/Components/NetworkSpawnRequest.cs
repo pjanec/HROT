@@ -15,6 +15,6 @@ namespace Fdp.Toolkit.Replication.Components
     {
         public ulong DisType;
         public ulong OwnerId;
-        public long TkbType;
+        public TkbTypeId TkbType;
     }
 }

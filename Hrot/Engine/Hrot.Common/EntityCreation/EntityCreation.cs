@@ -228,7 +228,7 @@ namespace Hrot.Common.EntityCreation
             {
                 RequestId             = requestId,
                 OwnerAppInstanceId    = owner,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 DisType               = disType,
                 InitialComponents     = components,
                 InitialAttributesJson = initialAttributesJson,

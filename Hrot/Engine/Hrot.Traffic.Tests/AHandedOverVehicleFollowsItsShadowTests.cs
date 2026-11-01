@@ -128,7 +128,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
     }
 
     private static TrafficCarPose Shadow(float x, float y, float yaw)
-        => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: 0, Color: 0,
+        => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: (Fdp.Core.TkbTypeId)(0), Color: 0,
                X: x, Y: y, Z: 0f, YawRad: yaw, Length: 5f, Width: 2f);
 
     private static void Frame(EntityRepository world, IReadOnlyList<TrafficCarPose> cars, double now)

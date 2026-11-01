@@ -76,7 +76,7 @@ public sealed partial class PossessionStationTests
             } });
             db.Register(type);
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4713) });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = true };
             station.Update(0.016f);

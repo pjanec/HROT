@@ -60,7 +60,7 @@ public sealed class EffectTests
     {
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(e, new TkbIdentity { TkbType = type });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         return e;
     }
 
@@ -368,7 +368,7 @@ public sealed class EffectTests
         Entity Shooter(long type)
         {
             var e = world.CreateEntity();
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
         var tank = Shooter(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams);
@@ -651,7 +651,7 @@ public sealed class EffectTests
         {
             var d = world.CreateEntity();
             world.AddComponent(d, new SimTransform());
-            world.AddComponent(d, new TkbIdentity { TkbType = EffectTkbCatalog.DecalSmall });
+            world.AddComponent(d, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(EffectTkbCatalog.DecalSmall) });
             world.AddComponent(d, Lifespan.Starting(i, 100_000f));   // decal i was made at sim second i
         }
         Tick(world, spawn, 0.001f);
@@ -1180,7 +1180,7 @@ public sealed class EffectTests
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             world.AddComponent(e, new SimVelocity { Linear = v });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, default(LightweightRound));
             return e;
         }
@@ -1188,7 +1188,7 @@ public sealed class EffectTests
         Replicated(MunitionTkbCatalog.TkbM67Grenade, new Vector3(30, 4, 0), Vector3.Zero);                 // lying, no fuze known
         Replicated(MunitionTkbCatalog.Tkb556Ball, new Vector3(50, 0, 2), new Vector3(900, 0, 0));         // never sent; drawn as nothing
         var muscleRound = Round(world, MunitionTkbCatalog.TkbRpg7Rocket, new Vector3(60, 0, 3), new Vector3(120, 0, 0));
-        world.AddComponent(muscleRound, new TkbIdentity { TkbType = MunitionTkbCatalog.TkbRpg7Rocket });
+        world.AddComponent(muscleRound, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(MunitionTkbCatalog.TkbRpg7Rocket) });
         world.AddComponent(muscleRound, default(LightweightRound));
         var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
 
@@ -1303,7 +1303,7 @@ public sealed class EffectTests
 
         var recorded = world.CreateEntity();                // an effect the replay restored, its time long past
         world.AddComponent(recorded, new SimTransform());
-        world.AddComponent(recorded, new TkbIdentity { TkbType = EffectTkbCatalog.ExplosionLarge });
+        world.AddComponent(recorded, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(EffectTkbCatalog.ExplosionLarge) });
         world.AddComponent(recorded, Lifespan.Starting(1.0, 1f));
         Tick(world, mi.Lifespan, 0.016f);
         Assert.Single(Effects(world));                      // the replay removes it when the recording does, not the collector
@@ -1324,7 +1324,7 @@ public sealed class EffectTests
         // ⭐ LR-4 — shots spawn no tracer effect any more; one RECORDED before it (a replay) still draws, so it is made here directly
         var recorded = world.CreateEntity();
         world.AddComponent(recorded, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
-        world.AddComponent(recorded, new TkbIdentity { TkbType = EffectTkbCatalog.Tracer });
+        world.AddComponent(recorded, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(EffectTkbCatalog.Tracer) });
         world.AddComponent(recorded, Lifespan.Starting(0.0, EffectTkbCatalog.BuiltIn[EffectTkbCatalog.Tracer].Visual.Duration));
         world.AddComponent(recorded, new EffectAnchor { Shooter = tank, WeaponIndex = 0, Toward = new Vector3(300, 0, 0) });
         var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb);

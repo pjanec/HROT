@@ -1,11 +1,12 @@
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Traffic;
+using Fdp.Core;
 
 namespace Hrot.Traffic;
 
 /// <summary>One HROT car type SUMO may drive: its TKB type, SUMO class, footprint and share (AQ93 §12 T1).</summary>
-public readonly record struct TrafficVehicleType(long TkbType, string Name, string VClass, float Length, float Width, float MaxSpeed, float Weight);
+public readonly record struct TrafficVehicleType(TkbTypeId TkbType, string Name, string VClass, float Length, float Width, float MaxSpeed, float Weight);
 
 /// <summary>
 /// ⭐ AQ93 §12 T1 (R-4056) — the TKB is the one source of what a SUMO car IS: every template carrying a

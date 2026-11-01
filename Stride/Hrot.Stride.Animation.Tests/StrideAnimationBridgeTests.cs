@@ -49,7 +49,7 @@ public class StrideAnimationBridgeTests
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = pos, Rotation = Quaternion.Identity });
         world.AddComponent(e, new SimVelocity());
-        world.AddComponent(e, new TkbIdentity { TkbType = tkbClass });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbClass) });
         return e;
     }
 

@@ -384,7 +384,7 @@ namespace Hrot.CGF.Orchestration
                     {
                         RequestId              = Guid.NewGuid(),
                         OwnerAppInstanceId     = 0,
-                        TkbType                = rd.tkbType,
+                        TkbType                = (Fdp.Core.TkbTypeId)(rd.tkbType),
                         DisType                = rd.disType,
                         InitialComponents      = comps,
                         PreAllocatedNetworkId  = rd.preAllocId,

@@ -97,7 +97,7 @@ namespace Hrot.SimHost.Tests
                 } });
                 db.Register(type);
                 Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-                Repo.AddComponent(Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+                Repo.AddComponent(Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
                 if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponMountInfo>())
                     Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();   // CGF registers it (CgfComponentRegistry)
                 var grenade = Repo.CreateEntity();

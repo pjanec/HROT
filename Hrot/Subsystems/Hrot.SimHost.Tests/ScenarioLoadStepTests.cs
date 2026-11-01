@@ -385,7 +385,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         foreach (long start in new[] { authored, authored + TimeSpan.TicksPerHour })
         {
             var e = _goldRepo.CreateEntity();
-            _goldRepo.AddComponent(e, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WorldEnvironment });
+            _goldRepo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.WorldEnvironment) });
             _goldRepo.AddComponent(e, new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = -300 });
         }
         // ⚠ a serializer built AFTER ScenarioClock is registered (FdpAutoSerializer compiles its roster at Build — the shared _serializer

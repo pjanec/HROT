@@ -140,7 +140,7 @@ public sealed class Map3DPickingTests
         if (!world.IsComponentTypeRegistered<NetworkIdentity>()) world.RegisterComponent<NetworkIdentity>();
         var e = world.CreateEntity();
         world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
         world.AddComponent(e, new NetworkIdentity(netId));
         return e;
     }
@@ -222,7 +222,7 @@ public sealed class Map3DPickingTests
     private static Entity Rifleman(EntityRepository world, Vector3 at, int netId)
     {
         var e = Tank(world, at, netId);
-        world.SetComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
         return e;
     }
 

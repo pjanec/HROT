@@ -231,7 +231,7 @@ public static class StrideGizmoReplayHarnessCases
             Position = startPose,
             Rotation = SNum.Quaternion.Identity,
         });
-        ctx.World.AddComponent(ghost, new TkbIdentity { TkbType = TkbInfantrySoldier });
+        ctx.World.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) });
 
         var exerciseId = Guid.NewGuid();
         const float recordSeconds = 3f;

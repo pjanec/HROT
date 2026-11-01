@@ -264,7 +264,7 @@ namespace Hrot.SimHost.Tests
         {
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new SimTransform { Position = new Vector3(1, 2, 3) });
-            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = 42L });
+            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(42L) });
 
             var serializer = BuildSerializer();
             var json = SerializeGoldRepo(_goldRepo, serializer);
@@ -292,7 +292,7 @@ namespace Hrot.SimHost.Tests
         {
             var e = _goldRepo.CreateEntity();
             _goldRepo.SetComponent(e, new SimTransform());
-            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = 42L });
+            _goldRepo.SetComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(42L) });
             _goldRepo.SetComponent(e, new CombatTemperament { RiskAcceptance = 0.8f, Set = CombatTemperament.RiskAcceptanceSet });
 
             var serializer = BuildSerializer(new Hrot.SimHost.Serializers.CombatTemperamentTranslator());

@@ -105,7 +105,7 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
     public void SpawnerWindow_RegistersUnderSpawnerKind_AndDumpsTheCatalog()
     {
         PanelSnapshot.CaptureEnabled = true;
-        var panel = new SpawnerPanel(new[] { new TkbCatalogEntry(42, "T-72") });
+        var panel = new SpawnerPanel(new[] { new TkbCatalogEntry((Fdp.Core.TkbTypeId)(42), "T-72") });
         var window = new Hrot.Presentation.Windows.SpawnerPanelWindow(panel, new FakeSpawnController(), Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorSpawner, "Scenario", default);
 
         window.SimulateDrawClientArea();

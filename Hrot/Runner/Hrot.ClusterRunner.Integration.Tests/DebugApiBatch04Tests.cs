@@ -26,7 +26,7 @@ public sealed class DebugApiBatch04Tests
     {
         var cmd = new SpawnEntityCommand
         {
-            TkbType          = TestTkbType,
+            TkbType          = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId        = networkId,
             OwnerNodeId      = 0,
             InitType         = ReliableInitType.None,

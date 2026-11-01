@@ -40,11 +40,11 @@ namespace Fdp.Toolkit.Replication.Tests
         private static IEnumerable<RoleShardKey> AssortedKeys()
         {
             yield return default;                                              // everything zero
-            yield return new RoleShardKey(0, 0, default);                      // ⭐ the networkless case
-            yield return new RoleShardKey(1, 1001, default);
-            yield return new RoleShardKey(int.MaxValue, long.MaxValue,
+            yield return new RoleShardKey(0, (Fdp.Core.TkbTypeId)(0), default);                      // ⭐ the networkless case
+            yield return new RoleShardKey(1, (Fdp.Core.TkbTypeId)(1001), default);
+            yield return new RoleShardKey(int.MaxValue, (Fdp.Core.TkbTypeId)(long.MaxValue),
                                           new DISEntityType { Value = ulong.MaxValue });
-            yield return new RoleShardKey(-7, -7, new DISEntityType { Value = 42 });
+            yield return new RoleShardKey(-7, (Fdp.Core.TkbTypeId)(-7), new DISEntityType { Value = 42 });
         }
 
         /// <summary>
@@ -162,7 +162,7 @@ namespace Fdp.Toolkit.Replication.Tests
         public void Key_CarriesFullWidthTkbTypeAndAFullInt32NetworkId()
         {
             long wide = (1 << 40) | 1234;
-            var key = new RoleShardKey(int.MaxValue, wide, new DISEntityType { Value = 0xDEADBEEFCAFEUL });
+            var key = new RoleShardKey(int.MaxValue, (Fdp.Core.TkbTypeId)(wide), new DISEntityType { Value = 0xDEADBEEFCAFEUL });
 
             Assert.Equal(wide, key.TkbType);
             Assert.Equal(int.MaxValue, key.NetworkId);   // CE-4200: a network id is 32-bit; the TKB type stays 64-bit

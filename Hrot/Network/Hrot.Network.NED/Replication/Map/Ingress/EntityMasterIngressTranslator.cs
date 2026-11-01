@@ -213,7 +213,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             }
 
             // Permanent identity component — drives GhostPromotionSystem.
-            cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
+            cmd.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(master.TkbType) });
 
             // ⭐ AQ107 (CE-3323, §3.4e) — the creation request that made it rides the master; the lifecycle module names it in
             //   EntityConstructionCompleted, so the node that ASKED (this one, perhaps) can tell its entity from the rest.

@@ -44,8 +44,8 @@ namespace Hrot.SimHost.Tests
             var parent = new TkbTemplate("P", ParentType);
             if (withChild)
             {
-                parent.ChildBlueprints.Add(new ChildBlueprintDefinition(2, ChildType));
-                parent.ChildBlueprints.Add(new ChildBlueprintDefinition(5, ChildType));
+                parent.ChildBlueprints.Add(new ChildBlueprintDefinition(2, (Fdp.Core.TkbTypeId)(ChildType)));
+                parent.ChildBlueprints.Add(new ChildBlueprintDefinition(5, (Fdp.Core.TkbTypeId)(ChildType)));
             }
             db.Register(parent);
             db.Register(new TkbTemplate("C", ChildType));
@@ -60,7 +60,7 @@ namespace Hrot.SimHost.Tests
             if (bringsKey.HasValue) comps.Add(new EntityGuid(bringsKey.Value));
             source.Enqueue(new EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = Node, TkbType = ParentType, IsTransient = transient,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = Node, TkbType = (Fdp.Core.TkbTypeId)(ParentType), IsTransient = transient,
                 InitialComponents = comps,
             });
             var system = new CreateEntityRequestSystem(source, new StubAckSink(), Tkb(withChild), new StubIdAllocator(100), Node);

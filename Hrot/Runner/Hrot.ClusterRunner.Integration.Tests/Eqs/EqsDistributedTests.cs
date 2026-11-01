@@ -1065,7 +1065,7 @@ public sealed class EqsDistributedTests
             var creation = ((Hrot.Common.EntityCreation.IEntityCreationHost)H.Cgf!).EntityCreation!;
             creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
-                RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = tkb,
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = (Fdp.Core.TkbTypeId)(tkb),
             });
             int net = 0;
             Assert.True(H.PumpUntil(() =>

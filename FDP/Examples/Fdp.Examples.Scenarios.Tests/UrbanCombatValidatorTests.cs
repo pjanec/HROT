@@ -47,7 +47,7 @@ namespace Fdp.Examples.Scenarios.Tests
 
             // Spawn Insurgent with TkbIdentity and active weapon channel.
             var insurgent = world.CreateEntity();
-            world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbInsurgent });
+            world.AddComponent(insurgent, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInsurgent) });
             world.AddComponent(insurgent, new WeaponChannel
             {
                 ActiveAction = CombatConstants.ActionIdAimAndFire,
@@ -71,11 +71,11 @@ namespace Fdp.Examples.Scenarios.Tests
 
             // Spawn entities so the world is valid but latches remain unset.
             var apc = world.CreateEntity();
-            world.AddComponent(apc, new TkbIdentity { TkbType = TkbMilitaryApc });
+            world.AddComponent(apc, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbMilitaryApc) });
             world.AddComponent(apc, new LocomotionChannel { ActiveAction = 1 });
 
             var insurgent = world.CreateEntity();
-            world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbInsurgent });
+            world.AddComponent(insurgent, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInsurgent) });
             world.AddComponent(insurgent, new WeaponChannel { ActiveAction = 0 });
             world.AddComponent(insurgent, new Health { Current = 100f, Max = 100f });
 
@@ -92,12 +92,12 @@ namespace Fdp.Examples.Scenarios.Tests
             var validator = new UrbanCombatValidator();
 
             var apc = world.CreateEntity();
-            world.AddComponent(apc, new TkbIdentity { TkbType = TkbMilitaryApc });
+            world.AddComponent(apc, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbMilitaryApc) });
             world.AddComponent(apc, new LocomotionChannel { ActiveAction = 1 }); // moving initially
             world.AddComponent(apc, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract });
 
             var insurgent = world.CreateEntity();
-            world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbInsurgent });
+            world.AddComponent(insurgent, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInsurgent) });
             world.AddComponent(insurgent, new WeaponChannel { ActiveAction = 0 });
             world.AddComponent(insurgent, new Health { Current = 100f, Max = 100f });
 

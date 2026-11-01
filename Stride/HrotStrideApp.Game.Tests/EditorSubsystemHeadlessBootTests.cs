@@ -300,7 +300,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = F6StartFdp, Rotation = Quaternion.Identity },
@@ -426,7 +426,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbMilitaryApc,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbMilitaryApc),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = F7StartFdp, Rotation = Quaternion.Identity },

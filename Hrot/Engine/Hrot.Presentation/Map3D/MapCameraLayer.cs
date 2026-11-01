@@ -233,7 +233,7 @@ public sealed class MapCameraLayer : IMapLayer
         {
             RequestId = Guid.NewGuid(),
             OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-            TkbType = MapCameraTkb.Type,
+            TkbType = (Fdp.Core.TkbTypeId)(MapCameraTkb.Type),
             InitialComponents = new List<object> { tf },
             InitType = Fdp.Toolkit.Replication.ReliableInitType.None,
         });

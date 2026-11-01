@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateTestWorld();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.MilitaryApc) });
 
             var result = new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment);
 
@@ -123,7 +123,7 @@ namespace Hrot.SimHost.Tests
             repo.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
             var centre = geo.ToCartesian(50.001, 14.001, 0.0);
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
 
             var result = new DefendAreaMapper().TryMap(entity, repo,
                 System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment);
@@ -145,7 +145,7 @@ namespace Hrot.SimHost.Tests
         {
             using var repo = CreateTestWorld();
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TkbIdentity { TkbType = 999L });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(999L) });
 
             var result = new DefendAreaMapper().TryMap(entity, repo, "{}", out var assignment);
 

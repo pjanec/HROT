@@ -51,7 +51,7 @@ public sealed class CrouchBesideOwnMortarTests
         Entity Man(long type)
         {
             var e = world.CreateEntity();
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             return e;
         }

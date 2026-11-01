@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId = 0,
-                TkbType   = DefaultTkbType,
+                TkbType   = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 2
             });
 
@@ -135,7 +135,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 999,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 2
             });
 
@@ -162,7 +162,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 7,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 2
             });
 
@@ -182,7 +182,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 10,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 3
             });
 
@@ -207,7 +207,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 11,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = LocalNodeId,
                 InitialComponents = new List<object>
                 {
@@ -235,7 +235,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 20,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 1,
                 InitialComponents = new List<object>
                 {
@@ -264,7 +264,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 50,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 1
             });
 
@@ -274,7 +274,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 50,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 1
             });
 
@@ -296,7 +296,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 60,
-                TkbType     = 999L, // unknown type
+                TkbType     = (Fdp.Core.TkbTypeId)(999L), // unknown type
                 OwnerNodeId = 1
             });
 
@@ -314,8 +314,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             var system      = CreateSystem(repo, networkMap, new StubIdAllocator(), tkb, elm);
             var request     = System.Guid.NewGuid();
 
-            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71, TkbType = DefaultTkbType, OwnerNodeId = 1, RequestId = request });
-            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72, TkbType = DefaultTkbType, OwnerNodeId = 1 });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 71, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = 1, RequestId = request });
+            RunSpawn(repo, system, new SpawnEntityCommand { NetworkId = 72, TkbType = (Fdp.Core.TkbTypeId)(DefaultTkbType), OwnerNodeId = 1 });
 
             Assert.True(networkMap.TryGetEntity(71, out var asked));
             Assert.Equal(request, repo.GetComponentRO<Fdp.Toolkit.Lifecycle.Components.CreationRequestId>(asked).Value);
@@ -336,7 +336,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 70,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 1,
                 InitType    = ReliableInitType.None
             });
@@ -359,7 +359,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 80,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 1,
                 InitType    = ReliableInitType.AllPeers
             });
@@ -384,7 +384,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 90,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 DisType     = 123UL,
                 OwnerNodeId = 5
             });
@@ -417,7 +417,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId   = 95,
-                TkbType     = DefaultTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId = 1
             });
 
@@ -465,7 +465,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             RunSpawn(repo, system, new SpawnEntityCommand
             {
                 NetworkId        = 7001,
-                TkbType          = DefaultTkbType,
+                TkbType          = (Fdp.Core.TkbTypeId)(DefaultTkbType),
                 OwnerNodeId      = LocalNodeId,
                 InitialTransform = new SimTransform { Position = new System.Numerics.Vector3(x, y, sentZ), Rotation = System.Numerics.Quaternion.Identity },
                 SpawnHeight      = height,

@@ -398,7 +398,7 @@ public class EventToEffectSystemTests
         var shooter = repo.CreateEntity();
         var target  = repo.CreateEntity();
         repo.AddComponent(shooter, new SimTransform { Position = new Vector3(ShooterX, ShooterY, 0f), Rotation = Quaternion.Identity });
-        repo.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9302 });
+        repo.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9302) });
         repo.AddComponent(target,  new SimTransform { Position = new Vector3(TargetX,  TargetY,  0f), Rotation = Quaternion.Identity });
 
         repo.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target, WeaponIndex = 1 });   // the hands

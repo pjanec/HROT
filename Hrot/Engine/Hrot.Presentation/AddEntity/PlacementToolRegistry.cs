@@ -3,6 +3,7 @@ using Hrot.Core.Mission;
 using Hrot.Map.Common;
 using Hrot.UI.Common.Facades;
 using Fdp.Core.Serialization;
+using Fdp.Core;
 
 namespace Hrot.UI.Common.AddEntity;
 
@@ -24,7 +25,7 @@ public enum PlacementToolKind
 /// <summary>One map graphic the picker lists under <c>Map Graphics</c>: a type with no TKB master, so the
 /// registry supplies its name, its tool and why it may be disabled.</summary>
 /// <param name="IconName">The glyph the entity icon library draws for it (S5).</param>
-public sealed record MapGraphicInfo(long TkbType, string Name, PlacementToolKind Tool, string IconName, string? DisabledReason = null);
+public sealed record MapGraphicInfo(TkbTypeId TkbType, string Name, PlacementToolKind Tool, string IconName, string? DisabledReason = null);
 
 /// <summary>
 /// ⭐ <c>CE-1017</c> S1 — the small table that says which placement tool a TKB type arms and whether it has a side.
@@ -42,14 +43,14 @@ public static class PlacementToolRegistry
     /// <summary>The side-less map graphics, in the order the picker lists them.</summary>
     public static readonly IReadOnlyList<MapGraphicInfo> Graphics = new[]
     {
-        new MapGraphicInfo(TkbEntityTypes.TacGraphic_Area,     "Area",         PlacementToolKind.Area,  "_area"),
-        new MapGraphicInfo(TkbEntityTypes.TacGraphic_Route,    "Route",        PlacementToolKind.Route, "_route"),
-        new MapGraphicInfo(TkbEntityTypes.TerrainZone,         "Terrain Zone", PlacementToolKind.Zone,  "_zone"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area),     "Area",         PlacementToolKind.Area,  "_area"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route),    "Route",        PlacementToolKind.Route, "_route"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone),         "Terrain Zone", PlacementToolKind.Zone,  "_zone"),
         // ⭐ CE-1161 (Weather and Time §7 E-4) — an area born as a Weather Region (8811); the arm gives it WeatherConditions.Standard.
-        new MapGraphicInfo(TkbEntityTypes.WeatherRegion,       "Weather Region", PlacementToolKind.Area, "_area"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.WeatherRegion),       "Weather Region", PlacementToolKind.Area, "_area"),
         // ⭐ CE-3235 (B-13, AW-8) — an area born as a Stone Source (8812): a man inside it picks stones up (ItemSources.Refill).
-        new MapGraphicInfo(TkbEntityTypes.StoneSource,         "Stone Source", PlacementToolKind.Area, "_area"),
-        new MapGraphicInfo(TkbEntityTypes.TacGraphic_FireLine, "Fire Line",    PlacementToolKind.None,  "_fireline",
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.StoneSource),         "Stone Source", PlacementToolKind.Area, "_area"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_FireLine), "Fire Line",    PlacementToolKind.None,  "_fireline",
                            DisabledReason: "No placement tool yet."),
     };
 

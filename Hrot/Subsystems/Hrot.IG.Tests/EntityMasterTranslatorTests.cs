@@ -107,7 +107,7 @@ public class EntityMasterTranslatorTests
         var owned = senderRepo.CreateEntity();
         senderRepo.AddComponent(owned, new NetworkIdentity(bigId));
         senderRepo.AddComponent(owned, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-        senderRepo.AddComponent(owned, new TkbIdentity { TkbType = TestTkbType });
+        senderRepo.AddComponent(owned, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TestTkbType) });
         var egress = new Hrot.Map.Common.Replication.Egress.EntityMasterEgressTranslator(senderParticipant, new NetworkEntityMap(), localNodeId: 1);
 
         Entity ghost = Entity.Null;

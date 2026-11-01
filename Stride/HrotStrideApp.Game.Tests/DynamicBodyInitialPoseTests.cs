@@ -199,7 +199,7 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
     private Entity SpawnOwned(long tkbType, Vector3 pos)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos });
         _world.SetAuthority<SimTransform>(entity, true);
         return entity;

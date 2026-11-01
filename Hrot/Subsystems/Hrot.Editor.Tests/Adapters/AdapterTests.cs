@@ -411,7 +411,7 @@ namespace Hrot.Editor.Tests.Adapters
             });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);
@@ -435,7 +435,7 @@ namespace Hrot.Editor.Tests.Adapters
             _registry.Register(2, "Ungrouped", new BehaviorDefinition { Name = "Ungrouped", BrainTier = BehaviorConstants.BrainTierBTree });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var choices = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviorChoices(NetIdFor(entity));
@@ -452,7 +452,7 @@ namespace Hrot.Editor.Tests.Adapters
             _registry.Register(2, "SomeSop", new BehaviorDefinition { Name = "SomeSop", BrainTier = BehaviorConstants.BrainTierBTree, CarriesSopOrders = true });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var names = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviorChoices(NetIdFor(entity)).Select(c => c.Name).ToList();
@@ -538,7 +538,7 @@ namespace Hrot.Editor.Tests.Adapters
             });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.MilitaryApc) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);
@@ -567,7 +567,7 @@ namespace Hrot.Editor.Tests.Adapters
             });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.MilitaryApc) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var behaviors = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviors(NetIdFor(entity));
@@ -595,7 +595,7 @@ namespace Hrot.Editor.Tests.Adapters
             });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.MilitaryApc) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);
@@ -620,7 +620,7 @@ namespace Hrot.Editor.Tests.Adapters
             });
 
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
             _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
 
             var service = new ScenarioMissionService(_bus, _repo, _registry);
@@ -1320,7 +1320,7 @@ namespace Hrot.Editor.Tests.Adapters
             // Register a component so the snapshot has content.
             _repo.RegisterComponent<TkbIdentity>();
             var entity = _repo.CreateEntity();
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = 99L });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(99L) });
 
             var adapter = new EditorPreviewAdapter(_handler, _state);
             adapter.EnterPreviewMode();

@@ -114,7 +114,7 @@ public sealed class StrideVisualBindingSystemTests : IDisposable
         float yaw = 0f)
     {
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+        world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
         world.AddComponent(entity, new SimTransform
         {
             Position = position,

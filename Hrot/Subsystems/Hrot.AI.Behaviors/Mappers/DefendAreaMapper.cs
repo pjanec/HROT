@@ -58,7 +58,7 @@ namespace Hrot.AI.Behaviors.Mappers
 
             var tkbType = repo.GetComponent<TkbIdentity>(self).TkbType;
 
-            string behaviorName = tkbType switch
+            string behaviorName = (long)tkbType switch
             {
                 TkbEntityTypes.MilitaryApc     => "ConvoyEscort",
                 TkbEntityTypes.InfantrySoldier => BehaviorNames.CombatPosture,

@@ -53,7 +53,7 @@ public sealed class EditorPreviewAndSaveIntegrationTests : IDisposable
         // â”€â”€ Step 2: Spawn entity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType     = TestTkbType,
+            TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
             NetworkId   = TestNetworkId,
             OwnerNodeId = 0,
             InitType    = ReliableInitType.None,

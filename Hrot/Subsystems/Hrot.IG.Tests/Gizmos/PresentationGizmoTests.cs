@@ -67,7 +67,7 @@ namespace Hrot.IG.Tests.Gizmos
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new TkbIdentity
             {
-                TkbType = Hrot.Map.Common.TkbEntityTypes.TacGraphic_Route,
+                TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.TacGraphic_Route),
             });
 
             var plan = new RoutePlan();
@@ -273,7 +273,7 @@ namespace Hrot.IG.Tests.Gizmos
         public void ZoneMenu_OffersLoadZone_PlainAreaMenuDoesNot_CE3024()
         {
             var (zone, _) = MakeOverlay(isClosed: true, networkId: 501);
-            _repo.AddComponent(zone, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            _repo.AddComponent(zone, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone) });
             var (area, _) = MakeOverlay(isClosed: true, networkId: 502);
 
             string loadZone = $"\"id\":{Hrot.Common.Constants.GlobalActionIds.LoadZone},";   // the DTO serialises camelCase
@@ -439,7 +439,7 @@ namespace Hrot.IG.Tests.Gizmos
             var entity = _repo.CreateEntity();
             // The real origin from the shipped scenario.
             _repo.AddComponent(entity, new SimTransform { Position = new Vector3(670f, 473.5f, 0f) });
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Area });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area) });
             _repo.AddComponent(entity, new MapOverlayStyle
             {
                 BorderR = 200, BorderG = 180, BorderB = 0, BorderA = 230,
@@ -545,7 +545,7 @@ namespace Hrot.IG.Tests.Gizmos
 
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = new Vector3(670f, 473.5f, 0f) });
-            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone) });
             _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
 
             var poly = new EditablePolyline { Points = new[]

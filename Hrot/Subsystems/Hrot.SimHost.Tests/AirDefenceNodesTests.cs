@@ -50,7 +50,7 @@ namespace Hrot.SimHost.Tests
         {
             var unit = _w.CreateEntity();
             int nid = _nextNid++;
-            _w.AddComponent(unit, new TkbIdentity { TkbType = type });
+            _w.AddComponent(unit, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             _w.AddComponent(unit, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(unit, new Health { Current = 100, Max = 100 });
             var template = _tkb.GetByType(type);
@@ -63,7 +63,7 @@ namespace Hrot.SimHost.Tests
                     long start = carrier.Seats[seat].StartWith;
                     if (start == 0 || !_tkb.TryGetByType(start, out var weaponType) || weaponType!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSystemDto>() == null) continue;
                     var weapon = _w.CreateEntity();
-                    _w.AddComponent(weapon, new TkbIdentity { TkbType = start });
+                    _w.AddComponent(weapon, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(start) });
                     new WeaponSystemTkbTranslator().Inject(_w, weapon, weaponType);
                     _w.AddComponent(weapon, new PresetSeatIntent { HostNetworkId = nid, Seat = (byte)seat });
                 }

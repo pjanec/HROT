@@ -199,7 +199,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var tank = repo.CreateEntity();
-            repo.AddComponent(tank, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            repo.AddComponent(tank, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
 
             var mapper = new HullDownAttackMapper();
             var ok = mapper.TryMap(tank, repo, "{}", out var assignment);
@@ -216,7 +216,7 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var infantry = repo.CreateEntity();
-            repo.AddComponent(infantry, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            repo.AddComponent(infantry, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
 
             var mapper = new HullDownAttackMapper();
             var ok = mapper.TryMap(infantry, repo, "{}", out _);

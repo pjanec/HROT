@@ -1731,7 +1731,7 @@ public class IgApplication : IDisposable
 
         var cmd = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
         // Permanent identity component ? drives GhostPromotionSystem.
-        cmd.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+        cmd.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
         _world.SetDisType(entity, new DISEntityType { Value = disTypeValue });
         cmd.Playback(_world);
     }

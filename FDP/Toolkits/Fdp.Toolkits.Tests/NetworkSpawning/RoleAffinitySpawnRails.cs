@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
         {
             RequestId        = System.Guid.NewGuid(),
             NetworkId        = networkId,
-            TkbType          = TkbType,
+            TkbType          = (Fdp.Core.TkbTypeId)(TkbType),
             OwnerNodeId      = owner,
             InitType         = ReliableInitType.None,
             InitialTransform = new SimTransform(),

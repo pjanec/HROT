@@ -639,7 +639,7 @@ namespace Hrot.Map.Common.Tests
                 { Mode = Fdp.Toolkit.Navigation.NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 900 });
             w.AddComponent(heli, new Fdp.Toolkit.Navigation.NavigationStatus());
             w.AddComponent(heli, new Fdp.Toolkit.Combat.Components.Health { Current = 800, Max = 800 });
-            w.AddComponent(heli, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Heli_AH64 });
+            w.AddComponent(heli, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Heli_AH64) });
             w.SetAuthority<Fdp.Core.SimTransform>(heli, true);
 
             var routes = new OneRoute();
@@ -843,7 +843,7 @@ namespace Hrot.Map.Common.Tests
                 if (t.DisType.Kind is not (1 or 3) || t.GetDescriptor<WeaponSystemDto>() != null || t.GetDescriptor<TkbCompositionDef>() != null) continue;
                 // ⏳ SUMO background traffic: whether hundreds of cars are sound sources is the traffic programme's call (§8.6, asked) · a static
                 //   obstacle never moves
-                if (t.TkbType is TkbEntityTypes.TrafficCar or TkbEntityTypes.Obstacle_Car) continue;
+                if ((long)t.TkbType is TkbEntityTypes.TrafficCar or TkbEntityTypes.Obstacle_Car) continue;
                 bodies++;
                 var a = t.GetDescriptor<SignaturesDto>()?.Acoustic;
                 if (a is not { MovingAudibleRange: > 0f } || a.MovingClass == SoundSourceClass.Unknown) silent.Add($"{t.Name} ({t.TkbType}) moves unheard");

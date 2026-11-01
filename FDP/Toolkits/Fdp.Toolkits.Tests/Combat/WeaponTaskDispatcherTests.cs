@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             var hull = _world.CreateEntity();
             _world.AddComponent(hull, new SimTransform { Position = Vector3.Zero, Rotation = rotation == default ? Quaternion.Identity : rotation });
-            _world.AddComponent(hull, new TkbIdentity { TkbType = type });
+            _world.AddComponent(hull, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return (hull, TurretParts.Ensure(_world, hull, 0));
         }
 

@@ -20,7 +20,7 @@ public class EntityCreationRequestSourceTests
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 1,
-            TkbType            = 42L,
+            TkbType            = (Fdp.Core.TkbTypeId)(42L),
             DisType            = 0x0100_0000_0000_0001UL,
         };
 

@@ -1,4 +1,5 @@
 using Fdp.Core.CommandHierarchy;
+using Fdp.Core;
 
 namespace Fdp.Interfaces
 {
@@ -15,7 +16,7 @@ namespace Fdp.Interfaces
         /// <summary>
         /// The TKB Type ID of the blueprint to use for this child.
         /// </summary>
-        public long ChildTkbType { get; set; }
+        public TkbTypeId ChildTkbType { get; set; }
 
         /// <summary>
         /// The tactical designation of this child within the parent unit.
@@ -23,7 +24,7 @@ namespace Fdp.Interfaces
         /// </summary>
         public TacticalDesignation Designation { get; set; }
 
-        public ChildBlueprintDefinition(int instanceId, long childTkbType, TacticalDesignation designation = TacticalDesignation.Undefined)
+        public ChildBlueprintDefinition(int instanceId, TkbTypeId childTkbType, TacticalDesignation designation = TacticalDesignation.Undefined)
         {
             InstanceId   = instanceId;
             ChildTkbType = childTkbType;

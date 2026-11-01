@@ -96,7 +96,7 @@ public sealed class SplitAuthorityStrideSyncScriptTests : IDisposable
     private Entity SpawnOwned(Vector3 pos)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = CapsuleTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CapsuleTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos, Rotation = Quaternion.Identity });
         _world.AddComponent(entity, new SimVelocity());
         _world.SetAuthority<SimTransform>(entity, true);
@@ -106,7 +106,7 @@ public sealed class SplitAuthorityStrideSyncScriptTests : IDisposable
     private Entity SpawnNonOwned(Vector3 pos)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = CapsuleTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CapsuleTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos, Rotation = Quaternion.Identity });
         _world.AddComponent(entity, new SimVelocity());
         // DO NOT set authority — entity is non-owned (ghost / replay)

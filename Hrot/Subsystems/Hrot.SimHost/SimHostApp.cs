@@ -834,7 +834,7 @@ namespace Hrot.SimHost
             {
                 RequestId             = Guid.NewGuid(),
                 OwnerAppInstanceId    = creation.NodeId,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 InitType              = ReliableInitType.AllPeers,
                 InitialComponents     = initialComponents,
                 PreAllocatedNetworkId = networkId,

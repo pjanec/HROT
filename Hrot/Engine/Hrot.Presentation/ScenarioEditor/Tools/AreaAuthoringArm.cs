@@ -272,7 +272,7 @@ namespace Hrot.ScenarioEditor.Tools
     /// reddened <c>AreaTool_AfterCommit_ToolIsPopped</c> when this arm first landed.
     /// </param>
     public readonly record struct AreaAuthoringRequest(
-        long TkbType,
+        TkbTypeId TkbType,
         string StyleJson,
         Action<SpawnEntityCommand> OnCommit,
         Action? OnCancelled = null,

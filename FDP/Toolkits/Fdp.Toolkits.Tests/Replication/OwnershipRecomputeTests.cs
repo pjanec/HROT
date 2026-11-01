@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Replication.Tests
             n.E = n.Repo.CreateEntity();
             n.Repo.AddComponent(n.E, new NetworkIdentity(NetId));
             n.Repo.AddComponent(n.E, new NetworkAuthority(primary, local));
-            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = 1 });
+            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
             n.Repo.AddComponent(n.E, new NetworkTransform());
             n.Repo.AddComponent(n.E, new NetworkVelocity());
             bool creator = primary == local;
@@ -331,7 +331,7 @@ namespace Fdp.Toolkit.Replication.Tests
         {
             var part = n.Repo.CreateEntity();
             n.Repo.AddComponent(part, new PartMetadata { ParentEntity = n.E, InstanceId = instance });
-            n.Repo.AddComponent(part, new TkbIdentity { TkbType = 1 });   // carries Info
+            n.Repo.AddComponent(part, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });   // carries Info
             n.Repo.AddComponent(part, new NetworkTransform());           // carries Kinematic (one of its two components)
             return part;
         }

@@ -356,7 +356,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 3; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
@@ -450,7 +450,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 2; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
@@ -501,7 +501,7 @@ namespace Hrot.SimHost.Tests
             RootStateAccess.EnsureRootState(_repo, commander);
             _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
             var sub = _repo.CreateEntity();
-            _repo.AddComponent(sub, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            _repo.AddComponent(sub, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
             _repo.AddComponent<BehaviorState>(sub, default);
             _repo.AddComponent(sub, new NavigationStatus { Result = NavigationResult.Arrived });
             AddRoster(_repo, commander, new[] { sub });
@@ -570,7 +570,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 3; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
@@ -663,7 +663,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 2; i++)
             {
                 subs[i] = _repo.CreateEntity();
-                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
                 _repo.AddComponent<BehaviorState>(subs[i], default);
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }

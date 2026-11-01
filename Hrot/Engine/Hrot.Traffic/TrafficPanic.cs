@@ -175,7 +175,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
         {
             RequestId = Guid.NewGuid(),
             OwnerAppInstanceId = 0,                                       // the system picks: the brain node (R-4029)
-            TkbType = TypeOf(netId),
+            TkbType = (Fdp.Core.TkbTypeId)(TypeOf(netId)),
             PreAllocatedNetworkId = netId,                                // K2: the pedestrian's id IS the civilian's
             InitType = Fdp.Toolkit.Replication.ReliableInitType.None,     // a panicking man waits for nobody
             IsTransient = true,                                           // traffic, never the scenario's
@@ -202,7 +202,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
         {
             RequestId = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType = c.ExternalType > 0 ? c.ExternalType : UrbanCombatTkbCatalog.TkbCivilianCar,
+            TkbType = (Fdp.Core.TkbTypeId)(c.ExternalType > 0 ? c.ExternalType : UrbanCombatTkbCatalog.TkbCivilianCar),
             PreAllocatedNetworkId = netId,
             InitType = Fdp.Toolkit.Replication.ReliableInitType.None,
             IsTransient = true,
@@ -215,7 +215,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
         {
             RequestId = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType = TypeOf(netId),
+            TkbType = (Fdp.Core.TkbTypeId)(TypeOf(netId)),
             InitType = Fdp.Toolkit.Replication.ReliableInitType.None,
             IsTransient = true,
             InitialComponents = new List<object> { new SimTransform { Position = door, Rotation = rot } },

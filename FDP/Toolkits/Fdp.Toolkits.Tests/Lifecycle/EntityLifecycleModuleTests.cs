@@ -202,7 +202,7 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             var e = world.CreateEntity();
             world.SetLifecycleState(e, EntityLifecycle.Constructing);
             world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
-            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+            world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
             world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkAuthority(owned ? 3 : 9, 3));
             if (withRequest) world.AddComponent(e, new Fdp.Toolkit.Lifecycle.Components.CreationRequestId { Value = Request });
             return (world, e);

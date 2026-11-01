@@ -96,13 +96,13 @@ namespace Fdp.Toolkit.Replication.Abstractions
         /// <c>long</c> (<c>TkbIdentity</c>, <c>SpawnEntityCommand</c>, <c>TkbTemplate</c>), so an <c>int</c>
         /// here would silently truncate and make two distinct types shard identically.
         /// </summary>
-        public readonly long TkbType;
+        public readonly TkbTypeId TkbType;
 
         /// <summary>⭐ Already stamped in the entity header, so it costs nothing to carry. A coarser
         /// specialisation axis than <see cref="TkbType"/> (kind / domain / country).</summary>
         public readonly DISEntityType DisType;
 
-        public RoleShardKey(int networkId, long tkbType, DISEntityType disType)
+        public RoleShardKey(int networkId, TkbTypeId tkbType, DISEntityType disType)
         {
             NetworkId = networkId;
             TkbType   = tkbType;

@@ -176,7 +176,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return new SpawnEntityCommand
         {
             NetworkId = 0,
-            TkbType = TkbEntityTypes.Truck_HMMWV,
+            TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Truck_HMMWV),
             DisType = 0,
             OwnerNodeId = SimHostNetworkConstants.LocalNodeId,
             InitType = ReliableInitType.AllPeers,

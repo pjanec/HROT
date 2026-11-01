@@ -279,7 +279,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var aircraft = SpawnShooter(new Vector3(0f, 0f, 300f));
             _world.AddComponent(aircraft, new SimVelocity { Linear = carrier });
             _world.AddComponent(aircraft, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
-            _world.AddComponent(aircraft, new TkbIdentity { TkbType = 9405 });
+            _world.AddComponent(aircraft, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9405) });
             PublishIntent(aircraft, SpawnTarget(new Vector3(900f, 40f, 0f)));
             _sys.Execute(_world, 0.016f);
 
@@ -335,7 +335,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var aircraft = SpawnShooter(new Vector3(0f, 0f, 100f), muzzleVelocity: 1000f);   // mount 0 fires at its WeaponState's speed
             _world.AddComponent(aircraft, new SimVelocity { Linear = carrier });
             _world.AddComponent(aircraft, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
-            _world.AddComponent(aircraft, new TkbIdentity { TkbType = Heli });
+            _world.AddComponent(aircraft, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Heli) });
             var target = SpawnTarget(new Vector3(1500f, 0f, 0f));
 
             // the shell: its muzzle speed along the aim, plus the carrier
@@ -443,7 +443,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 var shooter = w.CreateEntity();
                 w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
                 w.AddComponent(shooter, new WeaponState { MuzzleVelocity = 60f, Ammo = 30 });
-                w.AddComponent(shooter, new TkbIdentity { TkbType = Tube });
+                w.AddComponent(shooter, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Tube) });
                 var sys = new FireProcessingSystem();
                 var velocities = new Vector3[rounds];
                 for (int i = 0; i < rounds; i++)
@@ -506,7 +506,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 var shooter = w.CreateEntity();
                 w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
                 w.AddComponent(shooter, new WeaponState { MuzzleVelocity = 60f, Ammo = 30 });
-                w.AddComponent(shooter, new TkbIdentity { TkbType = Tube });
+                w.AddComponent(shooter, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Tube) });
                 w.Bus.Publish(new WeaponFireIntent { Shooter = shooter, AtPoint = true, TargetPoint = at, RequestId = 7,
                                                      Charge = FireSolution.SolveHere, HighArc = (byte)ArcPreference.Auto });
                 w.Bus.SwapBuffers();
@@ -587,7 +587,7 @@ namespace Fdp.Toolkit.Combat.Tests
             byte OverflyAt(Entity target)
             {
                 var gunner = SpawnShooter(Vector3.Zero, muzzleVelocity: 200f);
-                _world.AddComponent(gunner, new TkbIdentity { TkbType = Launcher });
+                _world.AddComponent(gunner, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Launcher) });
                 PublishIntent(gunner, target);
                 _sys.Execute(_world, 0.016f);
                 var round = Assert.Single(Rounds());
@@ -629,7 +629,7 @@ namespace Fdp.Toolkit.Combat.Tests
             MissileWarningEvent[] WarningsAt(Entity target)
             {
                 var gunner = SpawnShooter(Vector3.Zero, muzzleVelocity: 700f);
-                _world.AddComponent(gunner, new TkbIdentity { TkbType = Launcher });
+                _world.AddComponent(gunner, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Launcher) });
                 PublishIntent(gunner, target);
                 _sys.Execute(_world, 0.016f);
                 _world.Bus.SwapBuffers();
@@ -1115,7 +1115,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
             var bradley = SpawnShooter(Vector3.Zero);
-            _world.AddComponent(bradley, new TkbIdentity { TkbType = 101 });
+            _world.AddComponent(bradley, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(101) });
             var plain   = SpawnShooter(new Vector3(0, 50, 0));
             var target  = SpawnTarget(new Vector3(100, 0, 0));
 
@@ -1153,9 +1153,9 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
             var asBefore = SpawnShooter(Vector3.Zero);
-            _world.AddComponent(asBefore, new TkbIdentity { TkbType = M8Rounds.TankGunType });
+            _world.AddComponent(asBefore, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(M8Rounds.TankGunType) });
             var loaded = SpawnShooter(new Vector3(0, 50, 0));
-            _world.AddComponent(loaded, new TkbIdentity { TkbType = M8Rounds.TankGunType });
+            _world.AddComponent(loaded, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(M8Rounds.TankGunType) });
             var target = SpawnTarget(new Vector3(100, 0, 0));
 
             _world.Bus.Publish(new WeaponFireIntent { Shooter = asBefore, Target = target });
@@ -1204,7 +1204,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
             var shooter = SpawnShooter(Vector3.Zero);
-            _world.AddComponent(shooter, new TkbIdentity { TkbType = 101 });
+            _world.AddComponent(shooter, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(101) });
             var target = SpawnTarget(new Vector3(100, 0, 0));
             var types = new System.Collections.Generic.List<long>();
             for (int i = 0; i < 10; i++)
@@ -1251,9 +1251,9 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
             var tow = SpawnShooter(Vector3.Zero, muzzleVelocity: 800f);
-            _world.AddComponent(tow, new TkbIdentity { TkbType = 101 });
+            _world.AddComponent(tow, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(101) });
             var gun = SpawnShooter(new Vector3(0, 50, 0), muzzleVelocity: 800f);
-            _world.AddComponent(gun, new TkbIdentity { TkbType = 101 });
+            _world.AddComponent(gun, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(101) });
             var target = SpawnTarget(new Vector3(100, 0, 0));
 
             _world.Bus.Publish(new WeaponFireIntent { Shooter = tow, Target = target, WeaponIndex = 1 });
@@ -1286,7 +1286,7 @@ namespace Fdp.Toolkit.Combat.Tests
             db.Register(t);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var tank = SpawnShooter(at, 1500f);
-            _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 77 });
+            _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(77) });
             var turret = TurretParts.Ensure(_world, tank, 0);
             _world.SetComponent(turret, new TurretPose { Azimuth = azimuth, Elevation = elevation });
             return (tank, turret);
@@ -1348,7 +1348,7 @@ namespace Fdp.Toolkit.Combat.Tests
             db.Register(t);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var man = SpawnShooter(at, 115f);
-            _world.AddComponent(man, new TkbIdentity { TkbType = 9218 });
+            _world.AddComponent(man, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9218) });
             return man;
         }
 

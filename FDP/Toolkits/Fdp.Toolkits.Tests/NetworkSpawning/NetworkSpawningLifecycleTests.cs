@@ -94,7 +94,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             _repo.Bus.PublishManaged(new SpawnEntityCommand
             {
                 NetworkId   = NetworkId,
-                TkbType     = TkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(TkbType),
                 OwnerNodeId = 3,
                 InitType    = ReliableInitType.None,
                 InitialComponents = new List<object>

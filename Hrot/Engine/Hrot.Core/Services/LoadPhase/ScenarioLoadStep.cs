@@ -237,7 +237,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     public static EntityCreationRequest WorldEnvironmentRequest(INetworkIdAllocator idAllocator) => new()
     {
         RequestId             = Guid.NewGuid(),
-        TkbType               = TkbEntityTypes.WorldEnvironment,
+        TkbType               = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WorldEnvironment),
         PreAllocatedNetworkId = idAllocator.AllocateId(),
         InitialComponents     = new List<object> { Fdp.Toolkit.Weather.ScenarioClock.Default, Fdp.Toolkit.Weather.WeatherConditions.Standard },
     };

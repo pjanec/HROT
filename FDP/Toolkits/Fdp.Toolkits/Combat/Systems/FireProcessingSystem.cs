@@ -475,7 +475,7 @@ namespace Fdp.Toolkit.Combat.Systems
             var db = repo.GetSingletonManaged<ITkbDatabase>();
             if (db == null || !db.TryGetByType(munitionType, out var type) || type == null
                 || type.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MunitionVisualDto>() == null) return false;
-            repo.AddComponent(round, new TkbIdentity { TkbType = munitionType });
+            repo.AddComponent(round, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(munitionType) });
             repo.AddComponent(round, default(Fdp.Toolkit.Replication.Components.LightweightRound));
             repo.SetDisType(round, type.DisType);
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>())

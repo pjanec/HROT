@@ -262,7 +262,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         {
             var e = cmd.CreateEntity();
             cmd.AddComponent(e, new SimTransform { Position = DecoyFlight.At(fire.Origin, fire.Velocity, exp.SinkMps, (float)(now - bornAt)), Rotation = Quaternion.Identity });
-            cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+            cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             cmd.AddComponent(e, Lifespan.Starting(bornAt, exp.LifeSeconds));
             cmd.AddComponent(e, new EffectFlight { Origin = fire.Origin, Velocity = fire.Velocity, SinkMps = exp.SinkMps, FiredAt = bornAt });
             cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved
@@ -315,7 +315,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         if (type == 0 || EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
         var e = cmd.CreateEntity();
         cmd.AddComponent(e, new SimTransform { Position = at, Rotation = rotation ?? Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
         if (anchor is { } a) cmd.AddComponent(e, a);
         cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
@@ -432,7 +432,7 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
         if (EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
         var e = cmd.CreateEntity();
         cmd.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
         cmd.AddComponent(e, new EffectAnchor { Shooter = wreck, Kind = EffectAnchorKind.Body });
         cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario

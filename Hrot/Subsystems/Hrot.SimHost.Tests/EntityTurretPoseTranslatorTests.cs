@@ -145,7 +145,7 @@ namespace Hrot.SimHost.Tests
                 w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
                 var (hull, t) = Tank(w, 6300, primaryOwner: 1, localNode: local);
                 w.AddComponent(hull, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
-                w.AddComponent(hull, new TkbIdentity { TkbType = 1 });
+                w.AddComponent(hull, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(1) });
                 w.SetManagedComponent(hull, new DescriptorOwnership { Map = new System.Collections.Generic.Dictionary<long, int> { [statusKey] = 2, [poseKey] = 2 } });
                 var target = w.CreateEntity();
                 w.AddComponent(target, new NetworkIdentity(6301));

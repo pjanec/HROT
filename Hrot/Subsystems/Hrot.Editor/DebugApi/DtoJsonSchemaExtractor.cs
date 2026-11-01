@@ -253,6 +253,9 @@ namespace Hrot.Editor.DebugApi
             }
 
             // ⭐ S0 item 6 — the type NAME survives in the schema (a tool can tell a bearing from a number); the SHAPE is the storage type's, by the one mapping.
+            // ⭐ CE-4200 SV-2 — a template id: the SHAPE is a long's (an integer), the type NAME survives so a tool shows the template NAME through the TKB.
+            if (type == typeof(Fdp.Core.TkbTypeId))
+                return new JsonObject { ["type"] = "integer", ["format"] = "tkbTypeId", ["description"] = "the id of a TKB template (a vehicle, a weapon, a munition); a tool shows its name through the TKB" };
             if (type == typeof(Fdp.Core.Bearing))
                 return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
             if (type == typeof(Fdp.Core.WorldRotation))

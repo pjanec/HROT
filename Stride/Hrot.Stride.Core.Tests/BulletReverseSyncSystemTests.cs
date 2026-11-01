@@ -151,7 +151,7 @@ public sealed class BulletReverseSyncSystemTests : IDisposable
         Quaternion? initialRot = null)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbType) });
         _world.AddComponent(entity, new SimTransform
         {
             Position = initialPos,
@@ -775,7 +775,7 @@ public sealed class BulletReverseSyncSystemTests : IDisposable
     {
         // Spawn without authority (ghost entity).
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = DynTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(DynTkbType) });
         var originalPos = new Vector3(50f, 60f, 70f);
         _world.AddComponent(entity, new SimTransform { Position = originalPos });
         _world.AddComponent(entity, new SimVelocity());

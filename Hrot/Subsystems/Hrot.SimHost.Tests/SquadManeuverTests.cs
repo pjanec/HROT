@@ -3774,11 +3774,11 @@ namespace Hrot.SimHost.Tests
                 var roster = new UnitRoster();
                 UnitRoster.Add(ref roster, repo.CreateEntity());
                 repo.AddComponent(e, roster);
-                if (type != 0) repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+                if (type != 0) repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             }
             void Aircraft(Entity e, long type, Fdp.Toolkit.Tkb.Domain.LocomotionClass loco)
             {
-                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+                repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
                 repo.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = loco });
             }
             Unit(p.S.Members[0]);
@@ -4469,7 +4469,7 @@ namespace Hrot.SimHost.Tests
             db.TryGetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman, out var t);
             foreach (var m in s.Members)
             {
-                s.Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman });
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbAssaultRifleman) });
                 new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(s.Repo, m, t!);
             }
             s.Tick();
@@ -5452,7 +5452,7 @@ namespace Hrot.SimHost.Tests
             {
                 var q = repo.CreateEntity();
                 repo.AddComponent(q, new EntityInfo { Name = "Guard (command)", ForceId = force });
-                repo.AddComponent(q, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad });
+                repo.AddComponent(q, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Unit_InfantrySquad) });
                 return q;
             }
             Squad(ForceId.Friend);   // the other side's of that name: not his
@@ -6801,7 +6801,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < at.Length; i++)
             {
                 s.Teleport(s.Members[i], at[i]);
-                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(IfGunType) });
                 s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 20, MuzzleVelocity = 300f });
             }
             s.Repo.AddComponent(s.Commander, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
@@ -7161,7 +7161,7 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Calls(s));
             Assert.False(ObserverFinished(s, observer, out _));
 
-            s.Repo.AddComponent(s.Members[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+            s.Repo.AddComponent(s.Members[1], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(IfGunType) });
             for (int i = 0; i < 3; i++) s.Tick();
             var first = Assert.Single(Calls(s));
             Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, first.Order.Method);

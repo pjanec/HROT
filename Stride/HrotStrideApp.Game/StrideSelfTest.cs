@@ -234,7 +234,7 @@ public sealed class StrideSelfTest
         {
             RequestId             = Guid.NewGuid(),
             OwnerAppInstanceId    = 0,            // localNodeId=0 → WithOwned authority granted
-            TkbType               = SpawnTkbType,
+            TkbType               = (Fdp.Core.TkbTypeId)(SpawnTkbType),
             PreAllocatedNetworkId = SpawnNetId,
             InitialComponents     = new List<object>
             {
@@ -243,7 +243,7 @@ public sealed class StrideSelfTest
                     Position = PosA,
                     Rotation = System.Numerics.Quaternion.Identity,
                 },
-                new TkbIdentity { TkbType = SpawnTkbType },
+                new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(SpawnTkbType) },
             },
         });
 

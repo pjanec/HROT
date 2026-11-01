@@ -38,7 +38,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — a body with NO entity, drawn as an entity of <paramref name="TkbType"/> would be: its look by
     /// the type, its clothes, face or paint seeded by <paramref name="Key"/> (its network id — the seed its replica would use), standing
     /// at <paramref name="Position"/> facing <paramref name="YawRad"/>; <paramref name="Colour"/> (0xRRGGBB, 0 = none) is a car's own paint.</summary>
-    public readonly record struct AmbientBody(long Key, long TkbType, Vector3 Position, float YawRad, uint Colour = 0);
+    public readonly record struct AmbientBody(long Key, TkbTypeId TkbType, Vector3 Position, float YawRad, uint Colour = 0);
 
     /// <summary>⭐ CE-4031 — the ambient bodies drawn by the last 3-D frame (people and vehicles).</summary>
     public int AmbientDrawn { get; private set; }

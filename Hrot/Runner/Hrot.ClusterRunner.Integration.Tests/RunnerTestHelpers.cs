@@ -21,7 +21,7 @@ internal static class RunnerTestHelpers
     {
         int entityId = await gateway.CreateEntityAsync(new Hrot.Core.Network.CreateEntityCommand
         {
-            TkbType = tkbType, X = x, Y = y, Z = 0.0, ForceId = forceId,
+            TkbType = (Fdp.Core.TkbTypeId)(tkbType), X = x, Y = y, Z = 0.0, ForceId = forceId,
         });
         if (entityId <= 0) return 0;
 

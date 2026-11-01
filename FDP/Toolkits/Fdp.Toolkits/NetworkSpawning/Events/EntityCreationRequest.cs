@@ -23,7 +23,7 @@ public sealed class EntityCreationRequest
     public int OwnerAppInstanceId { get; init; }
 
     /// <summary>TKB entity type code extracted from the EntityMaster descriptor.</summary>
-    public long TkbType { get; init; }
+    public TkbTypeId TkbType { get; init; }
 
     /// <summary>Packed DIS entity type discriminator.</summary>
     public ulong DisType { get; init; }

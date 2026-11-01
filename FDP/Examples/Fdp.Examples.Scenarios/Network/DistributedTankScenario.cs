@@ -466,7 +466,7 @@ namespace Fdp.Examples.Scenarios.Network
 
                     // Set TkbIdentity on the ghost so GhostPromotionSystem (runs on next
                     // Muscle kernel Update) can apply the CommandTank blueprint template.
-                    _muscleWorld!.AddComponent(ghost, new TkbIdentity { TkbType = CommandTankTkbType });
+                    _muscleWorld!.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CommandTankTkbType) });
 
                     _ghostCreated = true;
                     break;

@@ -341,7 +341,7 @@ public sealed class EditorAuthoringIntegrationTests : IDisposable
         // Spawn an Insurgent entity with TkbIdentity and a stable NetworkIdentity.
         const int insurgentNetId = 1001;
         var insurgent = world.CreateEntity();
-        world.AddComponent(insurgent, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+        world.AddComponent(insurgent, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Insurgent) });
         world.AddComponent(insurgent, new Fdp.Toolkit.Replication.Components.NetworkIdentity(insurgentNetId));
 
         // Build a BehaviorRegistry that only registers "Ambush" (not "MoveToLocation").

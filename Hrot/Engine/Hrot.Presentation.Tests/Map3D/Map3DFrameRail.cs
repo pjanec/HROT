@@ -152,7 +152,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = UrbanCombatTkbCatalog.TkbInfantrySoldier });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(UrbanCombatTkbCatalog.TkbInfantrySoldier) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = kind, ActiveMount = 1, Point = new Vector3(x + 30f, y, 1.5f) });
         }
@@ -210,7 +210,7 @@ public sealed class Map3DFrameRail
                 Position = new Vector3(x, y, query.GroundHeightAt(x, y)),
                 Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.35f),
             });
-            world.AddComponent(e, new TkbIdentity { TkbType = c.Type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(c.Type) });
             world.AddComponent(e, new StanceIntent { TargetStance = c.Stance });
         }
 
@@ -289,7 +289,7 @@ public sealed class Map3DFrameRail
                 rotation = Fdp.Toolkit.Tkb.Domain.BodyGeometry.Rotation(yaw, rest);
             }
             world.AddComponent(e, new SimTransform { Position = position, Rotation = rotation });
-            world.AddComponent(e, new TkbIdentity { TkbType = a.Type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(a.Type) });
         }
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 6f, spot.Y + 50f, query.GroundHeightAt(spot.X, spot.Y) + 30f), 120f,
                                           MathF.PI * 0.5f, -0.22f);
@@ -370,7 +370,7 @@ public sealed class Map3DFrameRail
             {
                 var e = world.CreateEntity();
                 world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-                world.AddComponent(e, new TkbIdentity { TkbType = type });
+                world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
                 var look = Hrot.Core.Tkb.EffectTkbCatalog.VisualOf(tkb, type)!;
                 world.AddComponent(e, Fdp.Toolkit.Time.Lifespan.Starting(-age, look.Duration));   // W1: sim time 0 here ⇒ `age` seconds old
                 if (shooter != default) world.AddComponent(e, new Hrot.Map.Common.Components.EffectAnchor { Shooter = shooter });
@@ -474,7 +474,7 @@ public sealed class Map3DFrameRail
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, query.GroundHeightAt(x, y)),
                                                      Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
             world.AddComponent(e, new NetworkIdentity { Value = ++net });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
@@ -614,7 +614,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
         }
         Entity Round(long ammo, Vector3 at, Vector3 velocity, byte warhead, float fuze = 0f, Vector3 muzzle = default)
@@ -725,7 +725,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, Target = aimAt });
             return e;
@@ -858,7 +858,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture());
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
@@ -944,7 +944,7 @@ public sealed class Map3DFrameRail
         float hx = spot.X + 5f, hy = spot.Y + 25f;
         var heli = world.CreateEntity();
         world.AddComponent(heli, new SimTransform { Position = new Vector3(hx, hy, G(hx, hy) + 1.75f + 2f), Rotation = Quaternion.Identity });
-        world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60_DoorsOff });
+        world.AddComponent(heli, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Heli_UH60_DoorsOff) });
         var riders = new List<Entity>();
         foreach (byte seat in new byte[] { 0, 1, 2, 4, 5, 6 })
         {
@@ -1011,7 +1011,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
         }
         int sent = 0;
@@ -1020,7 +1020,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             world.AddComponent(e, new SimVelocity { Linear = velocity });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, default(Fdp.Toolkit.Replication.Components.LightweightRound));
             sent++;
         }
@@ -1101,7 +1101,7 @@ public sealed class Map3DFrameRail
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, z), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
         }
         float g = query.GroundHeightAt(200f, 150f);
@@ -1416,7 +1416,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<TkbIdentity>();
         world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
         var routeEntity = world.CreateEntity();
-        world.AddComponent(routeEntity, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+        world.AddComponent(routeEntity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route) });
         var avenue = new Hrot.Map.Common.Components.RoutePlan();
         avenue = avenue.WithWaypoints(w =>
         {
@@ -1477,14 +1477,14 @@ public sealed class Map3DFrameRail
         var tank = world.CreateEntity();
         world.AddComponent(tank, new SimTransform { Position = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y)),
                                                     Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) });
-        world.AddComponent(tank, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        world.AddComponent(tank, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams) });
 
         var stand = FindOpenArea(query, spot - new Vector2(22f, 0f), 2f);
         float yaw = MathF.Atan2(spot.Y - stand.Y, spot.X - stand.X);   // facing the tank
         var me = world.CreateEntity();
         world.AddComponent(me, new SimTransform { Position = new Vector3(stand.X, stand.Y, query.GroundHeightAt(stand.X, stand.Y)),
                                                   Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
-        world.AddComponent(me, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(me, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
         world.AddComponent(me, new StanceIntent { TargetStance = StanceId.Standing });
         world.AddComponent(me, new Fdp.Toolkit.Combat.Components.Health { Current = 74f, Max = 100f });
         var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };
@@ -1605,7 +1605,7 @@ public sealed class Map3DFrameRail
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(at.X, at.Y, query.GroundHeightAt(at.X, at.Y)), Rotation = Quaternion.Identity });
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
             world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.ActorCapabilityState
@@ -1742,7 +1742,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // all face +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Crouched });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture });
             return e;
@@ -1834,7 +1834,7 @@ public sealed class Map3DFrameRail
             var def = terrain.Doors[i];
             var e = doors[i] = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(def.Center, def.SillZ), Rotation = Quaternion.Identity });
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Door });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Door) });
             world.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = states[i] });
             world.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = def.Key });
         }
@@ -1916,7 +1916,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture });
             return e;
@@ -1925,7 +1925,7 @@ public sealed class Map3DFrameRail
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = world.GetComponentRO<SimTransform>(shooter).Position, Rotation = Quaternion.Identity });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             var look = Hrot.Core.Tkb.EffectTkbCatalog.VisualOf(tkb, type)!;
             world.AddComponent(e, Fdp.Toolkit.Time.Lifespan.Starting(-0.02, look.Duration));
             var at = world.GetComponentRO<SimTransform>(shooter).Position;
@@ -2003,7 +2003,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
@@ -2078,7 +2078,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
         }
@@ -2142,7 +2142,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y) + up), Rotation = Quaternion.Identity });   // facing +x
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
         var heli = Put(TkbEntityTypes.Heli_AH64, 0f, 0f, 1.33f + 20f);
@@ -2165,7 +2165,7 @@ public sealed class Map3DFrameRail
             world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hawk, Exposed = 1, Seat = (byte)gunnerSeat });
             var gun = world.CreateEntity();
             world.AddComponent(gun, new SimTransform { Position = hawkAt + new Vector3(doorSeats[gunnerSeat + 1].X, doorSeats[gunnerSeat + 1].Y, doorSeats[gunnerSeat + 1].Z), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, side * MathF.PI / 2f) });
-            world.AddComponent(gun, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_M134Minigun });
+            world.AddComponent(gun, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_M134Minigun) });
             world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
             world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
             world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hawk, Exposed = 1, Seat = (byte)(gunnerSeat + 1) });
@@ -2237,14 +2237,14 @@ public sealed class Map3DFrameRail
             var host = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y;
             world.AddComponent(host, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing east
-            world.AddComponent(host, new TkbIdentity { TkbType = type });
+            world.AddComponent(host, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             var at = world.GetComponentRO<SimTransform>(host).Position;
             var seats = tkb.GetByType(type)!.GetDescriptor<CarrierDefDto>()!.Seats;
             for (int s = 0; s < seats.Count; s++)
             {
                 if (seats[s].StartWith == 0) continue;
                 var e = world.CreateEntity();
-                world.AddComponent(e, new TkbIdentity { TkbType = seats[s].StartWith });
+                world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(seats[s].StartWith) });
                 world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = host, Exposed = (byte)(seats[s].Exposed != false ? 1 : 0), Seat = (byte)s });
                 if (seats[s].Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station)
                 {
@@ -2316,7 +2316,7 @@ public sealed class Map3DFrameRail
             var m = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y;
             world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI * 0.5f) });   // facing north, toward the camera
-            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
             var hm = new Fdp.Toolkit.Physics.BodyParts.HitMarks();
@@ -2376,7 +2376,7 @@ public sealed class Map3DFrameRail
             var m = world.CreateEntity();
             float x = spot.X + 4f + i * 1.5f, y = spot.Y - 6f;
             world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)) });
-            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
         }
 
@@ -2580,7 +2580,7 @@ public sealed class Map3DFrameRail
             var m = world.CreateEntity();
             float x = spot.X + 4f + i * 1.5f, y = spot.Y - 6f;
             world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)) });
-            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
         }
         var env = world.CreateEntity();
@@ -2671,7 +2671,7 @@ public sealed class Map3DFrameRail
         {
             var m = world.CreateEntity();
             world.AddComponent(m, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, ground + up), Rotation = Quaternion.Identity });
-            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Pilot });
+            world.AddComponent(m, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Pilot) });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(m, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = phase, PhaseSince = Now - since,
                                                                    Canopy = Fdp.Toolkit.Motion.CanopyKind.Round });
@@ -2731,13 +2731,13 @@ public sealed class Map3DFrameRail
         // the helicopter, roping, nose east
         var heli = world.CreateEntity();
         world.AddComponent(heli, new SimTransform { Position = new Vector3(spot.X, spot.Y, ground + 12f), Rotation = Quaternion.Identity });
-        world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60_DoorsOff });
+        world.AddComponent(heli, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Heli_UH60_DoorsOff) });
         world.AddComponent(heli, new Fdp.Toolkit.Navigation.NavigationStatus { Phase = Fdp.Toolkit.Navigation.NavigationPhase.Roping });
         Entity Man(long type, Vector3 at, Quaternion facing, Fdp.Toolkit.Motion.Descent? descent)
         {
             var m = world.CreateEntity();
             world.AddComponent(m, new SimTransform { Position = at, Rotation = facing });
-            world.AddComponent(m, new TkbIdentity { TkbType = type });
+            world.AddComponent(m, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
             if (descent is { } dsc) world.AddComponent(m, dsc);
             return m;
@@ -2874,7 +2874,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
             return e;
@@ -2895,7 +2895,7 @@ public sealed class Map3DFrameRail
         var loader = Put(TkbEntityTypes.Infantry_Rifleman, -1.0f, -2f);
         var mortar = world.CreateEntity();
         world.AddComponent(mortar, new SimTransform { Position = world.GetComponentRO<SimTransform>(gunner).Position, Rotation = Quaternion.Identity });
-        world.AddComponent(mortar, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_Mortar120 });
+        world.AddComponent(mortar, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_Mortar120) });
         world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = (byte)WeaponPortability.TwoMan });
         world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
         var crew = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = loader };
@@ -2953,7 +2953,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y) + 1.33f + up), Rotation = Quaternion.Identity });   // CG above its wheels
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
         }
         Aircraft(TkbEntityTypes.Heli_AH64, 0f, 0f, 0f);
         Aircraft(TkbEntityTypes.Heli_AH64, 4f, 20f, 18f);
@@ -3015,7 +3015,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new EntityInfo { ForceId = side });
         }
@@ -3085,13 +3085,13 @@ public sealed class Map3DFrameRail
         var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y));
         var man = world.CreateEntity();
         world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(man, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(man, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
         world.AddComponent(man, new StanceIntent { TargetStance = StanceId.Standing });
         world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed,
             Point = at + new Vector3(50f, 0f, 1.4f) });
         var target = world.CreateEntity();   // something to aim at
         world.AddComponent(target, new SimTransform { Position = at + new Vector3(14f, 1f, 0f), Rotation = Quaternion.Identity });
-        world.AddComponent(target, new TkbIdentity { TkbType = TkbEntityTypes.Truck_HMMWV });
+        world.AddComponent(target, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Truck_HMMWV) });
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
@@ -3154,7 +3154,7 @@ public sealed class Map3DFrameRail
             var v = world.CreateEntity();
             var at = new Vector3(spot.X, spot.Y, query.GroundHeightAt(spot.X, spot.Y) + z);
             world.AddComponent(v, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            world.AddComponent(v, new TkbIdentity { TkbType = type });
+            world.AddComponent(v, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             bodies.FirstPerson = v;
             frame.Step(canvas.Draw);   // the first frame draws it and learns its crew eye
             Assert.True(bodies.TryGetEyeLocal(v, out var local), $"{name}: a crew eye");
@@ -3222,16 +3222,16 @@ public sealed class Map3DFrameRail
         int stationSeat = seats.FindIndex(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
         var technical = world.CreateEntity();   // the vehicle
         world.AddComponent(technical, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(technical, new TkbIdentity { TkbType = vehicleType });
+        world.AddComponent(technical, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(vehicleType) });
         var gunner = world.CreateEntity();
         world.AddComponent(gunner, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(gunner, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        world.AddComponent(gunner, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
         world.AddComponent(gunner, new StanceIntent { TargetStance = StanceId.Standing });
         world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = Exposed(gunnerSeat), Seat = (byte)gunnerSeat });
         var gun = world.CreateEntity();
         var st = seats[stationSeat];
         world.AddComponent(gun, new SimTransform { Position = at + new Vector3(st.X, st.Y, st.Z), Rotation = Quaternion.Identity });
-        world.AddComponent(gun, new TkbIdentity { TkbType = weaponType });
+        world.AddComponent(gun, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(weaponType) });
         world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = technical, Exposed = Exposed(stationSeat), Seat = (byte)stationSeat });
         world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
         var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = (byte)seats.Count };
@@ -3298,7 +3298,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, HeldItem = held, Point = new Vector3(x + 50f, y, G(x, y) + 1.4f) });
@@ -3330,10 +3330,10 @@ public sealed class Map3DFrameRail
         world.AddComponent(surrendered, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
         var placed = world.CreateEntity();
         world.AddComponent(placed, new SimTransform { Position = new Vector3(spot.X + 7.4f, spot.Y - 0.9f, G(spot.X + 7.4f, spot.Y - 0.9f)), Rotation = Quaternion.Identity });
-        world.AddComponent(placed, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_ExplosiveCharge });
+        world.AddComponent(placed, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_ExplosiveCharge) });
         var lying = world.CreateEntity();   // the toy, lying on the ground in front of them
         world.AddComponent(lying, new SimTransform { Position = new Vector3(spot.X + 6.5f, spot.Y - 0.6f, G(spot.X + 6.5f, spot.Y - 0.6f)), Rotation = Quaternion.Identity });
-        world.AddComponent(lying, new TkbIdentity { TkbType = 99_616 });
+        world.AddComponent(lying, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(99_616) });
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();
@@ -3369,7 +3369,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, fy, G(x, fy)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });   // facing the camera
-            world.AddComponent(e, new TkbIdentity { TkbType = civ });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(civ) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
             return e;
@@ -3423,7 +3423,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y;   // a file, each facing +x: broadside from the south
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
             world.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
             world.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = posture, ActiveMount = mount,
@@ -3499,7 +3499,7 @@ public sealed class Map3DFrameRail
         var heliAt = new Vector3(spot.X, spot.Y, ground + 40f);
         var heli = world.CreateEntity();
         world.AddComponent(heli, new SimTransform { Position = heliAt, Rotation = Quaternion.Identity });
-        world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60 });
+        world.AddComponent(heli, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Heli_UH60) });
         void Release(long ammo, double ago)   // where the aircraft was then: it flew on at its velocity since
             => world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification
             {
@@ -3571,7 +3571,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)),
                                                      Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f) });   // facing the camera
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new NetworkIdentity(++net));
             world.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = ForceId.Neutral });
             Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, e, gesture));
@@ -3650,7 +3650,7 @@ public sealed class Map3DFrameRail
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)), Rotation = facing });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
         Put(TkbEntityTypes.WeaponSystem_PickUpRifle, -1.2f);
@@ -3707,7 +3707,7 @@ public sealed class Map3DFrameRail
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X + dx, spot.Y, query.GroundHeightAt(spot.X + dx, spot.Y)), Rotation = facing });
-            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Infantry_Rifleman) });
             world.AddComponent(e, new StanceIntent { TargetStance = stance });
             Assert.True(Fdp.Toolkit.Combat.Leans.Set(world, e, side));
             return e;
@@ -3779,7 +3779,7 @@ public sealed class Map3DFrameRail
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             world.AddComponent(e, new NetworkIdentity(++net));
             return e;
         }
@@ -3882,7 +3882,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = north });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
         Entity Weapon(long type, float dx, float dy, Fdp.Toolkit.Combat.WeaponDeploy deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed)
@@ -4042,7 +4042,7 @@ public sealed class Map3DFrameRail
             var e = world.CreateEntity();
             float x = spot.X + dx, y = spot.Y + dy;
             world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y) + up), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
-            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             return e;
         }
         Entity Weapon(long type, float dx, float dy, Fdp.Toolkit.Combat.WeaponDeploy deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed)
@@ -4176,7 +4176,7 @@ public sealed class Map3DFrameRail
         //   layer: on the ground (z 0, draped), then 30 m, 60 m and 30 m above it at its waypoints (HeightAgl), Z-up
         world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
         var route = world.CreateEntity();
-        world.AddComponent(route, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+        world.AddComponent(route, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Route) });
         var plan = new Hrot.Map.Common.Components.RoutePlan();
         plan = plan.WithWaypoints(wps =>
         {
@@ -4482,7 +4482,7 @@ public sealed class Map3DFrameRail
             tkb.TryGetByType(types[i], out var t);
             var size = EntityBodyLayer3D.Resolve(t).Size;
             string id = "veh" + (7 * i + 3);
-            cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, id, 3001 + i, types[i], Hrot.Traffic.TrafficPaint.Of(id, types[i]), x, y, Z(x, y), 0f, size.X, size.Y));
+            cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, id, 3001 + i, (Fdp.Core.TkbTypeId)(types[i]), Hrot.Traffic.TrafficPaint.Of(id, types[i]), x, y, Z(x, y), 0f, size.X, size.Y));
         }
         world.SetSingletonManaged(new Hrot.Traffic.TrafficFrame(cars, _ => false, new Dictionary<int, byte>(), new List<Hrot.Traffic.TrafficPedPose>(), _ => false));
 
@@ -4544,7 +4544,7 @@ public sealed class Map3DFrameRail
             for (int i = 0; i < 4; i++)
             {
                 float x = spot.X - 10f + 7f * i + 8f * t, y = spot.Y + 5f;
-                cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, "veh" + i, 2001 + i, types[i], paint[i], x, y, Z(x, y), 0f, 4f, 1.8f));
+                cars.Add(new Hrot.Traffic.TrafficCarPose(1, default, "veh" + i, 2001 + i, (Fdp.Core.TkbTypeId)(types[i]), paint[i], x, y, Z(x, y), 0f, 4f, 1.8f));
             }
             return new Hrot.Traffic.TrafficFrame(cars, _ => false, new Dictionary<int, byte>(), peds, _ => false);
         }

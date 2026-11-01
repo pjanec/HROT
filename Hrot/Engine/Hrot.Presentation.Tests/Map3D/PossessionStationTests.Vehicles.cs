@@ -50,7 +50,7 @@ public sealed partial class PossessionStationTests
 
             // an armed turret: the look is the gun's order — it stays where he put it
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            w.AddComponent(car, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 700 });
+            w.AddComponent(car, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(700) });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var ifv = new Fdp.Interfaces.TkbTemplate("IFV", 700);
             ifv.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = WeaponCategory.Autocannon, TurretIndex = 0 } } });

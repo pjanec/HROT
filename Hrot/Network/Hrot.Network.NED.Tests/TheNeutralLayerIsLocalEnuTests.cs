@@ -45,7 +45,7 @@ public class TheNeutralLayerIsLocalEnuTests
     public void ACreateEntityCommand_BecomesAWorldPosDescriptor_WithTheSameMetres()
     {
         var descriptors = NedTranslationHelper.BuildCreateEntityDescriptors(
-            new CreateEntityCommand { TkbType = 105, X = X, Y = Y, Z = Z });
+            new CreateEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(105), X = X, Y = Y, Z = Z });
 
         var wp = Assert.Single(descriptors, d => d._d == EDescriptorType.dtWorldPos).WorldPos.Position;
         Assert.Equal(X, wp.X);
@@ -57,7 +57,7 @@ public class TheNeutralLayerIsLocalEnuTests
     public void TheGatewayCreateRequest_CarriesTheSameMetres()
     {
         var req = NedTranslationHelper.ToCreateEntityRequest(
-            new CreateEntityCommand { TkbType = 105, X = X, Y = Y, Z = Z });
+            new CreateEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(105), X = X, Y = Y, Z = Z });
 
         var wp = Assert.Single(req.InitialDescriptors, d => d._d == EDescriptorType.dtWorldPos).WorldPos.Position;
         Assert.Equal((X, Y, Z), (wp.X, wp.Y, wp.Z));

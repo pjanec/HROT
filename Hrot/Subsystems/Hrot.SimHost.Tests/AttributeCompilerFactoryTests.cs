@@ -240,7 +240,7 @@ namespace Hrot.SimHost.Tests
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = LocalNodeId,
-                TkbType            = ValidTkbType,
+                TkbType            = (Fdp.Core.TkbTypeId)(ValidTkbType),
                 DisType            = ValidDisType,
                 InitialAttributesJson = json,
             };

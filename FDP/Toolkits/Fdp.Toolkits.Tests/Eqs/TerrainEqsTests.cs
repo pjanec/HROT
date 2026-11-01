@@ -742,7 +742,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             if (!_repo.IsComponentTypeRegistered<TkbIdentity>()) _repo.RegisterComponent<TkbIdentity>();
             if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
             var e = At(x, y);
-            _repo.AddComponent(e, new TkbIdentity { TkbType = type });
+            _repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
             if (cls != null) _repo.AddComponent(e, new VehicleParams { Class = cls.Value });
             return e;
         }

@@ -104,7 +104,7 @@ namespace Hrot.SimHost.Tests
             repo.Bus.PublishManaged(new SpawnEntityCommand
             {
                 NetworkId   = 0,
-                TkbType     = TestTkbType,
+                TkbType     = (Fdp.Core.TkbTypeId)(TestTkbType),
                 OwnerNodeId = LocalNodeId
             });
             repo.Bus.SwapBuffers();

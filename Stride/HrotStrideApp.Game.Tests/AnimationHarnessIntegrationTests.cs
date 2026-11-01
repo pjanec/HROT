@@ -99,12 +99,12 @@ public sealed class AnimationHarnessIntegrationTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = new Vector3(0, 5, 0), Rotation = Quaternion.Identity },
                 new SimVelocity(),
-                new TkbIdentity { TkbType = TkbInfantrySoldier },
+                new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         });
 
@@ -127,12 +127,12 @@ public sealed class AnimationHarnessIntegrationTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = new Vector3(0, 5, 0), Rotation = Quaternion.Identity },
                 new SimVelocity(),
-                new TkbIdentity { TkbType = TkbInfantrySoldier },
+                new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         });
         for (int i = 0; i < 6; i++) sut.Tick(1f / 60f);

@@ -1973,7 +1973,7 @@ namespace Hrot.Editor.DebugApi
             {
                 RequestId             = Guid.NewGuid(),
                 OwnerAppInstanceId    = ownerNodeId,
-                TkbType               = tkbType,
+                TkbType               = (Fdp.Core.TkbTypeId)(tkbType),
                 InitialAttributesJson = attributesJson,
                 InitialComponents     = initialComponents,
             };
@@ -2294,7 +2294,7 @@ namespace Hrot.Editor.DebugApi
             {
                 arr.Add(new JsonObject
                 {
-                    ["tkbType"]      = t.TkbType,
+                    ["tkbType"]      = (long)t.TkbType,
                     ["name"]         = t.Name,
                     ["categoryPath"] = t.CategoryPath,
                     ["disType"]      = t.DisType.ToString(),
@@ -2328,7 +2328,7 @@ namespace Hrot.Editor.DebugApi
             }
             return new JsonObject
             {
-                ["tkbType"]         = t.TkbType,
+                ["tkbType"]         = (long)t.TkbType,
                 ["name"]            = t.Name,
                 ["disType"]         = t.DisType.ToString(),
                 ["engineFallbacks"] = fallbacks,
@@ -2404,7 +2404,7 @@ namespace Hrot.Editor.DebugApi
 
             return new JsonObject
             {
-                ["tkbType"]             = t.TkbType,
+                ["tkbType"]             = (long)t.TkbType,
                 ["name"]                = t.Name,
                 ["categoryPath"]        = t.CategoryPath,
                 ["disType"]             = t.DisType.ToString(),

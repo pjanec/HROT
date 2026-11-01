@@ -91,7 +91,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = SimHostInstance.LocalNodeId,
-                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                 DisType            = 0x0100_0000_0000_0001UL,
             });
 
@@ -137,7 +137,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = SimHostInstance.LocalNodeId,
-                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                 DisType            = 0x0100_0000_0000_0001UL,
             });
 
@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 RequestId          = requestId,
                 OwnerAppInstanceId = SimHostInstance.LocalNodeId,
-                TkbType            = TkbEntityTypes.Tank_M1Abrams,
+                TkbType            = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Tank_M1Abrams),
                 DisType            = 0x0100_0000_0000_0001UL,
             });
 

@@ -35,7 +35,7 @@ public sealed partial class PossessionStationTests
             var e = u.W.CreateEntity();
             u.W.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             u.W.AddComponent(e, new LightweightRound());
-            u.W.AddComponent(e, new TkbIdentity { TkbType = 9890 });
+            u.W.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(9890) });
             u.Map.Register(id, e);
             return e;
         }

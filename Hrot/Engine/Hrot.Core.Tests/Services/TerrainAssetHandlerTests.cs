@@ -58,7 +58,7 @@ namespace Hrot.Core.Tests.Services
         private static Entity NewZone(EntityRepository repo, int networkId, Vector3 origin)
         {
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.TerrainZone });
+            repo.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainZone) });
             repo.AddComponent(e, new NetworkIdentity(networkId));
             repo.AddComponent(e, new SimTransform { Position = origin });
             repo.SetManagedComponent(e, new EditablePolyline { Points = Triangle() });

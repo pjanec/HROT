@@ -174,7 +174,7 @@ public sealed class TrafficReplicas
         var e = _world.CreateEntity();
         _world.AddComponent(e, new NetworkIdentity(ped.NetworkId));
         _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: ped.Owner, localNodeId: _localNodeId));
-        _world.AddComponent(e, new TkbIdentity { TkbType = PedestrianTypeOf(ped.NetworkId) });
+        _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(PedestrianTypeOf(ped.NetworkId)) });
         _world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
         _world.AddComponent(e, new TrafficCar { VehicleIndex = 0, Kind = TrafficCar.KindPedestrian });
         _world.AddComponent(e, new ScenarioIgnoreTag());
@@ -277,7 +277,7 @@ public sealed class TrafficReplicas
         var e = _world.CreateEntity();
         _world.AddComponent(e, new NetworkIdentity(car.NetworkId));
         _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: car.Owner, localNodeId: _localNodeId));
-        _world.AddComponent(e, new TkbIdentity { TkbType = CarTypeOf(car) });
+        _world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CarTypeOf(car)) });
         _world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
         _world.AddComponent(e, new TrafficCar { VehicleIndex = car.Handle.Index, Generation = car.Handle.Generation });
         _world.AddComponent(e, new ScenarioIgnoreTag());

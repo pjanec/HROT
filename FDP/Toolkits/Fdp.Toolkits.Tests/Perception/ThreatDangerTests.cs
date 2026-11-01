@@ -192,7 +192,7 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(1f, ThreatDanger.Of(_world.Repo, tank, Shooter(TankGunType, new Vector3(1000, 0, 0))), precision: 4);
 
             var era = Tank();
-            _world.Repo.GetComponentRW<TkbIdentity>(era).TkbType = CeTankType;
+            _world.Repo.GetComponentRW<TkbIdentity>(era).TkbType = (Fdp.Core.TkbTypeId)(CeTankType);
             Assert.Equal(ThreatDanger.ArmedHarmless, ThreatDanger.Of(_world.Repo, era, Shooter(HeatOnlyType, new Vector3(1000, 0, 0))), precision: 4);
             Assert.Equal(1f, ThreatDanger.Of(_world.Repo, era, Shooter(ApfsdsOnlyType, new Vector3(1000, 0, 0))), precision: 4);
         }

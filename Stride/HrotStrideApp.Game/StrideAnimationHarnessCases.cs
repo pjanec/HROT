@@ -105,12 +105,12 @@ public static class StrideAnimationHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0, // localNodeId 0 → owned immediately
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
                 new SimVelocity  { Linear = SNum.Vector3.Zero, Angular = SNum.Vector3.Zero },
-                new TkbIdentity  { TkbType = TkbInfantrySoldier },
+                new TkbIdentity  { TkbType = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         };
         ctx.ScenarioSource.PublishManaged(request);

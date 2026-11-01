@@ -398,11 +398,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbMilitaryApc,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbMilitaryApc),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbMilitaryApc },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbMilitaryApc) },
                 new VehicleParams
                 {
                     WheelBase   = WpWheelBase,
@@ -745,11 +745,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0, // owned immediately
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbInfantrySoldier },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         });
 
@@ -839,11 +839,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbInfantrySoldier },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         });
 
@@ -966,12 +966,12 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,            // localNodeId=0 → authority granted (WithOwned<SimTransform>)
-            TkbType            = TkbMilitaryApc,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbMilitaryApc),
             InitialComponents  = new List<object>
             {
                 // SimTransform: spawn position (floor level) + identity rotation (facing east = FDP +X).
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbMilitaryApc },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbMilitaryApc) },
                 // VehicleParams explicitly supplied in InitialComponents as an override so the motor
                 // has a known WheelBase even before the TKB translator runs (runs on next kernel tick).
                 // The translator is guarded by HasComponent, so the pre-supplied value is not clobbered.
@@ -1215,11 +1215,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbMilitaryApc,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbMilitaryApc),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbMilitaryApc },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbMilitaryApc) },
                 new VehicleParams
                 {
                     WheelBase   = NavDriveWheelBase,
@@ -1601,11 +1601,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new System.Collections.Generic.List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbInfantrySoldier },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         });
 
@@ -1934,11 +1934,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbInfantrySoldier,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbInfantrySoldier },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) },
             },
         });
         ctx.Log($"[FDP Move Order char] Spawned InfantrySoldier (TKB {TkbInfantrySoldier}) @ FDP " +
@@ -2224,11 +2224,11 @@ public static class StridePhysicsHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = TkbMilitaryApc,
+            TkbType            = (Fdp.Core.TkbTypeId)(TkbMilitaryApc),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = startPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType  = TkbMilitaryApc },
+                new TkbIdentity  { TkbType  = (Fdp.Core.TkbTypeId)(TkbMilitaryApc) },
                 new VehicleParams { WheelBase = DriveWheelBase, Length = 4.5f, Width = 2.2f, MaxSpeedFwd = 10f, MaxAccel = 3f },
             },
         });

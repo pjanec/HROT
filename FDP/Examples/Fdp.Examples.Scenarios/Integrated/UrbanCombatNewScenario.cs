@@ -715,7 +715,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             foreach (var translator in _translators)
                 translator.Inject(world, entity, template);
 
-            world.AddComponent(entity, new TkbIdentity { TkbType = tkbTypeId });
+            world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(tkbTypeId) });
 
             ref var tf   = ref world.GetComponentRW<SimTransform>(entity);
             tf.Position  = position;

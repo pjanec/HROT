@@ -128,7 +128,7 @@ public static class StrideTestHarnessCases
             Position = center + new SNum.Vector3(radius, 0f, 0f),
             Rotation = SNum.Quaternion.Identity,
         });
-        ctx.World.AddComponent(ghost, new TkbIdentity { TkbType = TkbInfantrySoldier });
+        ctx.World.AddComponent(ghost, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbInfantrySoldier) });
 
         ctx.Log($"Orbiting Ghost spawned (non-owned, TKB 2002) at FDP {Fmt(center)} r={radius:F1}; " +
                 "visual orbits via Pass-B forward-sync.");
@@ -179,11 +179,11 @@ public static class StrideTestHarnessCases
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0, // localNodeId=0 → authority granted immediately (owned)
-            TkbType            = tkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = fdpPos, Rotation = SNum.Quaternion.Identity },
-                new TkbIdentity  { TkbType = tkbType },
+                new TkbIdentity  { TkbType = (Fdp.Core.TkbTypeId)(tkbType) },
             },
         });
     }

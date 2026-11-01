@@ -153,7 +153,7 @@ public sealed class KinematicVehicleMotorTests : IDisposable
         Vector3 pos, float speed, float steerAngle = 0f, float wheelBase = 4f)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = BoxTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(BoxTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = pos, Rotation = Quaternion.Identity });
         _world.AddComponent(entity, new VehicleState { Speed = speed, SteerAngle = steerAngle });
         _world.AddComponent(entity, new VehicleParams { WheelBase = wheelBase });
@@ -214,7 +214,7 @@ public sealed class KinematicVehicleMotorTests : IDisposable
         var northRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
 
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = BoxTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(BoxTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = northRotation });
         _world.AddComponent(entity, new VehicleState { Speed = speed });
         _world.AddComponent(entity, new VehicleParams { WheelBase = 4f });
@@ -399,7 +399,7 @@ public sealed class KinematicVehicleMotorTests : IDisposable
         var sut          = new KinematicVehicleMotor(trackingFake, lifecycle);
 
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new TkbIdentity { TkbType = BoxTkbType });
+        world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(BoxTkbType) });
         world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
         world.AddComponent(entity, new VehicleState { Speed = 5f });
         world.AddComponent(entity, new VehicleParams { WheelBase = 4f });
@@ -592,7 +592,7 @@ public sealed class KinematicVehicleMotorClobberGuardTests : IDisposable
     private Entity SpawnCapsuleWithBothComponents(Vector3 intentVelocity)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = CapsuleTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(CapsuleTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
         _world.AddComponent(entity, new SimVelocity());
         _world.AddComponent(entity, new CrowdMotorIntent { Velocity = intentVelocity });
@@ -611,7 +611,7 @@ public sealed class KinematicVehicleMotorClobberGuardTests : IDisposable
     private Entity SpawnBoxVehicle(float speed)
     {
         var entity = _world.CreateEntity();
-        _world.AddComponent(entity, new TkbIdentity { TkbType = BoxTkbType });
+        _world.AddComponent(entity, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(BoxTkbType) });
         _world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
         _world.AddComponent(entity, new SimVelocity());
         _world.AddComponent(entity, new VehicleState { Speed = speed });

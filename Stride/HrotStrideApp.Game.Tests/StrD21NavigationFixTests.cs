@@ -57,7 +57,7 @@ public sealed class StrD21NavigationFixTests : IDisposable
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
-            TkbType            = tkbType,
+            TkbType            = (Fdp.Core.TkbTypeId)(tkbType),
             InitialComponents  = new List<object>
             {
                 new SimTransform { Position = pos },

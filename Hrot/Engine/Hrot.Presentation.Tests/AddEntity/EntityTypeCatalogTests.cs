@@ -83,7 +83,7 @@ public sealed class EntityTypeCatalogTests
 
         var c = EntityTypeCatalog.Build(db);
 
-        Assert.DoesNotContain(c, e => e.TkbType is 90001 or 90002);
+        Assert.DoesNotContain(c, e => (long)e.TkbType is 90001 or 90002);
         var crate = Of(c, 90003);
         Assert.Equal("Crate", crate.Name);
         Assert.Equal("Props/Crates", crate.Category);   // no DIS ⇒ the template's own category path

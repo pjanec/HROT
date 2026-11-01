@@ -8,7 +8,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// Required child TKB type ID.
         /// </summary>
-        public long TkbType { get; set; }
+        public TkbTypeId TkbType { get; set; }
         
         /// <summary>
         /// Number of entities of this type (e.g., 4 tanks in a platoon).

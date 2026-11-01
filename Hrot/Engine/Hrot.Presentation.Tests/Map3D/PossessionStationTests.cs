@@ -450,7 +450,7 @@ public sealed partial class PossessionStationTests
             db.Register(observer);
             db.Register(new Fdp.Interfaces.TkbTemplate("Rifleman", 4715));
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4714 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4714) });
             w.AddComponent(unit, new WeaponPosture());
             var man = w.CreateEntity();
             w.AddComponent(man, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
@@ -485,7 +485,7 @@ public sealed partial class PossessionStationTests
             Assert.Equal("Point designated for 1 man", driver.WheelVerdict(station.Clock));
 
             w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.None;
-            w.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4715 });   // a man who carries none
+            w.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4715) });   // a man who carries none
             Frame(b);
             Assert.True(driver.NoBinoculars);
             Assert.Equal(45f, sw.Camera3D.FovyDegrees);
@@ -674,7 +674,7 @@ public sealed partial class PossessionStationTests
             } });
             db.Register(type);
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4713) });
 
             float sigma = PossessionStation.SpreadOf(w, unit, 0);
             Assert.Equal(0.006f, sigma, 5);                                                        // 6 mils, standing, still
@@ -922,7 +922,7 @@ public sealed partial class PossessionStationTests
             } });
             db.Register(type);
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4712 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4712) });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -994,7 +994,7 @@ public sealed partial class PossessionStationTests
             } });
             db.Register(type);
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4713 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4713) });
             Fdp.Toolkit.Combat.TurretParts.Ensure(w, unit, 0);
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
@@ -1072,7 +1072,7 @@ public sealed partial class PossessionStationTests
             } });
             db.Register(type);
             w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4711 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4711) });
             var (_, sw, _) = Map();
             sw.Camera3D.Pickers.Add(new UnitAhead());
             var station = new PossessionStation(sw, () => w);
@@ -1146,7 +1146,7 @@ public sealed partial class PossessionStationTests
         using (w)
         {
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 500 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(500) });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var tank = new Fdp.Interfaces.TkbTemplate("Tank", 500);
             tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
@@ -1181,7 +1181,7 @@ public sealed partial class PossessionStationTests
         using (w)
         {
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 600 });
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(600) });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var man = new Fdp.Interfaces.TkbTemplate("Rifleman", 600);
             man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
