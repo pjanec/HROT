@@ -20,6 +20,7 @@ namespace Fdp.Presentation.Editing
                 .RegisterFieldEditor<Fdp.Core.FixedString64>(new FixedString64FieldEditor())
                 .RegisterFieldEditor<Fdp.Core.FixedString128>(new FixedString128FieldEditor())
                 .RegisterFieldEditor<Quaternion>(new QuaternionEulerFieldEditor())
+                .RegisterFieldEditor<Fdp.Core.WorldRotation>(new QuaternionEulerFieldEditor(typeof(Fdp.Core.WorldRotation)))   // ⭐ S0 item 6 — a world orientation edits as Y/P/R like a Quaternion
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityRef>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityRef)))
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.EntityLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.EntityLink)))   // ⭐ S0 item 5 — the authored types are pickable leaves by TYPE
                 .RegisterFieldEditor<Fdp.Toolkit.Replication.PointLink>(new PickableLeafFieldEditor(typeof(Fdp.Toolkit.Replication.PointLink)))

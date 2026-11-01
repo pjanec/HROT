@@ -573,7 +573,7 @@ public static class StridePhysicsHarnessCases
             // A car that is turning (distance-to-target may increase during a curve) is
             // NOT stuck as long as it keeps moving through space.
             float windowAge        = totalElapsed - windowOpenedAt;
-            float displacement     = (curPos - stuckWindowStartPos).Length();
+            float displacement     = ((System.Numerics.Vector3)curPos - stuckWindowStartPos).Length();
             // Roll the window forward if the car moved enough to prove it's not stuck.
             if (displacement >= StuckDisplacementThresholdM)
             {
@@ -794,7 +794,7 @@ public static class StridePhysicsHarnessCases
                 nextLogAt += PositionLogIntervalSec;
 
                 var pos = ctx.World.HasComponent<SimTransform>(target)
-                    ? ctx.World.GetComponentRO<SimTransform>(target).Position
+                    ? (System.Numerics.Vector3)ctx.World.GetComponentRO<SimTransform>(target).Position
                     : startPos;
 
                 // Check grounded via lifecycle → body service.
@@ -907,7 +907,7 @@ public static class StridePhysicsHarnessCases
                 nextLogAt += PositionLogIntervalSec;
 
                 var pos = ctx.World.HasComponent<SimTransform>(target)
-                    ? ctx.World.GetComponentRO<SimTransform>(target).Position
+                    ? (System.Numerics.Vector3)ctx.World.GetComponentRO<SimTransform>(target).Position
                     : startPos;
 
                 bool hasBody  = lifecycle.Bodies.TryGetValue(target, out _);
@@ -1069,7 +1069,7 @@ public static class StridePhysicsHarnessCases
                 nextLogAt += PositionLogIntervalSec;
 
                 var pos = ctx.World.HasComponent<SimTransform>(target)
-                    ? ctx.World.GetComponentRO<SimTransform>(target).Position
+                    ? (System.Numerics.Vector3)ctx.World.GetComponentRO<SimTransform>(target).Position
                     : startPos;
 
                 bool hasBody = lifecycle.Bodies.TryGetValue(target, out _);
@@ -1344,7 +1344,7 @@ public static class StridePhysicsHarnessCases
 
             // Movement-based stuck detection.
             float windowAge    = totalElapsed - windowOpenedAt;
-            float displacement = (curPos - stuckWindowStartPos).Length();
+            float displacement = ((System.Numerics.Vector3)curPos - stuckWindowStartPos).Length();
             if (displacement >= StuckDisplacementThresholdM)
             {
                 stuckWindowStartPos = curPos;
@@ -2427,7 +2427,7 @@ public static class StridePhysicsHarnessCases
                 continue;
 
             var pos = world.GetComponentRO<SimTransform>(e).Position;
-            float d = (pos - near).LengthSquared();
+            float d = ((System.Numerics.Vector3)pos - near).LengthSquared();
             if (d < bestDistSq)
             {
                 bestDistSq = d;

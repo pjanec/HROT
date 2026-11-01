@@ -309,7 +309,7 @@ namespace Fdp.Toolkit.Replication.Tests
 
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(ghost));
             Assert.True(repo.HasComponent<SimTransform>(ghost));
-            Assert.Equal(System.Numerics.Quaternion.Identity, repo.GetComponentRO<SimTransform>(ghost).Rotation);
+            Assert.Equal<System.Numerics.Quaternion>(System.Numerics.Quaternion.Identity, repo.GetComponentRO<SimTransform>(ghost).Rotation);
         }
     }
 }

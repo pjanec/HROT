@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct FakeCrowdAgentState
     {
-        public Vector3 Target;
+        public WorldPoint Target;
         public Vector3 Velocity;
         public bool    HasTarget;
         public bool    ReachedTarget;

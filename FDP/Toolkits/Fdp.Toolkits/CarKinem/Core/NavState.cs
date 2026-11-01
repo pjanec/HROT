@@ -27,7 +27,7 @@ namespace CarKinem.Core
         
         // Destination (for RoadGraph mode: final off-road target). Vector3 (Sim Z-up): Z is
         // carried for fidelity/translators; steering math projects to XY (§0.2, P3D-302).
-        public Vector3 FinalDestination;
+        public WorldPoint FinalDestination;
         public float ArrivalRadius;  // Distance to consider "arrived" (meters)
         
         // Controller internals (for stability)

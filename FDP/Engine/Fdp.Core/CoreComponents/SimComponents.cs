@@ -21,14 +21,14 @@ namespace Fdp.Core
         //   X = east
         //   Y = north
         //   Z = up
-        public Vector3    Position;
+        public WorldPoint Position;
 
 		// World-space orientation
 		// rotation order: yaw-pitch-roll (first around Z, then Y, then X in positive sense)
 		//   yaw: 0=X axis direction (east), +90=Y axis direction (north)
 		//   pitch: 0=horizontal, +90=straight down (-Z direction)
 		//   roll: 0=level, +90=right wing down (clockwise when looking in direction of travel)
-		public Quaternion Rotation;
+		public WorldRotation Rotation;
 	}
 
     /// <summary>Linear and angular velocity. Present on every moving entity.</summary>

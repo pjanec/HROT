@@ -248,7 +248,7 @@ public static class StrideAnimationHarnessCases
                 continue;
 
             var pos = world.GetComponentRO<SimTransform>(e).Position;
-            float d = (pos - near).LengthSquared();
+            float d = ((System.Numerics.Vector3)pos - near).LengthSquared();
             if (d < bestDistSq)
             {
                 bestDistSq = d;

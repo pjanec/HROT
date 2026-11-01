@@ -435,7 +435,7 @@ namespace Hrot.SimHost.Tests
             var d = new Duel(Tank());
             d.Step();
             Assert.False(d.Sensor(VehicleFightFromCoverNodes.HideSite).IsNull, "the node points its own hide sensor at the threat");
-            Assert.Equal(EnemyAt, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.HideSite)).ContextPoint1);   // D14
+            Assert.Equal<System.Numerics.Vector3>(EnemyAt, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.HideSite)).ContextPoint1);   // D14
             Assert.Equal(FindVehicleHide.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.HideSite)).BlueprintId);
             Assert.Equal(VehiclePhase.Choose, d.Ws.Phase);
 

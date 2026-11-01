@@ -119,6 +119,6 @@ public class TransformSyncSystemRegistrationTests
         // ── Assert ───────────────────────────────────────────────────────────
         var tf = repo.GetComponent<SimTransform>(entity);
         // The owned path only copies SimTransform → NetworkPosition, so SimTransform stays.
-        Assert.Equal(initialPosition, tf.Position);
+        Assert.Equal<System.Numerics.Vector3>(initialPosition, tf.Position);
     }
 }

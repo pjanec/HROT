@@ -185,7 +185,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// is never a straight line a diving drone can lead.</summary>
         private static void Evade(ref ShelterFromAirState ws, in ShelterFromAirParams p, Entity self, EntityRepository world)
         {
-            var me = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+            var me = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Fdp.Core.WorldPoint.Zero;
             var away = new Vector2(me.X - ws.DroneAt.X, me.Y - ws.DroneAt.Y);
             if (away.LengthSquared() < 1e-4f) away = new Vector2(1f, 0f);
             away = Vector2.Normalize(away);

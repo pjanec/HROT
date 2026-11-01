@@ -130,9 +130,9 @@ namespace Hrot.SimHost.Tests
             var man = At(0, 0);
             Assert.True(Set(man, -45, 45, BehaviorOrigin.Superior));
             Assert.False(Set(man, 45, 135, BehaviorOrigin.Sop));                        // lower than the setter
-            Assert.Equal(-45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
+            Assert.Equal<float>(-45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
             Assert.True(Set(man, 45, 135, BehaviorOrigin.Superior));                    // replaced
-            Assert.Equal(45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
+            Assert.Equal<float>(45f, _w.GetComponentRO<EngagementArea>(man).LeftBearing);
             Assert.True(EngagementAreaSystem.Apply(_w, new SetEngagementAreaEvent { Entity = man, Origin = BehaviorOrigin.Superior }));
             Assert.Equal(BehaviorOrigin.Unmarked, _w.GetComponentRO<EngagementArea>(man).SetBy);
             Assert.True(EngagementAreas.Allows(_w, man, new Vector3(-100, 0, 0)));      // withdrawn ⇒ everything

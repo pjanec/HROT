@@ -343,7 +343,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return true;
                 case ConvoyPlan.PhaseRemount:   // DA-102 — its wounded first, kept carried, then aboard its vehicle
                     if (p.OnFoot[slot] != 0 || v.IsNull || SquadEmbarkBehavior.AboardIt(world, squad, v)) return false;
-                    var vat = world.HasComponent<SimTransform>(v) ? world.GetComponentRO<SimTransform>(v).Position : Vector3.Zero;
+                    var vat = world.HasComponent<SimTransform>(v) ? world.GetComponentRO<SimTransform>(v).Position : Fdp.Core.WorldPoint.Zero;
                     var casualty = p.Recovers[slot] < MaxRecovers ? Casualty(world, squad, 0) : Entity.Null;
                     if (!casualty.IsNull)
                     {

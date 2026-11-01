@@ -239,7 +239,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!vehicle.IsNull && repo.IsAlive(vehicle)) return Embarkation.DismountPoint(repo, vehicle, index, count);
             return repo.IsComponentTypeRegistered<SimTransform>() && repo.HasComponent<SimTransform>(passenger)
                 ? repo.GetComponentRO<SimTransform>(passenger).Position
-                : Vector3.Zero;
+                : Fdp.Core.WorldPoint.Zero;
         }
     }
 }

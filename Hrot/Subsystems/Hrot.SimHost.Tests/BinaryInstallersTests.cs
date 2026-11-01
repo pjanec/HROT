@@ -137,7 +137,7 @@ namespace Hrot.SimHost.Tests
             });
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(34f, 32f, 100f), st.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(34f, 32f, 100f), st.Position);
         }
 
         [Fact]
@@ -156,7 +156,7 @@ namespace Hrot.SimHost.Tests
             interpreter.Apply(ctx, new[] { Float64Record(AttributeIds.PositionY, 32.0) });
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(30f, 32f, 7f), st.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(30f, 32f, 7f), st.Position);
         }
 
         [Fact]
@@ -200,7 +200,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Delta", data2.Name.ToString());
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(34f, 32f, 100f), st.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(34f, 32f, 100f), st.Position);
         }
 
         [Fact]
@@ -221,7 +221,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.Null(ex);
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
-            Assert.Equal(new Vector3(1f, 2f, 3f), st.Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(1f, 2f, 3f), st.Position);
         }
 
         // ── BuildEdgeCompiler — P2T2 ──────────────────────────────────────────

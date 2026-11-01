@@ -120,7 +120,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var d = _world.GetComponentRO<SimTransform>(dragged).Position;
             Assert.Equal(9f, d.X, 3);   // heading +X ⇒ one metre behind on X
             Assert.Equal(0f, d.Y, 3);
-            Assert.Equal(new Vector3(0f, 10f, 0f), _world.GetComponentRO<SimTransform>(lifted).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(0f, 10f, 0f), _world.GetComponentRO<SimTransform>(lifted).Position);
         }
 
         /// <summary>⭐ C9 — a carrier who goes down (incapacitated, or killed) DROPS the casualty where he lies, alive — never killed with
@@ -232,7 +232,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new EmbarkedStateSystem();
 
             sys.Execute(_world, 0.016f);
-            Assert.Equal(new Vector3(8f, 0f, 0f), _world.GetComponentRO<SimTransform>(helper).Position);     // heading +X ⇒ 2 m behind
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(8f, 0f, 0f), _world.GetComponentRO<SimTransform>(helper).Position);     // heading +X ⇒ 2 m behind
             Assert.Equal(9f, _world.GetComponentRO<SimTransform>(casualty).Position.X, 3);                   // between them
 
             _world.GetComponentRW<SimTransform>(carrier).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // facing +Y

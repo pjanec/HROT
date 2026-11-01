@@ -21,7 +21,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         new TrafficShadowFollowSystem().Execute(world, 0.05f);
 
         Assert.Equal(1, world.GetComponent<NavState>(e).IsBlocked);   // NavigationExecutionSystem: not "stuck"
-        Assert.Equal(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
+        Assert.Equal<Vector3>(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         follow.Execute(world, 0.05f);
 
         var tf = world.GetComponent<SimTransform>(e);
-        Assert.Equal(new Vector3(105, 50, 0), tf.Position);
+        Assert.Equal<Vector3>(new Vector3(105, 50, 0), tf.Position);
         Assert.Equal(0.5f, 2f * MathF.Atan2(tf.Rotation.Z, tf.Rotation.W), 3);
         Assert.Equal(10f, world.GetComponent<VehicleState>(e).Speed, 3);   // 5 m in 0.5 s
         Assert.Equal(0, world.GetComponent<NavState>(e).IsBlocked);
@@ -68,7 +68,7 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
 
         new TrafficShadowFollowSystem().Execute(world, 0.05f);
 
-        Assert.Equal(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
+        Assert.Equal<Vector3>(new Vector3(10, 10, 0), world.GetComponent<SimTransform>(e).Position);
     }
 
     [Fact]

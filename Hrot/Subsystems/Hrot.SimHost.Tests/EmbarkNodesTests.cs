@@ -366,7 +366,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, CarryNodes.PutDown(ref leave, carrier, _w));
 
             Assert.False(_w.HasComponent<IsEmbarkedTag>(down));
-            Assert.Equal(new Vector3(29f, 0f, 0f), _w.GetComponentRO<SimTransform>(down).Position);          // C-b1: where he was held
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(29f, 0f, 0f), _w.GetComponentRO<SimTransform>(down).Position);          // C-b1: where he was held
             Assert.Equal((ActorCapabilities)0, _w.GetComponentRO<ActorCapabilityState>(down).Capabilities & MoveAndFire);   // still down
             Assert.Equal(MoveAndFire, _w.GetComponentRO<ActorCapabilityState>(carrier).Capabilities & MoveAndFire);         // C7: fire back
             var again = new PutDownNodeParams();

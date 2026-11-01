@@ -98,7 +98,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 var set = EffectTkbCatalog.EffectsFor(tkb, fired, mount?.DamagePerHit ?? 0f);
                 var at = view.GetComponentRO<SimTransform>(fire.Shooter).Position;
                 var toward = fire.Target != Entity.Null && view.IsAlive(fire.Target) && view.HasComponent<SimTransform>(fire.Target)
-                    ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
+                    ? view.GetComponentRO<SimTransform>(fire.Target).Position : Fdp.Core.WorldPoint.Zero;
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
                 // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
                 RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now,
@@ -118,7 +118,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 {
                     case Hrot.UI.Common.Map3D.FiringBlast.Backblast:
                     {
-                        var aimAt = toward != Vector3.Zero ? toward : AimPointOf(view, fire.Shooter);
+                        var aimAt = toward != Vector3.Zero ? (Vector3)toward : AimPointOf(view, fire.Shooter);
                         var back = Hrot.UI.Common.Map3D.WeaponKits.BackblastPoint(at, view.GetComponentRO<SimTransform>(fire.Shooter).Rotation, aimAt);
                         Spawn(cmd, tkb, EffectTkbCatalog.Backblast, back, null, now);
                         break;

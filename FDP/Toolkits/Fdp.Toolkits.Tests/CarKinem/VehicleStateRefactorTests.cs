@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.CarKinem.Tests
             
             // Should move North (Y+)
             // 10 m/s * 0.016 = 0.16m
-            Assert.NotEqual(Vector3.Zero, tf.Position); 
+            Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, tf.Position); 
             Assert.True(tf.Position.Y > 0);
             
             roadNetwork.Dispose();

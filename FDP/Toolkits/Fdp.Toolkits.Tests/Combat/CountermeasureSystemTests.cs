@@ -240,7 +240,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_w, 1f);
             var decoy = Assert.Single(Decoys());
             var p = _w.GetComponentRO<SimTransform>(decoy).Position;
-            Assert.Equal(DecoyFlight.At(n.Origin, n.Velocity, 8f, (float)(102 - n.FiredAt)), p);
+            Assert.Equal<System.Numerics.Vector3>(DecoyFlight.At(n.Origin, n.Velocity, 8f, (float)(102 - n.FiredAt)), p);
             Assert.True(p.Z < 300f, "a flare sinks");
             Assert.True(p.Y > 0f && p.Y < 60f * 2f, "it keeps some of the aircraft's speed, and loses it");
             At(105.5);

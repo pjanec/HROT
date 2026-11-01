@@ -282,7 +282,7 @@ namespace Fdp.Toolkit.Navigation
         public byte ReverseAllowed;
 
         /// <summary>Target position in FDP Cartesian metres (Sim Z-up; Z carried, steering 2D-projected).</summary>
-        public Vector3 FinalDestination;
+        public WorldPoint FinalDestination;
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float TargetSpeed;

@@ -64,7 +64,7 @@ namespace Hrot.AI.Behaviors.Brains
             var target = p.Target;
             // ⭐ CE-2282 DA-27 — his own sector: a target (or point) outside it is not fired at, he holds his position
             var aimAt = !target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)
-                ? world.GetComponentRO<SimTransform>(target).Position : p.Point;
+                ? (Vector3)world.GetComponentRO<SimTransform>(target).Position : p.Point;
             if ((p.HasPoint != 0 || !target.IsNull) && !Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, aimAt))
             {
                 PostureNodes.StopFiring(world, self, ref ws.Fire);

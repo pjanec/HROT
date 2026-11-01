@@ -38,16 +38,16 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>1 = the arc below is set.</summary>
         public byte ArcSet;
-        public Vector3 ArcOrigin;
-        public float LeftBearing;
-        public float RightBearing;
+        public WorldPoint ArcOrigin;
+        public Bearing LeftBearing;
+        public Bearing RightBearing;
         public float MinRange;
         /// <summary>0 = no limit.</summary>
         public float MaxRange;
         /// <summary>An area entity's network id the man may shoot into (0 = none).</summary>
         public long AllowArea;
         /// <summary>Where he watches (compass degrees), when <see cref="WatchSet"/> — for the eyes (LD-3).</summary>
-        public float WatchBearing;
+        public Bearing WatchBearing;
         public byte WatchSet;
         public NoFireAreaList NoFire;
         /// <summary>Who set it — the origin gate, as <see cref="Roe"/>'s.</summary>

@@ -367,7 +367,7 @@ public class TheDragCommitsThroughTheWriteRouterTests
         Assert.Equal(0, writer.Calls);
 
         // ⭐ …and the preview DID move the entity locally, so "no request" is not "nothing happened".
-        Assert.NotEqual(new Vector3(10f, 20f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+        Assert.NotEqual<System.Numerics.Vector3>(new Vector3(10f, 20f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
     }
 
     /// <summary>
@@ -419,7 +419,7 @@ public class TheDragCommitsThroughTheWriteRouterTests
         _repo.GetComponentRW<SimTransform>(_entity).Position = new Vector3(10f, 20f, 5f);   // undo the local preview: the owner's copy
         interpreter.Apply(ctx, writer.Last.ToArray());
 
-        Assert.Equal(new Vector3(210f, 170f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
+        Assert.Equal<System.Numerics.Vector3>(new Vector3(210f, 170f, 5f), _repo.GetComponent<SimTransform>(_entity).Position);
     }
 
     /// <summary>

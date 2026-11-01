@@ -2655,7 +2655,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(WeaponTaskMode.Track, task.Mode);
             Assert.True(task.Target.IsNull);
-            Assert.Equal(point, task.Point);
+            Assert.Equal<System.Numerics.Vector3>(point, task.Point);
             uint epoch = task.Epoch;
 
             AskOperator(ref channel, point, trigger: 1);
@@ -2671,7 +2671,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(shots >= 5, $"fired {shots} rounds in 2 s at a 0.2 s cooldown");
             task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(epoch, task.Epoch);
-            Assert.Equal(point + new Vector3(0f, 3f, 0f), task.Point);
+            Assert.Equal<System.Numerics.Vector3>(point + new Vector3(0f, 3f, 0f), task.Point);
             Tick(shooter, ref channel, 1f / 60f);   // account the last reported round
             Assert.Equal(10 - shots, _world.GetComponent<WeaponState>(shooter).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);

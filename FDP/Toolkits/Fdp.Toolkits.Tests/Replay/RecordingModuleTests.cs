@@ -379,7 +379,7 @@ namespace Fdp.Toolkit.Replay.Tests
                 var found = new System.Collections.Generic.List<Entity>();
                 foreach (var x in replica.Query().With<SimTransform>().Build()) found.Add(x);
                 var back = Assert.Single(found);
-                Assert.Equal(new System.Numerics.Vector3(1, 2, 3), replica.GetComponentRO<SimTransform>(back).Position);
+                Assert.Equal<System.Numerics.Vector3>(new System.Numerics.Vector3(1, 2, 3), replica.GetComponentRO<SimTransform>(back).Position);
                 var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(MetaOf(export));
                 Assert.Equal((1, "cp 1/a", 0), (meta.TotalFrames, meta.Checkpoints[0].Label, meta.Checkpoints[0].Frame));
                 Assert.Throws<IOException>(() => module.ExportCheckpoint("cp 1/a", export));   // never overwrites

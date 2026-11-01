@@ -56,6 +56,8 @@ namespace Fdp.Toolkit.Diagnostics
                 t == typeof(decimal))
                 return "number";
 
+            t = Fdp.Core.SemanticValueTypes.StorageTypeOf(t);   // ⭐ S0 item 6 — a WorldPoint / WorldRotation / Bearing has its storage type's JSON shape
+            if (t == typeof(float) || t == typeof(double)) return "number";
             if (t == typeof(Vector2)     || t == typeof(Vector3) ||
                 t == typeof(Vector4)     || t == typeof(Quaternion))
                 return "object";

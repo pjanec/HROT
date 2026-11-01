@@ -169,7 +169,7 @@ namespace Hrot.SimHost.Tests
             var r = new Raid(new ShelterFromAirParams { ClearSeconds = 4f });
             r.Step();
             Assert.Equal(FindShelter.BlueprintId, r.Repo.GetComponentRO<EqsSensor>(r.Sensor).BlueprintId);
-            Assert.Equal(DroneAt, r.Repo.GetComponentRO<EqsSensor>(r.Sensor).ContextPoint1);
+            Assert.Equal<System.Numerics.Vector3>(DroneAt, r.Repo.GetComponentRO<EqsSensor>(r.Sensor).ContextPoint1);
             r.AnswerShelter(ShelterAt, new Vector3(30f, 0f, 0f));
             r.Step(); r.Step();
             Assert.Equal((ShelterAt, true), Assert.Single(r.Moves));

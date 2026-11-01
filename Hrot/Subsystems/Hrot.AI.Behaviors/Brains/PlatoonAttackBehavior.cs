@@ -692,7 +692,7 @@ namespace Hrot.AI.Behaviors.Brains
             int reserve = FreeReserve(ref p, self, world);
             if (reserve < 0) return NodeStatus.Success;
             var to = CommandPictureOps.Subordinate(world, self, reserve) is var unit && world.HasComponent<SimTransform>(unit)
-                ? world.GetComponentRO<SimTransform>(unit).Position : p.ReserveAt;
+                ? (Vector3)world.GetComponentRO<SimTransform>(unit).Position : p.ReserveAt;
             if (CasevacAnswers.Answer(world, self, reserve, to, p.Speed)) p.Casevac[reserve] = 1;
             return NodeStatus.Success;
         }

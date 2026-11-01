@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>The target entity; <see cref="Entity.Null"/> = aim at <see cref="Point"/>.</summary>
         public Entity Target;
         /// <summary>The aim point when there is no target entity (world metres).</summary>
-        public Vector3 Point;
+        public WorldPoint Point;
         /// <summary>The mount that fires (Engage) — its warhead decides direct or indirect aim.</summary>
         public byte MountIndex;
         /// <summary>Rounds the brain grants for this order (W-4); the muscle fires at most these.</summary>

@@ -418,7 +418,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         // starts at the wrong position and PlanPath begins off-navmesh → plannedCorners=0.
         // After the fix, PlanPath uses NavigationIntent.StartPosition (set at intent time,
         // not the Bullet-resolved pose).
-        float distToSpawn = (tf.Position - F7StartFdp).Length();
+        float distToSpawn = ((System.Numerics.Vector3)tf.Position - F7StartFdp).Length();
         Assert.True(distToSpawn < 0.5f,
             $"B26-F7-1: SimTransform.Position after spawn must be near the requested spawn position. " +
             $"Expected ≈{F7StartFdp} got {tf.Position} (dist={distToSpawn:F3} m). " +
@@ -851,7 +851,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         foreach (var en in _sut.World.Query().With<SimTransform>().With<TkbIdentity>().Build())
         {
             var pos = _sut.World.GetComponent<SimTransform>(en).Position;
-            float dsq = (pos - apcStart).LengthSquared();
+            float dsq = ((System.Numerics.Vector3)pos - apcStart).LengthSquared();
             if (dsq < buggyBestDsq) { buggyBestDsq = dsq; buggyResolved = en; }
         }
         if (buggyBestDsq < 4.0f && buggyResolved != Entity.Null)
@@ -874,7 +874,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
                      .With<SimTransform>().With<TkbIdentity>().With<VehicleState>().Build())
         {
             var pos = _sut.World.GetComponent<SimTransform>(en).Position;
-            float dsq = (pos - apcStart).LengthSquared();
+            float dsq = ((System.Numerics.Vector3)pos - apcStart).LengthSquared();
             if (dsq < fixedBestDsq) { fixedBestDsq = dsq; fixedResolved = en; }
         }
 
@@ -898,7 +898,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         foreach (var e in _sut.World.Query().With<SimTransform>().Build())
         {
             var pos = _sut.World.GetComponent<SimTransform>(e).Position;
-            float dsq = (pos - near).LengthSquared();
+            float dsq = ((System.Numerics.Vector3)pos - near).LengthSquared();
             if (dsq < bestDsq) { bestDsq = dsq; best = e; }
         }
         return best;

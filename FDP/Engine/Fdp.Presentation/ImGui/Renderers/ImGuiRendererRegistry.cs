@@ -36,7 +36,21 @@ public static class ImGuiRendererRegistry
             _renderers.TryGetValue((targetType, contextType), out var ctx))
             return ctx;
 
-        return _renderers.TryGetValue((targetType, null), out var global) ? global : null;
+        if (_renderers.TryGetValue((targetType, null), out var global)) return global;
+
+        // ⭐ S0 item 6 — a semantic value type (WorldPoint / WorldRotation / Bearing) draws as its storage type did: the one mapping is
+        //   SemanticValueTypes; the value is handed over as the storage value.
+        var storage = Fdp.Core.SemanticValueTypes.StorageTypeOf(targetType);
+        if (storage != targetType && GetRenderer(storage, contextType) is { } inner) return new StorageRenderer(inner);
+        return null;
+    }
+
+    private sealed class StorageRenderer : IImGuiRenderer
+    {
+        private readonly IImGuiRenderer _inner;
+        public StorageRenderer(IImGuiRenderer inner) => _inner = inner;
+        public string? GetSummary(object value) => _inner.GetSummary(Fdp.Core.SemanticValueTypes.ToStorage(value)!);
+        public bool RenderValue(object value) => _inner.RenderValue(Fdp.Core.SemanticValueTypes.ToStorage(value)!);
     }
 
     /// <summary>

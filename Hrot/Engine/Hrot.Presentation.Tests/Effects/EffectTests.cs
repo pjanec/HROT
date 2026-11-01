@@ -457,11 +457,11 @@ public sealed class EffectTests
         var exp = Fdp.Toolkit.Combat.Munitions.ExpendableOf(tkb, MunitionTkbCatalog.TkbFlare)!;
         Assert.Equal(99.5, world.GetComponentRO<Lifespan>(flare).BornAtSimSeconds);                            // DV-2: born at the release
         Assert.Equal(exp.LifeSeconds, world.GetComponentRO<Lifespan>(flare).Seconds);
-        Assert.Equal(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 0.5f), world.GetComponentRO<SimTransform>(flare).Position);
+        Assert.Equal<System.Numerics.Vector3>(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 0.5f), world.GetComponentRO<SimTransform>(flare).Position);
 
         At(world, 102.0);                                                                                       // DV-3: it moves
         Tick(world, spawn, 0.016f);
-        Assert.Equal(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 2.5f), world.GetComponentRO<SimTransform>(flare).Position);
+        Assert.Equal<System.Numerics.Vector3>(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 2.5f), world.GetComponentRO<SimTransform>(flare).Position);
 
         var layer = new EffectLayer(() => world, () => tkb);
         var drawn = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Flare);

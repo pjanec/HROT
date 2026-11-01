@@ -30,10 +30,10 @@ namespace Fdp.Toolkit.Replication.Components
     public struct NetworkTransform
     {
         /// <summary>Last position that was sent to (or received from) the network.</summary>
-        public Vector3 LastPosition;
+        public WorldPoint LastPosition;
 
         /// <summary>Last orientation that was sent to (or received from) the network.</summary>
-        public Quaternion LastRotation;
+        public WorldRotation LastRotation;
 
         /// <summary>
         /// Simulation time (seconds, cluster-synced) at which the publisher sampled

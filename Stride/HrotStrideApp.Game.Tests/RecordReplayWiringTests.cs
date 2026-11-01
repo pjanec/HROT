@@ -133,7 +133,7 @@ public sealed class RecordReplayWiringTests : IDisposable
         for (int i = 0; i < 10; i++) sut.Tick(1f / 60f);
 
         var pos = sut.World.GetComponentRO<SimTransform>(e).Position;
-        Assert.Equal(startPos, pos);
+        Assert.Equal<System.Numerics.Vector3>(startPos, pos);
     }
 
     // ════════════════════════════════════════════════════════════════════════

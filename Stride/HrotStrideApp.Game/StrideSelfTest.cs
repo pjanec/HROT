@@ -316,7 +316,7 @@ public sealed class StrideSelfTest
         // Preserve the current rotation (only overwriting Position).
         var world = _ctx.World;
         var currentRot = world.HasComponent<SimTransform>(entity)
-            ? world.GetComponentRO<SimTransform>(entity).Rotation
+            ? (System.Numerics.Quaternion)world.GetComponentRO<SimTransform>(entity).Rotation
             : System.Numerics.Quaternion.Identity;
 
         // Write SimTransform directly — this mimics the operator drag path.

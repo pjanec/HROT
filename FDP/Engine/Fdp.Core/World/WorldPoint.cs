@@ -58,12 +58,20 @@ namespace Fdp.Core
         public static Vector3 operator *(float s, WorldPoint p) => new(p.X * s, p.Y * s, p.Z * s);
         public static Vector3 operator /(WorldPoint p, float s) => new(p.X / s, p.Y / s, p.Z / s);
         public static Vector3 operator -(WorldPoint p) => new(-p.X, -p.Y, -p.Z);
+        /// <summary>A bare <see cref="Vector3"/> (a place not yet typed) minus a point is the displacement between them — declared so the mixed form
+        /// is not ambiguous between <see cref="Vector3"/>'s operator and the point-point one above.</summary>
+        public static Vector3 operator -(Vector3 a, WorldPoint b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
 
         public readonly bool Equals(WorldPoint other) => X == other.X && Y == other.Y && Z == other.Z;
         public override readonly bool Equals(object? obj) => obj is WorldPoint p && Equals(p);
         public override readonly int GetHashCode() => HashCode.Combine(X, Y, Z);
         public static bool operator ==(WorldPoint a, WorldPoint b) => a.Equals(b);
         public static bool operator !=(WorldPoint a, WorldPoint b) => !a.Equals(b);
+        // mixed with a bare Vector3 (the same bytes): a place compared with a value not yet typed — exact, not ambiguous
+        public static bool operator ==(WorldPoint a, Vector3 b) => a.X == b.X && a.Y == b.Y && a.Z == b.Z;
+        public static bool operator !=(WorldPoint a, Vector3 b) => !(a == b);
+        public static bool operator ==(Vector3 a, WorldPoint b) => b == a;
+        public static bool operator !=(Vector3 a, WorldPoint b) => !(b == a);
 
         /// <summary><c>(x, y, z) m</c>, invariant culture, one decimal.</summary>
         public override readonly string ToString()

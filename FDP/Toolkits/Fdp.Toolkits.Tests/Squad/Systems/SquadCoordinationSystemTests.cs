@@ -355,8 +355,8 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
 
             new UnitCentroidSystem().Execute(_repo, 0.016f);
 
-            Assert.Equal(new Vector3(5, 0, 0), _repo.GetComponentRO<SimTransform>(owned).Position);
-            Assert.Equal(new Vector3(-1, -1, -1), _repo.GetComponentRO<SimTransform>(remote).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(5, 0, 0), _repo.GetComponentRO<SimTransform>(owned).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(-1, -1, -1), _repo.GetComponentRO<SimTransform>(remote).Position);
         }
 
         // ── CE-2262 SL-0 (CB-16): a squad under a platoon — combat effective ──────────────────────────────────────────────
@@ -443,12 +443,12 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             var centroid = new UnitCentroidSystem();
             centroid.Execute(_repo, 0.016f);   // squads first update in query order; run twice so the platoon reads fresh squad centres
             centroid.Execute(_repo, 0.016f);
-            Assert.Equal(new Vector3(105, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(105, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
 
             Kill(b[0]); Kill(b[1]);            // bravo wiped out: its centre stays at (205, 0, 0)
             centroid.Execute(_repo, 0.016f);
-            Assert.Equal(new Vector3(205, 0, 0), _repo.GetComponentRO<SimTransform>(bravo).Position);
-            Assert.Equal(new Vector3(5, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(205, 0, 0), _repo.GetComponentRO<SimTransform>(bravo).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(5, 0, 0), _repo.GetComponentRO<SimTransform>(platoon).Position);
         }
 
         /// <summary>

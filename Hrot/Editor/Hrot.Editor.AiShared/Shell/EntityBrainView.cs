@@ -179,7 +179,7 @@ public sealed record BrainSnapshot(
     /// <summary>⭐ <c>CE-1327</c> — the memory's contacts as rows, freshest first.</summary>
     private static unsafe void ContactsOf(ISimulationView view, Entity unit, in TargetMemory m, List<BrainContact> into)
     {
-        var self = Has<SimTransform>(view, unit) ? view.GetComponentRO<SimTransform>(unit).Position : Vector3.Zero;
+        var self = Has<SimTransform>(view, unit) ? view.GetComponentRO<SimTransform>(unit).Position : Fdp.Core.WorldPoint.Zero;
         float dt = view is EntityRepository r && r.HasSingleton<GlobalTime>() ? r.GetSingleton<GlobalTime>().DeltaTime : 0f;
         uint tick = view.Tick;
         for (int i = 0; i < m.Count; i++)

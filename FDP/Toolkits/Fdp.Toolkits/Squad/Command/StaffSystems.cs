@@ -113,7 +113,7 @@ namespace Fdp.Toolkit.Squad.Command
         }
 
         private static Vector3 PositionOf(EntityRepository repo, Entity e)
-            => repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e).Position : Vector3.Zero;
+            => repo.HasComponent<SimTransform>(e) ? repo.GetComponentRO<SimTransform>(e).Position : Fdp.Core.WorldPoint.Zero;
 
         /// <summary>SALUTE's S from a head count.</summary>
         public static ElementSize SizeOf(int count)

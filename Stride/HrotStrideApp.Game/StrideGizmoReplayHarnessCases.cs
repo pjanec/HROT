@@ -359,12 +359,12 @@ public static class StrideGizmoReplayHarnessCases
                     if (ctx.World.IsAlive(ghost))
                     {
                         var pos = ctx.World.GetComponentRO<SimTransform>(ghost).Position;
-                        if ((pos - replayFirstPos).Length() > 1e-4f) replayMovedAtAll = true;
+                        if (((System.Numerics.Vector3)pos - replayFirstPos).Length() > 1e-4f) replayMovedAtAll = true;
                         replayLogAccum += dt;
                         if (replayLogAccum >= replayLogInterval)
                         {
                             replayLogAccum = 0f;
-                            float step = (pos - replayLastLoggedPos).Length();
+                            float step = ((System.Numerics.Vector3)pos - replayLastLoggedPos).Length();
                             ctx.Log($"Record/Replay: [playback t={elapsed:F1}s] ghost SimTransform={Fmt(pos)} " +
                                     $"(moved {step:F3}m since last sample){(step < 1e-4f ? " — NOT MOVING; playback may not be driving SimTransform!" : string.Empty)}");
                             replayLastLoggedPos = pos;

@@ -434,7 +434,7 @@ namespace Hrot.SimHost.Tests
             new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem().Execute(muscle, 0f);
             var d = muscle.GetComponent<Fdp.Toolkit.Motion.Descent>(musclesMan);
             Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FastRope, musclesHeli, (byte)1), (d.Kind, d.Anchor, d.AnchorIndex));
-            Assert.Equal(new System.Numerics.Vector3(0, -1.2f, 24.5f), muscle.GetComponent<SimTransform>(musclesMan).Position);   // at the right door
+            Assert.Equal<System.Numerics.Vector3>(new System.Numerics.Vector3(0, -1.2f, 24.5f), muscle.GetComponent<SimTransform>(musclesMan).Position);   // at the right door
 
             // the disembark itself carries its exit and rope index when it crosses (a soldier's node asking a remote vehicle)
             var asked = InteractionCodecs.All;

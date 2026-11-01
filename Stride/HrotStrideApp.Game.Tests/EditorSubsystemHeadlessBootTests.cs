@@ -442,7 +442,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
 
         // Verify spawn position preserved (NoOp physics — BulletReverseSyncSystem inactive).
         var tf = world.GetComponent<SimTransform>(e);
-        float distToSpawn = (tf.Position - F7StartFdp).Length();
+        float distToSpawn = ((System.Numerics.Vector3)tf.Position - F7StartFdp).Length();
         Assert.True(distToSpawn < 0.5f,
             $"SI4: SimTransform.Position after spawn must be near F7StartFdp ({F7StartFdp}). " +
             $"Got {tf.Position} (dist={distToSpawn:F3} m).");

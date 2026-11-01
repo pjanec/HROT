@@ -287,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.Kind != ReportKind.Progress && p.Kind != ReportKind.Request) return NodeStatus.Failure;
             float now = CommandPictureOps.Now(world);
-            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Fdp.Core.WorldPoint.Zero;
             return ReportQueue.Enqueue(world, self, new CommandReport
             {
                 Kind = p.Kind, Subtype = p.Subtype, Count = p.Count, At = at, ObservedAt = now,

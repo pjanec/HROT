@@ -122,7 +122,7 @@ public static class BlackboardFieldClassifier
 
     private static bool IsKnownType(Type t, IReadOnlySet<Type> knownTypes)
     {
-        if (BuiltInKnownTypes.Contains(t)) return true;
+        if (BuiltInKnownTypes.Contains(SemanticValueTypes.StorageTypeOf(t))) return true;   // ⭐ S0 item 6 — a WorldPoint / WorldRotation / Bearing is known as its storage type is
         if (t.IsEnum) return true;
         // ⭐ CE-3185 — [Dto] and every marker derived from it ([ParamsDto], [Order], [UnitMemory]); a registered STRUCT is a variable type.
         if (t.IsValueType && t.IsDefined(typeof(DtoAttribute), inherit: false)) return true;

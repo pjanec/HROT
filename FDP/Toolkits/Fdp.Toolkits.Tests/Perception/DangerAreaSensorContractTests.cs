@@ -156,7 +156,7 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.False(_repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).IsReady);
             Assert.Equal(0, _repo.GetComponentRO<DangerAreaCognitiveBuffer>(child).Count);
             Assert.False(_repo.HasComponent<EqsCognitiveBuffer>(child));
-            Assert.Equal(new Vector3(10, 20, 0), _repo.GetComponentRO<EqsSensor>(child).ContextPoint1);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(10, 20, 0), _repo.GetComponentRO<EqsSensor>(child).ContextPoint1);
             Assert.Equal(DangerRouteSource.ToPoint, _repo.GetComponentRO<DangerAreaSensor>(child).Settings.RouteSource);
         }
 

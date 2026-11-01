@@ -45,6 +45,10 @@ namespace Fdp.Core
 
         /// <summary>Two world rotations composed (a <see cref="Quaternion"/>: the product is a turn, not necessarily a pose).</summary>
         public static Quaternion operator *(WorldRotation a, WorldRotation b) => (Quaternion)a * (Quaternion)b;
+        /// <summary>Mixed with a bare <see cref="Quaternion"/> (a body-local or not-yet-typed rotation): composes as the quaternions do — declared so it is not ambiguous.</summary>
+        public static Quaternion operator *(WorldRotation a, Quaternion b) => (Quaternion)a * b;
+        /// <inheritdoc cref="op_Multiply(WorldRotation, Quaternion)"/>
+        public static Quaternion operator *(Quaternion a, WorldRotation b) => a * (Quaternion)b;
 
         /// <summary>The compass heading, degrees [0, 360) — 0 = north, clockwise.</summary>
         public readonly float HeadingDeg => ToHeadingDeg(this);

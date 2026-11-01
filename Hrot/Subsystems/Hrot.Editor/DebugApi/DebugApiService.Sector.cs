@@ -27,7 +27,7 @@ namespace Hrot.Editor.DebugApi
             if (body?["left"] != null || body?["right"] != null)
             {
                 evt.ArcSet = 1;
-                evt.ArcOrigin = _world.HasComponent<SimTransform>(unit) ? _world.GetComponentRO<SimTransform>(unit).Position : Vector3.Zero;
+                evt.ArcOrigin = _world.HasComponent<SimTransform>(unit) ? _world.GetComponentRO<SimTransform>(unit).Position : Fdp.Core.WorldPoint.Zero;
                 evt.LeftBearing = (float)Num(body?["left"], 0);
                 evt.RightBearing = (float)Num(body?["right"], 360);
                 evt.MinRange = (float)Num(body?["minRange"], 0);
@@ -59,8 +59,8 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject
             {
                 ["networkId"] = networkId,
-                ["arc"] = a.ArcSet != 0 ? new JsonObject { ["left"] = a.LeftBearing, ["right"] = a.RightBearing, ["minRange"] = a.MinRange, ["maxRange"] = a.MaxRange } : null,
-                ["watch"] = a.WatchSet != 0 ? a.WatchBearing : null,
+                ["arc"] = a.ArcSet != 0 ? new JsonObject { ["left"] = a.LeftBearing.Degrees, ["right"] = a.RightBearing.Degrees, ["minRange"] = a.MinRange, ["maxRange"] = a.MaxRange } : null,
+                ["watch"] = a.WatchSet != 0 ? a.WatchBearing.Degrees : null,
                 ["allowArea"] = a.AllowArea != 0 ? a.AllowArea : null,
                 ["noFire"] = a.NoFire.Count,
                 ["setBy"] = a.SetBy.ToString(),

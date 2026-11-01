@@ -401,7 +401,7 @@ public sealed class StrideVisualBindingSystemTests : IDisposable
         var call = factory.ModelCalls[0];
 
         // The initial pose passed to the factory must carry the entity's SimTransform position.
-        Assert.Equal(fdpPos, call.InitialPose.Position);
+        Assert.Equal<System.Numerics.Vector3>(fdpPos, call.InitialPose.Position);
 
         // Verify that the factory would place the visual at the correct Stride position.
         // FdpStrideTransform.ToStridePosition(X=10, Y=20, Z=3) → Stride (10, 3, 20)
@@ -445,7 +445,7 @@ public sealed class StrideVisualBindingSystemTests : IDisposable
         Assert.Equal(1, factory.UpdateCalls.Count); // exactly 1 update
 
         var updateCall = factory.UpdateCalls[0];
-        Assert.Equal(newPos, updateCall.Pose.Position);
+        Assert.Equal<System.Numerics.Vector3>(newPos, updateCall.Pose.Position);
 
         // The handle passed to UpdatePose must be the one from CreateModelVisual
         Assert.Same(factory.ModelCalls[0].Handle, updateCall.Handle);

@@ -218,7 +218,7 @@ public class TheEgressShadowExistsAtBirthTests
         harness.Ig.App.TestHook_EntityMap.TryGetEntity(networkId, out var igE);
         var pos = igWorld.GetComponent<SimTransform>(igE).Position;
         _out.WriteLine($"IG replica position: ({pos.X:F2}, {pos.Y:F2}, {pos.Z:F2})");
-        Assert.NotEqual(Vector3.Zero, pos);
+        Assert.NotEqual<System.Numerics.Vector3>(Vector3.Zero, pos);
     }
 
     // ── helper ───────────────────────────────────────────────────────────────

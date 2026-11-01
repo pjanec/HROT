@@ -232,18 +232,18 @@ namespace Fdp.Toolkit.Tests.Motion
             var ground = Drone(new Vector3(0, 0, 0), LocomotionClass.Wheeled);
             _w.SetComponent(ground, new NavigationIntent { Mode = NavigationMode.DirectPoint, FinalDestination = new Vector3(100, 0, 0), TargetSpeed = 10 });
             Run(10);
-            Assert.Equal(Vector3.Zero, _w.GetComponent<SimTransform>(ground).Position);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, _w.GetComponent<SimTransform>(ground).Position);
 
             var drone = Drone(new Vector3(0, 0, 10));
             _w.SetComponent(drone, new SimVelocity { Linear = new Vector3(5, 0, 0) });
             new LinearKinematicsSystem().Execute(_w, 1f);
-            Assert.Equal(new Vector3(0, 0, 10), _w.GetComponent<SimTransform>(drone).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(0, 0, 10), _w.GetComponent<SimTransform>(drone).Position);
 
             // ⭐ Air Ops slice 4 — MD-H's FixedWing row is built (FixedWingModel): a plane is moved, not refused
             var plane = Drone(new Vector3(0, 0, 100), LocomotionClass.FixedWing);
             Run(1);
             Assert.IsType<FixedWingModel>(MotionModelTable.Model(LocomotionClass.FixedWing));
-            Assert.NotEqual(new Vector3(0, 0, 100), _w.GetComponent<SimTransform>(plane).Position);
+            Assert.NotEqual<System.Numerics.Vector3>(new Vector3(0, 0, 100), _w.GetComponent<SimTransform>(plane).Position);
             Assert.Throws<NotSupportedException>(() => MotionModelTable.Model(LocomotionClass.Surface));
             Assert.Null(MotionModelTable.Model(LocomotionClass.Tracked));   // v1: the ground still runs CarKinematics
             Assert.Equal(MotionDomain.Air, Locomotions.DomainOf(LocomotionClass.Rotorcraft));

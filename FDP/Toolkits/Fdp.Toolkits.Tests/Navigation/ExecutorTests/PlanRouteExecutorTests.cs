@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             Assert.Equal(4u,                        intent.IntentId);
             Assert.Equal(NavigationMode.None,       intent.Mode);
-            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
             Assert.Equal(NodeStatus.Running,        channel.Status);
         }
 

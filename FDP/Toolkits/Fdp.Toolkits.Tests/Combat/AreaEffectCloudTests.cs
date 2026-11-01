@@ -248,7 +248,7 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             var cloud = Cloud(CloudKind.Smoke, new Vector3(3, 4, 0));
             for (int i = 1; i <= 4; i++) Frame(i * 0.5);
-            Assert.Equal(new Vector3(3, 4, 0), _w.GetComponentRO<SimTransform>(cloud).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(3, 4, 0), _w.GetComponentRO<SimTransform>(cloud).Position);
         }
 
         [Fact]
@@ -331,7 +331,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var man = Man(0, 0);
             var hits = Frame(1.5);
             Assert.True(_w.IsAlive(cloud));
-            Assert.Equal(Vector3.Zero, _w.GetComponentRO<SimTransform>(cloud).Position);
+            Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, _w.GetComponentRO<SimTransform>(cloud).Position);
             Assert.Empty(hits);
         }
 
@@ -362,7 +362,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(AreaEffectClouds.TkbType, request.TkbType);
             Assert.Equal(0, request.OwnerAppInstanceId);
             Assert.NotEqual(System.Guid.Empty, request.RequestId);
-            Assert.Equal(new Vector3(4, 5, 0), Assert.Single(request.InitialComponents!.OfType<SimTransform>()).Position);
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(4, 5, 0), Assert.Single(request.InitialComponents!.OfType<SimTransform>()).Position);
             var cloud = Assert.Single(request.InitialComponents!.OfType<AreaEffectCloud>());
             Assert.Equal(CloudKind.TearGas, cloud.Kind);
             Assert.Equal(6f, cloud.Radius);

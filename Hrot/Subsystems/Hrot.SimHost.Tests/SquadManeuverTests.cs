@@ -4045,7 +4045,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Squad.Command.RequestKind.Casevac, r.Kind);
             Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(c.S.Repo, man), r.SubjectNetId);
             Assert.Equal(Fdp.Toolkit.Squad.Command.CommandPictureOps.NetIdOf(c.S.Repo, c.S.Commander), r.FromNetId);
-            Assert.Equal(c.S.Repo.GetComponentRO<SimTransform>(man).Position, r.At);
+            Assert.Equal<System.Numerics.Vector3>(c.S.Repo.GetComponentRO<SimTransform>(man).Position, r.At);
             c.Ticks(20); c.S.Pause(3.1); c.Ticks(3);
             Assert.Equal(1, c.Picture.Requests.Count);                                   // once
             Down(c.S, man, 90f); c.Ticks(2);                                             // back in the fight
@@ -6290,7 +6290,7 @@ namespace Hrot.SimHost.Tests
             var sensor = s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(query);
             Assert.Equal(s.Members[2], sensor.ContextSlot0);                             // around Bravo's lead
             Assert.Equal(Fdp.Toolkit.Spatial.Eqs.EqsSensor.Point1Bit, sensor.ContextPointMask & Fdp.Toolkit.Spatial.Eqs.EqsSensor.Point1Bit);
-            Assert.Equal(new Vector3(0, 100, 0), sensor.ContextPoint1);                   // hidden from where the enemy is expected
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(0, 100, 0), sensor.ContextPoint1);                   // hidden from where the enemy is expected
             var b0 = new Vector3(9, 26, 0); var b1 = new Vector3(13, 25, 0);
             AnswerAll(s, query, new Vector3(8, -10, 0), b0, b1);
             s.Tick();
@@ -6655,7 +6655,7 @@ namespace Hrot.SimHost.Tests
                 var a = Sector(s, security[r]);
                 Assert.Equal(1, a.ArcSet);
                 Assert.Equal(BehaviorOrigin.Superior, a.SetBy);
-                Assert.Equal(orders[security[r]].Objective, a.ArcOrigin);              // from his spot
+                Assert.Equal<System.Numerics.Vector3>(orders[security[r]].Objective, a.ArcOrigin);              // from his spot
                 // the crossing runs north (+Y): rank 0 stands west of it and covers the west, rank 1 the east
                 float centre = r % 2 == 0 ? 270f : 90f;
                 Assert.Equal(centre - DangerCrossingPlay.SecurityArcHalfWidth, a.LeftBearing, 0.01f);

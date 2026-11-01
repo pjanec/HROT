@@ -525,7 +525,7 @@ public sealed class CgfSubsystemHeadlessTests
         // ⛔ TestHook_GetSimTransform answers default(SimTransform) for a missing entity, and a (0,0,0) baseline
         //   would make any real position look like movement. The spawn is ~680 m from the origin, so a zero
         //   baseline can only mean "not read".
-        Assert.NotEqual(System.Numerics.Vector3.Zero, initialPos);
+        Assert.NotEqual<System.Numerics.Vector3>(System.Numerics.Vector3.Zero, initialPos);
 
         // Send a MoveToLocation mission via DDS.  Full Brain pipeline exercised:
         //   MissionControlRequest (DDS) -> MissionControlExecutionSystem (CGF)

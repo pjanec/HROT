@@ -178,7 +178,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(heli, aimedAt);
             Assert.Equal(NodeStatus.Success, status);
             Assert.InRange(frame * Dt, 5f + AirDefenceNodes.Defaults.ClearSeconds - 0.5f, 5f + AirDefenceNodes.Defaults.ClearSeconds + 1f);
-            Assert.Equal(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
+            Assert.Equal<System.Numerics.Vector3>(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
         }
     }
 }

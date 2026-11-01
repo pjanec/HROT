@@ -252,6 +252,15 @@ namespace Hrot.Editor.DebugApi
                 };
             }
 
+            // ⭐ S0 item 6 — the type NAME survives in the schema (a tool can tell a bearing from a number); the SHAPE is the storage type's, by the one mapping.
+            if (type == typeof(Fdp.Core.Bearing))
+                return new JsonObject { ["type"] = "number", ["format"] = "bearing", ["description"] = "a compass bearing in degrees: 0 = north (+Y), 90 = east (+X), clockwise" };
+            if (type == typeof(Fdp.Core.WorldRotation))
+            {
+                var shape = Describe(Fdp.Core.SemanticValueTypes.StorageTypeOf(type));
+                shape["format"] = "worldRotation";
+                return shape;
+            }
             if (type == typeof(Vector3))
                 return new JsonObject { ["type"] = "object", ["format"] = "vector3", ["properties"] = XyzProperties() };
 

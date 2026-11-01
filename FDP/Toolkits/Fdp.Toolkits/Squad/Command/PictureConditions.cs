@@ -182,7 +182,7 @@ namespace Fdp.Toolkit.Squad.Command
         {
             if (!world.HasComponent<CommandPicture>(self)) return false;
             ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
-            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+            var at = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : WorldPoint.Zero;
             float now = CommandPictureOps.Now(world);
             for (int i = 0; i < picture.Elements.Count; i++)
             {

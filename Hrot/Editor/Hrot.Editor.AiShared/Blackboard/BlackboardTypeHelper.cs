@@ -38,6 +38,10 @@ public static class BlackboardTypeHelper
         { "Vector3",    typeof(Vector3)    },
         { "Vector4",    typeof(Vector4)    },
         { "Quaternion", typeof(Quaternion) },
+        // ⭐ S0 item 6 — the semantic value types (same bytes as the storage types above): a place, a world orientation, a compass bearing
+        { "WorldPoint",    typeof(Fdp.Core.WorldPoint)    },
+        { "WorldRotation", typeof(Fdp.Core.WorldRotation) },
+        { "Bearing",       typeof(Fdp.Core.Bearing)       },
         // ⭐ DESIGN_Entity_Reference D6 — an authored reference to another entity (its network id): picked in the editor,
         // remapped at scenario load, resolved with EntityRef.Resolve. Unmanaged, 8 bytes, so a blackboard field can hold it.
         { "EntityRef",  typeof(Fdp.Toolkit.Replication.EntityRef) },
@@ -51,7 +55,7 @@ public static class BlackboardTypeHelper
     public static readonly IReadOnlyList<string> DefaultKnownTypeNames = new string[]
     {
         "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
-        "float", "double", "Vector2", "Vector3", "Vector4", "Quaternion", "EntityRef",
+        "float", "double", "Vector2", "Vector3", "Vector4", "Quaternion", "EntityRef", "WorldPoint", "WorldRotation", "Bearing",
     };
 
     /// <summary>

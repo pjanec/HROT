@@ -815,7 +815,7 @@ namespace Hrot.SimHost.Tests
                 "the affordance's transform never reached the order — it is folded into " +
                 "InitialComponents and CreateEntityRequestSystem separates it back out; one of those " +
                 "two halves is broken.");
-            Assert.Equal(new System.Numerics.Vector3(10f, 20f, 30f), order.InitialTransform!.Value.Position);
+            Assert.Equal<System.Numerics.Vector3>(new System.Numerics.Vector3(10f, 20f, 30f), order.InitialTransform!.Value.Position);
         }
 
         /// <summary>

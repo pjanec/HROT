@@ -206,9 +206,9 @@ public sealed class GeoSpatialIngressTranslatorTests
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var st = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(Quaternion.Identity, st.Rotation);
-        Assert.Equal(Quaternion.Identity, world.GetComponent<NetworkTransform>(entity).LastRotation);
-        Assert.Equal(Vector3.Zero, st.Position);
+        Assert.Equal<System.Numerics.Quaternion>(Quaternion.Identity, st.Rotation);
+        Assert.Equal<System.Numerics.Quaternion>(Quaternion.Identity, world.GetComponent<NetworkTransform>(entity).LastRotation);
+        Assert.Equal<System.Numerics.Vector3>(Vector3.Zero, st.Position);
         Assert.False(float.IsNaN(st.Rotation.X + st.Rotation.Y + st.Rotation.Z + st.Rotation.W + st.Position.X));
     }
 
@@ -238,7 +238,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
         var q = world.GetComponent<SimTransform>(entity).Rotation;
         Assert.False(float.IsNaN(q.X + q.Y + q.Z + q.W));
-        Assert.Equal(1f, q.Length(), 5);
+        Assert.Equal(1f, ((System.Numerics.Quaternion)q).Length(), 5);
     }
 
     // ── GEOINGRESS-2: Primary-owner loopback — SimTransform NOT updated ───────
@@ -271,7 +271,7 @@ public sealed class GeoSpatialIngressTranslatorTests
         ((EntityCommandBuffer)cmd).Playback(world);
 
         var transform = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(originalPos, transform.Position);
+        Assert.Equal<System.Numerics.Vector3>(originalPos, transform.Position);
     }
 
     /// <summary>
@@ -342,7 +342,7 @@ public sealed class GeoSpatialIngressTranslatorTests
 
         // SimTransform must retain the physics position, not the loopback packet position.
         var transform = world.GetComponent<SimTransform>(entity);
-        Assert.Equal(physicsPos, transform.Position);
+        Assert.Equal<System.Numerics.Vector3>(physicsPos, transform.Position);
 
         // NetworkTransform IS still updated (used for ghost rendering on other nodes).
         var netTransform = world.GetComponent<NetworkTransform>(entity);

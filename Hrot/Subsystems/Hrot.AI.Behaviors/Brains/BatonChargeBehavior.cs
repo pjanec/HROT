@@ -96,7 +96,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Running;
             }
 
-            var goal = target.IsNull ? p.At : world.GetComponentRO<SimTransform>(target).Position;
+            var goal = target.IsNull ? p.At : (Vector3)world.GetComponentRO<SimTransform>(target).Position;
             if (ws.Moving == 0 || Flat(goal, ws.Goal) > 0.75f || LocomotionMoveTo.Status(world, self) != NodeStatus.Running)
             {
                 LocomotionMoveTo.Issue(world, self, goal, ChargeSpeed, target.IsNull ? 1f : 0.8f, MoveGait.Upright, source: MoveSource.Attack);
