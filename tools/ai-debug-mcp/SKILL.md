@@ -242,6 +242,13 @@ remembered `trace`. ⛔ `debug_unit` is gone.
 3. `spawn_entity {tkbType, transform}` (step to process); `patch_attribute` to set Name/Affiliation/etc.
 4. `save_scenario {name}`.
 
+**Authored references and places — the three JSON forms (S0, `docs/DESIGN_Scenario_Rules.md` SR-138, §9.8.11).** A behaviour's params
+name a unit with an `EntityLink`, a place with a `PointLink` and an area with an `AreaLink`; the JSON form follows the VALUE's state.
+① **Not authored:** the bare answer: `1042`, `[120.0, 45.5, 0.0]` (local metres, never lat/lon), `{"Area": 2001}`.
+② **Authored, unresolved:** the text: `"@BlueHQ"` (a `RefKey` in the scenario) or a GUID string. ③ **Authored and resolved:** both,
+for example `{"NetworkId": 1042, "Ref": "@BlueHQ"}`, `{"Local": [...], "Ref": "@Hill"}` or `{"Area": 2001, "Ref": "@Zone"}`.
+⭐ To author, write form ② and give the target entity a `RefKey` component (`{"Value": "BlueHQ"}`); the load resolves it, and fails LOUDLY on a key nothing carries. In component dumps, positions are `WorldPoint`, orientations `WorldRotation`, and world compass directions `Bearing`. Each serialises exactly as `[x,y,z]`, `[x,y,z,w]` or a number.
+
 ### J. Choose the CHEAPEST experiment — before you edit code and restart anything
 ⛔ **The default failure: change C#, rebuild, reload the scenario, run to the moment again — minutes per try — for a
 question a live edit answers in seconds.** Climb this ladder from the top; stop at the first rung that answers the question.
