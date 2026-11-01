@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-01 (parts 1–2, diagrams added — coordinator)
+updated: 2026-11-01 (parts 1–3: objective, trigger, exercise control — coordinator)
 current-answer: the whole file — an EXPLAINER of the design, not the design itself
 stale-below: nothing
 known-rot: none — ⚠ describes the DESIGN (nothing here is built yet); the decisions and their ids live in DESIGN_Scenario_Rules.md
@@ -318,11 +318,43 @@ the command chain (which a unit's mission plan or brain then executes). ⭐ **In
 on an edge, RUNS a list of actions.
 
 
-## 3. The director — not a new kind of entity (SR-99)
+## 3. Exercise control — steering the whole exercise
 
-A "director" — something that watches how the teams are doing and changes the conditions for them — is just a **macro of objectives and
-triggers**. Objectives WATCH (a team's `Score`), triggers REACT, and their actions reach out of the world: insert new forces, change the
-opponents' proficiency, tell the instructor.
+**Exercise control** is everything that shapes the exercise as a whole rather than one unit: its pacing (*phase 2 starts when…*), its
+difficulty (*Blue is struggling — ease off*), its branches (*Blue went north — reinforce the north*), its surprises (*a counter-attack*) and
+its end. ⭐ There is **no director entity** for this (SR-99): it is built from the same objectives and triggers as parts 1 and 2, packed into a
+reusable macro.
+
+### 3.1 The building blocks
+
+| the job | done by | example |
+|---|---|---|
+| ⭐ **watch** how the teams are doing | objectives and measures — each publishes `ObjectiveStatus` with a `Score` 0..1 | *"Blue platoon attack"* = 0.42 |
+| ⭐ **decide** when to act | a trigger's `when`, in the existing condition language (SR-95) — any objective's state or `Score`, the scenario clock, several entities at once | `Score < 0.35` AND elapsed > 20 min |
+| ⭐ **act** on the exercise, from outside the world | the trigger's `do` — the shared action vocabulary (SR-93) | `InsertMacro` · `Order` · `AdjustProficiency` · `Message` · `SetObjectiveActive` · `EndExercise` |
+| **remember** what already happened | a trigger's own status (`Fired`, `FireCount`) and `maxFires`; a `Count` objective for a total shared by several triggers | *"at most 3 waves in total"* |
+| **belong to no side** | the trigger's `Subject` is the World Environment entity | Red HQ stays an ordinary commander |
+| **package and reuse** | a macro with params | `macros/control/AdaptivePressure {blue, red}` |
+
+### 3.2 Patterns — how the usual wishes are built
+
+| the wish | built as | the trick |
+|---|---|---|
+| ⭐ **phases** — *"phase 2 begins when the bridge is held, or at 09:45 at the latest"* | an objective per phase + one trigger: `when` = `@Phase1` Achieved OR scenario time ≥ 09:45 → `SetObjectiveActive(@Phase2)` + `Order(...)` | a phase is just an objective that is activated later |
+| ⭐ **adaptive difficulty** | triggers on bands of `Score` (table below) | `holdFor` ignores a short dip; `repeat` + `cooldown` + `maxFires` make it gradual and bounded |
+| ⭐ **branching** — *"if Blue takes the north route, reinforce the north"* | two `ReachArea` objectives (not scored) for the two routes + one trigger each, the two `when`s exclusive | the branch condition is an objective that is never scored, only watched |
+| ⭐ **waves with a budget** — *"up to 3 waves, from any of the reinforcement triggers"* | a `Count` objective counting inserted waves; each wave trigger's `when` adds `Count < 3` | the shared memory is an objective everyone can read |
+| ⭐ **surprise after a delay** | a trigger with `delay` (fires even if the condition drops meanwhile) | part 2's counter-attack |
+| ⭐ **the end** | one trigger: all required objectives settled OR the time limit → `EndExercise` | the exercise ends like any other reaction |
+| **the instructor steps in** | fire, disarm or re-arm any trigger by hand (T9); ⚠ running an action such as inserting a macro by hand is still to be designed (B5) — all journaled with who did it | the instructor uses the SAME triggers and actions — nothing separate |
+
+The adaptive-difficulty example, as a reusable macro `macros/control/AdaptivePressure {blue: @BlueAttack, red: Red}`:
+
+| trigger | when | do | rules |
+|---|---|---|---|
+| Counter-attack | `@BlueAttack/Hold` becomes Active | InsertMacro(RedQRF, @VillageEdge) → Order(@RedQRF, Attack @Bridge) | delay 120 s, once |
+| Ease off | `@BlueAttack.Score < 0.35` AND elapsed > 20 min | AdjustProficiency(Red, −1 tier) · Message(IOS, "Red eased") | holdFor 2 min, repeat, cooldown 10 min, maxFires 2 |
+| Push harder | `@BlueAttack.Score > 0.8` AND elapsed < 30 min | InsertMacro(RedReserve) → Order(…) | holdFor 1 min, once |
 
 ```mermaid
 graph LR
@@ -344,18 +376,58 @@ graph LR
     T2 --> IOS
 ```
 
-*Caption:* nothing in the picture is a director — the triggers belong to the scenario (their subject is the World Environment), so they are
-tied to no side; Red HQ stays an ordinary commander that only fights from what it knows, and simply receives orders for the new forces.
+*Caption:* nothing in the picture is a director — the triggers belong to the scenario, so they are tied to no side; Red HQ only fights from
+what it knows and simply receives orders for the new forces.
 
-| trigger | when | do | rules |
-|---|---|---|---|
-| Counter-attack | `@BlueAttack/Hold` becomes Active | InsertMacro(RedQRF, @VillageEdge) → Order(@RedQRF, Attack @Bridge) | delay 120 s, once |
-| Ease off | `@BlueAttack.Score < 0.35` AND elapsed > 20 min | AdjustProficiency(Red, −1 tier) · Message(IOS, "Red eased") | holdFor 2 min, repeat, cooldown 10 min, maxFires 2 |
-| Push harder | `@BlueAttack.Score > 0.8` AND elapsed < 30 min | InsertMacro(RedReserve) → Order(…) | holdFor 1 min, once |
+The same loop over time:
+
+```mermaid
+sequenceDiagram
+    participant BA as Blue attack (objective)
+    participant EO as Ease off (trigger)
+    participant RED as Red forces
+    participant IOS as instructor
+    Note over BA: 09:20 — Score drops to 0.31
+    EO->>BA: reads Score, condition rises
+    Note over EO: holdFor 2 min — still below at 09:22
+    EO->>RED: AdjustProficiency −1 tier (Veteran to Regular, Militia to Untrained)
+    EO->>IOS: Message "Red eased"
+    Note over EO: cooldown 10 min, FireCount 1 of maxFires 2
+    Note over BA: 09:30 — Score recovers to 0.5
+    Note over EO: condition false — re-armed, but nothing to do
+```
 
 **The proficiency knob already exists** — `CombatProficiency` (Untrained · Militia · Regular · Veteran · Elite, 0..1), set per man, per unit
-(it fills down to the men) or by the unit type, and it changes aim spread, exposure, reaction time and fire discipline. What a director adds is
-a RELATIVE change for a whole side at runtime (SR-100), so a veteran stays better than a militiaman.
+(it fills down to the men) or by the unit type; it changes aim spread, exposure, reaction time and fire discipline. `AdjustProficiency` adds a
+RELATIVE change for a whole side at runtime (SR-100), so a veteran stays better than a militiaman, and forces inserted later are covered too.
 
-**When triggers are not enough** — choosing ONE best play among several — the same kind of entity runs a reusable behaviour instead of the
-`Trigger` behaviour (a utility choice over plays, each play a `RunActions` list). Still no new entity type.
+### 3.3 When standalone triggers and objectives are not enough — the ladder
+
+Climb only as far as the need; each rung costs more and keeps less of the simplicity.
+
+```mermaid
+graph TD
+    L1["1 · triggers + objectives<br/>data only, in the scenario editor"]
+    L2["2 · combine them<br/>chaining · exclusive bands · Count objective · maxFires"]
+    L3["3 · a reusable CONTROL BEHAVIOUR<br/>authored once in the BTree / HSM editor, shipped, params per exercise"]
+    L4["4 · a new primitive in C#<br/>action · condition · utility input · measure"]
+    L5["5 · a scenario-embedded HSM<br/>compiled in memory at load — discouraged"]
+    L1 --> L2 --> L3 --> L4 --> L5
+```
+
+*Caption:* rungs 1–2 are pure data; rung 3 is still data per exercise (a named asset + params); only rung 4 is new code, and it is ordinary
+development that every scenario then gets for free.
+
+| rung | use it when | how | what it costs |
+|---|---|---|---|
+| **1** | one condition → one reaction | a trigger per reaction (parts 1–2) | nothing |
+| **2** | reactions depend on each other or share a limit | ⭐ **chaining**: a trigger's own `Fired` is a condition another can watch · ⭐ **exclusive bands** on a `Score` · ⭐ a **`Count` objective** as shared memory · `maxFires` | a few more entities; still readable in the Objectives view |
+| ⭐ **3** | you must **choose ONE best play** among several, weigh many inputs, or keep internal state richer than a counter | the same trigger-kind control entity runs a **reusable behaviour asset** in its task slot instead of `Trigger`: e.g. `PressureController` = `ChooseOption` over plays (*Counter-attack · Reinforce · Hold · Ease off*), each play a `RunActions` list; utility inputs read the `Score`s; `UtilityDecisionLog` explains every choice | someone authors the asset once (BTree / HSM editor), it ships, and every exercise uses it by name + params. ⛔ Never written for one exercise (R-4110) |
+| **4** | the world has a quantity or an effect nothing can express yet — e.g. *"Blue's ammunition below 30 %"*, *"jam Blue's radios"* | a new `[SharedAiAction]`, `[SharedAiCondition]`, `[UtilityInput]` or measure | C# development, built once; then available to triggers, objectives and every behaviour alike (one vocabulary) |
+| **5** | a genuinely one-off logic that no reusable asset should carry | an HSM authored in the editor and SAVED IN THE SCENARIO, compiled in memory at load, deterministically (SR-24) | the most power and the least reuse; ⚠ discouraged and not in the first slice |
+
+**Rule of thumb:** if the logic reads as *"when X, do Y"*, it is a trigger. If it reads as *"keep judging which of these to do"*, it is a
+control behaviour (rung 3). If it needs something the world cannot tell you yet, it is a new primitive (rung 4).
+
+⚠ None of this is built yet — the trigger machinery is being proven by a proof of concept (runtime binding of actions, per-step blackboard
+slots, the condition language); see [SR-93…SR-100](DESIGN_Scenario_Rules.md).
