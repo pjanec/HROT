@@ -316,3 +316,46 @@ graph LR
 *Caption:* the trigger READS objectives and ACTS through the existing mechanisms — macro insertion (ordinary entity creation) and orders down
 the command chain (which a unit's mission plan or brain then executes). ⭐ **In one sentence:** a trigger is a small brain that WATCHES statuses and,
 on an edge, RUNS a list of actions.
+
+
+## 3. The director — not a new kind of entity (SR-99)
+
+A "director" — something that watches how the teams are doing and changes the conditions for them — is just a **macro of objectives and
+triggers**. Objectives WATCH (a team's `Score`), triggers REACT, and their actions reach out of the world: insert new forces, change the
+opponents' proficiency, tell the instructor.
+
+```mermaid
+graph LR
+    BA["Blue platoon attack<br/>(objective, Score 0..1)"]
+    T1["Counter-attack<br/>(trigger)"]
+    T2["Ease off<br/>(trigger, repeat)"]
+    T3["Push harder<br/>(trigger)"]
+    RQ["new Red force<br/>(InsertMacro)"]
+    RH["Red HQ<br/>(ordinary commander)"]
+    PR["Red proficiency<br/>(AdjustProficiency)"]
+    IOS["instructor station<br/>(Message)"]
+    BA -- "Hold becomes Active" --> T1
+    BA -- "Score below 0.35" --> T2
+    BA -- "Score above 0.8" --> T3
+    T1 --> RQ
+    T1 -- "Order: attack" --> RH
+    T3 --> RQ
+    T2 --> PR
+    T2 --> IOS
+```
+
+*Caption:* nothing in the picture is a director — the triggers belong to the scenario (their subject is the World Environment), so they are
+tied to no side; Red HQ stays an ordinary commander that only fights from what it knows, and simply receives orders for the new forces.
+
+| trigger | when | do | rules |
+|---|---|---|---|
+| Counter-attack | `@BlueAttack/Hold` becomes Active | InsertMacro(RedQRF, @VillageEdge) → Order(@RedQRF, Attack @Bridge) | delay 120 s, once |
+| Ease off | `@BlueAttack.Score < 0.35` AND elapsed > 20 min | AdjustProficiency(Red, −1 tier) · Message(IOS, "Red eased") | holdFor 2 min, repeat, cooldown 10 min, maxFires 2 |
+| Push harder | `@BlueAttack.Score > 0.8` AND elapsed < 30 min | InsertMacro(RedReserve) → Order(…) | holdFor 1 min, once |
+
+**The proficiency knob already exists** — `CombatProficiency` (Untrained · Militia · Regular · Veteran · Elite, 0..1), set per man, per unit
+(it fills down to the men) or by the unit type, and it changes aim spread, exposure, reaction time and fire discipline. What a director adds is
+a RELATIVE change for a whole side at runtime (SR-100), so a veteran stays better than a militiaman.
+
+**When triggers are not enough** — choosing ONE best play among several — the same kind of entity runs a reusable behaviour instead of the
+`Trigger` behaviour (a utility choice over plays, each play a `RunActions` list). Still no new entity type.
