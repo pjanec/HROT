@@ -3,7 +3,7 @@ state: LIVE
 build-state: DESIGN — rev 4 (2026-10-31: objectives / rules = entities running GENERIC behaviours with params, conditions by reference — no per-scenario compile, R-4112) · rev 3b (2026-10-31: S0 ①② measured; SR-16 the generated block; SR-19 no re-evaluation) · rev 3a (2026-10-31: SR-15 lowers to a generated .hsm.json + the existing compile / hot-reload path) · rev 3 (2026-10-31): scenario control is a BEHAVIOUR on the World Environment entity's brain, built from data at load by the
   existing HSM / BTree runtime — no rules interpreter (R-4109…R-4111); evaluation (P-4) and the utility director ride the same brain
 updated: 2026-10-31 (rev 3 — coordinator)
-current-answer: §9.8 relocation + ONE place type / ONE entity reference (✅ ACCEPTED 2026-11-01, SR-125…SR-141; §9.8.10 orientation SR-142…143 draft — ⭐ READ §9.8.0, the current answer; §9.8.1–9.8.9 are the record of revs a–f; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
+current-answer: §9.8 relocation + ONE place type / ONE entity reference (✅ ACCEPTED 2026-11-01, SR-125…SR-141; §9.8.10 orientation SR-142…143 ✅ accepted — ⭐ READ §9.8.0, the current answer; §9.8.1–9.8.9 are the record of revs a–f; §9.8.4 rev b amends SR-125 / 126 / 128; §9.8.5 rev c packs the layouts) · §11 the objective LIFECYCLE + the WIRE (B3 / B4, SR-113…SR-124 ✅ accepted 2026-11-01) · §10 objective kinds + measures (rev 7 draft) · §9 scenario MACROS (rev 6 draft — the general mechanism) · §8 templates + blocks (rev 5 draft, leans await the user) · §0c the rev-4 ruling · §0b the user's rev-3 ruling · §2 claim table · §3 diagrams · §4 decisions SR-1…SR-20 · §5 what is missing · §6 slices · §7 examples
 stale-below: §⛔ HISTORY (rev 3's one-generated-HSM-per-scenario; rev 2's ScenarioRulesSystem / RuleSet interpreter — superseded by rev 3)
 known-rot: ⛔ §7c / §10.6's one big ExerciseEnded result object is SUPERSEDED by §11 SR-122 (a small EntityExerciseResult; the tree is the statuses) · ⛔ §3, §4 (SR-21 / SR-26 / SR-33), §7b and §8 write the evaluator into the SOP slot (`Sop` / `SopState`) — WRONG, SR-51: it is the TASK slot (`Behavior`)
 known-conflict: none
@@ -1039,7 +1039,7 @@ public readonly struct AreaLink  { … }                                        
 - *Explicit-only conversions* — strict, but ~1000 call sites would change for no runtime benefit; the type's value is MEANING for tools, not arithmetic safety.
 - *Keeping the authored name `WorldPoint`* — the internal type deserves the plain name; authored ones read `*Link`, like `EntityLink`.
 
-#### 9.8.10 Orientation — `WorldRotation` and `Bearing` *(draft `2026-11-01`, leans SR-142…SR-143 await the user)*
+#### 9.8.10 Orientation — `WorldRotation` and `Bearing` *(✅ ACCEPTED `2026-11-01` — user: *"Yes, approved."* — SR-142…SR-143)*
 
 > 🔒 **User, `2026-11-01`:** *"What about the world orientation of an entity? Wouldn't it deserve also a special type? Or maybe it is already having one?"*
 
