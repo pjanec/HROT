@@ -998,7 +998,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // Build search services.
         var editSvc = new ComponentEditServiceBuilder()
             .RegisterFieldEditor<Type>(new Fdp.Presentation.Editing.TypeFieldEditor())
-            .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
+            .RegisterFieldEditor<Fdp.Toolkit.Replication.AreaLink>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
             .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
             .Build();
         // See BP-29: the registry is what makes BlueprintVariablePredicateDto evaluable.

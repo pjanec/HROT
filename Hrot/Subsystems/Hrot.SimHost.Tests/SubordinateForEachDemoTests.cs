@@ -80,9 +80,9 @@ namespace Hrot.SimHost.Tests
         private static (float X, float Y) XY(AssignTacticalIntentEvent o)
         {
             using var d = JsonDocument.Parse(o.JsonParams);
-            float F(string name)   // case-insensitive, as every params reader is (R-2005); the DTO writes "x" / "y"
-                => d.RootElement.EnumerateObject().First(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)).Value.GetSingle();
-            return (F("X"), F("Y"));
+            // ⭐ S0 item 5: the order's place is ONE point "target": [x, y, z] (local metres), no longer an "x" / "y" pair
+            var pt = d.RootElement.EnumerateObject().First(p => string.Equals(p.Name, "target", StringComparison.OrdinalIgnoreCase)).Value;
+            return (pt[0].GetSingle(), pt[1].GetSingle());
         }
 
         /// <summary>

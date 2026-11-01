@@ -32,7 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary><c>HsmFireActivity</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]
     [ParamsDto]
-    public struct HsmFireActivityParams { public long TargetNetworkId; }
+    public struct HsmFireActivityParams { public Fdp.Toolkit.Replication.EntityLink TargetNetworkId; }   // ⭐ S0 item 5 (SR-140): an authored reference, was a raw long
 
     /// <summary><c>HsmGuardDemo</c>'s params.</summary>
     [StructLayout(LayoutKind.Sequential)]

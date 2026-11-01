@@ -68,7 +68,7 @@ public class IMapPickContextTests
             picked = default;
             return false;
         }
-        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Behavior.Params.PickableGeoPoint location)
+        public bool TryConsumeLocationPick(string jsonPath, out Fdp.Toolkit.Replication.PointLink location)
         {
             location = default;
             return false;

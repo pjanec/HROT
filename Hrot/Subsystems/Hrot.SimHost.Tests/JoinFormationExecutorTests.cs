@@ -100,7 +100,7 @@ namespace Hrot.SimHost.Tests
             // Write JoinFormationParams into the follower's blackboard.
             WriteBlackboardParams(world, follower, new JoinFormationParams
             {
-                LeaderNetworkId = leaderNetworkId,
+                LeaderNetworkId = new Fdp.Toolkit.Replication.EntityRef(leaderNetworkId),
                 FormationTypeId = (byte)FormationType.Column,
             });
 
@@ -133,7 +133,7 @@ namespace Hrot.SimHost.Tests
 
             WriteBlackboardParams(world, follower, new JoinFormationParams
             {
-                LeaderNetworkId = 999, // Unknown network ID
+                LeaderNetworkId = new Fdp.Toolkit.Replication.EntityRef(999), // Unknown network ID
                 FormationTypeId = (byte)FormationType.Wedge,
             });
 

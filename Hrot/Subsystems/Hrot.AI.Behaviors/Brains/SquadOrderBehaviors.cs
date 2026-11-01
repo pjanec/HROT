@@ -24,7 +24,7 @@ namespace Hrot.AI.Behaviors.Brains
             float z = world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position.Z : 0f;
             block.Order = new SquadMarchParams
             {
-                Objective     = OrderGeo.ToLocal(world, order.Location, z),
+                Objective     = new System.Numerics.Vector3(order.Location.Local.X, order.Location.Local.Y, z),   // S0 item 5: the order's place IS local metres; the unit's own height rides in z
                 Shape         = ShapeFor(order.RoadUse),
                 Spacing       = 5f,
                 Speed         = order.Speed > 0f ? order.Speed : 1.5f,
@@ -70,7 +70,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in AttackOrder order, ref SuppressAndManeuverBehavior.SuppressAndManeuverBlackboard block, EntityRepository world, Entity self)
         {
             block.Order = SuppressAndManeuverBehavior.Defaults(0f, 0f, 0f, 0f);
-            block.Order.TargetId = order.Target.TryResolve(world, out var target) ? (long)target.PackedValue : 0;
+            block.Order.TargetId = order.Target.Ref.TryResolve(world, out var target) ? (long)target.PackedValue : 0;
             block.State = default;
         }
 

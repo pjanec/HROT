@@ -40,7 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>HsmFireActivity.bp.json</c>'s baked FunctionCall (the <c>HillAssault2_*</c> twins that also called it retired
         /// <c>2026-10-01</c>). ⚠ Deliberately NOT <c>[BlueprintCallable]</c>: the palette offers only <i>Entity From Network
         /// Id</i> (the compiler never reads the attribute, so the baked call still compiles).</remarks>
-        public static Entity ResolveTarget(long targetNetworkId, ISimulationView view)
-            => StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId(targetNetworkId, view);
+        public static Entity ResolveTarget(Fdp.Toolkit.Replication.EntityLink target, ISimulationView view)
+            => StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId(target.Ref.NetworkId, view);
     }
 }

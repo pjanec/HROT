@@ -9,7 +9,6 @@ using Fdp.Diagnostics.Contracts.Panels;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Models;
 using Hrot.Presentation.Behavior;
-using Fdp.Toolkit.Behavior.Params;
 
 namespace Hrot.UI.Common.Panels;
 

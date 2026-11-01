@@ -95,7 +95,7 @@ public sealed class ReplaySearchPanel
             {
                 foreach (var child in _predicateSession.Document.Root.Children)
                 {
-                    if (child.Name == "Bounds" && child.Binding?.GetBoxed() is BoundingBox2D box)
+                    if (child.Name == "Bounds" && child.Binding?.GetBoxed() is Fdp.Toolkit.Replication.AreaLink area && AreaBoxes.ToBox(area) is { } box)
                     {
                         if (box.Min != box.Max) return box;
                     }
@@ -258,7 +258,7 @@ public sealed class ReplaySearchPanel
         var typeMode = _mode == SearchMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
         var drawers = new Dictionary<Type, IImGuiFieldDrawer>
         {
-            [typeof(BoundingBox2D)] = new BoundingBoxFieldDrawer(),
+            [typeof(Fdp.Toolkit.Replication.AreaLink)] = new BoundingBoxFieldDrawer(),
             // ⭐ CE-308: int now has TWO pickers — the behaviour-hash combo and the occurrence
             //   SLOT combo — and ComponentEditDrawer allows one drawer per type, so they are
             //   routed on their attributes.

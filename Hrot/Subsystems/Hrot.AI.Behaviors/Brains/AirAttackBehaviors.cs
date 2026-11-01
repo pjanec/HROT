@@ -1048,13 +1048,13 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.AirPlatformStrike)]
         public static void Resolve(in StrikeOrder order, ref AirPlatformStrikeBlackboard block, EntityRepository world, Entity self)
         {
-            var target = order.Target.Resolve(world);
+            var target = order.Target.Ref.Resolve(world);
             Vector3 point;
             if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target))
                 point = world.GetComponentRO<SimTransform>(target).Position;
             else
             {
-                var at = OrderGeo.ToLocal(world, order.Location, 0f);
+                var at = (System.Numerics.Vector3)order.Location;
                 point = new Vector3(at.X, at.Y, Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f);
             }
             block.Attack = new AirAttackParams { Point = point, Kind = order.TargetKind, DangerClose = order.DangerClose ? (byte)1 : (byte)0 };
@@ -1084,7 +1084,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.AirPlatformAttack)]
         public static void Resolve(in AttackOrder order, ref AirPlatformAttackBlackboard block, EntityRepository world, Entity self)
         {
-            var target = order.Target.Resolve(world);
+            var target = order.Target.Ref.Resolve(world);
             bool known = !target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target);
             block.Attack = new AirAttackParams
             {

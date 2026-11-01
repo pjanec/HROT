@@ -122,7 +122,7 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(repo, e, out byte* root, out int len));
             Assert.Equal(sizeof(Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams), len);
-            Assert.Equal(42, ((Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams*)root)->LeaderNetworkId);
+            Assert.Equal(42L, ((Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams*)root)->LeaderNetworkId.Ref.NetworkId);
 
             Assert.Null(Record.Exception(() => tick.Execute(repo, 0.1f)));   // ⛔ it threw "no ROOT PARAMS slot"
         }

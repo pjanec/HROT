@@ -30,12 +30,12 @@ namespace Hrot.Map.Definitions.Behavior
         /// (a nearer threat does not take over) and the posture succeeds when it is down. With no objective the advance closes on
         /// it. An <see cref="EntityRef"/>: picked on the map, remapped at scenario load; JSON is the bare network id. Default none.</summary>
         [JsonPropertyName("target")]
-        public EntityRef Target;
+        public EntityLink Target;
 
         /// <summary>⭐ <c>CE-2297</c> LD-3e — a point he WATCHES toward (sim metres, Z up) while no threat and no sector of his own point his
         /// eyes; scanned ±30°. Zero = none. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
         [JsonPropertyName("watchTowards")]
-        public Vector3 WatchTowards;
+        public PointLink WatchTowards;
         /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — he STAYS: nothing ends the posture by finishing (arriving, his target or his
         /// threat going down) — his eyes and his fight go on until a new order replaces it. A squad's Hold / Watch man is sent it.
         /// Default false: the posture ends when its winner does. 📄 docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md §3.3a.</summary>
@@ -52,11 +52,11 @@ namespace Hrot.Map.Definitions.Behavior
     {
         /// <summary>The post (sim metres, Z up).</summary>
         [JsonPropertyName("point")]
-        public Vector3 Point;
+        public PointLink Point;
 
         /// <summary>His alternate post, when <see cref="HasAlternate"/>.</summary>
         [JsonPropertyName("alternate")]
-        public Vector3 Alternate;
+        public PointLink Alternate;
 
         [JsonPropertyName("hasAlternate")]
         public bool HasAlternate;
@@ -85,13 +85,13 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The window's two frame points (beside each edge, inside the wall) and the opening's centre (sim metres).</summary>
         [JsonPropertyName("frameA")]
-        public Vector3 FrameA;
+        public PointLink FrameA;
 
         [JsonPropertyName("frameB")]
-        public Vector3 FrameB;
+        public PointLink FrameB;
 
         [JsonPropertyName("opening")]
-        public Vector3 Opening;
+        public PointLink Opening;
     }
 
     /// <summary>⭐ <c>CE-3160</c> — the advance of <see cref="CombatPostureParamsJsonDto"/>.</summary>
@@ -99,7 +99,7 @@ namespace Hrot.Map.Definitions.Behavior
     {
         /// <summary>Where to advance to (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective;
+        public PointLink Objective;
 
         /// <summary>The asked speed (m/s); 0 = 3. The body's stance caps it (AQ88).</summary>
         [JsonPropertyName("Speed")]

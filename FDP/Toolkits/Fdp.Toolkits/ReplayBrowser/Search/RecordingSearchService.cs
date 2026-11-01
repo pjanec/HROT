@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -324,7 +325,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             // Build a query for entities with the position component.
             EntityQuery posQuery = repo.Query().WithComponentId(typeId).Build();
-            BoundingBox2D bounds = predicate.Bounds;
+            Fdp.Toolkit.Replication.AreaLink bounds = predicate.Bounds;   // ⭐ S0 item 5 (SR-134): ONE containment — AreaLink.Contains
             BoundaryEvent trigger = predicate.TriggerEvent;
 
             repo.QueryDelta(posQuery, 0, entity =>
@@ -336,7 +337,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 // (Expression-tree approach would be faster; this is acceptable for spatial mode.)
                 Vector2 pos = ReadPosition2D(repo, entity, predicate);
 
-                bool nowInside = IsInBounds(pos, bounds);
+                bool nowInside = bounds.Contains(repo, new Vector3(pos.X, pos.Y, 0f));
                 bool wasInside = insideZone.Contains(entity);
 
                 if (nowInside && !wasInside)
@@ -409,12 +410,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 return 0f;
             }
             return cur is float f ? f : (cur is double d ? (float)d : 0f);
-        }
-
-        private static bool IsInBounds(Vector2 pos, BoundingBox2D bounds)
-        {
-            return pos.X >= bounds.Min.X && pos.X <= bounds.Max.X
-                && pos.Y >= bounds.Min.Y && pos.Y <= bounds.Max.Y;
         }
 
         // ── Lifecycle helpers ────────────────────────────────────────────────

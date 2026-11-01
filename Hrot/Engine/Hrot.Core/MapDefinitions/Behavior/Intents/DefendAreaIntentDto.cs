@@ -17,11 +17,8 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     {
         public const string BehaviorId = BehaviorNames.DefendArea;
 
-        /// <summary>Latitude of the area center.</summary>
-        public double CenterLat;
-
-        /// <summary>Longitude of the area center.</summary>
-        public double CenterLon;
+        /// <summary>⭐ S0 item 5 (SR-135) — the area's centre: ONE authored place (local metres, or an entity's position). Replaces the lat/lon pair.</summary>
+        public Fdp.Toolkit.Replication.PointLink Center;
 
         /// <summary>Radius in meters.</summary>
         public float RadiusMeters;

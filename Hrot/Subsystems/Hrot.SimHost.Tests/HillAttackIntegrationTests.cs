@@ -290,10 +290,10 @@ namespace Hrot.SimHost.Tests
             RootStateAccess.EnsureRootState(_repo, commander);
             _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
-            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
-                        + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
-                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
-                        + "\"baselineEnd\":{\"x\":60,\"y\":50},"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[60,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[60,50,0],"
                         + "\"tankSpacing\":30,"
                         + "\"targetAreaNetworkId\":9001}";
 
@@ -363,10 +363,10 @@ namespace Hrot.SimHost.Tests
             AddRoster(_repo, commander, subs);
 
             // Publish AssignBehaviorEvent with a 90 m firing line (3 slots @ 30 m).
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,90],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,90],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[90,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[90,50,0],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -455,8 +455,8 @@ namespace Hrot.SimHost.Tests
                 _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
             }
             AddRoster(_repo, commander, subs);
-            string json = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,90],\"tankSpacing\":30," + $"\"targetAreaNetworkId\":{areaNetId}}}";
+            string json = "{\"firingLineStart\":[0,0,0],\"firingLineEnd\":[90,0,0],\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[90,50,0],\"tankSpacing\":30," + $"\"targetAreaNetworkId\":{areaNetId}}}";
             void Assign() => _repo.Bus.PublishManaged(new AssignBehaviorEvent
                 { Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack, JsonParams = json });
 
@@ -508,8 +508,8 @@ namespace Hrot.SimHost.Tests
             _repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack,
-                JsonParams = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
-                           + "\"baselineEnd\":[50,90],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
+                JsonParams = "{\"firingLineStart\":[0,0,0],\"firingLineEnd\":[90,0,0],\"baselineStart\":[0,50,0],"
+                           + "\"baselineEnd\":[90,50,0],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
             });
 
             TickBTreeOnly(_repo, ingress, resolution, brainTick);
@@ -576,10 +576,10 @@ namespace Hrot.SimHost.Tests
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,90],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,90],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[90,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[90,50,0],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -669,10 +669,10 @@ namespace Hrot.SimHost.Tests
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,60],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,60],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[60,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[60,50,0],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -782,10 +782,10 @@ namespace Hrot.SimHost.Tests
             // PickableGeoPoint uses [JsonConverter(typeof(PickableGeoPointArrayConverter))]
             // which expects [latitude, longitude] arrays. Cartesian fallback maps
             // Longitude→X, Latitude→Y, so {x,y} becomes [y, x] in the array.
-            string json = "{\"firingLineStart\":[0,0],"
-                        + "\"firingLineEnd\":[0,60],"
-                        + "\"baselineStart\":[50,0],"
-                        + "\"baselineEnd\":[50,60],"
+            string json = "{\"firingLineStart\":[0,0,0],"
+                        + "\"firingLineEnd\":[60,0,0],"
+                        + "\"baselineStart\":[0,50,0],"
+                        + "\"baselineEnd\":[60,50,0],"
                         + "\"tankSpacing\":30,"
                         + "\"targetAreaNetworkId\":9001}";
 

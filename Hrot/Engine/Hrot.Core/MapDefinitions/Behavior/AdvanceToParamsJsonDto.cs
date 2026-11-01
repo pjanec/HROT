@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -17,7 +18,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where to go (sim metres, Z up).</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective;
+        public PointLink Objective;
 
         /// <summary>The asked speed (m/s); 0 = 3. The body's stance caps it.</summary>
         [JsonPropertyName("Speed")]

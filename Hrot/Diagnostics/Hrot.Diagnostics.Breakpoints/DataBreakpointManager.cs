@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -1247,7 +1248,7 @@ public sealed class DataBreakpointManager
                 Vector2 pos = posAccessor != null
                     ? posAccessor(repo, entity)
                     : ReadPosition2D(repo, entity, dto);  // fallback for managed components
-                bool isInside  = IsInBounds(pos, dto.Bounds);
+                bool isInside  = dto.Bounds.Contains(repo, new Vector3(pos.X, pos.Y, 0f));   // ⭐ S0 item 5 (SR-134): ONE containment — AreaLink.Contains
                 bool wasInside = insideSet.Contains(entity);
 
                 if (isInside && !wasInside)
@@ -1326,10 +1327,6 @@ public sealed class DataBreakpointManager
                 componentMask.IsSet(typeId) && !meta.AuthorityMask.IsSet(typeId),
             _ => componentMask.IsSet(typeId)
         };
-
-    private static bool IsInBounds(Vector2 pos, BoundingBox2D bounds) =>
-        pos.X >= bounds.Min.X && pos.X <= bounds.Max.X
-     && pos.Y >= bounds.Min.Y && pos.Y <= bounds.Max.Y;
 
     /// <summary>
     /// Returns the CLR managed size of <paramref name="type"/> in bytes.

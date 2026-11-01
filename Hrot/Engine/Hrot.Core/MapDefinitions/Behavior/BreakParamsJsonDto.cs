@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -20,6 +21,6 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where he runs to (when <see cref="HasRetreat"/>).</summary>
         [JsonPropertyName("Retreat")]
-        public Vector3 Retreat;
+        public PointLink Retreat;
     }
 }

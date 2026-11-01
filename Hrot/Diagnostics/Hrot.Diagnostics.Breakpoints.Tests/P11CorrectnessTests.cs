@@ -114,11 +114,11 @@ public sealed class SpatialPositionAccessorTests
             PositionXPath         = "X",
             PositionYPath         = "Y",
             TriggerEvent          = BoundaryEvent.EntryOrExit,
-            Bounds                = new BoundingBox2D
+            Bounds                = AreaBoxes.FromBox(new BoundingBox2D
             {
                 Min = new Vector2(0f, 0f),
                 Max = new Vector2(10f, 10f)
-            }
+            })
         });
 
         // Entity at (3, 7.5) is inside [0-10, 0-10] bounds -- should fire on first evaluation.
@@ -148,11 +148,11 @@ public sealed class SpatialPositionAccessorTests
             PositionXPath         = "X",
             PositionYPath         = "Y",
             TriggerEvent          = BoundaryEvent.EntryOrExit,
-            Bounds                = new BoundingBox2D
+            Bounds                = AreaBoxes.FromBox(new BoundingBox2D
             {
                 Min = new Vector2(0f, 0f),
                 Max = new Vector2(10f, 10f)
-            }
+            })
         });
 
         manager.EvaluateStatefulBreakpoints(liveRepo);

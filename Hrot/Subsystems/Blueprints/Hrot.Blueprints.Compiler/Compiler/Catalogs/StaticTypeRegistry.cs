@@ -55,6 +55,14 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["Fdp.Toolkit.Replication.EntityRef"] = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 8),
             ["EntityRef"]                         = Unmanaged("Fdp.Toolkit.Replication.EntityRef", 8),
 
+            // ⭐ S0 item 5 (DESIGN_Scenario_Rules §9.8.0) -- the AUTHORED types and the internal place / bearing: unmanaged structs a params DTO (and so a blueprint's
+            //   "Get All Parameters" / SendIntent pins) now carries. Composite, so SizeReliable=false: the layout comes from the runtime (Marshal.OffsetOf), never baked offsets.
+            ["Fdp.Toolkit.Replication.EntityLink"] = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.EntityLink", IsUnmanaged = true, SizeBytes = 48, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.PointLink"]  = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.PointLink",  IsUnmanaged = true, SizeBytes = 48, SizeReliable = false },
+            ["Fdp.Toolkit.Replication.AreaLink"]   = new IrTypeRef { FullName = "Fdp.Toolkit.Replication.AreaLink",   IsUnmanaged = true, SizeBytes = 72, SizeReliable = false },
+            ["Fdp.Core.WorldPoint"]                = Unmanaged("Fdp.Core.WorldPoint", 12),
+            ["Fdp.Core.Bearing"]                   = Unmanaged("Fdp.Core.Bearing", 4),
+
             // EQS sensor handle -- wraps Entity (8 bytes), unmanaged value type
             ["FDP.Eqs.EqsSensorHandle"] = new IrTypeRef
             {
@@ -152,6 +160,11 @@ public sealed class StaticTypeRegistry : ITypeRegistry
     private static readonly IReadOnlyDictionary<(string From, string To), string> CoercionTable =
         new Dictionary<(string, string), string>
         {
+            // S0: an authored point reads as its Vector3 (PointLink has the implicit conversion; the reverse is not offered)
+            { ("Fdp.Toolkit.Replication.PointLink", "System.Numerics.Vector3"), "(global::System.Numerics.Vector3)($expr)" },
+            // S0: a literal reference (an EntityRef from a node) fills an authored link — implicit in C# (an empty RefSpec = "not authored by reference")
+            { ("Fdp.Toolkit.Replication.EntityRef", "Fdp.Toolkit.Replication.EntityLink"), "(global::Fdp.Toolkit.Replication.EntityLink)($expr)" },
+
             // sbyte -> short, int, long, float, double
             { ("System.SByte",  "System.Int16"),  "(short)$expr"  },
             { ("System.SByte",  "System.Int32"),  "(int)$expr"    },

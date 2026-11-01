@@ -65,7 +65,7 @@ namespace Hrot.SimHost.Tests
             map.Register(77L, e);
 
             Assert.Equal(e, BlueprintWorldLibrary.EntityFromNetworkId(77L, repo));
-            Assert.Equal(e, NetworkEntityMapOps.ResolveTarget(77L, repo));
+            Assert.Equal(e, NetworkEntityMapOps.ResolveTarget(new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(77L)), repo));
             Assert.Equal(Entity.Null, BlueprintWorldLibrary.EntityFromNetworkId(78L, repo));
         }
 

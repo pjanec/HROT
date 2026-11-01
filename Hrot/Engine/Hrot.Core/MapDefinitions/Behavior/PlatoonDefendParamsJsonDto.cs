@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -16,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The position defended (sim metres) — the engagement area's origin, and every squad's point unless authored.</summary>
         [JsonPropertyName("Position")]
-        public Vector3 Position;
+        public PointLink Position;
 
         /// <summary>Each squad's posts are looked for within this distance of its point (m); 0 = each squad's own default.</summary>
         [JsonPropertyName("SearchRadius")]
@@ -29,10 +30,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The engagement area as an arc from <see cref="Position"/>: its left and right compass bearings (°, 0 = north, clockwise)
         /// and its range band (m; <see cref="MaxRange"/> 0 = no limit). Left = Right = 0 ⇒ the platoon's own sector is used.</summary>
         [JsonPropertyName("Left")]
-        public float Left;
+        public Fdp.Core.Bearing Left;
 
         [JsonPropertyName("Right")]
-        public float Right;
+        public Fdp.Core.Bearing Right;
 
         [JsonPropertyName("MinRange")]
         public float MinRange;
@@ -43,7 +44,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-66) — where the platoon falls back to when half its line is failing (sim metres); zero = 100 m
         /// behind the position, away from the area's middle.</summary>
         [JsonPropertyName("FallBackTo")]
-        public Vector3 FallBackTo;
+        public PointLink FallBackTo;
 
         /// <summary>⭐ DA-51 — each squad's role and point; none ⇒ every squad on the line at <see cref="Position"/>, and with three or
         /// more the last is the reserve, behind.</summary>
@@ -64,7 +65,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where it defends (sim metres); zero = the order's position.</summary>
         [JsonPropertyName("Point")]
-        public Vector3 Point;
+        public PointLink Point;
 
         /// <summary>Its posts' search radius (m); 0 = the order's.</summary>
         [JsonPropertyName("SearchRadius")]
@@ -77,6 +78,6 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ DA-59 — where the OP comes back to (sim metres); zero = the order's position.</summary>
         [JsonPropertyName("Back")]
-        public Vector3 Back;
+        public PointLink Back;
     }
 }

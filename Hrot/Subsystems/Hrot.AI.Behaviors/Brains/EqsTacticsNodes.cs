@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
@@ -41,7 +42,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2275</c> D-2d (PC-14) — a POSTED man's move: with <see cref="AnchorRadius"/> &gt; 0 only a point within it of
         /// <see cref="Anchor"/> is taken (the best-ranked such point); none ⇒ no move, he fights from where he is. 0 = anywhere.
         /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §8c D-2d.</summary>
-        public Vector3 Anchor;
+        public PointLink Anchor;
         public float AnchorRadius;
     }
 

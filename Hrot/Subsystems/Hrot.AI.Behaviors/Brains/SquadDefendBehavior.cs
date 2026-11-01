@@ -62,8 +62,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var post = posts[i];
                 int k = a.Count++;
-                a.X[k] = post.Point.X; a.Y[k] = post.Point.Y; a.Z[k] = post.Point.Z;
-                a.WatchX[k] = post.WatchTowards.X; a.WatchY[k] = post.WatchTowards.Y; a.WatchZ[k] = post.WatchTowards.Z;
+                a.X[k] = post.Point.Local.X; a.Y[k] = post.Point.Local.Y; a.Z[k] = post.Point.Local.Z;
+                a.WatchX[k] = post.WatchTowards.Local.X; a.WatchY[k] = post.WatchTowards.Local.Y; a.WatchZ[k] = post.WatchTowards.Local.Z;
                 a.Window[k] = post.Window ? (byte)1 : (byte)0;
             }
             return a;
@@ -289,7 +289,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = Defaults(authored.Position, authored.SearchRadius, authored.Speed);
             block.Order.Authored = AuthoredPosts.From(authored.Posts);   // ⭐ D-2f (DA-46)
-            block.Order.InitiatedBy = authored.InitiatedBy.NetworkId;      // ⭐ CE-2306 (DA-96)
+            block.Order.InitiatedBy = authored.InitiatedBy.Ref.NetworkId;      // ⭐ CE-2306 (DA-96)
             block.State = default;
         }
 

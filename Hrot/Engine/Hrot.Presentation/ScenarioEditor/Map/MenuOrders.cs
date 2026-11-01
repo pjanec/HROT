@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
@@ -29,7 +30,7 @@ namespace Hrot.ScenarioEditor.Map
     public sealed class MenuOrders : IEcsModuleSystem
     {
         private readonly EntityRepository _world;
-        private Task<Hrot.Core.Mission.GeoPoint>? _location;
+        private Task<Fdp.Core.WorldPoint>? _location;   // ⭐ S0 item 5 (SR-135): a picked place is LOCAL METRES
         private Task<int>? _enemy;
         private long _unit;
         private OrderInfo? _order;
@@ -130,7 +131,7 @@ namespace Hrot.ScenarioEditor.Map
             if (_draft.IsComplete) { Report(Send(_draft)); return; }
             switch (order.Pick)
             {
-                case OrderPick.Point:  _location = pick.PickLocationAsync(); break;
+                case OrderPick.Point:  _location = pick.PickLocalAsync(); break;
                 case OrderPick.Entity: _enemy = pick.PickEntityAsync(order.PickTarget?.Presets is { Count: > 0 } p ? System.Linq.Enumerable.ToArray(p) : null); break;
                 default: OpenForm(_world, _draft); break;
             }
@@ -174,7 +175,7 @@ namespace Hrot.ScenarioEditor.Map
             _designating = kind;
             _location = null;
             _enemy = null;
-            if (kind == DesignationKind.MapPoint) _location = pick.PickLocationAsync();
+            if (kind == DesignationKind.MapPoint) _location = pick.PickLocalAsync();
             else _enemy = pick.PickEntityAsync(kind switch
             {
                 DesignationKind.Route => new[] { OrderDesignations.RoutePreset },
@@ -192,9 +193,8 @@ namespace Hrot.ScenarioEditor.Map
                 if (location.Status == TaskStatus.RanToCompletion)
                 {
                     var at = location.Result;
-                    // The adapter answers geodetic when the node has a transform, else world metres in the same fields (x, y):
-                    // without a transform an order's point travels as [y, x] (OrderGeo's fallback).
-                    var point = Geo() != null ? new JsonArray(at.Latitude, at.Longitude) : new JsonArray(at.Longitude, at.Latitude);
+                    // ⭐ S0 item 5 (SR-135): the place travels as local metres [x, y, z] (a PointLink's JSON) — no geodetic conversion at all.
+                    var point = new JsonArray(at.X, at.Y, at.Z);
                     if (_designating is DesignationKind kind) SetDesignation(kind, point);
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params, DesignationLookup())));

@@ -19,11 +19,11 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The man to bring in.</summary>
         [JsonPropertyName("casualty")]
-        public EntityRef Casualty;
+        public EntityLink Casualty;
 
         /// <summary>Where to bring him (sim metres, Z up); zero ⇒ the nearest cover around him, as <c>CasualtyCare</c> does.</summary>
         [JsonPropertyName("to")]
-        public Vector3 To;
+        public PointLink To;
 
         /// <summary>Put him down at the point instead of keeping him on the carrier.</summary>
         [JsonPropertyName("putDown")]

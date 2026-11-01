@@ -339,6 +339,13 @@ public sealed class Stage3_NormalizationTests
             ("System.Int64",  "System.Single"), ("System.Int64",  "System.Double"),
             ("System.UInt64", "System.Single"), ("System.UInt64", "System.Double"),
             ("System.Single", "System.Double"),
+
+            // S0 (item 5): an AUTHORED point read as its internal value. Not numeric, and it drops the RefSpec -- which is
+            // safe because the load-time walker has already resolved the spec into Local, so Local IS the place the run uses.
+            // The reverse (Vector3 -> PointLink) is deliberately absent: it would invent an authored point from a bare value.
+            ("Fdp.Toolkit.Replication.PointLink", "System.Numerics.Vector3"),
+            // S0: a literal EntityRef fills an authored EntityLink (an empty RefSpec); the reverse would drop the authored form.
+            ("Fdp.Toolkit.Replication.EntityRef", "Fdp.Toolkit.Replication.EntityLink"),
         };
 
         var table = typeof(StaticTypeRegistry)

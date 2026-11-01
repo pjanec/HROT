@@ -93,6 +93,17 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct);
 
     /// <inheritdoc/>
+    /// <remarks>⭐ S0 item 5 — the clicked world point as it is (local metres, Z 0): no geodetic conversion.</remarks>
+    public Task<Fdp.Core.WorldPoint> PickLocalAsync(CancellationToken ct = default)
+        => _pickers.RunPickAsync<Fdp.Core.WorldPoint>(
+            Hrot.ScenarioEditor.Tools.ScenarioToolIds.PickLocation,
+            (tcs, remove) => new Fdp.Toolkit.Vis2D.Gizmos.FdpLocationPickerGizmo(
+                onPicked: worldPos => tcs.TrySetResult(new Fdp.Core.WorldPoint(worldPos.X, worldPos.Y, 0f)),
+                onRemove: remove,
+                onCancelled: () => tcs.TrySetCanceled()),
+            ct);
+
+    /// <inheritdoc/>
     public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
     {
         var filter = _filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());

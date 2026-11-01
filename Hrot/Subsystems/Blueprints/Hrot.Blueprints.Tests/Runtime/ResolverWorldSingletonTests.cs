@@ -51,10 +51,10 @@ public sealed class ResolverWorldSingletonTests
     /// </remarks>
     private static string PlanJson() => $$"""
         {
-          "firingLineStart": [{{Lat}}, {{Lon}}],
-          "firingLineEnd":   [{{Lat}}, {{Lon}}],
-          "baselineStart":   [{{Lat}}, {{Lon}}],
-          "baselineEnd":     [{{Lat}}, {{Lon}}]
+          "firingLineStart": [{{Lon}}, {{Lat}}, 0],
+          "firingLineEnd":   [{{Lon}}, {{Lat}}, 0],
+          "baselineStart":   [{{Lon}}, {{Lat}}, 0],
+          "baselineEnd":     [{{Lon}}, {{Lat}}, 0]
         }
         """;
 
@@ -75,35 +75,23 @@ public sealed class ResolverWorldSingletonTests
     /// ⭐⭐ <b>Published ⇒ the resolver finds it and converts.</b> The transform turns degrees into
     /// engine metres, so the result must NOT be the raw longitude/latitude.
     /// </summary>
+    /// <summary>⭐ S0 item 5 (SR-135): an authored point is LOCAL METRES — a pick converts once, at the gesture. So the resolver
+    /// no longer reaches the world's geo transform: with one published, the point still passes through unchanged (the retired
+    /// claim was that the transform ran; a result of <c>WGS84.ToCartesian(Lat, Lon)</c> would mean it still did).</summary>
     [Fact]
-    public void AResolverReachesTheGeoTransform_ThroughTheWorldAlone()
+    public void AResolver_TakesLocalPointsAsTheyAre_EvenWhenTheWorldPublishesAGeoTransform()
     {
         var world = new EntityRepository();
         world.SetSingletonManaged<IGeographicTransform>(new Fdp.Modules.Geographic.Transforms.WGS84Transform());
 
-        var expected = new Fdp.Modules.Geographic.Transforms.WGS84Transform().ToCartesian(Lat, Lon, 0.0);
-        var result   = Resolve(world);
+        var result = Resolve(world);
 
-        // ⭐ The REAL converted value, not merely "not the raw degrees": an all-zero result would
-        //   satisfy the weaker claim and prove nothing about the transform having run.
-        Assert.Equal(expected.X, result.StartX, 3);
-        Assert.Equal(expected.Y, result.StartY, 3);
+        Assert.Equal((float)Lon, result.StartX);
+        Assert.Equal((float)Lat, result.StartY);
     }
 
-    /// <summary>
-    /// 🔴🔴 <b>The degradation, pinned rather than discovered.</b> With nothing published the resolver
-    /// falls back to <i>"Cartesian-only (tests / offline contexts)"</i> and reads the DEGREES AS
-    /// METRES. ⛔ No throw, no log — the plan is simply built in the wrong place.
-    ///
-    /// <para>
-    /// ⚠ <b>This test asserts the current behaviour on purpose, not because it is right.</b> The
-    /// fallback is deliberate and documented in the resolver, so changing it is a design call, not a
-    /// fix to smuggle in here. ⭐ What the test buys is that the silent arm is now <b>written down and
-    /// falsifiable</b>: if a future change makes it loud, this test says so.
-    /// </para>
-    /// </summary>
     [Fact]
-    public void WithoutThePublishedSingleton_TheResolverSilentlyTreatsDegreesAsMetres()
+    public void WithoutAnyPublishedSingleton_TheResolverReadsTheSameLocalPoint()
     {
         var result = Resolve(new EntityRepository());
 
@@ -111,11 +99,6 @@ public sealed class ResolverWorldSingletonTests
         Assert.Equal((float)Lat, result.StartY);
     }
 
-    /// <summary>
-    /// ⭐ <b>ONE mechanism, asserted.</b> The two world services a resolver needs —
-    /// <c>IGeographicTransform</c> and <c>NetworkEntityMap</c> — are reached the same way. ⛔ If a
-    /// third mechanism were ever coined for one of them, this is where it shows.
-    /// </summary>
     [Fact]
     public void BothResolverWorldServicesUseTheSameSingletonMechanism()
     {

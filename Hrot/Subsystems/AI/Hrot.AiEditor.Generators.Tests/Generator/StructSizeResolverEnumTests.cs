@@ -122,7 +122,10 @@ namespace Layout
         [InlineData(typeof(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams))]
         [InlineData(typeof(global::Hrot.AI.Behaviors.Brains.HillAttackMutableState))]   // fixed buffers: unsizeable before
         [InlineData(typeof(global::Hrot.AI.Behaviors.Brains.SubordinateOrder))]   // R-2006: was HillAttackRunner (same shape: Entity + ints + bool)
-        [InlineData(typeof(global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint))]
+        [InlineData(typeof(global::Fdp.Toolkit.Replication.PointLink))]
+        [InlineData(typeof(global::Fdp.Toolkit.Replication.EntityLink))]   // S0 item 5: RefSpec is Explicit — invisible to Roslyn from metadata
+        [InlineData(typeof(global::Fdp.Toolkit.Replication.AreaLink))]
+        [InlineData(typeof(global::Fdp.Core.RefSpec))]
         [InlineData(typeof(global::Fdp.Core.Entity))]
         public void CE2027_AShippedStruct_IsSizedAsTheClrLaysItOut(System.Type type)
         {

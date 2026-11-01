@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -28,7 +29,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The area's centre (sim metres).</summary>
         [JsonPropertyName("Position")]
-        public Vector3 Position;
+        public PointLink Position;
 
         /// <summary>The area's radius (m); 0 = 60.</summary>
         [JsonPropertyName("SearchRadius")]

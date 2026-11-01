@@ -54,7 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Params = new TriggerIedParams
             {
-                Charge = authored.Charge.NetworkId,
+                Charge = authored.Charge.Ref.NetworkId,
                 KillZoneMetres = authored.KillZoneMetres > 0f ? authored.KillZoneMetres : DefaultKillZoneMetres,
                 AnyTarget = authored.AnyTarget ? (byte)1 : (byte)0,
                 TimeoutSeconds = Math.Max(0f, authored.TimeoutSeconds),

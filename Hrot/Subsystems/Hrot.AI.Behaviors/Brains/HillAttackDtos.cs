@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
@@ -240,7 +241,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolved to a local ECS <c>Entity</c> via <c>NetworkEntityMap</c> at runtime.
         /// Never stores a local generational entity handle (would become stale across frames).
         /// </summary>
-        public long TargetNetworkId;     // 8, offset 32 (8-byte aligned)
+        public Fdp.Toolkit.Replication.EntityLink TargetNetworkId;     // ⭐ S0 item 5 (SR-140) — an authored reference; was a raw long (8 B); EntityLink is 48 B
 
         /// <summary>
         /// ⭐ CE-2230 H-5 — the WAVE's go time (simulation seconds; 0 = go when ready): every tank of a wave waits in its hide until

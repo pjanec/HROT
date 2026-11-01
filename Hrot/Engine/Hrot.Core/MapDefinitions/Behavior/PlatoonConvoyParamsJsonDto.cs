@@ -19,7 +19,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The route the vehicles drive (a route entity's network id).</summary>
         [JsonPropertyName("Route")]
         [MapPickableEntity("road_graphs")]
-        public EntityRef Route;
+        public EntityLink Route;
 
         /// <summary>The vehicles' speed on the route, and the squads' on foot (m/s); 0 = each one's own default.</summary>
         [JsonPropertyName("Speed")]

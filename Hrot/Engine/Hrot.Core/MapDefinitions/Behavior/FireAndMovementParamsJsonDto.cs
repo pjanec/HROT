@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -16,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where the squad closes to (sim metres, Z up) — usually the enemy's position.</summary>
         [JsonPropertyName("Objective")]
-        public Vector3 Objective;
+        public PointLink Objective;
 
         /// <summary>The longest one rush (m); 0 = 15.</summary>
         [JsonPropertyName("RushMetres")]

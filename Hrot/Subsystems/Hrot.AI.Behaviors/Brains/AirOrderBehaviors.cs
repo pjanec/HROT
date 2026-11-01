@@ -73,7 +73,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.AirPlatformMove)]
         public static void Resolve(in MoveOrder order, ref AirPlatformMoveBlackboard block, EntityRepository world, Entity self)
         {
-            var at = OrderGeo.ToLocal(world, order.Location, 0f);
+            var at = (System.Numerics.Vector3)order.Location;
             block.Fly = new FlyToParams { X = at.X, Y = at.Y, Speed = order.Speed, ArrivalRadius = order.ArrivalRadius };
         }
 

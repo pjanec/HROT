@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Fdp.Toolkit.Behavior.Attributes;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 using Hrot.Common.Orders;
 using Hrot.Editor.DebugApi;
@@ -77,9 +76,9 @@ public sealed class OrderVocabularyTests
 
     // ── CE-2148 (P5, design §13.11) — mandatory fields, the completeness rule, the draft ──────────────────────────────
 
-    private struct TwoPicks { [Required] public EntityRef Who; [Required] public PickableGeoPoint Where; }
-    private struct NeedsANumber { [Required] public float Range; public EntityRef Optional; }
-    private struct OptionalPick { [MapPickableEntity("tactical_graphics")] public EntityRef Area; }
+    private struct TwoPicks { [Required] public EntityLink Who; [Required] public PointLink Where; }
+    private struct NeedsANumber { [Required] public float Range; public EntityLink Optional; }
+    private struct OptionalPick { [MapPickableEntity("tactical_graphics")] public EntityLink Area; }
 
     private static OrderInfo Probe(Type dto)
     {
@@ -170,11 +169,11 @@ public sealed class OrderVocabularyTests
 
     private struct NeedsAll
     {
-        [Required] public EntityRef Enemy;
-        [Required, MapPickableEntity("road_graphs")] public EntityRef Road;
-        [Required, MapPickableEntity("tactical_graphics")] public EntityRef Sector;
-        [Required] public PickableGeoPoint Spot;
-        public EntityRef OptionalTarget;
+        [Required] public EntityLink Enemy;
+        [Required, MapPickableEntity("road_graphs")] public EntityLink Road;
+        [Required, MapPickableEntity("tactical_graphics")] public EntityLink Sector;
+        [Required] public PointLink Spot;
+        public EntityLink OptionalTarget;
     }
 
     /// <summary>⭐ §13.3 the kinds — an order field's TYPE and picker preset decide which designation can fill it.</summary>

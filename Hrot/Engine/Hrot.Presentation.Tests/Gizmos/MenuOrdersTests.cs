@@ -197,7 +197,7 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal(_unit, order.Entity);
         Assert.Equal("Order.Move", order.IntentId);                    // ⭐ CE-2143 — the ORDER; the unit picks how
         Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, order.Origin);
-        Assert.Contains("\"Location\":[-40,120]", order.JsonParams);    // no transform: [y, x] (OrderGeo's fallback)
+        Assert.Contains("\"Location\":[-40,120,0]", order.JsonParams);    // ⭐ S0 item 5: local metres [x, y, z] (the stub has no frame: x = the longitude field)
     }
 
     [Fact]
@@ -382,8 +382,8 @@ public sealed class MenuOrdersTests : IDisposable
 
     private struct TwoPicks
     {
-        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.EntityRef Who;
-        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Behavior.Params.PickableGeoPoint Where;
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.EntityLink Who;
+        [System.ComponentModel.DataAnnotations.Required] public Fdp.Toolkit.Replication.PointLink Where;
     }
 
     private sealed class FakeForm : IOrderForm
@@ -526,7 +526,7 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.True(entry.Send());
         Assert.Equal(new[] { UnitId, 66L }, sent.Select(x => x.Unit));                 // once per unit
         Assert.All(sent, x => Assert.Contains($"\"Who\":{EnemyId}", x.Json));
-        Assert.All(sent, x => Assert.Contains("\"Where\":[50.5,14.25]", x.Json));
+        Assert.All(sent, x => Assert.Contains("\"Where\":[14.25,50.5,0]", x.Json));
         DrawFrame(form);
         Assert.Empty(form.Entries);                                                    // every unit accepted: the form closes
     }

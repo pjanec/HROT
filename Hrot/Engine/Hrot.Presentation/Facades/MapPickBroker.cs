@@ -1,5 +1,4 @@
 using Fdp.Presentation.Editing;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 
 namespace Hrot.Presentation.Facades;
@@ -20,7 +19,7 @@ public sealed class MapPickBroker : IMapPickContext
 
     private string? _pendingPath;
     private Task<int>? _entityPickTask;
-    private Task<Hrot.Core.Mission.GeoPoint>? _locationPickTask;
+    private Task<Fdp.Core.WorldPoint>? _locationPickTask;
 
     /// <summary>A broker over a fixed pick service.</summary>
     public MapPickBroker(Hrot.UI.Common.Facades.IMapPickService pickService)
@@ -85,7 +84,7 @@ public sealed class MapPickBroker : IMapPickContext
         var service = _pickService();
         if (service == null) return;
         _pendingPath      = jsonPath;
-        _locationPickTask = service.PickLocationAsync();
+        _locationPickTask = service.PickLocalAsync();   // ⭐ S0 item 5: local metres, written as a PointLink
         _entityPickTask   = null;
     }
 
@@ -105,7 +104,7 @@ public sealed class MapPickBroker : IMapPickContext
     }
 
     /// <inheritdoc/>
-    public bool TryConsumeLocationPick(string jsonPath, out PickableGeoPoint location)
+    public bool TryConsumeLocationPick(string jsonPath, out PointLink location)
     {
         location = default;
         if (_pendingPath != jsonPath || _locationPickTask is not { IsCompleted: true } task) return false;
@@ -113,7 +112,7 @@ public sealed class MapPickBroker : IMapPickContext
         _pendingPath      = null;
         _locationPickTask = null;
         if (!task.IsCompletedSuccessfully) return false;
-        location = new PickableGeoPoint(task.Result.Latitude, task.Result.Longitude);
+        location = new PointLink(task.Result);
         return true;
     }
 }

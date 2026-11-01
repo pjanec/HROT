@@ -150,10 +150,10 @@ public class CE472_IntentAndJsonNodeTests
             AssetId = Guid.NewGuid(), Name = "Ce2023StructRoundTrip", Dispatch = BlueprintDispatchKind.Library,
             Graphs =
             {
-                RoundTrip("X", "X", "System.Single", dto: dto, inMember: "X"),
-                RoundTrip("Ok", "Ok", "System.Boolean", dto: dto, inMember: "X"),
-                RoundTrip("BadOk", "Ok", "System.Boolean", badJson: "not json", dto: dto, inMember: "X"),
-                RoundTrip("BadX", "X", "System.Single", badJson: "not json", dto: dto, inMember: "X"),
+                RoundTrip("Speed", "Speed", "System.Double", dto: dto, inMember: "Speed"),   // S0 item 5: X / Y are gone (the target is ONE PointLink); Speed is a plain double member
+                RoundTrip("Ok", "Ok", "System.Boolean", dto: dto, inMember: "Speed"),
+                RoundTrip("BadOk", "Ok", "System.Boolean", badJson: "not json", dto: dto, inMember: "Speed"),
+                RoundTrip("BadSpeed", "Speed", "System.Double", badJson: "not json", dto: dto, inMember: "Speed"),
             },
         };
     }
@@ -198,7 +198,7 @@ public class CE472_IntentAndJsonNodeTests
         //   read by BehaviorParams.FromBlockResolver — this deserialisation, with these options.
         var p = Read(sent.JsonParams);
         Assert.Equal(12.5f, p.SlotX);
-        Assert.Equal(4242L, p.TargetNetworkId);
+        Assert.Equal(4242L, p.TargetNetworkId.Ref.NetworkId);
         Assert.Equal(15f, p.ApproachSpeed);
         Assert.Equal(5f, p.CreepSpeed);
 
@@ -207,7 +207,7 @@ public class CE472_IntentAndJsonNodeTests
         var oracle = System.Text.Json.JsonSerializer.Serialize(
             new HullDownAttackParams
             {
-                SlotX = 12.5f, TargetNetworkId = 4242L, ApproachSpeed = 15f, CreepSpeed = 5f,
+                SlotX = 12.5f, TargetNetworkId = new Fdp.Toolkit.Replication.EntityRef(4242L), ApproachSpeed = 15f, CreepSpeed = 5f,
             },
             Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
         Assert.Equal(Read(oracle), p);
@@ -251,10 +251,10 @@ public class CE472_IntentAndJsonNodeTests
         var asm = fixture.CompileAndLoad(asset, GoldenCorpus.Options());
         object Call(string fn) => Method(asm, fn).Invoke(null, new object[] { 3.5f })!;
 
-        Assert.Equal(3.5f, Call("X"));
+        Assert.Equal(3.5, Call("Speed"));
         Assert.Equal(true, Call("Ok"));
         Assert.Equal(false, Call("BadOk"));
-        Assert.Equal(0f, Call("BadX"));
+        Assert.Equal(0.0, Call("BadSpeed"));
     }
 
     [Theory]
@@ -279,11 +279,11 @@ public class CE472_IntentAndJsonNodeTests
             { typeof(HullDownAttackIntentDto).Assembly, typeof(Hrot.AI.Behaviors.Mappers.HullDownAttackMapper).Assembly });
         var hull = Assert.Single(contracts, c => c.Id == "HullDownAttack");
         Assert.Equal(DtoFqn, hull.DtoTypeFqn);
-        Assert.Contains(hull.Members, m => m.Name == "TargetNetworkId" && m.TypeId == "Fdp.Toolkit.Replication.EntityRef");
+        Assert.Contains(hull.Members, m => m.Name == "TargetNetworkId" && m.TypeId == "Fdp.Toolkit.Replication.EntityLink");
 
         var move = Assert.Single(contracts, c => c.Id == "MoveToLocation");
-        Assert.DoesNotContain(move.Members, m => m.Name == "PickableLocation");   // [JsonIgnore] + not pinnable
-        Assert.Contains(move.Members, m => m.Name == "X" && m.TypeId == "System.Single");
+        Assert.DoesNotContain(move.Members, m => m.Name == "PickableLocation");   // retired: the target is ONE PointLink now
+        Assert.Contains(move.Members, m => m.Name == "Location" && m.TypeId == "Fdp.Toolkit.Replication.PointLink");
 
         var kinds = IntentContractPaletteEntries.Entries(new FixedProvider(contracts)).Select(d => d.Kind).ToList();
         Assert.Contains("Intent.Send.HullDownAttack", kinds);

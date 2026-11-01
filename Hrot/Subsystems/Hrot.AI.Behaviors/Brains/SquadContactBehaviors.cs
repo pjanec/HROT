@@ -139,7 +139,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Order = Defaults(authored.RetreatSearchRadius, authored.Speed, authored.ArrivalRadius, authored.BoundTimeoutSeconds);
             block.Order.To = authored.To;
-            block.Order.HasTo = authored.To != Vector3.Zero ? (byte)1 : (byte)0;
+            block.Order.HasTo = (Vector3)authored.To != Vector3.Zero ? (byte)1 : (byte)0;
             block.State = default;
         }
 

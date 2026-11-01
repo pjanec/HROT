@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using Hrot.Core.Mission;
 
 namespace Hrot.UI.Common.Facades;
@@ -18,6 +19,26 @@ public interface IMapPickService
     /// to a <see cref="TaskCanceledException"/> fault.
     /// </param>
     Task<Hrot.Core.Mission.GeoPoint> PickLocationAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// ⭐ <c>S0</c> item 5 (<c>DESIGN_Scenario_Rules</c> §9.8.0, SR-135) — the same pick answered in LOCAL METRES (the engine's only frame; a
+    /// params field's <c>PointLink</c> is written from it, with no geodetic round trip). A map host overrides it with the clicked world point;
+    /// the DEFAULT derives it from <see cref="PickLocationAsync"/> exactly as that adapter's no-transform fallback does (X = longitude field,
+    /// Y = latitude field), so a service that only knows geodetic picks keeps working.
+    /// </summary>
+    Task<Fdp.Core.WorldPoint> PickLocalAsync(CancellationToken ct = default)
+    {
+        // ⛔ not an `async` method: a poller reads IsCompleted the moment the pick completes, and an `await` continuation only runs
+        //   inline when no SynchronizationContext is current (a test host installs one) — ExecuteSynchronously always does.
+        var result = new TaskCompletionSource<Fdp.Core.WorldPoint>();
+        PickLocationAsync(ct).ContinueWith(t =>
+        {
+            if (t.IsCanceled) result.TrySetCanceled();
+            else if (t.IsFaulted) result.TrySetException(t.Exception!.InnerExceptions);
+            else result.TrySetResult(new Fdp.Core.WorldPoint((float)t.Result.Longitude, (float)t.Result.Latitude, 0f));
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return result.Task;
+    }
 
     /// <summary>
     /// Requests a single entity pick from the operator, optionally filtered by layer preset names.

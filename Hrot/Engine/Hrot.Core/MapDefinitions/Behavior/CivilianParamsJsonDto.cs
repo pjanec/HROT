@@ -62,7 +62,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ CE-2240 — where he protests (a building's front, a square): the point the protesters ring.</summary>
         [JsonPropertyName("ProtestAt")]
-        public System.Numerics.Vector3 ProtestAt;
+        public Fdp.Toolkit.Replication.PointLink ProtestAt;
 
         /// <summary>⭐ CE-2238 (§5i, CV-5) — he is an INSTIGATOR: his anger is 1 and he raises the anger of the protesters round him.
         /// Default false.</summary>

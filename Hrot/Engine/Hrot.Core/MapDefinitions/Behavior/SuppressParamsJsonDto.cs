@@ -18,7 +18,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The contact to suppress.</summary>
         [JsonPropertyName("target")]
-        public EntityRef Target;
+        public EntityLink Target;
 
         /// <summary>Where he was last reported (world X, m) — used when this soldier has no memory of him.</summary>
         [JsonPropertyName("x")]

@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Fdp.Core;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Replication;
 using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Behavior;
@@ -125,8 +124,8 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>⭐ <c>CE-2148</c> — the DTO's public fields as order fields (a property is still read, R-2002 forbids them; a
-        /// <c>[JsonIgnore]</c> member is never a field). The KIND comes from the type: a <see cref="PickableGeoPoint"/> is a point, an
-        /// <see cref="EntityRef"/> an entity (DESIGN_Map_Picking_Unification P5); <c>[Required]</c> marks it mandatory (F5).</summary>
+        /// <c>[JsonIgnore]</c> member is never a field). The KIND comes from the type: a <c>PointLink</c> is a point, an
+        /// <c>EntityLink</c> an entity (DESIGN_Map_Picking_Unification P5); <c>[Required]</c> marks it mandatory (F5).</summary>
         public static IReadOnlyList<OrderField> FieldsOf(Type dto)
         {
             const BindingFlags Public = BindingFlags.Public | BindingFlags.Instance;
@@ -137,7 +136,7 @@ namespace Hrot.Common.Orders
                 .Select(m => new OrderField(
                     m.Item1.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? m.Item1.Name,
                     m.Item2,
-                    m.Item2 == typeof(PickableGeoPoint) ? OrderFieldKind.MapPoint : m.Item2 == typeof(EntityRef) ? OrderFieldKind.MapEntity : OrderFieldKind.Value,
+                    m.Item2 == typeof(Fdp.Toolkit.Replication.PointLink) ? OrderFieldKind.MapPoint : m.Item2 == typeof(Fdp.Toolkit.Replication.EntityLink) ? OrderFieldKind.MapEntity : OrderFieldKind.Value,   // ⭐ S0 item 5: the AUTHORED types key the picker
                     m.Item1.IsDefined(typeof(RequiredAttribute), inherit: true),
                     m.Item1.GetCustomAttribute<Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute>()?.FilterPresets ?? Array.Empty<string>()))
                 .ToArray();
@@ -194,10 +193,13 @@ namespace Hrot.Common.Orders
                     if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; break; }
                 if (value == null) continue;   // absent: MissingIn's question
                 string? why = null;
-                if (value is not JsonArray a || a.Count != 2) why = "is not [lat, lon]";
-                else if (!TryNumber(a[0], out double lat) || !TryNumber(a[1], out double lon)) why = "is not two numbers [lat, lon]";
-                else if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0)
-                    why = $"[{lat}, {lon}] is out of range (|lat| ≤ 90, |lon| ≤ 180) — a local [y, x] is not a geodetic point";
+                // ⭐ S0 item 5 (SR-135): a place is LOCAL METRES [x, y(, z)] — or an authored reference ("@Key" / a GUID / {…}) a person wrote.
+                if (value is JsonArray a)
+                {
+                    if (a.Count is not (2 or 3)) why = "is not [x, y, z] local metres";
+                    else foreach (var n in a) if (!TryNumber(n, out _)) { why = "is not numbers [x, y, z] (local metres)"; break; }
+                }
+                else if (value is not (JsonValue or JsonObject)) why = "is not [x, y, z] local metres"; 
                 if (why != null) (bad ??= new List<(OrderField, string)>()).Add((f, why));
             }
             return bad ?? (IReadOnlyList<(OrderField, string)>)Array.Empty<(OrderField, string)>();

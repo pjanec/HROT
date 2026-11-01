@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.Entry,
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -171,7 +171,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.Exit,
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -210,7 +210,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.EntryOrExit,
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",
@@ -245,7 +245,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 var predicate = new SpatialBoundingPredicateDto
                 {
-                    Bounds = new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) },
+                    Bounds = AreaBoxes.FromBox(new BoundingBox2D { Min = new Vector2(0f, 0f), Max = new Vector2(10f, 10f) }),
                     TriggerEvent          = BoundaryEvent.Entry, // only entry
                     PositionComponentType = typeof(HarnessTransform),
                     PositionXPath         = "Position.X",

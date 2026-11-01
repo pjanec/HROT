@@ -1,4 +1,3 @@
-using Fdp.Toolkit.Behavior.Params;
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 
@@ -16,13 +15,9 @@ namespace Fdp.Toolkit.Behavior.Tests.Fixtures
     /// </summary>
     public class MoveToLocationParamsJsonDto
     {
-        /// <summary>Target latitude in degrees (flat JSON wire format).</summary>
-        [JsonPropertyName("targetLat")]
-        public double TargetLat { get; set; }
-
-        /// <summary>Target longitude in degrees (flat JSON wire format).</summary>
-        [JsonPropertyName("targetLon")]
-        public double TargetLon { get; set; }
+        /// <summary>The target as ONE authored point (S0): a <c>[x,y,z]</c> on the wire, a reference form when authored by key.</summary>
+        [JsonPropertyName("target")]
+        public Fdp.Toolkit.Replication.PointLink Location { get; set; }
 
         /// <summary>Travel speed in meters per second.</summary>
         [JsonPropertyName("speed")]
@@ -31,23 +26,5 @@ namespace Fdp.Toolkit.Behavior.Tests.Fixtures
         /// <summary>Radius in meters within which arrival is declared.</summary>
         [JsonPropertyName("arrivalRadius")]
         public double ArrivalRadius { get; set; }
-
-        /// <summary>
-        /// Composite facade exposing the target position as a single pickable value.
-        /// The UI compiler targets this property to generate a single "Pick" button for
-        /// the world-location pick flow, resolving the two-scalar impedance mismatch.
-        /// Excluded from JSON serialization; <see cref="TargetLat"/> and
-        /// <see cref="TargetLon"/> carry the wire representation.
-        /// </summary>
-        [JsonIgnore]
-        public PickableGeoPoint PickableLocation
-        {
-            get => new PickableGeoPoint(TargetLat, TargetLon);
-            set
-            {
-                TargetLat = value.Latitude;
-                TargetLon = value.Longitude;
-            }
-        }
     }
 }

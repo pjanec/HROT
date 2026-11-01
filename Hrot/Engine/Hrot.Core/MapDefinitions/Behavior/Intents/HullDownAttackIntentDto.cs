@@ -34,7 +34,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
         public float AttackDirY;
         /// <summary>The target (resolved on the receiving node). ⭐ An <see cref="EntityRef"/> (<c>DESIGN_Entity_Reference.md</c>)
         /// — it was a bare <c>long</c> with no remap and no picker, the one authorable id the attributes had missed.</summary>
-        public EntityRef TargetNetworkId;
+        public EntityLink TargetNetworkId;
         /// <summary>Approach speed far from the slot (m/s).</summary>
         public float ApproachSpeed = 15f;
         /// <summary>Creep speed near the slot (m/s).</summary>

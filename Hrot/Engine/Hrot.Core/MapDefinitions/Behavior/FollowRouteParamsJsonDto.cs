@@ -22,7 +22,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// </summary>
         [JsonPropertyName("routeEntityId")]
         [MapPickableEntity("road_graphs")]   // ⭐ narrows the picker; the TYPE makes it pickable and remapped
-        public EntityRef RouteEntityId;
+        public EntityLink RouteEntityId;
 
         /// <summary>⭐ <c>CE-2131</c> (CE-2128 ①) — the asked speed (m/s); 0 = the trajectory's own. The mission path always sent
         /// it; the published contract left it out until CE-2131.</summary>

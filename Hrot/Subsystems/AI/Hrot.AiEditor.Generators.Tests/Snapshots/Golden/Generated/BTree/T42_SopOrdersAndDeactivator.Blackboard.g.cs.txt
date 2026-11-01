@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Explicit, Size = 56)]
+[StructLayout(LayoutKind.Explicit, Size = 92)]
 public struct T42_SopOrdersAndDeactivator_FdpToolkitBehaviorComponentsBrainBlackboard
 {
     [FieldOffset(0)]

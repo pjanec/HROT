@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -32,7 +33,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where the grenade lies (sim metres).</summary>
         [JsonPropertyName("At")]
-        public Vector3 At;
+        public PointLink At;
 
         /// <summary>Its lethal radius (m); 0 = 5 (an M67's).</summary>
         [JsonPropertyName("LethalMetres")]
@@ -44,6 +45,6 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where a throw back goes (its thrower, or where it came from).</summary>
         [JsonPropertyName("ThrowAt")]
-        public Vector3 ThrowAt;
+        public PointLink ThrowAt;
     }
 }

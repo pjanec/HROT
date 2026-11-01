@@ -212,7 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
             switch (p.Order)
             {
                 case OrderKind.Move:
-                    json = JsonSerializer.Serialize(new MoveOrder { Location = OrderGeo.ToGeo(world, p.Point), Speed = p.Speed, ArrivalRadius = p.ArrivalRadius },
+                    json = JsonSerializer.Serialize(new MoveOrder { Location = p.Point, Speed = p.Speed, ArrivalRadius = p.ArrivalRadius },
                                                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
                     break;
                 case OrderKind.Hold:

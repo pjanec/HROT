@@ -173,11 +173,11 @@ public sealed class DataBreakpointSystemStatefulTests
                 PositionXPath         = "X",
                 PositionYPath         = "Y",
                 TriggerEvent          = BoundaryEvent.Entry,
-                Bounds                = new BoundingBox2D
+                Bounds                = AreaBoxes.FromBox(new BoundingBox2D
                 {
                     Min = new Vector2(0f, 0f),
                     Max = new Vector2(10f, 10f)
-                }
+                })
             }
         });
 

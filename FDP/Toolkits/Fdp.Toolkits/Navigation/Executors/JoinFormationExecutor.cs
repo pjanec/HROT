@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Navigation.Executors
     public struct JoinFormationParams
     {
         /// <summary>Network entity ID of the formation leader.</summary>
-        public int LeaderNetworkId;
+        public Fdp.Toolkit.Replication.EntityLink LeaderNetworkId;
 
         /// <summary>
         /// Desired formation shape encoded as the byte value of
@@ -94,10 +94,10 @@ namespace Fdp.Toolkit.Navigation.Executors
                 RootParamsAccess.RequireRootBytes(world, entity);
 
             // Resolve leader network ID → ECS entity.
-            if (!_entityMap.TryGetEntity(p.LeaderNetworkId, out var leaderEntity))
+            if (!_entityMap.TryGetEntity((int)p.LeaderNetworkId.Ref.NetworkId, out var leaderEntity))
             {
                 FdpLog<JoinFormationExecutor>.Warn(
-                    $"[JoinFormationExecutor] Leader network ID {p.LeaderNetworkId} not found " +
+                    $"[JoinFormationExecutor] Leader network ID {p.LeaderNetworkId.Ref.NetworkId} not found " +
                     $"in NetworkEntityMap. Setting channel to Failure.");
                 channel.Status = NodeStatus.Failure;
                 return;

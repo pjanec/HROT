@@ -67,12 +67,12 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(commander, roster);
 
             Assert.True(new DefendAreaMapper().TryMap(commander, repo,
-                "{\"CenterLat\":50.001,\"CenterLon\":14.001,\"RadiusMeters\":25}", out var assignment));
+                System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment));
             Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.SquadDefend, assignment.BehaviorName);
             var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto>(
                 assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            Assert.Equal(centre.X, dto.Position.X, 2);
-            Assert.Equal(centre.Y, dto.Position.Y, 2);
+            Assert.Equal(centre.X, dto.Position.Local.X, 2);
+            Assert.Equal(centre.Y, dto.Position.Local.Y, 2);
             Assert.Equal(25f, dto.SearchRadius);
         }
 
@@ -98,12 +98,12 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(platoon, roster);
 
             Assert.True(new DefendAreaMapper().TryMap(platoon, repo,
-                "{\"CenterLat\":50.001,\"CenterLon\":14.001,\"RadiusMeters\":25}", out var assignment));
+                System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment));
             Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.PlatoonDefend, assignment.BehaviorName);
             var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.PlatoonDefendParamsJsonDto>(
                 assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            Assert.Equal(centre.X, dto.Position.X, 2);
-            Assert.Equal(centre.Y, dto.Position.Y, 2);
+            Assert.Equal(centre.X, dto.Position.Local.X, 2);
+            Assert.Equal(centre.Y, dto.Position.Local.Y, 2);
             Assert.Equal(25f, dto.SearchRadius);
         }
 
@@ -126,14 +126,14 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
 
             var result = new DefendAreaMapper().TryMap(entity, repo,
-                "{\"CenterLat\":50.001,\"CenterLon\":14.001,\"RadiusMeters\":25}", out var assignment);
+                System.FormattableString.Invariant($"{{\"Center\":[{centre.X},{centre.Y},0],\"RadiusMeters\":25}}"), out var assignment);
 
             Assert.True(result);
             Assert.Equal("CombatPosture", assignment.BehaviorName);
             var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto>(
                 assignment.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            Assert.Equal(centre.X, dto.Advance.Objective.X, 2);
-            Assert.Equal(centre.Y, dto.Advance.Objective.Y, 2);
+            Assert.Equal(centre.X, dto.Advance.Objective.Local.X, 2);
+            Assert.Equal(centre.Y, dto.Advance.Objective.Local.Y, 2);
             Assert.Equal(25f, dto.Advance.ArrivalRadius);
         }
 

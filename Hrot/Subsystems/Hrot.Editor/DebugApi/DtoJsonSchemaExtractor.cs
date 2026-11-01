@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -198,8 +199,9 @@ namespace Hrot.Editor.DebugApi
         {
             var schema = Describe(member.Type);
 
-            // ⭐ DESIGN_Map_Picking_Unification P5 — a PickableGeoPoint is a map-picked world location by its TYPE.
-            if (member.Type == typeof(Fdp.Toolkit.Behavior.Params.PickableGeoPoint)) schema["picker"] = "worldLocation";
+            // ⭐ DESIGN_Map_Picking_Unification P5 + S0 item 5 — a PointLink / WorldPoint is a map-picked world location (local metres), an EntityLink a map-picked entity, by TYPE.
+            if (member.Type == typeof(Fdp.Toolkit.Replication.PointLink) || member.Type == typeof(Fdp.Core.WorldPoint)) schema["picker"] = "worldLocation";
+            else if (member.Type == typeof(Fdp.Toolkit.Replication.EntityLink)) schema["picker"] = "entity";
 
             // The editor already declares these on the very same members; surfacing them is what
             // lets an agent tell "a string" from "a property path it must discover".
@@ -257,6 +259,18 @@ namespace Hrot.Editor.DebugApi
             // map, and remapped at scenario load. The TYPE says all three, so no attribute is needed.
             if (type == typeof(Fdp.Toolkit.Replication.EntityRef))
                 return new JsonObject { ["type"] = "integer", ["format"] = "entityRef", ["picker"] = "entity" };
+
+            // ⭐ S0 item 5 (DESIGN_Scenario_Rules §9.8.0) — the AUTHORED types. JSON shape = the form: a reference is a network id, "@Key" or a GUID; a place is [x, y, z]
+            // local metres (or a reference whose position it is); an area is {"circle":…} / {"rect":…,"heading":…} / a reference to an area entity.
+            if (type == typeof(Fdp.Toolkit.Replication.EntityLink))
+                return new JsonObject { ["type"] = "integer", ["format"] = "entityRef", ["picker"] = "entity",
+                                        ["description"] = "an entity: its network id (or \"@Key\" / a GUID a person wrote — resolved at load)" };
+            if (type == typeof(Fdp.Toolkit.Replication.PointLink) || type == typeof(Fdp.Core.WorldPoint))
+                return new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "number" }, ["minItems"] = 2, ["maxItems"] = 3, ["format"] = "pointLink", ["picker"] = "worldLocation",
+                                        ["description"] = "a place in LOCAL metres [x, y, z] (or an entity reference whose position it is)" };
+            if (type == typeof(Fdp.Toolkit.Replication.AreaLink))
+                return new JsonObject { ["type"] = "object", ["format"] = "areaLink",
+                                        ["description"] = "an area: {\"circle\": …} / {\"rect\": …, \"heading\": …} / an area entity reference" };
 
             if (type.IsArray)
                 return new JsonObject { ["type"] = "array", ["items"] = Describe(type.GetElementType()!) };

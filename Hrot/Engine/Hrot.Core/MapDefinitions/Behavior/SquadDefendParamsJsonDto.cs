@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Replication;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -16,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The position to defend (sim metres).</summary>
         [JsonPropertyName("Position")]
-        public Vector3 Position;
+        public PointLink Position;
 
         /// <summary>Posts are looked for within this distance of the position (m); 0 = 30.</summary>
         [JsonPropertyName("SearchRadius")]
@@ -34,7 +35,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2306</c> (DA-96, §8e) — an AMBUSH: the charge that initiates it. With it, the squad's own hold-fire (an operator's)
         /// lifts when that charge is gone (set off, or destroyed) or a round lands at a man — not when the enemy is first seen in the sector.</summary>
         [JsonPropertyName("InitiatedBy")]
-        public Fdp.Toolkit.Replication.EntityRef InitiatedBy;
+        public Fdp.Toolkit.Replication.EntityLink InitiatedBy;
     }
 
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-46) — one authored fighting position of a <c>SquadDefend</c> order.</summary>
@@ -44,11 +45,11 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>Where he stands (sim metres; the storey's floor height in Z).</summary>
         [JsonPropertyName("point")]
-        public Vector3 Point;
+        public PointLink Point;
 
         /// <summary>A point he faces — his arc (±45°) points there instead of at the squad's sector; zero = toward the sector.</summary>
         [JsonPropertyName("watchTowards")]
-        public Vector3 WatchTowards;
+        public PointLink WatchTowards;
 
         /// <summary>A window post: he fights it the window way (prone under the sill, up at it — D-2a).</summary>
         [JsonPropertyName("window")]

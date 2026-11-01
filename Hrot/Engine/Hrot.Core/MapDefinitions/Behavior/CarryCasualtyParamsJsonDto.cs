@@ -17,7 +17,7 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>The man who is down.</summary>
         [JsonPropertyName("casualty")]
-        public EntityRef Casualty;
+        public EntityLink Casualty;
 
         /// <summary>Where to bring him (world X, m).</summary>
         [JsonPropertyName("x")]

@@ -95,7 +95,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Plan = default;
             block.Keep = default;
-            block.Plan.RouteNet = authored.Route.NetworkId;
+            block.Plan.RouteNet = authored.Route.Ref.NetworkId;
             block.Plan.Speed = authored.Speed;
             block.Plan.ClearSeconds = authored.ClearSeconds > 0f ? authored.ClearSeconds : DefaultClearSeconds;
         }
@@ -330,7 +330,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (p.OnFoot[slot] == 0) return false;
                     behaviour = "Move";
                     isAbstract = true;
-                    order = JsonSerializer.Serialize(new MoveOrder { Location = OrderGeo.ToGeo(world, p.RouteEnd), Speed = p.Speed, ArrivalRadius = FootArrivalMetres }, json);
+                    order = JsonSerializer.Serialize(new MoveOrder { Location = p.RouteEnd, Speed = p.Speed, ArrivalRadius = FootArrivalMetres }, json);
                     return true;
                 case ConvoyPlan.PhaseSecure:   // DA-101 — only a squad with a man out; one still aboard stays
                     if (!Dismounted(world, squad)) return false;

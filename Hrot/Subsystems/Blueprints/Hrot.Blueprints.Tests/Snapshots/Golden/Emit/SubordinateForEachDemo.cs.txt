@@ -140,135 +140,135 @@ public static class SubordinateForEachDemo_3E9FA2D9_Bp
         {
             var __t7 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item(__t6, __fe7);
             var __t9 = __fe7;
-            var __t10 = 5D;
-            var __t11 = 2D;
-            var __t12 = (global::System.Single)__t9;
-            var __t13 = 10F;
-            var __t14 = __t12 * __t13;
-            var __t15 = (global::System.Single)__t8;
-            var __t16 = new global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto
+            var __t10 = (global::System.Single)__t9;
+            var __t11 = 10F;
+            var __t12 = __t10 * __t11;
+            var __t13 = (global::System.Single)__t8;
+            var __t14 = global::Hrot.AI.Behaviors.Brains.AuthoredPointOps.At(__t12, __t13);
+            var __t15 = 5D;
+            var __t16 = 2D;
+            var __t17 = new global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto
             {
-                Speed = __t10,
-                ArrivalRadius = __t11,
-                X = __t14,
-                Y = __t15
+                Location = __t14,
+                Speed = __t15,
+                ArrivalRadius = __t16
             };
-            var __t17 = global::System.Text.Json.JsonSerializer.Serialize(__t16, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-            var __t18 = global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior;
-            var __t19 = "MoveToLocation";
+            var __t18 = global::System.Text.Json.JsonSerializer.Serialize(__t17, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            var __t19 = global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior;
+            var __t20 = "MoveToLocation";
             ((global::Fdp.Core.EntityRepository)view).Bus.PublishManaged(new global::Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
             {
                 Entity = __t7,
-                IntentId = __t19,
-                JsonParams = __t17,
-                Origin = __t18
+                IntentId = __t20,
+                JsonParams = __t18,
+                Origin = __t19
             });
-            var __t21 = global::Hrot.AI.Behaviors.Brains.SubordinateSlot.Ordered;
-            var __t20 = false;
+            var __t22 = global::Hrot.AI.Behaviors.Brains.SubordinateSlot.Ordered;
+            var __t21 = false;
             {
                 var __lws3 = (global::System.Span<global::Hrot.AI.Behaviors.Brains.SubordinateSlot>)__bb.St.Slots.Items;
                 int __lwc3 = global::System.Math.Min(__bb.St.Slots.Count, 8);
                 if ((uint)__t9 < (uint)__lwc3)
                 {
-                    __lws3[__t9] = __t21;
-                    __t20 = true;
+                    __lws3[__t9] = __t22;
+                    __t21 = true;
                 }
             }
-            _ = __t20;
-            var __t23 = false;
-            var __t24 = new global::Hrot.AI.Behaviors.Brains.SubordinateOrder
+            _ = __t21;
+            var __t24 = false;
+            var __t25 = new global::Hrot.AI.Behaviors.Brains.SubordinateOrder
             {
                 Unit = __t7,
                 Index = __t9,
                 Count = __t8,
-                Confirmed = __t23
+                Confirmed = __t24
             };
-            var __t22 = false;
+            var __t23 = false;
             {
                 var __lws4 = (global::System.Span<global::Hrot.AI.Behaviors.Brains.SubordinateOrder>)__bb.St.Orders.Items;
                 int __lwc4 = global::System.Math.Min(__bb.St.Orders.Count, 8);
                 if (__lwc4 < 8)
                 {
-                    __lws4[__lwc4] = __t24;
+                    __lws4[__lwc4] = __t25;
                     __bb.St.Orders.Count = __lwc4 + 1;
-                    __t22 = true;
+                    __t23 = true;
                 }
             }
-            _ = __t22;
+            _ = __t23;
         }
-        var __t25 = true;
-        __bb.St.Sent = __t25;
-        var __t26 = global::Hrot.AI.Behaviors.Orders.OrderKind.Move;
-        __bb.St.LastOrder = __t26;
+        var __t26 = true;
+        __bb.St.Sent = __t26;
+        var __t27 = global::Hrot.AI.Behaviors.Orders.OrderKind.Move;
+        __bb.St.LastOrder = __t27;
         return global::Fbt.NodeStatus.Running;
         
         __block_branch_08772c5e_false:
-        var __t27 = __bb.St.Confirmed;
-        var __t28 = !__t27;
-        if (__t28)
-            goto __block_branch_803a41ff_true;
+        var __t28 = __bb.St.Confirmed;
+        var __t29 = !__t28;
+        if (__t29)
+            goto __block_branch_fe237056_true;
         else
-            goto __block_branch_803a41ff_false;
+            goto __block_branch_fe237056_false;
         
-        __block_branch_803a41ff_true:
-        ref var __t29 = ref __bb.St.Orders;
-        var __t31 = global::System.Math.Min(__t29.Count, 8);
-        for (int __fe30 = 0; __fe30 < __t31; __fe30++)
+        __block_branch_fe237056_true:
+        ref var __t30 = ref __bb.St.Orders;
+        var __t32 = global::System.Math.Min(__t30.Count, 8);
+        for (int __fe31 = 0; __fe31 < __t32; __fe31++)
         {
-            var __t30 = ((uint)__fe30 < (uint)global::System.Math.Min(__t29.Count, 8) ? __t29.Items[__fe30] : default(global::Hrot.AI.Behaviors.Brains.SubordinateOrder));
-            var __t32 = __fe30;
-            ref var __t33 = ref __bb.St.Slots;
-            var __t34 = __t30.Unit;
-            var __t35 = __t30.Index;
-            var __t36 = __t30.Count;
-            var __t37 = __t30.Confirmed;
-            var __t38 = ((uint)__t35 < (uint)global::System.Math.Min(__t33.Count, 8) ? __t33.Items[__t35] : default(global::Hrot.AI.Behaviors.Brains.SubordinateSlot));
-            var __t39 = global::Hrot.AI.Behaviors.Brains.SubordinateSlot.Ordered;
-            var __t40 = __t38 == __t39;
-            if (__t40)
+            var __t31 = ((uint)__fe31 < (uint)global::System.Math.Min(__t30.Count, 8) ? __t30.Items[__fe31] : default(global::Hrot.AI.Behaviors.Brains.SubordinateOrder));
+            var __t33 = __fe31;
+            ref var __t34 = ref __bb.St.Slots;
+            var __t35 = __t31.Unit;
+            var __t36 = __t31.Index;
+            var __t37 = __t31.Count;
+            var __t38 = __t31.Confirmed;
+            var __t39 = ((uint)__t36 < (uint)global::System.Math.Min(__t34.Count, 8) ? __t34.Items[__t36] : default(global::Hrot.AI.Behaviors.Brains.SubordinateSlot));
+            var __t40 = global::Hrot.AI.Behaviors.Brains.SubordinateSlot.Ordered;
+            var __t41 = __t39 == __t40;
+            if (__t41)
             {
-                var __t41 = 5D;
-                var __t42 = 2D;
-                var __t43 = (global::System.Single)__t35;
-                var __t44 = 10F;
-                var __t45 = __t43 * __t44;
-                var __t46 = -1F;
-                var __t47 = new global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto
+                var __t42 = (global::System.Single)__t36;
+                var __t43 = 10F;
+                var __t44 = __t42 * __t43;
+                var __t45 = -1F;
+                var __t46 = global::Hrot.AI.Behaviors.Brains.AuthoredPointOps.At(__t44, __t45);
+                var __t47 = 5D;
+                var __t48 = 2D;
+                var __t49 = new global::Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto
                 {
-                    Speed = __t41,
-                    ArrivalRadius = __t42,
-                    X = __t45,
-                    Y = __t46
+                    Location = __t46,
+                    Speed = __t47,
+                    ArrivalRadius = __t48
                 };
-                var __t48 = global::System.Text.Json.JsonSerializer.Serialize(__t47, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                var __t49 = global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior;
-                var __t50 = "MoveToLocation";
+                var __t50 = global::System.Text.Json.JsonSerializer.Serialize(__t49, global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                var __t51 = global::Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior;
+                var __t52 = "MoveToLocation";
                 ((global::Fdp.Core.EntityRepository)view).Bus.PublishManaged(new global::Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
                 {
-                    Entity = __t34,
-                    IntentId = __t50,
-                    JsonParams = __t48,
-                    Origin = __t49
+                    Entity = __t35,
+                    IntentId = __t52,
+                    JsonParams = __t50,
+                    Origin = __t51
                 });
-                var __t52 = global::Hrot.AI.Behaviors.Brains.SubordinateSlot.Confirmed;
-                var __t51 = false;
+                var __t54 = global::Hrot.AI.Behaviors.Brains.SubordinateSlot.Confirmed;
+                var __t53 = false;
                 {
                     var __lws5 = (global::System.Span<global::Hrot.AI.Behaviors.Brains.SubordinateSlot>)__bb.St.Slots.Items;
                     int __lwc5 = global::System.Math.Min(__bb.St.Slots.Count, 8);
-                    if ((uint)__t35 < (uint)__lwc5)
+                    if ((uint)__t36 < (uint)__lwc5)
                     {
-                        __lws5[__t35] = __t52;
-                        __t51 = true;
+                        __lws5[__t36] = __t54;
+                        __t53 = true;
                     }
                 }
-                _ = __t51;
+                _ = __t53;
             }
         }
-        var __t53 = true;
-        __bb.St.Confirmed = __t53;
+        var __t55 = true;
+        __bb.St.Confirmed = __t55;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_803a41ff_false:
+        __block_branch_fe237056_false:
         return global::Fbt.NodeStatus.Running;
         
     }

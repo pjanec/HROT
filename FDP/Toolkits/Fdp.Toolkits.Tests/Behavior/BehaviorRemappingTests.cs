@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Replication;
-using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Behavior.Tests.Fixtures;
 using Xunit;
 
@@ -78,7 +77,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void C005c_MoveToLocation_NoRemappableFields_IdentityDelegate()
         {
-            const string json = "{\"targetLat\":1.0,\"targetLon\":2.0,\"speed\":10.0,\"arrivalRadius\":5.0}";
+            const string json = "{\"target\":[1,2,0],\"speed\":10.0,\"arrivalRadius\":5.0}";
             var remap = EntityRefRemap.CompileJson(typeof(MoveToLocationParamsJsonDto));
             var map   = new Dictionary<long, long> { { 1L, 99L } };
 
