@@ -527,5 +527,14 @@ not yet designed for SR-95). Every scenario gets it for free.
 | keep choosing the best of four plays | 3 | one entity naming `PressureController` + params | none per exercise — the asset is authored once |
 | react to ammunition | 4 | one input added to the decision | one `[UtilityInput]` |
 
+### 3.5 What the instructor sees — the rules view
+
+One window shows every objective and trigger of the exercise on the sim-time axis, with a NOW line: what already happened at its real
+time, what is coming as a dashed bar AFTER the things it waits for (so nothing is tied to a clock and a slip just moves it), triggers pinned to
+the scenario clock as diamonds, and the dependencies as connectors. Selecting a row opens its tabs in the Details panel — a trigger's
+**When · Do · Rules · History**, an objective's **Status · Settings · Results · History** — and everything can be edited at any time, live
+included, each edit journaled. It is a host of the ONE shared timeline panel, not a copy of it.
+📐 Mockup: [Rules View Mockup](https://claude.ai/artifact/VLfa5GxVGh3Z7nYsGbf65k) · decisions: SR-105, SR-109, SR-110 in [`DESIGN_Scenario_Rules.md`](DESIGN_Scenario_Rules.md).
+
 ⚠ None of this is built yet — the trigger machinery is being proven by a proof of concept (runtime binding of actions, per-step blackboard
 slots, the condition language); see [SR-93…SR-100](DESIGN_Scenario_Rules.md).
