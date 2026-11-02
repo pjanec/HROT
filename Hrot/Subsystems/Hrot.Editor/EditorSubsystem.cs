@@ -264,6 +264,7 @@ namespace Hrot.Editor
         private EntityRepository?       _world;
         private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
         private Hrot.Editor.Scenario.ParametersWindow? _parametersWindow;
+        private Hrot.Editor.Scenario.SaveSelectionAsMacroWindow? _saveSelectionWindow;   // ⭐ CE-4210 MA-9
         private Action<Action<string>>? _openMacroPicker;   // ⭐ CE-4210 MA-8 — the scenario picker's Macros group, for the instance's "Change…" (set once the picker exists)
 
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
@@ -4883,6 +4884,23 @@ namespace Hrot.Editor
             _parametersWindow = new Hrot.Editor.Scenario.ParametersWindow(_headerParams);
             windowManager.RegisterWindow(_parametersWindow);
             windowManager.GlobalMenu.RegisterItem("Scenario/Parameters…", () => _parametersWindow?.Show(), "Scenario");
+
+            // ⭐ CE-4210 MA-9 — Save selection as macro…: the Scenario menu AND the map's unit menu (the same gesture, one window). The save is the cluster's ONE save path with a filter and a header.
+            if (_editorApp is not null)
+            {
+                var selectionFlow = new Hrot.Editor.Scenario.SaveSelectionAsMacroFlow(
+                    world:     () => _world,
+                    selection: () => (System.Collections.Generic.IReadOnlyCollection<Fdp.Core.Entity>?)_selectionState?.SelectedEntities ?? System.Array.Empty<Fdp.Core.Entity>(),
+                    save:      (name, guids, header) => _editorApp.ScenarioSession.SaveSelectionAs(name, guids, header));
+                _saveSelectionWindow = new Hrot.Editor.Scenario.SaveSelectionAsMacroWindow(selectionFlow);
+                windowManager.RegisterWindow(_saveSelectionWindow);
+                windowManager.GlobalMenu.RegisterItem("Scenario/Save Selection as Macro…", () => _saveSelectionWindow?.Start(), "Scenario");
+                HostActions.Actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.SaveSelectionAsMacro, (view, target) =>
+                {
+                    if (!target.IsNull && _selectionState is { SelectedEntities.Count: 0 } sel) sel.PrimarySelected = target;   // a right-click on an unselected unit saves that unit
+                    _saveSelectionWindow?.Start();
+                });
+            }
 
             Fdp.Toolkit.Runner.UiBundleHost.Compose(
                 new Fdp.Toolkit.Runner.IUiBundle[]

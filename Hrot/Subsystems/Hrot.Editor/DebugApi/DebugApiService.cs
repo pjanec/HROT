@@ -1499,7 +1499,10 @@ namespace Hrot.Editor.DebugApi
         /// (<see cref="Hrot.Presentation.DebugApi.DebugCapabilities.SaveScenarioJson"/>) so a node that CAN
         /// trigger the save advertises it honestly.</para>
         /// </summary>
-        public JsonNode SaveScenario(string name)
+        public JsonNode SaveScenario(string name) => SaveScenario(name, null, null);
+
+        /// <summary>⭐ CE-4210 MA-9 — the same save with the optional entity filter and macro header (<c>POST /scenario/save {name, onlyGuids?, header?}</c>).</summary>
+        public JsonNode SaveScenario(string name, Guid[]? onlyGuids, string? headerJson)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1511,6 +1514,8 @@ namespace Hrot.Editor.DebugApi
                 RequestId    = Guid.NewGuid(),
                 Operation    = Fdp.Toolkit.Orchestration.StorageOpType.SaveScenario,
                 ScenarioName = name,
+                OnlyGuids    = onlyGuids is { Length: > 0 } ? onlyGuids : null,
+                HeaderJson   = string.IsNullOrWhiteSpace(headerJson) ? null : headerJson,
             });
             return new JsonObject { ["saved"] = name, ["via"] = "cluster-intent" };
         }

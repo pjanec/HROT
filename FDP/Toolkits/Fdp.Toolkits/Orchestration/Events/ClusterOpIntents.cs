@@ -204,6 +204,12 @@ namespace Fdp.Toolkit.Orchestration
         /// a path. Null/ignored for every other operation.
         /// </summary>
         public string? ScenarioName;
+
+        /// <summary>⭐ CE-4210 MA-9 — <see cref="StorageOpType.SaveScenario"/> only: write ONLY the entities with these <c>EntityGuid</c>s (Save selection as macro). Null / empty = everything, as before.</summary>
+        public Guid[]? OnlyGuids;
+
+        /// <summary>⭐ CE-4210 MA-9 — <see cref="StorageOpType.SaveScenario"/> only: the macro header fields (the object <c>ScenarioHeaderJson.Write</c> produces) the slice header uses INSTEAD of the resident's. Null / empty = from the resident, as before.</summary>
+        public string? HeaderJson;
     }
 
     /// <summary>

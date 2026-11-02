@@ -125,7 +125,7 @@ public sealed class ClusterOpEgressTranslator : IDisposable
             //    ClusterOpMasterTranslator below. ⛔ The ArchivePayloadDto used by Export/Import has
             //    no name field, so a SaveScenarioJson routed through it would silently lose the target name.
             string payload = intent.Operation == StorageOpType.SaveScenario
-                ? new System.Text.Json.Nodes.JsonObject { ["ScenarioName"] = intent.ScenarioName }.ToJsonString()
+                ? SaveScenarioRequestJson.Encode(intent.ScenarioName, intent.OnlyGuids, intent.HeaderJson)   // ⭐ CE-4210 MA-9 — OnlyGuids / HeaderJson ride only when set
                 : JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: intent.ExerciseId), OrchestrationJsonOptions.Default);
 
             _writer.Write(new ClusterOpRequest

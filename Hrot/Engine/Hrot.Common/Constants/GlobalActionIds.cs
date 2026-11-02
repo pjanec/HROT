@@ -110,6 +110,9 @@ namespace Hrot.Common.Constants
         // --- Order with options (CE-1059, §13.12 O5) — the unit menu's submenu opening the ORDER FORM for an order, prefilled:
         //     id = OrderWithOptionsBase + the order's index (OrderMenu.ActionBase + index ⇒ +80). ⚠ 480–543 measured free 2026-10-13.
         public const int OrderWithOptionsBase = 480;
+
+        // --- ⭐ CE-4210 MA-9 — Save selection as macro… (the editor registers it; a host with no handler offers no such item). ⚠ 544 measured free 2026-11-03 (480–543 are the order-form range).
+        public const int SaveSelectionAsMacro = 544;
         public const int OrderWithOptionsMax  = 64;
     }
 }

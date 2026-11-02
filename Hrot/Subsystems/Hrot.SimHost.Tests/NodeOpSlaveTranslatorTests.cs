@@ -205,6 +205,23 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal("my-scn", scn.ScenarioName);
     }
 
+    /// <summary>⭐ CE-4210 MA-9 — the slave rebuilds the selection filter and the macro header from the wire; a payload without them decodes to null / null (a plain save, exactly as before).</summary>
+    [Fact]
+    public void CE4210_MA9_DeserializeNodePayload_SerializeLocal_CarriesTheFilterAndTheHeader()
+    {
+        var g1 = Guid.NewGuid(); var g2 = Guid.NewGuid();
+        var payload = NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal,
+            "{\"ScenarioId\":\"macros/test/sel\",\"ExerciseId\":\"00000000-0000-0000-0000-000000000000\",\"OnlyGuids\":[\"" + g1 + "\",\"" + g2 + "\"],\"MacroHeaderJson\":\"{\\\"Kind\\\":\\\"macro\\\"}\"}");
+        var scn = Assert.IsType<ScenarioSaveHandlerPayload>(payload);
+        Assert.Equal("macros/test/sel", scn.ScenarioName);
+        Assert.Equal(new[] { g1, g2 }, scn.OnlyGuids);
+        Assert.Equal("{\"Kind\":\"macro\"}", scn.HeaderJson);
+
+        var plain = Assert.IsType<ScenarioSaveHandlerPayload>(NodeOpSlaveTranslator.DeserializeNodePayload(NedNodeOpType.SerializeLocal, "{\"ScenarioId\":\"my-scn\"}"));
+        Assert.Null(plain.OnlyGuids);
+        Assert.Null(plain.HeaderJson);
+    }
+
     [Fact]
     public void DeserializeNodePayload_SerializeLocal_ExerciseId_RebuildsArchivePayload()
     {

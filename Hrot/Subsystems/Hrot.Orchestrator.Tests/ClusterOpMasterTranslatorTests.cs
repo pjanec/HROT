@@ -242,6 +242,49 @@ public sealed class ClusterOpMasterTranslatorTests
         Assert.Equal("my-scn", intents[0].ScenarioName);
     }
 
+    /// <summary>
+    /// ⭐ CE-4210 MA-9 — the save request's optional filter and header survive the request chain: ONE encoding (<c>SaveScenarioRequestJson</c>) read by the networked master translator AND the in-process adapter;
+    /// a request without them encodes byte-for-byte as before (<c>{"ScenarioName":…}</c>) and decodes to null / null.
+    /// </summary>
+    [Fact]
+    public void CE4210_MA9_TheSaveRequestEncoding_RoundTrips_AndAPlainOneIsUnchanged()
+    {
+        Assert.Equal("{\"ScenarioName\":\"my-scn\"}", SaveScenarioRequestJson.Encode("my-scn"));
+        Assert.Equal("{\"ScenarioName\":\"my-scn\"}", SaveScenarioRequestJson.Encode("my-scn", Array.Empty<Guid>(), ""));
+        var plain = SaveScenarioRequestJson.Decode("{\"ScenarioName\":\"my-scn\"}");
+        Assert.Equal("my-scn", plain.ScenarioName); Assert.Null(plain.OnlyGuids); Assert.Null(plain.HeaderJson);
+
+        var g = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        var (name, guids, header) = SaveScenarioRequestJson.Decode(SaveScenarioRequestJson.Encode("macros/t/x", g, "{\"Kind\":\"macro\"}"));
+        Assert.Equal("macros/t/x", name);
+        Assert.Equal(g, guids);
+        Assert.Equal("{\"Kind\":\"macro\"}", header);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public void CE4210_MA9_ASelectionSaveRequest_ReachesTheMastersIntent_OverTheNetworkedAndTheInProcessPath()
+    {
+        var g = new[] { Guid.NewGuid() };
+        var payload = SaveScenarioRequestJson.Encode("macros/t/x", g, "{\"Kind\":\"macro\"}");
+
+        using var participant   = new DdsParticipant(TestDomain);
+        using var requestWriter = new DdsWriter<ClusterOpRequest>(participant);
+        using var requestReader = new DdsReader<ClusterOpRequest>(participant);
+        using var statusWriter  = new DdsWriter<ClusterOpStatus>(participant);
+        var bus        = new FdpEventBus();
+        var translator = new ClusterOpMasterTranslator(requestReader, statusWriter, bus);
+        Thread.Sleep(400);
+        requestWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = NedClusterOpType.SaveScenario, PayloadJson = payload });
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+        var networked = Assert.Single(bus.ReadManaged<ExecuteStorageOpIntent>());
+        Assert.Equal("macros/t/x", networked.ScenarioName); Assert.Equal(g, networked.OnlyGuids); Assert.Equal("{\"Kind\":\"macro\"}", networked.HeaderJson);
+
+        var inProcess = ClusterOpRequestAdapter.ToExecuteStorageOpIntent(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = NedClusterOpType.SaveScenario, PayloadJson = payload });
+        Assert.Equal("macros/t/x", inProcess.ScenarioName); Assert.Equal(g, inProcess.OnlyGuids); Assert.Equal("{\"Kind\":\"macro\"}", inProcess.HeaderJson);
+    }
+
     // ── Time-control intent tests (HEXAG2-S010) ───────────────────────────────
 
     [Fact(Timeout = 10_000)]

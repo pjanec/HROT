@@ -124,6 +124,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 new ContextMenuItemDto { Id = GlobalActionIds.FollowUnit,     Label = "Follow with the camera" },   // ⭐ CE-1293 (UC-2)
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Properties,     Label = "Properties…" },   // ⭐ CE-1135 — the inspector, on it
+                new ContextMenuItemDto { Id = GlobalActionIds.SaveSelectionAsMacro, Label = "Save selection as macro…" },   // ⭐ CE-4210 MA-9 — only a host that registers the action (the editor) offers it
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
                 new ContextMenuItemDto { IsSeparator = true },

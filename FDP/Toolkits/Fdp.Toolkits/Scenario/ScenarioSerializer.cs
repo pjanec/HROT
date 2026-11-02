@@ -157,6 +157,14 @@ namespace Fdp.Toolkit.Scenario
         /// <param name="header">Header metadata written to <c>dom["Header"]</c>.</param>
         /// <returns>The assembled scenario DOM.</returns>
         public JsonObject Serialize(EntityRepository repo, ScenarioHeader header)
+            => Serialize(repo, header, onlyGuids: null);
+
+        /// <summary>
+        /// ⭐ CE-4210 MA-9 — as <see cref="Serialize(EntityRepository, ScenarioHeader)"/>, but when <paramref name="onlyGuids"/> is non-empty only the saveable entities whose <c>EntityGuid</c> is in the set are WRITTEN
+        /// (Save selection as macro). The ownership gate still applies first (a node writes only what it owns), and the save resolver still knows EVERY saveable entity — so a reference from a selected entity to one outside the
+        /// selection is written as that entity's key (the caller then rebinds it, <c>ScenarioSaveCore.RebindOutsideReferences</c>), never a throw. ⛔ The terrain-objects section is not part of a selection.
+        /// </summary>
+        public JsonObject Serialize(EntityRepository repo, ScenarioHeader header, IReadOnlySet<Guid>? onlyGuids)
         {
             if (repo == null)    throw new ArgumentNullException(nameof(repo));
             if (header == null)  throw new ArgumentNullException(nameof(header));
@@ -201,8 +209,10 @@ namespace Fdp.Toolkit.Scenario
             var globalSaveable = repo.GetSaveableMask();
             var entitiesNode   = new JsonObject();
 
+            bool selecting = onlyGuids is { Count: > 0 };   // ⭐ CE-4210 MA-9 — null or empty = everything, exactly as before
             foreach (var entity in liveEntities)
             {
+                if (selecting && !onlyGuids!.Contains(entityToGuid[entity])) continue;
                 var guidStr     = entityToGuid[entity].ToString();
                 var entityNode  = new JsonObject();
 
@@ -281,7 +291,7 @@ namespace Fdp.Toolkit.Scenario
             }
             // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from
             //   what the terrain authored. Door ENTITIES are ScenarioIgnoreTag'd above; this is where their state lives (§3b K5).
-            if (Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)
+            if (!selecting && Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)
                 root[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = terrainObjects;
             JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, CurrentSchemaVersion));
             return root;

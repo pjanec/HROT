@@ -689,7 +689,11 @@ namespace Hrot.Editor.DebugApi
             {
                 var name = ctx.Body?["name"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(Fail(400, "name is required.", DebugApiHints.Scenario));
-                return RunMain(s => s.SaveScenario(name!));
+                // ⭐ CE-4210 MA-9 — optional: "onlyGuids" (entity GUIDs: write only those) and "header" (the macro header object): Save selection as macro over HTTP. Absent ⇒ the whole scenario, as before.
+                var only = ctx.Body?["onlyGuids"] is JsonArray ga
+                    ? ga.Select(n => Guid.TryParse(n?.GetValue<string>(), out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToArray() : null;
+                var header = ctx.Body?["header"]?.ToJsonString();
+                return RunMain(s => s.SaveScenario(name!, only, header));
             }));
 
             // Group F — commands + discovery + spawn

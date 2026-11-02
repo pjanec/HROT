@@ -2021,8 +2021,8 @@ public sealed partial class ClusterMaster : IDisposable
                 });
 
                 FanOutSerializeLocal(scnTxId, scnNodeIds,
-                    new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(intent.ScenarioName!));
-                if (scnNodeIds.Count > 0) NoteSaveRoundStarted(scnTxId);   // ⭐ CE-4093 — a failed save makes the scenario unsaved (the check round)
+                    new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(intent.ScenarioName!, intent.OnlyGuids, intent.HeaderJson));   // ⭐ CE-4210 MA-9
+                if (scnNodeIds.Count > 0 && intent.OnlyGuids is not { Length: > 0 }) NoteSaveRoundStarted(scnTxId);   // ⭐ CE-4093 — a failed save makes the scenario unsaved (the check round). ⭐ CE-4210 MA-9 — ⛔ not a selection save: it is not a save of THE scenario, so it neither clears nor sets that check
 
                 FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario '{0}' → SerializeLocal fan-out to {1} node(s).",
                     intent.ScenarioName, scnNodeIds.Count);

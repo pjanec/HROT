@@ -322,6 +322,15 @@ public record NodeTransitionPayloadDto(
     [property: JsonPropertyName("TerrainName")]
     string?        TerrainName = null,
 
+    // ⭐ CE-4210 MA-9 — Save selection as macro: the scenario save's optional filter and header. Additive; WRITTEN ONLY WHEN SET (a plain save's payload is byte-for-byte what it was), omitted ⇒ null.
+    [property: JsonPropertyName("OnlyGuids")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    System.Collections.Generic.List<Guid>? OnlyGuids = null,
+
+    [property: JsonPropertyName("MacroHeaderJson")]
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string?        MacroHeaderJson = null,
+
     // ⭐ CE-2101 — the load step entered from Idle (the world boundary): every node clears its world first.
     //   Additive on the wire; an older peer omits it and decodes to false.
     [property: JsonPropertyName("IsWorldBoundary")]
