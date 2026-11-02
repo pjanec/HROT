@@ -206,6 +206,14 @@ public abstract class SharedApplicationBootstrapper
             {
                 _walk = new NodeCapabilityWalk(ResolveCapabilities(context, role));
 
+                // ⭐ Node Features — the registry of the composed capabilities' declarations, and the node's ONE reader (F-4).
+                //   An id declared by two capabilities throws here (F-2). 📄 docs/DESIGN_Node_Features.md §6.3.
+                context.Features = new NodeFeatures(new FeatureRegistry(_walk.Capabilities.SelectMany(c => c.Features)), role,
+                    () => context.ClusterSlave.View.NodeName ?? "");
+                context.Kernel.FeatureGate = context.Features;   // F-13 — the scheduler's view, set before any system registers
+                foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's
+                    if (context.Features.Registry.Available(fid)) context.Features.SetNodeOverride(fid, fjson);
+
                 // ⭐ CE-4013 D10 — the static resource declaration must equal the union of the composed capabilities' Needs: otherwise a
                 //   capability allocates its own copy of a shared resource, or borrows one the node never allocated. ⛔ SimHost, IG and the
                 //   traffic node each carried their own copy of this check (Stride none).

@@ -261,6 +261,9 @@ namespace Fdp.ModuleHost
         /// After <see cref="Initialize"/> this always reflects the live execution topology,
         /// including any dynamically installed modules.
         /// </summary>
+        /// <summary>⭐ Node Features F-13 — the gate every <c>[NodeFeature]</c> system is checked against; set before <c>Initialize</c>.</summary>
+        public IFeatureGate? FeatureGate { get; set; }
+
         public SystemScheduler SystemScheduler => _initialized ? _activeTopology.Scheduler
             : throw new InvalidOperationException("Kernel not yet initialized. Call Initialize() first.");
 
@@ -1887,7 +1890,7 @@ namespace Fdp.ModuleHost
         /// </summary>
         private KernelExecutionTopology BuildTopology(List<ModuleEntry> modules)
         {
-            var scheduler = new SystemScheduler();
+            var scheduler = new SystemScheduler { FeatureGate = FeatureGate };
 
             // Static global systems always come first in every topology
             foreach (var sys in _registeredGlobalSystems)
@@ -1900,7 +1903,7 @@ namespace Fdp.ModuleHost
                 {
                     // Re-register the same instances (no new objects created)
                     foreach (var sys in entry.RegisteredSystems)
-                        scheduler.RegisterSystem(sys);
+                        scheduler.RegisterSystem(sys, entry.Module.GetType());
 
                     // Backward-compat safety for entries created before SimulationSystems existed.
                     if (entry.SimulationSystems == null)
@@ -1918,7 +1921,7 @@ namespace Fdp.ModuleHost
                 else
                 {
                     // First time: capture system instances via CapturingSystemRegistry
-                    var capturing = new CapturingSystemRegistry(scheduler);
+                    var capturing = new CapturingSystemRegistry(scheduler, entry.Module.GetType());
                     entry.Module.RegisterSystems(capturing);
                     entry.RegisteredSystems = capturing.Captured;
                     entry.SimulationSystems = capturing.SimulationCaptured;
@@ -2266,9 +2269,12 @@ namespace Fdp.ModuleHost
             public List<IEcsModuleSystem> Captured { get; } = new();
             public List<IEcsModuleSystem> SimulationCaptured { get; } = new();
 
-            public CapturingSystemRegistry(SystemScheduler scheduler)
+            private readonly Type _ownerModule;
+
+            public CapturingSystemRegistry(SystemScheduler scheduler, Type ownerModule)
             {
                 _scheduler = scheduler;
+                _ownerModule = ownerModule;
             }
 
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
@@ -2286,7 +2292,7 @@ namespace Fdp.ModuleHost
                     SimulationCaptured.Add(system);
                 }
 
-                _scheduler.RegisterSystem(system);
+                _scheduler.RegisterSystem(system, _ownerModule);
             }
 
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem

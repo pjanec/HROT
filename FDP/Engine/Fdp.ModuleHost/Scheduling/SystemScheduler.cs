@@ -24,6 +24,21 @@ namespace Fdp.ModuleHost.Scheduling
         // ⭐ CE-3293 (R-3036) — every system's declared TickPolicy, read once: at registration, or on its first ExecuteSystem
         //   (a group member or a manual system never passes RegisterSystem). An undeclared system throws there, by name.
         private readonly ConcurrentDictionary<IEcsModuleSystem, TickPolicy> _tickPolicies = new();
+        // ⭐ Node Features F-13 — each [NodeFeature] system's handle, read once beside its TickPolicy. Empty for a node with no featured system.
+        private readonly ConcurrentDictionary<IEcsModuleSystem, FeatureHandle> _featureOf = new();
+
+        /// <summary>⭐ Node Features F-13 — what a [NodeFeature] system is asked against. Set by the kernel before systems register.</summary>
+        public IFeatureGate? FeatureGate { get; set; }
+
+        private void ReadFeature(IEcsModuleSystem system, Type? ownerModule)
+        {
+            var attr = (NodeFeatureAttribute?)Attribute.GetCustomAttribute(system.GetType(), typeof(NodeFeatureAttribute), inherit: true)
+                       ?? (ownerModule == null ? null : (NodeFeatureAttribute?)Attribute.GetCustomAttribute(ownerModule, typeof(NodeFeatureAttribute), inherit: true));
+            if (attr == null) return;
+            if (FeatureGate == null)
+                throw new InvalidOperationException($"{system.GetType().Name} is marked [NodeFeature(\"{attr.Id}\")] but this scheduler has no feature gate.");
+            _featureOf[system] = FeatureGate.Resolve(attr.Id);   // throws on an undeclared id (F-18)
+        }
         // ⭐⭐ CE-3293 S5 (R-3036 rule 5) — each step-only system's reader in the live world's event history (its step window)
         private readonly ConcurrentDictionary<IEcsModuleSystem, EventReader> _eventReaders = new();
 
@@ -81,7 +96,11 @@ namespace Fdp.ModuleHost.Scheduling
         public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             => RegisterSystemCore(system, phaseOverride: null);
 
-        private void RegisterSystemCore(IEcsModuleSystem system, SystemPhase? phaseOverride)
+        /// <summary>⭐ F-13 — registers a module's system; the module's <see cref="NodeFeatureAttribute"/> is inherited by it.</summary>
+        public void RegisterSystem(IEcsModuleSystem system, Type? ownerModule)
+            => RegisterSystemCore(system, phaseOverride: null, ownerModule);
+
+        private void RegisterSystemCore(IEcsModuleSystem system, SystemPhase? phaseOverride, Type? ownerModule = null)
         {
             if (system == null)
                 throw new ArgumentNullException(nameof(system));
@@ -93,6 +112,7 @@ namespace Fdp.ModuleHost.Scheduling
 
             EnforceSingleInstance(system);
             _tickPolicies[system] = TickModes.OfSystem(system.GetType());
+            ReadFeature(system, ownerModule);
 
             _systemsByPhase[phase].Add(system);
             _systemPhases[system] = phase;
@@ -213,7 +233,13 @@ namespace Fdp.ModuleHost.Scheduling
         internal void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime, bool advancing, bool moduleGoverns)
         {
             if (!_tickPolicies.TryGetValue(system, out var policy))
+            {
                 _tickPolicies[system] = policy = TickModes.OfSystem(system.GetType());   // CE-3293: first sight of a system registered no other way
+                ReadFeature(system, null);
+            }
+
+            // ⭐ F-13 — a system of a feature that is off is skipped, like a paused WhenTimeAdvances system.
+            if (!_featureOf.IsEmpty && _featureOf.TryGetValue(system, out var featureHandle) && !FeatureGate!.On(featureHandle)) return;
 
             bool stepOnly = policy == TickPolicy.WhenTimeAdvances && !moduleGoverns && Fdp.Core.FdpConfig.TickModeGate;
             if (stepOnly && !advancing) return;
