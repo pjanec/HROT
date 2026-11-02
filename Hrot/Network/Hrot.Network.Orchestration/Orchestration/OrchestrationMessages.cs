@@ -25,7 +25,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         Degraded = 99,
     }
 
-	// keep in sync with ClusterOpType in orchestration toolkit!
+	// Wire twin of Fdp.Toolkit.Orchestration.ClusterOpType (R-134: internal enum + wire twin is intended). Pinned, both directions, by
+	// Hrot.Orchestrator.Tests/FdpOrchestrationEnumSyncTests.ClusterOpTypeTwinsAgreeInBothDirectionsByNameAndValue.
 	public enum ClusterOpType : int
     {
         /// <summary>⭐ AQ107 / CycloneDDS.NET 0.4: a default-initialised message carries 0, and Cyclone DDS 11 refuses to serialize an enum value
