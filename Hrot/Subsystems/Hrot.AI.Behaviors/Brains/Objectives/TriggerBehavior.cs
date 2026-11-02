@@ -78,6 +78,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public double EdgeAt, WaitUntil, CooldownUntil;
             /// <summary>The <c>do</c> list's runner state: <c>RunActions</c>' own params (list 1, depth 0) and its cursor.</summary>
             public RunActionsParams ListParams; public RunActionsState List;
+            /// <summary>⭐ S6 G-4 — a repeat fires again when the cooldown ends with the condition STILL true (no fall-and-rise needed).</summary>
+            public byte WhileTrue;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -101,7 +103,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 Common = ObjectiveCommonBlock.From(in common),
                 HoldFor = Math.Max(0f, authored.HoldFor), Delay = Math.Max(0f, authored.Delay), Cooldown = Math.Max(0f, authored.Cooldown),
-                MaxFires = Math.Max(0, authored.MaxFires), Repeat = (byte)(authored.Repeat ? 1 : 0), FireIfTrueWhenArmed = (byte)(authored.FireIfTrueWhenArmed ? 1 : 0),
+                MaxFires = Math.Max(0, authored.MaxFires), Repeat = (byte)(authored.Repeat ? 1 : 0), FireIfTrueWhenArmed = (byte)(authored.FireIfTrueWhenArmed ? 1 : 0), WhileTrue = (byte)(authored.WhileTrue ? 1 : 0),
                 ListParams = new RunActionsParams { ListRef = DoItem, Depth = 0 },
             };
             if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { whenJson, doJson }.Concat(extras).ToArray()));
@@ -210,6 +212,12 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                     {
                         b.Prev = 0; b.PrevKnown = 1;
                         Go(ref b, ref s, TriggerState.Armed, "re-armed", now);
+                    }
+                    else if (now >= b.CooldownUntil - Eps && b.WhileTrue != 0)   // ⭐ S6 G-4: still true after the cooldown ⇒ the periodic rule fires again, as a fresh edge
+                    {
+                        b.Prev = 1; b.PrevKnown = 1; b.EdgeAt = now;
+                        if (b.HoldFor > 0f) Go(ref b, ref s, TriggerState.Holding, $"condition still true, holding {b.HoldFor:0.##} s", now);
+                        else AfterHold(ref b, ref s, self, world, now);
                     }
                     break;
             }

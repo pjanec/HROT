@@ -68,5 +68,33 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             }
             return n;
         }
+
+        /// <summary>⭐ S6 G-1 — how many bodies of <paramref name="side"/> (EVERY man of the side, whoever his unit — a respawned bot is in no roster) stand inside <paramref name="area"/>, in the fight.</summary>
+        public static int MenOfSideInside(EntityRepository world, ForceId side, in AreaLink area)
+        {
+            if (side == ForceId.Neutral) return 0;
+            int n = 0;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
+                if (!IsMan(world, e) || !area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)) continue;
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>⭐ S6 G-2 — how many bodies of <paramref name="side"/> exist but are OUT of the fight (down or dead, still an entity): not a unit, positioned, alive as an entity, not in the fight.</summary>
+        public static int DownOf(EntityRepository world, ForceId side)
+        {
+            if (side == ForceId.Neutral) return 0;
+            int n = 0;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
+                if (CombatEffective.IsUnit(world, e) || !world.IsAlive(e) || Injury.IsInTheFight(world, e)) continue;
+                n++;
+            }
+            return n;
+        }
     }
 }

@@ -24,6 +24,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
         public SetObjectiveActiveParams() { Target = default; Active = true; Reset = false; }
     }
 
+    /// <summary>⭐ S6 G-3 — <c>AddToCounter</c>'s params: the target <c>Counter</c> measure and what to add (negative drains).</summary>
+    public struct AddToCounterParams { public EntityLink Target; public float Amount; }
+
     /// <summary>⭐ <c>EndExercise</c>'s params and working state.</summary>
     public struct EndExerciseParams { public FixedString64 Reason; }
     public struct EndExerciseState { public byte Began; public double StartedAt; }
@@ -77,6 +80,24 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             var refusal = ObjectiveRules.SetActive(ref st, p.Active, p.Reset, ObjectiveHost.Now(world));
             if (refusal != null) return Fail(world, self, refusal);
             Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{st.Title}': {(p.Reset ? "reset, " : "")}{(p.Active ? "on" : "off")} (asked by {self})");
+            return NodeStatus.Success;
+        }
+
+        // ═══════════════════════════════════════ AddToCounter (S6 G-3) ═══════════════════════════════════════
+
+        /// <summary>⭐ S6 G-3 (📄 DESIGN_Scenario_Rules §00.11) — adds <c>amount</c> to a <c>Counter</c> measure's value (the crate's +15, the drain's −1, the operator's hand edit: one
+        /// shared action). Instant. The counter itself keeps the value within its floor / ceiling at its next tick. Failure: the target does not resolve, is no Counter, or is closed.</summary>
+        [SharedAiAction]
+        public static NodeStatus AddToCounter(ref AddToCounterParams p, ref VerbNoState s, Entity self, EntityRepository world)
+        {
+            var target = p.Target.Ref.Resolve(world);
+            if (target.IsNull || !world.IsAlive(target)) return Fail(world, self, "target not found");
+            if (!world.IsComponentTypeRegistered<ObjectiveStatus>() || !world.HasComponent<ObjectiveStatus>(target)) return Fail(world, self, "target has no objective status");
+            ref var st = ref world.GetComponentRW<ObjectiveStatus>(target);
+            if (st.Kind.ToString() != CounterBehavior.Kind) return Fail(world, self, "target is not a Counter");
+            if (st.Closed != 0) return Fail(world, self, "the counter is closed");
+            st.Value += p.Amount;
+            Fdp.Core.Logging.FdpLog<Log>.Info($"counter '{st.Title}': {p.Amount:+0.##;-0.##} → {st.Value:0.##} (asked by {self})");
             return NodeStatus.Success;
         }
 
