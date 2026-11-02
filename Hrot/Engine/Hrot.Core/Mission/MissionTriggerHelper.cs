@@ -11,46 +11,49 @@ namespace Hrot.Core.Mission
     /// </summary>
     public static class MissionTriggerHelper
     {
+        /// <summary>The trigger types a phase may name (the one list, quoted by every error).</summary>
+        public const string KnownTypes = "TimerElapsed, ReachedDestination, HealthCritical, BehaviorFinished, UnderAttack";
+
         /// <summary>
-        /// Resolves the first trigger in <paramref name="triggers"/> to the corresponding
-        /// <see cref="EcsMissionTrigger"/> and numeric parameter.
-        /// Returns <c>(TimerElapsed, float.MaxValue)</c> when triggers is null or empty
-        /// so that a phase with no trigger holds indefinitely.
+        /// ⭐ <c>CE-4157</c> — the trigger of ONE phase. Null / empty ⇒ <c>(TimerElapsed, float.MaxValue)</c> (no trigger: the phase holds
+        /// indefinitely). The queue holds ONE trigger per phase (<c>MissionPhase</c>), so a second is refused loudly, never dropped. Throws
+        /// <see cref="MissionPlanException"/> naming <paramref name="task"/> for an unknown type, more than one trigger or a bad parameter.
         /// </summary>
-        public static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<MissionTrigger>? triggers)
+        public static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<MissionTrigger>? triggers, string? task)
         {
             if (triggers == null || triggers.Count == 0)
                 return (EcsMissionTrigger.TimerElapsed, float.MaxValue);
-
-            var trigger = triggers[0];
-            var type = trigger.Type ?? string.Empty;
-
-            return type switch
-            {
-                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed,     ParseTriggerParam(trigger.Params)),
-                // "ReachedDestination" is the legacy wire string for the navigation-arrival trigger.
-                // Per BS1-T022, arrival is now signalled via the BehaviorFinished path.
-                // Map to BehaviorFinished at ingress to preserve backward wire compatibility.
-                "ReachedDestination" => (EcsMissionTrigger.BehaviorFinished, 0f),
-                "HealthCritical"     => (EcsMissionTrigger.HealthCritical,   ParseTriggerParam(trigger.Params)),
-                "BehaviorFinished"   => (EcsMissionTrigger.BehaviorFinished, 0f),
-                "UnderAttack"        => (EcsMissionTrigger.UnderAttack,      0f),
-                _                    => (EcsMissionTrigger.TimerElapsed,     0f)
-            };
+            if (triggers.Count > 1)
+                throw new MissionPlanException(
+                    $"mission task '{task}': a phase holds ONE trigger, this one lists {triggers.Count} ({string.Join(", ", triggers.ConvertAll(t => t.Type))}) — CE-4157");
+            return Resolve(triggers[0].Type, triggers[0].Params, task);
         }
 
         /// <summary>
-        /// Parses a float parameter string (e.g. "10.5") using invariant culture.
-        /// Returns 0f for null, empty, or unparseable input.
+        /// ⭐ <c>CE-4157</c> — THE ONE trigger parser (the only switch). Throws <see cref="MissionPlanException"/> for an unknown type or a
+        /// NON-EMPTY parameter that does not parse (an empty one stays 0).
         /// </summary>
-        public static float ParseTriggerParam(string? raw)
+        public static (EcsMissionTrigger Trigger, float Param) Resolve(string? type, string? @params, string? task)
         {
-            if (string.IsNullOrWhiteSpace(raw))
-                return 0f;
+            return (type ?? string.Empty) switch
+            {
+                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed,     Param(type, @params, task)),
+                // "ReachedDestination" is the legacy wire string for the navigation-arrival trigger.
+                // Per BS1-T022, arrival is now signalled via the BehaviorFinished path.
+                "ReachedDestination" => (EcsMissionTrigger.BehaviorFinished, 0f),
+                "HealthCritical"     => (EcsMissionTrigger.HealthCritical,   Param(type, @params, task)),
+                "BehaviorFinished"   => (EcsMissionTrigger.BehaviorFinished, 0f),
+                "UnderAttack"        => (EcsMissionTrigger.UnderAttack,      0f),
+                _ => throw new MissionPlanException(
+                    $"mission task '{task}': unknown trigger type '{type}' (known: {KnownTypes}) — CE-4157"),
+            };
+        }
 
-            return float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-                ? value
-                : 0f;
+        private static float Param(string? type, string? raw, string? task)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return 0f;
+            if (float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)) return value;
+            throw new MissionPlanException($"mission task '{task}': trigger '{type}' has a parameter '{raw}' that is not a number — CE-4157");
         }
     }
 }

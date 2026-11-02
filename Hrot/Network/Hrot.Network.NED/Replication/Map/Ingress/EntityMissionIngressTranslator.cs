@@ -106,7 +106,14 @@ namespace Hrot.Map.Common.Replication.Ingress
                             view, entity, Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0)))
                         continue;
 
-                    var queue = BuildQueue(sample.Data);
+                    // ⭐ CE-4157 — a plan that cannot be run as authored is NOT applied (no fallback queue): the replica keeps what it had
+                    MissionPlanQueue queue;
+                    try { queue = BuildQueue(sample.Data); }
+                    catch (Hrot.Core.Mission.MissionPlanException ex)
+                    {
+                        FdpLog<EntityMissionIngressTranslator>.Error("[MissionTranslator] Mission of entity {0} not applied: {1}", sample.Data.EntityId, ex.Message);
+                        continue;
+                    }
                     cmd.SetComponent(entity, queue);
                 }
                 else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
@@ -161,7 +168,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 var task = tasks[i];
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
-                var (trigger, param) = ResolveTrigger(task.Triggers);
+                var (trigger, param) = ResolveTrigger(task.Triggers, task.TaskId.ToString());
 
                 queue.Phases[i] = new MissionPhase
                 {
@@ -205,7 +212,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// <summary>
         /// Delegates to <see cref="Hrot.Map.Common.Helpers.MissionTriggerHelper.ResolveTrigger"/> (BUG2-DEBT-01).
         /// </summary>
-        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
-            => Helpers.MissionTriggerHelper.ResolveTrigger(triggers);
+        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers, string? task)
+            => Helpers.MissionTriggerHelper.ResolveTrigger(triggers, task);
     }
 }

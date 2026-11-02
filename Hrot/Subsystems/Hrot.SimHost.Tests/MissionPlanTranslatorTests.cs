@@ -162,6 +162,29 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(MissionTrigger.BehaviorFinished, queue.Phases[0].Trigger);
         }
 
+        /// <summary>⭐ CE-4157 — a scenario whose mission names an unknown trigger type (or two triggers) FAILS the load, naming the entity and
+        /// the task; the queue is not written. ✅ Red-proof: the helper's default arm back to a fallback ⇒ red.</summary>
+        [Theory]
+        [InlineData("NoSuchTrigger", false)]
+        [InlineData("BehaviorFinished", true)]
+        public void CE4157_Inject_AnUnknownTriggerOrASecondOne_FailsTheLoad(string type, bool second)
+        {
+            var entity     = CreateMissionEntity();
+            var translator = MakeTranslator();
+            var resolver   = MakeResolver();
+            var dom = translator.Extract(_repo, entity, resolver);
+            var task = ((ISimulationView)_repo).GetManagedComponentRO<ActiveMissionPlan>(entity)!.Plan.Tasks[0];
+            task.Triggers = new List<DomainMissionTrigger> { new DomainMissionTrigger { Type = type } };
+            if (second) task.Triggers.Add(new DomainMissionTrigger { Type = "TimerElapsed", Params = "5" });
+            dom = translator.Extract(_repo, entity, resolver);
+            _repo.SetComponent(entity, default(MissionPlanQueue));
+
+            var ex = Assert.Throws<Hrot.Core.Mission.MissionPlanException>(() => translator.Inject(_repo, entity, dom, resolver));
+            Assert.Contains("FireAtTarget", ex.Message);
+            Assert.Contains($"#{entity.Index}", ex.Message);
+            Assert.Equal(0, _repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
+        }
+
         // ── Test 3: CanTranslate returns false without ActiveMissionPlan ──────────
 
         /// <summary>
