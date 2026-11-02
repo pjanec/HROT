@@ -37,6 +37,8 @@ namespace Fdp.Toolkit.ScenarioRules.Tests.Actions
     public struct NoState { public int Pad; }
     public struct FailParams { public int Code; }
     public struct RecordParams { public int Value; }
+    /// <summary>⭐ rules S2 ⑨ — params with an <c>ArgsRef</c>: the index of the step's nested <c>"params"</c> in the caller's <see cref="ActionArgs.Items"/>.</summary>
+    public struct RefParams { public int ArgsRef; public int N; }
 
     /// <summary>The "rich" params: FixedString / enum / float through the JSON seeding, and an authored <see cref="EntityLink"/>.</summary>
     public struct RichParams
@@ -89,6 +91,15 @@ namespace Fdp.Toolkit.ScenarioRules.Tests.Actions
         public static NodeStatus TestRecord(ref RecordParams p, ref NoState s, Entity self, EntityRepository world)
         {
             if (s.Pad == 0) { world.GetComponentRW<ActionTestLog>(self).Append(p.Value); s.Pad = 1; }   // once per step run
+            return NodeStatus.Success;
+        }
+
+        /// <summary>Logs the LENGTH of the item its <c>ArgsRef</c> points at, so a rail sees which item the seeding chose.</summary>
+        [SharedAiAction]
+        public static NodeStatus TestRefLength(ref RefParams p, ref NoState s, Entity self, EntityRepository world)
+        {
+            var items = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<ActionArgs>(self).Items;
+            world.GetComponentRW<ActionTestLog>(self).Append(items[p.ArgsRef].Length);
             return NodeStatus.Success;
         }
 

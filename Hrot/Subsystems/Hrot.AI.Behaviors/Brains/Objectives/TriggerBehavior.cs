@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -61,7 +62,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public const string Kind = BehaviorNames.Trigger;
 
         /// <summary>The step lists live in <see cref="ActionArgs"/>: item 0 = the <c>when</c> JSON, item 1 = the <c>do</c> list.</summary>
-        public const int WhenItem = 0, DoItem = 1;
+        public const int WhenItem = 0, DoItem = 1, FirstExtraItem = 2;   // ⭐ S2 ⑨ — items 2.. are the steps' nested "params"
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Block
@@ -92,6 +93,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             if (authored.When is null) throw new InvalidOperationException("Trigger: 'when' is required (a condition, e.g. {\"$type\":\"OnEntity\",...}).");
             string whenJson = TriggerWhen.ToJson(authored.When);
             string doJson = authored.Do?.ToJsonString() ?? "[]";
+            string[] extras;
+            try { (doJson, extras) = ActionList.ExtractParams(doJson, FirstExtraItem); }   // ⭐ S2 ⑨ — a step's nested "params" become extra ActionArgs items, its ArgsRef their index
+            catch (ActionListException ex) { throw new InvalidOperationException($"Trigger: 'do' is invalid — {ex.Message}", ex); }
             try { TriggerWhen.Get(whenJson); }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             { throw new InvalidOperationException($"Trigger: 'when' does not compile — {ex.GetType().Name}: {ex.Message}", ex); }
@@ -107,7 +111,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 MaxFires = Math.Max(0, authored.MaxFires), Repeat = (byte)(authored.Repeat ? 1 : 0), FireIfTrueWhenArmed = (byte)(authored.FireIfTrueWhenArmed ? 1 : 0),
                 ListParams = new RunActionsParams { ListRef = DoItem, Depth = 0 },
             };
-            if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { whenJson, doJson }));
+            if (world != null && world.IsAlive(self)) world.SetManagedComponent(self, new ActionArgs(new[] { whenJson, doJson }.Concat(extras).ToArray()));
         }
 
         private const double Eps = 1e-9;
