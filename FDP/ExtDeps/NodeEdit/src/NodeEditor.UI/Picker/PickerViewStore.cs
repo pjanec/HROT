@@ -16,6 +16,7 @@ public sealed class PickerViewStore
 
     private readonly Dictionary<string, PickerLayout> _layouts = [];
     private readonly Dictionary<string, float> _paneWidths = [];
+    private readonly Dictionary<string, float> _tileWidths = [];
 
     /// <summary>The file this store is bound to (<see cref="Load"/>); null for an in-memory store.</summary>
     public string? PersistPath { get; private set; }
@@ -41,6 +42,18 @@ public sealed class PickerViewStore
     {
         if (_paneWidths.TryGetValue(contextKey, out var cur) && Math.Abs(cur - width) < 0.5f) return;
         _paneWidths[contextKey] = width;
+        Save();
+    }
+
+    /// <summary>⭐ CE-4142 — the gallery tile width remembered for <paramref name="contextKey"/>, or null.</summary>
+    public float? GetTileWidth(string contextKey)
+        => _tileWidths.TryGetValue(contextKey, out var w) ? w : null;
+
+    /// <summary>⭐ CE-4142 — remembers the gallery tile width for <paramref name="contextKey"/> (and saves).</summary>
+    public void SetTileWidth(string contextKey, float width)
+    {
+        if (_tileWidths.TryGetValue(contextKey, out var cur) && Math.Abs(cur - width) < 0.5f) return;
+        _tileWidths[contextKey] = width;
         Save();
     }
 
@@ -74,6 +87,7 @@ public sealed class PickerViewStore
                 Version = FormatVersion,
                 Layouts = _layouts.ToDictionary(kv => kv.Key, kv => kv.Value.ToString()),
                 PaneWidths = new Dictionary<string, float>(_paneWidths),
+                TileWidths = new Dictionary<string, float>(_tileWidths),
             },
             new JsonSerializerOptions { WriteIndented = true });
 
@@ -87,6 +101,9 @@ public sealed class PickerViewStore
         if (dto.PaneWidths is not null)
             foreach (var (k, v) in dto.PaneWidths)
                 if (v > 0f) _paneWidths[k] = v;
+        if (dto.TileWidths is not null)
+            foreach (var (k, v) in dto.TileWidths)
+                if (v > 0f) _tileWidths[k] = v;
     }
 
     private sealed class Dto
@@ -94,5 +111,6 @@ public sealed class PickerViewStore
         public int Version { get; set; }
         public Dictionary<string, string>? Layouts { get; set; }
         public Dictionary<string, float>? PaneWidths { get; set; }
+        public Dictionary<string, float>? TileWidths { get; set; }
     }
 }

@@ -124,6 +124,9 @@ public sealed class PickerWindow
         _onCancel       = null;
 
         _state.Reset(request.ContextKey, request.InitialQuery, request.SelectionMode);
+        _state.Groups = request.GroupSidebar;
+        _state.TileWidth = Math.Clamp(View.GetTileWidth(request.ContextKey) ?? PickerState.DefaultTileWidth,
+                                      PickerState.MinTileWidth, PickerState.MaxTileWidth);
         _state.AllEntries = _requestEntries;
         _state.Refilter();
         _state.ApplyInitialSelection(request.InitialSelectionId);
@@ -400,6 +403,16 @@ public sealed class PickerWindow
 
     private void DrawLayout(PickerRenderContext ctx)
     {
+        DrawLayoutCore(ctx);
+        if (_state.TileWidthChanged)
+        {
+            _state.TileWidthChanged = false;
+            View.SetTileWidth(_state.ContextKey, _state.TileWidth);
+        }
+    }
+
+    private void DrawLayoutCore(PickerRenderContext ctx)
+    {
         switch (_layout)
         {
             case PickerLayout.Compact:
@@ -524,6 +537,13 @@ public sealed class PickerWindow
             return;
         }
 
+        // ── ⭐ CE-4142: the gallery Grid moves over the tiles it DREW (arrows are 2-D) ──
+        if (_layout == PickerLayout.Grid && _state.Groups is not null && _state.VisibleFiltered.Count > 0)
+        {
+            HandleGridKeyboardNavigation();
+            return;
+        }
+
         // ── Flat layouts (Standard/Compact/Wide/Grid): Filtered-index navigation ──
         int count = _state.Filtered.Count;
         if (count == 0) return;
@@ -568,6 +588,22 @@ public sealed class PickerWindow
                 }
             }
         }
+    }
+
+    private void HandleGridKeyboardNavigation()
+    {
+        var vis = _state.VisibleFiltered;
+        int cols = Math.Max(1, _state.GridColumns);
+        int pos = Math.Max(0, vis.IndexOf(_state.KeyboardFocusIndex));
+        int next = pos;
+        if (ImGui.IsKeyPressed(ImGuiKey.LeftArrow)) next = pos - 1;
+        else if (ImGui.IsKeyPressed(ImGuiKey.RightArrow)) next = pos + 1;
+        else if (ImGui.IsKeyPressed(ImGuiKey.UpArrow)) next = pos - cols;
+        else if (ImGui.IsKeyPressed(ImGuiKey.DownArrow)) next = pos + cols;
+        else if (ImGui.IsKeyPressed(ImGuiKey.Home)) next = 0;
+        else if (ImGui.IsKeyPressed(ImGuiKey.End)) next = vis.Count - 1;
+        next = Math.Clamp(next, 0, vis.Count - 1);
+        if (next != pos || !vis.Contains(_state.KeyboardFocusIndex)) SetFocus(vis[next], extendSelection: false);
     }
 
     private void HandleTreeKeyboardNavigation()

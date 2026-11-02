@@ -36,6 +36,26 @@ internal sealed class PickerState
     // ── Wide layout sidebar ───────────────────────────────────────────────────
     public string SelectedCategory = "";
 
+    /// <summary>⭐ CE-4142 — the chip selected inside the group sidebar's group (empty = All).</summary>
+    public string SelectedChip = "";
+
+    /// <summary>⭐ CE-4142 — the request's group sidebar (gallery mode of the Grid layout); null = the classic Grid.</summary>
+    public PickerGroupSidebar? Groups;
+
+    /// <summary>⭐ CE-4142 — gallery tile width in pixels (the slider; remembered per context by the window).</summary>
+    public float TileWidth = DefaultTileWidth;
+    public const float DefaultTileWidth = 160f;
+    public const float MinTileWidth = 96f;
+    public const float MaxTileWidth = 320f;
+
+    /// <summary>⭐ CE-4142 — set by the Grid when the slider moved; the window saves it to the view store and clears it.</summary>
+    public bool TileWidthChanged;
+
+    /// <summary>⭐ CE-4142 — indices into <see cref="Filtered"/> the Grid drew this frame, in order, and its column count: the window's
+    /// arrow keys move over THESE (a hidden tile is never a target).</summary>
+    public List<int> VisibleFiltered = [];
+    public int GridColumns = 1;
+
     // ── Tree layout state ─────────────────────────────────────────────────────
 
     /// <summary>One-shot toggle request: folder path to expand/collapse next frame (Tree layout only).</summary>
@@ -229,6 +249,11 @@ internal sealed class PickerState
         KeyboardFocusIndex      = 0;
         SelectionAnchorIndex    = 0;
         SelectedCategory        = "";
+        SelectedChip            = "";
+        Groups                  = null;
+        TileWidthChanged        = false;
+        VisibleFiltered         = [];
+        GridColumns             = 1;
         PendingToggleFolderPath = null;
         PendingToggleOpen       = false;
         VisualRows.Clear();

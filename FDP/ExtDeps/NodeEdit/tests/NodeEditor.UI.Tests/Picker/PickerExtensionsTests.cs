@@ -2,6 +2,7 @@ using FluentAssertions;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 using Xunit;
+using NodeEditor.UI.Picker.Layouts;
 
 namespace NodeEditor.UI.Tests.Picker;
 
@@ -364,5 +365,85 @@ public sealed class PickerExtensionsTests : IDisposable
         Assert.Equal("", PickerText.Drawable("\U0001F680\U0001F4C4", Latin));
         Assert.Equal("", PickerText.Drawable("", Latin));
         Assert.Equal("ab", PickerText.Drawable("a\U0001F4C4b", _ => true));                          // a surrogate pair goes even if a predicate claims a glyph for its halves
+    }
+
+    // ── ⭐ CE-4142 GL3 — the shared category sidebar and the gallery Grid ─────────────
+
+    private static RankedEntry Row(string id, string? category, bool recent = false, bool fav = false)
+        => new(E(id, category), 0, Array.Empty<int>(), fav, recent);
+
+    private static readonly PickerGroupSidebar Groups = new(new[] { "Recent & favourites", "Soldiers", "Vehicles", "Props" }, "Recent & favourites");
+
+    [Fact]
+    public void CE4142_GL3_TheWideSidebarRule_IsUnchanged_ByTheSharedHelper()
+    {
+        // the classic rule: nothing selected = everything; else the top-level segment must equal the selection (an uncategorised row never matches)
+        Assert.True(CategorySidebar.Matches(Row("a", "X/Y"), "", groups: null, searching: false));
+        Assert.True(CategorySidebar.Matches(Row("a", "X/Y"), "X", groups: null, searching: false));
+        Assert.False(CategorySidebar.Matches(Row("a", "X/Y"), "Y", groups: null, searching: false));
+        Assert.False(CategorySidebar.Matches(Row("a", null), "X", groups: null, searching: false));
+        Assert.True(CategorySidebar.Matches(Row("a", "X"), "X", groups: null, searching: true));   // no group sidebar ⇒ searching changes nothing here either
+        Assert.False(CategorySidebar.Matches(Row("a", "Z"), "X", groups: null, searching: true));
+    }
+
+    [Fact]
+    public void CE4142_GL3_GroupSidebar_FiltersByGroup_RecentIsRecentOrStarred_SearchRangesOverAllGroups()
+    {
+        var soldier = Row("s", "Soldiers/Infantry");
+        var tank = Row("t", "Vehicles/Tank");
+        var starredTank = Row("t2", "Vehicles/Tank", fav: true);
+        var recentSoldier = Row("s2", "Soldiers/Infantry", recent: true);
+
+        Assert.True(CategorySidebar.Matches(soldier, "Soldiers", Groups, searching: false));
+        Assert.False(CategorySidebar.Matches(tank, "Soldiers", Groups, searching: false));
+        Assert.False(CategorySidebar.Matches(soldier, "Recent & favourites", Groups, searching: false));
+        Assert.True(CategorySidebar.Matches(starredTank, "Recent & favourites", Groups, searching: false));
+        Assert.True(CategorySidebar.Matches(recentSoldier, "Recent & favourites", Groups, searching: false));
+        Assert.True(CategorySidebar.Matches(tank, "Soldiers", Groups, searching: true));   // G7: a search ignores the group
+    }
+
+    [Fact]
+    public void CE4142_GL3_GroupSidebar_ListsTheRequestsOrder_WithCounts_EmptyOnesStayListed_AnUnlistedGroupIsNotHidden()
+    {
+        var w = new PickerWindow();
+        w.Open(new PickerRequest
+        {
+            ContextKey = "gal", Title = "t", Layout = PickerLayout.Grid, GroupSidebar = Groups,
+            ItemsProvider = () => new[] { E("s", "Soldiers/Infantry"), E("t", "Vehicles/Tank"), E("u", "Vehicles/Truck"), E("o", "Other") },
+        }, _ => { });
+
+        var rows = CategorySidebar.GroupCounts(w.State, Groups);
+
+        Assert.Equal(new[] { "Recent & favourites", "Soldiers", "Vehicles", "Props", "Other" }, rows.Select(r => r.Name));
+        Assert.Equal(new[] { 0, 1, 2, 0, 1 }, rows.Select(r => r.Count));
+        Assert.Equal(new[] { "Tank", "Truck" }, CategorySidebar.ChipsOf(w.State, "Vehicles", Groups));
+        Assert.Same(Groups, w.State.Groups);
+    }
+
+    [Fact]
+    public void CE4142_GL3_ATileSizeIsRememberedPerContext_AndAClassicPickerHasNoGroups()
+    {
+        var store = new PickerViewStore();
+        var w1 = new PickerWindow { View = store };
+        w1.Open(new PickerRequest { ContextKey = "gal", Title = "t", Layout = PickerLayout.Grid, GroupSidebar = Groups, ItemsProvider = () => new[] { E("a", "Soldiers/I") } }, _ => { });
+        Assert.Equal(PickerState.DefaultTileWidth, w1.State.TileWidth);
+
+        store.SetTileWidth("gal", 220f);
+        var w2 = new PickerWindow { View = store };
+        w2.Open(new PickerRequest { ContextKey = "gal", Title = "t", Layout = PickerLayout.Grid, GroupSidebar = Groups, ItemsProvider = () => new[] { E("a", "Soldiers/I") } }, _ => { });
+        Assert.Equal(220f, w2.State.TileWidth);
+
+        store.SetTileWidth("gal", 5000f);                       // a hand-edited file cannot make a one-pixel or a screen-wide tile
+        w2.Open(new PickerRequest { ContextKey = "gal", Title = "t", Layout = PickerLayout.Grid, GroupSidebar = Groups, ItemsProvider = () => new[] { E("a", "Soldiers/I") } }, _ => { });
+        Assert.Equal(PickerState.MaxTileWidth, w2.State.TileWidth);
+
+        var path = Path.Combine(_dir, "view.json");
+        Directory.CreateDirectory(_dir);
+        var disk = PickerViewStore.Load(path);
+        disk.SetTileWidth("gal", 180f);
+        Assert.Equal(180f, PickerViewStore.Load(path).GetTileWidth("gal"));
+
+        w2.Open(Req(), _ => { });
+        Assert.Null(w2.State.Groups);
     }
 }
