@@ -1,0 +1,164 @@
+{
+  "$doc": "docs/SHOWCASE_Scenarios.md \u00a71.6 \u2014 Bridgehead (a DEMO: ~50 entities, AI on both sides; conditions only, no golden). Lines 1 (the chain, as a status check), 2 (the QRF), 5 (the ease-off) as conditions; line 3 (variants) is the rail ShowcaseScenarioTests; lines 4 and 6 (debrief / summary numbers) wait for rules S4 + ui. Variant 0 (as authored): the outpost behind the low wall, the QRF from the EAST edge.",
+  "runFor": 1500,
+  "golden": false,
+  "later": [
+    "Red QRF",
+    "Red QRF Squad 1 Leader",
+    "Civilian car"
+  ],
+  "anchors": {
+    "reach": {
+      "on": "field",
+      "who": "Reach phase line RED",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    },
+    "clear": {
+      "on": "field",
+      "who": "Clear the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    },
+    "holdOn": {
+      "on": "field",
+      "who": "Hold the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active"
+    }
+  },
+  "expect": [
+    {
+      "name": "Blue marches to phase line RED",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "SquadMarch",
+      "before": 5
+    },
+    {
+      "name": "the outpost defends its place",
+      "on": "task",
+      "who": "Red Outpost",
+      "is": "SquadDefend",
+      "before": 10
+    },
+    {
+      "name": "the Red defenders hold the crossroads",
+      "on": "task",
+      "who": "Red Defenders",
+      "is": "PlatoonDefend",
+      "before": 10
+    },
+    {
+      "name": "the briefing fires",
+      "on": "field",
+      "who": "Briefing",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "before": 10
+    },
+    {
+      "name": "Blue reaches phase line RED",
+      "on": "field",
+      "who": "Reach phase line RED",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    },
+    {
+      "name": "(chain) Clear is never active before the phase line is reached",
+      "never": {
+        "on": "field",
+        "who": "Clear the crossroads",
+        "path": "ObjectiveStatus.State",
+        "op": "==",
+        "value": "Active"
+      },
+      "before": "reach"
+    },
+    {
+      "name": "(chain) Blue is ordered to attack the crossroads",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonAttack",
+      "after": "reach",
+      "before": "reach+15"
+    },
+    {
+      "name": "Blue clears the crossroads",
+      "on": "field",
+      "who": "Clear the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    },
+    {
+      "name": "(chain) Hold is never active before the crossroads is clear",
+      "never": {
+        "on": "field",
+        "who": "Hold the crossroads",
+        "path": "ObjectiveStatus.State",
+        "op": "==",
+        "value": "Active"
+      },
+      "before": "clear"
+    },
+    {
+      "name": "(QRF) the Red QRF attacks ~120 s after Hold activated",
+      "on": "task",
+      "who": "Red QRF",
+      "is": "PlatoonAttack",
+      "after": "holdOn+115",
+      "before": "holdOn+140"
+    },
+    {
+      "name": "(QRF) it starts at the variant's edge (east, variant 0)",
+      "on": "near",
+      "who": "Red QRF Squad 1 Leader",
+      "point": [
+        322,
+        120
+      ],
+      "within": 20,
+      "after": "holdOn+115",
+      "before": "holdOn+135"
+    },
+    {
+      "name": "the checkpoint inject: the civilian car drives in ~180 s after Hold",
+      "on": "task",
+      "who": "Civilian car",
+      "is": "MoveToLocation",
+      "after": "holdOn+175",
+      "before": "holdOn+200"
+    },
+    {
+      "name": "(ease-off) fires at most twice",
+      "on": "field",
+      "who": "Ease off",
+      "path": "ObjectiveStatus.FireCount",
+      "op": "<=",
+      "value": 2,
+      "atEnd": true
+    },
+    {
+      "name": "no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue",
+        "hit": "*Blue"
+      }
+    },
+    {
+      "name": "no Red round hits a Red man",
+      "never": {
+        "on": "shot",
+        "by": "*Red",
+        "hit": "*Red"
+      }
+    }
+  ]
+}

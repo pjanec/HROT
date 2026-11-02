@@ -1,0 +1,137 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: SHOWCASE Bridgehead (docs/SHOWCASE_Scenarios.md \u00a71) - a 2-man outpost (a squad running SquadDefend at the anchor, facing the anchor's heading). Judge: wherever it is placed, the squad's SquadDefend Position is the instance's anchor (the expander relocates the point inside the params) and both men stand there, of side 'side'.",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 180
+  },
+  "Params": [
+   {
+    "Name": "side",
+    "TypeId": "ForceId",
+    "Default": "Hostile"
+   }
+  ]
+ },
+ "entities": {
+  "b41d0a00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red Outpost",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "SquadDefend",
+    "Params": "{\"Position\": [0, 0, 0], \"SearchRadius\": 8, \"Speed\": 2}",
+    "Origin": "Superior"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0a00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     -1.5,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Outpost Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0a00-0000-4000-8000-000000000001",
+    "Designation": "SquadLeader"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0a00-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     1.5,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red Outpost Rifleman",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0a00-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  }
+ }
+}
