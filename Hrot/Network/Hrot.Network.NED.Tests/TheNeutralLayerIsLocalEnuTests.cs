@@ -63,6 +63,18 @@ public class TheNeutralLayerIsLocalEnuTests
         Assert.Equal((X, Y, Z), (wp.X, wp.Y, wp.Z));
     }
 
+    /// <summary>⭐ CE-3356 — a gateway create names NO id: its master carries <c>0</c> ("allocate here"), never a sentinel the creator would
+    /// take as an author-fixed id (since CE-4024 any nonzero <c>EntityMaster.EntityId</c> is pre-allocated — a <c>-1</c> made the entity -1).</summary>
+    [Fact]
+    public void CE3356_TheGatewayCreateRequest_AsksForNoId()
+    {
+        var req = NedTranslationHelper.ToCreateEntityRequest(
+            new CreateEntityCommand { TkbType = (Fdp.Core.TkbTypeId)(105), X = X, Y = Y, Z = Z });
+
+        var master = Assert.Single(req.InitialDescriptors, d => d._d == EDescriptorType.dtEntityMaster).EntityMaster;
+        Assert.Equal(0, master.EntityId);
+    }
+
     [Fact]
     public void AMoveUpdateJson_WithXYZ_BecomesAWorldPosPayload_WithTheSameMetres()
     {

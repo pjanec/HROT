@@ -24,7 +24,7 @@ internal static class NedTranslationHelper
                 _d           = EDescriptorType.dtEntityMaster,
                 EntityMaster = new EntityMaster
                 {
-                    EntityId = -1,
+                    EntityId = 0,   // ⭐ CE-3356: 0 = "no id given — allocate here" (the CGF adapter reads a nonzero id as one the author fixed, CE-4024)
                     TkbType  = cmd.TkbType,
                 }
             },
