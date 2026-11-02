@@ -78,8 +78,19 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     return static (_, _) => true;
 
                 // Value predicates used standalone: pass-through (normally nested inside PropertyMatch).
-                default:
+                case SearchPredicateValueDto _:
+                // Evaluated OUTSIDE this per-entity path: a ring entry / a value change by their own scanners, a behaviour step by the
+                // editor's evaluator (DataBreakpointManager mounts each on its own arm) — pass-through, as before CE-4159.
+                case RingEntryPredicateDto _:
+                case ValueChangePredicateDto _:
+                case BehaviourStepPredicateDto _:
                     return static (_, _) => true;
+
+                // ⭐⭐ CE-4159 (DESIGN_Scenario_Rules.md SR-108) — a DTO with no arm is a LOUD error. ⛔ It compiled to constant TRUE: nested in
+                //   a Compound it made the whole condition true with no error (a new predicate type, a trigger's OnEntity, a typo'd type).
+                default:
+                    throw new NotSupportedException(
+                        $"PredicateCompiler: no compiler arm for predicate type '{dto?.GetType().FullName ?? "null"}' — add an arm (or a deliberate pass-through) in PredicateCompiler.Compile.");
             }
         }
 

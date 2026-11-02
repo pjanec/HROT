@@ -192,9 +192,10 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
         }
 
         [Fact]
-        public void P5_FINDING_AnUnknownDtoNestedInACompound_CompilesToConstantTrue_SILENTLY()
+        public void P5_CE4159_AnUnknownDtoNestedInACompound_IsALoudError()
         {
-            // PredicateCompiler.cs:51 `switch (dto)` has no arm for it and :81 `default:` returns `static (_, _) => true`.
+            // ⭐ CE-4159 — this rail was P5_FINDING_…_CompilesToConstantTrue_SILENTLY: PredicateCompiler's `default:` returned
+            // `static (_, _) => true`, so the unknown DTO made the whole Compound true with no error. Now the default arm THROWS.
             using var w = NewWorld();
             var e = TriggerUnit(w, RecordOne, signal: 0);
             var childFalse = new PropertyMatchDto
@@ -208,8 +209,9 @@ namespace Fdp.Toolkit.Behavior.Tests.TriggerPoc
                 Conditions = new List<SearchPredicateDto> { new PocOnEntityDto { Ref = "A", Predicate = childFalse } },
             };
             Assert.False(Compiler.CompileComponentPredicate(childFalse)(w, e));          // the child alone is false …
-            Assert.True(Compiler.CompileComponentPredicate(nested)(w, e));               // … wrapped in the unknown DTO it becomes TRUE, no error
-            Assert.True(Compiler.CompileComponentPredicate(new PocOnEntityDto())(w, e)); // … even on its own
+            var ex = Assert.Throws<NotSupportedException>(() => Compiler.CompileComponentPredicate(nested));   // … wrapped in an unknown DTO: refused
+            Assert.Contains(nameof(PocOnEntityDto), ex.Message);
+            Assert.Throws<NotSupportedException>(() => Compiler.CompileComponentPredicate(new PocOnEntityDto()));   // … and on its own
         }
 
         [Fact]
