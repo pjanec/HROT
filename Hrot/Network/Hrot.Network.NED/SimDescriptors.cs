@@ -171,6 +171,86 @@ namespace Hrot.NED.Descriptors
         public int DisplayUtcOffsetSeconds;
     }
 
+    // ⭐ rules S1-a (docs/DESIGN_Scenario_Rules.md §00.8, SR-120) — an objective / measure / trigger's STATUS (ObjectiveStatus + the subject / parent
+    //   of ObjectiveLinks as net ids), published by the owner (its own Brain) on change, applied on every other node. A state change goes at once;
+    //   progress-only changes at most twice a second. The display fields (Title, Kind, Required, Scored, Weight, VisibleSides) are a projection of the
+    //   params, so a HUD reads one topic and never parses JSON — ⛔ never written back. Reliable + TransientLocal + KeepLast(1) keyed by entity, like
+    //   the scenario clock. Managed: it carries three short strings.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityObjectiveStatus
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary><c>ObjectiveRole</c>: 0 Objective · 1 Measure · 2 Trigger.</summary>
+        public byte Role;
+        /// <summary><c>ObjectiveState</c>: 0 Pending · 1 Active · 2 Achieved · 3 Failed · 4 Inactive · 5 Skipped.</summary>
+        public byte State;
+        /// <summary>1 = final: the exercise closed it.</summary>
+        public byte Closed;
+        /// <summary>The owning side (<c>ForceId</c>).</summary>
+        public byte Owner;
+        public int ProgressCur;
+        public int ProgressNeed;
+        public float Value;
+        public float Target;
+        /// <summary>0..1.</summary>
+        public float Score;
+        public float Points;
+        /// <summary>Sim time (s) of the last state change.</summary>
+        public double ChangedAt;
+        /// <summary>A short text: "held 60 s, 5 Blue / 0 Red".</summary>
+        public string Reason;
+        /// <summary>The subject's network id (<c>ObjectiveLinks.Subject</c>); 0 = none.</summary>
+        public int Subject;
+        /// <summary>The parent objective's network id (<c>ObjectiveLinks.Parent</c>); 0 = none.</summary>
+        public int Parent;
+        /// <summary>Triggers: times fired.</summary>
+        public int FireCount;
+        /// <summary>Triggers: sim time (s) of the last firing.</summary>
+        public double LastFired;
+        /// <summary>⭐ rules S2-c: <c>TriggerState</c> (Disarmed 0 · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done 7); a trigger only.</summary>
+        public byte TriggerState;
+        public string Title;
+        public string Kind;
+        public byte Required;
+        public byte Scored;
+        public float Weight;
+        /// <summary>Bit mask by <c>ForceId</c> value.</summary>
+        public byte VisibleSides;
+    }
+
+    // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the
+    //   outcome per side. State on the World Environment, published by the owner (its Brain) on change, applied on every other node, whose ingress raises the
+    //   local ExerciseEndedEvent ONCE when the phase becomes Ended. Same QoS and shape as the scenario clock. Managed: it carries the reason.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityExerciseResult
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary><c>ExercisePhase</c>: 0 Running · 1 Closing · 2 Ended.</summary>
+        public byte Phase;
+        /// <summary>Sim time (s) it ended.</summary>
+        public double EndedAt;
+        public string Reason;
+        /// <summary>Per side: <c>SideOutcome</c> (0 None · 1 Win · 2 Lose · 3 Draw), points, score — Friend, Hostile, Neutral.</summary>
+        public byte FriendOutcome;
+        public float FriendPoints;
+        public float FriendScore;
+        public byte HostileOutcome;
+        public float HostilePoints;
+        public float HostileScore;
+        public byte NeutralOutcome;
+        public float NeutralPoints;
+        public float NeutralScore;
+    }
+
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
     //   weather on the World Environment, a regional one on a Weather Region. Published by the owner (the creating Brain) on change, applied
     //   on every other node; every node derives the weather at any point itself (WeatherField). Flat fields (the dtPartDamage shape): 8 wind

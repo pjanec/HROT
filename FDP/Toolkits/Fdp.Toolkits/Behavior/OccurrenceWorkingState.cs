@@ -38,6 +38,8 @@ public static unsafe class OccurrenceWorkingState
         OccurrenceKind kind, out bool freshlyAttached)
         where TWorkingState : unmanaged
     {
+        RefuseRootKind(kind, slotKey);
+
         if (!OccurrenceStoreAccess.HasStore(world, self))
             throw new InvalidOperationException(
                 $"Entity {self} carries no occurrence store, so hosted slot {slotKey} cannot be " +
@@ -112,6 +114,8 @@ public static unsafe class OccurrenceWorkingState
         where TParams : unmanaged
         where TWorkingState : unmanaged
     {
+        RefuseRootKind(kind, slotKey);
+
         // ⭐⭐⭐ WORKING STATE FIRST, PARAMS SECOND — and the order is load-bearing (§28.3a).
         //   Every existing reader of a slot decodes working state at the payload's BASE:
         //   BlueprintDebugSession, the live renderers, Resolve<T> above. Putting params first
@@ -154,6 +158,20 @@ public static unsafe class OccurrenceWorkingState
         Components.SopStartRecord.NoteHosted(world, self, slotKey);   // ⭐ CE-2085
         paramsPtr = (TParams*)(store2 + newOffset + stateBytes);
         return ref Unsafe.AsRef<TWorkingState>(store2 + newOffset);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4161</c> — the LAZY-attach seam refuses the ROOT kinds. <see cref="OccurrenceKind.BTree"/> and <see cref="OccurrenceKind.BlueprintBehavior"/>
+    /// mark a behaviour's ROOT slots, which ingress detaches explicitly by the old behaviour's hash; ingress's behaviour-change sweep of HOSTED slots frees
+    /// only <see cref="OccurrenceKind.Hsm"/> / <see cref="OccurrenceKind.Blueprint"/>, so a lazily attached slot of a root kind would LEAK one slot per
+    /// behaviour change (three fit on the smallest tier). 📐 No production caller does it (measured <c>2026-11-01</c>) — this makes it impossible by construction.
+    /// </summary>
+    private static void RefuseRootKind(OccurrenceKind kind, int slotKey)
+    {
+        if (kind is OccurrenceKind.BTree or OccurrenceKind.BlueprintBehavior)
+            throw new InvalidOperationException(
+                $"CE-4161: hosted slot {slotKey} cannot be attached lazily as kind {kind}: that kind marks a behaviour's ROOT slots (detached by the old " +
+                "behaviour's hash), and the behaviour-change sweep of hosted slots frees only Hsm | Blueprint — the slot would leak. Declare Hsm (or Blueprint).");
     }
 
     /// <summary>

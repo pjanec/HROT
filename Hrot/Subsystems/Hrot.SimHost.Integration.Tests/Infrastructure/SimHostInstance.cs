@@ -507,7 +507,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             {
                 var task = tasks[i];
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
-                var (trigger, param) = ResolveTrigger(task.Triggers);
+                var (trigger, param) = ResolveTrigger(task.Triggers, task.TaskId.ToString());
                 
                 System.Console.WriteLine($"[SimHostInstance] task {i}: trigger={trigger}, param={param}");
 
@@ -550,34 +550,10 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             return new ActiveMissionPlan { Plan = plan };
         }
 
+        /// <summary>⭐ CE-4157 — the core parser (the one switch).</summary>
         private static (Fdp.Toolkit.Behavior.Components.MissionTrigger Trigger, float Param) ResolveTrigger(
-            List<Hrot.NED.Descriptors.MissionTrigger>? triggers)
-        {
-            if (triggers == null || triggers.Count == 0)
-                return (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue);
-
-            var trigger = triggers[0];
-            var type = trigger.Type ?? string.Empty;
-
-            return type switch
-            {
-                "TimerElapsed"       => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (Fdp.Toolkit.Behavior.Components.MissionTrigger.BehaviorFinished, 0f),
-                "HealthCritical"     => (Fdp.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
-                _                    => (Fdp.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
-            };
-        }
-
-        private static float ParseTriggerParam(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw))
-                return 0f;
-
-            return float.TryParse(raw, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var value)
-                ? value
-                : 0f;
-        }
+            List<Hrot.NED.Descriptors.MissionTrigger>? triggers, string task)
+            => Hrot.Map.Common.Helpers.MissionTriggerHelper.ResolveTrigger(triggers, task);
 
         /// <summary>
         /// Runs the simulation loop for <paramref name="seconds"/> wall-clock-equivalent seconds

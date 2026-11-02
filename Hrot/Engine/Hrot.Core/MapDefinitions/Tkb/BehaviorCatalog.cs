@@ -38,7 +38,7 @@ public static class BehaviorCatalog
         => s_maps.GetValue(registry, r =>
         {
             var map = new Dictionary<BehaviorCategory, IReadOnlyList<string>>();
-            foreach (var cat in new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent, BehaviorCategory.Commander })
+            foreach (var cat in new[] { BehaviorCategory.MilitaryApc, BehaviorCategory.Infantry, BehaviorCategory.Insurgent, BehaviorCategory.Commander, BehaviorCategory.Objective, BehaviorCategory.Trigger })
             {
                 var names = r.NamesWithCategory(cat);
                 map[cat] = names.Count > 0 ? names : s_defaultBehaviors;
@@ -70,6 +70,8 @@ public static class BehaviorCatalog
         TkbEntityTypes.Unit_TankPlatoon_Auto => MapFor(registry)[BehaviorCategory.Commander],
         TkbEntityTypes.Unit_InfantrySquad    => MapFor(registry)[BehaviorCategory.Commander],
         TkbEntityTypes.Unit_InfantryPlatoon  => MapFor(registry)[BehaviorCategory.Commander],   // ⭐ CE-2262 SL-0
+        TkbEntityTypes.Objective             => MapFor(registry)[BehaviorCategory.Objective],   // ⭐ rules S1
+        TkbEntityTypes.Trigger               => MapFor(registry)[BehaviorCategory.Trigger],     // ⭐ rules S2-c
         _                                 => s_defaultBehaviors,
     };
 }

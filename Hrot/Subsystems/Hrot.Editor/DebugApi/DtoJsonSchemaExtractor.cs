@@ -240,6 +240,11 @@ namespace Hrot.Editor.DebugApi
             if (typeof(SearchPredicateDto).IsAssignableFrom(type))
                 return new JsonObject { ["type"] = "object", ["$ref"] = PredicateUnionRef };
 
+            // ⭐ rules S2-c — a free-form JSON value (a trigger's `do` list). ⛔ Never reflected: a JsonNode's members (Parent, Root, ...) point back
+            // into the tree, so describing it as "a struct the agent has to fill in" recursed until the stack overflowed.
+            if (typeof(System.Text.Json.Nodes.JsonNode).IsAssignableFrom(type))
+                return new JsonObject { ["type"] = "any", ["format"] = "json" };
+
             if (type == typeof(Type))
             {
                 // Serialized by TypeNameJsonConverter as the bare type NAME, not an assembly-qualified

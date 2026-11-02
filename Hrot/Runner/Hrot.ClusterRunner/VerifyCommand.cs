@@ -87,7 +87,14 @@ internal static class VerifyCommand
             }
             try { Directory.Delete(staging, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             JsonNode? r = File.Exists(childReport) ? JsonNode.Parse(File.ReadAllText(childReport)) : null;
-            var item = r?["scenarios"]?[0]?.DeepClone() ?? new JsonObject { ["scenario"] = s, ["status"] = "no report", ["exitCode"] = code, ["log"] = log };
+            // ⭐ a child that never started its scenario ("not started: no checks.json …") writes a report with an EMPTY scenarios array —
+            //   ⛔ indexing [0] threw ArgumentOutOfRangeException and the parent crashed instead of printing the failure (found 2026-11-02).
+            var item = (r?["scenarios"] is JsonArray first && first.Count > 0 ? first[0]?.DeepClone() : null)
+                       ?? new JsonObject
+                       {
+                           ["scenario"] = s, ["status"] = r is null ? "no report" : "not started", ["exitCode"] = code, ["log"] = log,
+                           ["report"] = r?.DeepClone(),
+                       };
             reports.Add(item);
             cases.Add((s, code, started.Elapsed.TotalSeconds, item as JsonObject, log));
             if (code != 0) failed.Add(s);

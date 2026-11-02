@@ -117,6 +117,45 @@ public class MissionControlExecutionSystemTests
         Assert.True(ack.Value.NewVersion > 0);
     }
 
+    /// <summary>⭐ CE-4157 — a mission request with an unknown trigger type (or two) is REFUSED (ValidationFailed ack) and the entity's queue is
+    /// left exactly as it was. ✅ Red-proof: the catch removed ⇒ the exception escapes ⇒ red; the fallback restored ⇒ a queue is applied ⇒ red.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CE4157_ReplaceMission_WithABadTrigger_IsRefused_AndTheQueueIsUnchanged(bool twoTriggers)
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        var entity = repo.CreateEntity();
+        entityMap.Register(1, entity);
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(Guid.NewGuid()) },
+        });
+        long versionBefore = repo.GetComponentRO<MissionPlanQueue>(entity).Version;
+
+        var bad = MakePlan(Guid.NewGuid(), Guid.NewGuid());
+        bad.Tasks[1].Triggers = twoTriggers
+            ? new List<Hrot.Core.Mission.MissionTrigger> { new() { Type = "BehaviorFinished" }, new() { Type = "UnderAttack" } }
+            : new List<Hrot.Core.Mission.MissionTrigger> { new() { Type = "NoSuchTrigger" } };
+        var requestId = Guid.NewGuid();
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = requestId, TargetEntityId = 1, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = bad },
+        });
+
+        repo.Bus.SwapBuffers();
+        var ack = FindAck(repo, requestId);
+        Assert.NotNull(ack);
+        Assert.NotEqual(0, ack!.Value.ErrorCode);
+        var queue = repo.GetComponentRO<MissionPlanQueue>(entity);
+        Assert.Equal((1, versionBefore), (queue.PhaseCount, queue.Version));   // the first plan is still there
+    }
+
     /// <summary>
     /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #7) — the mission's version and task order survive a checkpoint restored
     /// into a FRESH system: a three-task plan (version 1), keyframe, applied to a new world with a NEW system; then a jump to the third task lands

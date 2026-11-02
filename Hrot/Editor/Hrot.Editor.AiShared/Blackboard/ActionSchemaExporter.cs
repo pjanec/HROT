@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Fbt;
 using Fbt.Kernel;
+using Fdp.Toolkit.ScenarioRules.Actions;
 using Fhsm.Kernel.Attributes;
 
 namespace Hrot.Editor.AiShared.Blackboard;
@@ -46,48 +47,26 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
     // Internal helpers
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// ⭐ rules S2-d (CE-4160) — the assembly walk is the RUNTIME catalogue's (<see cref="ActionCatalogue.Discover"/>): ONE reflection pass finds
+    /// every method, registers the stateful shared actions a trigger step can run, and hands each method to the schema logic below.
+    /// ⛔ No second scan beside it (ruling 9).
+    /// </summary>
     private static void ScanAssembly(
         Assembly assembly,
         Dictionary<string, ActionSchemaEntry> collected)
     {
-        Type[] types;
-        try
+        ActionCatalogue.Discover(assembly, method =>
         {
-            types = assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            // Partial load: process the types that did load.
-            types = ex.Types.Where(t => t != null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            MethodInfo[] methods;
             try
             {
-                methods = type.GetMethods(
-                    BindingFlags.Public | BindingFlags.NonPublic |
-                    BindingFlags.Static | BindingFlags.Instance |
-                    BindingFlags.DeclaredOnly);
+                ProcessMethod(method, collected);
             }
-            catch
+            catch (Exception ex) when (ex is TypeLoadException or BadImageFormatException or InvalidOperationException)
             {
-                continue;
+                // Skip methods from assemblies with incompatible type references.
             }
-
-            foreach (var method in methods)
-            {
-                try
-                {
-                    ProcessMethod(method, collected);
-                }
-                catch (Exception ex) when (ex is TypeLoadException or BadImageFormatException or InvalidOperationException)
-                {
-                    // Skip methods from assemblies with incompatible type references.
-                }
-            }
-        }
+        });
     }
 
     private static void ProcessMethod(

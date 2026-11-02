@@ -1,68 +1,18 @@
 using System.Collections.Generic;
-using System.Globalization;
 using Hrot.NED.Descriptors;
-using Fdp.Toolkit.Behavior.Components;
 using DdsMissionTrigger = Hrot.NED.Descriptors.MissionTrigger;
 using EcsMissionTrigger = Fdp.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Hrot.Map.Common.Helpers
 {
     /// <summary>
-    /// Shared helper for resolving DDS mission trigger strings into ECS trigger enumerations.
-    ///
-    /// Consolidates the duplicate <c>ResolveTrigger</c> logic that previously existed in both
-    /// <c>MissionControlRequestSystem</c> (SimHost) and <c>EntityMissionIngressTranslator</c>
-    /// (Hrot.Map.Common) — DEBT item from BUG2-BATCH-01 (BUG2-DEBT-01).
+    /// ⭐ <c>CE-4157</c> — a THIN adapter: the DDS trigger list mapped onto the core parser (<c>Hrot.Core.Mission.MissionTriggerHelper</c> — the one
+    /// switch; there is no second copy). Throws <c>Hrot.Core.Mission.MissionPlanException</c> naming the task.
     /// </summary>
     public static class MissionTriggerHelper
     {
-        /// <summary>
-        /// Resolves the first DDS trigger in <paramref name="triggers"/> to the corresponding
-        /// <see cref="EcsMissionTrigger"/> and numeric parameter.
-        ///
-        /// Returns <c>(TimerElapsed, float.MaxValue)</c> when <paramref name="triggers"/> is
-        /// null or empty so that a phase with no trigger holds indefinitely.
-        ///
-        /// Unknown trigger type strings fall back to <c>TimerElapsed(0f)</c> as a safe,
-        /// observable failure mode — an operator or monitoring system can detect a timer
-        /// advancing from zero rather than a silent no-op.
-        /// </summary>
-        public static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
-        {
-            if (triggers == null || triggers.Count == 0)
-                return (EcsMissionTrigger.TimerElapsed, float.MaxValue); // no trigger = hold phase indefinitely
-
-            var trigger = triggers[0];
-            var type = trigger.Type ?? string.Empty;
-
-            return type switch
-            {
-                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed,     ParseTriggerParam(trigger.Params)),
-                // "ReachedDestination" is the legacy wire string for the navigation-arrival trigger.
-                // Per BS1-T022, arrival is now signalled via the BehaviorFinished path.
-                // Map to BehaviorFinished at ingress to preserve backward wire compatibility
-                // without referencing the [Obsolete] enum member.
-                "ReachedDestination" => (EcsMissionTrigger.BehaviorFinished, 0f),
-                "HealthCritical"     => (EcsMissionTrigger.HealthCritical,   ParseTriggerParam(trigger.Params)),
-                "BehaviorFinished"   => (EcsMissionTrigger.BehaviorFinished, 0f),
-                "UnderAttack"        => (EcsMissionTrigger.UnderAttack,      0f),
-                // Unknown trigger strings fall back to TimerElapsed(0) as a safe observable failure mode.
-                _                    => (EcsMissionTrigger.TimerElapsed,     0f)
-            };
-        }
-
-        /// <summary>
-        /// Parses a float parameter string (e.g. <c>"10.5"</c>) using invariant culture.
-        /// Returns <c>0f</c> for null, empty, or unparseable input.
-        /// </summary>
-        public static float ParseTriggerParam(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw))
-                return 0f;
-
-            return float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-                ? value
-                : 0f;
-        }
+        public static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers, string? task)
+            => Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(
+                triggers?.ConvertAll(t => new Hrot.Core.Mission.MissionTrigger { Type = t.Type ?? string.Empty, Params = t.Params ?? string.Empty }), task);
     }
 }

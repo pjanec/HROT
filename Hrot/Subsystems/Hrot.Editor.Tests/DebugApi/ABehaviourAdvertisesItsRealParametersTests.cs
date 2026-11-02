@@ -543,4 +543,17 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
         Assert.DoesNotContain(System.AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic),
             a => a.GetType("Hrot.Map.Definitions.Behavior.BehaviorContractAttribute") != null);
     }
+
+    /// <summary>⭐ rules S2-c — <c>Trigger</c> advertises its authored keys (the condition, the timing, the action list), and its <c>when</c> is the predicate union by reference.
+    /// ✅ Red-proof: the <c>JsonNode</c> arm removed from <c>DtoJsonSchemaExtractor</c> ⇒ the extractor recurses through the node's <c>Parent</c> until the stack overflows ⇒ the run aborts (red).</summary>
+    [Fact]
+    public void TriggerAdvertisesItsAuthoredKeys()
+    {
+        var schema = SchemaFor(LoadProductionRegistry(), "Trigger");
+        string[] advertised = PropertyNames(schema);
+        foreach (var key in new[] { "Common", "When", "HoldFor", "Delay", "Cooldown", "Repeat", "MaxFires", "FireIfTrueWhenArmed", "Do" })
+            Assert.Contains(key, advertised);
+        Assert.Equal("object", (string?)schema["properties"]!["When"]!["type"]);
+        Assert.Equal("json", (string?)schema["properties"]!["Do"]!["format"]);   // a free-form JSON list — described, not reflected (a JsonNode's members loop back into the tree)
+    }
 }
