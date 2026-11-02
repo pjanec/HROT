@@ -322,6 +322,9 @@ namespace Hrot.SimHost
                         scenarioSerializer, scenarioLoader, scenarioExtractor, scenarioSource,
                         scenarioIdAllocator,
                         behaviorRemapper: behaviorRemapper,
+                        // ⭐ CE-2377 step 2 — the SAME registry the remapper was built with: the prepare refuses a scenario whose behaviour params
+                        //   do not validate. ⛔ Passed HERE so no host that composes the step can skip the check (silent-default pattern).
+                        behaviors: behaviorRemapper?.Registry,
                         // ⭐ C3 — the LOCAL terrain invocation, made at the one frame the zone entities provably exist.
                         //   ⛔ Not a NodeOp: we are inside the cluster's own load transaction and a nested 2PC would deadlock.
                         terrainLoadService: TerrainLoadService,

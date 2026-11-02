@@ -258,8 +258,8 @@ namespace Hrot.SimHost.Tests
                 return e;
             }
 
-            public void Harm(Entity victim, Entity source, float damage = 5f)
-                => Repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent { HitEntity = victim, Source = source, TotalDamage = damage });
+            public void Harm(Entity victim, Entity source, float damage = 5f, Entity original = default)
+                => Repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent { HitEntity = victim, Source = source, TotalDamage = damage, OriginalSource = original });
         }
 
         private const string Circle0 = "{\"circle\":{\"center\":[0,0,0],\"radius\":10}}";
@@ -393,6 +393,35 @@ namespace Hrot.SimHost.Tests
             w.Harm(civilian, friend);
             w.Run(1);
             Assert.Equal((ObjectiveState.Failed, 0f, 1), (w.S(noHarm).State, w.S(noHarm).Score, w.S(noHarm).ProgressCur));
+        }
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; §10.10) — NoHarm <c>attribute</c> says which source of a RETHROWN round's harm is judged. A Hostile man threw a grenade
+        /// first, a Friend threw it back (Source = Friend, OriginalSource = Hostile): <c>last</c> (the default) counts it against the Friend side,
+        /// <c>original</c> does not; the other way round (Friend first, Hostile last) <c>original</c> counts it against Friend and <c>last</c> does not;
+        /// <c>both</c> counts either. A harm with no OriginalSource is the same under every attribute. ✅ Red-proof: <c>Attributed</c> ignoring the attribute
+        /// (always last) ⇒ the <c>original</c> / <c>both</c> rows red.</summary>
+        [Theory]
+        [InlineData("last", true, false, true)]       // Friend threw last: counts; Hostile threw last: the Friend-first case does not
+        [InlineData("original", false, true, true)]
+        [InlineData("both", true, true, true)]
+        public void CE4155_NoHarm_Attribute_JudgesTheLastThrower_TheFirst_OrBoth(string attribute, bool friendLastCounts, bool friendFirstCounts, bool plainCounts)
+        {
+            Assert.Equal((friendLastCounts, friendFirstCounts, plainCounts),
+                (FailsWith(attribute, friendLast: true, original: true), FailsWith(attribute, friendLast: false, original: true),
+                 FailsWith(attribute, friendLast: true, original: false)));
+        }
+
+        private bool FailsWith(string attribute, bool friendLast, bool original)
+        {
+            var w = new ObjWorld();
+            var friend = w.Man(Outside, ForceId.Friend); var hostile = w.Man(Outside, ForceId.Hostile); var civilian = w.Man(Outside, ForceId.Neutral);
+            var squad = w.Squad(ForceId.Friend, friend);
+            var noHarm = w.Objective("NoHarm", $"{{{Common(w, squad)},\"protected\":\"Neutral\",\"bySide\":\"Friend\",\"attribute\":\"{attribute}\"}}");
+            w.Run(1);
+            var last = friendLast ? friend : hostile; var first = friendLast ? hostile : friend;
+            w.Harm(civilian, last, 5f, original ? first : default);
+            w.Run(1);
+            return w.S(noHarm).State == ObjectiveState.Failed;
         }
 
         /// <summary>Rail 6 — WeightedMean over 3 children incl. a required NoHarm that fails → Failed, Score 0; all achieved → Achieved, Score 1.

@@ -157,6 +157,19 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(6002, b.Ammo);
         }
 
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — the burst of a rethrown round names BOTH throwers: the last (<c>Shooter</c>) and the first
+        /// (<c>OriginalShooter</c>). ✅ Red-proof: <c>Detonate</c> not copying it ⇒ Null ⇒ red.</summary>
+        [Fact]
+        public void CE4155_TheBurstOfARethrownRound_NamesBothThrowers()
+        {
+            var last = _w.CreateEntity(); var first = _w.CreateEntity();
+            var round = Launch(new Vector3(0, 0, 1.5f), new Vector3(20, 0, 0), 15f, high: false, WarheadRound.Area | WarheadRound.Arc);
+            _w.GetComponentRW<BallisticProjectile>(round).Shooter = last;
+            _w.GetComponentRW<BallisticProjectile>(round).OriginalShooter = first;
+            var b = Assert.Single(Fly(60 * 30)).D;
+            Assert.Equal((last, first), (b.Shooter, b.OriginalShooter));
+        }
+
         [Fact]
         public void W3_AnImpactFuzedBomb_BurstsOnTheRoof_JustAboveIt_AndNeverTwice()
         {

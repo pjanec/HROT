@@ -436,5 +436,44 @@ namespace Fdp.Toolkit.Combat.Tests
             var cloud = Assert.Single(Assert.Single(_w.Bus.ReadManaged<EntityCreationRequest>().ToArray()).InitialComponents!.OfType<AreaEffectCloud>());
             Assert.Equal((17.5f, 4711L), (cloud.Seconds, cloud.SourceNetworkId));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4155</c> (SR-82; docs/DESIGN_Scenario_Rules.md §10.10) — a gas cloud's pulse NAMES ITS CREATOR: the burst that makes the cloud
+        /// records the thrower's network id (and the first thrower's, when the round was thrown back), and every pulse's irritant hit carries them
+        /// as <c>Source</c> / <c>OriginalSource</c>, resolved on the node that runs the cloud — a replica's owner has only the wire field.
+        /// ✅ Red-proofs: <c>RequestCloud</c> not recording the creator ⇒ the id is 0 ⇒ red; <c>Pulse</c> not passing the creator ⇒ Source Null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4155_ACloudPulse_NamesItsCreator_AndTheFirstThrower()
+        {
+            const long Gas = 6102;
+            var db = new TkbDatabase();
+            var gas = new TkbTemplate("test tear-gas grenade", Gas);
+            gas.AddDescriptor(new WarheadDto { Kind = WarheadKind.Irritant, CloudRadiusM = 6f, CloudSeconds = 40f, EffectSeconds = 2f });
+            db.Register(gas);
+            _w.SetSingletonManaged<ITkbDatabase>(db);
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var thrower = _w.CreateEntity();
+            _w.AddComponent(thrower, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 501 });
+            var first = _w.CreateEntity();
+            _w.AddComponent(first, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 502 });
+            Clock(3);
+
+            // the burst asks for the cloud, naming who threw it and who threw it first …
+            _w.Bus.Publish(new DetonationNotification { HitX = 1, HitY = 2, HitZ = 0, Ammo = Gas, Shooter = thrower, OriginalShooter = first });
+            _w.Bus.SwapBuffers();
+            new AreaEffectSystem().Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            var asked = Assert.Single(Assert.Single(_w.Bus.ReadManaged<EntityCreationRequest>().ToArray()).InitialComponents!.OfType<AreaEffectCloud>());
+            Assert.Equal((501, 502), (asked.CreatorNetworkId, asked.OriginalCreatorNetworkId));
+
+            // … and the made cloud's pulse carries them to the man in it (here the cloud as a replica holds it: only the wire fields)
+            var man = Man(1, 0);
+            var cloud = Cloud(CloudKind.TearGas, Vector3.Zero);
+            _w.GetComponentRW<AreaEffectCloud>(cloud).CreatorNetworkId = asked.CreatorNetworkId;
+            _w.GetComponentRW<AreaEffectCloud>(cloud).OriginalCreatorNetworkId = asked.OriginalCreatorNetworkId;
+            var hit = Assert.Single(Frame(0), h => h.HitEntity == man);
+            Assert.Equal((thrower, first), (hit.Source, hit.OriginalSource));
+        }
     }
 }

@@ -308,6 +308,7 @@ namespace Fdp.Toolkit.Combat.Systems
             {
                 Shooter = proj.Shooter, Target = Entity.Null, HitX = at.X, HitY = at.Y, HitZ = at.Z, Ammo = proj.Ammo,
                 Round = round,   // ⭐ CE-3236 (B-14, VC-3) — the cloud's source and burn
+                OriginalShooter = proj.OriginalShooter,   // ⭐ CE-4155 (SR-82)
                 // ⭐ M1 — the way it was travelling (0 = unknown: a round lying where it landed has no last segment)
                 TravelX = at.X - proj.PreviousPosition.X, TravelY = at.Y - proj.PreviousPosition.Y, TravelZ = at.Z - proj.PreviousPosition.Z,
             });

@@ -132,6 +132,22 @@ namespace Hrot.SimHost.Tests
             Assert.True(e[0].Source.IsNull);
         }
 
+        /// <summary>⭐ <c>CE-4155</c> (SR-82) — the first thrower arrives as this node's entity; 0 or an unknown id is Null (= the same as the source).
+        /// ✅ Red-proof: the ingress without it ⇒ Null ⇒ red.</summary>
+        [Fact]
+        public void CE4155_TheOriginalSourceArrives_AsThisNodesEntity_UnknownIsNull()
+        {
+            var translator = BuildTranslator();
+            var victim = _world.CreateEntity(); var last = _world.CreateEntity(); var first = _world.CreateEntity();
+            _entityMap.Register(8, victim); _entityMap.Register(42, last); _entityMap.Register(43, first);
+            var rethrown = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 42, OriginalSourceEntityId = 43 };
+            var e = ProcessAndFlush(translator, in rethrown);
+            Assert.Equal((last, first), (e[0].Source, e[0].OriginalSource));
+            var unknown = new EntityHitDamage { HitEntityId = 8, TotalDamage = 2f, SourceEntityId = 42, OriginalSourceEntityId = 99 };
+            e = ProcessAndFlush(translator, in unknown);
+            Assert.True(e[0].OriginalSource.IsNull);
+        }
+
         // ── SC-2: Unknown entity → skipped ────────────────────────────────────
 
         [Fact]

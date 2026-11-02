@@ -52,5 +52,10 @@ namespace Fdp.Toolkit.Combat.Events
         /// where the producer knows: the round's shooter (a person, a vehicle, or a weapon system — <c>WeaponSystems.ControllerOf</c> names
         /// who works it), a melee striker. <see cref="Entity.Null"/> = unknown (a cloud, a canister in hand, a crash, an ejection).</summary>
         public Entity Source;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; docs/DESIGN_Scenario_Rules.md §10.10) — APPENDED: the FIRST thrower of a RETHROWN round (a grenade
+        /// picked up and thrown back: <see cref="Source"/> is the last thrower, this the one before). <see cref="Entity.Null"/> = the same as
+        /// <see cref="Source"/> (nothing was rethrown). The evaluation (<c>NoHarm</c> <c>attribute</c>) decides which counts.</summary>
+        public Entity OriginalSource;
     }
 }

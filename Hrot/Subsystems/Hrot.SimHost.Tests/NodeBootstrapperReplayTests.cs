@@ -195,6 +195,24 @@ namespace Hrot.SimHost.Tests
             Assert.Same(remapper, held);
         }
 
+        /// <summary>⭐ CE-2377 step 2 — the node's behaviour registry (the remapper's) reaches the composed scenario load step, so its prepare validates behaviour params.
+        /// 🔴 Red-proof: `behaviors: behaviorRemapper?.Registry` dropped from the `ScenarioLoadStep` construction in NodeBootstrapper ⇒ the step holds null.</summary>
+        [Fact]
+        public void CE2377_TheBehaviorRegistry_ReachesTheScenarioLoadStep()
+        {
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            var remapper = Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(registry);
+            using var slave = BuildBrain(new NodeBootstrapper(), offline: true, participant: null, remapper: remapper);
+
+            var chain = slave.RegisteredHandlers.OfType<Hrot.Map.Common.ClusterLoad.LoadPhaseChain>().Single();
+            var steps = (System.Collections.IEnumerable)typeof(Hrot.Map.Common.ClusterLoad.LoadPhaseChain)
+                .GetField("_steps", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(chain)!;
+            var step = steps.Cast<object>().Single(x => x is Hrot.Map.Common.ClusterLoad.ScenarioLoadStep);
+            var held = step.GetType().GetField("_behaviors", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(step);
+
+            Assert.Same(registry, held);
+        }
+
         // ── BATCH-18 A.1: Dispatch routing — PrepareLive reaches ReplayLoadClusterOpHandler when replay active ──
 
         /// <summary>

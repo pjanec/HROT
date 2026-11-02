@@ -64,6 +64,7 @@ namespace Hrot.Map.Common.Replication.Egress
             EntityId = netId, Kind = (byte)c.Kind, Radius = c.Radius, Height = c.Height, SightTransmittance = c.SightTransmittance,
             IrritantSeconds = c.IrritantSeconds, BornAtSimSeconds = c.BornAtSimSeconds, Seconds = c.Seconds,
             SourceNetworkId = c.SourceNetworkId,   // ⭐ CE-3236
+            CreatorNetworkId = c.CreatorNetworkId, OriginalCreatorNetworkId = c.OriginalCreatorNetworkId,   // ⭐ CE-4155
         };
 
         public void Dispose(int networkEntityId) => _last.Remove(networkEntityId);
@@ -130,6 +131,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             Kind = (CloudKind)d.Kind, Radius = d.Radius, Height = d.Height, SightTransmittance = d.SightTransmittance,
             IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = d.BornAtSimSeconds, Seconds = d.Seconds,
             SourceNetworkId = d.SourceNetworkId,   // ⭐ CE-3236
+            CreatorNetworkId = d.CreatorNetworkId, OriginalCreatorNetworkId = d.OriginalCreatorNetworkId,   // ⭐ CE-4155
         };
 
         public void ScanAndPublish(ISimulationView view) { }

@@ -74,6 +74,7 @@
     "Name": "Standing",
     "ForceId": "Friend"
    },
+   "Roe": { "Reactions": "StayOnTask", "SetBy": "Superior" },
    "TargetMemory": {
     "Entries": []
    },
@@ -113,6 +114,7 @@
     "Name": "Prone",
     "ForceId": "Friend"
    },
+   "Roe": { "Reactions": "StayOnTask", "SetBy": "Superior" },
    "TargetMemory": {
     "Entries": []
    },

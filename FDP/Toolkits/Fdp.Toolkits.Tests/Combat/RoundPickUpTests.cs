@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Numerics;
@@ -333,6 +334,61 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(41.5f, RoundPickUp.BurnLeft(_world, man, CanisterAmmo));
             RoundPickUp.Thrown(_world, man, CanisterAmmo);
             Assert.False(_world.HasComponent<HeldFuze>(man));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4155</c> (SR-82; docs/DESIGN_Scenario_Rules.md §10.10) — a RETHROWN round keeps its first thrower: A threw the grenade (its
+        /// <c>Shooter</c>), B picks it up (the grant and his hand name A), and cooking off at his feet raises a fire intent whose <c>Shooter</c> is B and
+        /// <c>OriginalShooter</c> is A; a round ALREADY rethrown once keeps ITS first thrower through the next pick-up (not the man who threw it last).
+        /// ✅ Red-proofs: <c>TryGrant</c> not naming the shooter ⇒ HeldFuze.OriginalShooter Null ⇒ red; <c>CookOff</c> dropping it ⇒ the intent's Null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4155_ARethrownGrenade_KeepsItsFirstThrower_ThroughThePickUpAndTheThrowBack()
+        {
+            var a = Man(new Vector3(20, 0, 0));
+            var b = Man(new Vector3(0, 0, 0));
+            var grenade = Lying(GrenadeAmmo, new Vector3(1, 0, 0), WarheadRound.Area | WarheadRound.Arc | WarheadRound.TimeFuze | WarheadRound.Landed, 1.0f);
+            _world.GetComponentRW<BallisticProjectile>(grenade).Shooter = a;      // A threw it first
+            Assert.True(RoundPickUp.Ask(_world, b, grenade));
+            Frame();
+            Frame();
+            Assert.Equal(a, _world.GetComponentRO<HeldFuze>(b).OriginalShooter);
+            Assert.Equal(a, RoundPickUp.OriginalShooterOf(_world, b, GrenadeAmmo));
+
+            var fuze = new HandsFuzeSystem();
+            for (int i = 0; i < 70 && fuze.CookedOff == 0; i++) { _world.Bus.SwapBuffers(); fuze.Execute(_world, Dt); }
+            _world.Bus.SwapBuffers();
+            var intent = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal((b, a), (intent.Shooter, intent.OriginalShooter));
+
+            // a second rethrow: the round in flight now names its first thrower, and a third man picking it up inherits THAT, not B
+            var c = Man(new Vector3(0, 30, 0));
+            var again = Lying(GrenadeAmmo, new Vector3(1, 30, 0), WarheadRound.Area | WarheadRound.Arc | WarheadRound.TimeFuze | WarheadRound.Landed, 1.0f);
+            _world.GetComponentRW<BallisticProjectile>(again).Shooter = b;
+            _world.GetComponentRW<BallisticProjectile>(again).OriginalShooter = a;
+            Assert.True(RoundPickUp.Ask(_world, c, again));
+            Frame();
+            Frame();
+            Assert.Equal(a, RoundPickUp.OriginalShooterOf(_world, c, GrenadeAmmo));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4155</c> — a canister burning in a man's HAND names him as the source of each in-hand irritation (he is cooking it), and the man
+        /// who threw it first as the original. ✅ Red-proof: <c>Irritate</c> called without the source ⇒ Source Null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4155_ACanisterBurningInHand_NamesTheHolder_AsTheSource()
+        {
+            var thrower = Man(new Vector3(20, 0, 0));
+            var man = Man(new Vector3(0, 0, 0));
+            Assert.True(RoundPickUp.Receive(_world, new PickUpGrantEvent { Man = man, Ammo = CanisterAmmo, Rounds = 1, BurnSeconds = 3.2f, OriginalShooter = thrower }));
+            var hands = new HandsFuzeSystem();
+            var hits = new List<DamageAssessedEvent>();
+            for (int i = 0; i < 60 * 2 && hands.Irritated == 0; i++) { _world.Bus.SwapBuffers(); hands.Execute(_world, Dt); }
+            _world.Bus.SwapBuffers();
+            hits.AddRange(_world.Bus.Read<DamageAssessedEvent>().ToArray());
+            var hit = Assert.Single(hits);
+            Assert.Equal((HitEffect.Irritant, man, thrower), (hit.Effect, hit.Source, hit.OriginalSource));
         }
 
         // ⭐ CE-3247 — a thrown hatchet as the built-in catalogue declares it (MunitionTkbCatalog.TkbThrowingHatchet): Kinetic, on the arc

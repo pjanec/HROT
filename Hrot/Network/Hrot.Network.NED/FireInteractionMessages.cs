@@ -71,6 +71,10 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-2326</c> (R-3030) — the point is the feet of a body remembered in this stance (<c>StanceId + 1</c>);
         /// 0 = a plain point. Appended (R-169).</summary>
         public byte BodyStance;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; R-169 — APPENDED) — a round THROWN BACK: network id of the FIRST thrower
+        /// (<see cref="ShooterEntityId"/> is the last); 0 = a first throw.</summary>
+        public int OriginalShooterEntityId;
     }
 
     /// <summary>
@@ -296,5 +300,9 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-3246</c> (BS-1 §6.4a, R-3015 — APPENDED) — the node that sent it, so a node drops its own sample; 0 = an older
         /// sender (taken).</summary>
         public int SourceNodeId;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — network id of the FIRST thrower when the round was thrown back
+        /// (<see cref="SourceEntityId"/> is the last); ⭐ 0 = the same as <see cref="SourceEntityId"/> (never rethrown, or an older sender).</summary>
+        public int OriginalSourceEntityId;
     }
 }

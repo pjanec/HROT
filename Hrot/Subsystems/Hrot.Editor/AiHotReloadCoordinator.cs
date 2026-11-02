@@ -296,8 +296,12 @@ namespace Hrot.Editor
                 //   the merge carries the rebuilt [Behavior(Params = …)] — a retargeted declaration too — instead of the declarations
                 //   CgfBehaviorSetup bound from the old copy at load (MergeFrom re-bases same-named types; a retarget needs this).
                 if (pending.Registrars.Count > 0)
+                {
                     Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindJsonParamsDtoTypes(behaviorStaging,
                         Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Pinning(pending.Registrars[0].DeclaringType.Assembly));
+                    // ⭐ CE-2377 — and the rebuilt copy's [BehaviorValidator] statics.
+                    Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);
+                }
 
                 // Step 4: apply staging behavior registry -> live registry via MergeFrom (overwrite).
                 // A reload legitimately re-registers already-present behavior names with fresh-ALC

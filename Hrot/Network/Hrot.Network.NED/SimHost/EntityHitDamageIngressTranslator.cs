@@ -99,6 +99,8 @@ namespace Hrot.Network.NED.SimHost
                 EffectSeconds = msg.EffectSeconds,
                 // ⭐ CE-3237 (B-15, DS-2) — who caused it, as this node's entity; 0 or not known here ⇒ Null (unknown)
                 Source        = msg.SourceEntityId != 0 && _entityMap.TryGetEntity(msg.SourceEntityId, out var source) ? source : Entity.Null,
+                // ⭐ CE-4155 (SR-82) — the first thrower of a rethrown round; 0 / unknown here ⇒ Null (= the same as Source)
+                OriginalSource = msg.OriginalSourceEntityId != 0 && _entityMap.TryGetEntity(msg.OriginalSourceEntityId, out var original) ? original : Entity.Null,
                 IsRemote    = true,
             });
         }

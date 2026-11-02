@@ -177,6 +177,7 @@ namespace Fdp.Toolkit.Combat.Executors
                                       raisedAt: bomb ? AimAndFireExecutor.ReleaseAt(world, entity, p.Point) : 0d,   // ⭐ CE-2180
                                       fuzeSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.FuzeLeft(world, entity, loadedAmmo) : 0f,   // ⭐ CE-3235
                                       burnSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.BurnLeft(world, entity, loadedAmmo) : 0f,   // ⭐ CE-3236 (VC-7)
+                                      originalShooter: PersonHands.IsHands(mountDto) ? RoundPickUp.OriginalShooterOf(world, entity, loadedAmmo) : Entity.Null,   // ⭐ CE-4155 (SR-82)
                                       bodyStance: p.BodyStance);   // ⭐ CE-2326
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
@@ -253,7 +254,7 @@ namespace Fdp.Toolkit.Combat.Executors
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
             ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc, long ammo = 0L,
             Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d, float fuzeSeconds = 0f, float burnSeconds = 0f,
-            byte bodyStance = 0)
+            byte bodyStance = 0, Entity originalShooter = default)
         {
             // ⭐ IF-1 (I6) — a controlled weapon system fires as itself (its mount 0); the unit keeps the ROE and the line-of-fire check
             var firing = weaponEntity.IsNull ? unit : weaponEntity;
@@ -303,6 +304,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 RaisedAt = raisedAt > 0d ? raisedAt : HitModel.Now(world),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
                 FuzeSeconds = fuzeSeconds,   // ⭐ CE-3235 (PU-6) — a thrown-back live round's fuze left (0 = its own)
                 BurnSeconds = burnSeconds,   // ⭐ CE-3236 (B-14, VC-7) — a thrown-back canister's burn left (0 = its own)
+                OriginalShooter = originalShooter,   // ⭐ CE-4155 (SR-82) — a thrown-back round's first thrower (Null = a first throw)
                 RequestId = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 (R-3018) — asked; the muscle's answer spends it (CE-3136 P-5's magazine too)
                 BodyStance = bodyStance,   // ⭐ CE-2326 — the point is a remembered body's feet (0 = a plain point)
             });

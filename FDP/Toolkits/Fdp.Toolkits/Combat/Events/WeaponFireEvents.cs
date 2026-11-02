@@ -75,6 +75,11 @@ namespace Fdp.Toolkit.Combat.Events
         /// body remembered in this stance (<c>StanceId + 1</c>), and the muscle aims as at that body (<c>AimPoint.ForBodyAt</c>).
         /// <b>0 = a plain point</b>, as before.</summary>
         public byte BodyStance;
+
+        /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — a round THROWN BACK: the first thrower (the man who picked it up got it from him).
+        /// <see cref="Entity.Null"/> = a first throw. Rides to the projectile's <c>OriginalShooter</c>; on the wire as
+        /// <c>WeaponFireRequest.OriginalShooterEntityId</c>.</summary>
+        public Entity OriginalShooter;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────

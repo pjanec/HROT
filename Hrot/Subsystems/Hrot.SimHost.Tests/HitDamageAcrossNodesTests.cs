@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.SimHost;
@@ -124,6 +125,34 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(_b.Out.Written);
             for (int i = 0; i < 5; i++) { Deliver(); _a.Frame(); _b.Frame(); }
             Assert.Equal(80f, _b.Hp);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4155</c> (SR-82; docs/DESIGN_Scenario_Rules.md §10.10) — a hit by a RETHROWN round keeps BOTH throwers across the hit-damage
+        /// wire: raised on node A with <c>Source</c> = the last thrower and <c>OriginalSource</c> = the first, it arrives on the owner B naming B's
+        /// entities for both; a hit with no original arrives with Null (= the same). ✅ Red-proofs: the egress not writing
+        /// <c>OriginalSourceEntityId</c> ⇒ Null on B ⇒ red; the ingress not reading it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4155_ARethrownHits_BothThrowers_CrossTheWire()
+        {
+            Entity Thrower(Node n, int netId) { var e = n.World.CreateEntity(); n.Map.Register(netId, e); return e; }
+            Thrower(_a, 60); Thrower(_a, 61);
+            var lastB = Thrower(_b, 60); var firstB = Thrower(_b, 61);
+            _a.World.Bus.Publish(new DamageAssessedEvent
+            {
+                HitEntity = _a.Victim, TotalDamage = 30f,
+                Source = _a.Map.TryGetEntity(60, out var last) ? last : Entity.Null,
+                OriginalSource = _a.Map.TryGetEntity(61, out var first) ? first : Entity.Null,
+            });
+            _a.World.Bus.Publish(new DamageAssessedEvent { HitEntity = _a.Victim, TotalDamage = 5f, Source = last });   // a first throw
+            _a.Frame();
+            Assert.Equal(new[] { 61, 0 }, new[] { _a.Out.Written[0].OriginalSourceEntityId, _a.Out.Written[1].OriginalSourceEntityId });
+
+            Deliver();
+            _b.Frame();
+            var arrived = _b.World.Bus.Read<DamageAssessedEvent>().ToArray();
+            Assert.Equal(new[] { (lastB, firstB), (lastB, Entity.Null) }, arrived.Select(h => (h.Source, h.OriginalSource)).ToArray());
         }
     }
 }

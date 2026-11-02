@@ -44,6 +44,10 @@ namespace Fdp.Toolkit.Behavior
             _behaviors = behaviors;
         }
 
+        /// <summary>⭐ <c>CE-2377</c> — the registry this remapper was built with, so the scenario load validates behaviour params against the
+        /// SAME one (a host passes the registry once, here). <c>null</c> ⇒ the load skips the check.</summary>
+        public BehaviorRegistry? Registry => _behaviors;
+
         /// <summary>
         /// Registers a remapping delegate for the specified <paramref name="behaviorId"/>.
         /// The delegate is compiled from <typeparamref name="TDto"/> by <see cref="EntityRefRemap.CompileJson"/>.

@@ -121,6 +121,7 @@ namespace Hrot.Network.NED.SimHost
                     FuzeSeconds     = evt.FuzeSeconds,   // ⭐ CE-3235 (R-169 appended) — a thrown-back live round's fuze left
                     BurnSeconds     = evt.BurnSeconds,   // ⭐ CE-3236 (R-169 appended) — a thrown-back canister's burn left
                     RequestId       = evt.RequestId,     // ⭐ Q94 A-1 (R-3018)
+                    OriginalShooterEntityId = !evt.OriginalShooter.IsNull && _entityMap.TryGetNetworkId(evt.OriginalShooter, out int originalNetId) ? originalNetId : 0,   // ⭐ CE-4155 (SR-82)
                 });
                 SentSampleCount++;
             }
