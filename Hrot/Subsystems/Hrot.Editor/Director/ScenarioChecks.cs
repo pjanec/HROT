@@ -72,6 +72,9 @@ namespace Hrot.Editor.Director
         public IReadOnlyDictionary<string, CheckCue> Anchors { get; init; } = new Dictionary<string, CheckCue>(StringComparer.Ordinal);
         public IReadOnlyList<CheckAction> Do { get; init; } = Array.Empty<CheckAction>();
         public IReadOnlyList<Expectation> Expect { get; init; } = Array.Empty<Expectation>();
+        /// <summary>⭐ The units that appear DURING the run (a trigger's <c>InsertMacro</c>, the showcase QRF) — named here so the start-of-run cast
+        /// check does not refuse them; a cue resolves them when they appear (<c>WorldUnits</c> re-indexes on a miss). ⛔ Every other name must be there at the start.</summary>
+        public IReadOnlyList<string> Later { get; init; } = Array.Empty<string>();
 
         /// <summary>Every unit a cue or an action names (to validate against the scenario's cast).</summary>
         public IEnumerable<string> Names() =>
@@ -89,7 +92,7 @@ namespace Hrot.Editor.Director
         public static ScenarioChecks Parse(JsonObject json, string scenario, List<string> problems)
         {
             foreach (var (k, _) in json)
-                if (k is not ("$doc" or "runFor" or "golden" or "sampleEvery" or "anchors" or "do" or "expect"))
+                if (k is not ("$doc" or "runFor" or "golden" or "sampleEvery" or "anchors" or "do" or "expect" or "later"))
                     problems.Add($"unknown key '{k}'");
 
             double? every = null;
@@ -169,10 +172,18 @@ namespace Hrot.Editor.Director
             foreach (var t in actions.Select(a => (AtExpr?)a.At).Concat(expect.SelectMany(e => new[] { e.After, e.Before })))
                 if (t is { Anchor: { } n } && !known.Contains(n)) problems.Add($"a time names '{n}', which is no anchor, action or expectation");
 
+            var later = new List<string>();
+            if (json["later"] is { } ln)
+            {
+                if (ln is JsonArray la && la.All(x => x is JsonValue v && v.TryGetValue<string>(out var t) && !string.IsNullOrWhiteSpace(t)))
+                    later.AddRange(la.Select(x => x!.GetValue<string>()));
+                else problems.Add("later must be a list of unit names (the units a trigger inserts during the run)");
+            }
+
             return new ScenarioChecks
             {
                 Scenario = scenario, RunFor = runFor, GoldenEvery = every, GoldenFull = full, SampleEvery = sample,
-                Anchors = anchors, Do = actions, Expect = expect,
+                Anchors = anchors, Do = actions, Expect = expect, Later = later,
             };
         }
 

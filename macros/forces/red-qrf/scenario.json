@@ -1,0 +1,425 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "Kind": "macro",
+  "description": "What: SHOWCASE Bridgehead (docs/SHOWCASE_Scenarios.md \u00a71) - the Red quick-reaction force: a body-less platoon 'Red QRF' (key @RedQRF) of two 4-man squads, standing idle round its anchor, waiting for an order. Judge: placed or inserted, 8 men + 2 squads + the platoon appear round the anchor, all of side 'side'; @RedQRF resolves to the platoon (an Order step names it).",
+  "Anchor": {
+   "Position": [
+    0,
+    0,
+    0
+   ],
+   "Heading": 0
+  },
+  "Params": [
+   {
+    "Name": "side",
+    "TypeId": "ForceId",
+    "Default": "Hostile"
+   }
+  ]
+ },
+ "entities": {
+  "b41d0b00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 305
+   },
+   "EntityInfo": {
+    "Name": "Red QRF",
+    "ForceId": "Hostile"
+   },
+   "RefKey": {
+    "Value": "RedQRF"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     -4,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 1",
+    "ForceId": "Hostile"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     -6.4,
+     -1,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 1 Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000002",
+    "Designation": "SquadLeader"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     -4.8,
+     -1,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 1 MG",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000002",
+    "Designation": "MachineGunner"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     -3.2,
+     -1,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 1 Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     -1.6,
+     -1,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 1 Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     4,
+     -6,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 2",
+    "ForceId": "Hostile"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000001",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000008": {
+   "SimTransform": {
+    "Position": [
+     1.6,
+     -7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 2 Leader",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000007",
+    "Designation": "SquadLeader"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000009": {
+   "SimTransform": {
+    "Position": [
+     3.2,
+     -7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 2 MG",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000007",
+    "Designation": "MachineGunner"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     4.8,
+     -7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 2 Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000007",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  },
+  "b41d0b00-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     6.4,
+     -7,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Red QRF Squad 2 Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "b41d0b00-0000-4000-8000-000000000007",
+    "Designation": "Wingman"
+   },
+   "ParamBindings": {
+    "Bindings": {
+     "EntityInfo.ForceId": "side"
+    }
+   }
+  }
+ }
+}
