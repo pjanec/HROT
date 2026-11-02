@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Fdp.Core;
@@ -37,6 +38,10 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("holdSeconds")] public float HoldSeconds;
         /// <summary>Repeatable: never ends, the Owner flips.</summary>
         [JsonPropertyName("capture")] public bool Capture;
+        /// <summary>⭐ S6 G-1 — with <see cref="Capture"/>: &gt; 0 = the point is taken BY SIDE — the side with more men inside (every man of the side, not the
+        /// subject's roster) than the other, and at least <see cref="MinMen"/>, for this many seconds becomes the Owner; the moment the other side outnumbers
+        /// the owner the point is Neutral. 0 = the S1 rule (instant, the subject's roster).</summary>
+        [JsonPropertyName("captureSeconds")] public float CaptureSeconds;
     }
 
     /// <summary><c>ClearArea</c>: no more than MaxEnemy enemies inside for ForSeconds.</summary>
@@ -96,6 +101,97 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>⭐ CE-4155 (SR-82) — which source of a harm a <c>NoHarm</c> judges. <c>Last</c> = 0 so an absent param keeps the old behaviour.</summary>
     public enum HarmAttribute : byte { Last = 0, Original = 1, Both = 2 }
 
+    /// <summary>⭐ S6 G-2 — one death rule of a <see cref="CounterParamsJsonDto"/>: each man of <see cref="Side"/> newly OUT of the fight adds <see cref="Per"/> to the value.</summary>
+    public struct CounterDeathsJsonDto
+    {
+        [JsonPropertyName("side"), JsonConverter(typeof(JsonStringEnumConverter))] public ForceId Side;
+        /// <summary>Added per man down (tickets: -1).</summary>
+        [JsonPropertyName("per")] public float Per;
+    }
+
+    /// <summary>
+    /// ⭐ S6 G-2 (📄 docs/DESIGN_Scenario_Rules.md §00.11) — <c>Counter</c>, a MEASURE (role Measure): <c>Value</c> starts at <see cref="Start"/> (also its
+    /// <c>Target</c>, so the score is value / start); <c>AddToCounter</c> moves it; <see cref="Deaths"/> (at most two sides) moves it by <c>per</c> for every man of the side
+    /// newly out of the fight (counted once; a revived man refunds nothing). Clamped to [<see cref="Floor"/>, <see cref="Ceiling"/>].
+    /// </summary>
+    [ParamsDto]
+    public struct CounterParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Counter;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("start")] public float Start;
+        /// <summary>At most two entries (Friend, Hostile); a Neutral side is ignored.</summary>
+        [JsonPropertyName("deaths")] public CounterDeathsJsonDto[]? Deaths;
+        /// <summary>The value never goes below this; null = 0 (a lead counter sets a negative one).</summary>
+        [JsonPropertyName("floor")] public float? Floor;
+        /// <summary>The value never goes above this; null = no cap.</summary>
+        [JsonPropertyName("ceiling")] public float? Ceiling;
+    }
+
+    // ⭐ rules S4 E-2 (📄 docs/DESIGN_Scenario_Rules.md §00.11, §10.3) — the MEASURES of what the subject's men DID. Every one is a Measure (Value against Target, Score by
+    //   ObjectiveRules.Score); `target` null = the kind's own default. ⛔ not the Counter (a pool the scenario moves).
+
+    /// <summary><c>HitRatio</c>: hits ÷ shots by the subject's men (default target 0.30); <see cref="Attribute"/> says which source of a rethrown round's hit counts (CE-4155).</summary>
+    [ParamsDto]
+    public struct HitRatioParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.HitRatio;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary>What a <c>Count</c> counts.</summary>
+    public enum CountWhat : byte { Shots = 0, Hits = 1, Kills = 2, Fratricide = 3, CiviliansHarmed = 4, Reports = 5 }
+
+    /// <summary><c>Count</c>: how many <see cref="What"/> by the subject's men. fratricide / civiliansHarmed are lower-is-better with target 0; the others higher-is-better with target
+    /// <see cref="Target"/> (default 1).</summary>
+    [ParamsDto]
+    public struct CountParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Count;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("what"), JsonConverter(typeof(JsonStringEnumConverter))] public CountWhat What;
+        [JsonPropertyName("attribute"), JsonConverter(typeof(JsonStringEnumConverter))] public HarmAttribute Attribute;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary><c>ReportLatency</c>: the mean of <c>SentAt − ObservedAt</c> of the subject's reports so far (lower is better; default target 60 s).</summary>
+    [ParamsDto]
+    public struct ReportLatencyParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.ReportLatency;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary><c>TimeTo</c>: the scenario time <see cref="Objective"/> became Achieved (lower is better); never achieved ⇒ Value = now, score 0. <see cref="Target"/> in seconds, default 0.</summary>
+    [ParamsDto]
+    public struct TimeToParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.TimeTo;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("objective")] public EntityLink Objective;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
+    /// <summary>How a <c>Sample</c> folds its readings.</summary>
+    public enum SampleAggregate : byte { Mean = 0, Max = 1, TimeAbove = 2 }
+
+    /// <summary><c>Sample</c> (SR-20): a registered <c>[UtilityInput("name")]</c> read on the subject every tick it is Active — the <see cref="Aggregate"/> mean / max / seconds above
+    /// <see cref="Threshold"/> is the Value. <see cref="Target"/> default 1; <see cref="LowerIsBetter"/> for an input like stress.</summary>
+    [ParamsDto]
+    public struct SampleParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.Sample;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("input")] public string Input;
+        [JsonPropertyName("aggregate"), JsonConverter(typeof(JsonStringEnumConverter))] public SampleAggregate Aggregate;
+        [JsonPropertyName("threshold")] public float Threshold;
+        [JsonPropertyName("target")] public float? Target;
+        [JsonPropertyName("lowerIsBetter")] public bool LowerIsBetter;
+    }
+
     /// <summary><c>WeightedMean</c>: a composite scoring its children (<c>ObjectiveLinks.Parent</c> = it) by weight.</summary>
     [ParamsDto]
     public struct WeightedMeanParamsJsonDto
@@ -104,6 +200,20 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("common")] public ObjectiveCommon Common;
         /// <summary>0 = 0.6.</summary>
         [JsonPropertyName("passScore")] public float PassScore;
+    }
+
+    /// <summary>⭐ rules S4 E-1 (SR-72 / SR-81) — <c>MemberEvaluation</c>: a composite over the men of its <c>common.subject</c> (a commander). For each member it inserts ONE macro
+    /// from <see cref="Library"/> (a folder under <c>macros/</c>): <c>overrides[@RefKey]</c> → <c>&lt;library&gt;/&lt;RefKey&gt;</c> → <c>&lt;library&gt;/&lt;TacticalDesignation&gt;</c> →
+    /// <c>&lt;library&gt;/&lt;entity class&gt;</c> → <c>&lt;library&gt;/Default</c>, the first the node's macro library HAS. <see cref="Overrides"/> maps <c>"@Key"</c> / a role / a class
+    /// name to a macro path (a flat map).</summary>
+    [ParamsDto]
+    public struct MemberEvaluationParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.MemberEvaluation;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary>The macro folder, e.g. <c>macros/evaluation/infantry</c> (the leading <c>macros/</c> is optional).</summary>
+        [JsonPropertyName("library")] public string Library;
+        [JsonPropertyName("overrides")] public Dictionary<string, string>? Overrides;
     }
 
     /// <summary><c>AllMustPass</c>: a composite achieved when every child is.</summary>
@@ -140,7 +250,10 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("maxFires")] public int MaxFires;
         /// <summary>CE-4166 — a condition already TRUE when the trigger arms counts as an edge (default: it does not).</summary>
         [JsonPropertyName("fireIfTrueWhenArmed")] public bool FireIfTrueWhenArmed;
-        /// <summary>The actions: <c>[{"act":"Message","args":{...}}, ...]</c>, run in order (SR-93).</summary>
-        [JsonPropertyName("do")] public JsonNode? Do;
+        /// <summary>⭐ S6 G-4 — with <see cref="Repeat"/>: when the cooldown ends and the condition is STILL true, fire again (the periodic rule: "every 10 s while held");
+        /// without it a repeat needs the condition to go false and rise again (T2). <see cref="MaxFires"/> still caps it.</summary>
+        [JsonPropertyName("whileTrue")] public bool WhileTrue;
+        /// <summary>The actions: <c>[{"act":"Message","args":{...},"bind":{...}?}, ...]</c>, run in order (SR-93). ⭐ Typed (SR-94): a step is a <c>BindableNode</c>, so the one param binder reaches its <c>bind</c>.</summary>
+        [JsonPropertyName("do")] public System.Collections.Generic.List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>? Do;
     }
 }

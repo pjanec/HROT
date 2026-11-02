@@ -223,6 +223,25 @@ public class CuratedScenariosTests
     }
 
     /// <summary>
+    /// ⭐ ui note <c>NOTE_Ui_To_Backend_Macros_Seed_And_Param_Types.md</c> ① — <c>macros/</c> is seeded into the NAS whole (an edit load of
+    /// <c>macros/test/fire-team</c> finds it there), and a macro never becomes a curated scenario. 🔴 Red-proof: drop <c>MacrosDirectoryName</c> from
+    /// <c>SeededDirectories</c> ⇒ the macro is not on the NAS.
+    /// </summary>
+    [Fact]
+    public void TheSeed_CopiesMacros_AndAMacroIsNoCuratedScenario()
+    {
+        var tree = NewSourceTree();
+        Write(ContentLayout.Macros(tree), "test/fire-team/scenario.json", "MACRO-v1");
+        var nas = NewTempDir();
+
+        ContentSeed.SeedTreeFrom(tree, nas);
+
+        Assert.Equal("MACRO-v1", Read(ContentLayout.Macros(nas), "test/fire-team/scenario.json"));
+        Assert.DoesNotContain(ContentSeed.CuratedRelPaths(ContentLayout.Scenarios(tree)), r => r.Contains("fire-team"));
+        Assert.False(Directory.Exists(Path.Combine(ContentLayout.Scenarios(nas), "test")));
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>Success condition 3 — no source tree ⇒ no-op.</b> Started from outside any checkout (a production install), <c>SeedIntoNas</c> copies
     /// nothing, and <c>CanSaveToGit</c> is false. ⭐ And it never deletes: a NAS file the repository never had is untouched by a real seed.
     /// </summary>

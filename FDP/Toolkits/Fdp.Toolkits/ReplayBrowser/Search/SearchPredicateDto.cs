@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(OnEntityPredicateDto),           "OnEntity")]
     [JsonDerivedType(typeof(ScenarioTimePredicateDto),       "ScenarioTime")]
     [JsonDerivedType(typeof(CountMatchingPredicateDto),      "CountMatching")]
+    // ⭐ rules S4 E-2 (SR-20) — a registered [UtilityInput] over a threshold; compiled in BOTH modes (it is a component-ish read).
+    [JsonDerivedType(typeof(InputAbovePredicateDto),         "InputAbove")]
     // ⭐ SR-160 — every predicate node may bind its own properties to macro / scenario params (Bind); the trigger's do entries share the base.
     public abstract class SearchPredicateDto : Fdp.Toolkit.Scenario.BindableNode { }
 
@@ -81,6 +83,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public int Max { get; set; } = int.MaxValue;
         [JsonConverter(typeof(TypeNameJsonConverter))]
         public Type? WithComponent { get; set; }
+    }
+
+    /// <summary>⭐ rules S4 E-2 (SR-20) — true when the registered <c>[UtilityInput]</c> named <see cref="Input"/>, read on the entity being asked about, is ABOVE <see cref="Threshold"/>
+    /// (the same reader a utility consideration evaluates — <c>UtilityInputReaderStore.TryRead</c>; ⛔ no fourth registry). An input with no registered reader reads 0.</summary>
+    public sealed class InputAbovePredicateDto : SearchPredicateDto
+    {
+        public string Input { get; set; } = string.Empty;
+        public float Threshold { get; set; }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

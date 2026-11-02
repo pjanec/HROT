@@ -87,6 +87,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 case OnEntityPredicateDto onEntity: return CompileOnEntity(onEntity, mode);
                 case ScenarioTimePredicateDto time: return CompileScenarioTime(time);
                 case CountMatchingPredicateDto count: return CompileCountMatching(count, mode);
+                case InputAbovePredicateDto inputAbove: return CompileInputAbove(inputAbove);
 
                 // Specialized loop predicates: SEARCH mode passes through; handled by the service (edge / loop scanners).
                 case StructuralPredicateDto _:
@@ -570,7 +571,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private static void CollectMandatoryComponents(SearchPredicateDto dto, List<Type> result)
         {
             // ⭐ CE-4164 — OnEntity / CountMatching evaluate OTHER entities (ScenarioTime none), so they contribute nothing to THIS entity's mandatory set.
-            if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto) return;
+            if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto or InputAbovePredicateDto) return;
             if (dto is CompoundPredicateDto compound && compound.Operator == LogicalOperator.And)
             {
                 foreach (var condition in compound.Conditions)

@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Scenario;
 
 namespace Fdp.Toolkit.ScenarioRules.Actions
 {
@@ -103,7 +104,7 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         private static TP ResolveLinks(EntityRepository world, TP p)
         {
             object boxed = p;
-            try { EntityRefRemap.WalkObject(boxed, new RefResolve(new WorldRefScope(world))); }
+            try { EntityRefRemap.WalkObject(boxed, new RefResolve(LiveRefScope.Of(world))); }
             catch (InvalidOperationException ex) { throw new UnresolvedReferenceException(ex.Message); }
             return (TP)boxed;
         }

@@ -61,6 +61,23 @@ namespace Fdp.Toolkit.Utility
             return false;
         }
 
+        /// <summary>⭐ rules S4 E-2 (SR-20) — is a reader registered under the <c>[UtilityInput("name")]</c> <paramref name="inputName"/>?</summary>
+        public static bool IsRegistered(string inputName) => _readers.ContainsKey(Fdp.Toolkit.Behavior.Shared.UtilityIdHash.InputId(inputName));
+
+        /// <summary>
+        /// ⭐ rules S4 E-2 (SR-20) — evaluates the registered reader of <c>[UtilityInput("name")]</c> <paramref name="inputName"/> on <paramref name="self"/> EXACTLY as a consideration does
+        /// (the same id hash, the same reader, the same <see cref="UtilityInputCtx"/>; no curve): the ONE way a rule reads an input — the <c>Sample</c> measure and the <c>InputAbove</c> leaf both come here.
+        /// <c>false</c> (value 0) when no reader is registered under that name.
+        /// </summary>
+        public static bool TryRead(EntityRepository repo, string inputName, Entity self, Entity context, out float value)
+        {
+            value = 0f;
+            if (string.IsNullOrEmpty(inputName) || !TryGet(Fdp.Toolkit.Behavior.Shared.UtilityIdHash.InputId(inputName), out var reader) || reader == null) return false;
+            var ctx = new UtilityInputCtx { Repo = repo, Self = self, Context = context, Params = default };
+            value = reader(in ctx);
+            return true;
+        }
+
         /// <summary>
         /// Removes all registered readers. Intended for test teardown only.
         /// </summary>

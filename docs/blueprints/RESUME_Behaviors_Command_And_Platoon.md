@@ -31,13 +31,14 @@ related-designs:
 
 | | |
 |---|---|
-| ids next free | `CE-2378` · `R-2083` · AQ `111`+ (check all lanes) · components 430+ (418–433) · rules descriptors 174+ (171–179) · TKB 8862+ (8860–8869) |
-| merged | `coordinator@02d0079ec`, `backend@29c2ea623` (its param binder) — at `92b681e37` |
+| ids next free | `CE-2379` · `R-2083` · AQ `111`+ (check all lanes) · components 430+ (418–433) · rules descriptors 174+ (171–179) · TKB 8862+ (8860–8869) |
+| merged | `coordinator@02d0079ec` · `backend@1f44d376c` (S6 game profile, showcase demos) · `ui@5d7f89c89` — at `39ec85ade` |
 | S1 objectives | ✅ BUILT + LIVE — [design §00.8.1](../DESIGN_Scenario_Rules.md); scenario `sr-objectives-march`, `GET /objectives`. ⚠ open: a PLAYER node reading the statuses |
 | CE-4157 / CE-4159 | ✅ (mission triggers strict · unknown predicate type throws) |
 | S2 triggers | ✅ BUILT + LIVE — [design §00.9 / §00.9.1](../DESIGN_Scenario_Rules.md); `sr-triggers-march`: chain, end, close by kind, pause. CE-4157/4159/4160–4166 done; CE-2377 filed |
 | after-S2 handoff | ✅ PlayerMessage row · CE-4155 · CE-4205 · CE-2377 (steps 1+2) · filmed findings STOPPED by the user (CE-4135 + CE-4055 fixed, CE-4123/4124 measured, rest untouched) |
-| ⭐ NOW: S4 + view data | [handoff](batches/HANDOFF_Coordinator_To_Behaviors_Rules_S4_And_View_Data.md) · design §00.10 (view data V-1…V-4) + §00.11 (S4 E-1…E-5). Built: V-1/V-2 `d35517163`, V-4 `2e0f6162f`. Queued briefs (session scratchpad, re-derive from the design if lost): ⑯ V-3 live leaves · ⑰ backend's step-Bind note (typed ActionStep + LiveRefScope on sim time) · ⑱ MemberEvaluation · ⑲ measures + InputAbove + group · then a live run with a MemberEvaluation on a platoon + the ui note (data contract) |
+| ⭐ NOW: S4 + view data | [handoff](batches/HANDOFF_Coordinator_To_Behaviors_Rules_S4_And_View_Data.md) · design §00.10 + §00.11. ✅ BUILT: V-1/V-2 `d35517163` · V-4 `2e0f6162f` · ⑯ V-3 live leaves · ⑰ typed ActionStep + LiveRefScope on sim time (`0a2bfb677`, backend answered) · ⑱ MemberEvaluation (`f71796e52`) · ⑲ measures + InputAbove + lowerIsBetter + `group` (`02c50f84c`; ui noted: [NOTE](batches/NOTE_Behaviors_To_Ui_Rules_S4_Group_And_Measures.md)). ⏭ left: a LIVE run of a MemberEvaluation on a platoon (the handoff gate) · E-4 measure the timeline index for history · `CE-2378` (a required measure does nothing — awaits the user, lean in the row) |
+| ⭐ backend bug report | `showcase-bridgehead`: a Red round hits a Red man at 497.6 s (reproduced, deterministic; backend dropped the check and handed it here, `1f44d376c`). Repro: copy the scenario, `runFor` 505, add `{"never":{"on":"shot","by":"*Red","hit":"*Red"}}` to `expect`, `--verify`. Suspect (UNMEASURED): `LineOfFire.Blocked` tests a friend's bare radius, while `NeutralOnLine` widens by the spread (`FDP/Toolkits/Fdp.Toolkits/Combat/LineOfFire.cs`) |
 | standing order (user, 2026-11-02) | work overnight: after each piece fetch + merge `backend` / `ui`, follow NOTE / HANDOFF / bug reports addressed to behaviors FIRST (backend is building demo scenarios); ⛔ do not chase the filmed scenario findings |
 | standing Sonnet worker | agent `a851226344b2a12e2` (tasks ⑥–⑧; the first, `aa61f53891af259c3`, did ①–⑤ and filled up) — in-session ids; a new session needs a fresh one |
 

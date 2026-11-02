@@ -285,7 +285,7 @@ namespace Hrot.SimHost.Tests
 
             // the message that reaches the log names the step and the act
             var dto = new TriggerParamsJsonDto { When = System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto>(WhenAchieved(net), BehaviorParams.JsonOptions),
-                                                  Do = JsonNode.Parse("[{\"act\":\"TrgRecord\",\"args\":{\"value\":1}},{\"act\":\"NoSuchAction\"}]") };
+                                                  Do = System.Text.Json.JsonSerializer.Deserialize<List<Fdp.Toolkit.ScenarioRules.Actions.ActionStep>>("[{\"act\":\"TrgRecord\",\"args\":{\"value\":1}},{\"act\":\"NoSuchAction\"}]", BehaviorParams.JsonOptions) };
             var bb = new TriggerBehavior.TriggerBlackboard();
             var ex = Assert.Throws<InvalidOperationException>(() => TriggerBehavior.Resolve(in dto, ref bb, w.Repo, good));
             Assert.Contains("step 1", ex.Message);
@@ -300,6 +300,26 @@ namespace Hrot.SimHost.Tests
             Assert.NotSame(a, b);
             Assert.Same(TriggerWhen.Get(a), TriggerWhen.Get(b));
             Assert.NotSame(TriggerWhen.Get(a), TriggerWhen.Get(WhenAchieved(4243)));
+        }
+
+        /// <summary>⭐ SR-94 / SR-160 — a <c>do</c> step is a typed <c>BindableNode</c> (<c>ActionStep</c>): the ONE binder, run over the trigger's params JSON, writes a step's
+        /// <c>bind</c> (<c>"args.text": "msg"</c>) into its args — the step's text IS the param's value; a step with no <c>bind</c> keeps its literal; a bind naming a missing
+        /// param is LOUD (the binder's rule). The bound list reads back through the contract and the runtime's ONE serialisation (<c>ActionStep.ToJson</c>).
+        /// ✅ Red-proof: the dotted-path arm of <c>ParamBind.Node</c> skipped ⇒ the step keeps its literal ⇒ red.</summary>
+        [Fact]
+        public void AStepsBind_IsAppliedByTheOneBinder_OverTheTriggersParams()
+        {
+            string json = TrigJson(1, "", "[{\"act\":\"Message\",\"args\":{\"text\":\"literal\"},\"bind\":{\"args.text\":\"msg\"}},{\"act\":\"Message\",\"args\":{\"text\":\"kept\"}}]");
+            var src = new Fdp.Toolkit.Scenario.JsonParamSource(new System.Collections.Generic.Dictionary<string, JsonNode?> { ["msg"] = JsonValue.Create("from the param") });
+            string bound = Fdp.Toolkit.Scenario.ParamBinder.ApplyJson(typeof(TriggerParamsJsonDto), json, src)!;
+            var dto = System.Text.Json.JsonSerializer.Deserialize<TriggerParamsJsonDto>(bound, BehaviorParams.JsonOptions);
+            Assert.Equal("from the param", (string?)dto.Do![0].Args!["text"]);
+            Assert.Equal("kept", (string?)dto.Do[1].Args!["text"]);
+            Assert.Equal("msg", dto.Do[0].Bind!["args.text"]);                                              // non-destructive (SR-168): the binding stays
+            Assert.Contains("from the param", Fdp.Toolkit.ScenarioRules.Actions.ActionStep.ToJson(dto.Do));
+
+            var none = new Fdp.Toolkit.Scenario.JsonParamSource(new System.Collections.Generic.Dictionary<string, JsonNode?>());
+            Assert.Throws<InvalidOperationException>(() => Fdp.Toolkit.Scenario.ParamBinder.ApplyJson(typeof(TriggerParamsJsonDto), json, none));
         }
     }
 }

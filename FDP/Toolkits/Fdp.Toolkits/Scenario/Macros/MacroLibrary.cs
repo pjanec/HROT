@@ -9,6 +9,8 @@ namespace Fdp.Toolkit.Scenario
     /// ⭐ Macros S3a ④ (docs/DESIGN_Scenario_Macros.md §15) — where an expanding node reads a macro FILE by its path under <c>macros/</c>
     /// (<see cref="MacroInstance.Macro"/>). ⛔ <c>false</c> + a reason the status shows (<i>"macro 'x' not found under …"</i>) — never a silent miss.
     /// </summary>
+    [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.NoScenario | Fdp.Core.DataPolicy.NoReplay)]   // ⭐ a service, never world state (the ITkbDatabase pattern, R-3043): a keyframe does not carry it
+    [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.IMacroLibrary)]   // ⭐ rules S4 E-1 — so it can be a managed world singleton a behaviour reads
     public interface IMacroLibrary
     {
         bool TryRead(string macroPath, out string json, out string why);

@@ -229,6 +229,8 @@ namespace Hrot.NED.Descriptors
         public float HoldFor, Delay, Cooldown, Deadline;
         /// <summary>⭐ rules V-2: sim s of the next thing the owner knows will happen; 0 = unknown.</summary>
         public double ExpectedAt;
+        /// <summary>⭐ rules S4 E-3: the evaluation group (mission · fire · reports · conduct …); "" = none. A display field, goes at once.</summary>
+        public string Group;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the

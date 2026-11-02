@@ -81,7 +81,7 @@ namespace Hrot.Editor.DebugApi
                 int subject = SubjectOf(e), parent = ParentOf(e);
                 var row = new JsonObject
                 {
-                    ["networkId"] = id, ["title"] = s.Title.ToString(), ["kind"] = s.Kind.ToString(), ["role"] = s.Role.ToString(),
+                    ["networkId"] = id, ["title"] = s.Title.ToString(), ["kind"] = s.Kind.ToString(), ["group"] = s.Group.ToString(), ["role"] = s.Role.ToString(),
                     ["state"] = s.State.ToString(), ["closed"] = s.Closed != 0, ["owner"] = s.Owner.ToString(),
                     ["progress"] = new JsonObject { ["cur"] = s.ProgressCur, ["need"] = s.ProgressNeed },
                     ["value"] = s.Value, ["target"] = s.Target, ["score"] = s.Score, ["points"] = s.Points, ["weight"] = s.Weight,

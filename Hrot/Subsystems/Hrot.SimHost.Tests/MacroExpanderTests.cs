@@ -226,7 +226,7 @@ namespace Hrot.SimHost.Tests
             Keyed(901, "Ford", 20);
             Keyed(902, "Ford", 30);
 
-            var scope = new Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope(repo);   // ⭐ the ONE live-world scope (the expander's copy folded into it)
+            var scope = Fdp.Toolkit.Scenario.LiveRefScope.Of(repo);   // ⭐ the ONE live-world scope
             Assert.True(scope.TryResolve(RefSpec.ByKey("Bridge"), out var bridge));
             Assert.Equal(900, bridge.NetworkId);
             Assert.True(scope.TryPositionOf(bridge, out var at));

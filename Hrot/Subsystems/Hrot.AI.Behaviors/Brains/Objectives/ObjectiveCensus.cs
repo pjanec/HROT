@@ -36,6 +36,19 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             for (int i = 0; i < roster.Count; i++) MenOf(world, roster.SubordinateEntities[i], into, depth + 1);
         }
 
+        /// <summary>⭐ rules S4 E-2 — the subject and EVERY entity under it down its <see cref="UnitRoster"/> (units and bodies alike, in the fight or not): who a report "from the subject's side" may name.
+        /// Not <c>MenOf</c> (bodies in the fight only) — a commander has no body.</summary>
+        public static void RosterOf(EntityRepository world, Entity subject, List<Entity> into) => RosterOf(world, subject, into, 0);
+
+        private static void RosterOf(EntityRepository world, Entity e, List<Entity> into, int depth)
+        {
+            if (e.IsNull || !world.IsAlive(e) || depth > CombatEffective.MaxDepth || into.Contains(e)) return;
+            into.Add(e);
+            if (!world.HasComponent<UnitRoster>(e)) return;
+            var roster = world.GetComponentRO<UnitRoster>(e);
+            for (int i = 0; i < roster.Count; i++) RosterOf(world, roster.SubordinateEntities[i], into, depth + 1);
+        }
+
         private static readonly List<Entity> s_men = new();
 
         /// <summary>How many of the subject's men stand inside <paramref name="area"/>.</summary>
@@ -64,6 +77,34 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 var theirs = world.GetComponentRO<EntityInfo>(e).ForceId;
                 if (enemySide != ForceId.Neutral ? theirs != enemySide : !KillZone.Hostile(subjectSide, theirs)) continue;
                 if (!IsMan(world, e) || !area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)) continue;
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>⭐ S6 G-1 — how many bodies of <paramref name="side"/> (EVERY man of the side, whoever his unit — a respawned bot is in no roster) stand inside <paramref name="area"/>, in the fight.</summary>
+        public static int MenOfSideInside(EntityRepository world, ForceId side, in AreaLink area)
+        {
+            if (side == ForceId.Neutral) return 0;
+            int n = 0;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
+                if (!IsMan(world, e) || !area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)) continue;
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>⭐ S6 G-2 — how many bodies of <paramref name="side"/> exist but are OUT of the fight (down or dead, still an entity): not a unit, positioned, alive as an entity, not in the fight.</summary>
+        public static int DownOf(EntityRepository world, ForceId side)
+        {
+            if (side == ForceId.Neutral) return 0;
+            int n = 0;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                if (world.GetComponentRO<EntityInfo>(e).ForceId != side) continue;
+                if (CombatEffective.IsUnit(world, e) || !world.IsAlive(e) || Injury.IsInTheFight(world, e)) continue;
                 n++;
             }
             return n;

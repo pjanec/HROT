@@ -83,6 +83,26 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Equal(2, scope.Rebuilds);
         }
 
+        /// <summary>⭐ the ONE sim-side scope (<see cref="LiveRefScope.Of"/>): cached per world, a same-tick spawn is found (count moved), a key edited in place is found on the NEXT
+        /// tick with NO wall-clock wait (sim must not read wall time), and a duplicate key shows in <see cref="LiveRefScope.Ambiguous"/> (SR-188; the first resolves).
+        /// ✅ Red-proof: <c>Of</c> built with the default 250 ms window ⇒ the in-place edit is not found after the tick ⇒ red.</summary>
+        [Fact]
+        public void TheSimScope_IsOnePerWorld_FindsASameTickSpawn_AndAnInPlaceEditAfterATick_WithoutWallTime()
+        {
+            var scope = LiveRefScope.Of(_repo);
+            Assert.Same(scope, LiveRefScope.Of(_repo));
+            var unit = Spawn(name: "Unit");
+            Assert.False(scope.TryResolve(RefSpec.ByKey("Late"), out _));
+            var late = Spawn(key: "Late");
+            Assert.True(scope.TryResolve(RefSpec.ByKey("Late"), out var r)); Assert.Equal(late.R, r);   // spawned the same tick ⇒ found
+            _repo.AddComponent(unit.E, new RefKey("Edited"));
+            _repo.Tick();                                                                                  // the frame clock moves; no wall time passes
+            Assert.True(scope.TryResolve(RefSpec.ByKey("Edited"), out var e)); Assert.Equal(unit.R, e);
+            var a = Spawn(key: "Ford"); Spawn(key: "Ford");
+            Assert.True(scope.TryResolve(RefSpec.ByKey("Ford"), out var first)); Assert.Equal(a.R, first);
+            Assert.Equal(2, scope.Ambiguous["Ford"]);
+        }
+
         [Fact]
         public void A_key_edited_in_place_is_found_after_the_rebuild_interval_or_an_Invalidate()
         {

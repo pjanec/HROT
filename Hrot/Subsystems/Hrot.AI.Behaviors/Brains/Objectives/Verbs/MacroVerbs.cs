@@ -73,42 +73,21 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
                     if (items == null || p.ArgsRef >= items.Count) return Fail(world, self, $"macro params item {p.ArgsRef} is missing");
                     args = items[p.ArgsRef];
                 }
-                if (!world.Bus.IsRegisteredManaged<EntityCreationRequest>()) return Fail(world, self, "this node cannot create entities");
-
-                Guid inserter = world.IsComponentTypeRegistered<EntityGuid>() && world.HasComponent<EntityGuid>(self)
-                    ? world.GetComponentRO<EntityGuid>(self).Value : Guid.Empty;
-                Guid guid = EntityGuidDerivation.Derive(inserter, $"insert:{self.Index}:{world.SimulationTick}");
-                var rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.WithHeadingDeg(System.Numerics.Quaternion.Identity, p.Heading.Degrees);
-                world.Bus.PublishManaged(new EntityCreationRequest
-                {
-                    RequestId = Guid.NewGuid(),
-                    OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
-                    TkbType = (TkbTypeId)Hrot.Map.Common.TkbEntityTypes.ScenarioMacro,
-                    InitType = ReliableInitType.None,
-                    IsTransient = true,   // SR-171
-                    InitialComponents = new List<object>
-                    {
-                        new SimTransform { Position = p.At, Rotation = rotation },
-                        new EntityInfo { Name = macro.Length > 60 ? macro.Substring(0, 60) : macro },
-                        new EntityGuid(guid),
-                        new MacroInstance { Macro = macro, ArgsJson = string.IsNullOrWhiteSpace(args) ? "{}" : args },
-                    },
-                });
+                string? refused = MacroInsertion.Request(world, self, macro, p.At, p.Heading, args, out Guid guid);
+                if (refused != null) return Fail(world, self, refused);
                 var bytes = guid.ToByteArray();
                 s.GuidLo = BitConverter.ToUInt64(bytes, 0); s.GuidHi = BitConverter.ToUInt64(bytes, 8);
                 s.Began = 1; s.AskedAt = now;
                 return NodeStatus.Running;
             }
 
-            var instance = Find(world, GuidOf(s));
-            if (instance.IsNull)
+            var state = MacroInsertion.State(world, GuidOf(s), out string why);
+            if (state is null)
                 return now - s.AskedAt >= AppearTimeoutSeconds - 1e-9 ? Fail(world, self, "the macro instance never appeared") : NodeStatus.Running;
-            if (!world.HasComponent<MacroExpansionStatus>(instance)) return NodeStatus.Running;
-            var status = world.GetComponentRO<MacroExpansionStatus>(instance);
-            return status.State switch
+            return state switch
             {
                 MacroExpansionState.Done => NodeStatus.Success,
-                MacroExpansionState.Failed => Fail(world, self, status.Reason.Length > 0 ? status.Reason.ToString() : "the macro expansion failed"),
+                MacroExpansionState.Failed => Fail(world, self, why.Length > 0 ? why : "the macro expansion failed"),
                 _ => NodeStatus.Running,
             };
         }
@@ -119,16 +98,6 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             BitConverter.TryWriteBytes(b, s.GuidLo);
             BitConverter.TryWriteBytes(b.Slice(8), s.GuidHi);
             return new Guid(b);
-        }
-
-        private static Entity Find(EntityRepository world, Guid guid)
-        {
-            if (!world.IsComponentTypeRegistered<EntityGuid>()) return Entity.Null;
-            foreach (var e in world.Query().With<EntityGuid>().With<MacroExpansionStatus>().Build())
-                if (world.GetComponentRO<EntityGuid>(e).Value == guid) return e;
-            foreach (var e in world.Query().With<EntityGuid>().Build())
-                if (world.GetComponentRO<EntityGuid>(e).Value == guid) return e;
-            return Entity.Null;
         }
 
         private static NodeStatus Fail(EntityRepository world, Entity self, string reason)

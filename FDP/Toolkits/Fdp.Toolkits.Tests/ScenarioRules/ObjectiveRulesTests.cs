@@ -70,6 +70,14 @@ namespace Fdp.Toolkits.Tests.ScenarioRules
             Assert.Equal(0.5f, ObjectiveRules.Score(new ObjectiveStatus { Role = ObjectiveRole.Measure, State = ObjectiveState.Active, Value = 0.15f, Target = 0.30f }));
             Assert.Equal(1f, ObjectiveRules.Score(new ObjectiveStatus { Role = ObjectiveRole.Measure, Value = 9f, Target = 3f }));        // clamped
             Assert.Equal(1f, ObjectiveRules.Score(new ObjectiveStatus { Role = ObjectiveRole.Measure, Value = 0f, Target = 0f }));        // fratricide = 0
+            // ⭐ rules S4 E-2 — lowerIsBetter: 1 within the target, else target / value; a zero target = any value over it scores ~0. ✅ Red-proof: the flag ignored ⇒ the 4-of-2 case reads 1 ⇒ red.
+            ObjectiveStatus Low(float v, float t) => new() { Role = ObjectiveRole.Measure, Value = v, Target = t };
+            Assert.Equal(1f, ObjectiveRules.Score(Low(30f, 60f), lowerIsBetter: true));
+            Assert.Equal(1f, ObjectiveRules.Score(Low(60f, 60f), lowerIsBetter: true));
+            Assert.Equal(0.5f, ObjectiveRules.Score(Low(4f, 2f), lowerIsBetter: true));
+            Assert.Equal(1f, ObjectiveRules.Score(Low(0f, 0f), lowerIsBetter: true));
+            Assert.Equal(0f, ObjectiveRules.Score(Low(1f, 0f), lowerIsBetter: true));
+            Assert.Equal(1f, ObjectiveRules.Score(Low(4f, 1f)));                                       // higher-is-better default: value over target clamps to 1
             var s = In(ObjectiveState.Skipped); ObjectiveRules.WriteScore(ref s);
             Assert.Equal(0f, s.Score);
         }

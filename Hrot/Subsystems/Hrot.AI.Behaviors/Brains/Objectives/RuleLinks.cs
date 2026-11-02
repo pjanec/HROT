@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.ScenarioRules;
@@ -38,14 +39,14 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             var dep = new List<int>(); var act = new List<int>();
             bool complete = true;
-            WorldRefScope? scope = null;
+            LiveRefScope? scope = null;
             int Id(EntityLink l)
             {
                 if (!l.Ref.IsNone) return l.Ref.NetworkId;
                 if (l.Spec.IsNone) return 0;
                 if (world != null)
                 {
-                    scope ??= new WorldRefScope(world);
+                    scope ??= LiveRefScope.Of(world);
                     if (scope.TryResolve(l.Spec, out var e) && !e.IsNone) return e.NetworkId;
                 }
                 complete = false;
