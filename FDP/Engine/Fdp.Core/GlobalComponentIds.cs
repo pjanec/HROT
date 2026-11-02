@@ -1084,6 +1084,11 @@ namespace Fdp.Core
         /// S2's <c>ExerciseResult</c>.</summary>
         public const int ObjectiveLinks = 426;
 
+        /// <summary>⭐ rules S2-e (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.9) — <c>ExerciseResult</c>: the exercise's phase (Running / Closing /
+        /// Ended) and the outcome per side, on the World Environment; Brain group, replicated as <c>dtExerciseResult</c> (172), NoScenario.
+        /// Behaviors' block 418–433 (R-2056).</summary>
+        public const int ExerciseResult = 427;
+
         /// <summary>⭐ rules S2-a (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.9) — <c>ActionArgs</c> (MANAGED, an immutable record): the JSON of the
         /// step lists / args an entity's actions run (the trigger's <c>when</c> and <c>do</c>), indexed by an <c>int</c> ref; written at assignment only.
         /// NoScenario. 427 is kept for <c>ExerciseResult</c>. Behaviors' block 418–433 (R-2056).</summary>

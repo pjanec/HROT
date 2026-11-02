@@ -194,12 +194,27 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSingleton(new GlobalTime { TotalTime = Time, DeltaTime = (float)step, TimeScale = 1f, FrameNumber = (long)(Time / step) });
                 Repo.SetSimulationTime((float)Time);
                 Repo.Bus.SwapBuffers();
+                if (Repo.Bus.IsRegistered<ExerciseEndedEvent>()) Ended += Repo.ReadEvents<ExerciseEndedEvent>().Length;
+                if (Repo.Bus.IsRegisteredManaged<PlayerMessageEvent>()) foreach (var m in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<PlayerMessageEvent>()) Messages.Add(m);
                 _ingress.Execute(Repo, (float)step);
                 _brain.Execute(Repo, (float)step);
                 Repo.FlushCommandBuffers();
             }
 
             public ObjectiveStatus S(Entity o) => Repo.GetComponentRO<ObjectiveStatus>(o);
+
+            /// <summary>⭐ rules S2 ⑧ — the exercise-ended events and player messages seen so far (read after each swap, so each is counted once).</summary>
+            public int Ended;
+            public readonly List<PlayerMessageEvent> Messages = new();
+
+            /// <summary>⭐ rules S2 ⑧ — the World Environment: the positionless entity carrying the scenario clock (what <c>EndExercise</c> finds).</summary>
+            public Entity Environment()
+            {
+                var e = Repo.CreateEntity();
+                Repo.AddComponent(e, new NetworkIdentity { Value = _net++ });
+                Repo.AddComponent(e, Fdp.Toolkit.Weather.ScenarioClock.Default);
+                return e;
+            }
 
             public void Harm(Entity victim, Entity source, float damage = 5f)
                 => Repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent { HitEntity = victim, Source = source, TotalDamage = damage });

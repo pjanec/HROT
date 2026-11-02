@@ -41,7 +41,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
-            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run);
+            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, capture: b.Capture != 0);
+            if (f.Reset) { b.HeldFor = 0; b.LastMen = 0; b.LastEnemy = 0; }   // SR-114: a reset clears the working state
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (f.Evaluate)
             {

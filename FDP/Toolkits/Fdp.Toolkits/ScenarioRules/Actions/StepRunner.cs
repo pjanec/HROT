@@ -50,6 +50,10 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         protected static ulong Hash(string s) { ulong h = 1469598103934665603UL; foreach (char c in s) { h ^= c; h *= 1099511628211UL; } return h; }
     }
 
+    /// <summary>⭐ rules S2-f — an action's params may check the raw args object at ASSIGNMENT (<see cref="StepRunner.CheckArgs"/>): a message too long for its
+    /// <c>FixedString</c> is refused there, not silently cut. Returns the reason, or <c>null</c> when fine.</summary>
+    public interface IActionArgsCheck { string? Check(JsonObject args); }
+
     /// <summary>One action's runner: its delegate plus the seeding of its slot.</summary>
     public sealed unsafe class StepRunner<TP, TS> : StepRunner where TP : unmanaged where TS : unmanaged
     {
@@ -108,6 +112,8 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
                     throw new FormatException($"unknown property '{key}' for '{Fqn}' (known: {string.Join(", ", known)})");
             TP p = ParamsDefaults.New<TP>();
             BehaviorParams.OverlayFlat(ref p, argsJson);   // a value that does not read (strict enum, wrong type) throws
+            // ⭐ an action's own check of the RAW args (a FixedString field truncates silently: only the JSON knows the text was too long)
+            if ((object)p is IActionArgsCheck check && check.Check(obj) is { } error) throw new FormatException($"'{Fqn}': {error}");
         }
 
         public override (object Params, object State) Peek(EntityRepository world, Entity self, int slotKey)

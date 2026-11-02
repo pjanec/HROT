@@ -168,6 +168,10 @@ namespace Hrot.NED.Descriptors
         //   every node); 172 dtExerciseResult and 173 dtPlayerMessage are S2's. ⚠ 170 went to backend's dtMacroOrigin the same afternoon
         //   (both lanes measured it free 2026-11-02, two hours apart) — the rules moved up one; macros and rules share the 170s.
         dtObjectiveStatus             = 171,
+        //   ⭐ rules S2-e / S2-f — 172 the exercise's phase and outcome per side (the World Environment's owner → every node, state); 173 a message to
+        //   the players (an EVENT topic: published once by the raising node, raised again on every other).
+        dtExerciseResult              = 172,
+        dtPlayerMessage               = 173,
         // etc., all known descriptor types here
     }
 

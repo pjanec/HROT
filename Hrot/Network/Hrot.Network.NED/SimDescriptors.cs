@@ -223,6 +223,34 @@ namespace Hrot.NED.Descriptors
         public byte VisibleSides;
     }
 
+    // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the
+    //   outcome per side. State on the World Environment, published by the owner (its Brain) on change, applied on every other node, whose ingress raises the
+    //   local ExerciseEndedEvent ONCE when the phase becomes Ended. Same QoS and shape as the scenario clock. Managed: it carries the reason.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityExerciseResult
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary><c>ExercisePhase</c>: 0 Running · 1 Closing · 2 Ended.</summary>
+        public byte Phase;
+        /// <summary>Sim time (s) it ended.</summary>
+        public double EndedAt;
+        public string Reason;
+        /// <summary>Per side: <c>SideOutcome</c> (0 None · 1 Win · 2 Lose · 3 Draw), points, score — Friend, Hostile, Neutral.</summary>
+        public byte FriendOutcome;
+        public float FriendPoints;
+        public float FriendScore;
+        public byte HostileOutcome;
+        public float HostilePoints;
+        public float HostileScore;
+        public byte NeutralOutcome;
+        public float NeutralPoints;
+        public float NeutralScore;
+    }
+
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
     //   weather on the World Environment, a regional one on a Weather Region. Published by the owner (the creating Brain) on change, applied
     //   on every other node; every node derives the weather at any point itself (WeatherField). Flat fields (the dtPartDamage shape): 8 wind

@@ -115,9 +115,22 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
-            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Trigger, in b.Common, ref b.Run);
+            // a trigger closes by its OWN rule below (never the objectives' OnClose: an unfired trigger did not "fail")
+            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Trigger, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);
             double now = f.Now;
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
+            if (f.Reset)   // SR-114: a reset re-arms it from scratch
+            {
+                b.Phase = TriggerState.Disarmed; b.Prev = 0; b.PrevKnown = 0; b.List = default;
+                s.FireCount = 0; s.LastFired = 0; s.TriggerState = TriggerState.Disarmed;
+            }
+            // SR-116: the exercise is closing — a trigger still running its list (EndExercise among it) finishes it (T7), then it is closed;
+            // one that never fired is switched off first (it did not "fail": it is not an objective)
+            if (s.Closed == 0 && b.Phase != TriggerState.Acting && b.Phase != TriggerState.Fired && ExerciseResult.PhaseOf(world) != ExercisePhase.Running)
+            {
+                if (!s.IsFinal) { s.State = ObjectiveState.Inactive; s.ChangedAt = now; s.Reason = new FixedString64("exercise ended"); b.Phase = TriggerState.Disarmed; }
+                s.Closed = 1;
+            }
             if (s.Closed == 0)
             {
                 if (b.Phase == TriggerState.Acting) Act(ref b, ref s, self, world, now);

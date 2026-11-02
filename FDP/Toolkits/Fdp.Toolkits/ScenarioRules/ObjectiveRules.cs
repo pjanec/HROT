@@ -117,6 +117,23 @@ namespace Fdp.Toolkit.ScenarioRules
             return true;
         }
 
+        /// <summary>
+        /// ⭐ SR-114 — what <c>SetObjectiveActive</c> does to a status; <c>null</c> = done, else why it is refused. <paramref name="active"/> false →
+        /// Inactive (the working state is kept, progress frozen); true → Active again. Out of Achieved / Failed / Skipped ONLY with <paramref name="reset"/>
+        /// (a repeated drill): the owning behaviour then restarts (<see cref="ObjectiveStatus.ResetRequested"/>). A closed objective takes nothing.
+        /// </summary>
+        public static string? SetActive(ref ObjectiveStatus s, bool active, bool reset, double now)
+        {
+            if (s.Closed != 0) return "the objective is closed";
+            if (s.IsFinal && !reset) return $"the objective is {s.State}; only a reset leaves it";
+            if (reset) { s.ResetRequested = (byte)(active ? 1 : 2); return null; }
+            var next = active ? ObjectiveState.Active : ObjectiveState.Inactive;
+            if (s.State == next) return null;
+            s.State = next; s.ChangedAt = now;
+            s.Reason = new FixedString64(active ? "switched on" : "switched off");
+            return null;
+        }
+
         public static bool DeadlinePassed(in ObjectiveCommonBlock c, double now) => c.DeadlineSeconds > 0f && now >= c.DeadlineSeconds;
 
         /// <summary>

@@ -181,6 +181,9 @@ namespace Fdp.Toolkit.Behavior
         /// census of every literal and constant event id on all four lanes, 2026-10-19.</summary>
         public const int EventId_SetEngagementArea = 3107;
 
+        /// <summary>⭐ rules S2-e — <c>ExerciseEndedEvent</c>: the exercise's <c>ExerciseResult.Phase</c> became Ended (raised once per node).</summary>
+        public const int EventId_ExerciseEnded = 3108;
+
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
         public const int EventId_EmbarkEntity    = 3201;

@@ -17,7 +17,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     {
         public struct Tally
         {
-            public int Count, Started, Achieved, Final, FailedRequired, FailedAny;
+            public int Count, Started, Achieved, Final, FailedRequired, FailedAny, Closed;
             /// <summary>Skipped children that are not required (SR-117: excluded from aggregation).</summary>
             public int SkippedIgnored;
             /// <summary>Σ w·score and Σ w over the scored children (a Skipped one only when required, as 0).</summary>
@@ -37,6 +37,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 if (c.State == ObjectiveState.Achieved) t.Achieved++;
                 if (c.State == ObjectiveState.Skipped && c.Required == 0) t.SkippedIgnored++;
                 if (c.IsFinal) t.Final++;
+                if (c.Closed != 0) t.Closed++;
                 bool failed = c.State == ObjectiveState.Failed || (c.State == ObjectiveState.Skipped && c.Required != 0);   // SR-117: a required Skipped counts as failed
                 if (failed)
                 {
@@ -75,7 +76,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
-            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run);
+            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Composite);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (ObjectiveChildren.Evaluates(in s))   // ⭐ not StartActive: a composite that started Inactive and is switched on later (S2) must evaluate
             {
@@ -89,6 +90,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 ObjectiveHost.Settle(ref s, Kind, next,
                     next == ObjectiveState.Failed ? $"'{t.FirstFailed}' failed" : $"{t.Achieved}/{t.Count} achieved", f.Now);
             }
+            ObjectiveHost.CloseComposite(world, self, ref s, f.Now);
             ObjectiveRules.WriteScore(ref s);
             return NodeStatus.Running;
         }
@@ -119,7 +121,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
-            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run);
+            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Composite);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (ObjectiveChildren.Evaluates(in s))
             {
@@ -136,6 +138,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 s.ProgressCur = t.Achieved; s.ProgressNeed = t.Count;
                 ObjectiveHost.Settle(ref s, Kind, next, reason, f.Now);
             }
+            ObjectiveHost.CloseComposite(world, self, ref s, f.Now);
             return NodeStatus.Running;
         }
 

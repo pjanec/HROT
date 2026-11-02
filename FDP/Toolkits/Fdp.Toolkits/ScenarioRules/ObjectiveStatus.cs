@@ -56,6 +56,11 @@ namespace Fdp.Toolkit.ScenarioRules
         public double LastFired;
         /// <summary>Triggers (<see cref="ObjectiveRole.Trigger"/>): the §10.11 machine's state.</summary>
         public TriggerState TriggerState;
+        /// <summary>
+        /// ⭐ rules S2-d (SR-114) — a request for the owning behaviour to RESTART: 1 = reset, then Active; 2 = reset, then Inactive. Written by
+        /// <c>SetObjectiveActive</c>, honoured (and cleared) by <c>ObjectiveHost.Enter</c> — the ONE place a run is re-begun. Local: never on the wire.
+        /// </summary>
+        public byte ResetRequested;
 
         /// <summary>Achieved, Failed or Skipped — it will not change by itself.</summary>
         public readonly bool IsFinal => State == ObjectiveState.Achieved || State == ObjectiveState.Failed || State == ObjectiveState.Skipped;
