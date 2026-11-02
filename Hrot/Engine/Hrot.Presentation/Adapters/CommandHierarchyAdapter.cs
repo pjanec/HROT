@@ -21,6 +21,22 @@ public sealed class CommandHierarchyAdapter : IHierarchyAdapter
     }
 
     /// <inheritdoc/>
+    /// <remarks>⭐ CE-4213 ⑥ — an entity a macro expansion made takes its place from the MACRO: moving it in the chain of command would be undone by the
+    /// next re-expansion, so it is refused with the macro named (the path the instance expands).</remarks>
+    public string? ReparentRefusal(ISimulationView view, Entity child, Entity newParent)
+    {
+        if (!HierarchyProbe.Has<Fdp.Toolkit.Scenario.MacroOrigin>(view, child)) return null;
+        var instance = view.GetComponentRO<Fdp.Toolkit.Scenario.MacroOrigin>(child).Instance.Resolve(view);
+        string path = !instance.IsNull && view.IsAlive(instance) && view.HasManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>(instance)
+            ? view.GetManagedComponentRO<Fdp.Toolkit.Scenario.MacroInstance>(instance).Macro
+            : "?";
+        return $"from macro {path} — edit the macro or its args";
+    }
+
+    /// <inheritdoc/>
+    public bool CanReparent(ISimulationView view, Entity child, Entity newParent) => ReparentRefusal(view, child, newParent) is null;
+
+    /// <inheritdoc/>
     public ChildEnumerator GetChildren(ISimulationView view, Entity entity)
         => HierarchyProbe.ChildrenOf(this, view, entity);
 

@@ -1544,6 +1544,12 @@ namespace Hrot.Editor.Tests.Adapters
             _world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
             _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
             _world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+            // ⭐ CE-4213 ⑥ — the Scenario view's inputs
+            _world.RegisterComponent<NetworkIdentity>();
+            _world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();
+            _world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();
+            _world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
+            _world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -1651,6 +1657,107 @@ namespace Hrot.Editor.Tests.Adapters
             adapter.RequestRemoveSubordinate(a.Index);
             Assert.False(_world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(a));
             _spawn.VerifyNoOtherCalls();
+        }
+
+        // ── ⭐ CE-4213 ⑥ — the Scenario view (docs/DESIGN_Entity_Hierarchy_Views.md §5) ──────────────────────────────────
+
+        private Entity MacroInstanceEntity(string name, int netId, string macro = "test/fire-team")
+        {
+            var inst = Named(name);
+            _world.AddComponent(inst, new NetworkIdentity(netId));
+            _world.AddComponent(inst, new Fdp.Toolkit.Scenario.MacroExpansionStatus { State = Fdp.Toolkit.Scenario.MacroExpansionState.Done });
+            _world.SetManagedComponent(inst, new Fdp.Toolkit.Scenario.MacroInstance { Macro = macro });
+            return inst;
+        }
+
+        private Entity MemberOfInstance(string name, int instanceNetId, bool transient = true)
+        {
+            var m = Named(name);
+            _world.AddComponent(m, new Fdp.Toolkit.Scenario.MacroOrigin { Instance = new Fdp.Toolkit.Replication.EntityRef(instanceNetId), Local = Guid.NewGuid() });
+            if (transient) _world.AddComponent(m, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+            return m;
+        }
+
+        [Fact]
+        public void Scenario_view_puts_the_members_under_their_instance_and_the_rest_under_Saved_and_Transient()
+        {
+            _world.CreateEntity();
+            var inst = MacroInstanceEntity("Fire team A", 50);
+            MemberOfInstance("Blue 1", 50);
+            MemberOfInstance("Blue 2", 50);
+            Named("Hand-placed tank");                                                       // a saved root
+            var live = Named("Live addition");                                               // a transient root: nobody expanded it from a macro
+            _world.AddComponent(live, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+
+            var expanded = new HashSet<int> { ScenarioOrbatAdapter.GroupSavedId, ScenarioOrbatAdapter.GroupTransientId, inst.Index };
+            var nodes = Adapter(EntityTreeRelation.Scenario).GetVisibleNodes("", expanded);
+
+            var saved = nodes.Single(n => n.IsGroup && n.EntityId == ScenarioOrbatAdapter.GroupSavedId);
+            var transient = nodes.Single(n => n.IsGroup && n.EntityId == ScenarioOrbatAdapter.GroupTransientId);
+            Assert.Equal("Saved (2)", saved.Name);        // the instance and the hand-placed tank — its members are NOT roots
+            Assert.Equal("Transient (1)", transient.Name);   // only the live addition
+            Assert.Contains(nodes, n => n.Name == "Fire team A" && n.Depth == 1 && n.HasChildren);
+            Assert.Contains(nodes, n => n.Name == "Blue 1" && n.Depth == 2);
+            Assert.Contains(nodes, n => n.Name == "Blue 2" && n.Depth == 2);
+            Assert.Contains(nodes, n => n.Name == "Hand-placed tank" && n.Depth == 1);
+            Assert.Contains(nodes, n => n.Name == "Live addition" && n.Depth == 1);
+            Assert.All(nodes, n => Assert.False(n.CanAcceptSubordinates));
+            Assert.All(nodes.Where(n => n.IsGroup), n => Assert.True(n.EntityId < 0 && n.NetworkId == 0));   // a group row is no entity
+        }
+
+        [Fact]
+        public void Scenario_view_an_empty_group_has_no_row_and_collapsed_groups_hide_their_members()
+        {
+            _world.CreateEntity();
+            Named("Only a saved tank");
+
+            var collapsed = Adapter(EntityTreeRelation.Scenario).GetVisibleNodes("", new HashSet<int>());
+
+            var only = Assert.Single(collapsed);              // no "Transient (0)" row; the group is collapsed, so the tank is hidden
+            Assert.True(only.IsGroup);
+            Assert.Equal("Saved (1)", only.Name);
+        }
+
+        [Fact]
+        public void Scenario_view_a_member_of_a_dead_instance_is_a_root()
+        {
+            _world.CreateEntity();
+            var inst = MacroInstanceEntity("Fire team A", 50);
+            MemberOfInstance("Orphan", 50);
+            _world.DestroyEntity(inst);
+
+            var nodes = Adapter(EntityTreeRelation.Scenario).GetVisibleNodes("", new HashSet<int> { ScenarioOrbatAdapter.GroupTransientId });
+
+            Assert.Contains(nodes, n => n.IsGroup && n.Name == "Transient (1)");
+            var orphan = Assert.Single(nodes, n => n.Name == "Orphan");
+            Assert.Equal(1, orphan.Depth);   // a root of its group, not under a ghost
+        }
+
+        [Fact]
+        public void Scenario_view_is_read_only_and_the_Command_view_refuses_to_move_a_macro_entity_saying_which_macro()
+        {
+            _world.CreateEntity();
+            var inst = MacroInstanceEntity("Fire team A", 50, "test/fire-team");
+            var member = MemberOfInstance("Blue 1", 50);
+            var leader = Named("Platoon leader");
+            var plain = Named("Hand-placed tank");
+
+            Assert.False(((IHierarchyAdapter)new ScenarioHierarchyAdapter()).CanReparent(_world, member, leader));
+            var command = (IHierarchyAdapter)new CommandHierarchyAdapter();
+            Assert.False(command.CanReparent(_world, member, leader));
+            Assert.Equal("from macro test/fire-team — edit the macro or its args", command.ReparentRefusal(_world, member, leader));
+            Assert.True(command.CanReparent(_world, plain, leader));   // an ordinary entity may move
+            Assert.Null(command.ReparentRefusal(_world, plain, leader));
+
+            var adapter = Adapter(EntityTreeRelation.Command);
+            adapter.GetVisibleNodes("", new HashSet<int>());
+            adapter.RequestAssignSubordinate(member.Index, leader.Index);
+            Assert.Equal("from macro test/fire-team — edit the macro or its args", adapter.LastDropRefusal);   // what the panel shows
+            adapter.RequestRemoveSubordinate(member.Index);
+            Assert.False(_world.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(member));
+            adapter.RequestAssignSubordinate(plain.Index, leader.Index);
+            Assert.Null(adapter.LastDropRefusal);                    // a drop that goes through clears it
+            Assert.NotNull(inst.ToString());
         }
 
         [Fact]

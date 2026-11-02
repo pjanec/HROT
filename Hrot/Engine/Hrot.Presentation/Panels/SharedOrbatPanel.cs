@@ -52,8 +52,11 @@ public sealed class SharedOrbatPanel
     private string _filterText = string.Empty;
 
     /// <summary>⭐ CE-4213 (DESIGN_Entity_Hierarchy_Views HV-2) — the relation this panel shows; applied to the provider every frame.
-    /// <see cref="EntityTreeRelation.Scenario"/> is not selectable yet (needs macros).</summary>
+    /// <see cref="EntityTreeRelation.Scenario"/> (⭐ CE-4213 ⑥) shows the macro instance each entity came from, roots under Saved / Transient — read-only.</summary>
     public EntityTreeRelation Relation { get; set; } = EntityTreeRelation.Command;
+
+    /// <summary>⭐ CE-4213 ⑥ — the colour of a refused drop's reason (amber: it is a "no, because", not an error).</summary>
+    public static readonly System.Numerics.Vector4 RefusalColour = new(0.95f, 0.70f, 0.20f, 1f);
 
     /// <summary>⭐ <c>CE-1350</c> — a destroyed unit's row text (dark red, still readable on the dark theme).</summary>
     public static readonly System.Numerics.Vector4 DestroyedColour = new(0.72f, 0.16f, 0.14f, 1f);
@@ -93,11 +96,19 @@ public sealed class SharedOrbatPanel
         ImGui.SameLine();
         if (ImGui.RadioButton("Structure", Relation == EntityTreeRelation.Structure)) Relation = EntityTreeRelation.Structure;
         ImGui.SameLine();
-        ImGui.BeginDisabled();
-        ImGui.RadioButton("Scenario (needs macros)", false);
-        ImGui.EndDisabled();
+        if (ImGui.RadioButton("Scenario", Relation == EntityTreeRelation.Scenario)) Relation = EntityTreeRelation.Scenario;
         data.Relation = Relation;
-        bool editable = Relation == EntityTreeRelation.Command;   // Structure: no drag, no drop targets
+        bool editable = Relation == EntityTreeRelation.Command;   // Structure and Scenario: no drag, no drop targets
+
+        // ⭐ CE-4213 ⑥ — why the last drop was refused (a macro entity cannot be moved in the chain of command), where the user is looking
+        if (Relation == EntityTreeRelation.Command && data.LastDropRefusal is { Length: > 0 } refusal)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, RefusalColour);
+            ImGui.PushTextWrapPos(0f);
+            ImGui.TextUnformatted(refusal);
+            ImGui.PopTextWrapPos();
+            ImGui.PopStyleColor();
+        }
 
         // Filter text box
         ImGui.InputText("##orbat_filter", ref _filterText, 128);
@@ -128,6 +139,14 @@ public sealed class SharedOrbatPanel
                     ctrl.ToggleExpanded(node.EntityId);
                 }
                 ImGui.SameLine();
+            }
+
+            // ⭐ CE-4213 ⑥ — a Scenario-view GROUP row (Saved / Transient) has no entity: a plain label, no select, drag, drop or menu
+            if (node.IsGroup)
+            {
+                ImGui.TextUnformatted(node.Name);
+                if (node.Depth > 0) ImGui.Unindent(node.Depth * 12f);
+                continue;
             }
 
             // Selectable row — ⭐ CE-1350: a destroyed unit's name in dark red; a double-click centres the map on it (Center View)
