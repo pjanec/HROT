@@ -234,6 +234,7 @@ namespace Fdp.Toolkit.Replay
             var (scenario, hash) = Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(repo);   // ⭐ CE-4058 ② — the scenario it ran
             metadata.ScenarioName = scenario ?? "";
             metadata.ScenarioHash = hash ?? "";
+            metadata.ScenarioArgs = Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(repo) ?? "";   // ⭐ macros S3a ⑦ (SR-176)
             if (repo.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 && repo.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() is { } geo)
             {

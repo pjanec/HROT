@@ -961,3 +961,20 @@ solver gated on sim time (as the path solver is) would never answer, and an expa
 | ⭐ RECONCILE (SR-150 / SR-157 / SR-172): a `Done` instance keeps `MacroExpandedWith{Instance, Anchor}` (474, transient); an edit (a new immutable `MacroInstance` record) or a moved anchor ⇒ expand old and new from the files, compare by GUID: kept ⇒ `SimTransform` + `EntityInfo` re-applied · new ⇒ requested · made before but destroyed in the run ⇒ stays destroyed · no longer made ⇒ destroyed | `MacroExpansionSystem.MaybeReconcile` | ⚠ a changed behaviour param reaches NEW children only (S3b); a re-expansion is not re-placed; after a restore `MacroExpandedWith` is absent ⇒ no reconcile until the next expansion |
 | ⭐ CASCADE (SR-170): an entity whose `MacroOrigin.Instance` is no longer in the map is destroyed by its owner | `MacroExpansionSystem.Cascade` | a nested instance going takes its own men by the same rule |
 | rails: `MacroValidatorTests` (4) · `MacroExpanderTests` + 3 placement rails driven through the system (asked once and parked · one Failed ⇒ nothing · no answer ⇒ placed here and said) · `PlacementSolverSystemTests` (9) · `PlacementTranslatorsTests` (3) | `Fdp.Toolkits.Tests`, `Hrot.SimHost.Tests`, `Hrot.Network.NED.Tests` | red-proofs in the report |
+
+### 15.3 As-built — item ⑦: the macros package on every node · scenario args *(backend, `2026-11-02`)*
+
+```mermaid
+graph TD
+    NAS["NAS: macros/ (whole tree)"] -->|"StorageGatewayModule.StageMacros (inside every prefetch)"| NODE["every node: {node root}/macros (beside TKB/)"]
+    NODE --> LIB["FileMacroLibrary.ForNode(node root)"]
+    REQ["POST /scenario/load/live {args} · --param k=v"] --> INT["ScenarioLoadSequence.LiveLoadIntent(.., args)"]
+    INT -->|"TransitionStateIntent.ScenarioArgsJson → TransitionPayloadDto.ScenarioArgs"| MASTER[ClusterMaster]
+    MASTER -->|"EditLoadHandlerPayload.ScenarioArgsJson → NodeTransitionPayloadDto.ScenarioArgs (load steps only)"| CTX["LoadPhaseContext.ScenarioArgsJson (every node)"]
+    CTX --> STEP["ScenarioLoadStep: header.params ▸ args → ParamBinder on the TOP-LEVEL entities (SR-41)"]
+    STEP --> RES["ScenarioDescriptionResident.Args"]
+    RES -->|"RecorderTickSystem.StampWorld"| META["RecordingMetadata.ScenarioArgs (SR-176)"]
+```
+
+*What the picture shows that prose hid:* the args ride the SAME message every node already reads for the load (as `FeatureConfigsAtLoad`
+does) and leave the run through the SAME resident singleton that already names the scenario in its recording — no second channel either way.

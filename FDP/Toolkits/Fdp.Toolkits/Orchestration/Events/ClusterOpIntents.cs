@@ -26,6 +26,9 @@ namespace Fdp.Toolkit.Orchestration
         /// scenario verifier compares the run's recording against a golden, so a verify run with recording off would fail for no reason.
         /// Default false = follow the setting.</summary>
         public bool ForceRecording;
+        /// <summary>⭐ Macros S3a ⑦ (SR-41, SR-176) — a LOAD's scenario args: a JSON object, param name → value, applied over the scenario
+        /// header's defaults on every node and kept in the recording. Null = none (the defaults).</summary>
+        public string? ScenarioArgsJson;
     }
 
     /// <summary>

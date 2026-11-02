@@ -80,6 +80,10 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// <inheritdoc cref="ScenarioName"/>
         public string ScenarioHash { get; set; } = "";
 
+        /// <summary>⭐ Macros S3a ⑦ (SR-176, docs/DESIGN_Scenario_Macros.md §15.3) — the scenario args the run was loaded with (a JSON object text:
+        /// the header's defaults ▸ the run's args); empty when the scenario declares no params. "Run it again with the same setup" reads it.</summary>
+        public string ScenarioArgs { get; set; } = "";
+
         /// <summary>
         /// ⭐ <c>CE-3126</c> (R-229) — the geodetic origin the recording node converted with. 🔒 User: <i>"Origin can be saved in
         /// recording metadata in case terrain with remembered name no longer exists"</i> — so a replay places the recording

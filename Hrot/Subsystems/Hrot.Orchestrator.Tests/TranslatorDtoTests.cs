@@ -63,6 +63,7 @@ public sealed class TranslatorDtoTests
             ExerciseId = Guid.NewGuid(), TimeMode = "Deterministic", CheckpointingSeconds = 5, TargetWallTicks = TimeSpan.FromSeconds(30).Ticks,
             TargetSimSeconds = 12.5,   // ⭐ CE-3329 R11
             ForceRecording = true,     // ⭐ CE-4090 D14 — the verifier's live load records whatever the setting says
+            ScenarioArgsJson = "{\"side\":\"Friend\"}",   // ⭐ macros S3a ⑦ (SR-41)
         };
 
         var json = JsonSerializer.Serialize(TransitionPayloadDto.From(sent), Options);

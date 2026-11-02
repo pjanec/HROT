@@ -1713,7 +1713,8 @@ public sealed partial class ClusterMaster : IDisposable
                             CheckpointingSeconds: _currentCheckpointingSeconds,   // D17 — the session's recording mode
                             // ⭐ CE-4090 D14 — the live session's recording decision, the same on every node (only a live step reads it)
                             RecordingOff: _runNotRecorded
-                                       && tStep.TargetState is ClusterState.LoadingLive or ClusterState.OperatingLive);
+                                       && tStep.TargetState is ClusterState.LoadingLive or ClusterState.OperatingLive,
+                            ScenarioArgsJson: isLoadStep ? intent.ScenarioArgsJson : null);   // ⭐ macros S3a ⑦ (SR-41)
 
                         // ⭐ CE-3354 ③ — a LOAD step's prepare is stamped per node: a node named in the map-in-load set also waits for its 3-D map
                         if (isLoadStep) FanOutLoadPrepare(prepareOp, tx.TransactionId, preparePayload, activeNodeIds);

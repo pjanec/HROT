@@ -98,19 +98,12 @@ namespace Hrot.Common.Macros
                 throw new Refused($"{here}: the file is not a macro (its header has no Kind \"macro\")");
             if (path.Count == 0) top[0] = header;
 
-            // ── params: the header's defaults ▸ the instance's args, flat (SR-28); an arg the macro does not declare is refused (SR-149)
-            var declared = (header.Params ?? Array.Empty<ScenarioParamDecl>()).ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase);
-            var args = ParseArgs(mi.ArgsJson, here);
-            foreach (var name in args.Keys)
-                if (!declared.ContainsKey(name))
-                    throw new Refused($"{here}: arg '{name}' is not a param of the macro (declared: {string.Join(", ", declared.Keys)})");
-            var values = JsonParamSource.Overlay(declared.Values.Select(p => new KeyValuePair<string, JsonNode?>(p.Name, p.Default)), args);
-            var source = new JsonParamSource(values, outside is null ? null : new RefResolve(outside), $"macro '{here}'");
-
-            // ── ③ scalar bindings, on the file's own entity JSON (SR-161)
-            if ((dom["entities"] ?? dom["Entities"]) is JsonObject entities)
-                foreach (var (_, e) in entities)
-                    if (e is JsonObject entity) ParamBinder.ApplyBindings(entity, source);
+            // ── params (SR-28 / SR-149 / SR-161): the header's defaults ▸ the instance's args, an undeclared arg refused, the file's
+            //    ParamBindings applied — ⭐ the ONE routine a scenario load uses too (ScenarioParams, SR-41)
+            ScenarioParams.Prepared bound;
+            try { bound = ScenarioParams.Prepare(dom, header, mi.ArgsJson, outside is null ? null : new RefResolve(outside), $"macro '{here}'"); }
+            catch (ScenarioParams.ArgsRefused r) { throw new Refused(r.Message); }
+            var source = bound.Source;
 
             // ── relocation (SR-127 / SR-152 / SR-156): authored anchor → instance anchor; a pinned macro must stand at its anchor
             var authored = header.Anchor ?? new MacroAnchor(WorldPoint.Zero, default);
@@ -169,15 +162,6 @@ namespace Hrot.Common.Macros
                     InitType                = r.InitType,
                 });
             }
-        }
-
-        private static Dictionary<string, JsonNode?> ParseArgs(string? argsJson, string here)
-        {
-            var d = new Dictionary<string, JsonNode?>(StringComparer.OrdinalIgnoreCase);
-            if (string.IsNullOrWhiteSpace(argsJson)) return d;
-            if (JsonNode.Parse(argsJson) is not JsonObject o) throw new Refused($"{here}: the instance's args are not a JSON object");
-            foreach (var (k, v) in o) d[k] = v?.DeepClone();
-            return d;
         }
 
         private static float Distance2(WorldPoint a, WorldPoint b) { float dx = a.X - b.X, dy = a.Y - b.Y; return dx * dx + dy * dy; }

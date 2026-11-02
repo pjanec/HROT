@@ -50,7 +50,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         //   (the field is absent on the wire) both mean today's behaviour — record. ⭐ ONE field on the ONE message every node reads.
         bool RecordingOff = false,
         // ⭐ Node Features F-14 — per node: the cluster layer the master stamped for the AtLoad-capable features this node has (id → partial JSON); the node freezes it for the load.
-        System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad = null);
+        System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad = null,
+        // ⭐ Macros S3a ⑦ (SR-41, SR-176) — the load's scenario args (a JSON object text), the same on every node; null = the header's defaults.
+        string? ScenarioArgsJson = null);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.
