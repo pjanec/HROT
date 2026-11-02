@@ -26,6 +26,17 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         /// <summary>The first step slot's key; a list at nesting <c>depth</c> uses <see cref="SlotKey"/> (CE-4161: a list run from inside a step cannot collide).</summary>
         public const int SlotBase = 0x7C000001;
 
+        /// <summary>
+        /// ⭐ found LIVE (macros, <c>--mode all</c>) — how many ticks a step waits for a reference it names to appear before it FAILS. A trigger's <c>InsertMacro</c> is Done the moment the instance asks for
+        /// its entities, and its next step (<c>Order @RedQRF</c>) ran 0.3 s later on a node whose ghosts of those entities (and their replicated <c>RefKey</c>) had not arrived yet:
+        /// "no entity with key 'RedQRF' here". In ONE world everything is instant, so no rail saw it. Generic: any step naming something a previous step just created. 300 ticks ≈ 5 s at 60 Hz;
+        /// TICKS, never wall time, so it is deterministic and a replay waits the same.
+        /// </summary>
+        public const int ResolveGraceTicks = 300;
+
+        /// <summary>The salt that derives the wait slot's key and hash from the step slot's: the wait counter lives in its OWN slot, so the (re-seeded) step slot stays fresh each tick.</summary>
+        public const int ResolveWaitSalt = 0x00C0DE00;
+
         /// <summary>The step slot of a list running at <paramref name="depth"/> (0 = the outermost).</summary>
         public static int SlotKey(int depth) => SlotBase ^ depth;
 
@@ -45,8 +56,12 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
         /// <summary>⭐ rules S2 ⑨ — the action's params carry an <c>int ArgsRef</c>: a step may then bring a nested <c>"params"</c> value (<see cref="ActionList.ExtractParams"/>).</summary>
         public abstract bool TakesArgsRef { get; }
 
-        /// <summary>Frees the step's slot.</summary>
-        public bool Detach(EntityRepository world, Entity self, int slotKey) => OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey);
+        /// <summary>Frees the step's slot (and its reference-wait counter, when it has one).</summary>
+        public bool Detach(EntityRepository world, Entity self, int slotKey)
+        {
+            OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey ^ ResolveWaitSalt);
+            return OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey);
+        }
 
         /// <summary>The slot's current params and working state (a rail's / the inspector's view).</summary>
         public abstract (object Params, object State) Peek(EntityRepository world, Entity self, int slotKey);
@@ -57,6 +72,9 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
     /// <summary>⭐ rules S2-f — an action's params may check the raw args object at ASSIGNMENT (<see cref="StepRunner.CheckArgs"/>): a message too long for its
     /// <c>FixedString</c> is refused there, not silently cut. Returns the reason, or <c>null</c> when fine.</summary>
     public interface IActionArgsCheck { string? Check(JsonObject args); }
+
+    /// <summary>⭐ the reference-wait counter of a step (<see cref="StepRunner.ResolveGraceTicks"/>): ticks spent waiting for an unresolved <c>"@Key"</c>.</summary>
+    public struct ResolveWait { public int Ticks; }
 
     /// <summary>One action's runner: its delegate plus the seeding of its slot.</summary>
     public sealed unsafe class StepRunner<TP, TS> : StepRunner where TP : unmanaged where TS : unmanaged
@@ -84,11 +102,17 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
                     BehaviorParams.OverlayFlat(ref p, argsJson);
                     if (_holdsRefs) p = ResolveLinks(world, p);
                     *pp = p;
+                    OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey ^ ResolveWaitSalt);   // resolved: any wait counter is done
                 }
                 catch (UnresolvedReferenceException ex)
                 {
+                    // ⭐ not yet: what the step names may be on its way (a replicated ghost, a key still arriving). Drop the half-seeded slot — the next tick seeds afresh —
+                    //   and count the wait in its own slot; fail only when the grace is spent.
                     OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey);
-                    ActionFailure.Set(world, self, ex.Message);
+                    ref var wait = ref OccurrenceWorkingState.ResolveOrAttach<ResolveWait>(world, self, slotKey ^ ResolveWaitSalt, _hash ^ (ulong)ResolveWaitSalt, Kind, out _);
+                    if (++wait.Ticks < ResolveGraceTicks) return NodeStatus.Running;
+                    OccurrenceStoreAccess.TryDetachSlot(world, self, slotKey ^ ResolveWaitSalt);
+                    ActionFailure.Set(world, self, ex.Message + $" (waited {ResolveGraceTicks} ticks)");
                     return NodeStatus.Failure;
                 }
                 catch
