@@ -39,6 +39,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
     /// about. ⚠ The first draft of this class DID hold a list; the success condition caught it.
     /// </summary>
     private readonly Func<IEnumerable<string>> _seedNames;
+    private readonly Func<Fdp.Core.EntityRepository?>? _world;   // ⭐ CE-4210 MA-6 — the world a NEW MACRO's header is stamped into (a host that offers New macro… must pass it)
 
     public ScenarioNewAssetService(IScenarioCreationSession session)
     {
@@ -61,10 +62,12 @@ public sealed class ScenarioNewAssetService : INewAssetService
     /// </param>
     public ScenarioNewAssetService(
         IScenarioCreationSession session,
-        Func<IEnumerable<string>> seedScenarioNames)
+        Func<IEnumerable<string>> seedScenarioNames,
+        Func<Fdp.Core.EntityRepository?>? world = null)
     {
         _session   = session ?? throw new ArgumentNullException(nameof(session));
         _seedNames = seedScenarioNames ?? throw new ArgumentNullException(nameof(seedScenarioNames));
+        _world     = world;
     }
 
     /// <summary>
@@ -118,7 +121,16 @@ public sealed class ScenarioNewAssetService : INewAssetService
         // (recipes/scenarios/<seed>, resolved by the master against the NAS recipes root) — then save under the new name.
         // ⭐ CE-4101 — the load is GUARDED (a run ⇒ Stop & Load, unsaved edits ⇒ Save / Discard / Cancel): the save-as follows the open that WENT OUT, ⛔ never a cancelled one (it would
         //   save whatever the world holds under the new name).
-        _session.LoadScenarioByName(SeedNameToScenarioName(recipe.Name), () => _session.SaveScenarioAs(fullName));
+        // ⭐⭐ CE-4210 MA-6 — NEW MACRO is the SAME path: a name under `macros/` (ContentLayout.IsMacroName) makes the loaded seed a macro — its resident header gets Kind = macro and the anchor at the
+        //   origin (ScenarioDescription.StampNewMacro) — before the same save-as, so the first save writes them through the one save path (MA-4). ⛔ no second creator.
+        bool macro = Fdp.Toolkit.Orchestration.ContentLayout.IsMacroName(fullName);
+        if (macro && _world is null)
+            throw new InvalidOperationException("[ERROR] This host cannot stamp a macro header (no edit world was passed to the scenario creator).");
+        _session.LoadScenarioByName(SeedNameToScenarioName(recipe.Name), () =>
+        {
+            if (macro && _world!() is { } w) Fdp.Toolkit.Scenario.ScenarioDescription.StampNewMacro(w);
+            _session.SaveScenarioAs(fullName);
+        });
 
         // Scenario assets don't have a file path in the Assets tree — they live
         // in the scenarios root (managed by IEditorLogic/NAS).

@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Tests.Orchestration
             Assert.Equal(Path.Combine(r, "assets", "textures"), ContentLayout.TextureAssets(r));
             Assert.Equal(Path.Combine(r, "recipes", "scenarios"), ContentLayout.ScenarioRecipes(r));
             Assert.Equal(Path.Combine(r, "recipes", "behaviors", "Blueprints"), ContentLayout.BehaviorRecipes(r, ContentLayout.BlueprintsFolder));
-            Assert.Equal(new[] { "scenarios", "assets", "recipes" }, ContentLayout.SeededDirectories);
+            Assert.Equal(new[] { "scenarios", "assets", "recipes", "macros" }, ContentLayout.SeededDirectories);
         }
 
         /// <summary>⭐ L2 — recipes are separate from assets BY CONSTRUCTION: no assets path is under recipes/ and the reverse.</summary>

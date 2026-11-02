@@ -52,6 +52,8 @@ public sealed class EveryDrawerCallSiteOpensItsTableTests
         "Hrot/Engine/Hrot.Presentation/Behavior/BehaviorParamsForm.cs",
         // ⭐ CE-1061 U5b — the params DEFAULTS form (3 columns: field · value · override marker + Reset), §13.10c E2.
         "Hrot/Engine/Hrot.Presentation/Behavior/ParamsDefaultsForm.cs",
+        // ⭐ CE-4210 MA-8 — the Macro section's args form: one 3-column table ("args": param · value · reset), one drawer per row.
+        "Hrot/Subsystems/Hrot.Editor/Scenario/MacroInstanceDetailsView.cs",
     };
 
     /// <summary>⭐ How far a <c>BeginTable</c>/<c>EndTable</c> may sit from the call it wraps. ⚠ Every

@@ -99,6 +99,16 @@ namespace Fdp.Toolkit.Scenario
             return node.ToJsonString();
         }
 
+        /// <summary>⭐ CE-4210 MA-6 — makes the loaded (seed) world a NEW MACRO: <c>Kind = macro</c>, the anchor at the origin heading 0, no params yet — stamped into the resident header, so the
+        /// first save writes it (the ONE save path, MA-4). The rest of the resident (description, name, hash, args) is kept.</summary>
+        public static void StampNewMacro(EntityRepository world)
+        {
+            if (world == null) return;
+            var held = world.HasSingletonManaged<ScenarioDescriptionResident>() ? world.GetSingletonManaged<ScenarioDescriptionResident>() : null;
+            var header = (HeaderOf(world) ?? new ScenarioHeader("")) with { Kind = ScenarioHeader.MacroKind, Anchor = new MacroAnchor(default, default) };
+            Stamp(world, held?.Text, held?.Name, held?.Hash, held?.Args, HeaderJsonOf(header));
+        }
+
         /// <summary>⭐ CE-4210 MA-4 — the macro fields of a scenario JSON's <c>Header</c> (see <see cref="HeaderJsonOf(ScenarioHeader?)"/>); empty when the JSON is not an object or has none.</summary>
         public static string HeaderJsonOf(string? json)
         {

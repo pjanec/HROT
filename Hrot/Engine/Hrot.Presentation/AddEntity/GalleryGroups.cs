@@ -19,7 +19,7 @@ public enum ChipLevel
 /// <summary>One gallery group: a name, the DIS masks (side-bearing types) or placement tools (map graphics) it takes.</summary>
 /// <param name="IsRecent">True for the first, virtual group (Recent &amp; favourites): it owns no type, the picker fills it from its stores.</param>
 public sealed record GalleryGroup(string Name, IReadOnlyList<DisTypeMask> Masks, IReadOnlyList<PlacementToolKind> Tools,
-                                  ChipLevel Chips, bool IsRecent);
+                                  ChipLevel Chips, bool IsRecent, bool IsMacros = false);
 
 /// <summary>
 /// ⭐ <c>CE-4142</c> GL1 (G1 + G2) — the Add Entity gallery's GROUPS, read from ONE data file, <c>assets/thumbnails/groups.json</c>.
@@ -45,6 +45,9 @@ public sealed class GalleryGroups
     public IReadOnlyList<GalleryGroup> Groups => _groups;
 
     /// <summary>The virtual Recent &amp; favourites group's name, or null when the file has none.</summary>
+    /// <summary>⭐ CE-4210 MA-7 — the name of the group that lists the macro files, or null when groups.json has none (then macros are listed under <see cref="OtherName"/>).</summary>
+    public string? MacrosName => _groups.FirstOrDefault(g => g.IsMacros)?.Name;
+
     public string? RecentName => _groups.FirstOrDefault(g => g.IsRecent)?.Name;
 
     /// <summary>Every group name the sidebar lists, in order, <see cref="OtherName"/> last.</summary>
@@ -97,12 +100,16 @@ public sealed class GalleryGroups
                     throw new FormatException($"groups.json: group '{name}': chips '{cs}' is not next | kind | domain | category | none.");
 
                 bool recent = g.TryGetProperty("recent", out var r) && r.ValueKind == JsonValueKind.True;
+                // ⭐ CE-4210 MA-7 — the group of the macro FILES (not of TKB types): it lists no masks or tools; its entries come from the macro listing
+                bool macros = g.TryGetProperty("macros", out var mc) && mc.ValueKind == JsonValueKind.True;
+                if (macros && (recent || masks.Count > 0 || tools.Count > 0))
+                    throw new FormatException($"groups.json: the macros group '{name}' takes no masks, tools or recent flag.");
                 if (recent && (masks.Count > 0 || tools.Count > 0))
                     throw new FormatException($"groups.json: the recent group '{name}' takes no masks or tools.");
-                if (!recent && masks.Count == 0 && tools.Count == 0)
+                if (!recent && !macros && masks.Count == 0 && tools.Count == 0)
                     throw new FormatException($"groups.json: group '{name}' lists no masks and no tools.");
 
-                groups.Add(new GalleryGroup(name, masks, tools, chips, recent));
+                groups.Add(new GalleryGroup(name, masks, tools, chips, recent, macros));
             }
             return new GalleryGroups(groups);
         }
