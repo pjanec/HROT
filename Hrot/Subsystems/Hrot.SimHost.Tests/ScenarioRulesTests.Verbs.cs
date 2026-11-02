@@ -371,6 +371,32 @@ namespace Hrot.SimHost.Tests
             Assert.Single(pack.SimulationSystems.OfType<ExercisePauseOnEndSystem>());
         }
 
+        /// <summary>⭐ SR-116 — the pause goes out on the NODE's application bus, never the world's: the node builds a SEPARATE bus
+        /// (<c>HrotNodeBuilder.cs:143</c>) and only that one reaches the cluster master (<c>ClusterOpEgressTranslator</c>). 📌 Live on
+        /// <c>sr-triggers-march</c> (2026-11-02) the end ran and the cluster kept running: the system published on <c>repo.Bus</c>. The pack forwards
+        /// the bus it is given (both Brain hosts pass <c>HrotNodeContext.EventBus</c>: <c>CgfNodeBootstrapper</c>, <c>EditorNodeBootstrapper</c>).
+        /// ✅ Red-proof: the system publishing on <c>repo.Bus</c> again ⇒ the node bus sees 0 ⇒ red.</summary>
+        [Fact]
+        public void PauseOnEnd_GoesOutOnTheNodeBus_NotTheWorldBus_AndThePackForwardsIt()
+        {
+            var node = new FdpEventBus();
+            node.RegisterManaged<PauseTimeIntent>();
+            var repo = new EntityRepository();
+            repo.Bus.Register<ExerciseEndedEvent>(); repo.Bus.RegisterManaged<PauseTimeIntent>();
+            var sys = new ExercisePauseOnEndSystem(node);
+            repo.Bus.Publish(new ExerciseEndedEvent { EndedAt = 3 });
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0.1f);
+            repo.Bus.SwapBuffers(); node.SwapBuffers();
+            Assert.Equal(0, ((ISimulationView)repo).ReadManagedEvents<PauseTimeIntent>().Count);
+            int onNode = 0; foreach (var _ in node.ReadManaged<PauseTimeIntent>()) onNode++;
+            Assert.Equal(1, onNode);
+
+            var pack = new Hrot.CGF.CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), new Fdp.Toolkit.Replication.Services.NetworkEntityMap(),
+                new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry(), nodeBus: node);
+            Assert.Same(node, pack.SimulationSystems.OfType<ExercisePauseOnEndSystem>().Single().NodeBus);
+        }
+
         /// <summary>SR-116 end to end — a trigger ending the exercise: the pause is asked for ONCE after the end, and not again on the ticks after it.</summary>
         [Fact]
         public void PauseOnEnd_ARealEnd_AsksForThePauseOnce()

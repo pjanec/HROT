@@ -25,14 +25,26 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static readonly FeatureDeclaration Feature = FeatureDeclaration.Switch(FeatureId,
             "The exercise ends (ExerciseEnded) ⇒ the cluster is asked to pause (once)", FeatureChange.Live, _ => true);
 
+        /// <summary>⭐ The node's APPLICATION bus (<c>HrotNodeContext.EventBus</c>) — the one the cluster-op egress reads
+        /// (<c>ClusterOpEgressTranslator</c>, built from it at <c>NodeBootstrapper.cs:288</c>). ⛔ NOT the world's <c>repo.Bus</c>: the node builds a
+        /// SEPARATE bus (<c>HrotNodeBuilder.cs:143</c>), so a <c>PauseTimeIntent</c> on the world bus never leaves the node — measured live on
+        /// <c>sr-triggers-march</c> (2026-11-02: the end ran, the cluster kept running). Null ⇒ the world bus (a single-bus test world).</summary>
+        private readonly FdpEventBus? _nodeBus;
+
+        public ExercisePauseOnEndSystem(FdpEventBus? nodeBus = null) => _nodeBus = nodeBus;
+
+        /// <summary>The bus the pause goes out on (the forwarding rail reads it).</summary>
+        public FdpEventBus? NodeBus => _nodeBus;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
             if (!repo.Bus.IsRegistered<ExerciseEndedEvent>()) return;
             int ended = repo.ReadEvents<ExerciseEndedEvent>().Length;
             if (ended == 0) return;
-            if (!repo.Bus.IsRegisteredManaged<PauseTimeIntent>()) repo.Bus.RegisterManaged<PauseTimeIntent>();
-            repo.Bus.PublishManaged(new PauseTimeIntent());   // once per frame that carries an end — however many events (the event is raised once per node anyway)
+            var bus = _nodeBus ?? repo.Bus;
+            if (!bus.IsRegisteredManaged<PauseTimeIntent>()) bus.RegisterManaged<PauseTimeIntent>();
+            bus.PublishManaged(new PauseTimeIntent());   // once per frame that carries an end — however many events (the event is raised once per node anyway)
         }
     }
 }

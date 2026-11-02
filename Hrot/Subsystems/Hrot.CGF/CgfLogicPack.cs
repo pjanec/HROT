@@ -134,7 +134,8 @@ namespace Hrot.CGF
             TacticalIntentMapperRegistry         mapperRegistry,
             BlueprintRegistry                    blueprintRegistry,
             VehicleAPI?                          vehicleApi = null,
-            bool                                 gateOnAuthority = false)
+            bool                                 gateOnAuthority = false,
+            Fdp.Core.FdpEventBus?                nodeBus = null)
         {
             if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
@@ -258,7 +259,7 @@ namespace Hrot.CGF
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             // ⭐ rules S2 ⑨ (SR-116) — the exercise ended ⇒ ask the cluster to pause, once; after the brain tick that ran EndExercise. [NodeFeature("exercise.pause-on-end")], default ON.
-            simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem());
+            simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem(nodeBus));   // ⭐ the NODE bus — a production host passes HrotNodeContext.EventBus
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             // ⭐ CE-2319 / CE-2320 (AQ96 §2c) — a soldier's move under fire: AFTER the dispatchers, so a move issued this frame already has its
             //   intent when the reflex halts or re-paces it.

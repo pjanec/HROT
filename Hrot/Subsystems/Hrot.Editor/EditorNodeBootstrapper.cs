@@ -275,7 +275,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐ CE-454 (W3): the one mapper list both Brain hosts share. ⚠ NOT gated on authority (CGF's gate follows a role policy; the editor is offline and has none).
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
-        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry);
+        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus);
 
         // ⭐⭐⭐ S2a — host (d) on the capability axis. The two arms stay two PLAN SHAPES (a null capability registered as if real is the silent-default shape).
         var plan = _muscleCapabilitiesFactory == null
