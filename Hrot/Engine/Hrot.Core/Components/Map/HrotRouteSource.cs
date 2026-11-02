@@ -37,7 +37,7 @@ public sealed class HrotRouteSource : IRouteSource
         var plan = ((ISimulationView)repo).GetManagedComponentRO<RoutePlan>(route);
         if (plan == null) return false;
         foreach (var w in plan.Waypoints)
-            into.Add(new NavRouteWaypoint(w.Position, w.TargetSpeed, w.Kind, w.HeightAgl, w.Hold, w.HoldSeconds, w.HoldUnit));
+            into.Add(new NavRouteWaypoint(w.Position, w.TargetSpeed, w.Kind, w.HeightAgl, w.Hold, w.HoldSeconds, w.HoldUnit.Ref.NetworkId));
         loop = plan.IsLoop;
         version = plan.Version;
         return into.Count > 0;

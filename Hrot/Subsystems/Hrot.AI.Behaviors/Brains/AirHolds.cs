@@ -84,9 +84,9 @@ namespace Hrot.AI.Behaviors.Brains
             float best = float.MaxValue;
             foreach (var w in plan.Waypoints)
             {
-                if (w.Hold != RouteHold.Pickup || w.HoldUnit <= 0) continue;
+                if (w.Hold != RouteHold.Pickup || w.HoldUnit.Ref.NetworkId <= 0) continue;
                 float d = Vector2.DistanceSquared(new Vector2(w.Position.X, w.Position.Y), new Vector2(at.X, at.Y));
-                if (d < best) { best = d; unit = w.HoldUnit; }
+                if (d < best) { best = d; unit = w.HoldUnit.Ref.NetworkId; }
             }
             return unit > 0 ? Fdp.Toolkit.Replication.Services.NetworkIdResolver.FindEntityByNetworkId(world, unit) : Entity.Null;
         }

@@ -77,6 +77,15 @@ public class WaypointEditorPanel
     /// Factory that returns the currently active <see cref="IRouteWaypointEditorState"/>,
     /// or <see langword="null"/> when no route editing gizmo is active.
     /// </param>
+    /// <summary>S9' (e): the picked entity's <c>EntityGuid</c>, when the host can look it up; the pick then writes the Exact form (the GUID), else only the id.</summary>
+    public Func<int, System.Guid?>? EntityGuidOf { get; set; }
+
+    private Fdp.Toolkit.Replication.EntityLink PickLink(int id)
+    {
+        var r = new Fdp.Toolkit.Replication.EntityRef(id);
+        return EntityGuidOf?.Invoke(id) is { } g && g != System.Guid.Empty ? new Fdp.Toolkit.Replication.EntityLink(r, Fdp.Core.RefSpec.ByExact(g)) : new Fdp.Toolkit.Replication.EntityLink(r);
+    }
+
     public WaypointEditorPanel(Func<IRouteWaypointEditorState?> getActiveState)
         => _getActiveState = getActiveState ?? throw new ArgumentNullException(nameof(getActiveState));
 
@@ -126,7 +135,7 @@ public class WaypointEditorPanel
         ref var wp = ref activeState!.GetSelectedWaypointRef();
         return new(panelId, panelKind, true, activeState.SelectedVertexIndex,
             wp.Position.X, wp.Position.Y, wp.Position.Z, wp.TargetSpeed, wp.ExtensionJson ?? string.Empty,
-            wp.Kind.ToString(), wp.HeightAgl, wp.Hold.ToString(), wp.HoldSeconds, wp.HoldUnit);
+            wp.Kind.ToString(), wp.HeightAgl, wp.Hold.ToString(), wp.HoldSeconds, wp.HoldUnit.Ref.NetworkId);
     }
 
     /// <summary>
@@ -201,10 +210,10 @@ public class WaypointEditorPanel
         }
         if (wp.Hold == RouteHold.Pickup)
         {
-            string unit = wp.HoldUnit.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string unit = wp.HoldUnit.Ref.NetworkId.ToString(System.Globalization.CultureInfo.InvariantCulture);
             if (ImGui.InputText("Unit to pick up (network id)", ref unit, 24)
                 && int.TryParse(unit, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id))
-                wp.HoldUnit = id;
+                wp.HoldUnit = PickLink(id);
             changed |= ImGui.IsItemDeactivatedAfterEdit();
         }
 

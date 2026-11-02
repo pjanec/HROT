@@ -190,7 +190,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 {
                     Position = EnuWire.ToWire(wp.Position), SpeedMetersPerSec = wp.TargetSpeed,
                     Kind = (byte)wp.Kind, HeightAgl = wp.HeightAgl, Hold = (byte)wp.Hold,   // ⭐ Air Ops B1
-                    HoldSeconds = wp.HoldSeconds, HoldUnit = wp.HoldUnit,
+                    HoldSeconds = wp.HoldSeconds, HoldUnit = wp.HoldUnit.Ref.NetworkId,
                 });
             }
 

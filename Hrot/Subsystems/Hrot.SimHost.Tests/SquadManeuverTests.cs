@@ -5970,7 +5970,7 @@ namespace Hrot.SimHost.Tests
             plan = plan.WithWaypoints(w =>
             {
                 w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(500f, 0f, 0f), Kind = RouteWaypointKind.Ground, Hold = RouteHold.Unload });
-                w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = Vector3.Zero, Kind = RouteWaypointKind.Ground, Hold = RouteHold.Pickup, HoldUnit = 2180 });
+                w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = Vector3.Zero, Kind = RouteWaypointKind.Ground, Hold = RouteHold.Pickup, HoldUnit = new Fdp.Toolkit.Replication.EntityRef(2180) });
             });
             s.Repo.SetManagedComponent(route, plan);                                                  // RoutePlan: SimHostComponentRegistry
 

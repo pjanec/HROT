@@ -112,7 +112,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
                     HeightAgl         = wp.HeightAgl,
                     Hold              = (byte)wp.Hold,
                     HoldSeconds       = wp.HoldSeconds,
-                    HoldUnit          = wp.HoldUnit,
+                    HoldUnit          = wp.HoldUnit.Ref.NetworkId,   // S9': the wire stays int
                 });
             }
 

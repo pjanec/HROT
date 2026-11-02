@@ -183,13 +183,13 @@ public class RouteWaypointGizmoTests : IDisposable
         wp.Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground;
         wp.HeightAgl = 120f;
         wp.Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup;
-        wp.HoldUnit = 4242;
+        wp.HoldUnit = new Fdp.Toolkit.Replication.EntityRef(4242);
         _repo.Bus.SwapBuffers();
         state.CommitEdits();
 
         var stored = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints![1];
-        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 120f, Fdp.Toolkit.Navigation.RouteHold.Pickup, 4242L),
-                     (stored.Kind, stored.HeightAgl, stored.Hold, stored.HoldUnit));
+        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 120f, Fdp.Toolkit.Navigation.RouteHold.Pickup, 4242),
+                     (stored.Kind, stored.HeightAgl, stored.Hold, stored.HoldUnit.Ref.NetworkId));
         _repo.Bus.SwapBuffers();
         Assert.NotEmpty(_repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand>());   // published
         vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");

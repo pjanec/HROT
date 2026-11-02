@@ -70,7 +70,7 @@ namespace Hrot.SimHost.Tests
             plan = plan.WithWaypoints(w =>
             {
                 w.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 0f), TargetSpeed = 30f, Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground,
-                                          Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = 7701 });
+                                          Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(7701), Fdp.Core.RefSpec.ByExact(System.Guid.Parse("7a2f0c1e-0000-4000-8000-000000007701"))) });
                 w.Add(new RouteWaypoint { Position = new Vector3(500f, 0f, 0f), HeightAgl = 60f });
                 w.Add(new RouteWaypoint { Position = new Vector3(900f, 200f, 0f), Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground,
                                           Hold = Fdp.Toolkit.Navigation.RouteHold.Seconds, HoldSeconds = 12.5f });
@@ -79,10 +79,10 @@ namespace Hrot.SimHost.Tests
             using (fresh)
             {
                 var w = LoadedPlan(fresh).Waypoints;
-                Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, Fdp.Toolkit.Navigation.RouteHold.Pickup, 7701L),
-                             (w[0].Kind, w[0].Hold, w[0].HoldUnit));
-                Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Pass, 60f, Fdp.Toolkit.Navigation.RouteHold.None, 0L),
-                             (w[1].Kind, w[1].HeightAgl, w[1].Hold, w[1].HoldUnit));
+                Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, Fdp.Toolkit.Navigation.RouteHold.Pickup, "7a2f0c1e-0000-4000-8000-000000007701"),
+                             (w[0].Kind, w[0].Hold, w[0].HoldUnit.Spec.ToString()));   // S9': the file carries the unit's GUID
+                Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Pass, 60f, Fdp.Toolkit.Navigation.RouteHold.None, true),
+                             (w[1].Kind, w[1].HeightAgl, w[1].Hold, w[1].HoldUnit.IsNone));
                 Assert.Equal((Fdp.Toolkit.Navigation.RouteHold.Seconds, 12.5f), (w[2].Hold, w[2].HoldSeconds));
             }
         }

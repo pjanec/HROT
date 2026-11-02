@@ -143,7 +143,7 @@ namespace Hrot.Map.Common.Replication.Utils
                                         HeightAgl     = wp.HeightAgl,
                                         Hold          = (Fdp.Toolkit.Navigation.RouteHold)wp.Hold,
                                         HoldSeconds   = wp.HoldSeconds,
-                                        HoldUnit      = wp.HoldUnit,
+                                        HoldUnit      = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(wp.HoldUnit)),   // S9': wire int -> component link
                                     });
                                 }
                             });

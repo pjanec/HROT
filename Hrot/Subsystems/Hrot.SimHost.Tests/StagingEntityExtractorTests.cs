@@ -882,7 +882,9 @@ namespace Hrot.SimHost.Tests
             private const string DomKey = "_stubRoute";
             private readonly int _unitNetId;
 
-            public StubRouteTranslator(int unitNetId) => _unitNetId = unitNetId;
+            private readonly System.Guid? _unitGuid;
+
+            public StubRouteTranslator(int unitNetId, System.Guid? unitGuid = null) { _unitNetId = unitNetId; _unitGuid = unitGuid; }
 
             public BitMask512 GetConsumedComponentsMask() => new BitMask512();
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
@@ -891,12 +893,15 @@ namespace Hrot.SimHost.Tests
                 => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
 
             public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
-                => new Dictionary<string, object> { [DomKey] = new JsonObject { ["HoldUnit"] = _unitNetId } };
+                => new Dictionary<string, object> { [DomKey] = _unitGuid is { } g ? new JsonObject { ["HoldUnit"] = g.ToString("D") } : new JsonObject { ["HoldUnit"] = _unitNetId } };
 
             public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
             {
                 if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
-                var unit = ((JsonObject)raw)["HoldUnit"]!.GetValue<int>();
+                var unitNode = ((JsonObject)raw)["HoldUnit"]!;
+                var unit = unitNode.GetValueKind() == System.Text.Json.JsonValueKind.String
+                    ? new Fdp.Toolkit.Replication.EntityLink(default, Fdp.Core.RefSpec.ByExact(System.Guid.Parse(unitNode.GetValue<string>())))
+                    : new Fdp.Toolkit.Replication.EntityLink(new EntityRef(unitNode.GetValue<int>()));
                 var plan = new Hrot.Map.Common.Components.RoutePlan();
                 plan = plan.WithWaypoints(l =>
                 {
@@ -914,6 +919,29 @@ namespace Hrot.SimHost.Tests
         /// plan cannot reach.
         /// </summary>
         [Fact]
+        public void S9Prime_ARoutesPickupUnit_WrittenAsAGuid_ResolvesToTheNewId()
+        {
+            _goldRepo.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+            var guid = System.Guid.NewGuid();
+            _goldRepo.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            var route = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(route, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
+            _goldRepo.SetComponent(route, new SimTransform());
+            _goldRepo.SetComponent(route, new NetworkIdentity { Value = 9502 });
+            var squad = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(squad, new NetworkIdentity { Value = 9510 });
+            _goldRepo.SetComponent(squad, new Fdp.Toolkit.Scenario.EntityGuid(guid));
+
+            var serializer = BuildSerializer(new StubRouteTranslator(9510, guid));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
+
+            var plan = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<Hrot.Map.Common.Components.RoutePlan>().Single();
+            Assert.Equal(3002, plan.Waypoints[1].HoldUnit.Ref.NetworkId);
+        }
+
+        [Fact]
         public void CE2226_ARoutesPickupUnit_IsRemapped()
         {
             _goldRepo.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
@@ -929,8 +957,8 @@ namespace Hrot.SimHost.Tests
 
             var plan = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
                 .OfType<Hrot.Map.Common.Components.RoutePlan>().Single();
-            Assert.Equal(0L, plan.Waypoints[0].HoldUnit);      // a stop that names nobody stays so
-            Assert.Equal(3002L, plan.Waypoints[1].HoldUnit);   // the squad's NEW id
+            Assert.True(plan.Waypoints[0].HoldUnit.IsNone);      // a stop that names nobody stays so
+            Assert.Equal(3002, plan.Waypoints[1].HoldUnit.Ref.NetworkId);   // the squad's NEW id
         }
 
         private sealed class StubBrainIntentTranslator : IEntityScenarioTranslator

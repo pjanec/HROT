@@ -452,21 +452,28 @@ namespace Hrot.CGF.Orchestration
                 }
             }
 
-            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<int, int> map)
+            // S9' — HoldUnit is an EntityLink: an authored GUID / @Key resolves through the scope into .Ref; a legacy numeric ref is remapped old->new.
+            static Fdp.Toolkit.Replication.EntityLink ResolveHold(Fdp.Toolkit.Replication.EntityLink l, Dictionary<int, int> map, Fdp.Toolkit.Scenario.ScenarioRefScope scope)
+            {
+                if (!l.Spec.IsNone && scope.TryResolve(l.Spec, out var hit)) return l.WithRef(hit);
+                if (!l.Ref.IsNone && map.TryGetValue(l.Ref.NetworkId, out var renamed)) return l.WithRef(new Fdp.Toolkit.Replication.EntityRef(renamed));
+                return l;
+            }
+
+            static Hrot.Map.Common.Components.RoutePlan RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<int, int> map, Fdp.Toolkit.Scenario.ScenarioRefScope scope)
             {
                 bool any = false;
-                foreach (var w in route.Waypoints) any |= w.HoldUnit != 0 && map.ContainsKey(w.HoldUnit);
+                foreach (var w in route.Waypoints) any |= !w.HoldUnit.IsNone && ResolveHold(w.HoldUnit, map, scope) != w.HoldUnit;
                 if (!any) return route;
                 // CE-4046 — RoutePlan is an immutable record: the remapped plan is a NEW value the caller puts back in the list.
                 return route.WithWaypoints(list =>
                 {
                     for (int i = 0; i < list.Count; i++)
-                        if (list[i].HoldUnit != 0 && map.TryGetValue(list[i].HoldUnit, out var renamed))
-                        {
-                            var w = list[i];
-                            w.HoldUnit = renamed;
-                            list[i] = w;
-                        }
+                    {
+                        var w = list[i];
+                        w.HoldUnit = ResolveHold(w.HoldUnit, map, scope);
+                        list[i] = w;
+                    }
                 });
             }
 
@@ -482,7 +489,7 @@ namespace Hrot.CGF.Orchestration
             //   brain params above. 🔴 Measured live on ua-air-rescue: the hold kept the saved id, named nothing, and the UH-60 waited
             //   at the LZ with every man aboard until the casualty it had picked up died.
             for (int ri = 0; ri < comps.Count; ri++)
-                if (comps[ri] is Hrot.Map.Common.Components.RoutePlan route) comps[ri] = RemapHoldUnits(route, oldToNewMap);
+                if (comps[ri] is Hrot.Map.Common.Components.RoutePlan route) comps[ri] = RemapHoldUnits(route, oldToNewMap, refScope);
 
             // ⭐⭐ DESIGN_Entity_Reference.md D4 — every EntityRef inside every component (the Initial*Intent DTOs the
             // scenario translators write, and any other component holding one) is rewritten by the ONE type plan, in place

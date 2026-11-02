@@ -83,7 +83,7 @@ namespace Hrot.SimHost.Serializers
                     if (wp.HeightAgl != 0f) node["HeightAgl"] = wp.HeightAgl;
                     if (wp.Hold != Fdp.Toolkit.Navigation.RouteHold.None) node["Hold"] = wp.Hold.ToString();
                     if (wp.HoldSeconds != 0f) node["HoldSeconds"] = wp.HoldSeconds;
-                    if (wp.HoldUnit != 0) node["HoldUnit"] = wp.HoldUnit;
+                    if (!wp.HoldUnit.IsNone) node["HoldUnit"] = !wp.HoldUnit.Spec.IsNone ? wp.HoldUnit.Spec.ToString() : (System.Text.Json.Nodes.JsonNode)wp.HoldUnit.Ref.NetworkId;   // a file holds the GUID only, never the live id   // S9': GUID form when authored
 
                     waypoints.Add(node);
                 }
@@ -132,7 +132,7 @@ namespace Hrot.SimHost.Serializers
                             HeightAgl     = wpObj["HeightAgl"]?.GetValue<float>() ?? 0f,
                             Hold          = System.Enum.TryParse<Fdp.Toolkit.Navigation.RouteHold>(wpObj["Hold"]?.GetValue<string>(), true, out var hold) ? hold : default,
                             HoldSeconds   = wpObj["HoldSeconds"]?.GetValue<float>() ?? 0f,
-                            HoldUnit      = wpObj["HoldUnit"]?.GetValue<int>() ?? 0,
+                            HoldUnit      = wpObj["HoldUnit"] is { } hu ? System.Text.Json.JsonSerializer.Deserialize<Fdp.Toolkit.Replication.EntityLink>(hu) : default,
                         });
                     }
                 });
