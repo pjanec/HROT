@@ -91,7 +91,7 @@ plumbing are one implementation, so a new relation is one small class, never a n
 
 Rails: `EditorOrbatStructureViewTests` (5, in `AdapterTests.cs`): Command unchanged · a sensor and an embarked passenger under the vehicle ·
 a part with a dead parent is a root · Structure refuses reparent · the span enumerator. Red-proof: Structure ignoring `PartMetadata` fails.
-⚠ No frame rail — `SharedOrbatPanel` has none (model-dump and drop-logic tests only). Scenario view: ✅ built, §5.
+⚠ ~~No frame rail~~ — ✅ **BUILT `2026-11-03` (ui, W-T1)**: `TheSharedOrbatPanelDrawsTests` (§5 last line). Scenario view: ✅ built, §5.
 
 ## 5. AS BUILT — the Scenario view *(ui, `2026-11-03`, CE-4213 ⑥; macros S3a merged)*
 
@@ -104,3 +104,4 @@ a part with a dead parent is a root · Structure refuses reparent · the span en
 
 Rails: `EditorOrbatStructureViewTests` (`Hrot.Editor.Tests/Adapters/AdapterTests.cs`, +4): members under their instance, Saved / Transient roots · an empty group has no row, a collapsed one hides its members · a dead instance ⇒ its member is a root · Scenario read-only and the Command view refuses a macro entity naming the macro. ⚠ Still no frame rail for `SharedOrbatPanel`.
 
+⭐ **Frame rail `2026-11-03` (ui, W-T1, CE-4213 closed):** `Hrot.Editor.Tests/Windows/TheSharedOrbatPanelDrawsTests` draws the REAL `SharedOrbatPanel` through the existing `UiFrameRail` harness (`xvfb-run -a`; the premise "a GL pixel rail would be new infrastructure" was wrong) over one world holding all three relations, and asserts on what the draw loop EMITTED (`SharedOrbatPanel.DrawnRows` / `RelationSwitch`: each row with its depth, group-ness, arrow and rectangle) plus pixels: Command (commander + two units, no sensor row), Structure (tank, its radar part and the embarked passenger at depth 1), Scenario (Saved / Transient group labels, the instance with its two members, a transient root); a real mouse click on each relation radio switches the view, and a click on a row selects THAT entity through the one pick route (the part in Structure, the member in Scenario) while a group label selects nothing. Red-proof: `DrawContent` handing the provider `Command` instead of `Relation` reddens it.
