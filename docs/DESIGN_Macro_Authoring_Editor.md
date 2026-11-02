@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-02 (user: "then approved", with MA-1's always-visible button); P1 building
-updated: 2026-11-03 (§8 P3 as built)
-build-state: BUILDING — P1 (MA-4, MA-3) built §6 · P2 (MA-1, MA-2, MA-5) built §7 · P3 (MA-6, MA-7, MA-8) built §8
-current-answer: §8 the P3 AS BUILT · §7 the P2 AS BUILT · §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
+updated: 2026-11-03 (§9 P4 as built)
+build-state: BUILDING — P1 (MA-4, MA-3) built §6 · P2 (MA-1, MA-2, MA-5) built §7 · P3 (MA-6, MA-7, MA-8) built §8 · P4 (MA-9) built §9 — ONE item open (§9 last bullet: references inside JSON blobs)
+current-answer: §9 the P4 AS BUILT · §8 the P3 AS BUILT · §7 the P2 AS BUILT · §6 the P1 AS BUILT · §3 (decisions) · §4 (phases)
 stale-below: nothing
 known-rot: none
 related-designs:
@@ -224,4 +224,39 @@ graph TD
 - **MEASURED — who may write the instance.** In the editor's edit world the node creates and owns what it spawns: `NetworkAuthority { PrimaryOwnerId = LocalNodeId = 1 }`, and the `MacroInstance` authority bit is set — so `MacroArgs.Write` (`IInspectableSession.SetComponent` → `SetManagedComponent` of the new record) lands, and the expander's reconcile re-expanded the members with the **same network ids** (live: `side` Hostile → Friend, the four members' `ForceId` followed). A component this node does NOT own (authority bit clear — a plain local entity in a rail, or another node's) is refused with *Edit on the owning node: this node does not own this instance*, the form read-only; nothing is written to a foreign instance. ⚠ Not measured: an instance owned by ANOTHER node of a multi-node edit cluster (no second node in the live run) — the refusal rail covers the mechanism, the cluster case is unobserved. ⛔ `POST /entities/{id}/component {"Args":…}` is not used (§15.4).
 - Live check (real editor, Xvfb, `macros/test/fire-team` seeded into the NAS): *File ▸ Load Scenario…* lists **Macros ▸ test ▸ fire-team** (with its description pane); *Open* loaded `macros/test/fire-team`, window title *HROT Cluster Runner — Macro: test/fire-team*; with a scenario loaded, a macro instance created by `POST /entities/spawn` (8813 + `MacroInstance`) expanded (`Done`, members 1011–1014); the **Macro** tab showed *Expansion: Done*, the macro and `side = Hostile (default)`; choosing *Friend* wrote `Args {"side":"Friend"}` and the members re-expanded with `ForceId Friend`; a save to a copy name wrote `"MacroInstance":{"Macro":"test/fire-team","Args":{"side":"Friend"}}` and no members. ⚠ **Not driven live:** the *Add Entity ▸ Macros* click (the canvas menu would not open under xdotool) — the placement is railed through the real adapter instead; and *New Macro…* through its dialogs.
 - ⚠ Findings: `Hrot.Editor.Tests` gains the `Hrot.Editor.UiFrameRail` reference and `Xunit.SkippableFact` (the Macro section's frame rail); the font draws `—`/`…` as `?`, so the new drawn strings use ASCII (the picker hint keeps the literal text the handoff specified).
+
+## 9. AS BUILT — P4 *(ui, `2026-11-03`; MA-9 Save selection as macro)*
+
+```mermaid
+sequenceDiagram
+  participant U as editor gesture (Scenario menu / unit menu)
+  participant F as SaveSelectionAsMacroFlow + MacroClosure (S0 walker)
+  participant S as EditorScenarioSession.SaveSelectionAs
+  participant M as ClusterMaster (SaveScenario fan-out)
+  participant N as every node: HrotScenarioSaveHandler
+  participant C as ScenarioSaveCore (filter · header · rebind)
+  U->>F: Begin (selection) + name
+  F->>F: walk the selection's leaves, outside = not in the selection
+  alt closed
+    F->>S: macros/path, guids, header (Kind=macro, centroid anchor)
+  else open: dialog
+    F-->>U: entity . field . target list
+    U->>F: Make parameters (or Cancel = nothing saved)
+    F->>S: same, header + a param per outside target (default = its key, else its GUID)
+  end
+  S->>M: ExecuteStorageOpIntent {OnlyGuids, HeaderJson}
+  M->>N: SerializeLocal ScenarioSaveHandlerPayload (node-op JSON: OnlyGuids, MacroHeaderJson)
+  N->>C: HeaderOf(world, docType, HeaderJson) · Write(.., OnlyGuids)
+  C->>C: Serialize writes only OnlyGuids, RebindOutsideReferences rewrites ONLY the DOM
+```
+*Caption: the one save path with two optional inputs; the closure walk and the rebinding are the only new logic, and the rebinding never reaches the world.*
+
+**As built:**
+- **The payload (no wire struct changes).** `ScenarioSaveHandlerPayload(ScenarioName, OnlyGuids = null, HeaderJson = null)`; `ExecuteStorageOpIntent` gains `OnlyGuids` / `HeaderJson`; the request chain (`ClusterOpEgressTranslator` → `ClusterOpMasterTranslator` / `ClusterOpRequestAdapter`) reads and writes ONE encoding, `SaveScenarioRequestJson` (a plain save encodes byte-for-byte as before); the node-op DTO `NodeTransitionPayloadDto` gains `OnlyGuids` / `MacroHeaderJson`, **written only when set** (`WhenWritingNull`). Both are JSON strings inside the existing DDS `PayloadJson` — `ned-wire-inventory.py --check`: *OK, 123 wire types == 123 rows*. `POST /scenario/save` takes optional `onlyGuids` / `header`. ⚠ A selection save is NOT a save of the scenario: `ClusterMaster` does not start an unsaved-check round for it, and `EditorScenarioSession.SaveSelectionAs` changes neither the loaded name nor the takes.
+- **The handler, in ONE place.** `ScenarioSerializer.Serialize(repo, header, onlyGuids)` writes only the saveable entities in the set (after the ownership gate; the save resolver still knows every saveable entity, so a reference to an outside entity is written, not thrown on; no terrain-objects section); `ScenarioSaveCore.HeaderOf(world, docType, macroHeaderJson)` takes the macro fields from the override (and does not carry the source scenario's description); `BuildDom` / `Write` take `onlyGuids`.
+- **Rebinding, in the saved DOM only** *(the lean, built as measured)*. The auto-serializer writes an unauthored `EntityLink` as the target's **network id number**, not a GUID — so a text match would have missed it. `ScenarioSaveCore.RebindOutsideReferences` therefore walks each saved component's JSON with the S0 walker (`EntityRefRemap.WalkJson`, typed: only `EntityLink` / `AreaLink` leaves) and rewrites a leaf to `"^param"` when it names the param's target — by its authored key / GUID, or by the network id of the entity the param's default (`@Key` via `RefKey`, or a GUID via `EntityGuid`) names in the saving node's world. The saved file holds only the binding (no stale network id). The live world is untouched (rail).
+- **The gesture.** *Scenario ▸ Save Selection as Macro…* and the map's unit menu item (new `GlobalActionIds.SaveSelectionAsMacro` = 544; only the editor registers its handler) open `SaveSelectionAsMacroWindow` over `SaveSelectionAsMacroFlow`: a name → the closure walk (`MacroClosure.Walk`: the S0 walker with a new no-op `LeafApplier.Visiting(member)` hook so the dialog can name the FIELD) → a closed selection saves; an open one shows `entity · field · target` and offers **Make parameters** or **Cancel** (Cancel saves nothing). Header: `Kind = macro`, anchor = the selection's centroid (x, y mean, z mean, heading 0), params one per distinct outside target (type `EntityLink` / `AreaLink`; default = `@Key` when the target has a `RefKey`, else its GUID). v1 leaves the selection in place.
+- **Not a parameter ⇒ not savable:** a plain `EntityRef` or a `PointLink` to an outside entity has no Param form; the dialog lists it with the reason and **Make parameters is disabled** — ⛔ a macro is never saved with a dangling outside reference.
+- **Live check** (real editor, Xvfb, `ua-fire-and-movement`): two men selected (`SelectionChangeRequest`), *Scenario ▸ Save Selection as Macro…*, a name, *Save* → the selection was closed (no outside reference), so it saved at once: `macros/<name>/scenario.json` has `Kind: macro`, `Anchor: [200, 285, 0] heading 0` and exactly the two men; the scenario on screen (name, entity count) is unchanged; copies deleted. ⚠ **Not live:** the *Make parameters* branch — no registered, saved component of a unit holds an `EntityLink` / `AreaLink` leaf (measured: the only such leaves are in params DTOs and JSON blobs), so there is no real unit to reference an outside entity; that branch is railed through the REAL save handler + serializer with a link-bearing component. (The unit-menu item and an in-field ctrl-select could not be driven under xdotool; the menu route was.)
+- ⚠ **OPEN — the one thing left (coordinator's call):** the closure walk sees typed component leaves only. References held inside **JSON blobs** — a mission task's `BehaviorParams`, a trigger's `do`-list, `ParamBindings` strings — are invisible to it, so a selection whose men are tasked at an outside entity saves with that reference dangling. Covering them needs the params type per blob (the behaviour registry) and a decision on whether a blob reference becomes a `^param` or a refusal. Not built; CE-4210 stays open for it.
 

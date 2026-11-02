@@ -164,6 +164,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             var mi = MapInteractionPack.Build(new MapInteractionContext
             {
                 World = _repo,
+                LayerSettingsPath = "",   // ⭐ never the operator's own map-layers.json (its saved culling choice made this rail depend on the machine)
                 Settings = CullingOn(),
                 StartEnabled = true,
             });
@@ -183,6 +184,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             var mi = MapInteractionPack.Build(new MapInteractionContext
             {
                 World = _repo,
+                LayerSettingsPath = "",   // ⭐ never the operator's own map-layers.json (its saved culling choice made this rail depend on the machine)
                 StartEnabled = true,
             });
 
@@ -204,6 +206,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             var mi = MapInteractionPack.Build(new MapInteractionContext
             {
                 World = _repo,
+                LayerSettingsPath = "",   // ⭐ never the operator's own map-layers.json (its saved culling choice made this rail depend on the machine)
                 StartEnabled = true,
                 VisibilityPolicyResolver = type =>
                     type == typeof(EntityPresentationGizmo) ? NeverVisiblePolicy.Instance : null,
@@ -257,7 +260,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             var settings = new GizmoSettingsRegistry();
             Mover(0f, selected: true);
             var other = Mover(50f);
-            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _repo, StartEnabled = true, Settings = settings });
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _repo, LayerSettingsPath = "", StartEnabled = true, Settings = settings });
 
             mi.StatelessSystem.Execute(_repo, 0.016f);
             Assert.Equal(new[] { 0f }, PathXs(mi));
@@ -286,7 +289,7 @@ namespace Hrot.Presentation.Tests.Gizmos
         {
             RegisterFamilyTypes();
             var unit = Mover(0f);
-            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _repo, StartEnabled = true });
+            var mi = MapInteractionPack.Build(new MapInteractionContext { World = _repo, LayerSettingsPath = "", StartEnabled = true });
             foreach (var f in GizmoFamilies.All)
                 Assert.True(mi.Actions.TryGetHandler(Hrot.Common.Diagnostics.Gizmos.GizmoPins.ActionIdOf(f), out _), $"pin action for {f}");
 

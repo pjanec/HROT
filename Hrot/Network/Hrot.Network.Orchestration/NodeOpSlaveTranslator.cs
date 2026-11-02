@@ -217,7 +217,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 //   as a ScenarioSaveHandlerPayload instead of being flattened to an empty ArchiveHandlerPayload.
                 var dto = JsonSerializer.Deserialize<NodeTransitionPayloadDto>(payloadJson!, OrchestrationJsonOptions.Default);
                 if (!string.IsNullOrWhiteSpace(dto?.ScenarioId))
-                    return new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(dto!.ScenarioId!);
+                    return new Fdp.Toolkit.Orchestration.Handlers.ScenarioSaveHandlerPayload(dto!.ScenarioId!, dto.OnlyGuids is { Count: > 0 } ? dto.OnlyGuids : null, string.IsNullOrWhiteSpace(dto.MacroHeaderJson) ? null : dto.MacroHeaderJson);   // ⭐ CE-4210 MA-9
                 return new ArchiveHandlerPayload(dto?.ExerciseId ?? Guid.Empty);
             }
 

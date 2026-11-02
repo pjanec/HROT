@@ -263,22 +263,15 @@ public sealed class ClusterOpMasterTranslator
             //    name the save would target null and produce nothing.
             case NedClusterOpType.SaveScenario:
             {
-                string? scenarioName = null;
-                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                {
-                    try
-                    {
-                        var node = System.Text.Json.Nodes.JsonNode.Parse(req.PayloadJson);
-                        scenarioName = node?["ScenarioName"]?.GetValue<string>();
-                    }
-                    catch (JsonException) { }
-                }
+                var (scenarioName, onlyGuids, headerJson) = SaveScenarioRequestJson.Decode(req.PayloadJson);   // ⭐ CE-4210 MA-9 — the one decoding
                 _bus.PublishManaged(new ExecuteStorageOpIntent
                 {
                     RequestId    = req.RequestId,
                     Operation    = StorageOpType.SaveScenario,
                     ExerciseId   = Guid.Empty,
                     ScenarioName = scenarioName,
+                    OnlyGuids    = onlyGuids,
+                    HeaderJson   = headerJson,
                 });
                 break;
             }

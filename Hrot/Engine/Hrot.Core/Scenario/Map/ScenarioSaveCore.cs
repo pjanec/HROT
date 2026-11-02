@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Serialization;
 using Fdp.Core.Serialization;
@@ -40,12 +41,20 @@ public static class ScenarioSaveCore
     /// — <c>HrotScenarioSaveHandler</c> (every host's distributed save) and <c>ScenarioFileService</c> (the editor's shim) — so no host can forget a field, and
     /// opening a macro and saving it no longer turns it into a plain scenario.
     /// </summary>
-    public static ScenarioHeader HeaderOf(EntityRepository world, string docType)
+     public static ScenarioHeader HeaderOf(EntityRepository world, string docType)
+        => HeaderOf(world, docType, macroHeaderJson: null);
+
+    /// <summary>
+    /// ⭐ CE-4210 MA-9 — as above; with <paramref name="macroHeaderJson"/> (the object <see cref="ScenarioHeaderJson.Write"/> produces — Kind, Params, Anchor, Placement, Relocatable) the macro fields come from IT, not from the
+    /// resident (Save selection as macro: the selection's own header), and the source scenario's description is NOT carried into the macro. Null / blank = from the resident, exactly as before. Terrain stays the resident's.
+    /// </summary>
+    public static ScenarioHeader HeaderOf(EntityRepository world, string docType, string? macroHeaderJson)
     {
-        var resident = ScenarioDescription.HeaderOf(world);
+        var over = HeaderFromJson(macroHeaderJson);
+        var resident = over ?? ScenarioDescription.HeaderOf(world);
         return new ScenarioHeader(docType,
             TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(world),
-            Description: ScenarioDescription.ResidentOf(world))
+            Description: over is null ? ScenarioDescription.ResidentOf(world) : null)
         {
             Kind        = resident?.Kind,
             Params      = resident?.Params,
@@ -55,26 +64,135 @@ public static class ScenarioSaveCore
         };
     }
 
-    /// <summary>
-    /// Builds the scenario DOM: the gated entity serialization, which stamps <c>$meta</c>.
-    /// </summary>
+    /// <summary>The macro header fields a header JSON object holds (null for none / unreadable).</summary>
+    public static ScenarioHeader? HeaderFromJson(string? macroHeaderJson)
+    {
+        if (string.IsNullOrWhiteSpace(macroHeaderJson)) return null;
+        try { return ScenarioHeaderJson.Read(new JsonObject { ["Header"] = JsonNode.Parse(macroHeaderJson) }); }
+        catch (JsonException) { return null; }
+    }
+
     public static JsonObject BuildDom(
         ScenarioSerializer serializer,
         EntityRepository   world,
         ScenarioHeader     header)
-        => serializer.Serialize(world, header);
+        => BuildDom(serializer, world, header, onlyGuids: null);
 
     /// <summary>
-    /// Builds the DOM (see <see cref="BuildDom"/>) and writes it to <paramref name="filePath"/> as minified,
-    /// numeric-array-flattened JSON — the exact on-disk shape the scenario loader reads back.
+    /// ⭐ CE-4210 MA-9 — the DOM of a SELECTION: only the entities whose <c>EntityGuid</c> is in <paramref name="onlyGuids"/> (null / empty = everything, as before), and — when the header's params bind outside references —
+    /// those references rewritten to their <c>^param</c> form IN THE DOM ONLY (the world is never touched).
     /// </summary>
+    public static JsonObject BuildDom(
+        ScenarioSerializer serializer,
+        EntityRepository   world,
+        ScenarioHeader     header,
+        IReadOnlyCollection<Guid>? onlyGuids)
+    {
+        var set = onlyGuids is { Count: > 0 } ? new HashSet<Guid>(onlyGuids) : null;
+        var dom = serializer.Serialize(world, header, set);
+        if (set is not null) RebindOutsideReferences(dom, header, world, serializer);
+        return dom;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4210 MA-9 — a macro is CLOSED (SR-58): every reference from the saved entities to one outside the selection became a header param whose DEFAULT names that outside entity — its key
+    /// (<c>"@Key"</c>) or its GUID. This rewrites each such reference to its <c>"^name"</c> Param form IN THE DOM ONLY (the world is never touched), TYPED: the S0 walker
+    /// (<see cref="EntityRefRemap.WalkJson"/>) visits only the <see cref="EntityLink"/> / <see cref="AreaLink"/> leaves of each saved component — a plain number or string that merely equals a network id never changes.
+    /// A reference matches a param by the authored form it carries (key / GUID) OR by the network id of the entity the param's default names in <paramref name="world"/> (how an unauthored runtime reference is written).
+    /// Params that are not references are ignored. Returns the number of components rewritten.
+    /// </summary>
+    public static int RebindOutsideReferences(JsonObject dom, ScenarioHeader header, EntityRepository? world, ScenarioSerializer serializer)
+    {
+        if (header.Params is not { Count: > 0 } ps || dom["Entities"] is not JsonObject entities) return 0;
+        var targets = new List<RebindTarget>();
+        foreach (var p in ps)
+            if (p.TypeId is "EntityLink" or "AreaLink" && p.Default is JsonValue v && v.TryGetValue<string>(out var text) && text.Length > 0)
+                targets.Add(TargetOf(world, p.Name, text));
+        if (targets.Count == 0) return 0;
+
+        var typeByName = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var t in ComponentTypeRegistry.GetAllTypes())
+            if (EntityRefRemap.HoldsLeaves(t) && serializer.AutoSerializer.GetComponentName(ComponentTypeRegistry.GetId(t)) is { } name) typeByName[name] = t;
+
+        var applier = new RebindApplier(targets);
+        int n = 0;
+        foreach (var (_, ent) in entities)
+        {
+            if (ent is not JsonObject components) continue;
+            foreach (var key in components.Select(kv => kv.Key).ToList())
+            {
+                if (!typeByName.TryGetValue(key, out var type) || components[key] is not JsonObject comp) continue;
+                string before = comp.ToJsonString();
+                string? after = EntityRefRemap.WalkJson(type, before, applier);
+                if (after is not null && after != before) { components[key] = JsonNode.Parse(after); n++; }
+            }
+        }
+        return n;
+    }
+
+    private sealed record RebindTarget(string Param, string Text, int NetworkId, string? Guid);
+
+    private static RebindTarget TargetOf(EntityRepository? world, string param, string text)
+    {
+        int netId = 0; string? guid = null;
+        if (world is not null)
+        {
+            Entity found = Entity.Null;
+            if (text[0] == '@' && world.IsComponentTypeRegistered<RefKey>())
+            {
+                foreach (var e in world.Query().With<RefKey>().Build())
+                    if (world.GetComponent<RefKey>(e).Value.ToString() == text.Substring(1)) { found = e; break; }
+            }
+            else if (Guid.TryParse(text, out var g) && world.IsComponentTypeRegistered<EntityGuid>())
+            {
+                foreach (var e in world.Query().With<EntityGuid>().Build())
+                    if (world.GetComponent<EntityGuid>(e).Value == g) { found = e; break; }
+            }
+            if (!found.IsNull)
+            {
+                netId = Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, found);
+                if (world.IsComponentTypeRegistered<EntityGuid>() && world.HasComponent<EntityGuid>(found)) guid = world.GetComponent<EntityGuid>(found).Value.ToString();
+            }
+        }
+        return new RebindTarget(param, text, netId, guid);
+    }
+
+    private sealed class RebindApplier : LeafApplier
+    {
+        private readonly List<RebindTarget> _targets;
+        public RebindApplier(List<RebindTarget> targets) => _targets = targets;
+
+        private string? Match(EntityRef reference, RefSpec spec)
+        {
+            if (spec.Form == RefForm.Param) return null;
+            foreach (var t in _targets)
+            {
+                if (t.NetworkId != 0 && reference.NetworkId == t.NetworkId) return t.Param;
+                if (!spec.IsNone && (spec.ToString() == t.Text || spec.ToString() == t.Guid)) return t.Param;
+            }
+            return null;
+        }
+
+        // ⭐ the saved macro holds ONLY the binding (`"^name"`): the live answer (a network id of the SOURCE world) is dropped — it would dangle in the file, and the binder fills it on every load
+        public override EntityLink Link(EntityLink l) => Match(l.Ref, l.Spec) is { } p ? new EntityLink(default, RefSpec.ByParam(p)) : l;
+        public override AreaLink Area(AreaLink a) => a.IsShape || Match(a.Area, a.Spec) is not { } p ? a : a.WithArea(default).BindToParam(p);
+    }
+
     public static void Write(
         ScenarioSerializer serializer,
         EntityRepository   world,
         string             filePath,
         ScenarioHeader     header)
+        => Write(serializer, world, filePath, header, onlyGuids: null);
+
+    public static void Write(
+        ScenarioSerializer serializer,
+        EntityRepository   world,
+        string             filePath,
+        ScenarioHeader     header,
+        IReadOnlyCollection<Guid>? onlyGuids)
     {
-        var dom = BuildDom(serializer, world, header);
+        var dom = BuildDom(serializer, world, header, onlyGuids);
 
         // CE-3187 (R-2005): a DOM ignores the naming policy, so the shared minified options are byte-identical.
         var json     = JsonSerializer.Serialize(dom, FdpJsonOptionsRegistry.DefaultRelaxed);

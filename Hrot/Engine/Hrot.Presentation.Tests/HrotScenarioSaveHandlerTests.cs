@@ -31,6 +31,9 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
     [ComponentId(221)]
     private struct SaveMarker { public float X; }
 
+    [ComponentId(222)]
+    private struct LinkMarker { public Fdp.Toolkit.Replication.EntityLink Follow; }
+
     private const int NodeId = 1;
     private readonly string _scenarioName = "test-" + Guid.NewGuid().ToString("N");
 
@@ -196,6 +199,96 @@ public sealed class HrotScenarioSaveHandlerTests : IDisposable
             Assert.Equal("side", header.Params!.Single().Name);
         }
         finally { try { Directory.Delete(Path.Combine(OrchestrationConstants.GetNodeScenariosRoot(NodeId), "macros"), true); } catch { } }
+    }
+
+    // ── ⭐ CE-4210 MA-9 — Save selection as macro: the payload's filter, header override and rebinding ──────────────────────────────
+
+    private EntityRepository SelectionWorld(out Entity a, out Entity b, out Entity c, out Entity outside)
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<SaveMarker>();
+        repo.RegisterComponent<LinkMarker>();
+        repo.RegisterComponent<NetworkAuthority>();
+        repo.RegisterComponent<NetworkIdentity>();
+        repo.RegisterComponent<EntityGuid>();
+        repo.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();
+        Entity Make(int net, float x)
+        {
+            var e = repo.CreateEntity();
+            repo.SetComponent(e, new SaveMarker { X = x });
+            repo.AddComponent(e, new NetworkIdentity(net));
+            repo.AddComponent(e, new EntityGuid(Guid.NewGuid()));
+            repo.AddComponent(e, new NetworkAuthority(primaryOwnerId: NodeId, localNodeId: NodeId));
+            return e;
+        }
+        a = Make(101, 1f); b = Make(102, 2f); c = Make(103, 3f); outside = Make(104, 4f);
+        repo.AddComponent(outside, new Fdp.Toolkit.Scenario.RefKey("Target"));
+        repo.AddComponent(a, new LinkMarker { Follow = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(104)) });   // a -> outside (by id; no authored form)
+        repo.AddComponent(b, new LinkMarker { Follow = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(101)) });   // b -> a (inside)
+        return repo;
+    }
+
+    private JsonObject SaveSlice(EntityRepository repo, ScenarioSaveHandlerPayload payload)
+    {
+        var handler = new HrotScenarioSaveHandler(new ScenarioSerializerBuilder("Hrot.Scenario").Build(), world: repo, nodeId: NodeId);
+        handler.PrepareAsync(new ExecuteNodeOpIntent { Operation = NodeOpType.SerializeLocal, TransactionId = Guid.NewGuid(), DomainPayload = payload }, CancellationToken.None).GetAwaiter().GetResult();
+        return JsonNode.Parse(File.ReadAllText(ExpectedSliceFile))!.AsObject();
+    }
+
+    [Fact]
+    public void CE4210_MA9_OnlyGuids_WritesOnlyThoseEntities_AndNullOrEmptyWritesEverything()
+    {
+        using var repo = SelectionWorld(out var a, out var b, out var c, out var outside);
+        Guid Of(Entity e) => repo.GetComponent<EntityGuid>(e).Value;
+
+        var picked = SaveSlice(repo, new ScenarioSaveHandlerPayload(_scenarioName, new[] { Of(a), Of(c) }))["Entities"]!.AsObject();
+        Assert.Equal(new[] { Of(a).ToString(), Of(c).ToString() }.OrderBy(x => x), picked.Select(kv => kv.Key).OrderBy(x => x));
+
+        Assert.Equal(4, SaveSlice(repo, new ScenarioSaveHandlerPayload(_scenarioName))["Entities"]!.AsObject().Count);                          // null: as today
+        Assert.Equal(4, SaveSlice(repo, new ScenarioSaveHandlerPayload(_scenarioName, Array.Empty<Guid>()))["Entities"]!.AsObject().Count);     // empty: as today
+    }
+
+    [Fact]
+    public void CE4210_MA9_TheHeaderOverride_ReplacesTheResidentsMacroFields_AndNotTheTerrainOrNothing()
+    {
+        using var repo = SelectionWorld(out var a, out _, out _, out _);
+        ScenarioDescription.Stamp(repo, "What: the source scenario.", "scn", "h", null, "");   // a plain scenario resident
+        var over = ScenarioDescription.HeaderJsonOf(new ScenarioHeader("") { Kind = ScenarioHeader.MacroKind, Anchor = new MacroAnchor(new WorldPoint(5f, 6f, 7f), default) });
+
+        var header = JsonNode.Parse(SaveSlice(repo, new ScenarioSaveHandlerPayload(_scenarioName, new[] { repo.GetComponent<EntityGuid>(a).Value }, over))["Header"]!.ToJsonString())!.AsObject();
+        var read = ScenarioHeaderJson.Read(new JsonObject { ["Header"] = header })!;
+        Assert.Equal("macro", read.Kind);
+        Assert.Equal(5f, read.Anchor!.Value.Position.X);
+        Assert.Null(read.Description);                                 // the source scenario's text is not the macro's
+
+        var plain = SaveSlice(repo, new ScenarioSaveHandlerPayload(_scenarioName))["Header"]?.AsObject();   // no override: the resident, as today
+        Assert.Equal("What: the source scenario.", (string?)plain?["Description"]);
+        Assert.Null(plain?["Kind"]);
+    }
+
+    [Fact]
+    public void CE4210_MA9_MakeParameters_RebindsTheOutsideReference_InTheSavedDomOnly()
+    {
+        using var repo = SelectionWorld(out var a, out var b, out _, out var outside);
+        var header = ScenarioDescription.HeaderJsonOf(new ScenarioHeader("")
+        {
+            Kind = ScenarioHeader.MacroKind,
+            Params = new[] { new ScenarioParamDecl("target", "EntityLink", JsonValue.Create("@Target")) },   // the outside entity's key is the default
+        });
+        Guid Of(Entity e) => repo.GetComponent<EntityGuid>(e).Value;
+        var before = repo.GetComponent<LinkMarker>(a);
+
+        var dom = SaveSlice(repo, new ScenarioSaveHandlerPayload(_scenarioName, new[] { Of(a), Of(b) }, header));
+
+        var ents = dom["Entities"]!.AsObject();
+        Assert.Equal(2, ents.Count);                                                    // only the two men, not the outside one
+        Assert.Equal("^target", (string?)ents[Of(a).ToString()]!["LinkMarker"]!["Follow"]);   // outside: now the param
+        Assert.Equal(101, (int?)ents[Of(b).ToString()]!["LinkMarker"]!["Follow"]);                  // inside (b -> a): untouched, still the id
+        Assert.Equal("target", (string?)dom["Header"]!["Params"]![0]!["Name"]);
+        Assert.Equal("@Target", (string?)dom["Header"]!["Params"]![0]!["Default"]);      // the default keeps the key
+
+        Assert.Equal(before, repo.GetComponent<LinkMarker>(a));                          // the WORLD is unchanged: still unbound
+        Assert.Equal(Fdp.Core.RefForm.None, repo.GetComponent<LinkMarker>(a).Follow.Spec.Form);
     }
 
     [Fact]

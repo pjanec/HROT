@@ -14,4 +14,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers;
 ///
 /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
 /// </summary>
-public readonly record struct ScenarioSaveHandlerPayload(string ScenarioName);
+public readonly record struct ScenarioSaveHandlerPayload(
+    string ScenarioName,
+    // ⭐ CE-4210 MA-9 — Save selection as macro: the entity GUIDs to write (null = everything, as today) and the macro header fields
+    //   (the object ScenarioHeaderJson.Write produces; null = from the resident, as today). Both optional: a null / empty value keeps every existing save as it was.
+    System.Collections.Generic.IReadOnlyList<System.Guid>? OnlyGuids = null,
+    string? HeaderJson = null);

@@ -307,14 +307,25 @@ public sealed class EditorScenarioSession : IScenarioSession, IRunScenarioContro
     /// operator picks a NAME / subfolder under the NAS scenarios root, never a filesystem path.
     /// 📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4.
     /// </summary>
-    private void PublishScenarioSave(string scenarioName)
+    private void PublishScenarioSave(string scenarioName, Guid[]? onlyGuids = null, string? headerJson = null)
     {
         _orchestrationBus.PublishManaged(new ExecuteStorageOpIntent
         {
             RequestId    = Guid.NewGuid(),
             Operation    = StorageOpType.SaveScenario,
             ScenarioName = scenarioName,
+            OnlyGuids    = onlyGuids,    // ⭐ CE-4210 MA-9 — null for every ordinary save
+            HeaderJson   = headerJson,
         });
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-4210 MA-9 — the ONE save path with a filter and a header. ⛔ Unlike <see cref="SaveAs"/> it changes NOTHING of the open scenario: not its loaded name, not its takes.</remarks>
+    public void SaveSelectionAs(string scenarioName, Guid[] onlyGuids, string? headerJson)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioName) || onlyGuids is not { Length: > 0 }) return;
+        if (SaveIntercept?.Invoke() == true) return;
+        PublishScenarioSave(scenarioName, onlyGuids, headerJson);
     }
 
     /// <inheritdoc/>

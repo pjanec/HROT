@@ -95,6 +95,10 @@ public interface IScenarioSession
     /// <summary>Saves the world as a new scenario and remembers the name for <see cref="SaveCurrent"/>.</summary>
     void SaveAs(string scenarioName);
 
+    /// <summary>⭐ CE-4210 MA-9 — Save selection as macro: the same cluster save, writing ONLY the entities with these <c>EntityGuid</c>s under <paramref name="scenarioName"/> (<c>macros/&lt;path&gt;</c>), with the macro
+    /// header fields <paramref name="headerJson"/> — and changing nothing of the open scenario (not its name, not its unsaved baseline). A host with no cluster save refuses.</summary>
+    void SaveSelectionAs(string scenarioName, System.Guid[] onlyGuids, string? headerJson) => throw new System.NotSupportedException("This host cannot save a selection as a macro.");
+
     /// <summary>Serializes the world to an explicit file path *(the raw round-trip seam)*.</summary>
     void SaveTo(string filePath);
 

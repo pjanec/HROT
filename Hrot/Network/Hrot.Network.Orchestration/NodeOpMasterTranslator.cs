@@ -173,7 +173,9 @@ public sealed class NodeOpMasterTranslator
                 new NodeTransitionPayloadDto(
                     TargetState: null,
                     ScenarioId:  p.ScenarioName,
-                    ExerciseId:  Guid.Empty),
+                    ExerciseId:  Guid.Empty,
+                    OnlyGuids:       p.OnlyGuids is { Count: > 0 } og ? new System.Collections.Generic.List<Guid>(og) : null,   // ⭐ CE-4210 MA-9
+                    MacroHeaderJson: string.IsNullOrWhiteSpace(p.HeaderJson) ? null : p.HeaderJson),
                 _jsonOptions),
 
             _ => JsonSerializer.Serialize(domainPayload, domainPayload.GetType(), _jsonOptions),

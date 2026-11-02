@@ -109,6 +109,58 @@ public sealed class NodeOpMasterTranslatorTests
         Assert.Contains("\"RecordingOff\":true", Assert.Single(received).PayloadJson);
     }
 
+    /// <summary>
+    /// ⭐ CE-4210 MA-9 — Save selection as macro rides the node-op wire: a scenario save whose payload carries <c>OnlyGuids</c> and a macro header puts BOTH on the wire; a plain save's payload carries NEITHER key (it is
+    /// byte-for-byte what it was). The slave's decoding is rail-tested in <c>NodeOpSlaveTranslatorTests</c>.
+    /// </summary>
+    [Theory(Timeout = 10_000)]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CE4210_MA9_ASelectionSave_PutsItsFilterAndHeaderOnTheWire_APlainSaveNeitherKey(bool selection)
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        using var statusReader    = new DdsReader<NodeOpStatus>(participant);
+        using var nodeWriter2     = new DdsWriter<NodeOpCommand>(participant);
+
+        var bus = new FdpEventBus();
+        var translator = new NodeOpMasterTranslator(new Dictionary<int, DdsWriter<NodeOpCommand>> { [2] = nodeWriter2 }, statusReader, bus);
+        var g1 = Guid.NewGuid(); var g2 = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TargetNodeId = (Fdp.Core.NodeId)(2), TransactionId = Guid.NewGuid(), Operation = FdpNodeOpType.SerializeLocal,
+            DomainPayload = selection
+                ? new ScenarioSaveHandlerPayload("macros/test/sel", new[] { g1, g2 }, "{\"Kind\":\"macro\"}")
+                : new ScenarioSaveHandlerPayload("scn"),
+        });
+        bus.SwapBuffers();
+        Thread.Sleep(300);
+        translator.Tick();
+
+        var received = new List<NodeOpCommand>();
+        var deadline = DateTime.UtcNow.AddSeconds(4);
+        while (DateTime.UtcNow < deadline && received.Count == 0)
+        {
+            using var scope = nodeOpCmdReader.Take();
+            foreach (var smp in scope) if (smp.IsValid) received.Add(smp.Data);
+            if (received.Count == 0) Thread.Sleep(30);
+        }
+
+        var json = Assert.Single(received).PayloadJson;
+        if (selection)
+        {
+            Assert.Contains("\"OnlyGuids\":[\"" + g1 + "\",\"" + g2 + "\"]", json);
+            Assert.Contains("\"MacroHeaderJson\":", json);
+            Assert.Contains("\"ScenarioId\":\"macros/test/sel\"", json);
+        }
+        else
+        {
+            Assert.DoesNotContain("OnlyGuids", json);
+            Assert.DoesNotContain("MacroHeaderJson", json);
+            Assert.Contains("\"ScenarioId\":\"scn\"", json);
+        }
+    }
+
     // ── Test 2: Egress — null DomainPayload → empty PayloadJson ──────────────
 
     [Fact(Timeout = 10_000)]

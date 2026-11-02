@@ -96,8 +96,9 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         // The ONE host-neutral save implementation — gated ScenarioSerializer + this host's zones.
         // ⭐ CE-3015 — the terrain is stamped from what this node has RESIDENT. ⛔ R-4018: never a TKB name.
         // ⭐ CE-4210 MA-4 — terrain + description + the macro header fields, ALL from the world through the ONE helper.
-        var header = ScenarioSaveCore.HeaderOf(_world, ScenarioDocType);
-        ScenarioSaveCore.Write(_serializer, _world, localFile, header);
+        // ⭐ CE-4210 MA-9 — Save selection as macro: the payload's optional header (macro fields) and entity filter go through the SAME core; null / empty = the whole scenario from the resident, exactly as before.
+        var header = ScenarioSaveCore.HeaderOf(_world, ScenarioDocType, payload.HeaderJson);
+        ScenarioSaveCore.Write(_serializer, _world, localFile, header, payload.OnlyGuids);
 
         // The orchestrator pulls this to a per-node NAS slice; the merge combines slices → scenario.json.
         // ⭐ CE-4210 MA-4 — beside the CANONICAL file wherever the name resolves (the `macros/` arm too), so the merge finds the slices and cleans them up.

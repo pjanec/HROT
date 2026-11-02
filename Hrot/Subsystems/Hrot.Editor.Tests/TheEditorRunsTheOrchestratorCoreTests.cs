@@ -220,6 +220,7 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Fdp.ModuleHost.Scheduling.TogglableInputGroup",
         "Hrot.Common.Systems.CreateEntityRequestSystem",
         "Hrot.Common.EntityCreation.SeatPresetSystem",
+        "Hrot.Common.Macros.MacroExpansionSystem",   // ⭐ macros S3a ④ — EntityCreation.RegisterOn, every pack (DESIGN_Scenario_Macros §15.1)
         "Hrot.SimHost.Systems.GenesisMaterializationSystem",
         "Hrot.SimHost.Systems.InitialBrainMaterializationSystem",
         "Hrot.SimHost.Systems.BlueprintMaterializationSystem",
@@ -229,6 +230,7 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Fdp.Modules.Geographic.Systems.GeodeticSmoothingSystem",
         "Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathResponseSystem",
         "Fdp.Toolkit.Navigation.Systems.PathfindingResultMaterializationSystem",
+        "Fdp.Toolkit.Navigation.Systems.PlacementSolverSystem",   // ⭐ macros S3a ⑤ — every frame, NavigationSolverModule (DESIGN_Scenario_Macros §15.2)
         "Hrot.MuscleCharacter.Animation.Systems.AnimationCapabilityChangeReactorSystem",
         "Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup",
         "Hrot.Common.Systems.EntityRequestFinalizationSystem",

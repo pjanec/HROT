@@ -143,16 +143,9 @@ internal static class ClusterOpRequestAdapter
         };
 
         // CE-277(c0): the distributed JSON scenario save carries its relative name in PayloadJson.
-        string? scenarioName = null;
-        if (opType == StorageOpType.SaveScenario && !string.IsNullOrWhiteSpace(req.PayloadJson))
-        {
-            try
-            {
-                var node = System.Text.Json.Nodes.JsonNode.Parse(req.PayloadJson);
-                scenarioName = node?["ScenarioName"]?.GetValue<string>();
-            }
-            catch (JsonException) { }
-        }
+        string? scenarioName = null; Guid[]? onlyGuids = null; string? headerJson = null;
+        if (opType == StorageOpType.SaveScenario)
+            (scenarioName, onlyGuids, headerJson) = Hrot.Network.Orchestration.SaveScenarioRequestJson.Decode(req.PayloadJson);   // ⭐ CE-4210 MA-9 — the one decoding
 
         return new ExecuteStorageOpIntent
         {
@@ -160,6 +153,8 @@ internal static class ClusterOpRequestAdapter
             Operation    = opType,
             ExerciseId   = exerciseId,
             ScenarioName = scenarioName,
+            OnlyGuids    = onlyGuids,
+            HeaderJson   = headerJson,
         };
     }
 
