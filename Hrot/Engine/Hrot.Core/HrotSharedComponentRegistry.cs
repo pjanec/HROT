@@ -103,6 +103,14 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
         world.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();            // ⭐ CE-4153 — the scenario file's stable entity key (dtEntityGuid)
+        world.RegisterComponent<Fdp.Toolkit.Scenario.RefKey>();                // ⭐ macros debt A1 (SR-65, SR-188) — the authored name "@Key" resolves against the LIVE world too
+                                                                                //   (was registered only on the staging repo ⇒ a runtime `@Key` arg never resolved, and a save dropped the keys)
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpansionIntent>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroExpandedWith>();     // ⭐ macros S3a ⑥ — the reconcile's baseline (transient)  // ⭐ macros S3a ④ — the wait of one expansion (transient)
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.ParamBindings>();  // ⭐ macros S3a ① (SR-161) — scalar bindings to params; NoReplay, saved by its translator
+        world.RegisterManagedComponent<Fdp.Toolkit.Scenario.MacroInstance>();       // ⭐ macros S3a ③ (SR-170) — a macro instance (dtMacroInstance); saved by its translator
+        world.RegisterComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // ⭐ macros S3a ③ (SR-175) — the expansion verdict (dtMacroExpansionStatus); NoScenario
+        world.RegisterComponent<Fdp.Toolkit.Scenario.MacroOrigin>();                // ⭐ macros S3a ③ (SR-178) — an expanded entity's origin (dtMacroOrigin); NoScenario
         world.RegisterComponent<Fdp.Toolkit.Motion.EjectionDone>();             // ⭐ R-3039 S1 — this aircraft's crew has ejected (EjectionSystem)
 
         // ── Terrain / zone loading ────────────────────────────────────────────
@@ -166,6 +174,11 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ExerciseResult>();    // ⭐ rules S2-e — the exercise's phase and outcome per side, on every node (dtExerciseResult)
+        world.RegisterManagedComponent<Fdp.Toolkit.ScenarioRules.Actions.ActionArgs>();   // ⭐ rules S2-d — the step lists an entity's actions run (immutable record, 428)
+        world.RegisterComponent<Fdp.Toolkit.ScenarioRules.Actions.ActionFailure>();      // ⭐ rules S2-d — the reason a shared action failed (CE-4165, 429)
         world.RegisterComponent<Fdp.Toolkit.Weather.WeatherConditions>();   // ⭐ CE-3216 S1 — authored weather (global and regional), on every node
         world.RegisterComponent<Fdp.Toolkit.Traffic.TrafficDemand>();   // ⭐ AQ93 R-4021 — the scenario's traffic settings, on every node
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty

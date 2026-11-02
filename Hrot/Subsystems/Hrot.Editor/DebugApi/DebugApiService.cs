@@ -1283,7 +1283,7 @@ namespace Hrot.Editor.DebugApi
         /// <c>--mode all</c> an edit load is PARTIAL: SimHost loads, CGF does not. ⛔ Declared in the
         /// conformance baseline rather than crashing — which is why the content diff uses LIVE.</para>
         /// </summary>
-        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null)
+        public JsonNode LoadScenarioEdit(string name, HttpUnsavedGate? gate = null, string? scenarioArgsJson = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1302,12 +1302,12 @@ namespace Hrot.Editor.DebugApi
 
             // no session door here (a cluster node, a fake editor logic): the SAME decision, made by HTTP's own deciding door; this host's execution below
             JsonNode? sent = null;
-            HttpDoor.Admit(DoorMove.OpeningScenario(name), asker, answered, () => sent = SendEditLoad(name));
+            HttpDoor.Admit(DoorMove.OpeningScenario(name), asker, answered, () => sent = SendEditLoad(name, scenarioArgsJson));
             if (asker.Refusal is { } refused) return new JsonObject { ["refused"] = refused };
             return sent ?? throw new InvalidOperationException("the door neither admitted nor refused the edit load");
         }
 
-        private JsonNode SendEditLoad(string name)
+        private JsonNode SendEditLoad(string name, string? scenarioArgsJson = null)
         {
             var stopped = LeaveRunForLoad();
             if (_editorLogic is not null)
@@ -1318,7 +1318,7 @@ namespace Hrot.Editor.DebugApi
             }
 
             // ⭐ CE-3354 ⑥ — the ONE edit-load intent (ScenarioLoadSequence.EditLoadIntent: no ExerciseId — authoring is not an exercise run), shared with the command line's startup load
-            var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name);
+            var editIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.EditLoadIntent(name, scenarioArgsJson);   // ⭐ macros debt A5 (SR-41)
             var editRequest = editIntent.TransactionId;
             NoteLoadSent(editRequest, name);   // ⭐ CE-3354 ④ — GET /status.load and waitForReady follow THIS request's outcome
             ScenarioLoads.Request(editIntent);
@@ -1339,7 +1339,7 @@ namespace Hrot.Editor.DebugApi
         /// <para>⭐ A fresh <c>ExerciseId</c> per load, mirroring the orchestrator panel's "Load into Live"
         /// button: a live load IS a new exercise run, and the id is what recording/replay keys off.</para>
         /// </summary>
-        public JsonNode LoadScenarioLive(string name, bool startPaused = true, bool forceRecording = false, HttpUnsavedGate? gate = null)
+        public JsonNode LoadScenarioLive(string name, bool startPaused = true, bool forceRecording = false, HttpUnsavedGate? gate = null, string? scenarioArgsJson = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Scenario name is required.", nameof(name));
@@ -1347,20 +1347,20 @@ namespace Hrot.Editor.DebugApi
             // ⭐ CE-4101 — the DECISION is the editor's ONE door's (HTTP's refusing asker: a run is stopped, a loss is refused); the EXECUTION stays this route's own load (it carries ForceRecording and
             //   the startPaused TimeMode, which the session's raw live load does not) — so ⛔ nothing is decided here, only published once the door lets the move through.
             JsonNode? sent = null;
-            void Go() => sent = SendLiveLoad(name, startPaused, forceRecording);
+            void Go() => sent = SendLiveLoad(name, startPaused, forceRecording, scenarioArgsJson);
             var asker = HttpAsker(gate);
             HttpDoor.Admit(DoorMove.LoadingLive(name), asker, gate?.Answer ?? UnsavedAnswer.Unchanged, Go);
             if (asker.Refusal is { } refusal) return new JsonObject { ["refused"] = refusal };
             return sent ?? throw new InvalidOperationException("the door neither admitted nor refused the live load");
         }
 
-        private JsonNode SendLiveLoad(string name, bool startPaused, bool forceRecording)
+        private JsonNode SendLiveLoad(string name, bool startPaused, bool forceRecording, string? scenarioArgsJson = null)
         {
             var stopped = LeaveRunForLoad();
 
             // ⭐ CE-3354 ⑥ — the ONE live-load intent (ScenarioLoadSequence.LiveLoadIntent: a fresh ExerciseId; Q86 §4-G startPaused ⇒ TimeMode "Deterministic" — the default keeps the documented
             //   load → POST /sim/play flow; ForceRecording is the scenario verifier's, CE-4090 D14 §5a — ⛔ not reachable from HTTP), shared with the command line's startup load
-            var liveIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.LiveLoadIntent(name, startPaused, forceRecording);
+            var liveIntent = Fdp.Toolkit.Orchestration.ScenarioLoadSequence.LiveLoadIntent(name, startPaused, forceRecording, scenarioArgsJson);   // ⭐ macros S3a ⑦
             var liveRequest = liveIntent.TransactionId;
             NoteLoadSent(liveRequest, name);   // ⭐ CE-3354 ④
             ScenarioLoads.Request(liveIntent);

@@ -131,7 +131,12 @@ namespace Hrot.SimHost.Serializers
                     Type   = t.Type,
                     Params = t.Params,
                 });
-                var (trigger, triggerParam) = Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(hrotTriggers);
+                // ⭐ CE-4157 — an unknown trigger type / a second trigger / a bad parameter FAILS the load, naming the entity and the task
+                (Fdp.Toolkit.Behavior.Components.MissionTrigger trigger, float triggerParam) resolved;
+                try { resolved = Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(hrotTriggers, $"{task.BehaviorName} ({task.TaskId})"); }
+                catch (Hrot.Core.Mission.MissionPlanException ex)
+                { throw new Hrot.Core.Mission.MissionPlanException($"scenario entity #{entity.Index}: {ex.Message}"); }
+                var (trigger, triggerParam) = resolved;
 
                 phases[i] = new MissionPhase
                 {

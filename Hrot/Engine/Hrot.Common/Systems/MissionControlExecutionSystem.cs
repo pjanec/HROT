@@ -194,7 +194,18 @@ namespace Hrot.Common.Systems
                         return;
                     }
                     plan.Tasks ??= new List<MissionTask>();
-                    if (!TryBuildQueue(repo, plan, out var queue, out var orderedTaskIds))
+                    bool built;
+                    MissionPlanQueue queue;
+                    List<Guid> orderedTaskIds;
+                    try { built = TryBuildQueue(repo, plan, out queue, out orderedTaskIds); }
+                    catch (Hrot.Core.Mission.MissionPlanException ex)
+                    {
+                        // ⭐ CE-4157 — refuse the whole request: no queue is applied, the entity keeps its plan
+                        FdpLog<MissionControlExecutionSystem>.Error("[MissionControl] Request {0} refused: {1}", intent.RequestId, ex.Message);
+                        PublishAck(repo, intent.RequestId, NedStatusCode.ValidationFailed, newVersion: 0);
+                        return;
+                    }
+                    if (!built)
                     {
                         FdpLog<MissionControlExecutionSystem>.Debug(
                             "[MissionControl] FollowRoute entity not ready; queuing request {0} for retry.",
@@ -336,7 +347,7 @@ namespace Hrot.Common.Systems
                 //   (CgfNodes.ResolveFollowRoute) and waits while it is not compiled. OC1-S001's sender-side rewrite is gone.
 
                 int behaviorId = ResolveBehaviorId(task.BehaviorId);
-                var (trigger, param) = ResolveTrigger(task.Triggers);
+                var (trigger, param) = ResolveTrigger(task.Triggers, $"{task.BehaviorId} ({task.TaskId})");
 
                 phases[i] = new MissionPhase
                 {
@@ -375,8 +386,8 @@ namespace Hrot.Common.Systems
         /// <summary>
         /// Delegates to <see cref="Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger"/> — shared implementation.
         /// </summary>
-        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<Hrot.Core.Mission.MissionTrigger>? triggers)
-            => Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(triggers);
+        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<Hrot.Core.Mission.MissionTrigger>? triggers, string? task)
+            => Hrot.Core.Mission.MissionTriggerHelper.ResolveTrigger(triggers, task);
 
         // ── Test hooks ─────────────────────────────────────────────────────────
 

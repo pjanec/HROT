@@ -144,7 +144,8 @@ public sealed class NodeOpMasterTranslator
                     IsCatchUp:       p.IsCatchUp,          // C7
                     CheckpointingSeconds: p.CheckpointingSeconds,   // D17
                     RecordingOff: p.RecordingOff,                   // CE-4090 D14
-                    FeatureConfigsAtLoad: p.FeatureConfigsAtLoad is null ? null : new Dictionary<string, string>(p.FeatureConfigsAtLoad)),   // Node Features F-14
+                    FeatureConfigsAtLoad: p.FeatureConfigsAtLoad is null ? null : new Dictionary<string, string>(p.FeatureConfigsAtLoad),   // Node Features F-14
+                    ScenarioArgs: p.ScenarioArgsJson),   // macros S3a ⑦
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(

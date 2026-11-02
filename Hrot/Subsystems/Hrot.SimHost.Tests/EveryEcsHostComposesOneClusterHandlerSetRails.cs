@@ -212,7 +212,7 @@ namespace Hrot.SimHost.Tests
         [MemberData(nameof(CompositionRoots))]
         public void EveryCompositionRoot_CallsTheSharedComposition_AndBuildsNoneByHand(string relativePath)
         {
-            var code = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(relativePath));
+            var code = CompositionRootSource.ReadEffectiveRoot(relativePath);   // ⭐ macros debt A7 — the root + the bootstrapper it delegates to (CE-1446)
 
             Assert.Contains("EcsHostClusterHandlers.Compose(", code, StringComparison.Ordinal);
             foreach (var byHand in new[]

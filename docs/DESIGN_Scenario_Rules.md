@@ -200,8 +200,8 @@ built — a prerequisite) and the brain tick in replay (by design; the egress re
 | slice | builds | done when | prerequisites | build-state |
 |---|---|---|---|---|
 | **S0 — types and ids** | §9.8.0's types (`WorldPoint`, `WorldRotation`, `Bearing`, `EntityLink`, `PointLink`, `AreaLink`, `RefSpec`) + the type plan walker (resolve, relocate) + the SR-132 / SR-143 rails + `RefKey`; ⭐ in the SAME sweep: CE-4200 (32-bit ids, `TkbTypeId`, `NodeId`) — the files are touched once | the repo's params / components use the types; the rails pass; a scenario round-trips byte-for-byte except the migrated fields; the multiplayer and NED suites pass | CE-4153 S1–S7 ✅ | ⭐ **READY-TO-BUILD** |
-| **S1 — objectives + status on the wire** | objective entity type; kinds `ReachArea` / `HoldArea` / `ClearArea` / `DestroyTargets` / `Protect` / `NoHarm`; `Composite` + `WeightedMean` / `AllMustPass`; `ObjectiveStatus` / `ObjectiveLinks`; `EntityObjectiveStatus` translators; `AreaLink.Contains`; a minimal mission summary reading live statuses | Bridgehead's phase-1 objectives, authored by hand as entities (no macros), run LIVE on a cluster; statuses reach a Player node and the IOS; two scenarios use the same kinds with different params and nothing rebuilds | S0; CE-4155 for `NoHarm`'s indirect harm (gunfire + blasts work without it) | ⭐ **READY-TO-BUILD** once S0 lands |
-| **S2 — triggers + messages + the end** | CE-4160 … CE-4166 (lift the PoC); `when` leaves `OnEntity` / `ScenarioTime`; actions `Message`, `SetObjectiveActive`, `EndExercise` (multi-tick, §11 SR-116), `Order`, `MissionCommand`; `ExerciseResult` + `EntityExerciseResult`; `PlayerMessage`; subtitle + log on the Player | Bridgehead's counter-attack fires on its edge; the trainee sees the subtitle; the run ends by rule, closes every objective, then pauses; replay shows the same statuses at any seek | S1; CE-4159; CE-4157; ⚠ CE-4164 MEASURE first (the indexed-lane evaluator for area / event / lifecycle `when`s) | DESIGN — CE-4164's measurement |
+| **S1 — objectives + status on the wire** ✅ BUILT `2026-11-02` (§00.8.1) | objective entity type; kinds `ReachArea` / `HoldArea` / `ClearArea` / `DestroyTargets` / `Protect` / `NoHarm`; `Composite` + `WeightedMean` / `AllMustPass`; `ObjectiveStatus` / `ObjectiveLinks`; `EntityObjectiveStatus` translators; `AreaLink.Contains`; a minimal mission summary reading live statuses | Bridgehead's phase-1 objectives, authored by hand as entities (no macros), run LIVE on a cluster; statuses reach a Player node and the IOS; two scenarios use the same kinds with different params and nothing rebuilds | S0; CE-4155 for `NoHarm`'s indirect harm (gunfire + blasts work without it) | ⭐ **READY-TO-BUILD** once S0 lands |
+| **S2 — triggers + messages + the end** | CE-4160 … CE-4166 (lift the PoC); `when` leaves `OnEntity` / `ScenarioTime`; actions `Message`, `SetObjectiveActive`, `EndExercise` (multi-tick, §11 SR-116), `Order`, `MissionCommand`; `ExerciseResult` + `EntityExerciseResult`; `PlayerMessage`; subtitle + log on the Player | Bridgehead's counter-attack fires on its edge; the trainee sees the subtitle; the run ends by rule, closes every objective, then pauses; replay shows the same statuses at any seek | S1; CE-4159; CE-4157; ⚠ CE-4164 MEASURE first (the indexed-lane evaluator for area / event / lifecycle `when`s) | ✅ BUILT `2026-11-02` (§00.9, live §00.9.1) |
 | **S3 — macros, variants, the director** | ⭐ moved to [DESIGN_Scenario_Macros.md](DESIGN_Scenario_Macros.md) §1 (the row is copied there: the `MacroInstance` type + `Expander`, `InsertMacro`, `ParamBindings`, the scenario params + run variants, `SetSkillAmplifier`) | see there | see there | DESIGN — S9 + GAP-1…5 |
 | **S4 — evaluation per member + debrief / HUD** | `MemberEvaluation` (SR-72 / 72a), measures (`HitRatio`, `Count`, `ReportLatency`, `TimeTo`), the SR-20 adapters `InputAbove` / `Sample`, the trainee debrief + training / game HUD (SR-112, mockups `docs/designs/rules-view/`) | per-trainee results on the HUD live and in the debrief | S3; CE-4155 | DESIGN |
 | **S5 — the rules view** | CE-4167 (timeline TL-X1 … X5) + the rules view (SR-105, SR-109 / SR-110 mockups) — ui lane | the instructor reads and edits the dependency Gantt live (this run only) | S2 | DESIGN (ui) |
@@ -220,6 +220,217 @@ and CE-4154 (World Environment saved in the header) are needed before S1's objec
 | GAP-1 … GAP-5 (DESIGN_Scenario_Macros.md §9: end of expansion, who reads macro files, missing macro / cycle, re-expansion on edit, ids) | S3 | decided in the S3 design pass — leans are written |
 | CE-4153 S9′ — references in a file carry their GUID | S3 | ✅ accepted `2026-11-01`: no reverse remap needed after S0 (authored refs are `EntityLink`, incl. `RoutePlan`'s `HoldUnit`; a rail; the migration writes GUIDs) — build right after S0 (`DESIGN_Scenario_Entity_Keys.md` S9′; §9.8's S9 notes are superseded by it) |
 | dismounted soldiers settle on the ground after relocation? (SR-127) | S3 | one rail |
+
+### 00.8 S1 — build decisions *(behaviors, `2026-11-02`; the details §00.6 left to the builder — measured on `behaviors` at `d7ff5d8e2`)*
+
+| # | decision | why / measured |
+|---|---|---|
+| **S1-a** ids | components **425** `ObjectiveStatus`, **426** `ObjectiveLinks` (427 kept for S2's `ExerciseResult`) — behaviors' block 418–433 · ⭐ a RULES descriptor block **171–179**: 171 `dtObjectiveStatus`, 172 `dtExerciseResult` (S2), 173 `dtPlayerMessage` (S2) — ⚠ 170 went to backend's `dtMacroOrigin` the same afternoon (both lanes measured it free); macros and rules share the 170s · ⭐ a RULES TKB block **8860–8869**: 8860 `Objective`, 8861 `Trigger` (S2) (backend's `ScenarioMacro` is 8813) | measured free on `backend`, `ui`, `coordinator`, `behaviors` (424 · 157/160 · 8812/8850 are the highest used); a block, like Traffic's, so two lanes cannot collide |
+| **S1-b** where | runtime types + the shared rule maths in `Fdp.Toolkits/ScenarioRules/` (`Fdp.Toolkit.ScenarioRules`); the kinds as C# behaviours in `Hrot.AI.Behaviors/Brains/Objectives/` (the `HoldStanceBehavior` pattern: params DTO in `Hrot.Map.Definitions.Behavior`, `[Behavior]` + `[BTreeDefinition]`); the topic in `Hrot.Network.NED` (`hrot-scenario-rules` IDL, SR-124) | C# trees (user: hard-coded C# trees over JSON assets) |
+| **S1-c** ONE owner of the links | `Subject` / `Parent` are PARAMS (`ObjectiveCommon.Subject`, `.Parent`, `EntityLink` — resolved by S0's walker at load); the behaviour copies them into `ObjectiveLinks` (`NoScenario`) each tick | ⭐ SR-53 said *"saved"* — saving a second copy beside the params gives two owners (CLAUDE.md *shared and unified*); the params are already saved, remapped and on the wire (`IntentJson`) |
+| **S1-d** "the subject's men" | the subject itself or anyone under it down `UnitSubordinate`, alive, in the fight, with a `SimTransform` — COUNTED AS MEN (`MinMen`; the showcase's *"min 6 men"*). An enemy = `ForceId` hostile to the subject's, in the fight, not neutral (`ThreatDanger`) | a squad commander has no body; counting bodies is what an area check can see |
+| **S1-e** lifecycle in S1 | `Pending` · `Active` · `Achieved` · `Failed` · `Inactive` + the deadline (`DeadlineSeconds`, sim s). `activeWhen` waits for S2's `when`; S1 has `StartActive` (default true). ⭐ the OnClose rules (SR-117) are pure functions with rails in S1, CALLED by S2's `EndExercise` | no end exists before S2 |
+| **S1-f** harm | `NoHarm` reads `DamageAssessedEvent` (`repo.ReadEvents`, the `HealthApplicationSystem` way) — victim `ForceId` vs `Protected`, `Source`'s side vs the subject's | §10.1: `Source` is set for gunfire, blasts and remote hits; drones / gas wait for CE-4155 |
+| **S1-g** the minimal summary | `GET /objectives` (DebugApi, any node — reads the replicated statuses, the tree by `Parent`) + one log line per state change | the HUD / rules view are S4 / S5 (ui) |
+
+```mermaid
+classDiagram
+    direction LR
+    class ObjectiveCommon { <<params, nested in every kind>> Title · Subject · Parent · Required · Scored · Weight · Points · DeadlineSeconds · StartActive · VisibleSides }
+    class ObjectiveStatus { <<425, unmanaged, NoScenario>> Role · State · Owner · ProgressCur/Need · Value · Target · Score · Points · ChangedAt · Reason · Title · Kind · Required · Scored · Weight · VisibleSides }
+    class ObjectiveLinks { <<426, NoScenario>> Subject · Parent (EntityRef) }
+    class ObjectiveRules { <<static, Fdp.Toolkit.ScenarioRules>> Begin · Settle · OnClose · Score · MenOf · EnemiesIn · ChildrenOf }
+    class Kinds { <<C# behaviours>> ReachArea · HoldArea · ClearArea · DestroyTargets · Protect · NoHarm }
+    class Aggregators { <<C# behaviours>> WeightedMean · AllMustPass }
+    class Translators { <<Hrot.Network.NED>> EntityObjectiveStatus egress · ingress (the ScenarioClock shape) }
+    Kinds ..> ObjectiveCommon
+    Kinds ..> ObjectiveRules
+    Aggregators ..> ObjectiveRules : ChildrenOf (ObjectiveLinks.Parent)
+    ObjectiveRules ..> ObjectiveStatus : writes
+    ObjectiveRules ..> ObjectiveLinks : writes
+    ObjectiveStatus ..> Translators
+```
+
+*What the picture shows that prose hid:* every kind is a thin behaviour over ONE static rule set — the lifecycle, the score and the census are
+
+#### 00.8.1 ⭐ AS-BUILT — S1 (`2026-11-02`, behaviors)
+
+| piece | where | proof |
+|---|---|---|
+| `ObjectiveStatus` (425) · `ObjectiveLinks` (426) · TKB `Objective` 8860 (brain only) | `Fdp.Toolkits/ScenarioRules/`; `NedTkbCatalog.cs` | rail `ObjectiveEntity_FromAScenarioRecord_GetsABrainThatTicks` |
+| `EntityObjectiveStatus` (**171**, `hrot-scenario-rules`) egress / ingress, Brain group; state changes at once, progress-only ≤ 2 / s | `EntityObjectiveStatusTranslators.cs` | `ObjectiveStatusWireTests` |
+| `ObjectiveRules` (Begin · Settle · Score · OnClose · CloseRuleOf) — the ONE lifecycle | `ScenarioRules/ObjectiveRules.cs` | `ObjectiveRulesTests` |
+| kinds `ReachArea` · `HoldArea` · `ClearAreaObjective` ⚠ (`ClearArea` is the building-clearing behaviour) · `DestroyTargets` · `Protect` · `NoHarm`; `WeightedMean` · `AllMustPass`; one side rule `KillZone.Hostile(ForceId, ForceId)` | `Hrot.AI.Behaviors/Brains/Objectives/` | `ScenarioRulesTests` 14 |
+| `GET /objectives` (`?tree=1`) | `DebugApiService.Objectives.cs` | `TheObjectivesRouteShowsTheTreeTests` |
+| ⭐ LIVE `--mode all`, `scenarios/sr-objectives-march` | 5 objectives on a marching squad | far line **Failed** at 61 s (deadline 60) · crossroads **Achieved** 91 s · hold reset when a man stepped out (101 s) · hold **Achieved** 132 s · composite 0.75 Active (NoHarm judged at the end); each change logged ONCE (one brain); read on the editor host |
+
+⚠ Open: a PLAYER node reading the statuses (no Player in `--mode all`) · OnClose is called by S2's `EndExercise` · an unresolved `DestroyTargets` / `Protect` target counts as not destroyed until seen.
+written once, so no kind can decide "achieved" differently.
+
+### 00.9 S2 — build decisions *(behaviors, `2026-11-02`; measured on `behaviors` at `5821ec2d1`, after merging `backend`'s binder `3683f1487`)*
+
+📐 Queries: `scripts/cbm.sh search_graph` `.*(ActionSchemaExporter|FailureReason|FailReason|BehaviorFailure|LastFailure).*` Class (9: the editor-side
+exporter + 8 test doubles — ⛔ no failure-reason channel exists) · `.*(AssignTacticalIntent|PauseRequest|RequestPause|SimPause).*` (20: the order event,
+`CgfClusterDebugTimeController.RequestPause` = the Brain node's cluster pause) · grep of `SearchPredicateDto.cs` (the loop DTOs' fields) and the PoC (1346 lines).
+⚠ coverage unchecked (`check_index_coverage` is not in the CLI).
+
+| # | decision | why / measured |
+|---|---|---|
+| **S2-a** ids | components **427** `ExerciseResult` (unmanaged, NoScenario, World Environment) · **428** `ActionArgs` (managed `sealed record`, init-only, written at assignment only — SR-97 / CLAUDE.md *NEW COMPONENTS*) · **429** `ActionFailure` (unmanaged `FixedString64 Reason` + `int Step`, the reason channel CE-4165) · descriptors **172** `dtExerciseResult` (state) · **173** `dtPlayerMessage` (event) · TKB **8861** `Trigger` | the blocks of §00.8 S1-a |
+| **S2-b** ONE compiler, TWO entry points | `IPredicateCompiler.CompileLevelPredicate(dto)` beside `CompileComponentPredicate`: the SAME arms; only the four loop kinds differ — LEVEL arms (`SpatialBounding` → the entity's position inside `Bounds` via `AreaLink.Contains` · `Lifecycle` → the target alive · `Structural` → has the component · `TransientEvent` → an event of that type naming the entity occurred this frame) where the search entry keeps its pass-through. New leaves (both entries): `OnEntity {Ref: EntityLink, Predicate}` · `ScenarioTime {From, To}` (sim s) · `CountMatching {Predicate, Min, Max}` | SR-158; ⛔ changing the existing entry would change `RecordingSearchService` and the breakpoints mid-flight (CE-4205 routes them later) |
+| **S2-c** the trigger | an Objective-like entity (TKB 8861) whose task slot runs ONE C# `Trigger` behaviour: params `{common, when, holdFor, delay, repeat, cooldown, maxFires, fireIfTrueWhenArmed, do[]}`. `when` + `do` are kept as JSON strings in the caller's `ActionArgs` (items 0 / 1), the compiled `when` cached per JSON string (process-wide, like the PoC's step list). Its state machine (§10.11) lives in its blackboard; it writes `ObjectiveStatus` with `Role = Trigger`, a NEW byte field `TriggerState` (Disarmed … Done, T8) and `FireCount` / `LastFired`; `State` mirrors it coarsely (Inactive = Disarmed, Achieved = Done after success, Failed = an action failed) so aggregators and the HUD read one shape | SR-88, SR-91, T1–T10; the PoC's `PocTrigger` |
+| **S2-d** actions | the PoC lifted into `Fdp.Toolkits/ScenarioRules/Actions/`: `ActionCatalogue` (reflects stateful `[SharedAiAction]`s, one cached runner per type — ⭐ `ActionSchemaExporter`'s runtime discovery CALLS it, no second reflection), `StepRunner<TP,TS>` (seed by `BehaviorParams.OverlayFlat`; an `Entity` field REFUSED loudly — authored refs are `EntityLink`, resolved at seeding, CE-4162), `RunActions` (stateful shared action, step key salted by depth, CE-4161; the lazy-attach seam refuses the root kinds `BTree` / `BlueprintBehavior`), validation at ASSIGNMENT (CE-4163). Verbs v1, each a stateful `[SharedAiAction]` naming its target in its params: `Message` · `SetObjectiveActive {target, active, reset}` · `EndExercise {reason}` · `Order {target, behavior, params}` (publishes `AssignTacticalIntentEvent`; done when the target's active behaviour is it) · `MissionCommand {target, command, task}` | SR-93, SR-97, SR-98, SR-108 |
+| **S2-e** the end | `EndExercise` (SR-116): `ExerciseResult.Phase = Closing` → every objective's next tick (`ObjectiveHost.Enter`) sees Closing and runs `ObjectiveRules.OnClose(CloseRuleOf(kind))` → when every status is final (or 2 s sim) it writes per-side outcome, `Phase = Ended` → the ingress raises `ExerciseEnded` once on every node → the Brain node asks for the pause through `CgfClusterDebugTimeController.RequestPause` (the one cluster pause a Brain node has) | SR-116, SR-122; pause-after-close because a paused world runs no brain tick |
+| **S2-f** messages | `PlayerMessage` = the `SquadReport` event shape (SR-121): published by the `Message` action, raised as a local `PlayerMessageEvent` on every other node. ⭐ The subtitle + log on the Player is UI — handed to `ui` with the event as the contract | R-4105 |
+
+⭐ **S2-d AS BUILT `2026-11-02`** (`FDP/Toolkits/Fdp.Toolkits/ScenarioRules/Actions/`; the diagram below is unchanged — what it names is now real): `ActionCatalogue.Discover(assembly, alsoVisit)` is THE reflection pass
+(the editor's `ActionSchemaExporter` hands its per-method schema logic to it as `alsoVisit`); `ScenarioActions.RunActions` (`{ListRef, Depth}`) slot key `0x7C000001 ^ depth`;
+`StepRunner.Kind` = Hsm; `ActionFailure.Set / Stamp / Clear / TryGet`; `ActionList.Get / Validate` (`ActionListException` names step + act); `WorldRefScope` resolves a step's authored `"@Key"` / GUID
+`EntityLink` in the live world. ⚠ **Deviations from the row above:** a duplicate short name and an `Entity`-field params type are recorded on the catalogue entry and refused LOUDLY at lookup / run / Validate — not thrown at
+scan, because a scan over every loaded assembly must not be poisoned by two unrelated actions (a short name two actions carry throws at `TryGet(short)` naming both; the full name always works). ⚠ `Validate` checks the TOP-level args
+keys only. ~~The PoC folder keeps only P5~~ — the PoC folder is GONE (S2-c, below): its trigger rails live on the production `Trigger`, its compiler rail in `PredicateCompilerLevelTests`.
+
+⭐ **S2-c AS BUILT `2026-11-02`** (`Hrot.AI.Behaviors/Brains/Objectives/TriggerBehavior.cs`; the diagram below is unchanged). **TKB 8861 `Trigger`** (`NedTkbCatalog`, a brain with no body like 8860; `BehaviorCategory.Trigger`, so
+`BehaviorCatalog` lists only the `Trigger` behaviour for it). **`TriggerState`** (byte enum in `Fdp.Toolkit.ScenarioRules`: Disarmed · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done) is a new field of
+`ObjectiveStatus` AND of the wire topic `EntityObjectiveStatus` (171; a state field ⇒ part of `SameDisplayAndState`, published at once); `GET /objectives` shows `triggerState` (name) + `fireCount` + `lastFired` on Role=Trigger rows.
+**`TriggerParamsJsonDto`** (`ObjectiveParamsJsonDtos.cs`): `common` (`scored` defaults FALSE — T8), `when` (`SearchPredicateDto`), `holdFor`, `delay`, `cooldown`, `repeat`, `maxFires`, `fireIfTrueWhenArmed`, `do` (a raw `JsonNode`).
+**Validation at assignment** (the `[BehaviorResolver]`): `when` must compile (`TriggerWhen.Get`) and `ActionList.Validate(do)` must pass; a throw makes `BehaviorIngressSystem.ParseIntoShadow` DROP the assignment with a `Warn`
+naming the behaviour, the entity and the message (step + act) — ⚠ it is logged, NOT propagated as an exception (`BehaviorIngressSystem.cs:861`, a deliberate "a parse failure must not crash the loop"): the entity keeps no behaviour, no status,
+no `ActionArgs`. A good one writes `ActionArgs [whenJson, doJson]` (replaced whole). **`TriggerWhen`**: the compiled LEVEL predicate cached process-wide by the JSON string (a `ConditionalWeakTable` on the very string the entity holds in front of a
+content-keyed dictionary). **The tick** (one `[SharedAiAction]`): `ObjectiveHost.Enter` (Role Trigger) then the §10.11 machine over the blackboard (`Phase`, `Prev/PrevKnown`, `EdgeAt`, `WaitUntil`, `CooldownUntil`, the embedded
+`RunActionsParams{ListRef=1,Depth=0}` + `RunActionsState`). Objective `State` mirrors it: Inactive = Disarmed (a direct write or, from S2-d's row 8, `SetObjectiveActive`; or the common `deadlineSeconds` passing — T4), Active = Armed … Cooldown,
+Achieved = Done, Failed = an action failed (final: the machine rests in Fired). Decisions the §10.11 text left open, pinned by rails: **(a)** `delay` counts from the moment the hold is satisfied (the edge when `holdFor` is 0);
+**(b)** `Fired` lasts one tick (so a HUD / the wire can see it), the next tick goes Done or Cooldown; **(c)** a `Disarm` is honoured in Armed / Holding / Waiting / Cooldown, NOT while Acting — a started list finishes
+("nothing already done is undone", T7); **(d)** a cooldown re-arms on *cooldown elapsed AND the condition false* (T2) — a drop INSIDE the cooldown does not re-arm early, and a rise that began and ended inside it is not seen;
+**(e)** FireCount / LastFired are written when the list ENDS (success or failure). **The editor's schema extractor** (`DtoJsonSchemaExtractor`) got a `JsonNode` arm (free-form JSON, `format: json`) — ⚠ without it `GET /behaviors` STACK-OVERFLOWED on `Trigger.do` (a `JsonNode`'s `Parent` loops back into the tree). **CE-4166 settled:** a condition already true when the trigger arms is NOT an edge (T1's corollary); `fireIfTrueWhenArmed` opts in.
+
+⭐ **S2-d / S2-e / S2-f AS BUILT `2026-11-02` (verbs 1 · 2 · 5 of ⑧; Order · MissionCommand · pause-on-end are the NEXT paragraph, ⑨)** — the diagrams below are unchanged. **The verbs** are static `[SharedAiAction]`s in
+`Hrot.AI.Behaviors/Brains/Objectives/Verbs/ScenarioVerbs.cs` (`SetObjectiveActive` · `EndExercise` · `Message`), found by `ActionCatalogue` like any other. **`ExerciseResult`** (427, `FDP/Toolkits/Fdp.Toolkits/ScenarioRules/ExerciseResult.cs`):
+`Phase` (`ExercisePhase` Running / Closing / Ended) · `EndedAt` · `Reason` · `SideResult Friend / Hostile / Neutral {Outcome, Points, Score}`; Brain group; registered on every node. **`SetObjectiveActive`**: `ObjectiveRules.SetActive` writes
+Inactive / Active directly (progress kept); out of a final state ONLY with `reset`, which sets the NEW local byte `ObjectiveStatus.ResetRequested` (1 = then Active, 2 = then Inactive; not on the wire) — **`ObjectiveHost.Enter` is the ONE place a run is re-begun**
+(`Run.Began = 0` → `Begin`, progress cleared) and returns `Frame.Reset`, on which each kind clears its OWN working state (HoldArea timer, NoHarm victims, ClearArea timer, the target kinds' `Seen`, the Trigger's machine). Chosen over re-assigning the behaviour
+through the ingress (needs the params JSON back, a second owner of "what is assigned") and over a generic zeroing of the block (params and working state share it). A closed objective takes nothing. **The close**: `ObjectiveHost.Enter` takes a `CloseMode` —
+`Own` (every kind: when `ExerciseResult.Phase != Running` run `OnClose(CloseRuleOf(kind, capture))` once) · `Composite` (`AllMustPass` / `WeightedMean`: closed by `CloseComposite` only once EVERY child is Closed, so a composite aggregates its children's final
+verdicts instead of being closed Failed before them) · `Hold` (a **Trigger** closes by its OWN rule: one still `Acting` / `Fired` finishes its list — T7 — an unfired one is switched Inactive then Closed, never "failed": it is not an objective). The test is
+`Phase != Running`, not `== Closing`, so a status that appears after the end is closed too. **`EndExercise`**: ① finds the World Environment (the entity with `ScenarioClock`; no WE → Failure "no World Environment"), adds `ExerciseResult` if missing, `Phase = Closing`,
+`Reason`; Failure "already ended"; ② Running until no Objective / Measure status (Triggers excluded) is open, or 2 s of sim time (`CloseTimeoutSeconds`; the stragglers' titles are logged at Warn); ③ the outcome per side — the ROOT objectives (no `Parent`), the side
+of the root's `Subject` (no subject = Neutral), Skipped-unrequired excluded: `Score` = the weight-averaged scores of the scored roots, `Points` = the points of the achieved ones, `Outcome` Win when every REQUIRED root is Achieved (none required: every root), else Lose, None
+when the side has no root; `Phase = Ended`, `EndedAt`; **`ExerciseEndedEvent` (unmanaged, `EventId_ExerciseEnded` = 3108 in `BehaviorConstants`'s 31xx run) is raised HERE, on the owner (the action — the one place on the owning node), and by the
+`EntityExerciseResult` ingress on every other node, ONCE (`_endedRaised`)**. **Wire**: `dtExerciseResult` = 172 (state, managed topic `EntityExerciseResult`, the `ScenarioClock` QoS, IDL `hrot-scenario-rules`; `EntityExerciseResultTranslators.cs`) and `dtPlayerMessage` = 173
+(EVENT topic `PlayerMessage`, `PlayerMessageMessages.cs` + `Translators/PlayerMessageTranslators.cs`, the `SquadReport` shape: egress writes the local `PlayerMessageEvent`s whose `OriginNodeId` is 0, ingress raises them again with the sender's id and skips its own), both in
+`SharedTranslatorPack`. **`Message`**: publishes `PlayerMessageEvent` (managed, `Fdp.Toolkit.ScenarioRules`: `MessageId · OriginNodeId · ToKind · ToValue · Text · Seconds=6 · Priority · SentAt · Source`); `MessageParams` implements the NEW `IActionArgsCheck`
+(`StepRunner.CheckArgs` calls it with the RAW args at assignment) because a `FixedString128` truncates silently: a text over 127 characters or a `toKind` outside All / Side / Station / Unit / Instructor is refused at ASSIGNMENT. ⚠ **Deviations / limits:**
+**(a)** the verbs write the target's status on THIS node — `SetObjectiveActive` on an objective owned by another node is overwritten by the ingress (single Brain node today); likewise `EndExercise` writes the World Environment's `ExerciseResult`, so it must run on the node that owns it
+(the Closing phase itself replicates, so objectives owned elsewhere close and the end waits for their replicated `Closed`). **(b)** the `ExerciseEndedEvent` is registered lazily (`Bus.Register`) where raised and in `CognitiveComponentRegistry`. **(c)** ~~NOT built in this commit~~: `Order`,
+`MissionCommand`, the `ArgsRef` extension of `ActionList` and **pause-on-end** — built in ⑨ (next paragraph).
+
+⭐ **S2-d / S2-e AS BUILT, ⑨ `2026-11-02` (pause-on-end · `Order` · `MissionCommand` · the `params` lift)** — the diagrams below are unchanged. **Pause-on-end**: `ExercisePauseOnEndSystem` (`Hrot.AI.Behaviors/Brains/Objectives/`, Simulation, EveryFrame,
+`[NodeFeature("exercise.pause-on-end")]`) reads `ExerciseEndedEvent` and publishes ONE `PauseTimeIntent` on the node's bus for a frame that carries an end — never a toggle, nothing without an end. The feature is declared ONCE by
+`ExercisePauseOnEndSystem.Feature` (a `FeatureDeclaration.Switch`, `Live`, ON for every role) and listed in `Features` of BOTH Brain capabilities (`CgfCapabilities.Brain`, the editor's `EditorCapabilities.Brain`) because `SystemScheduler.ReadFeature`
+throws for a system whose id no capability declared; the system is in `CgfLogicPack.SimulationSystems` right after the cognitive runtime (the brain tick that ran `EndExercise`), so every Brain node and the editor carry it. ⚠ **Deviation from the S2-e row**: the
+row said the Brain node asks through `CgfClusterDebugTimeController.RequestPause`; that one ALSO halts this node's own sim groups and is gated on a cluster participant (`CgfClusterDebugTimeController.cs:160-181`) — a debugger's halt, not the exercise's end — so the system
+publishes the plain intent `ClusterTimeTransportAdapter.TogglePlayPause` and `RequestPause` both end in (`ClusterOpEgressTranslator.cs:55` forwards it; the master's `MasterSyncController.cs:182` handles it). **Two nodes publishing is fine**: a second
+`PauseTimeIntent` re-issues `SwitchToDeterministic` (`MasterSyncController.cs:426`) — the same target mode, not a toggle (it is not a literal no-op: it re-sends the mode switch). `PauseTimeIntent` lives in `Fdp.Toolkits` (`Time/Domain/TimeLocalEvents.cs:19`), so the
+pack can reference it. **The `params` lift**: `ActionList.ExtractParams(doJson, firstItem)` takes a step's nested `"params"` (any JSON object or string) OUT of its args into an extra string, and seeds the step's `ArgsRef` with `firstItem + position`; generic —
+any action whose params struct has an `int ArgsRef` (`StepRunner.TakesArgsRef`) gets it, an action without one refuses `params` naming step and act, `params` together with `ArgsRef` is refused, a list with no `params` comes back as the SAME string. The Trigger's resolver
+calls it (`TriggerBehavior.FirstExtraItem = 2`) and writes `ActionArgs [when, do(rewritten), params…]`. **`Order { Target, Behavior, ArgsRef = -1 }`** (`Verbs/CommandVerbs.cs`): publishes `AssignTacticalIntentEvent` (`IntentId` = the behaviour name, `JsonParams` = item `ArgsRef`, Origin Superior — the
+`CommanderNodes.cs:80` shape) to the target, Running until the target's `BehaviorState.ActiveBehaviorHash == BehaviorHash.FromName(behavior)`; 10 s of sim time (`AcceptTimeoutSeconds`) ⇒ Failure "not accepted"; no target ⇒ "target not found"; no brain ⇒ "target has no brain"; an unknown
+behaviour name (`ParamsDtoRegistry.Default.TryGetBehavior`), a missing or over-63-character name is refused at ASSIGNMENT (`IActionArgsCheck`). It acts on the owner's node only (`TacticalIntentResolutionSystem` skips an entity this node has no `BehaviorState` authority over) — an order to a unit another node owns times out
+here; ordering across nodes needs the intent's own wire path (`TacticalIntentEgressTranslator`), not tested here. A target already running that behaviour completes the moment its hash is read (a restart with new params is not awaited). **`MissionCommand { Target, Command, TaskIndex }`**:
+publishes `MissionControlIntent` (`Hrot.Core`, `Hrot.Common.Events` — referenced by `Hrot.AI.Behaviors`, so nothing moved) with a fresh `RequestId`, the target's network id, and `CMD_JUMP_TO_TASK` (`TargetTaskId` = `ActiveMissionPlan.TaskOrder[TaskIndex]`, read at issue time; no such task ⇒ Failure "the target's mission has no task N")
+or `CMD_ABORT_ALL`; Running until the `MissionControlAckEvent` with that id: `ErrorCode` 0 ⇒ Success, else Failure "mission control error N"; 10 s ⇒ Failure "no mission control ack". ⚠ **Deviation: `Replace` is declared (`MissionCommandKind.Replace`) but REFUSED at assignment** ("needs a full mission plan, which this verb cannot carry yet") — SR-97's
+params name no plan, and a `MissionPlan` in JSON would be a second plan format; the `Order` + `params` route (or a later `ArgsRef` plan) is where it would go. The ack is read from the event buffer, so the action must be ticked every frame while Running (`BrainTickSystem` does; a brain tick policy that skipped frames could miss it and time out).
+Rails: `ScenarioRulesTests.Verbs.cs` (Order accepted + with params + ordered before the next step; Order timeout and bad targets; Order validation; MissionCommand acked 0 / error / Abort / timeout / far task / Replace; pause once, none without, feature off, pack carries it, a real end) and `ActionListTests` (the lift, the seeding, the refusals).
+
+```mermaid
+classDiagram
+    direction LR
+    class TriggerBehavior { <<C# behaviour, TKB 8861>> the §10.11 state machine }
+    class IPredicateCompiler { <<existing>> CompileComponentPredicate · CompileLevelPredicate NEW }
+    class LevelLeaves { <<NEW DTOs>> OnEntity · ScenarioTime · CountMatching }
+    class ActionArgs { <<428 managed record>> Items: when JSON · do JSON · step args }
+    class ActionCatalogue { <<NEW, Fdp.Toolkits>> stateful SharedAiAction to runner, cached }
+    class ActionSchemaExporter { <<existing, editor>> reads the catalogue }
+    class RunActions { <<NEW shared action>> one step slot at a time }
+    class Verbs { <<NEW shared actions>> Message · SetObjectiveActive · EndExercise · Order · MissionCommand }
+    class ActionFailure { <<429>> Step · Reason }
+    class ExerciseResult { <<427>> Phase · per side outcome · EndedAt · Reason }
+    class ObjectiveStatus { <<425, existing>> + TriggerState }
+    class ObjectiveHost { <<existing>> Enter sees Closing, runs OnClose }
+    TriggerBehavior ..> IPredicateCompiler : when, compiled once
+    IPredicateCompiler ..> LevelLeaves
+    TriggerBehavior ..> ActionArgs
+    TriggerBehavior ..> RunActions : on fire
+    RunActions ..> ActionCatalogue
+    ActionSchemaExporter ..> ActionCatalogue
+    RunActions ..> Verbs
+    Verbs ..> ActionFailure : on Failure
+    Verbs ..> ExerciseResult : EndExercise
+    TriggerBehavior ..> ObjectiveStatus : Role Trigger
+    ObjectiveHost ..> ExerciseResult : reads Phase
+```
+
+*What the picture shows that prose hid:* the trigger adds ONE behaviour and ONE loop; everything it fires is an ordinary shared action any BTree
+can call, and the end reaches every objective through the host they already share — no end-of-exercise system.
+
+```mermaid
+sequenceDiagram
+    participant T as Trigger "end" (Brain node)
+    participant RA as RunActions
+    participant EE as EndExercise
+    participant WE as World Environment
+    participant O as every objective (ObjectiveHost)
+    participant N as other nodes (ingress)
+    T->>T: when rises (level, compiled once) · holdFor · delay
+    T->>RA: Acting
+    RA->>EE: step 1 (slot attached, seeded)
+    EE->>WE: ExerciseResult.Phase = Closing
+    O->>O: next tick: OnClose by kind, Closed = 1
+    EE->>WE: all final (or 2 s): outcomes, Phase = Ended
+    EE-->>RA: Success (slot detached)
+    RA-->>T: Success → Done
+    WE-->>N: EntityExerciseResult → ExerciseEnded (once)
+    N->>N: Brain node: RequestPause
+```
+
+```mermaid
+graph TD
+    subgraph brain["Brain node / editor — CgfLogicPack"]
+        BTS["BrainTickSystem (every advancing frame)"] --> TRG["Trigger behaviour"]
+        BTS --> OBJ["objective kinds — ObjectiveHost"]
+        TRG --> RA["RunActions → verbs"]
+        RA --> EG1["ObjectiveStatus / ExerciseResult (components)"]
+        RA --> PM["PlayerMessage publish"]
+    end
+    subgraph every["every node — SharedTranslatorPack"]
+        EG["egress 171 / 172"] --> W(("DDS"))
+        W --> IG["ingress → ExerciseEnded · PlayerMessageEvent"]
+    end
+    EG1 --> EG
+    PM --> W
+    IG --> UI["Player subtitle + log (ui lane)"]
+    REP["replay"]:::dead -. "no brain tick: no trigger, no action, no PlayerMessage" .-> BTS
+    classDef dead fill:#fde2e2,stroke:#c33
+```
+
+*Caption:* the trigger and its actions run only where `BrainTickSystem` runs (the Brain node and the editor); every other node only RECEIVES — the
+status and result topics, the message event. The red edge: replay never fires a trigger (T10).
+
+#### 00.9.1 ⭐ LIVE — S2 on a cluster (`2026-11-02`, `--mode all`, `scenarios/sr-triggers-march`)
+
+| sim s | what happened |
+|---|---|
+| 5.0 | `Briefing` (`ScenarioTime ≥ 5`) → Message, Done |
+| 61 | `Reach the far line` Failed (deadline 60) |
+| 88.9 | `Reach the crossroads` Achieved → `Phase 2: hold` fires → `SetObjectiveActive` turns `Hold the crossroads` ON (it began Inactive) + Message |
+| 108.5 | `Hold` Achieved (20 s) → `End` fires → Message + `EndExercise` → Closing |
+| 108.7 | every status Closed by its kind: far line Failed · `No harm` Achieved "within limits at the end" · `Squad mission` Achieved 0.75 of 0.50 · ExerciseResult Ended, **Friend Win 0.75** |
+| 108.86 | ⭐ the cluster is PAUSED (`exercise.pause-on-end`) — still 108.86 eight seconds later |
+
+📌 The first run did NOT pause: the system published `PauseTimeIntent` on the WORLD bus, while only the node's APPLICATION bus (`HrotNodeContext.EventBus`,
+a separate `FdpEventBus`, `HrotNodeBuilder.cs:143`) reaches the master — fixed `878168b5d` (both Brain hosts pass it through `CgfLogicPack`), rail
+`PauseOnEnd_GoesOutOnTheNodeBus_NotTheWorldBus_AndThePackForwardsIt`. ⚠ Open: the Player's subtitle / end summary (ui, `NOTE_Behaviors_To_Ui_Player_Messages_And_Exercise_End.md`) ·
+CE-2377 (a refused trigger at load is only a Warn) · `MissionCommand Replace` refused (needs a plan format) · `Order` reaches only units the Brain node owns.
 
 ⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 

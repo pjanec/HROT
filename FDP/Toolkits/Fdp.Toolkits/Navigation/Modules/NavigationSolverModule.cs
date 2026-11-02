@@ -113,6 +113,9 @@ namespace Fdp.Toolkit.Navigation.Modules
         {
             reg.RegisterSystem(new PathfindingResultMaterializationSystem());
             _solverRun = reg.RegisterManualSystem(Solver());   // ⭐ CE-3293 S2 — ticked through the scheduler's one gate
+            // ⭐ macros S3a ⑤ — placement queries run EVERY FRAME on the main thread, NOT through this module's step gate: a scenario
+            //   loads while the cluster is PAUSED, and a WhenTimeAdvances solver would never answer the load's placement (§15.2).
+            reg.RegisterSystem(Placement());
         }
 
         // ⭐ CE-3293 S2 — ONE solver for the module's life (it was built anew every tick): a system run through the scheduler
@@ -122,6 +125,10 @@ namespace Fdp.Toolkit.Navigation.Modules
         private IEcsModuleSystem? _solverRun;
         private PathfindingSolverSystem Solver()
             => _solver ??= new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder);
+
+        // ⭐ macros S3a ⑤ (SR-180…SR-182) — the placement solver: ONE for the module's life, ticked beside the path solver with the module's navmesh.
+        private PlacementSolverSystem? _placement;
+        private PlacementSolverSystem Placement() => _placement ??= new PlacementSolverSystem(_navmesh);
 
         /// <inheritdoc/>
         /// <remarks>

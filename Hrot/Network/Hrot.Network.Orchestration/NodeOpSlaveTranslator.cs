@@ -186,7 +186,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     IsCatchUp:       dto?.IsCatchUp ?? false,          // C7
                     CheckpointingSeconds: dto?.CheckpointingSeconds ?? 0,   // D17
                     RecordingOff: dto?.RecordingOff ?? false,               // CE-4090 D14
-                    FeatureConfigsAtLoad: dto?.FeatureConfigsAtLoad);       // Node Features F-14
+                    FeatureConfigsAtLoad: dto?.FeatureConfigsAtLoad,        // Node Features F-14
+                    ScenarioArgsJson: dto?.ScenarioArgs);                   // macros S3a ⑦
             }
 
             case NedNodeOpType.StartEpisode:

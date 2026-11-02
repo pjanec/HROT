@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⭐ S3a DISPATCHED to backend 2026-11-02 (user: "ok lets delegate the scenario macros feature to the backend" — the hold is lifted; HANDOFF_Coordinator_To_Backend_Scenario_Macros_S3a.md) · §14 (SR-167…SR-176) ✅ accepted 2026-11-02 — READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §14 is fully ACCEPTED (2026-11-02): §14.4 preview SR-189, existing entities SR-190, transient look SR-191, member lines SR-192 · §14.3 placement as a solver query + many instances SR-184…SR-188 · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §15.4 the S3a debt as built (A1–A7) · §14 is fully ACCEPTED (2026-11-02): §14.4 preview SR-189, existing entities SR-190, transient look SR-191, member lines SR-192 · §14.3 placement as a solver query + many instances SR-184…SR-188 · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -277,6 +277,45 @@ lose it, the loader finds it by type, and save writes it with no extra step.
 | **SR-164** | ONE generic binder, any parameter source | ⭐ `IParamSource { bool TryGet(string name, Type target, out object value) }` and ONE `ParamBinder.Apply(value, IParamSource)` that does all three kinds: a `ParamBind : LeafApplier` on the walker for the `Param` FORM (①), the type plan extended to visit a `BindableNode`'s `Bind` (②), and `ParamBindings` paths set by name (③). ⭐ It runs AFTER deserialising, on the typed value — ⛔ NOT inside the JSON converter: the EDITOR must deserialise WITHOUT applying (or it would lose the binding it is editing), the runtime with. ⭐ Any host passes its own source: the macro expander (the instance's args ▸ the header defaults), a scenario load (the scenario's params, SR-41), and later any other user of the shared languages (a film take, a blueprint asset with params) — ⛔ never a second binder |
 | **SR-165** | is `ParamBindings` recorded? — ⛔ NO | it is an AUTHORING instruction, not runtime state: the binder applies it and the component is NOT put on the created / loaded entity (SR-57: *"does NOT copy it onto the created entities"*) — so a live or replayed world never holds one. ⭐ Declared `DataPolicy.NoReplay` as well, so even an edit world's checkpoint never carries it. ⇒ no managed allocation in replay from bindings. It may stay a managed component (a small path → name map) because it exists only in the authoring world |
 | **SR-166** | the trigger's `When` / `Do` (a managed record, SR-97) IS recorded | ⚠ stated honestly: it is runtime state of the trigger entity (a branch to live from a checkpoint needs it), so it is recorded — but written once (it never changes after assignment), so the recorder's delta writes it at the keyframes only and playback allocates it on a seek, not per frame. ⭐ If that proves measurable, the lean is to keep it out of the recording (`NoReplay`) and re-derive it on a branch from the scenario's own trigger entity — a rules-S2 measurement, not a macro one · ⭐ **immutable by type** (user, `2026-11-02`): `TriggerDefinition` and its `When`/`Do` tree are `record`s with `init`-only members; a runtime change (if ever supported) builds a NEW record and `SetManagedComponent`s it — ⛔ never an in-place edit, which the chunk version (`ManagedComponentTable.cs:153-205`) would not see and the shallow snapshot copy (`:298-365`) would leak into earlier snapshots. CLAUDE.md *"NEW COMPONENTS"* carries the general rule |
+
+#### 5.1.3 As-built — S3a item ① *(backend, `2026-11-02`)*
+
+```mermaid
+classDiagram
+    direction LR
+    class RefSpec { <<Fdp.Core, 36 B unchanged>> Form · Key / Exact · Bound (byte 33, Param only) · Effective }
+    class LeafApplier { <<existing, S0 walker>> Ref · Link · Point · PointLink · Area · Rotation · Bearing · Node(BindableNode) · NodeJson(Type, JsonObject) }
+    class ParamBind { <<NEW>> Param-form leaves · BindableNode.Bind }
+    class BindableNode { <<NEW abstract class>> Bind : name → param }
+    class SearchPredicateDto { <<existing tree>> }
+    class IParamSource { <<NEW>> TryGet(name, Type, out value) · Describe }
+    class JsonParamSource { <<NEW>> Overlay(defaults, args) · resolveOutside : LeafApplier }
+    class ParamBinder { <<NEW static, the ONE entry>> Apply(value, src) · ApplyJson(type, json, src) · ApplyBindings(entity JSON, src) · BindingsOf }
+    class ParamBindings { <<NEW sealed record, id 469, NoReplay>> Bindings : path → param }
+    class ParamBindingsTranslator { <<NEW, IEntityScenarioTranslator>> }
+    LeafApplier <|-- ParamBind
+    BindableNode <|-- SearchPredicateDto
+    ParamBinder ..> ParamBind : ① ②
+    ParamBinder ..> ParamBindings : ③
+    ParamBind ..> IParamSource
+    IParamSource <|.. JsonParamSource
+    ParamBindingsTranslator ..> ParamBindings
+    ParamBind ..> RefSpec : keeps Form = Param, sets Bound
+```
+
+*What the picture shows that prose hid:* the binder is NOT a second walker — it is one more `LeafApplier` plus two hooks on the S0 walker,
+and the three homes meet in one static entry point every host calls.
+
+| as built | where | deviation from the rows above, and why |
+|---|---|---|
+| `RefForm.Param = 5`, text `"^name"`; `RefSpec.Bound` (byte 33 — formerly padding, size stays 36) records the form of the value the param was bound to; `Effective` = `Bound` for a param, else `Form` | `Fdp.Core/World/RefSpec.cs` | ⭐ NEW: an `AreaLink` bound to a CIRCLE must still act as a circle (`IsShape`, `Contains`) while keeping `Form = Param` (SR-168) — one form byte could not say both |
+| `EntityLink` / `PointLink` / `AreaLink` `.BoundTo(value)`; `AreaLink.IsLiteralShape` (what relocation moves); the writer emits a bound shape as `{"circle": …, "Ref": "^zone"}` and reads it back | `Fdp.Toolkits/Replication/Links.cs` | `Relocation` moves only a LITERAL shape: a value that came through a param stays (SR-131) |
+| the walker visits a member typed as a `BindableNode` (or a list of them) by its RUNTIME type — in JSON through the base's `[JsonDerivedType]` discriminator (`$type`) | `EntityRefRemap.cs` (`Kind.Poly`, `RuntimeTypeOf`) | ⭐ also closes a gap S0 left: a reference INSIDE a predicate tree was never reached (a `List<SearchPredicateDto>` element planned as the abstract base, which has no members) |
+| `BindableNode` is an abstract CLASS; `SearchPredicateDto : BindableNode`; `Bind` is `{ get; set; }`, omitted from JSON when null | `Fdp.Toolkits/Scenario/ParamBinding.cs` | ⚠ a C# `record` cannot derive from a class ⇒ the rules lane's `do` entry is a CLASS with `init`-only members (CLAUDE.md *NEW COMPONENTS* allows *"a record / class with init-only fields"*); `Bind` stays settable because the predicate tree is a mutable class tree its builder edits in place |
+| ③ runs on the AUTHORED entity JSON (component name → component JSON — the file's own shape); a path steps INTO a JSON string holding an object (`Behavior.Params.Speed`) and writes the string back | `ParamBinder.ApplyBindings` | the macro / scenario entities are JSON until extraction; a typed-component variant was not needed |
+| `ParamBindings` = `sealed record`, `GlobalComponentIds.ParamBindings = 469`, registered on every Hrot host (`HrotSharedComponentRegistry`), saved by `ParamBindingsTranslator` (registered in `HrotScenarioSerializerFactory`) | as named | — |
+| rails | `Fdp.Toolkits.Tests/Scenario/ParamBinderTests.cs` | ① form + JSON round trip · bound circle acts, round-trips, is not relocated · ② `Bind` at depth, object AND JSON · ③ paths, a params blob, bad paths loud · the JSON source overlay + outside resolution · the translator |
+| ⏭ not in ① | — | a `bind` key inside params JSON refused at load (SR-161) → the validator (item ⑥); which hosts call the binder → items ④ / ⑦ |
 
 **Rejected — one line each:**
 - *Applying bindings inside the JSON converter* — the editor deserialises the same JSON and would lose the binding it is editing.
@@ -790,3 +829,195 @@ anything exists, so ONE request carries every child of every level, and the load
 - *A corner badge only* — precise, but unreadable at the zoom where a whole platoon is visible; ⏭ may be added beside the opacity.
 - *Always on, every map* — the Player and the instructor see live entities; the split is an authoring question.
 - *(SR-192) A halo on the members instead of lines* — a halo says "selected", not "from there"; the squad's lines already teach the user what a link line means.
+
+## 15. S3a build design — the expander, placement, validator, staging *(backend, `2026-11-02` — the dispatch's items ④–⑦; ⭐ as-built folded back per item)*
+
+**INVENTORY** *(`2026-11-02`: read `CreateEntityRequestSystem.cs` 1-651 · `ScenarioLoadStep.cs:260-320` · `StagingEntityExtractor.cs:180-260` (usings:
+`Fdp.Toolkits`, `Hrot.Common`, `Hrot.Core` only) · `BusEntityCreationRequestSource.cs` · `EntityCreationPack.Build` callers (6 hosts: CGF, Editor,
+SimHost, IG, Traffic, Stride) · `PathfindingEvents.cs` · grep `ScenarioBehaviorRemapper` (it is `Fdp.Toolkits`); ⚠ graph index pre-dates S0 (no
+`RefSpec` node) — grep only for this sweep, coverage unchecked)*
+
+| measured | where | so |
+|---|---|---|
+| the scenario extractor turns a scenario-shaped JSON into `EntityCreationRequest`s: staging repo through the ONE `ScenarioSerializer`, fresh network ids, the internal-ref remap (SR-45), the file key as `EntityGuid` | `StagingEntityExtractor.Extract` | ⭐ a macro file IS scenario-shaped ⇒ the expander READS it with the extractor — ⛔ no second JSON→components path |
+| the extractor lives in `Hrot.CGF` but depends only on `Fdp.Toolkits` + `Hrot.Common` + `Hrot.Core` | its usings | it MOVES to `Hrot.Common` (the Q65 precedent that moved `CreateEntityRequestSystem`): every host composing `EntityCreationPack` can then expand (SR-148) |
+| an in-process creation request = an `EntityCreationRequest` published on the bus, read by `CreateEntityRequestSystem` two ticks later | `BusEntityCreationRequestSource` | children re-enter the ONE request path (owner = this node) — ids, ACKs, ownership grants, TKB children, transience: all as today |
+| the load gate waits on ① consumed requests ② nothing `Constructing` ③ no `Initial*Intent` left | `ScenarioLoadStep.cs:265-310` | a macro wait is one more intent on the instance, held until every child EXISTS (no window between the intent's removal and the children's construction) |
+
+```mermaid
+classDiagram
+    direction LR
+    class CreateEntityRequestSystem { <<existing, every ECS node>> request → SpawnEntityCommand · children }
+    class IMacroExpander { <<NEW, Hrot.Common>> TryBegin(request, networkId, guid, owner) }
+    class MacroExpander { <<NEW, Hrot.Common>> flatten · bind · resolve · relocate · derive GUIDs · ask placement · publish child requests }
+    class StagingEntityExtractor { <<MOVED Hrot.CGF → Hrot.Common>> file JSON → requests (ids, remap, keys) }
+    class IMacroLibrary { <<NEW>> TryRead(path, out json, out why) }
+    class StagedMacroLibrary { <<NEW>> roots: node staging · content root }
+    class ParamBinder { <<item ①>> }
+    class MacroExpansionIntent { <<NEW, transient managed, on the instance>> awaited child ids · parked requests }
+    class PlacementRequestBatch { <<NEW event + wire twin>> RequestId · Origin · Slots · MaxShift }
+    class PlacementSolverSystem { <<NEW, navigation solver node>> ProjectToNavmesh · rings · footprints }
+    class ScenarioLoadStep { <<existing>> ③ waits on MacroExpansionIntent }
+    CreateEntityRequestSystem --> IMacroExpander : a MacroInstance request
+    IMacroExpander <|.. MacroExpander
+    MacroExpander --> IMacroLibrary
+    IMacroLibrary <|.. StagedMacroLibrary
+    MacroExpander --> StagingEntityExtractor
+    MacroExpander --> ParamBinder
+    MacroExpander ..> MacroExpansionIntent : stamps, then clears
+    MacroExpander ..> PlacementRequestBatch : one per expansion (SR-185)
+    PlacementSolverSystem ..> PlacementRequestBatch : answers
+    ScenarioLoadStep ..> MacroExpansionIntent : waits
+```
+
+*What the picture shows that prose hid:* the expander adds no spawning — it turns FILES into ordinary creation requests and hands them back to
+the one request path; its only state is one intent on the instance, which the load gate already knows how to wait for.
+
+```mermaid
+sequenceDiagram
+    participant R as CreateEntityRequestSystem (owner node)
+    participant X as MacroExpander
+    participant L as IMacroLibrary
+    participant S as PlacementSolver (navmesh node, bus or DDS)
+    participant B as bus (EntityCreationRequest)
+    R->>R: the instance's own SpawnEntityCommand (as any entity) + MacroExpansionStatus Expanding
+    R->>X: TryBegin(instance request, its id, its GUID, owner)
+    X->>L: read macros/PATH/scenario.json, recursively for nested instances (cycle or depth over 8 fails)
+    X->>X: per entity: ParamBinder (args ▸ defaults, resolved outside) · RefResolve in the macro scope · Relocation (anchor → instance)
+    X->>X: GUID = Derive(parent GUID, "macro:" + file key) · IsTransient · MacroOrigin · owner = the instance's
+    X->>S: PlacementRequestBatch (every grounded child of every level)
+    S-->>X: PlacementResponseBatch (Exact / Shifted / Failed per slot)
+    alt every slot placed
+        X->>B: one EntityCreationRequest per child (all levels), each at its spot
+        X->>X: intent holds their ids until each EXISTS, then status Done and the intent goes
+    else any slot Failed / file missing / binding wrong
+        X->>X: status Failed + reason naming the child · nothing published
+    end
+```
+
+*What the picture shows that prose hid:* nested macros are flattened from the FILES before anything is created, so one placement round trip
+serves the whole tree, and a failure leaves nothing half-built.
+
+| # | decision | why |
+|---|---|---|
+| E-1 | ⭐ the expander publishes child REQUESTS (not `SpawnEntityCommand`s) owned by this node | ONE spawn path: a child that is a TKB composite still gets its TKB children, its grants, its ACKs; SR-146's *"one child-spawn routine"* holds by construction |
+| E-2 | ⭐ a nested instance is created as a child (transient, `MacroOrigin`, `MacroExpansionStatus = Done`) and is NOT expanded again — its children are already in the flattened set | SR-185's one pass; the `Done` status is the marker the request path reads |
+| E-3 | the extractor MOVES to `Hrot.Common` (namespace `Hrot.Common.Scenario`) — a pure move | every host can expand (SR-148); ⛔ no second file reader |
+| E-4 | ⭐ a host composing `EntityCreationPack` with no macro library refuses a `MacroInstance` request LOUDLY (status `Failed`, *"this node has no macros package"*) | the silent-default rule: never a quietly un-expanded instance |
+| E-5 | the wait = `MacroExpansionIntent` (transient managed, NoScenario/NoReplay) on the instance; `ScenarioLoadStep` ③ gains one line | SR-147 / SR-185 by construction; the intent is cleared only when every child id exists (no gap before ②) |
+| E-6 | ⏭ no solver reachable within the wait limit ⇒ the terrain-only check on the creating node (SR-184's fallback), stated in the status reason | SR-184 |
+
+### 15.1 As-built — item ④, the expander *(backend, `2026-11-02`)*
+
+| as built | where | deviation from the rows above, and why |
+|---|---|---|
+| ⚠ **E-3 SUPERSEDED — the extractor is NOT moved.** The expander takes the EXISTING seam `IScenarioEntityExtractor` (`Hrot.Core/Network`), which gained one overload with `ExtractionPasses(BeforeResolve, AfterResolve)`; `StagingEntityExtractor` (still `Hrot.CGF`) runs them over every component, brain-slot / mission-task params blob and route waypoint | `IScenarioEntityExtractor.cs`; `StagingEntityExtractor.ApplyPass` | ⭐ a rail forbids IG from wiring any extractor (`NodeRolePersistenceRails.IgCompositionRoot_WiresNoScenarioEntityExtractor`, Node Roles §7.1 / R-140). ⇒ SR-148's *"any node may expand"* holds for every node that may EXTRACT (CGF, the editor, `--mode all`); IG and a pure SimHost refuse loudly (E-4) |
+| `MacroExpander.Expand` — pure: ③ `ParamBindings` on the file JSON → extract with bind → (remap + `@Key` resolve in the MACRO's own scope, SR-58) → relocate; each request: GUID `Derive(instance, "macro:" + file key)`, transient, `MacroOrigin`, owner = the instance's, `ParamBindings` dropped; a nested instance flattened recursively and created `Done` | `Hrot.Common/Macros/MacroExpander.cs` | refusals (each names the path): a missing file · not a macro (`header.Kind`) · an arg the macro does not declare · a cycle · depth > 8 · a pinned macro placed elsewhere (> 0.5 m or > 1°) · a file entity without a key |
+| `MacroExpansionSystem` (Input, every frame, every pack) — drives an instance created HERE: expand → publish the child requests on the bus (the ONE request path) → hold `MacroExpansionIntent` until every child id is in the entity map → `Done`; failure ⇒ `Failed` + reason, nothing published; children not all present after 3000 ticks ⇒ `Failed` | `Hrot.Common/Macros/MacroExpansionSystem.cs`; `EntityCreation.RegisterOn` + its `Unserviceable` check | ⭐ `CreateEntityRequestSystem` stamps `Expanding` + the intent on an instance it creates (step 3.7) — a ghost / promotion never passes there (SR-174) |
+| args resolve in `WorldRefScope` — the live world's `EntityGuid`s (and `RefKey`s **where the world registers one** — ⚠ the live world does NOT register `RefKey` today: only the staging repo does, so `@Key` args resolve only by GUID until that is fixed) | `MacroExpansionSystem.cs` | SR-188 first-match for duplicate keys |
+| `ScenarioLoadStep` ③ waits while any `MacroExpansionIntent` exists | `ScenarioLoadStep.cs` | SR-147 by construction |
+| `FileMacroLibrary.ForNode(stagingRoot)` = the node's staging root, then the content source tree; `InMemoryMacroLibrary` for tests | `Fdp.Toolkits/Scenario/Macros/MacroLibrary.cs` | item ⑦ stages the package into that root |
+| CGF and the editor pass `Macros` | `CgfNodeBootstrapper.cs`, `EditorNodeBootstrapper.cs` | each with ITS OWN extractor instance — no BP-509 remap broadcast for a macro's file keys |
+| ⚠ **measured while building:** an identity rotation faces EAST (compass 90°) — a macro authored with entities "unturned" faces east; the anchor's `Heading` 0 is north | `WorldRotation.ToHeadingDeg` | authors: an anchor heading and the entities' headings are in the same compass frame |
+| rails `MacroExpanderTests` (6): transient / owned / derived / marked · two instances distinct, one instance stable · moved + turned · an arg overrides the default through the file's bindings · nested, transforms composed · five refusals + a pinned macro at its anchor | `Hrot.SimHost.Tests` | red-proved (children not transient ⇒ red) |
+| ⏭ not in ④ | — | placement (⑤ — children are created at their relocated points), the validator in the PREPARE (⑥ — today a bad macro fails at expansion, after the load's prepare), reconcile on an args edit (⑥), staging of the package (⑦) |
+
+### 15.2 As-built — items ⑤ placement and ⑥ validator, reconcile, cascade *(backend, `2026-11-02`)*
+
+```mermaid
+sequenceDiagram
+    participant M as MacroExpansionSystem (creating node, EVERY frame)
+    participant B as bus (+ Brain/Sim pathfinding packs over DDS)
+    participant S as PlacementSolverSystem (every node with NavigationSolverModule, EVERY frame)
+    M->>M: Expand (files → children) · BuildPlacement (one slot per body — a nested instance is a marker, not placed)
+    M->>B: PlacementRequestBatch (RequestId, SourceNodeId, MaxShift = top macro's)
+    M->>M: intent.Parked = children (nothing created yet)
+    B->>S: request (in-process, or dtPlacementRequestBatch 180)
+    S-->>B: PlacementResponseBatch (dt 172 back to SourceNodeId)
+    alt an answer within 300 frames
+        alt any slot Failed
+            M->>M: status Failed "placement: 'Lead' — no walkable ground within 30 m" · nothing published
+        else
+            M->>B: each child at its answered point → the ONE request path
+        end
+    else no answer (no solver in reach — E-6)
+        M->>M: the same solver code, on THIS node's terrain (or unchecked) · status says so
+        M->>B: children
+    end
+```
+
+*What the picture shows that prose hid:* the wait is counted in FRAMES on both sides — a scenario loads while the cluster is paused, so a
+solver gated on sim time (as the path solver is) would never answer, and an expansion counting ticks would never time out.
+
+| as built | where | deviation from §15 / the rows above, and why |
+|---|---|---|
+| ⭐ the solver answers **every frame on the main thread**: `NavigationSolverModule.RegisterSystems` registers `PlacementSolverSystem` as an ordinary `EveryFrame` system — ⛔ NOT through the module's `WhenTimeAdvances` manual tick the path solver uses | `NavigationSolverModule.cs`; `PlacementSolverSystem.cs` | ⚠ measured: the module is `[TickMode(WhenTimeAdvances)]` + `SlowBackground`; a paused load would park its children for good. On the live world the solver also reads the resident `TerrainWorld` (a snapshot view cannot) |
+| the solver's existing-entity spacing (SR-190) **skips a macro instance** — a marker standing at the anchor its own children are placed around | `PlacementSolverSystem.ExistingEntities` | otherwise every child near the anchor is pushed off it |
+| (⭐ §15.4 A6: the TKB template's mobility first, then) slot layer and radius from the child's DIS type: life form ⇒ infantry 0.5 m · land platform ⇒ vehicle 3 m · surface / subsurface ⇒ amphibious 5 m · air ⇒ air | `MacroExpansionSystem.BuildPlacement` | ⚠ a child whose TKB template sets the DIS type but whose file entity does not reaches here as 0 ⇒ infantry |
+| no answer in `PlacementWaitFrames` (300) ⇒ the SAME `PlacementSolverSystem.Solve` on the creating node (navmesh none, its terrain if resident); the status reason says *"placed on terrain only"* / *"placed unchecked"* and stays on `Done` | `MacroExpansionSystem.AwaitPlacement` | E-6 / SR-184 — ⭐ one placement algorithm, two places it may run |
+| ⛔ SUPERSEDED by §15.4 A2 — ~~two instances expanding in ONE frame are placed against the same world~~: the solver now reserves what it handed out | — | — |
+| ⭐ ⑥ the VALIDATOR runs in the load's PREPARE, before extraction: `MacroValidator.Validate(json, library)` — files, kind, args, cycle, depth, pinned anchor, every `ParamBindings` path / `"^name"` / `Bind` naming a declared param, a `bind` key inside a params blob (SR-161); any problem throws, naming every problem with its path ⇒ the load aborts on every node with nothing created | `Fdp.Toolkits/Scenario/Macros/MacroValidator.cs`; `ScenarioLoadStep.PrepareAsync`; `NodeBootstrapper` passes `FileMacroLibrary.ForNode` | SR-149 / SR-162. ⚠ a value's TYPE against its target (SR-162's second half) is still reported by the binder at expansion |
+| ⭐ SR-188 — a `@Key` two entities carry resolves to the FIRST, with a warning; the load goes on (was: refused) | `ScenarioRefScope.Add` / `TryKey` (`Ambiguous`) | — |
+| ⭐ RECONCILE (SR-150 / SR-157 / SR-172): a `Done` instance keeps `MacroExpandedWith{Instance, Anchor}` (474, transient); an edit (a new immutable `MacroInstance` record) or a moved anchor ⇒ expand old and new from the files, compare by GUID: kept ⇒ `SimTransform` + `EntityInfo` re-applied · new ⇒ requested · made before but destroyed in the run ⇒ stays destroyed · no longer made ⇒ destroyed | `MacroExpansionSystem.MaybeReconcile` | ⚠ a changed behaviour param reaches NEW children only (S3b). ⛔ SUPERSEDED by §15.4 A3/A4: ~~a re-expansion is not re-placed; after a restore `MacroExpandedWith` is absent~~ |
+| ⭐ CASCADE (SR-170): an entity whose `MacroOrigin.Instance` is no longer in the map is destroyed by its owner | `MacroExpansionSystem.Cascade` | a nested instance going takes its own men by the same rule |
+| 📌 **LIVE RUN `2026-11-02`** (`--mode all`, `scenarios/test-macro-two-teams`, `--param side=Friend`): 3 entities extracted → 2 instances `Done` (no fallback reason) → 8 transient men, each `MacroOrigin` its own instance, team East (identity rotation = east) turned 90° from the north-authored anchor, per-instance args `Friend` / `Hostile`; the observer bound to the scenario param carries `Friend`. Placement translators: CGF sent 2, SimHost received 2 and answered 2 | — | ⚠ two defects the unit rails could not see, both fixed here: ① the placement translators sat inside the POOL-GATED pathfinding packs and CGF composes that set with no trajectory pool ⇒ the Brain never sent ⇒ every expansion fell back (E-6). Now gated by ROLE alone (`NedSimHostPathfindingTranslators`). ② both placement topics were keep-last-1 ⇒ two requests in one frame, one dropped. Now `KeepAll` (the CE-3095 rule for events) |
+| rails: `MacroValidatorTests` (4) · `MacroExpanderTests` + 3 placement rails driven through the system (asked once and parked · one Failed ⇒ nothing · no answer ⇒ placed here and said) · `PlacementSolverSystemTests` (9) · `PlacementTranslatorsTests` (3) | `Fdp.Toolkits.Tests`, `Hrot.SimHost.Tests`, `Hrot.Network.NED.Tests` | red-proofs in the report |
+
+### 15.3 As-built — item ⑦: the macros package on every node · scenario args *(backend, `2026-11-02`)*
+
+```mermaid
+graph TD
+    NAS["NAS: macros/ (whole tree)"] -->|"StorageGatewayModule.StageMacros (inside every prefetch)"| NODE["every node: {node root}/macros (beside TKB/)"]
+    NODE --> LIB["FileMacroLibrary.ForNode(node root)"]
+    REQ["POST /scenario/load/live {args} · --param k=v"] --> INT["ScenarioLoadSequence.LiveLoadIntent(.., args)"]
+    INT -->|"TransitionStateIntent.ScenarioArgsJson → TransitionPayloadDto.ScenarioArgs"| MASTER[ClusterMaster]
+    MASTER -->|"EditLoadHandlerPayload.ScenarioArgsJson → NodeTransitionPayloadDto.ScenarioArgs (load steps only)"| CTX["LoadPhaseContext.ScenarioArgsJson (every node)"]
+    CTX --> STEP["ScenarioLoadStep: header.params ▸ args → ParamBinder on the TOP-LEVEL entities (SR-41)"]
+    STEP --> RES["ScenarioDescriptionResident.Args"]
+    RES -->|"RecorderTickSystem.StampWorld"| META["RecordingMetadata.ScenarioArgs (SR-176)"]
+```
+
+*What the picture shows that prose hid:* the args ride the SAME message every node already reads for the load (as `FeatureConfigsAtLoad`
+does) and leave the run through the SAME resident singleton that already names the scenario in its recording — no second channel either way.
+
+### 15.4 As-built — the S3a debt, A1–A7 *(backend, `2026-11-02` — `HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md` Part A)*
+
+```mermaid
+sequenceDiagram
+    participant U as editor / API (moves the instance)
+    participant M as MacroExpansionSystem (instance owner)
+    participant S as PlacementSolverSystem (reservations, 600 frames)
+    U->>M: new MacroInstance record / anchor moved
+    M->>M: MaybeReconcile — the SAME record and the SAME anchor? nothing to do
+    M->>M: expand "now" from the files (children keep their GUIDs)
+    alt anchor moved and the macro is Relocatable
+        M->>S: PlacementRequestBatch, each slot's Self = the live child's network id (0 for a new child)
+        M->>M: intent {Parked, ReconcileFrom = old, ReconcileTo = new}
+        S->>S: the moving entities are no obstacle · its old reservations released · every other reservation is
+        S-->>M: answer
+        alt any slot Failed
+            M->>M: status Failed "re-placement: 'Lead' — no walkable ground, old placement kept" · nothing moved · baseline = new (no retry loop)
+        else
+            M->>M: ApplyReconcile at the answered points (kept moved, asking the owner when not this node's · new requested · gone destroyed)
+        end
+    else args-only edit, or not relocatable
+        M->>M: ApplyReconcile (no placement)
+    end
+```
+
+*What the picture shows that prose hid:* a re-placement is the SAME placement query as the first expansion — the only new field is
+`PlacementSlot.Self`, which tells the solver which existing bodies are the ones moving (so they are not in their own way); and the
+solver remembers what it handed out, so two expansions answered in one frame — or a frame apart, before the children exist — do not
+land on each other.
+
+| item | as built | where | deviation, and why |
+|---|---|---|---|
+| A1 SR-65/188 | the live world registers `RefKey` (every world, beside `EntityGuid`) ⇒ a runtime `@Key` arg resolves against the LIVE world; two entities carrying one key ⇒ the FIRST, with a warning (the load's rule, SR-188) | `HrotSharedComponentRegistry`; `MacroExpansionSystem.WorldRefScope` | — |
+| A2 SR-190 | the solver keeps every slot it handed out as TAKEN for `ReservedFrames` (600): the children are created a few ticks after the answer, so the world does not show them yet. A later batch — this tick's or the next — avoids them | `PlacementSolverSystem.SolveAndReserve` / `Reserve` | ⚠ reservations are per solver instance: two SimHosts answering one cluster do not share them (one solver answers today) |
+| A3 SR-157/180 | a moved anchor on a relocatable instance re-runs placement for every child (above); a failed re-placement is LOUD (error log + `Failed` status naming the slot) and moves nothing | `MacroExpansionSystem.MaybeReconcile` / `AwaitPlacement` / `ApplyReconcile`; `PlacementSlot.Self` (+ `DdsPlacementSlot.Self`) | 🔴 found by the rail: the early return was `ReferenceEquals(record) \|\| SameAnchor` ⇒ a move with the record unchanged never reconciled. Now `record unchanged && anchor unchanged` |
+| A3, found LIVE | ⭐⭐ a kept child's new pose is REQUESTED from its owner when this node does not hold its `SimTransform` (the engine's one "not mine, ask the owner" route, `EntityAttributeChangeRequests.TryPublishJsonPatch`: `Position.X/Y/Z` + `Heading`, applied by the owner's `JsonAttributeCompiler`); local when the component's authority bit is set (or the world is networkless) | `MacroExpansionSystem.MoveKept` | 🔴 the unit rails run ONE world. Live (`--mode all`): split authority gives the body to the simulation node, so the instance node's write landed in a REPLICA — "4 kept", and no man moved. Rail `A3_UnderSplitAuthority_…` |
+| A4 SR-150 | every frame, a `Done` top instance this node owns with no baseline and no intent gets `MacroExpandedWith` rebuilt from its current record and anchor ⇒ restore → edit args → reconcile works | `MacroExpansionSystem.RebuildBaselines` | the baseline is the restored state, not the pre-restore one — correct: the children on the restored world are what was made from it |
+| A5 SR-41 | an EDIT load takes scenario args too: `EditLoadIntent(scenario, argsJson)`; `POST /scenario/load/edit {args}`, `--param` with `--load edit` — the same route and the same `ScenarioParams.Prepare` as a live load | `ScenarioLoadSequence`; `DebugApiService.LoadScenarioEdit`; `StartupScenarioLoad` | — |
+| A6 | a child's placement layer and radius come from its TKB template: `LocomotionDto.Class` (Pedestrian ⇒ infantry · Wheeled/Tracked ⇒ vehicle · Surface ⇒ amphibious · Rotorcraft/FixedWing ⇒ air), radius half of max(Length, Width) from `VehicleParametersDto`; no template ⇒ the DIS-type rule of §15.2 | `MacroExpansionSystem.LayerOf` (the pack passes `ctx.TkbDb`) | — |
+| 📌 LIVE `2026-11-02` (`--mode all`, `test-macro-two-teams`) | Team East moved (60,100) → (100,60): the solver re-placed its four men through their owner (leader at the new anchor, riflemen around it) · checkpoint `macro-b` → restore (every node resumed) → both instances `Done` with a baseline → Team Turned moved (60,140) → (140,140): reconciled, its men followed · no error in the log | — | ⚠ found: `POST /entities/{id}/component` on `MacroInstance` with `{"Args":{…}}` answers `ok` and changes nothing (the dictionary is not reached by the StructEdit patch) — args are edited through the editor's own surface (ui, S3b) |
+| A7 | `EveryEcsHostComposesTheLoadPhaseChainRails` ×2 were red because CE-1446 moved CGF's and the editor's node build into `CgfNodeBootstrapper` / `EditorNodeBootstrapper` (→ the shared `NodeBootstrapper`); four more source rails read the same stale files | `CompositionRootSource.ReadEffectiveRoot` — ONE follower of a root's delegation, used by the load-phase, cluster-handler, translator-set and live-plan rails | production was right; the rails were reading the wrong file |

@@ -10,7 +10,8 @@ namespace Fdp.Toolkit.Scenario
     /// <summary>
     /// ⭐⭐ S0 item 3 (<c>docs/DESIGN_Scenario_Rules.md</c> SR-63…SR-66, §9.8.3 SR-126) — an entity's AUTHORED NAME, the one an authored
     /// reference uses: <c>"@BlueHQ"</c> = <i>whatever entity carries <c>RefKey "BlueHQ"</c> here</i>. A person gives it; it is saved with the
-    /// scenario (<c>"RefKey": {"Value": "BlueHQ"}</c>). ⛔ Unique per scope — a duplicate is a LOUD load error, never "the first one wins".
+    /// scenario (<c>"RefKey": {"Value": "BlueHQ"}</c>). ⭐ SR-188 (2026-11-02, amends SR-66): a duplicate is ALLOWED — the first match wins
+    /// and the ambiguity is a warning (<see cref="ScenarioRefScope.Ambiguous"/>).
     /// ≤ 31 UTF-8 bytes, no <c>@</c> (<see cref="RefSpec.ByKey"/> refuses a longer one).
     /// </summary>
     [ComponentId(GlobalComponentIds.RefKey)]
@@ -34,6 +35,10 @@ namespace Fdp.Toolkit.Scenario
         private readonly Dictionary<string, EntityRef> _byKey = new(StringComparer.Ordinal);
         private readonly Dictionary<Guid, EntityRef> _byGuid = new();
         private readonly Dictionary<long, WorldPoint> _positions = new();
+        private readonly Dictionary<string, int> _ambiguous = new(StringComparer.Ordinal);
+
+        /// <summary>⭐ SR-188 — each key more than one entity carries, with how many (a probe for the load log and tests).</summary>
+        public IReadOnlyDictionary<string, int> Ambiguous => _ambiguous;
 
         public ScenarioRefScope(string describe) => Describe = describe;
 
@@ -47,9 +52,12 @@ namespace Fdp.Toolkit.Scenario
         {
             if (!string.IsNullOrEmpty(key))
             {
-                if (_byKey.TryGetValue(key, out var other) && other != entity)
-                    throw new InvalidOperationException($"two entities carry the key '{key}' ({other} and {entity}) in {Describe} — a key is unique per scope");
-                _byKey[key] = entity;
+                // ⭐ SR-188 (DESIGN_Scenario_Macros §14.3, amends SR-65 / SR-66) — duplicate keys are ALLOWED (two instances of one macro give
+                //   two "@SL"s): the FIRST match wins, in file order, and the ambiguity is a WARNING. ⛔ A MISSING key still fails loudly.
+                if (_byKey.TryGetValue(key, out var first) && first != entity)
+                    _ambiguous[key] = (_ambiguous.TryGetValue(key, out var n) ? n : 1) + 1;
+                else
+                    _byKey[key] = entity;
             }
             if (guid != Guid.Empty) _byGuid[guid] = entity;
             if (position is { } p) _positions[entity.NetworkId] = p;
@@ -60,12 +68,20 @@ namespace Fdp.Toolkit.Scenario
             entity = EntityRef.None;
             return spec.Form switch
             {
-                RefForm.Key   => _byKey.TryGetValue(spec.KeyText, out entity),
+                RefForm.Key   => TryKey(spec.KeyText, out entity),
                 RefForm.Exact => _byGuid.TryGetValue(spec.Exact, out entity),
                 _             => false,
             };
         }
 
         public bool TryPositionOf(EntityRef entity, out WorldPoint position) => _positions.TryGetValue(entity.NetworkId, out position);
+
+        private bool TryKey(string key, out EntityRef entity)
+        {
+            if (!_byKey.TryGetValue(key, out entity)) return false;
+            if (_ambiguous.TryGetValue(key, out int n))
+                Fdp.Core.Logging.FdpLog<ScenarioRefScope>.Warn($"@{key} matches {n} entities in {Describe}; using the first ({entity}) — SR-188");
+            return true;
+        }
     }
 }

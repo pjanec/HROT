@@ -1502,6 +1502,13 @@ namespace Hrot.Editor.DebugApi
                 return RunMain(s => s.GetSquadReports(last, unit));
             }));
 
+            // ⭐ rules S1-g — the minimal mission summary: every objective status on this node (replicated ones on a non-Brain node), the tree by Parent
+            _routes.Add(new("GET", "/objectives", ctx =>
+            {
+                bool tree = ctx.Query("tree") is "1" or "true";
+                return RunMain(s => s.GetObjectives(tree));
+            }));
+
             // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
             _routes.Add(new("GET", "/attributes/schema", _ =>
                 Task.FromResult(Ok(Service().GetAttributesSchema()))));
@@ -2097,6 +2104,7 @@ namespace Hrot.Editor.DebugApi
 
             bool waitForReady = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             bool startPaused  = ctx.Body?["startPaused"]?.GetValue<bool>() ?? true;   // Q86 §4-G: a property of the load
+            string? scenarioArgs = ctx.Body?["args"] is System.Text.Json.Nodes.JsonObject argsObj ? argsObj.ToJsonString() : null;   // ⭐ macros S3a ⑦ / debt A5 (SR-41) — a live AND an edit load
 
             // ⭐ The count BEFORE the request: with CE-295's unload-first the world empties during the unload, which is
             //   the edge the readiness check needs to see.
@@ -2105,8 +2113,8 @@ namespace Hrot.Editor.DebugApi
 
             var requested = await _jobQueue.RunOnMainThread(() =>
                 target == Fdp.Toolkit.Orchestration.ClusterState.OperatingLive
-                    ? Service().LoadScenarioLive(name!, startPaused, gate: unsavedGate)
-                    : Service().LoadScenarioEdit(name!, unsavedGate)).ConfigureAwait(false);
+                    ? Service().LoadScenarioLive(name!, startPaused, gate: unsavedGate, scenarioArgsJson: scenarioArgs)
+                    : Service().LoadScenarioEdit(name!, unsavedGate, scenarioArgs)).ConfigureAwait(false);
 
             // ⭐⭐ CE-4101 — a load the editor's door REFUSED (unsaved edits it would lose) answers 409 with the door's text (D22: today's status and words)
             if (requested?["refused"] is JsonValue refused && refused.TryGetValue(out string? refusalText))

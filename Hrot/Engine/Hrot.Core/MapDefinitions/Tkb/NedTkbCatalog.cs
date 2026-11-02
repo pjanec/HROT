@@ -1096,11 +1096,39 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ CE-3216 (W-0) — the scenario's World Environment: a bare template like the door's — its ScenarioClock arrives with the
             //   creation request on the creator and through dtScenarioClock everywhere else. No SimTransform: it is nowhere.
             tkbDb.Register(new TkbTemplate("World Environment", TkbEntityTypes.WorldEnvironment));
+            // ⭐ rules S1-a (DESIGN_Scenario_Rules §00.8) — an Objective: a positionless entity with a BRAIN and no body — it runs one objective
+            //   behaviour (params in the scenario record) and keeps ObjectiveStatus. Cannot move, shoot or interact; never in the palette.
+            var objective = new TkbTemplate("Objective", TkbEntityTypes.Objective);
+            objective.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier     = Fdp.Toolkit.Behavior.BehaviorConstants.SimTierTactical,
+                BrainTier   = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+                CanMove     = false,
+                CanShoot    = false,
+                CanInteract = false,
+                Faction     = ForceId.Neutral,
+            });
+            tkbDb.Register(objective);
+            // ⭐ rules S2-c — a Trigger: the same shape as the Objective (a brain, no body), running the one `Trigger` behaviour (§10.11)
+            var trigger = new TkbTemplate("Trigger", TkbEntityTypes.Trigger);
+            trigger.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier     = Fdp.Toolkit.Behavior.BehaviorConstants.SimTierTactical,
+                BrainTier   = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+                CanMove     = false,
+                CanShoot    = false,
+                CanInteract = false,
+                Faction     = ForceId.Neutral,
+            });
+            tkbDb.Register(trigger);
             // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
             //   the request on the creator and on their descriptors everywhere else.
             var weather = new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion);
             weather.AddDescriptor(new MapGraphicDef());   // ⭐ CE-2324 — an area, not a body
             tkbDb.Register(weather);
+            // ⭐ macros S3a ③ (SR-178) — a Scenario Macro instance marker: a bare template like the World Environment's, but it HAS a position (a
+            //   SimTransform arrives with the request, SR-70) and a DIS type (Kind 5, Category 90 — the ScenarioMacro class) so the map draws it.
+            tkbDb.Register(new TkbTemplate("Scenario Macro", TkbEntityTypes.ScenarioMacro) { DisType = new DISEntityType { Kind = 5, Category = 90 } });
             // ⭐ CE-3235 (B-13, AW-8) — a Stone Source: an area like the Weather Region; its template names what a hand takes there
             var stones = new TkbTemplate("Stone Source", TkbEntityTypes.StoneSource);
             stones.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ItemSourceDto { Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, UpTo = 5 });

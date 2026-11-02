@@ -12,7 +12,7 @@ namespace Hrot.Common.Orchestration;
 /// </summary>
 public static class NodeHeartbeatWire
 {
-    /// <summary>The bus event as the DDS sample. ⚠ The CPU / RAM / tick-advancing fields are telemetry the slave does not measure (zero), as before.</summary>
+    /// <summary>The bus event as the DDS sample. ⚠ The RAM / tick-advancing fields are telemetry the slave does not measure (zero), as before.</summary>
     public static NodeHeartbeat ToTopic(in NodeHeartbeatEvent hb) => new()
     {
         NodeId            = hb.NodeId,
@@ -20,7 +20,6 @@ public static class NodeHeartbeatWire
         SubsystemName     = hb.SubsystemName ?? string.Empty,
         LocalClusterState = (NedClusterState)hb.LocalStateId,
         WallTicksUtc      = hb.WallTicksUtc,
-        CpuUsage          = 0f,
         RamUsedBytes      = 0L,
         SimTickAdvancing  = false,
         SubsystemsJson    = string.Empty,

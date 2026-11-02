@@ -394,7 +394,9 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         }
 
         MemberInfo leafMember = fi ?? (MemberInfo)pi!;
-        if (!buffer.IsNative && leafMember.DeclaringType != buffer.ComponentType && parentBinding == null)
+        // ⭐ macros S3a ① — a member INHERITED by the root type (BindableNode.Bind on every predicate node) is the root's own member: the
+        //   ManagedPropertyBinding below binds it on the boxed root. Only a member of an UNRELATED type is the hierarchy error.
+        if (!buffer.IsNative && leafMember.DeclaringType?.IsAssignableFrom(buffer.ComponentType) != true && parentBinding == null)
         {
             throw new InvalidOperationException(
                 $"STRUCTEDIT HIERARCHY ERROR: Attempting to bind nested member '{leafMember.Name}' on declaring type '{leafMember.DeclaringType?.Name}', but the root component is '{buffer.ComponentType.Name}' and no parent binding was provided. The document builder MUST flow the current node's binding down to its children during recursive traversal.");

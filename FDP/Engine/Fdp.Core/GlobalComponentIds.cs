@@ -1074,6 +1074,30 @@ namespace Fdp.Core
         /// grenades, contacts); brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
         public const int CalloutState = 424;
 
+        /// <summary>⭐ rules S1-a (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.8) — <c>ObjectiveStatus</c>: an objective / measure / trigger
+        /// entity's state, progress, score and display projection; Brain group, replicated as <c>dtObjectiveStatus</c> (170), NoScenario.
+        /// Behaviors' block 418–433 (R-2056).</summary>
+        public const int ObjectiveStatus = 425;
+
+        /// <summary>⭐ rules S1-a (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.8 S1-c) — <c>ObjectiveLinks</c>: an objective's subject and
+        /// parent (network ids) — a copy of its params the behaviour rewrites each tick, so the tree is readable; NoScenario. 427 is kept for
+        /// S2's <c>ExerciseResult</c>.</summary>
+        public const int ObjectiveLinks = 426;
+
+        /// <summary>⭐ rules S2-e (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.9) — <c>ExerciseResult</c>: the exercise's phase (Running / Closing /
+        /// Ended) and the outcome per side, on the World Environment; Brain group, replicated as <c>dtExerciseResult</c> (172), NoScenario.
+        /// Behaviors' block 418–433 (R-2056).</summary>
+        public const int ExerciseResult = 427;
+
+        /// <summary>⭐ rules S2-a (behaviors; 📄 docs/DESIGN_Scenario_Rules.md §00.9) — <c>ActionArgs</c> (MANAGED, an immutable record): the JSON of the
+        /// step lists / args an entity's actions run (the trigger's <c>when</c> and <c>do</c>), indexed by an <c>int</c> ref; written at assignment only.
+        /// NoScenario. 427 is kept for <c>ExerciseResult</c>. Behaviors' block 418–433 (R-2056).</summary>
+        public const int ActionArgs = 428;
+
+        /// <summary>⭐ rules S2-a (CE-4165) — <c>ActionFailure</c>: the ONE reason channel of a failed shared action (the step index and a short
+        /// reason; <c>NodeStatus</c> carries none). Brain-local, NoScenario. Behaviors' block 418–433 (R-2056).</summary>
+        public const int ActionFailure = 429;
+
         /// <summary>⭐ <c>CE-3264</c> (backend, G1) — <c>Utterance</c>: what a man is saying now, Brain group, replicated as <c>dtUtterance</c>
         /// (152). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.18. ⭐ From the TOP of backend's proposed block 434–449
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
@@ -1187,5 +1211,31 @@ namespace Fdp.Core
         /// may use (<c>"@BlueHQ"</c>), unique per scope. Saved with the scenario. ⚠ 468 measured free in backend, ui, behaviors and
         /// coordinator 2026-11-01.</summary>
         public const int RefKey = 468;
+
+        /// <summary><c>ParamBindings</c> — ⭐ macros S3a ① (docs/DESIGN_Scenario_Macros.md SR-161 / SR-57): an entity's scalar-field bindings to
+        /// macro / scenario params (<c>"Behavior.Params.Speed" → "speed"</c>). Managed, NoReplay (SR-165). ⚠ 469 measured free in backend,
+        /// ui, behaviors and coordinator 2026-11-02.</summary>
+        public const int ParamBindings = 469;
+
+        /// <summary><c>MacroInstance</c> — ⭐ macros S3a ③ (docs/DESIGN_Scenario_Macros.md SR-170): a macro INSTANCE marker (which macro, its args).
+        /// Managed immutable record; saved by <c>MacroInstanceTranslator</c>, recorded; wire <c>dtMacroInstance</c> 158. ⚠ 470 measured free on all
+        /// four lanes 2026-11-02.</summary>
+        public const int MacroInstance = 470;
+
+        /// <summary><c>MacroExpansionStatus</c> — ⭐ macros S3a ③ (SR-175): the expander's state on the instance. Unmanaged, NoScenario, recorded;
+        /// wire <c>dtMacroExpansionStatus</c> 159. ⚠ 471 measured free on all four lanes 2026-11-02.</summary>
+        public const int MacroExpansionStatus = 471;
+
+        /// <summary><c>MacroOrigin</c> — ⭐ macros S3a ③ (SR-178): which instance and macro-local key an expanded entity came from. Unmanaged,
+        /// NoScenario, recorded; wire <c>dtMacroOrigin</c> 170. ⚠ 472 measured free on all four lanes 2026-11-02.</summary>
+        public const int MacroOrigin = 472;
+
+        /// <summary><c>MacroExpansionIntent</c> — ⭐ macros S3a ④ (docs/DESIGN_Scenario_Macros.md §15 E-5): the wait of one expansion on its
+        /// instance; the load gate waits while one exists. Transient. ⚠ 473 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
+        public const int MacroExpansionIntent = 473;
+
+        /// <summary><c>MacroExpandedWith</c> — ⭐ macros S3a ⑥: what a done instance last expanded with (the reconcile's baseline). Transient.
+        /// ⚠ 474 measured free in backend, ui, behaviors and coordinator 2026-11-02.</summary>
+        public const int MacroExpandedWith = 474;
     }
 }

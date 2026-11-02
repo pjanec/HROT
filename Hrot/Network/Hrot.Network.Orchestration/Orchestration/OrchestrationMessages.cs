@@ -25,7 +25,8 @@ namespace Hrot.NED.Descriptors.Orchestration
         Degraded = 99,
     }
 
-	// keep in sync with ClusterOpType in orchestration toolkit!
+	// Wire twin of Fdp.Toolkit.Orchestration.ClusterOpType (R-134: internal enum + wire twin is intended). Pinned, both directions, by
+	// Hrot.Orchestrator.Tests/FdpOrchestrationEnumSyncTests.ClusterOpTypeTwinsAgreeInBothDirectionsByNameAndValue.
 	public enum ClusterOpType : int
     {
         /// <summary>⭐ AQ107 / CycloneDDS.NET 0.4: a default-initialised message carries 0, and Cyclone DDS 11 refuses to serialize an enum value
@@ -455,8 +456,7 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;
-        /// <summary>⭐ AQ107 I — the node's CPU load as a 0…1 FRACTION (was a percent). The cluster cache's <c>NodeCapability.CpuUsagePercent</c> keeps percent; the ingest converts.</summary>
-        public float CpuUsage;
+        // ⭐ CE-4075 — `float CpuUsage` was REMOVED (nothing measured it; always 0). Pre-1.0 wire cutover, no tombstone.
         public long RamUsedBytes;
         public bool SimTickAdvancing;
         [DdsManaged] public string SubsystemsJson;

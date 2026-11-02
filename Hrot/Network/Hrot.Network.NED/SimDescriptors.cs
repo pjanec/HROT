@@ -171,6 +171,86 @@ namespace Hrot.NED.Descriptors
         public int DisplayUtcOffsetSeconds;
     }
 
+    // ⭐ rules S1-a (docs/DESIGN_Scenario_Rules.md §00.8, SR-120) — an objective / measure / trigger's STATUS (ObjectiveStatus + the subject / parent
+    //   of ObjectiveLinks as net ids), published by the owner (its own Brain) on change, applied on every other node. A state change goes at once;
+    //   progress-only changes at most twice a second. The display fields (Title, Kind, Required, Scored, Weight, VisibleSides) are a projection of the
+    //   params, so a HUD reads one topic and never parses JSON — ⛔ never written back. Reliable + TransientLocal + KeepLast(1) keyed by entity, like
+    //   the scenario clock. Managed: it carries three short strings.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityObjectiveStatus
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary><c>ObjectiveRole</c>: 0 Objective · 1 Measure · 2 Trigger.</summary>
+        public byte Role;
+        /// <summary><c>ObjectiveState</c>: 0 Pending · 1 Active · 2 Achieved · 3 Failed · 4 Inactive · 5 Skipped.</summary>
+        public byte State;
+        /// <summary>1 = final: the exercise closed it.</summary>
+        public byte Closed;
+        /// <summary>The owning side (<c>ForceId</c>).</summary>
+        public byte Owner;
+        public int ProgressCur;
+        public int ProgressNeed;
+        public float Value;
+        public float Target;
+        /// <summary>0..1.</summary>
+        public float Score;
+        public float Points;
+        /// <summary>Sim time (s) of the last state change.</summary>
+        public double ChangedAt;
+        /// <summary>A short text: "held 60 s, 5 Blue / 0 Red".</summary>
+        public string Reason;
+        /// <summary>The subject's network id (<c>ObjectiveLinks.Subject</c>); 0 = none.</summary>
+        public int Subject;
+        /// <summary>The parent objective's network id (<c>ObjectiveLinks.Parent</c>); 0 = none.</summary>
+        public int Parent;
+        /// <summary>Triggers: times fired.</summary>
+        public int FireCount;
+        /// <summary>Triggers: sim time (s) of the last firing.</summary>
+        public double LastFired;
+        /// <summary>⭐ rules S2-c: <c>TriggerState</c> (Disarmed 0 · Armed · Holding · Waiting · Acting · Fired · Cooldown · Done 7); a trigger only.</summary>
+        public byte TriggerState;
+        public string Title;
+        public string Kind;
+        public byte Required;
+        public byte Scored;
+        public float Weight;
+        /// <summary>Bit mask by <c>ForceId</c> value.</summary>
+        public byte VisibleSides;
+    }
+
+    // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the
+    //   outcome per side. State on the World Environment, published by the owner (its Brain) on change, applied on every other node, whose ingress raises the
+    //   local ExerciseEndedEvent ONCE when the phase becomes Ended. Same QoS and shape as the scenario clock. Managed: it carries the reason.
+    [DdsTopic]
+    [DdsIdlFile("hrot-scenario-rules")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityExerciseResult
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary><c>ExercisePhase</c>: 0 Running · 1 Closing · 2 Ended.</summary>
+        public byte Phase;
+        /// <summary>Sim time (s) it ended.</summary>
+        public double EndedAt;
+        public string Reason;
+        /// <summary>Per side: <c>SideOutcome</c> (0 None · 1 Win · 2 Lose · 3 Draw), points, score — Friend, Hostile, Neutral.</summary>
+        public byte FriendOutcome;
+        public float FriendPoints;
+        public float FriendScore;
+        public byte HostileOutcome;
+        public float HostilePoints;
+        public float HostileScore;
+        public byte NeutralOutcome;
+        public float NeutralPoints;
+        public float NeutralScore;
+    }
+
     // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
     //   weather on the World Environment, a regional one on a Weather Region. Published by the owner (the creating Brain) on change, applied
     //   on every other node; every node derives the weather at any point itself (WeatherField). Flat fields (the dtPartDamage shape): 8 wind
@@ -741,6 +821,56 @@ namespace Hrot.NED.Descriptors
         public long Hi;
     }
 
+    // ⭐ macros S3a ③ (docs/DESIGN_Scenario_Macros.md §14 SR-170, R-134) — a macro INSTANCE: which macro and its args (a JSON object text). Published by the
+    //   node that owns the descriptor (the instance's creator — no group) on change; every node then knows what was instanced. TransientLocal + KeepLast(1).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMacroInstance
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The macro's path under <c>macros/</c>.</summary>
+        public string Macro;
+
+        /// <summary>The instance's args — a JSON object, <c>"{}"</c> = none.</summary>
+        public string ArgsJson;
+    }
+
+    // ⭐ macros S3a ③ (SR-175) — the expander's verdict on an instance: <c>MacroExpansionState</c> (0 None · 1 Expanding · 2 Done · 3 Failed) and why it failed.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMacroExpansionStatus
+    {
+        [DdsKey]
+        public int EntityId;
+
+        public byte State;
+
+        public string Reason;
+    }
+
+    // ⭐ macros S3a ③ (SR-178) — which instance (its network id) and macro-local file key (a GUID as two longs, as <c>EntityStableGuid</c>) an expanded entity came from.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityMacroOrigin
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The instance entity's network id.</summary>
+        public int Instance;
+
+        public long LocalLo;
+
+        public long LocalHi;
+    }
+
     // ── Navigation CQRS descriptors (MOD1-P1T1) ──────────────────────────────
     // These are the DDS wire representations of the engine-side NavigationIntent and
     // NavigationStatus ECS components.  The engine-side enums (NavigationMode,
@@ -1045,6 +1175,59 @@ namespace Hrot.NED.Descriptors
         /// <summary>High-precision anchor (local ENU metres, AQ107 B) for coordinate reconstruction on the Brain node.</summary>
         public Vec3d                 BatchOrigin;
         [DdsManaged] public List<DdsPathResult> Results;
+    }
+
+    // ── Placement pipeline (macros S3a ⑤, docs/DESIGN_Scenario_Macros.md §14.2 SR-180, R-134) — the pathfinding pair's shape ──────────────
+
+    /// <summary>One thing to place: a macro-local key, its wanted point (ENU offset from the batch origin), layer (<c>PlacementLayer</c>) and half-footprint radius.</summary>
+    [DdsStruct]
+    public partial struct DdsPlacementSlot
+    {
+        public int             Key;
+        public RelativeVector3 Point;
+        /// <summary>0 Infantry · 1 Vehicle · 2 Amphibious · 3 Air.</summary>
+        public byte            Layer;
+        public float           Radius;
+        /// <summary>⭐ Macros debt A3 — the network id of the entity this slot MOVES (a reconcile re-placing a kept child); 0 = a new entity.
+        /// The solver does not count it as an obstacle to its own (or a sibling's) new spot.</summary>
+        public int             Self;
+    }
+
+    /// <summary>A placement request from the asking node toward the Navigation Solver (one request per sample).</summary>
+    [DdsTopic]
+    // ⭐ Reliable + KeepAll (the CE-3095 rule for events): 📌 measured live 2026-11-02 — two instances expanding in one frame sent TWO
+    //   requests and the solver's reader (default keep-last-1) received ONE; the dropped expansion fell back to its own terrain.
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct PlacementRequestBatchWire
+    {
+        [DdsKey] public int SourceNodeId;
+        public long         RequestId;
+        public float        MaxShift;
+        public Vec3d        BatchOrigin;   // local ENU metres (AQ107 B): the anchor the RelativeVector3 offsets are measured from
+        [DdsManaged] public List<DdsPlacementSlot> Slots;
+    }
+
+    /// <summary>The answer for one slot: <c>PlacementOutcome</c> (0 Exact · 1 Shifted · 2 Failed), the point (offset from the batch origin) and a reason.</summary>
+    [DdsStruct]
+    public partial struct DdsPlacementAnswer
+    {
+        public int             Key;
+        public byte            Outcome;
+        public RelativeVector3 Point;
+        [DdsManaged] public string Reason;
+    }
+
+    /// <summary>The Navigation Solver's answers, addressed to the asking node.</summary>
+    [DdsTopic]
+    // ⭐ Reliable + KeepAll (the CE-3095 rule for events): 📌 measured live 2026-11-02 — two instances expanding in one frame sent TWO
+    //   requests and the solver's reader (default keep-last-1) received ONE; the dropped expansion fell back to its own terrain.
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct PlacementResponseBatchWire
+    {
+        [DdsKey] public int TargetNodeId;
+        public long         RequestId;
+        public Vec3d        BatchOrigin;
+        [DdsManaged] public List<DdsPlacementAnswer> Answers;
     }
 
     // ── Ground Clamping IG contract (MOD1-P7T1) ──────────────────────────────

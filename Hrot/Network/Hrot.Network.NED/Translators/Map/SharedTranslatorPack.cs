@@ -85,6 +85,13 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4153 — an entity's stable scenario key, creator → every node (no group; immutable, so published once and held until its entity is here).
             yield return new EntityStableGuidEgressTranslator(participant);
             yield return new EntityStableGuidIngressTranslator(participant, entityMap);
+            // ⭐ macros S3a ③ — a macro instance, its expansion verdict and an expanded entity's origin, creator → every node (no group).
+            yield return new EntityMacroInstanceEgressTranslator(participant);
+            yield return new EntityMacroInstanceIngressTranslator(participant, entityMap);
+            yield return new EntityMacroExpansionStatusEgressTranslator(participant);
+            yield return new EntityMacroExpansionStatusIngressTranslator(participant, entityMap);
+            yield return new EntityMacroOriginEgressTranslator(participant);
+            yield return new EntityMacroOriginIngressTranslator(participant, entityMap);
             // ⭐ WL-1b (CE-1049) — a turret part's pose, the dtTurretPose owner (the Muscle) → every node. 📄 DESIGN_Weapon_Layers §5b.
             yield return new EntityTurretPoseEgressTranslator(participant);
             yield return new EntityTurretPoseIngressTranslator(participant, entityMap);
@@ -180,6 +187,12 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityTrafficDemandEgressTranslator(participant);                 // ⭐ AQ93 N4 — the traffic settings
             yield return new EntityTrafficDemandIngressTranslator(participant, entityMap);
             yield return new EntityScenarioClockIngressTranslator(participant, entityMap);
+            // ⭐ rules S1-a (DESIGN_Scenario_Rules §00.8) — an objective's status and links, owner (its Brain) → every node.
+            yield return new EntityObjectiveStatusEgressTranslator(participant);
+            yield return new EntityObjectiveStatusIngressTranslator(participant, entityMap);
+            // ⭐ rules S2-e — the exercise's phase and outcome per side (the World Environment's owner → every node; the ingress raises ExerciseEndedEvent once).
+            yield return new EntityExerciseResultEgressTranslator(participant);
+            yield return new EntityExerciseResultIngressTranslator(participant, entityMap);
             // ⭐ CE-3216 S1 — authored weather (the global and every region), owner → every node; WeatherField derives the rest.
             yield return new EntityWeatherEgressTranslator(participant);
             yield return new EntityWeatherIngressTranslator(participant, entityMap);
@@ -209,6 +222,9 @@ namespace Hrot.Map.Common.Translators
             //   synthetic one over HTTP), every other node takes it in. 📄 DESIGN_Building_Clearing.md §3, §5b.
             yield return new Hrot.Network.Translators.SquadReportEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.Translators.SquadReportIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐ rules S2-f (SR-121) — a message to the players: published once by the raising node, raised as PlayerMessageEvent on every other (the SquadReport shape).
+            yield return new Hrot.Network.Translators.PlayerMessageEgressTranslator(participant, localNodeId);
+            yield return new Hrot.Network.Translators.PlayerMessageIngressTranslator(participant, localNodeId);
         }
     }
 }

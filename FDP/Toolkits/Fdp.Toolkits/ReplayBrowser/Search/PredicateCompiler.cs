@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     /// <summary>
     /// Compiles SearchPredicateDto trees into Func&lt;EntityRepository, Entity, bool&gt; delegates.
     /// </summary>
-    public sealed class PredicateCompiler : IPredicateCompiler
+    public sealed partial class PredicateCompiler : IPredicateCompiler
     {
         private readonly IComponentEditService _editService;
         private readonly BehaviorRegistry _behaviorRegistry;
@@ -35,7 +35,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public Func<EntityRepository, Entity, bool> CompileComponentPredicate(SearchPredicateDto root)
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
-            return Compile(root);
+            return Compile(root, PredicateMode.Scan);
+        }
+
+        /// <inheritdoc/>
+        public Func<EntityRepository, Entity, bool> CompileLevelPredicate(SearchPredicateDto root)
+        {
+            if (root == null) throw new ArgumentNullException(nameof(root));
+            return Compile(root, PredicateMode.State);
         }
 
         /// <inheritdoc/>
@@ -46,12 +53,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             return result;
         }
 
-        private Func<EntityRepository, Entity, bool> Compile(SearchPredicateDto dto)
+        private Func<EntityRepository, Entity, bool> Compile(SearchPredicateDto dto, PredicateMode mode)
         {
             switch (dto)
             {
                 case CompoundPredicateDto compound:
-                    return CompileCompound(compound);
+                    return CompileCompound(compound, mode);
 
                 case PropertyMatchDto prop:
                     return CompilePropertyMatch(prop);
@@ -70,7 +77,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 case BlueprintVariablePredicateDto blueprintVar:
                     return CompileBlueprintVariablePredicate(blueprintVar);
 
-                // Specialized loop predicates: pass-through; handled by the service.
+                // ⭐ CE-4164 — the LEVEL arms (PredicateCompiler.Level.cs): what a trigger's `when` asks every frame.
+                case SpatialBoundingPredicateDto spatial when mode == PredicateMode.State: return CompileSpatialLevel(spatial);
+                case LifecyclePredicateDto lifecycle when mode == PredicateMode.State: return CompileLifecycleLevel(lifecycle);
+                case StructuralPredicateDto structural when mode == PredicateMode.State: return CompileStructuralLevel(structural);
+                case TransientEventPredicateDto transient when mode == PredicateMode.State: return CompileEventLevel(transient);
+
+                // Both modes: the new leaves.
+                case OnEntityPredicateDto onEntity: return CompileOnEntity(onEntity, mode);
+                case ScenarioTimePredicateDto time: return CompileScenarioTime(time);
+                case CountMatchingPredicateDto count: return CompileCountMatching(count, mode);
+
+                // Specialized loop predicates: SEARCH mode passes through; handled by the service (edge / loop scanners).
                 case StructuralPredicateDto _:
                 case SpatialBoundingPredicateDto _:
                 case LifecyclePredicateDto _:
@@ -78,17 +96,28 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     return static (_, _) => true;
 
                 // Value predicates used standalone: pass-through (normally nested inside PropertyMatch).
-                default:
+                case SearchPredicateValueDto _:
+                // Evaluated OUTSIDE this per-entity path: a ring entry / a value change by their own scanners, a behaviour step by the
+                // editor's evaluator (DataBreakpointManager mounts each on its own arm) — pass-through, as before CE-4159.
+                case RingEntryPredicateDto _:
+                case ValueChangePredicateDto _:
+                case BehaviourStepPredicateDto _:
                     return static (_, _) => true;
+
+                // ⭐⭐ CE-4159 (DESIGN_Scenario_Rules.md SR-108) — a DTO with no arm is a LOUD error. ⛔ It compiled to constant TRUE: nested in
+                //   a Compound it made the whole condition true with no error (a new predicate type, a trigger's OnEntity, a typo'd type).
+                default:
+                    throw new NotSupportedException(
+                        $"PredicateCompiler: no compiler arm for predicate type '{dto?.GetType().FullName ?? "null"}' — add an arm (or a deliberate pass-through) in PredicateCompiler.Compile.");
             }
         }
 
-        private Func<EntityRepository, Entity, bool> CompileCompound(CompoundPredicateDto compound)
+        private Func<EntityRepository, Entity, bool> CompileCompound(CompoundPredicateDto compound, PredicateMode mode)
         {
             // Compile all child predicates upfront.
             var childFuncs = new Func<EntityRepository, Entity, bool>[compound.Conditions.Count];
             for (int i = 0; i < compound.Conditions.Count; i++)
-                childFuncs[i] = Compile(compound.Conditions[i]);
+                childFuncs[i] = Compile(compound.Conditions[i], mode);
 
             if (compound.Operator == LogicalOperator.And)
             {
@@ -550,6 +579,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         private static void CollectMandatoryComponents(SearchPredicateDto dto, List<Type> result)
         {
+            // ⭐ CE-4164 — OnEntity / CountMatching evaluate OTHER entities (ScenarioTime none), so they contribute nothing to THIS entity's mandatory set.
+            if (dto is OnEntityPredicateDto or ScenarioTimePredicateDto or CountMatchingPredicateDto) return;
             if (dto is CompoundPredicateDto compound && compound.Operator == LogicalOperator.And)
             {
                 foreach (var condition in compound.Conditions)

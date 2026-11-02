@@ -15,8 +15,8 @@ namespace Hrot.Network.NED.Tests
         private static SimpleClusterStateCache Cache()
         {
             var cache = new SimpleClusterStateCache();
-            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(2), Role = NodeRole.Perception | NodeRole.NavigationSolver, CpuUsagePercent = 90f });
-            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(3), Role = NodeRole.Perception | NodeRole.MuscleGround, CpuUsagePercent = 5f });
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(2), Role = NodeRole.Perception | NodeRole.NavigationSolver });
+            cache.UpdateNode(new NodeCapability { NodeId = (Fdp.Core.NodeId)(3), Role = NodeRole.Perception | NodeRole.MuscleGround });
             return cache;
         }
 
@@ -24,10 +24,10 @@ namespace Hrot.Network.NED.Tests
         public void ANewSensor_JoinsItsSiblingsSolver_EvenWhenAnotherNodeIsLessLoaded()
         {
             var cache = Cache();
-            var solverOf = new Dictionary<(int, int), int> { [(7, 1000)] = 2, [(8, 1000)] = 3 };
+            var solverOf = new Dictionary<(int, int), int> { [(7, 1000)] = 3 };
 
-            Assert.Equal(2, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
-            Assert.Equal(3, cache.GetLeastLoadedNode(NodeRole.Perception));   // what the old pick would have chosen
+            Assert.Equal(3, EqsSensorConfigEgressTranslator.SiblingSolver(solverOf, (7, 1001), NodeRole.Perception, cache.AllNodeIds(), cache));
+            Assert.Equal(2, cache.GetLeastLoadedNode(NodeRole.Perception));   // what the plain pick would have chosen (the lowest node id: no load is measured)
         }
 
         [Fact]

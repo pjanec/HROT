@@ -47,7 +47,41 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(BehaviourStepPredicateDto),      "BehaviourStep")]
     [JsonDerivedType(typeof(RingEntryPredicateDto),          "RingEntry")]
     [JsonDerivedType(typeof(ValueChangePredicateDto),        "ValueChange")]
-    public abstract class SearchPredicateDto { }
+    // ⭐ CE-4164 (S2-b) — the leaves a trigger's `when` needs beyond a single entity's data; compiled in BOTH modes.
+    [JsonDerivedType(typeof(OnEntityPredicateDto),           "OnEntity")]
+    [JsonDerivedType(typeof(ScenarioTimePredicateDto),       "ScenarioTime")]
+    [JsonDerivedType(typeof(CountMatchingPredicateDto),      "CountMatching")]
+    // ⭐ SR-160 — every predicate node may bind its own properties to macro / scenario params (Bind); the trigger's do entries share the base.
+    public abstract class SearchPredicateDto : Fdp.Toolkit.Scenario.BindableNode { }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ⭐ CE-4164 — new leaves (DESIGN_Scenario_Rules §00.9 S2-b)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Evaluates <see cref="Predicate"/> on the entity <see cref="Ref"/> resolves to (not on the entity being asked about); unresolved or dead ⇒ false.</summary>
+    public sealed class OnEntityPredicateDto : SearchPredicateDto
+    {
+        public Fdp.Toolkit.Replication.EntityLink Ref { get; set; }
+        public SearchPredicateDto Predicate { get; set; } = null!;
+    }
+
+    /// <summary>True while the sim time (seconds since the start) is in <c>[FromSeconds, ToSeconds)</c>.</summary>
+    public sealed class ScenarioTimePredicateDto : SearchPredicateDto
+    {
+        public double FromSeconds { get; set; } = 0;
+        public double ToSeconds { get; set; } = double.MaxValue;
+    }
+
+    /// <summary>True when <c>Min ≤ n ≤ Max</c>, n = the entities matching <see cref="Predicate"/> — among those with <see cref="WithComponent"/>,
+    /// else every entity with a <c>SimTransform</c>.</summary>
+    public sealed class CountMatchingPredicateDto : SearchPredicateDto
+    {
+        public SearchPredicateDto Predicate { get; set; } = null!;
+        public int Min { get; set; } = 1;
+        public int Max { get; set; } = int.MaxValue;
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type? WithComponent { get; set; }
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Compound

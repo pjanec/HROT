@@ -275,7 +275,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐ CE-454 (W3): the one mapper list both Brain hosts share. ⚠ NOT gated on authority (CGF's gate follows a role policy; the editor is offline and has none).
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
-        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry);
+        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus);
 
         // ⭐⭐⭐ S2a — host (d) on the capability axis. The two arms stay two PLAN SHAPES (a null capability registered as if real is the silent-default shape).
         var plan = _muscleCapabilitiesFactory == null
@@ -384,6 +384,12 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
             IsBroadcastArbiter = true,
             // ⭐ CE-4024 — a request's InitialAttributesJson is applied here as on every networked host (the editor held the compiler and passed none).
             JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(),
+            // ⭐ Macros S3a ④ — the editor loads scenarios, so it expands the macro instances it creates (§15 E-4).
+            Macros = new Hrot.Common.Macros.MacroExpander(
+                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                new StagingEntityExtractor(),
+                ScenarioSerializer,
+                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
         });
         EntityCreation = creation;   // CE-515
 

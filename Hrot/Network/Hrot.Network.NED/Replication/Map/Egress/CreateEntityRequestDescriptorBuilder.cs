@@ -115,6 +115,13 @@ namespace Hrot.Map.Common.Replication.Egress
                             _d         = EDescriptorType.dtEntityGuid,
                             StableGuid = Hrot.Map.Common.Replication.Egress.EntityStableGuidEgressTranslator.ToSample(0, guid),
                         });
+                    // ⭐ macros S3a ③ — a macro instance's MacroInstance travels with the forwarded request
+                    else if (component is Fdp.Toolkit.Scenario.MacroInstance macroInstance)
+                        descriptors.Add(new EntityDescriptorUnion
+                        {
+                            _d            = EDescriptorType.dtMacroInstance,
+                            MacroInstance = Hrot.Map.Common.Replication.Egress.EntityMacroInstanceEgressTranslator.ToSample(0, macroInstance),
+                        });
                     else if (component is Fdp.Toolkit.Combat.AreaEffectCloud cloud)
                         descriptors.Add(new EntityDescriptorUnion
                         {

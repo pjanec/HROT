@@ -156,9 +156,27 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4153 (docs/DESIGN_Scenario_Entity_Keys.md S3) — an entity's STABLE scenario identity (its creator → every node, no group): whichever
         //   node owns the entity at save time writes the same file key. 157 measured free in this tree 2026-10-31 (the 160–169 block is Traffic's).
         dtEntityGuid                  = 157,
+        // ⭐ macros S3a ③ (docs/DESIGN_Scenario_Macros.md §14 SR-170 / SR-175 / SR-178, R-134) — a macro instance, its expansion verdict and an expanded
+        //   entity's origin (each its creator → every node, no group). 158 / 159 / 170 measured free on all four lanes 2026-11-02 (160–169 is Traffic's block).
+        dtMacroInstance               = 158,
+        dtMacroExpansionStatus        = 159,
+        dtMacroOrigin                 = 170,
+        // ⭐ macros S3a ⑤ (docs/DESIGN_Scenario_Macros.md §14.2 SR-180, R-134) — the placement query pair, the dtPathRequestBatch / dtPathResponseBatch shape
+        //   (enum only: a topic of its own, not a creation-request arm). ⚠ 180 / 181, NOT 171 / 172: the rules took 171–179 on behaviors the
+        //   same day (dtObjectiveStatus 171, NOTE_Behaviors_To_Backend_Descriptor_170.md) — measured free on all four lanes 2026-11-02.
+        dtPlacementRequestBatch       = 180,
+        dtPlacementResponseBatch      = 181,
         // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
         //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
         dtTrafficDemand               = 160,
+        // ⭐ rules S1-a (docs/DESIGN_Scenario_Rules.md §00.8) — the RULES block 171–179: 171 an objective / measure / trigger's status (its Brain →
+        //   every node); 172 dtExerciseResult and 173 dtPlayerMessage are S2's. ⚠ 170 went to backend's dtMacroOrigin the same afternoon
+        //   (both lanes measured it free 2026-11-02, two hours apart) — the rules moved up one; macros and rules share the 170s.
+        dtObjectiveStatus             = 171,
+        //   ⭐ rules S2-e / S2-f — 172 the exercise's phase and outcome per side (the World Environment's owner → every node, state); 173 a message to
+        //   the players (an EVENT topic: published once by the raising node, raised again on every other).
+        dtExerciseResult              = 172,
+        dtPlayerMessage               = 173,
         // etc., all known descriptor types here
     }
 
@@ -194,6 +212,10 @@ namespace Hrot.NED.Descriptors
         //   stamps the same EntityGuid the loading node read from the file.
         [DdsCase(EDescriptorType.dtEntityGuid)]
         public EntityStableGuid StableGuid;
+
+        // ⭐ macros S3a ③ — an instance authored on one node and FORWARDED to the expanding node keeps its MacroInstance on the request (status / origin do not ride it).
+        [DdsCase(EDescriptorType.dtMacroInstance)]
+        public EntityMacroInstance MacroInstance;
 
     }
 }

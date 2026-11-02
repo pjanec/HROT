@@ -270,12 +270,13 @@ namespace Fdp.Toolkit.Scenario
             // ⚠ The Header node is written only when it has something to say. ⛔⛔ R-4018: never a TKB name —
             //   a scenario does not name a TKB (one TKB per deployment).
             //   ⭐ CE-3288 — and the scenario's description, when it has one (§4d)
-            if (header.TerrainName != null || !string.IsNullOrWhiteSpace(header.Description) || worldNode != null)
+            if (header.TerrainName != null || !string.IsNullOrWhiteSpace(header.Description) || worldNode != null || ScenarioHeaderJson.HasAny(header))
             {
                 var headerNode = new JsonObject();
                 if (header.TerrainName != null) headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
                 if (!string.IsNullOrWhiteSpace(header.Description)) headerNode["Description"] = JsonValue.Create(header.Description);
                 if (worldNode != null) headerNode[ScenarioWorldSection.SectionName] = worldNode;   // ⭐ CE-4154
+                ScenarioHeaderJson.Write(headerNode, header);   // ⭐ Macros S3a ② — kind · params · anchor · placement · relocatable (only what is set)
                 root["Header"] = headerNode;
             }
             // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from

@@ -41,6 +41,29 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("feature", Required = false, HelpText = "A node feature override, repeatable: id=on|off, or id={\"Key\":value} (a partial config). E.g. --feature hud.kill-cam=off --feature hud.kill-cam={\"Seconds\":3}")]
         public IEnumerable<string>? FeatureTexts { get; set; }
 
+        /// <summary>⭐ Macros S3a ⑦ (SR-41) — <c>--param name=value</c>, repeatable: a scenario arg of the startup LIVE load. The value is JSON when it
+        /// parses (<c>--param count=3</c>, <c>--param side="Hostile"</c>), else a plain string (<c>--param side=Hostile</c>).</summary>
+        [Option("param", Required = false, HelpText = "A scenario arg for the startup load (live or edit), repeatable: name=value (value = JSON, else a string). E.g. --param side=Hostile --param count=3")]
+        public IEnumerable<string>? ParamTexts { get; set; }
+
+        /// <summary>The <see cref="ParamTexts"/> as one JSON object (name → value), or null when none was given.</summary>
+        public string? ScenarioArgsJson()
+        {
+            if (ParamTexts is null) return null;
+            var o = new System.Text.Json.Nodes.JsonObject();
+            foreach (var text in ParamTexts)
+            {
+                int eq = text.IndexOf('=');
+                if (eq <= 0) throw new System.ArgumentException($"--param '{text}': expected name=value");
+                string name = text[..eq].Trim(), raw = text[(eq + 1)..];
+                System.Text.Json.Nodes.JsonNode? value;
+                try { value = System.Text.Json.Nodes.JsonNode.Parse(raw); }
+                catch (System.Text.Json.JsonException) { value = System.Text.Json.Nodes.JsonValue.Create(raw); }
+                o[name] = value;
+            }
+            return o.Count == 0 ? null : o.ToJsonString();
+        }
+
         /// <summary>The parsed <see cref="FeatureTexts"/> (valid after <see cref="Validate"/>).</summary>
         public IReadOnlyList<(string Id, string Json)> FeatureOverrides { get; private set; } = Array.Empty<(string Id, string Json)>();
 

@@ -103,15 +103,7 @@ namespace Hrot.Network.Routing
                 if (!sample.IsValid) continue;
                 _departed.Remove(sample.Data.NodeId);   // a node that comes back can leave again
                 var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : Array.Empty<string>();
-                _cache.UpdateNode(new NodeCapability
-                {
-                    NodeId             = (Fdp.Core.NodeId)(sample.Data.NodeId),
-                    Role               = NodeRoleTokens.MaskFromTokens(tokens),
-                    Capabilities       = new HashSet<string>(tokens),
-                    CpuUsagePercent    = Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(sample.Data.CpuUsage),   // ⭐ AQ107 I — the wire carries a fraction
-                    RamUsedBytes       = sample.Data.RamUsedBytes,
-                    LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
-                });
+                _cache.UpdateNode(NodeCapabilityFromHeartbeat.Map(sample.Data, tokens));
             }
         }
 

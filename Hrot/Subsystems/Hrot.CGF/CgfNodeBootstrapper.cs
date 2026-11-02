@@ -125,7 +125,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
         // P3 step 3b's EXECUTION GATE (docs/DESIGN_Role_Affinity_Ownership.md §3.5, §6f, §6i): turned on HERE and only here — it follows the role POLICY,
         // which this host has; the editor is offline, receives no ghosts, and for it the gate would only subtract.
-        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true);
+        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true, nodeBus: context.EventBus);
 
         // ⭐⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head: HealthApplication first, so damage is applied before the cognitive runtime.
         ResolvedCapabilities = CoreInfrastructureCapabilities.LiveSimulationPlan(CgfSubsystem.DefaultRole)
@@ -251,6 +251,12 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
                 new Hrot.MuscleCharacter.Animation.Translators.AnimationTkbTranslator(null),
             },
             IsBroadcastArbiter = true,
+            // ⭐ Macros S3a ④ — the Brain loads scenarios, so it expands the macro instances it creates (§15 E-4: a host holding the extractor passes it).
+            Macros = new Hrot.Common.Macros.MacroExpander(
+                Fdp.Toolkit.Scenario.FileMacroLibrary.ForNode(_isolatedTempRoot),
+                new Hrot.CGF.Orchestration.StagingEntityExtractor(),   // its own instance: no BP-509 remap broadcast for a macro's file keys
+                ScenarioSerializer,
+                Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(BehaviorRegistry)),
         });
         EntityCreation = creation;   // CE-515
 

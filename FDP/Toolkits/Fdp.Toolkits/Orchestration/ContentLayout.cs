@@ -55,6 +55,12 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public const string OpenedDirectoryName = "opened";
 
+        /// <summary>⭐ Macros S3a ② (SR-38 / SR-173, <c>docs/DESIGN_Scenario_Macros.md</c> §14.1 ①) — the top-level folder of the macro files: <c>{root}/macros/&lt;path&gt;/scenario.json</c>.</summary>
+        public const string MacrosDirectoryName = "macros";
+
+        /// <summary>The ONE file name of a macro (and of a scenario): <c>scenario.json</c> in the macro's folder.</summary>
+        public const string MacroFileName = "scenario.json";
+
         /// <summary>The <c>opened/</c> sub-area that holds the opened copies of recordings (<c>opened/recorded/&lt;exerciseId&gt;</c>).</summary>
         public const string OpenedRecordedFolder = "recorded";
 
@@ -79,6 +85,9 @@ namespace Fdp.Toolkit.Orchestration
 
         /// <summary><c>{root}/opened</c> — the "opened, not saved" area (see <see cref="OpenedDirectoryName"/>).</summary>
         public static string Opened(string root) => Path.Combine(root, OpenedDirectoryName);
+
+        /// <summary><c>{root}/macros</c> — the macro files (<see cref="MacrosDirectoryName"/>).</summary>
+        public static string Macros(string root) => Path.Combine(root, MacrosDirectoryName);
 
         /// <summary><c>{root}/assets/behaviors</c> — the final behaviour assets (the roots of Blueprints, HSMs, BTrees, Params).</summary>
         public static string BehaviorAssets(string root) => Path.Combine(Assets(root), BehaviorsDirectoryName);
@@ -111,6 +120,15 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>The prefix of an opened copy's scenario name: <c>opened/&lt;area&gt;/&lt;key&gt;</c>.</summary>
         public const string OpenedNamePrefix = OpenedDirectoryName + "/";
 
+        /// <summary>⭐ Macros S3a ② — the prefix of a macro's name: <c>macros/&lt;path&gt;</c> (e.g. <c>macros/forces/fire-team</c>).</summary>
+        public const string MacroNamePrefix = MacrosDirectoryName + "/";
+
+        /// <summary>The name that opens the macro at <paramref name="path"/> under <c>macros/</c> (<c>macros/&lt;path&gt;</c>).</summary>
+        public static string MacroName(string path) => MacroNamePrefix + Normalise(path);
+
+        /// <summary><c>true</c> when <paramref name="scenarioName"/> names a macro (<see cref="MacroNamePrefix"/>), however it is slashed.</summary>
+        public static bool IsMacroName(string? scenarioName) => Normalise(scenarioName).StartsWith(MacroNamePrefix, StringComparison.Ordinal);
+
         /// <summary>The scenario name that loads the recipe (seed) <paramref name="seed"/> — <c>recipes/scenarios/&lt;seed&gt;</c>.</summary>
         public static string ScenarioRecipeName(string seed) => ScenarioRecipeNamePrefix + seed;
 
@@ -126,7 +144,7 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>
         /// ⭐⭐⭐ <b>THE ONE name → folder resolver</b> for a scenario name against a content root (the NAS). A saved scenario is
         /// <c>{root}/scenarios/&lt;name&gt;</c>; a recipe name (<c>recipes/scenarios/&lt;seed&gt;</c>) is <c>{root}/recipes/scenarios/&lt;seed&gt;</c>;
-        /// an opened-copy name (<c>opened/…</c>) is <c>{root}/opened/…</c>. ⛔ Every NAS-side reader of "the folder of scenario X" (prefetch,
+        /// an opened-copy name (<c>opened/…</c>) is <c>{root}/opened/…</c>; a macro name (<c>macros/…</c>) is <c>{root}/macros/…</c>. ⛔ Every NAS-side reader of "the folder of scenario X" (prefetch,
         /// content names, the run's snapshot, the archive, the opened-copy stager) goes through here — nothing composes
         /// <c>Path.Combine(nas, "scenarios", name)</c> by hand. ⚠ Node STAGING is a different tree (<c>nodes/node-N/scenarios/&lt;name&gt;</c>, the name as
         /// a relative path) and is unchanged.
@@ -142,6 +160,8 @@ namespace Fdp.Toolkit.Orchestration
                 return Path.Combine(ScenarioRecipes(root), name.Substring(ScenarioRecipeNamePrefix.Length));
             if (name.StartsWith(OpenedNamePrefix, StringComparison.Ordinal))
                 return Path.Combine(Opened(root), name.Substring(OpenedNamePrefix.Length));
+            if (name.StartsWith(MacroNamePrefix, StringComparison.Ordinal))
+                return Path.Combine(Macros(root), name.Substring(MacroNamePrefix.Length));
             return Path.Combine(Scenarios(root), name);
         }
 
@@ -153,7 +173,7 @@ namespace Fdp.Toolkit.Orchestration
         /// </summary>
         public static string ResolveUnderScenariosRoot(string scenariosRoot, string scenarioName)
         {
-            if (!IsScenarioRecipeName(scenarioName) && !IsOpenedCopyName(scenarioName)) return Path.Combine(scenariosRoot, scenarioName);
+            if (!IsScenarioRecipeName(scenarioName) && !IsOpenedCopyName(scenarioName) && !IsMacroName(scenarioName)) return Path.Combine(scenariosRoot, scenarioName);
             var contentRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(scenariosRoot)))
                               ?? throw new ArgumentException("The scenarios root has no parent content root.", nameof(scenariosRoot));
             return ResolveScenarioDirectory(contentRoot, scenarioName);

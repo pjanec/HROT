@@ -134,9 +134,15 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtDescent, GlobalComponentIds.Descent);          // ⭐ airborne B-1 — a man coming down
         // ⭐ CE-4153 — no group: the entity's creator keeps its stable scenario key (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtEntityGuid, GlobalComponentIds.EntityGuid);
+        // ⭐ macros S3a ③ — no group, as dtEntityGuid: the instance's creator keeps its macro instance, expansion verdict and origin stamps.
+        map.RegisterMapping((long)EDescriptorType.dtMacroInstance, GlobalComponentIds.MacroInstance);
+        map.RegisterMapping((long)EDescriptorType.dtMacroExpansionStatus, GlobalComponentIds.MacroExpansionStatus);
+        map.RegisterMapping((long)EDescriptorType.dtMacroOrigin, GlobalComponentIds.MacroOrigin);
         map.RegisterMapping((long)EDescriptorType.dtPassengerBuffer, GlobalComponentIds.PassengerBuffer);   // ⭐ CE-3110 I-2b — the vehicle's passengers (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtWeaponSystemState, GlobalComponentIds.WeaponSystemState);
         map.RegisterMapping((long)EDescriptorType.dtTrafficDemand, GlobalComponentIds.TrafficDemand);   // ⭐ AQ93 N4 — the traffic settings (Traffic group)
+        map.RegisterMapping((long)EDescriptorType.dtObjectiveStatus, GlobalComponentIds.ObjectiveStatus);   // ⭐ rules S1-a — an objective's status (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtExerciseResult, GlobalComponentIds.ExerciseResult);   // ⭐ rules S2-e — the exercise's phase and outcome (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtScenarioClock, GlobalComponentIds.ScenarioClock);   // ⭐ CE-3216 S1-0 — the scenario clock (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtWeather, GlobalComponentIds.WeatherConditions);   // ⭐ CE-3216 S1 — authored weather (Brain group)   // ⭐ Weapon systems WS-1 — a weapon's deploy state (Brain group)
 

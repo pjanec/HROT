@@ -128,6 +128,11 @@ namespace Hrot.Map.Common
         //   inside tops a man's hands up with stones (ItemSourceDto on its template; ItemSources.Refill). Its OWN type, like the Weather
         //   Region. 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-7.
         public const long StoneSource = 8812;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ macros S3a ③ (SR-178, docs/DESIGN_Scenario_Macros.md §14) — a SCENARIO MACRO instance: the marker
+        //   entity (it HAS a position, SR-70 — a SimTransform arrives with its request) carrying MacroInstance; the expander makes the macro's entities
+        //   beside it. 8813 measured free on all four lanes 2026-11-02. Its OWN type, like the Weather Region.
+        public const long ScenarioMacro = 8813;
         // ⭐ AQ93 — the TRAFFIC block 8850–8859 (SUMO), kept clear of the sequential 88xx run so two lanes cannot collide again:
         //   8812 was allocated twice on 2026-10-17 (the backend's Stone Source kept it, the traffic types moved here).
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4021 — the scenario's TRAFFIC settings: positionless like the World Environment,
@@ -137,6 +142,15 @@ namespace Hrot.Map.Common
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4038 — a SUMO CAR's replica: an inert body SUMO drives (no brain, no car
         //   kinematics — the mirror writes its pose every frame), with the civilian car's DIS type. Never in the palette.
         public const long TrafficCar = 8851;
+
+        // ⭐ rules S1-a (📄 docs/DESIGN_Scenario_Rules.md §00.8) — the RULES block 8860–8869 (objectives, triggers, measures), a block like Traffic's
+        //   so two lanes cannot collide. 8861 Trigger (S2). (Backend's ScenarioMacro took 8813, so 8862 is free.)
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ rules S1 — an OBJECTIVE (or a measure / aggregator): positionless like the World Environment, a
+        //   brain with no body that runs one objective behaviour (ReachArea, HoldArea ...) and carries ObjectiveStatus. Never in the palette.
+        public const long Objective = 8860;
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ rules S2-c — a TRIGGER: an objective-like entity (positionless, a brain with no body, ObjectiveStatus with
+        //   Role = Trigger) that runs the one `Trigger` behaviour — the §10.11 state machine. Never in the palette.
+        public const long Trigger = 8861;
 
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.

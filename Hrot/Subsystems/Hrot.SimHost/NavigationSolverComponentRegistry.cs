@@ -50,6 +50,9 @@ public static class NavigationSolverComponentRegistry
 
         world.RegisterEvent<PathfindingRequestEvent>();
         world.RegisterEvent<PathfindingResultEvent>();
+        // ⭐ macros S3a ⑤ (SR-180) — the placement query's two managed events (lists ⇒ managed), beside the path pair.
+        world.RegisterManagedEvent<PlacementRequestBatch>();
+        world.RegisterManagedEvent<PlacementResponseBatch>();
 
         // ⭐ The corridor the solver's PathfindingResultMaterializationSystem ADDS on a reachable MoveTo. 🔴 Found by the
         //   2026-10-03 live run: no production registry registered it, and it never mattered while the solver ran only

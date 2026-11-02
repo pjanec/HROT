@@ -159,6 +159,8 @@ public static class EditorCapabilities
 
         public string Key => CapabilityKeys.Brain;
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+        /// <summary>⭐ rules S2 ⑨ — <c>exercise.pause-on-end</c>: the pack carries <c>ExercisePauseOnEndSystem</c>.</summary>
+        public IReadOnlyList<Hrot.Common.Infrastructure.FeatureDeclaration> Features { get; } = new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature };
 
         public void PopulateSystems(
             HrotNodeContext context,

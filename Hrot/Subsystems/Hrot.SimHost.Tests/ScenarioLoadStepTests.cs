@@ -187,6 +187,42 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Equal((null, null), Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(world));   // ⭐ CE-4058 ② — a new scenario names none
     }
 
+    /// <summary>⭐⭐ Macros S3a ⑦ (SR-41, SR-176) — a load's scenario ARGS: the load message's args over the header's defaults are applied, and
+    /// what was applied is stamped resident (the recording keeps it); an arg the scenario does not declare refuses the load in its PREPARE.</summary>
+    [Fact]
+    public async Task SR41_TheLoadsArgs_AreApplied_AndKeptForTheRecording_AnUndeclaredArgRefusesTheLoad()
+    {
+        _goldRepo.CreateEntity();
+        var dom = System.Text.Json.Nodes.JsonNode.Parse(SerializeGold())!.AsObject();
+        if ((dom["Header"] ?? dom["header"]) is not System.Text.Json.Nodes.JsonObject header)
+            dom["Header"] = header = new System.Text.Json.Nodes.JsonObject();   // an empty header is not written
+        header["Params"] = System.Text.Json.Nodes.JsonNode.Parse("""[{"Name": "side", "TypeId": "ForceId", "Default": "Hostile"}, {"Name": "count", "TypeId": "int", "Default": 2}]""");
+        string json = dom.ToJsonString();
+
+        using var world = new EntityRepository();
+        var step = MakeStep(json, NewBus());
+        var ctx  = Ctx(Guid.NewGuid()) with { ScenarioArgsJson = """{"side": "Friend"}""" };
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+
+        var applied = System.Text.Json.Nodes.JsonNode.Parse(Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(world)!)!.AsObject();
+        Assert.Equal("Friend", applied["side"]!.GetValue<string>());   // the run's arg
+        Assert.Equal(2, applied["count"]!.GetValue<int>());             // the header's default
+
+        // ⭐ macros debt A5 — an EDIT load binds the same way (one ScenarioLoadStep serves both targets)
+        using var editWorld = new EntityRepository();
+        var editCtx = Ctx(Guid.NewGuid(), ClusterState.LoadingEdit) with { ScenarioArgsJson = """{"count": 5}""" };
+        var editStep = MakeStep(json, NewBus());
+        await editStep.PrepareAsync(editCtx, CancellationToken.None);
+        editStep.Commit(editCtx, editWorld);
+        var editApplied = System.Text.Json.Nodes.JsonNode.Parse(Fdp.Toolkit.Scenario.ScenarioDescription.ArgsOf(editWorld)!)!.AsObject();
+        Assert.Equal(("Hostile", 5), (editApplied["side"]!.GetValue<string>(), editApplied["count"]!.GetValue<int>()));
+
+        var bad = Ctx(Guid.NewGuid()) with { ScenarioArgsJson = """{"colour": "red"}""" };
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => MakeStep(json, NewBus()).PrepareAsync(bad, CancellationToken.None));
+        Assert.Contains("arg 'colour' is not a param", ex.Message);
+    }
+
     /// <summary>⭐ <c>CE-3288</c> — the shipped scenario files write the header camelCase (<c>header.description</c>); a save writes it
     /// PascalCase. Both read; a scenario with none reads null and still loads.</summary>
     [Fact]

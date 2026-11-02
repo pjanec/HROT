@@ -2814,6 +2814,20 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"last\":20}",
             ExampleGist: "the last reports up the chain"),
 
+        [("GET", "/objectives")] = new RouteDoc(
+            Tool:    "get_objectives",
+            Group:   "K — AI behavior traces",
+            Summary: "The minimal mission summary (rules S1-g): every objective / measure status on THIS node and the tree by parent — on a non-Brain node these are the REPLICATED statuses (dtObjectiveStatus).",
+            Returns: "{ objectives:[{networkId, title, kind, role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId]; Role=Trigger rows add triggerState, fireCount, lastFired}], roots:[networkId] } — roots first, depth-first by title",
+            Hint:    "Optional: tree=1 (children nested as objects). Read on any node. Example: get_objectives({})",
+            Params: new RouteParam[]
+            {
+                new("tree", "number", false, "1 = nest each objective's children as objects"),
+            },
+            Notes: new[] { "A state is one of Pending, Active, Achieved, Failed, Inactive, Skipped; Score is 0..1 (a Skipped one is excluded from its parent's mean)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "how is the squad doing against its objectives"),
+
         [("GET", "/entities/{networkId}/squad")] = new RouteDoc(
             Tool:    "get_entity_squad",
             Group:   "K — AI behavior traces",

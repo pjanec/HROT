@@ -44,7 +44,9 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtCombatProficiency),     // ⭐ CE-3259 — what a soldier CAN do
         D(EDescriptorType.dtEngagementArea),        // ⭐ CE-3261 — a sector
         D(EDescriptorType.dtUtterance),             // ⭐ CE-3264 — speech
-        D(EDescriptorType.dtDemeanour) };           // ⭐ CE-3265 — mood
+        D(EDescriptorType.dtDemeanour),             // ⭐ CE-3265 — mood
+        D(EDescriptorType.dtObjectiveStatus),     // ⭐ rules S1-a — an objective's status (its own Brain)
+        D(EDescriptorType.dtExerciseResult) };      // ⭐ rules S2-e — the exercise's phase and outcome (the World Environment's Brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
