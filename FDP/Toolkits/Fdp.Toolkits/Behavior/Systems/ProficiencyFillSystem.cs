@@ -45,6 +45,36 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (found && (!set || p.Unit != value)) { p.Unit = value; p.Set |= CombatProficiency.UnitSet; }
                 else if (!found && set) { p.Unit = 0f; p.Set = (byte)(p.Set & ~CombatProficiency.UnitSet); }
             }
+            FillSideTiers(repo);
+        }
+
+        private EntityQuery? _brains, _amplifiers;
+
+        /// <summary>
+        /// ⭐⭐ Macros S3b B3 (SR-100) — every man with a brain gets his SIDE's amplifier tiers (<see cref="CombatProficiency.SideTiers"/>) from the
+        /// world's <see cref="SkillAmplifier"/> (on the World Environment). ⭐ By SIDE, not by command chain — a man with no commander and a man a macro
+        /// inserted are reached the same way (he is filled the tick after he exists). Writes only on a change; adds the component only for a non-zero
+        /// amplifier, so a scenario that never sets one changes nothing.
+        /// </summary>
+        private void FillSideTiers(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<SkillAmplifier>() || !repo.IsComponentTypeRegistered<EntityInfo>() || !repo.IsComponentTypeRegistered<BehaviorState>()) return;
+            SkillAmplifier amp = default;
+            _amplifiers ??= repo.Query().With<SkillAmplifier>().Build();
+            foreach (var e in _amplifiers) { amp = repo.GetComponentRO<SkillAmplifier>(e); break; }
+            _brains ??= repo.Query().With<BehaviorState>().With<EntityInfo>().Build();
+            foreach (var man in _brains)
+            {
+                if (_gateOnAuthority && !repo.HasAuthority<BehaviorState>(man)) continue;
+                int tiers = amp.TiersOf(repo.GetComponentRO<EntityInfo>(man).ForceId);
+                if (!repo.HasComponent<CombatProficiency>(man))
+                {
+                    if (tiers != 0) repo.AddComponent(man, new CombatProficiency { SideTiers = (sbyte)tiers });
+                    continue;
+                }
+                if (repo.GetComponentRO<CombatProficiency>(man).SideTiers != tiers)   // ⭐ RW only on a change: a write is what egress and the recorder see
+                    repo.GetComponentRW<CombatProficiency>(man).SideTiers = (sbyte)tiers;
+            }
         }
 
         /// <summary>The nearest commander's authored proficiency above <paramref name="man"/>.</summary>

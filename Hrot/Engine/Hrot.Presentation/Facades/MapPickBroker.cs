@@ -75,6 +75,15 @@ public sealed class MapPickBroker : IMapPickContext
         => _pendingPath == jsonPath && (IsEntityPickPending || IsLocationPickPending || _areaEditTask is { IsCompleted: false });
 
     /// <inheritdoc/>
+    public bool CanShowOnMap => _pickService()?.CanShowOnMap ?? false;
+
+    /// <inheritdoc/>
+    public void ShowOnMap(EntityRef entity) => _pickService()?.ShowOnMap(entity);
+
+    /// <inheritdoc/>
+    public void ShowOnMap(Fdp.Core.WorldPoint point) => _pickService()?.ShowOnMap(point);
+
+    /// <inheritdoc/>
     public void RequestAreaEdit(string jsonPath, AreaLink start)
     {
         var service = _pickService();

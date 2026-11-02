@@ -93,6 +93,12 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         public GizmoSettingsRegistry? Settings { get; init; }
 
+        /// <summary>⭐ SR-191 (docs/DESIGN_Scenario_Macros.md §14.4) — draw entities a scenario save never writes (<c>ScenarioIgnoreTag</c>) dimmed:
+        /// the scenario EDITOR's authoring map sets it (there the saved / not-saved split matters; in a run every entity is live). It is the
+        /// map's <i>starting</i> choice — the user's own tick of the layer panel's <i>Dim transient entities</i> row, remembered in their map
+        /// preferences, wins over it.</summary>
+        public bool DimTransientEntities { get; init; }
+
         /// <summary>
         /// Which entities carry drag handles. ⭐ Genuinely per-host: a dumb terminal draws handles for
         /// everything (<c>null</c>), an editor draws them only on the selection.

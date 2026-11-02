@@ -199,6 +199,9 @@ namespace Hrot.SimHost.Tests
                 Repo.Bus.SwapBuffers();
                 if (Repo.Bus.IsRegistered<ExerciseEndedEvent>()) Ended += Repo.ReadEvents<ExerciseEndedEvent>().Length;
                 if (Repo.Bus.IsRegisteredManaged<PlayerMessageEvent>()) foreach (var m in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<PlayerMessageEvent>()) Messages.Add(m);
+                // ⭐ macros S3b B1 — what InsertMacro asked the creation path for (the rail plays the creating node)
+                if (Repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>())
+                    foreach (var r in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>()) Created.Add(r);
                 // ⭐ rules S2 ⑨ — the mission-control seam: record what a verb asked, and answer it like MissionControlExecutionSystem would (the rail picks the code)
                 if (Repo.Bus.IsRegisteredManaged<Hrot.Common.Events.MissionControlIntent>())
                     foreach (var mi in ((Fdp.ModuleHost.Abstractions.ISimulationView)Repo).ReadManagedEvents<Hrot.Common.Events.MissionControlIntent>())
@@ -244,6 +247,7 @@ namespace Hrot.SimHost.Tests
             /// <summary>⭐ rules S2 ⑧ — the exercise-ended events and player messages seen so far (read after each swap, so each is counted once).</summary>
             public int Ended;
             public readonly List<PlayerMessageEvent> Messages = new();
+            public readonly List<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> Created = new();
 
             /// <summary>⭐ rules S2 ⑧ — the World Environment: the positionless entity carrying the scenario clock (what <c>EndExercise</c> finds).</summary>
             public Entity Environment()

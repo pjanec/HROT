@@ -18,6 +18,15 @@ public interface IMapPickService
     /// Optional cancellation token. When cancelled the returned task transitions
     /// to a <see cref="TaskCanceledException"/> fault.
     /// </param>
+    /// <summary>⭐ <c>CE-4206</c> R3 (F8) — this service can centre the map (a host with a canvas). Default false.</summary>
+    bool CanShowOnMap => false;
+
+    /// <summary>⭐ <c>CE-4206</c> R3 (F8) — centres the map on a network-id entity. Default: nothing.</summary>
+    void ShowOnMap(Fdp.Toolkit.Replication.EntityRef entity) { }
+
+    /// <summary>⭐ <c>CE-4206</c> R3 (F8) — centres the map on a local-metres point. Default: nothing.</summary>
+    void ShowOnMap(Fdp.Core.WorldPoint point) { }
+
     /// <summary>
     /// ⭐ <c>CE-4206</c> R2 (DESIGN_Map_Picking_Unification §6.3 F6) — edits an <see cref="Fdp.Toolkit.Replication.AreaLink"/> SHAPE (circle / rectangle) on the map with
     /// handles, starting from <paramref name="start"/> (a non-shape start = place a new circle with the first click). Completes with the edited shape on Enter / right-click;

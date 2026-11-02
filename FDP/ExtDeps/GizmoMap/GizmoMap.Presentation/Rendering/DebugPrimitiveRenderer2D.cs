@@ -543,6 +543,9 @@ namespace GizmoMap.Presentation
                         // Constant 1-pixel border regardless of zoom (1 world unit * zoom would
                         // scale up; divide by zoom so the on-screen stroke stays 1 px).
                         float strokePx = zoom > 0f ? 1f / zoom : 1f;
+                        // ⭐ SR-191 — the unmapped-class rectangle of a transient entity is filled like any other footprint (outline unchanged)
+                        if ((prim.ConditionMask & (uint)EntityShapeCondition.Transient) != 0)
+                            Raylib.DrawRectangleRec(rect, PerspectiveShapeRenderer.TransientFillColor(color));
                         Raylib.DrawRectangleLinesEx(rect, strokePx, new Color((byte)255, (byte)0, (byte)255, color.A));
                         // ⭐ W2 (VE-O) — a wreck with no profile still gets its X.
                         if ((prim.ConditionMask & (uint)EntityShapeCondition.Destroyed) != 0)

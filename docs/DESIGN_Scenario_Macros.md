@@ -823,6 +823,14 @@ anything exists, so ONE request carries every child of every level, and the load
 | **SR-191** ✅ `2026-11-02` | how a transient entity looks on the map | ⭐ one more CONDITION bit, `Transient = 8`, set from `ScenarioIgnoreTag` — drawn at **reduced opacity (≈ 55 %) of its normal side colour**, outline kept solid so the shape and side stay readable; ⭐ selecting a macro INSTANCE draws a line to every entity it expanded (SR-192 — supersedes the halo first proposed here). ⭐ Shown in the scenario EDITOR's authoring map only (in a run every entity is live — nobody needs the saved / not-saved split there); a map-layer toggle turns it off. ⭐ The same split is the ORBAT Scenario view's *Saved* / *Transient* groups (HV-3) |
 | **SR-192** ✅ `2026-11-02` | lines from a selected instance to its members | ⭐ the SQUAD gizmo's pattern, measured: `SquadGizmo` (`ScenarioEditor/Gizmos/SquadGizmo.cs:23-53`) is a `[GizmoProjector(UnitRoster, SquadCognitiveState, SimTransform, Family = SquadAssignment)]` stateless gizmo that the map draws for the SELECTED and PINNED squads, a line from the commander to every member (`draw.DrawLine`, layer `SquadCommand`). ⭐ So: ONE `MacroMembersGizmo`, `[GizmoProjector(MacroExpansionStatus, SimTransform, Family = MacroMembers)]` (keyed on the instance's unmanaged status — `MacroInstance` is a managed record), a thin line in the macro MARKER's colour (SR-178) from the instance to every entity whose `MacroOrigin.Instance` is it — ⛔ not a side colour, so it never reads as a command line. ⭐ DIRECT members only: a nested instance is itself a member with its own marker; select it for its lines. ⭐ The family is one more bit in the gizmo family enum (`AiOverlayFlags`, a `ushort` with bits 0–8 used — `MacroMembers = 1 << 9`). ⭐ A failed expansion draws no lines and the status reason over the marker (SR-182). Rail: a selected instance with three members draws three lines; an unselected one draws none |
 
+**As built `2026-11-03` (ui, W-M1; the lines below SUPERSEDE the matching lean wording above where they differ):**
+
+| row | as built | deviation |
+|---|---|---|
+| **SR-191** transient look | `EntityShapeCondition.Transient = 8`, set in `EntityPresentationGizmo` when the entity has `ScenarioIgnoreTag` AND the setting `map.entity.dimTransient` (`TransientLookSetting`, default OFF) is on; only the scenario EDITOR's map starts it on (`MapInteractionContext.DimTransientEntities`, written before the user's `map-layers.json` loads so their own tick wins). The layer panel's Map group has the row *Dim transient entities* (`MapLayerGroup.DimTransientSetting`, read and written with the family scopes; a `…Setting` row is no per-view layer). Rails: bit set / absent (setting off, no registry) · the fill colour is 55 % of the side colour's alpha and the footprint is railed | ⚠ **every shape profile is OUTLINE-ONLY** (`IsFilled` is never read), so there was no fill to dim: `PerspectiveShapeRenderer` now draws a filled FOOTPRINT quad at 55 % under the outline (and `DebugPrimitiveRenderer2D`'s unmapped-class rectangle likewise); the outline keeps the full side colour |
+| **SR-192** member lines | `MacroMembersGizmo` (`Hrot.Presentation/ScenarioEditor/Gizmos`), `AiOverlayFlags.MacroMembers = 1 << 9`: a thin line from the instance to every entity whose `MacroOrigin.Instance.Resolve(view)` is it (direct members), in `MacroMarker.LineColour` (violet 170,90,220 — ONE definition, `Hrot.Common.Diagnostics.Gizmos.MacroMarker`, also the marker's colour); `Failed` ⇒ no lines and `macro failed: <reason>` over the marker. Layer `SquadCommand`. Rails: three members ⇒ three lines (a stranger's not) · selected draws, unselected does not · Failed draws the reason only | ⚠ the family is NOT a brain family: `GizmoFamilies.IsBrainFamily` excludes it (since CE-1329 every brain family — SquadAssignment too — is pinned-only, which would have made *selecting* the instance draw nothing). It is not in `GizmoFamilies.All`, so it has no Brain-tab tick and no pin; **selecting the instance is the switch**. Layer: reused `SquadCommand` (a layer of its own would move `LayerControlDto.FirstUntoggledLayer` for four lines) |
+| **SR-178** marker | `DefaultEntityShapeLibrary.ScenarioMacro` ("scenario_macro": a square frame and an M, solid lines only) · `EntityClassShapeLibrary.ProfileOfClass["ScenarioMacro"]` points at it · `EntityPresentationGizmo.ColourOf` gives a `MacroInstance` entity `MacroMarker.Colour`, every other entity its live side. Still pickable (its pick box is unchanged) | — |
+
 **Rejected — one line each (SR-191):**
 - *A darker shade of the side colour* — shades already separate sides and conditions; a dark-blue friend next to a dark-red enemy on a dark map stops reading.
 - *A dashed outline* — MIL-STD-2525's dashed frame means *planned / anticipated / suspected*; a military user would read a real, present unit as not there.
@@ -1021,3 +1029,145 @@ land on each other.
 | A6 | a child's placement layer and radius come from its TKB template: `LocomotionDto.Class` (Pedestrian ⇒ infantry · Wheeled/Tracked ⇒ vehicle · Surface ⇒ amphibious · Rotorcraft/FixedWing ⇒ air), radius half of max(Length, Width) from `VehicleParametersDto`; no template ⇒ the DIS-type rule of §15.2 | `MacroExpansionSystem.LayerOf` (the pack passes `ctx.TkbDb`) | — |
 | 📌 LIVE `2026-11-02` (`--mode all`, `test-macro-two-teams`) | Team East moved (60,100) → (100,60): the solver re-placed its four men through their owner (leader at the new anchor, riflemen around it) · checkpoint `macro-b` → restore (every node resumed) → both instances `Done` with a baseline → Team Turned moved (60,140) → (140,140): reconciled, its men followed · no error in the log | — | ⚠ found: `POST /entities/{id}/component` on `MacroInstance` with `{"Args":{…}}` answers `ok` and changes nothing (the dictionary is not reached by the StructEdit patch) — args are edited through the editor's own surface (ui, S3b) |
 | A7 | `EveryEcsHostComposesTheLoadPhaseChainRails` ×2 were red because CE-1446 moved CGF's and the editor's node build into `CgfNodeBootstrapper` / `EditorNodeBootstrapper` (→ the shared `NodeBootstrapper`); four more source rails read the same stale files | `CompositionRootSource.ReadEffectiveRoot` — ONE follower of a root's delegation, used by the load-phase, cluster-handler, translator-set and live-plan rails | production was right; the rails were reading the wrong file |
+
+## 16. S3b build design — `InsertMacro` at runtime *(backend, `2026-11-02` — `HANDOFF_Coordinator_To_Backend_Macros_Debt_And_S3b.md` Part B, released by `NOTE_Coordinator_To_Backend_Start_S3b.md`)*
+
+**INVENTORY** *(graph + grep, `2026-11-02`)*: `search_graph name_pattern=".*(PointLink|Bearing|EntityLink)$"` → 1 (ImGui only; the structs are found by grep:
+`Replication/Links.cs`, `World/Bearing.cs`) · runtime creation-request producers (grep `new EntityCreationRequest`, production): 8 — `OneManCommand` is the
+behaviour-side precedent · the action machinery: `ActionCatalogue`, `StepRunner` (seeds params by `BehaviorParams.OverlayFlat`, resolves `"@Key"` links at step
+start), `ActionList.ExtractParams` (a step's nested `"params"` → `ActionArgs.Items[ArgsRef]` — `Order` uses it), `ActionFailure` (the reason channel) ·
+the creation path already expands any request carrying a `MacroInstance` (`CreateEntityRequestSystem` §3.7) · live-world ref scopes: **3** — see §16.3.
+
+```mermaid
+classDiagram
+    direction LR
+    class MacroVerbs { <<NEW, Hrot.AI.Behaviors>> InsertMacro(ref InsertMacroParams, ref InsertMacroState, self, world) NodeStatus }
+    class InsertMacroParams { <<NEW, unmanaged>> FixedString64 Macro · PointLink At · Bearing Heading · int ArgsRef }
+    class InsertMacroState { <<NEW, unmanaged>> Began · GuidLo/GuidHi · AskedAt }
+    class ActionList { <<existing, behaviors>> ExtractParams: step "params" → ArgsRef }
+    class ActionArgs { <<existing>> Items }
+    class StepRunner { <<existing>> seeds params · resolves @Key }
+    class EntityCreationRequest { <<existing>> }
+    class CreateEntityRequestSystem { <<existing>> MacroInstance ⇒ Expanding + intent }
+    class MacroExpansionSystem { <<existing>> expands, writes MacroExpansionStatus }
+    class MacroExpansionStatus { <<existing, replicated dt 159>> State · Reason }
+    StepRunner --> MacroVerbs : ticks the step
+    ActionList ..> ActionArgs : lifts params
+    MacroVerbs ..> ActionArgs : reads Items[ArgsRef]
+    MacroVerbs ..> EntityCreationRequest : publishes ONE (transient, derived GUID)
+    EntityCreationRequest --> CreateEntityRequestSystem
+    CreateEntityRequestSystem --> MacroExpansionSystem
+    MacroExpansionSystem --> MacroExpansionStatus : writes
+    MacroVerbs ..> MacroExpansionStatus : reads only (SR-96)
+```
+
+```mermaid
+sequenceDiagram
+    participant T as Trigger (do list, any node with the brain)
+    participant V as InsertMacro step
+    participant C as creation path (the servicing node)
+    participant X as MacroExpansionSystem
+    T->>V: step starts (params seeded, at resolved if "@Key")
+    V->>C: EntityCreationRequest (TkbType 8813, IsTransient, SimTransform at+heading, EntityGuid, MacroInstance{macro, params JSON})
+    V-->>T: Running
+    C->>X: instance born Expanding
+    X->>X: expand · place · create the children
+    X-->>V: MacroExpansionStatus (replicated) Done / Failed
+    V-->>T: Success, or Failure with the expander's reason (ActionFailure)
+```
+
+*What the pictures show that prose hid:* the verb adds NO second creation or expansion path — it is one request and one status read, and every part of the
+expansion (validation, placement, reconcile, cascade) is the load's own.
+
+### 16.1 Decisions (B1, as built)
+
+| | decision | why |
+|---|---|---|
+| ① | the macro's args travel as the step's nested **`"params"`** (⇒ `ArgsRef`), not a `macroArgs` key (SR-94's example) | ⭐ ONE mechanism: `ActionList.ExtractParams` lifts exactly `"params"` for every action with an `int ArgsRef` (`Order` takes a behaviour's params by it). A second key would need a second lift |
+| ② | the instance GUID is `Derive(inserter's EntityGuid, "insert:<self index>:<sim tick>")` | SR-167: replay and a restore re-insert the SAME ids; the tick separates two inserts by one trigger |
+| ③ | the instance is `IsTransient` | SR-171: the trigger is what is saved, never what it inserted |
+| ④ | Success / Failure come only from `MacroExpansionStatus` (+ a 30 s "never appeared") | SR-96: the action never counts parts |
+| ⑤ | the verb lives with the other scenario verbs (`Hrot.AI.Behaviors/.../Verbs/MacroVerbs.cs`) | ⭐ `ActionCatalogue` discovers it there like any `[SharedAiAction]` — any trigger, BTree or HSM can call it (SR-93) |
+
+| 📌 LIVE `2026-11-02` (`--mode all`, `scenarios/test-macro-insert`) | a trigger at sim 3 s inserted `test/fire-team` → instance `Done`, 4 transient men carrying the step's args (`Hostile`), the trigger ended `Done` after its `Message` · 🔴 **but the instance stood at (0,0,0), not at `@Drop`**: `StepRunner` resolved a step's links only when its params held a network id (`EntityRefRemap.HoldsRefs` — the LOAD's remap question), so a `PointLink` written as `"@Key"` was never resolved. ⇒ `HoldsLeaves` (resolution is an identity on a plain point). Rail `InsertMacro_AtAKey_StandsAtThatEntity`; a fix in behaviors' `StepRunner`, said in the commit and the note | — |
+
+### 16.2 Not in B1 — **B1b: a step's own `Bind` (SR-94 / SR-160)**
+
+⚠ A `do` entry's `Bind` is **not applied anywhere yet**: SR-160 makes a step a typed `BindableNode`, but the trigger's params contract carries `do` as a free-form
+`JsonNode`, so `ParamBinder`'s walker never reaches a step. ⭐ Closing it = typing the step (`{Act, Args, Bind}` : `BindableNode`) in the trigger's contract —
+**behaviors' type** — and the scenario load then binds it through the ONE binder with no new code. ⇒ filed for behaviors (`NOTE_Backend_To_Behaviors_Step_Bind.md`).
+
+### 16.3 ⚠ Found — **three implementations of "the reference scope of a live world"**
+
+`MacroExpansionSystem.WorldRefScope` (S3a A1) · `Fdp.Toolkit.ScenarioRules.Actions.WorldRefScope` (behaviors CE-4162) · `Fdp.Toolkit.Scenario.LiveRefScope`
+(ui CE-4206 R1 — a cached index with the reverse maps an editor needs). ✅ The first is FOLDED into the second (`2d94b8fc6`). ⏭ The remaining two differ only in
+caching and the reverse maps; `LiveRefScope` is the superset ⇒ the step runner can use it and `WorldRefScope` retire — two other lanes' files, so filed, not done.
+
+## 17. S3b build design — run variants (B2), the skill amplifier and the director (B3) *(backend, `2026-11-02`)*
+
+**INVENTORY** *(graph + grep, `2026-11-02`)*: a skill amplifier — grep `SkillAmplifier|SkillTier|ai.skill-amplifier` over `Hrot`/`FDP` → **0** (ruled by R-4106 /
+P-5, never built) · the per-man level: `CombatProficiency` (presets, CE-2273) read in ONE place (`ProficiencyOf.Value`, 82 readers through it), filled by
+`ProficiencyFillSystem` (every tick, writes on change), on the wire as `dtCombatProficiency` 150 · randomness: `SimRng` (deliberately the same every run —
+the user's ruling) · the one params routine `ScenarioParams.Prepare` (load + expander) · the one stable hash `StableHash.Fnv1a32` · component ids:
+backend's block full ⇒ **480** (coordinator/new-lane block, free on every lane by a census).
+
+```mermaid
+classDiagram
+    direction LR
+    class ScenarioVariants { <<NEW, Fdp.Toolkits>> ArgName "$variant" · VariantOf(args) · Apply(dom, variant, salt) · Roll · Choose · ChoicesOf · Uses }
+    class ScenarioParams { <<existing>> Prepare(dom, header, args, outside, here, variant, salt) }
+    class MacroValidator { <<existing>> checks EVERY choice of a one-of-N }
+    class ScenarioDescriptionResident { <<existing>> Args — the applied args, "$variant" included }
+    class SkillAmplifier { <<NEW 480, unmanaged, recorded>> sbyte Friend · Hostile · Neutral }
+    class CombatProficiency { <<existing + SideTiers>> Authored · Unit · TypeDefault · Set · SideTiers }
+    class ProficiencyFillSystem { <<existing + FillSideTiers>> }
+    class ProficiencyOf { <<existing>> Value = Amplify(Own, SideTiers) }
+    class SkillVerbs { <<NEW>> SetSkillAmplifier(side, tiers) }
+    ScenarioParams --> ScenarioVariants : applies first
+    ScenarioVariants ..> ScenarioDescriptionResident : "$variant" recorded with the run
+    SkillVerbs --> SkillAmplifier : writes (World Environment)
+    ProficiencyFillSystem ..> SkillAmplifier : reads
+    ProficiencyFillSystem --> CombatProficiency : SideTiers by ForceId
+    ProficiencyOf ..> CombatProficiency : reads own + tiers
+```
+
+```mermaid
+sequenceDiagram
+    participant R as run setup ("$variant": N in the load args)
+    participant L as ScenarioLoadStep / MacroExpander (every node)
+    participant P as ScenarioParams.Prepare
+    participant T as a trigger (the director macro)
+    participant F as ProficiencyFillSystem
+    R->>L: load args {"$variant": N}
+    L->>P: Prepare(dom, …, variant N, salt = instance GUID or none)
+    P->>P: Presence rolls · one-of-N picks (variant 0 = as authored) · then the bindings
+    P-->>L: effective args incl. "$variant" (recorded)
+    T->>T: when scenario time ≥ delay (bound from the macro's param)
+    T->>T: InsertMacro · SetSkillAmplifier(Hostile, +1) · Message
+    F->>F: every man of that side: SideTiers = +1 (next tick, inserted men too)
+```
+
+*What the pictures show that prose hid:* a variant is ONE number that reaches every node by the args route the load already uses, and every choice it makes
+happens in the one routine params already pass through; the amplifier never writes a man's level — it rides on him as an offset the one reader applies.
+
+| | decision | why |
+|---|---|---|
+| B2 ① | the variant is the reserved arg **`"$variant"`** (`--param $variant=3`, `POST …/load/live {args:{"$variant":3}}`) | ⭐ the args route already reaches every node's load and is recorded (`RecordingMetadata.ScenarioArgs`) — no second channel. The run-setup picker (AQ108 D24) is ui's |
+| B2 ② | `"Presence": p` on an entity (unit, prop, macro instance); `"Macro": [a, {macro, weight}]` on an instance — applied in `Prepare`, BEFORE the bindings | SR-101 ① ②. ⭐ in the ONE routine, so a scenario and a macro file behave alike |
+| B2 ③ | variant 0 = AS AUTHORED (all present, the first choice) | SR-101's lean — the editor shows the authored layout |
+| B2 ④ | roll = `Fnv1a32(variant │ salt │ entity key │ what)`; salt = the instance GUID inside a macro | SR-101: by the STABLE key, never an index; two instances of one macro roll apart |
+| B3 ① | `SkillAmplifier` (480) on the World Environment, tiers ±2; `SetSkillAmplifier(side, tiers)` verb | SR-100 / P-5: per side, scenario-authored, changed live (trigger, director, game master) |
+| B3 ② | the fill copies the side's tiers onto each man WITH A BRAIN (`CombatProficiency.SideTiers`, on the wire); `ProficiencyOf.Value` = `Amplify(own, tiers)` | SR-100's storage lean: the man stays self-sufficient for the hit model on another node (BR-6); by SIDE, so an inserted man or one with no commander is reached |
+| B3 ③ | one tier = one preset step (fractions kept between presets), clamped Untrained … Elite; a raise never lowers, a cut never raises | R-4106 "never a leveller": 0 restores every man exactly — no own value is ever written |
+| B3 ④ | the counter-attack DIRECTOR is `macros/control/counter-attack` — one trigger, its `delay` bound through `ParamBindings` into the trigger's params JSON; used by `scenarios/test-director-early` (4 s) and `-late` (9 s) | SR-99: no director entity |
+
+📌 **LIVE `2026-11-02` (`--mode all`)** — `scenarios/test-director-early`: the director's trigger fired at **4.01 s** (its bound `delay`) → a hostile fire
+team inserted at `@CounterAttackFrom`, the World Environment's `SkillAmplifier` Hostile **+1**, and every Hostile man — the pre-placed sentry AND the four
+inserted men — read `CombatProficiency.SideTiers` 1 while the Friend defender stayed untouched · `scenarios/test-director-late` (the SAME macro, `delay` 9):
+fired at **9.02 s**. ⚠ The director's trigger entity itself has a brain and `ForceId` Hostile, so it carries `SideTiers` too — harmless.
+
+⚠ **Open / not here:** a variant's `delay: {min, max}` on a trigger (SR-101 ③) is the trigger's params — behaviors' · `InsertMacro` choosing one of N at
+RUNTIME needs the run's variant in the verb (it is readable from the resident args) — a follow-up · an EDIT load followed by a save keeps the chosen macro
+and drops `Presence` (they are authoring forms the extracted world does not hold) — the run-setup / authoring slice needs a `NoReplay` holder for them ·
+the amplifier is written on the node that runs the verb (the World Environment's owner, the Brain today — the other verbs' rule) · a step's own `Bind`
+(§16.2) would let the director bind its `do` args too.

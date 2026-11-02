@@ -75,6 +75,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             Command.PathsSelectedOnly        = Selected(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path);
             NavmeshLayerSetting.Register(settings);
             Map.NavmeshLayers                = NavmeshLayerSetting.Of(settings);   // ⭐ CE-3133
+            TransientLookSetting.Register(settings);
+            Map.DimTransientSetting          = TransientLookSetting.Of(settings);   // ⭐ SR-191
         }
 
         /// <summary>⭐ <c>CE-3120</c> — writes the families' scopes into <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
@@ -84,6 +86,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             Set(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path,            Command.PathsSelectedOnly);
             NavmeshLayerSetting.Register(settings);
             if (NavmeshLayerSetting.Of(settings) != Map.NavmeshLayers) NavmeshLayerSetting.Set(settings, Map.NavmeshLayers);   // ⭐ CE-3133
+            TransientLookSetting.Register(settings);
+            if (TransientLookSetting.Of(settings) != Map.DimTransientSetting) TransientLookSetting.Set(settings, Map.DimTransientSetting);   // ⭐ SR-191
         }
 
         private static bool Selected(GizmoSettingsRegistry s, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags f) =>
@@ -226,6 +230,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public NavmeshDrawLayers NavmeshLayers { get; set; } = NavmeshLayerSetting.Default;
         [EditDisplayName("Spatial grid"), EditDoc("The spatial hash grid.")]
         public bool SpatialGrid { get; set; }
+        /// <summary>⭐ SR-191 — a setting, not a layer: it has no gizmo bit and lives once in <see cref="TransientLookSetting"/> (read and written
+        /// with the family scopes), so both views share it and <see cref="LayerControlSets"/> leaves it out (<c>…Setting</c>).</summary>
+        [EditDisplayName("Dim transient entities"), EditDoc("Draw entities a scenario save never writes (macro entities, live additions, sketches) dimmed, so you see at once what will be saved.")]
+        public bool DimTransientSetting { get; set; }
     }
 
     /// <summary>
@@ -243,7 +251,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             typeof(LayerControlDto).GetProperties()
                 .Where(g => g.PropertyType.IsClass && g.PropertyType != typeof(string))
                 .SelectMany(g => g.PropertyType.GetProperties()
-                    .Where(r => r.PropertyType == typeof(bool) && !r.Name.EndsWith("SelectedOnly", StringComparison.Ordinal))
+                    .Where(r => r.PropertyType == typeof(bool) && !r.Name.EndsWith("SelectedOnly", StringComparison.Ordinal)
+                                && !r.Name.EndsWith("Setting", StringComparison.Ordinal))   // ⭐ SR-191: a setting row is not a layer of a view's set
                     .Select(r => (g, r)))
                 .ToArray();
 

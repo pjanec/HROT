@@ -26,11 +26,16 @@ namespace Fdp.Toolkit.Scenario
         /// undeclared arg, and applies the file's <see cref="ParamBindings"/> to every entity in <paramref name="dom"/> IN PLACE.
         /// <paramref name="outside"/> resolves an arg's reference (SR-58); null = args hold none. <paramref name="here"/> names the file in errors.
         /// </summary>
-        public static Prepared Prepare(JsonObject dom, ScenarioHeader? header, string? argsJson, LeafApplier? outside, string here)
+        /// <param name="variant">⭐ macros S3b B2 — the run's variant (<see cref="ScenarioVariants"/>; 0 = as authored).</param>
+        /// <param name="salt">The variant's salt: <see cref="Guid.Empty"/> for a scenario, the instance GUID inside a macro.</param>
+        public static Prepared Prepare(JsonObject dom, ScenarioHeader? header, string? argsJson, LeafApplier? outside, string here,
+                                       int variant = 0, Guid salt = default)
         {
             var declared = (header?.Params ?? Array.Empty<ScenarioParamDecl>())
                 .ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase);
             var args = ParseArgs(argsJson, here);
+            args.Remove(ScenarioVariants.ArgName);   // ⭐ B2 — the run's variant rides the args; it is never a param
+            ScenarioVariants.Apply(dom, variant, salt, here);   // ⭐ B2 — presence + one-of-N, BEFORE any binding (a removed entity binds nothing)
             foreach (var name in args.Keys)
                 if (!declared.ContainsKey(name))
                     throw new ArgsRefused($"{here}: arg '{name}' is not a param (declared: {string.Join(", ", declared.Keys)})");
@@ -44,6 +49,7 @@ namespace Fdp.Toolkit.Scenario
 
             var effective = new JsonObject();
             foreach (var (k, v) in values) effective[k] = v?.DeepClone();
+            if (variant != 0) effective[ScenarioVariants.ArgName] = variant;   // ⭐ B2 — recorded with the run; the expander reads it back
             return new Prepared(source, effective.ToJsonString());
         }
 

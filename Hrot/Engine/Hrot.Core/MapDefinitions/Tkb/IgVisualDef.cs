@@ -43,5 +43,8 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>⭐ <c>CE-1017</c> S0 — the entity icon's name (<c>assets/icons/&lt;IconName&gt;.png</c>); null ⇒ a generic glyph.</summary>
         public string? IconName { get; set; }
+
+        /// <summary>⭐ <c>CE-4142</c> (G4) — the type's explicit gallery thumbnail (<c>assets/thumbnails/&lt;ThumbnailName&gt;.png</c>); null ⇒ the <c>map.json</c> mask match, else the glyph.</summary>
+        public string? ThumbnailName { get; set; }
     }
 }

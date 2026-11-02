@@ -169,7 +169,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
             //         to a role via MapSubsystemNameToRole (NedNetworkFactory.cs:423), whose entire
             //         table is { "SimHost" => MuscleGround, "CGF" => Brain, "IG" => ImageGenerator,
             //         _ => NodeRole.None }
-            //      -> RoleGroupOwnershipStrategy asks GetLeastLoadedNode(MuscleGround)
+            //      -> RoleGroupOwnershipStrategy asks PickNodeForRole(MuscleGround)
             //         (RoleGroupOwnershipStrategy.GetInitialGrants); with no node mapping to MuscleGround it
             //         returns null and GetInitialGrants returns an EMPTY grant list -- its documented
             //         "safe fallback: the Brain retains physics authority".

@@ -245,6 +245,12 @@ public sealed class EditorHarness : IDisposable
 
         var accumulator = new EventAccumulator();
         Kernel = new ModuleHostKernel(Repo, accumulator);
+        // ⭐ Node Features F-13 — the scheduler refuses a [NodeFeature] system with no gate. Production sets it in SharedApplicationBootstrapper from the
+        //   composed capabilities; this harness composes CgfLogicPack by hand, so it declares what that pack's Brain capability declares
+        //   (EditorCapabilities.Brain.Features — rules S2 ⑨ ExercisePauseOnEndSystem), before any module registers.
+        Kernel.FeatureGate = new Hrot.Common.Infrastructure.NodeFeatures(
+            new Hrot.Common.Infrastructure.FeatureRegistry(new[] { Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem.Feature }),
+            Hrot.Editor.EditorCapabilities.DefaultRole);
         _physicsModule = new PhysicsToolkitModule();
         _physicsModule.Initialize(Repo);
         _previewHandler = new Fdp.Toolkit.Orchestration.Handlers.ReferencePreviewHandler(Repo, includeTransient: true);

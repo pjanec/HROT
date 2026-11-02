@@ -66,8 +66,15 @@ namespace Fdp.Toolkit.Scenario
 
         private static void CheckInstance(JsonObject entity, JsonObject mi, string who, IMacroLibrary library, List<string> path, List<string> errors)
         {
-            string macro = mi["Macro"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : "";
-            if (string.IsNullOrWhiteSpace(macro)) { errors.Add($"{who}: the instance names no macro"); return; }
+            // ⭐ macros S3b B2 — a one-of-N instance: EVERY choice is checked (any variant may pick it)
+            var choices = ScenarioVariants.ChoicesOf(mi["Macro"] ?? mi["macro"]);
+            if (choices.Count == 0) { errors.Add($"{who}: the instance names no macro"); return; }
+            if (choices.Count > 1) { foreach (var c in choices) CheckOne(entity, mi, c.Macro, $"{who} (choice '{c.Macro}')", library, path, errors); return; }
+            CheckOne(entity, mi, choices[0].Macro, who, library, path, errors);
+        }
+
+        private static void CheckOne(JsonObject entity, JsonObject mi, string macro, string who, IMacroLibrary library, List<string> path, List<string> errors)
+        {
             if (path.Contains(macro, StringComparer.Ordinal)) { errors.Add($"{who}: macro cycle {string.Join(" → ", path)} → {macro}"); return; }
             if (path.Count >= MaxDepth) { errors.Add($"{who}: macros nested deeper than {MaxDepth}"); return; }
             if (!library.TryRead(macro, out var json, out var why)) { errors.Add($"{who}: {why}"); return; }

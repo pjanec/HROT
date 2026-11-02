@@ -27,6 +27,12 @@ namespace Fdp.Toolkit.Scenario
         /// <summary>⭐ Macros S3a ⑦ (SR-176) — the scenario args the load APPLIED (a JSON object text: the header's defaults ▸ the run's args);
         /// empty when the scenario declares no params. A recording keeps it (<c>RecordingMetadata.ScenarioArgs</c>).</summary>
         public string Args { get; set; } = string.Empty;
+
+        /// <summary>⭐ CE-4210 MA-4 — the loaded file's MACRO header fields (<c>Kind</c>, <c>Params</c>, <c>Anchor</c>, <c>Placement.MaxShift</c>, <c>Relocatable</c>) as the JSON
+        /// OBJECT <see cref="ScenarioHeaderJson.Write"/> produces for them; empty = none. ONE flat string (no managed list on the resident); a save reads it back
+        /// (<see cref="ScenarioDescription.HeaderOf"/>), so opening a macro and saving it no longer turns it into a plain scenario. A later edit REPLACES the whole
+        /// resident — never a field mutated in place.</summary>
+        public string HeaderJson { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -72,14 +78,44 @@ namespace Fdp.Toolkit.Scenario
         /// <summary>Makes <paramref name="text"/> the loaded scenario's description in <paramref name="world"/>, with its
         /// <paramref name="name"/> and <paramref name="hash"/> (CE-4058 ②); null clears each (a new scenario, or one without a
         /// description, must not keep the previous one's).</summary>
-        public static void Stamp(EntityRepository world, string? text, string? name = null, string? hash = null, string? args = null)
+        public static void Stamp(EntityRepository world, string? text, string? name = null, string? hash = null, string? args = null, string? headerJson = null)
         {
             if (world == null) return;
-            if (string.IsNullOrWhiteSpace(text) && string.IsNullOrEmpty(name) && !world.HasSingletonManaged<ScenarioDescriptionResident>()) return;
+            if (string.IsNullOrWhiteSpace(text) && string.IsNullOrEmpty(name) && string.IsNullOrEmpty(headerJson) && !world.HasSingletonManaged<ScenarioDescriptionResident>()) return;
             world.SetSingletonManaged(new ScenarioDescriptionResident
             {
                 Text = text ?? string.Empty, Name = name ?? string.Empty, Hash = hash ?? string.Empty, Args = args ?? string.Empty,
+                HeaderJson = headerJson ?? string.Empty,
             });
+        }
+
+        /// <summary>⭐ CE-4210 MA-4 — the macro fields of a header as the resident's string (<see cref="ScenarioDescriptionResident.HeaderJson"/>): exactly the object
+        /// <see cref="ScenarioHeaderJson.Write"/> produces; empty when the header has none (a plain scenario).</summary>
+        public static string HeaderJsonOf(ScenarioHeader? header)
+        {
+            if (header == null || !ScenarioHeaderJson.HasAny(header)) return string.Empty;
+            var node = new JsonObject();
+            ScenarioHeaderJson.Write(node, header);
+            return node.ToJsonString();
+        }
+
+        /// <summary>⭐ CE-4210 MA-4 — the macro fields of a scenario JSON's <c>Header</c> (see <see cref="HeaderJsonOf(ScenarioHeader?)"/>); empty when the JSON is not an object or has none.</summary>
+        public static string HeaderJsonOf(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return string.Empty;
+            try { return HeaderJsonOf(ScenarioHeaderJson.Read(JsonNode.Parse(json) as JsonObject)); }
+            catch (JsonException) { return string.Empty; }
+        }
+
+        /// <summary>⭐ CE-4210 MA-4 — the macro fields resident in <paramref name="world"/> (what a save writes back), as a <see cref="ScenarioHeader"/> whose
+        /// <see cref="ScenarioHeader.SubsystemType"/> is empty and whose terrain and description are null (the save fills those); null when none are.</summary>
+        public static ScenarioHeader? HeaderOf(EntityRepository? world)
+        {
+            if (world == null || !world.HasSingletonManaged<ScenarioDescriptionResident>()) return null;
+            var json = world.GetSingletonManaged<ScenarioDescriptionResident>()?.HeaderJson;
+            if (string.IsNullOrEmpty(json)) return null;
+            try { return ScenarioHeaderJson.Read(new JsonObject { ["Header"] = JsonNode.Parse(json) }); }
+            catch (JsonException) { return null; }
         }
 
         /// <summary>⭐ Macros S3a ⑦ (SR-176) — the scenario args the resident load applied, or null.</summary>

@@ -99,6 +99,21 @@ public sealed class CanvasMapPickAdapter : IMapPickService
             ct);
 
     /// <inheritdoc/>
+    public bool CanShowOnMap => true;
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-4206 R3 — the SAME move as the map menu's Center View (<c>CenterOnEntitySystem.CenterOn</c>) on this adapter's canvas camera, no second camera path. No transient flash: the repo has no map ping / flash overlay to reuse.</remarks>
+    public void ShowOnMap(Fdp.Toolkit.Replication.EntityRef entity)
+    {
+        if (_repo == null || entity.IsNone) return;
+        var e = entity.Resolve(_repo);
+        if (!e.IsNull) Hrot.ScenarioEditor.Systems.CenterOnEntitySystem.CenterOn(_canvas.Camera, _repo, e);
+    }
+
+    /// <inheritdoc/>
+    public void ShowOnMap(Fdp.Core.WorldPoint point) => _canvas.Camera.FocusOn(new System.Numerics.Vector2(point.X, point.Y));
+
+    /// <inheritdoc/>
     public Task<Fdp.Toolkit.Replication.AreaLink> EditAreaAsync(Fdp.Toolkit.Replication.AreaLink start, CancellationToken ct = default)
         => _pickers.RunPickAsync<Fdp.Toolkit.Replication.AreaLink>(
             Hrot.ScenarioEditor.Tools.ScenarioToolIds.EditAreaShape,

@@ -62,7 +62,10 @@ namespace Fdp.Toolkit.ScenarioRules.Actions
     {
         private readonly SharedNodeStatefulAction<TP, TS> _fn;
         private readonly ulong _hash;
-        private readonly bool _holdsRefs = EntityRefRemap.HoldsRefs(typeof(TP));
+        // ⭐ macros S3b B1, found LIVE — HoldsLEAVES, not HoldsRefs: HoldsRefs answers "a network id a load must REMAP" (EntityRef / EntityLink /
+        //   AreaLink) and leaves out a PointLink, so a step whose only reference is a place written as "@Key" was never resolved and silently stood
+        //   at (0,0,0) (📌 InsertMacro at "@Drop" landed at the origin). Resolution is an identity on a plain point / bearing, so walking every leaf is safe.
+        private readonly bool _holdsRefs = EntityRefRemap.HoldsLeaves(typeof(TP));
 
         public StepRunner(string fqn, SharedNodeStatefulAction<TP, TS> fn) : base(fqn) { _fn = fn; _hash = Hash(fqn); }
 

@@ -11,6 +11,9 @@ namespace GizmoMap.Presentation.Shapes
         public const string RotaryWing = "rotary_wing";
         /// <summary>⭐ <c>CE-3148</c> — a cultural feature (DIS kind 5: a sandbag wall, a concrete block, a crate): its footprint outline.</summary>
         public const string CulturalFeature = "cultural_feature";
+        /// <summary>⭐ SR-178 (Hrot docs/DESIGN_Scenario_Macros.md §14.2) — a scenario MACRO instance's own marker: a square frame with an <b>M</b>
+        /// inside. Solid lines only — ⛔ a dashed outline means planned / suspected in MIL-STD-2525.</summary>
+        public const string ScenarioMacro = "scenario_macro";
         /// <summary>The name of the empty profile returned when nothing matches (drawn as nothing).</summary>
         public const string Fallback = "_fallback";
 
@@ -23,6 +26,7 @@ namespace GizmoMap.Presentation.Shapes
             _profiles[FixedWing] = BuildFixedWing();
             _profiles[RotaryWing] = BuildRotaryWing();
             _profiles[CulturalFeature] = BuildCulturalFeature();
+            _profiles[ScenarioMacro] = BuildScenarioMacro();
         }
 
         public EntityShapeProfile GetShape(string? shapeName, ulong fallbackDisType)
@@ -78,6 +82,37 @@ namespace GizmoMap.Presentation.Shapes
         }
 
         /// <summary>⭐ <c>CE-3148</c> — the whole footprint (length × width), closed: an obstacle is the box it is.</summary>
+        private static EntityShapeProfile BuildScenarioMacro()
+        {
+            return new EntityShapeProfile
+            {
+                Name = ScenarioMacro,
+                Elements = new[]
+                {
+                    // the square frame
+                    new PolylineDefinition
+                    {
+                        LocalVertices = new[]
+                        {
+                            new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f),
+                            new Vector3(0.5f, 0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f)
+                        },
+                        IsClosed = true, IsFilled = false, LineThickness = 1f
+                    },
+                    // the M (x = length axis: the M's height runs along it, so it reads upright at heading 0)
+                    new PolylineDefinition
+                    {
+                        LocalVertices = new[]
+                        {
+                            new Vector3(-0.3f, -0.3f, 0f), new Vector3(0.3f, -0.3f, 0f), new Vector3(0f, 0f, 0f),
+                            new Vector3(0.3f, 0.3f, 0f), new Vector3(-0.3f, 0.3f, 0f)
+                        },
+                        IsClosed = false, IsFilled = false, LineThickness = 1.5f
+                    }
+                }
+            };
+        }
+
         private static EntityShapeProfile BuildCulturalFeature()
         {
             return new EntityShapeProfile

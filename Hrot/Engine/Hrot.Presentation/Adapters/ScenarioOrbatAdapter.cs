@@ -37,11 +37,24 @@ namespace Hrot.UI.Common.Adapters
         // ⭐ CE-4213 (HV-4) — the parent rule of each relation; ONE tree builder below serves both.
         private readonly CommandHierarchyAdapter   _command   = new();
         private readonly StructureHierarchyAdapter _structure = new();
+        private readonly ScenarioHierarchyAdapter  _scenario  = new();
+
+        /// <summary>⭐ CE-4213 ⑥ — the row keys of the Scenario view's two synthetic group rows (negative: no entity index ever is).</summary>
+        public const int GroupSavedId = -1, GroupTransientId = -2;
+
+        /// <summary>⭐ CE-4213 ⑥ — why the last drop was refused (e.g. <i>"from macro test/fire-team — edit the macro or its args"</i>), or null; the panel
+        /// shows it. Cleared by the next drop that goes through.</summary>
+        public string? LastDropRefusal { get; private set; }
 
         /// <inheritdoc/>
         public EntityTreeRelation Relation { get; set; } = EntityTreeRelation.Command;
 
-        private IHierarchyAdapter Adapter => Relation == EntityTreeRelation.Structure ? _structure : _command;
+        private IHierarchyAdapter Adapter => Relation switch
+        {
+            EntityTreeRelation.Structure => _structure,
+            EntityTreeRelation.Scenario  => _scenario,
+            _                            => _command,
+        };
 
         /// <param name="world">Entity repository.</param>
         /// <param name="bus">Local FDP event bus for publishing embark/disembark commands.</param>
@@ -72,6 +85,9 @@ namespace Hrot.UI.Common.Adapters
             _indexCache.Clear();
             foreach (var entity in _world.Query().With<EntityInfo>().Build())
                 _indexCache[entity.Index] = entity;
+            if (Relation == EntityTreeRelation.Scenario && _world.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.MacroExpansionStatus>())
+                foreach (var entity in _world.Query().With<Fdp.Toolkit.Scenario.MacroExpansionStatus>().Build())   // ⭐ CE-4213 ⑥ — an instance has a name only if someone gave it one
+                    _indexCache[entity.Index] = entity;
             if (Relation == EntityTreeRelation.Structure)
             {
                 if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>())
@@ -109,10 +125,32 @@ namespace Hrot.UI.Common.Adapters
             var result = new List<OrbatNodeViewModel>();
             var visited = new HashSet<int>();
 
+            // ⭐ CE-4213 ⑥ — the Scenario view files its roots under two synthetic group rows, Saved and Transient (the rows have no entity: negative keys).
+            if (Relation == EntityTreeRelation.Scenario)
+            {
+                var saved = new List<int>(); var transient = new List<int>();
+                foreach (var r in rootIndices)
+                    (ScenarioHierarchyAdapter.GroupOf(_world, _indexCache[r]) == ScenarioHierarchyAdapter.Transient ? transient : saved).Add(r);
+                children[GroupSavedId] = saved;
+                children[GroupTransientId] = transient;
+                rootIndices = new List<int>();
+                if (saved.Count > 0) rootIndices.Add(GroupSavedId);
+                if (transient.Count > 0) rootIndices.Add(GroupTransientId);
+            }
+
             void CollectNodes(int idx, int depth)
             {
                 // Cycle guard
                 if (!visited.Add(idx)) return;
+                if (idx < 0)   // a Scenario-view group row
+                {
+                    var members = children[idx];
+                    result.Add(new OrbatNodeViewModel(idx, $"{(idx == GroupSavedId ? ScenarioHierarchyAdapter.Saved : ScenarioHierarchyAdapter.Transient)} ({members.Count})",
+                        depth, HasChildren: members.Count > 0, IsPendingDelete: false, CanAcceptSubordinates: false, IsGroup: true));
+                    if (expandedNodes.Contains(idx) || !string.IsNullOrEmpty(filterText))   // a filter opens the groups so its matches show
+                        foreach (var child in members) CollectNodes(child, depth + 1);
+                    return;
+                }
                 if (!_indexCache.TryGetValue(idx, out var entity)) return;
 
                 string name = NameOf(entity, adapter);
@@ -159,6 +197,7 @@ namespace Hrot.UI.Common.Adapters
         {
             if (_world.HasComponent<EntityInfo>(entity))
                 return _world.GetComponent<EntityInfo>(entity).Name.ToString();
+            if (ScenarioHierarchyAdapter.MacroPathOf(_world, entity) is { } macro) return $"macro {macro}";   // ⭐ CE-4213 ⑥ — an unnamed instance
 
             var parent = adapter.GetParent(_world, entity);
             string? parentName = !parent.IsNull && _world.HasComponent<EntityInfo>(parent)
@@ -167,6 +206,13 @@ namespace Hrot.UI.Common.Adapters
                 && _world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity))
                 return PartLabels.Describe(_world, entity, parentName);   // ⭐ CE-4213 — the part's KIND from its component (AQ79 §0.10)
             return parentName is null ? $"entity #{entity.Index}" : $"{parentName} · passenger";
+        }
+
+        /// <summary>⭐ CE-4213 ⑥ — true (and <see cref="LastDropRefusal"/> set) when the Command view refuses to move <paramref name="child"/>; clears it otherwise.</summary>
+        private bool Refused(Entity child, Entity newParent)
+        {
+            LastDropRefusal = ((IHierarchyAdapter)_command).ReparentRefusal(_world, child, newParent);
+            return LastDropRefusal is not null;
         }
 
         // ── IOrbatController ─────────────────────────────────────────────────
@@ -271,6 +317,7 @@ namespace Hrot.UI.Common.Adapters
                 return;
             }
 
+            if (Refused(sub, cmd)) return;
             _bus.Publish(new CmdAssignSubordinate
             {
                 Subordinate = sub,
@@ -291,6 +338,7 @@ namespace Hrot.UI.Common.Adapters
                 return;
             }
 
+            if (Refused(sub, Entity.Null)) return;
             _bus.Publish(new CmdRemoveSubordinate { Subordinate = sub });
         }
     }

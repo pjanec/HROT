@@ -567,6 +567,8 @@ namespace Hrot.NED.Descriptors
         public float Unit;
         public float TypeDefault;
         public byte Set;
+        /// <summary>⭐ macros S3b B3 — his side's skill amplifier in tiers (SR-100); the hit model reads it here too.</summary>
+        public short SideTiers;
     }
 
     // ⭐ CE-3261 — a man's or a commander's sector (behaviors' EngagementArea, CE-2282), his brain's owner → every node, field for field

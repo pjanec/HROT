@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Scenario;
@@ -283,6 +284,61 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             var result = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" })) }, OurType);
             Assert.Null(result.CanonicalDom!["Header"]);
+        }
+
+        // ── ⭐ CE-4210 MA-4 — the macro header fields survive the merge ─────────────────────────────────────
+
+        private static JsonObject WithMacroHeader(JsonObject dom, string anchorHeading = "90", string paramName = "side")
+        {
+            var header = dom["Header"] as JsonObject ?? new JsonObject();
+            header["Kind"] = "macro";
+            header["Params"] = new JsonArray(new JsonObject { ["Name"] = paramName, ["TypeId"] = "ForceId", ["Default"] = "Hostile" });
+            header["Anchor"] = new JsonObject { ["Position"] = new JsonArray(10, 20, 0), ["Heading"] = float.Parse(anchorHeading) };   // a float: an in-memory JsonValue converts no further
+            header["Placement"] = new JsonObject { ["MaxShift"] = 12.5f };
+            header["Relocatable"] = false;
+            dom["Header"] = header;
+            return dom;
+        }
+
+        [Fact]
+        public void CE4210_TheMacroHeaderFields_SurviveFromTheFirstSliceThatHasAny()
+        {
+            var brain = Compatible(400, WithMacroHeader(Dom(new[] { "g-a" }, terrainName: "t1", description: "What: x")));
+            var muscle = Compatible(1, Dom(new[] { "g-b" }, terrainName: "t1"));   // carries none
+
+            var header = (JsonObject)ScenarioMergeCore.Merge(new[] { muscle, brain }, OurType).CanonicalDom!["Header"]!;
+
+            var back = ScenarioHeaderJson.Read(new JsonObject { ["Header"] = header.DeepClone() })!;
+            Assert.Equal("macro", back.Kind);
+            Assert.Equal("side", back.Params!.Single().Name);
+            Assert.Equal(90f, back.Anchor!.Value.Heading.Degrees);
+            Assert.Equal(12.5f, back.MaxShift);
+            Assert.False(back.Relocatable);
+            Assert.Equal("t1", (string)header["TerrainName"]!);          // the other globals are still there
+            Assert.Equal("What: x", (string)header["Description"]!);
+        }
+
+        [Fact]
+        public void CE4210_ADifferingSecondSlice_KeepsTheFirstsMacroHeader()
+        {
+            var first = Compatible(400, WithMacroHeader(Dom(new[] { "g-a" }), anchorHeading: "90", paramName: "side"));
+            var second = Compatible(1, WithMacroHeader(Dom(new[] { "g-b" }), anchorHeading: "180", paramName: "other"));   // warns (CE-3288 rule), never throws
+
+            var header = (JsonObject)ScenarioMergeCore.Merge(new[] { first, second }, OurType).CanonicalDom!["Header"]!;
+
+            var back = ScenarioHeaderJson.Read(new JsonObject { ["Header"] = header.DeepClone() })!;
+            Assert.Equal("side", back.Params!.Single().Name);
+            Assert.Equal(90f, back.Anchor!.Value.Heading.Degrees);
+        }
+
+        [Fact]
+        public void CE4210_NoMacroFields_NoChangeToTodaysOutput()
+        {
+            var plain = ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" }, terrainName: "t1", description: "d")) }, OurType).CanonicalDom!;
+            var header = (JsonObject)plain["Header"]!;
+
+            Assert.Equal(new[] { "TerrainName", "Description" }, header.Select(kv => kv.Key).ToArray());   // no Kind / Params / Anchor / Placement / Relocatable
+            Assert.Null(ScenarioMergeCore.Merge(new[] { Compatible(400, Dom(new[] { "g-a" })) }, OurType).CanonicalDom!["Header"]);   // and no header at all when nothing asked for one
         }
     }
 }

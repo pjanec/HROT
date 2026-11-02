@@ -555,7 +555,10 @@ public sealed class Map3DTests
                 {
                     var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = 225 };
                     string a = byClass.GetShape(null, d.Value).Name, b = bySwitch.GetShape(null, d.Value).Name;
-                    if (a != b) moved.Add($"{d}: {b} -> {a}");
+                    // ⭐ SR-178 — the ONE deliberate difference: the class table's ScenarioMacro (5.0.*.90) has its own marker profile; GizmoMap's
+                    //   DIS switch (the non-HROT hosts' fallback) cannot know an HROT class and keeps the cultural-feature footprint.
+                    if (a != b && !(kind == 5 && category == 90 && a == GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.ScenarioMacro))
+                        moved.Add($"{d}: {b} -> {a}");
                 }
         Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
         Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.Humanoid,

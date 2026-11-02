@@ -310,6 +310,12 @@ namespace Hrot.ScenarioEditor.Map
             long layerControlId = GlobalGizmoManager.NewId();
             // ⭐ CE-1203 FL-9 — the operator's remembered layers into the shared settings BEFORE the gizmo reads them; saved on every change
             var layerSettingsPath = ctx.LayerSettingsPath ?? MapLayerPreferences.DefaultPath();
+            // ⭐ SR-191 — the host's starting choice for the transient look, written BEFORE the user's file loads so their own tick wins
+            if (ctx.DimTransientEntities)
+            {
+                Fdp.Toolkit.Diagnostics.Gizmos.TransientLookSetting.Register(settings);
+                Fdp.Toolkit.Diagnostics.Gizmos.TransientLookSetting.Set(settings, true);
+            }
             MapLayerPreferences.Load(settings, layerSettingsPath);
             // ⭐ CE-1234 — the layer panel learns what the gizmo holds: its state goes to the host's publisher (a remote terminal) AND to a
             //   local transport the map's own panel drains each frame (AttachMapLayers). ⛔ Was: the host's hub only, which no local endpoint

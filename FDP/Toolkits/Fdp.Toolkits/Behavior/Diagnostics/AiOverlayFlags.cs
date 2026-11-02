@@ -26,5 +26,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CE-1317</c> (BV-50, BV-56) — a commander's units' merged contacts ("My units' contacts"), each with a line from
         /// the commander.</summary>
         SquadContacts   = 1 << 8,
+        /// <summary>⭐ SR-192 (docs/DESIGN_Scenario_Macros.md §14.4) — a macro INSTANCE's lines to the entities it expanded (<c>MacroMembersGizmo</c>).
+        /// Not a Brain family (the instance is no unit, so it is in no <c>GizmoFamilies.All</c> menu and has no pin): selecting the instance draws it.</summary>
+        MacroMembers    = 1 << 9,
     }
 }

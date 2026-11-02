@@ -187,6 +187,55 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Equal((null, null), Fdp.Toolkit.Scenario.ScenarioDescription.IdentityOf(world));   // ⭐ CE-4058 ② — a new scenario names none
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4210</c> MA-4 — LOAD stamps the file's MACRO header fields resident (<c>Kind</c>, <c>Params</c>, <c>Anchor</c>, <c>Placement</c>, <c>Relocatable</c>), so the save that follows
+    /// writes them back (before, an editor save dropped them and turned a macro into a plain scenario); a plain scenario, or a NEW one, clears them.
+    /// 🔴 Red-proof: drop the <c>headerJson</c> argument of the stamp ⇒ <c>HeaderOf</c> is null.
+    /// </summary>
+    [Fact]
+    public async Task CE4210_LoadStampsTheMacroHeader_AndAPlainOrNewScenarioClearsIt()
+    {
+        _goldRepo.CreateEntity();
+        var macro = new ScenarioHeader(SubsystemType)
+        {
+            Kind = ScenarioHeader.MacroKind,
+            Params = new[] { new ScenarioParamDecl("count", "int", System.Text.Json.Nodes.JsonValue.Create(2), "how many") },
+            Anchor = new MacroAnchor(new WorldPoint(10f, 20f, 0f), new Bearing(90f)),
+            MaxShift = 12.5f,
+            Relocatable = false,
+        };
+        string macroJson = _serializer.Serialize(_goldRepo, macro).ToJsonString();
+
+        using var world = new EntityRepository();
+        var step = MakeStep(macroJson, NewBus());
+        var ctx = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, world);
+
+        var held = Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(world)!;
+        Assert.Equal("macro", held.Kind);
+        Assert.Equal(("count", "int"), (held.Params!.Single().Name, held.Params!.Single().TypeId));
+        Assert.Equal(90f, held.Anchor!.Value.Heading.Degrees);
+        Assert.Equal(12.5f, held.MaxShift);
+        Assert.False(held.Relocatable);
+        // and it is the SAME header the save writes: load → save → the file still has them
+        var saved = _serializer.Serialize(world, Hrot.Map.Common.Scenario.ScenarioSaveCore.HeaderOf(world, SubsystemType));
+        Assert.Equal("macro", ScenarioHeaderJson.Read(saved)!.Kind);
+        Assert.Equal("count", ScenarioHeaderJson.Read(saved)!.Params!.Single().Name);
+
+        // a plain scenario loaded next holds none of the previous one's
+        var plain = MakeStep(SerializeGold(), NewBus());
+        var plainCtx = Ctx(Guid.NewGuid());
+        await plain.PrepareAsync(plainCtx, CancellationToken.None);
+        plain.Commit(plainCtx, world);
+        Assert.Null(Fdp.Toolkit.Scenario.ScenarioDescription.HeaderOf(world));
+
+        // the resident is REPLACED whole by a later stamp, never mutated in place
+        var before = world.GetSingletonManaged<ScenarioDescriptionResident>();
+        Fdp.Toolkit.Scenario.ScenarioDescription.Stamp(world, null, "n", "h", null, Fdp.Toolkit.Scenario.ScenarioDescription.HeaderJsonOf(macro));
+        Assert.NotSame(before, world.GetSingletonManaged<ScenarioDescriptionResident>());
+    }
+
     /// <summary>⭐⭐ Macros S3a ⑦ (SR-41, SR-176) — a load's scenario ARGS: the load message's args over the header's defaults are applied, and
     /// what was applied is stamped resident (the recording keeps it); an arg the scenario does not declare refuses the load in its PREPARE.</summary>
     [Fact]
