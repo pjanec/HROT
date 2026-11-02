@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — DESIGN, leans RV-1 … RV-9 await the user
-updated: 2026-11-02
+updated: 2026-11-02 (behaviors' V-1/V-2/V-4 folded in)
 build-state: DESIGN
 current-answer: §3 (decisions) · §4 (phases)
 stale-below: nothing
@@ -15,8 +15,8 @@ related-designs:
 
 # DESIGN — **the rules view and the mission summary** (ui half of [HANDOFF_Coordinator_To_Ui_Rules_View_And_Summary](blueprints/batches/HANDOFF_Coordinator_To_Ui_Rules_View_And_Summary.md))
 
-The handoff's items ① CE-4167 (the timeline extensions), ② the rules view, and ⑥ the first half of the mission summary are designed here. Their data exists.
-Items ③ ④ ⑤ ⑦ ⑧ wait for behaviors' data (A1–A4, B3–B5) and are only placed here, not designed.
+The handoff's items ① CE-4167 (the timeline extensions), ② the rules view, ③ connectors + expected bars, ⑤ runtime control and ⑥ the first half of the mission summary are designed here: their data exists. ⭐ **Updated `2026-11-02`:** behaviors delivered V-1 / V-2 / V-4 on `behaviors` (`59a8e5d23`, `DESIGN_Scenario_Rules.md` §00.10), which moved ③ and ⑤ from waiting to buildable.
+Items ④ (live leaf values, V-3), ⑦ and ⑧ wait for behaviors' data (V-3 as built, B3–B5) and are only placed here, not designed.
 
 ## 1. INVENTORY *(`2026-11-02`)*
 
@@ -34,7 +34,7 @@ Items ③ ④ ⑤ ⑦ ⑧ wait for behaviors' data (A1–A4, B3–B5) and are on
 | hit positions of every drawn track item are already collected each frame (`_trackHits`: track id, item id, x, y) | `TimelinePanel.cs:97, :451` | TL-X1's connectors are drawn from these after the tracks, with no second layout |
 | `ObjectiveStatus` (replicated): role (Objective · Measure · Trigger), state, trigger state (Disarmed … Done), owner side, progress cur / need, value / target, score, points, `ChangedAt`, `LastFired`, `FireCount`, reason, title, kind, required, scored, weight, visible sides · `ObjectiveLinks {Subject, Parent}` · `ExerciseResult` | `Fdp.Toolkits/ScenarioRules/ObjectiveStatus.cs`, `ObjectiveLinks.cs`, `ExerciseResult.cs` | every row, its tree, its state words and its CURRENT span come from these. ⛔ They hold only the CURRENT state + when it changed, not history |
 | ⛔ the SR-103 provider `ScenarioRulesTimelineLanes` (`rules.fired`, `objective.state`, …) is designed, NOT built; neither the ui nor the behaviors handoff lists it | grep `IndexedLaneDefinition` → 3 providers, none for rules; `DESIGN_Scenario_Rules.md` SR-103 | the PAST at actual times (item ②, "✅ now") needs it ⇒ RV-4 |
-| no trigger / objective DEFINITION reaches a non-Brain node (behaviors A1 measures it) | the behaviors handoff, A1 | dependency connectors and expected bars wait (③) |
+| ✅ **delivered by behaviors (`59a8e5d23`)**: `ObjectiveStatus` (on topic 171, every node) gained `DependsOn` / `ActsOn` (≤ 8 net ids each: the entities a trigger's `when` names / its `do` targets), `HoldFor` · `Delay` · `Cooldown` · `Deadline` and `ExpectedAt` (sim s of the next thing the owner knows will happen; 0 = unknown). Runtime control = `RuleControl` (430, brain-local) written through `EntityWriteRouter` as three attributes `Rule.Request` (40) · `Rule.Seq` (41) · `Rule.Origin` (42) in ONE write; the owner honours a new `Seq` once and journals it | `DESIGN_Scenario_Rules.md` §00.10 V-1, V-2, V-4 (behaviors) | ⭐ connectors (X1) = `DependsOn` → this row and this row → `ActsOn`; the dashed expected bar (X2) = now → `ExpectedAt`; Fire / Disarm / Re-arm / Reset / Activate are ONE router write each — ⛔ the ui never re-derives timing or links (V-2) |
 | `MacroOrigin` / `MacroInstance` on macro entities; the Scenario view groups by them (W-M1) | `Fdp.Toolkits/Scenario/Macros/MacroTypes.cs`; `ScenarioHierarchyAdapter` | the rules view's *group by macro* uses the same link |
 | selecting an entity + *Show on map* already have one path (the selection singleton, `CenterOnEntitySystem` / `MapCamera.FocusOn` through the broker) | CE-4049; CE-4206 R3 | a row click goes the SAME way (SR-56: *"the ORBAT's own jump"*) |
 
@@ -117,7 +117,7 @@ graph TD
 | **RV-2** | a blank panel before a run | ⭐ the extent also covers the TRACKS' items and `[0, now]`, so tracks draw in edit mode with no recording (today: "No recording."). The lanes keep their own rule |
 | **RV-3** | the rows | ⭐ one `RuleTrack` per entity with `ObjectiveStatus` (objectives, measures, triggers). The tree comes from `ObjectiveLinks.Parent`. **Group by** macro (`MacroOrigin.Instance` → its `MacroInstance.Macro`, else *Scenario*) · subject (`ObjectiveLinks.Subject`'s name) · side (`Owner`). **Side** filter = `Owner`, which also respects `VisibleSides`. The state in words follows the mockup: *Achieved* · *Active 6:10* (since `ChangedAt`) · *Armed* · *Cooldown · 1/2* (`FireCount` of max when known) · *Acting* (the step count waits for A1). The status colour follows the legend |
 | **RV-4** | the PAST at actual times | ⭐ build the SR-103 provider `ScenarioRulesTimelineLanes` (two indexed lanes: `objective.state` = a value change of `ObjectiveStatus.State` on objectives and measures, and `rules.fired` = `TriggerState` → `Fired`), registered like `CombatTimelineLanes`. The row's past spans and fired diamonds are read from those events, plus the current span `ChangedAt → now` from the status. ⚠ Cross-lane: `Fdp.Toolkits/ScenarioRules` is behaviors' folder. No handoff lists this item, and the view's past depends on it. Said in the commit and a note to behaviors |
-| **RV-5** | acting on a row (now) | ⭐ click = select the row (the Overview) AND its SUBJECT through the selection singleton; *Show on map* = the broker's existing focus. The right-click menu now: *Show subject on map*, *Select subject*. ⏳ *Fire · Disarm · Re-arm · Set state* wait for behaviors A4 (⑤); they appear disabled with *"needs runtime control (behaviors A4)"* so the menu's shape is final |
+| **RV-5** | acting on a row | ⭐ click = select the row (the Overview) AND its SUBJECT through the selection singleton; *Show on map* = the broker's existing focus. The right-click menu and the details' buttons: *Fire now* · *Disarm* · *Re-arm* · *Reset* (triggers) · *Activate* / *Deactivate* (objectives) — each ONE `EntityWriteRouter.For(world).Write(entity, [Rule.Request, Rule.Seq, Rule.Origin = Instructor])`, `Seq` = the last seen + 1 (behaviors' `DebugApiService.ControlObjective` is the precedent: reuse its rule, not a copy). An item not valid in the row's state is disabled with the reason (a final trigger: *"needs Reset"*). ⭐ A live edit is FOR THIS RUN ONLY (SR-109) — the view never writes the scenario file. ⭐ The result shows as the row's new state and the owner's `Reason`, not as a ui-side guess |
 | **RV-6** | the window | ⭐ `RulesWindow` (*Window ▸ Rules*), PerspectiveBound like the timeline windows. Toolbar: *Group by*, *Side*, *Follow now*, search; *Timeline* only (Graph / List later). Centre: the panel in a Rules host (its own lanes hidden except the rules lanes). Right: details of the selected row with the **Overview / Status** tab: title, kind, state, owner, subject (link), progress, value / target, score, required / scored, reason, fired n× / last. ⏳ When / Do / Rules / History / Bindings tabs need A1–A4. ⭐ Opens on a recording too, through the Replay Browser's source |
 | **RV-7** | *"objectives about this unit"* (SR-56) | ⭐ one section in the entity inspector (the CE-1134 inspector): every row whose `ObjectiveLinks.Subject` is this entity, each with its state words and a link that selects it in the rules view. Empty ⇒ not drawn |
 | **RV-8** | the mission summary, first half (⑥) | ⭐ `MissionSummaryModel` (pure) + `MissionSummaryWindow` (read-only, *Window ▸ Mission summary*), one card per side: **required objectives n / N** (`Required`, role Objective, `Owner` = side) with each state · **forces** = strength (alive units with `EntityInfo` of that side), casualties (`CombatLife.IsDestroyed`), macro-inserted (with `MacroOrigin`) · **result** from `ExerciseResult` (*running* until it ends). A list of the mission objectives with their states. ⛔ NO score, trend or pass mark: that is behaviors' B3 aggregation (⑦), never computed in the ui. ⭐ The same window opens on a recording |
@@ -137,7 +137,7 @@ graph TD
 | **R1** | RV-1 X2 + X3 + RV-2 (styles, tree headers, extent from tracks) · RV-4 the lanes provider | rails: each style drawn (frame rail); the tree hides collapsed descendants; an empty index still draws tracks; the lanes index a state change and a fire (live + recording) |
 | **R2** | RV-3 · RV-5 · RV-6 · RV-7 (the rules view, now-data) | rails on `RulesModel` (tree, grouping, side filter, state words, past spans from the lanes); a frame rail of the window; live check on a scenario with objectives and triggers |
 | **R3** | RV-8 the summary's first half | rails on `MissionSummaryModel` (counts per side, casualties, inserted, result); a frame rail |
-| **R4** | RV-1 X1 + X4 + X5 (connectors, connect, Coming up) on synthetic tracks | rails + frame rail. ⏳ The rules view USES them when behaviors A1 / A2 deliver (③) |
+| **R4** | RV-1 X1 + X5 (connectors, Coming up) used by the rules view from `DependsOn` / `ActsOn` / `ExpectedAt` (③) · X4 (connect) on synthetic tracks only — the *drag to connect* that WRITES a `when` waits for the trigger editor (④) | rails + frame rail |
 
 ## 5. Claim table
 
@@ -147,5 +147,5 @@ graph TD
 | a live index source exists | ✅ `LiveTimelineSource.cs` | ✅ CE-3330 TE-17 |
 | the status holds no history | ✅ `ObjectiveStatus.cs` fields | ✅ SR-103 (the past is lanes) |
 | no rules lanes provider exists | ✅ grep, 3 providers, none for rules | ✅ SR-103 lean names it; ⛔ no handoff owns it |
-| drawing the view needs no Brain-side change for ② and ⑥ | ✅ all fields replicated | ✅ the handoff's "✅ now" column |
+| drawing the view needs no Brain-side change for ② ③ ⑤ ⑥ | ✅ all fields replicated, control through the router (`59a8e5d23`) | ✅ the handoff's "✅ now" column + §00.10 |
 | who builds the lanes provider | ⛔ **not decided** by any handoff | RV-4 proposes ui; behaviors may prefer to own it |
