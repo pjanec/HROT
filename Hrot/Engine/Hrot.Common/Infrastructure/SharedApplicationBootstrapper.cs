@@ -214,6 +214,7 @@ public abstract class SharedApplicationBootstrapper
                 context.ClusterSlave.AppendCapabilities(context.Features.Registry.All.Select(d => FeatureRegistry.TokenOf(d.Id)));
                 context.ClusterSlave.FeaturesOnProvider = context.Features.OnSet;
                 context.Kernel.FeatureGate = context.Features;   // F-13 — the scheduler's view, set before any system registers
+                NodeFeatureOverrides.NoteDeclared(context.Features.Registry.All.Select(d => d.Id));   // F-18 — so the runner can refuse an id NO node declares
                 foreach (var (fid, fjson) in NodeFeatureOverrides.FromCommandLine)   // F-7 — --feature; an id this node does not declare is another node's
                     if (context.Features.Registry.Available(fid)) context.Features.SetNodeOverride(fid, fjson);
 

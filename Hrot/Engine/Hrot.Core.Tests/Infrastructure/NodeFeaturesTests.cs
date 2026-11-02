@@ -109,4 +109,19 @@ public sealed class NodeFeaturesTests
         Assert.Throws<InvalidOperationException>(() => f.FreezeRecorded(new System.Collections.Generic.Dictionary<string, string> { ["gameplay.team-kill"] = "{\"Lost\":1}" }));   // a key the type lost
         Assert.False(f.On("gameplay.team-kill"));              // a refused branch changes nothing
     }
+
+    [Fact]
+    public void AFeatureIdNoNodeOfTheProcessDeclares_IsUnclaimed_ButOneAnotherNodeDeclaresIsFine()   // CE-4215 ①
+    {
+        var saved = new System.Collections.Generic.List<(string Id, string Json)>(NodeFeatureOverrides.FromCommandLine);
+        try
+        {
+            NodeFeatureOverrides.Set(new[] { NodeFeatureOverrides.Parse("hud.kill-cam=on"), NodeFeatureOverrides.Parse("hud.kil-cam=off") });
+            NodeFeatureOverrides.NoteDeclared(new[] { "gameplay.team-kill" });   // node A
+            Assert.Equal(new[] { "hud.kill-cam", "hud.kil-cam" }, NodeFeatureOverrides.Unclaimed());
+            NodeFeatureOverrides.NoteDeclared(new[] { "hud.kill-cam" });         // node B declares the first
+            Assert.Equal(new[] { "hud.kil-cam" }, NodeFeatureOverrides.Unclaimed());   // only the typo remains
+        }
+        finally { NodeFeatureOverrides.Set(saved); }
+    }
 }

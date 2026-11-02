@@ -295,18 +295,38 @@ public sealed class NodeFeatures : IFeatureGate, IFeatureRecording
 /// <summary>
 /// ⭐ Node Features F-7 — the node override layer from <c>--feature</c>, parsed by the runner ONCE per process. Process-wide on purpose: every
 /// host reaches the node features through the one shared bootstrapper, so none can forget to pass it (a per-host config field would be N wirings).
-/// A node applies the entries whose feature it declares; the rest belong to another node of the process.
+/// A node applies the entries whose feature it declares; the rest belong to another node of the process — and an id NO node declares is
+/// refused at startup (<see cref="Unclaimed"/>).
 /// </summary>
 public static class NodeFeatureOverrides
 {
     private static readonly List<(string Id, string Json)> _fromCommandLine = new();
 
+    private static readonly HashSet<string> _declared = new(StringComparer.Ordinal);
+    private static readonly object _gate = new();
+
     public static IReadOnlyList<(string Id, string Json)> FromCommandLine => _fromCommandLine;
 
     public static void Set(IEnumerable<(string Id, string Json)> overrides)
     {
-        _fromCommandLine.Clear();
-        _fromCommandLine.AddRange(overrides);
+        lock (_gate) { _fromCommandLine.Clear(); _fromCommandLine.AddRange(overrides); _declared.Clear(); }
+    }
+
+    /// <summary>F-18 — a node of this process built its registry: its declared ids can claim a <c>--feature</c> entry.</summary>
+    public static void NoteDeclared(IEnumerable<string> ids)
+    {
+        lock (_gate) foreach (var id in ids) _declared.Add(id);
+    }
+
+    /// <summary>The <c>--feature</c> ids no node of this process declared (a typo). Call once every in-process node has built its registry; empty = fine.</summary>
+    public static IReadOnlyList<string> Unclaimed()
+    {
+        lock (_gate)
+        {
+            var l = new List<string>();
+            foreach (var (id, _) in _fromCommandLine) if (!_declared.Contains(id) && !l.Contains(id)) l.Add(id);
+            return l;
+        }
     }
 
     /// <summary>Parses one <c>--feature</c> value: <c>id=on|off</c> (short for <c>{"Enabled":…}</c>) or <c>id={json object}</c>. Throws on anything else.</summary>

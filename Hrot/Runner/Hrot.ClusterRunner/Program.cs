@@ -368,6 +368,13 @@ class Program
         {
             orchestrator.Initialize();
 
+            // ⭐ Node Features F-18 (CE-4215 ①) — every in-process node has built its registry: a --feature id none of them declared is a typo, refused loudly.
+            if (Hrot.Common.Infrastructure.NodeFeatureOverrides.Unclaimed() is { Count: > 0 } unclaimed)
+            {
+                Console.Error.WriteLine($"[Runner] ERROR: --feature names {string.Join(", ", unclaimed.Select(u => $"'{u}'"))}, which no node of this process declares.");
+                return 1;
+            }
+
             // ⭐⭐ CE-3354 ⑥ — the command line's startup load: the SAME two messages HTTP sends, once, when this process' master is up (no timer: the master holds a scenario load until its required nodes joined).
             //   Ticked every frame by both loops below until it has gone out.
             startupLoad = Hrot.ClusterRunner.StartupScenarioLoad.For(config, subsystems, perspSubsystem, NodeNameOf);
