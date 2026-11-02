@@ -1653,6 +1653,74 @@ sequenceDiagram
 | ④ the set APPLIES when it arrives (already built, P3) is now pinned for the join direction | `MasterSyncControllerTests.CE4087_A_node_that_registers_after_the_pause_is_in_the_step_set_at_the_next_step` |
 | ⑤ the load itself waits on the bootstrap latch, whose mandatory set now includes the roles `Brain` and `MuscleGround`, and is refused without them — the agreed fix for the way the report was reached | [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §9.2 |
 
+
+## 19. ⭐⭐ `CE-4208` — **the time wire leaves the engine** *(DESIGN `2026-11-02`, backend; R-134)*
+
+🔒 User, `2026-11-02`: *"whenever there is the same structure that serves as a network structure and internal structure, this is not
+desired … even if we need to duplicate the structures."* 📐 Measured by the R-134 guard (`StrictNetworkSeparationTests.CE4208_*`):
+the five time DDS types live in `Fdp.Toolkits/Time/Messages`, and their translators and `TimeNetworkModule` live in `Fdp.Toolkits` too.
+
+```mermaid
+classDiagram
+    direction LR
+    class SlaveSyncController { <<Fdp.Toolkits, engine>> publishes TimeSyncProbeEvent · reads TimeSyncOffsetCalculatedEvent }
+    class TimeSyncProbeEvent { <<NEW, Fdp.Toolkits, engine>> int ClientNodeId · long ClientSendTicks }
+    class TimeSyncOffsetCalculatedEvent { <<existing, engine>> Rtt · NewOffset }
+    class SlaveTimeSyncTranslator { <<MOVES to Fdp.Network.Cyclone>> the ONE probe → wire conversion }
+    class MasterTimeSyncTranslator { <<MOVES>> wire only }
+    class TimeSyncRequest { <<DDS, MOVES>> namespace kept }
+    class TimeSyncResponse { <<DDS, MOVES>> namespace kept }
+    class FrameOrderDescriptor { <<DDS, MOVES>> }
+    class FrameAckDescriptor { <<DDS, MOVES>> }
+    class SwitchTimeModeWireDto { <<DDS, MOVES>> }
+    class TimeNetworkModule { <<MOVES>> the translator factory }
+    SlaveSyncController ..> TimeSyncProbeEvent : publishes
+    SlaveTimeSyncTranslator ..> TimeSyncProbeEvent : reads
+    SlaveTimeSyncTranslator ..> TimeSyncRequest : writes
+    SlaveTimeSyncTranslator ..> TimeSyncResponse : reads
+    SlaveTimeSyncTranslator ..> TimeSyncOffsetCalculatedEvent : publishes
+    MasterTimeSyncTranslator ..> TimeSyncRequest : reads
+    MasterTimeSyncTranslator ..> TimeSyncResponse : writes
+    TimeNetworkModule ..> SlaveTimeSyncTranslator : creates
+```
+
+*What the picture shows that the prose hid:* the response side is ALREADY separated — the controller reads only
+`TimeSyncOffsetCalculatedEvent`; the one DDS struct on the engine's bus is the REQUEST the controller publishes.
+
+```mermaid
+sequenceDiagram
+    participant C as SlaveSyncController (engine)
+    participant B as FdpEventBus
+    participant S as SlaveTimeSyncTranslator (network)
+    participant M as MasterTimeSyncTranslator (network, master node)
+    C->>B: TimeSyncProbeEvent(nodeId, t1)
+    S->>B: Read TimeSyncProbeEvent
+    S->>M: DDS TimeSyncRequest(nodeId, t1)
+    M->>S: DDS TimeSyncResponse(t1, t2, t3)
+    S->>B: TimeSyncOffsetCalculatedEvent(rtt, offset) — t4 captured at the boundary
+    C->>B: Read TimeSyncOffsetCalculatedEvent
+```
+
+```mermaid
+graph TD
+    Common["Hrot.Common<br/>SlaveTimeTranslatorRegistration"] --> Cyclone["Fdp.Network.Cyclone<br/>(already referenced)"]
+    NED["Hrot.Network.NED<br/>NedMasterTimeTranslators"] --> Cyclone
+    IG["Hrot.IG<br/>IgNodeBootstrapper"] --> Cyclone
+    Cyclone --> Toolkits["Fdp.Toolkits<br/>Time: controllers, events, ITickSource"]
+```
+
+*The module view's point:* every caller of `TimeNetworkModule` already references `Fdp.Network.Cyclone`, and Cyclone references
+`Fdp.Toolkits` — the move adds no reference and no cycle.
+
+| decision | why |
+|---|---|
+| ⭐ MOVE `TimeMessages.cs`, `Translators/*`, `SwitchTimeModeDescriptorTranslator.cs`, `TimeNetworkModule.cs` → `Fdp.Network.Cyclone/Time/`, namespaces KEPT | the topic name derives from the type's full name (AQ107 A) — a namespace change is a wire change |
+| ⭐ SPLIT `TimeSyncRequest`: the controller publishes `TimeSyncProbeEvent` (engine); the slave translator converts | the only DDS struct on the engine's bus (`SlaveSyncController.cs:221`) |
+| ⭐ drop `RegisterEvent<TimeSyncRequest/Response>` (`HrotSharedComponentRegistry.cs:235-236`), register `TimeSyncProbeEvent` | the response never rides the bus in production; the registration was the leak |
+| tests that publish `TimeSyncResponse` on a bus (`ClockSkewDriftTests`, `TimeMessagesTests`) | follow the type to `Fdp.Network.Cyclone.Tests` (or reach it by reference) |
+| ⛔ rejected: a new `Fdp.Time.Network` assembly | one more project for five files; Cyclone is already the FDP DDS assembly every caller references |
+| gates | `SimTimeSyncIntegrationTests`, `TimeControlIntegrationTests` (filtered, base `8769f1c4b`), `Fdp.Toolkits.Tests` Time, `Fdp.Network.Cyclone.Tests` |
+
 ## ⭐ WHERE THE TASKS WENT
 
 ⛔ **This document is the ARCHITECTURE and the EVIDENCE. It carries no task list** — ⭐ that is
