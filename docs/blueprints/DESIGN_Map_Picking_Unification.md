@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-02
-build-state: BUILT (2026-10-03 — §5) · §6 (CE-4206, the reference types' forms) DESIGN — leans F1–F9 await the user
+build-state: BUILT (2026-10-03 — §5) · §6 (CE-4206, the reference types' forms) READY-TO-BUILD — F1–F9 ✅ APPROVED by the user 2026-11-02
 current-answer: §2 (diagrams) and §3 (decisions); §1 is the measured inventory; §5 is the as-built · ⭐ §6 the authored reference types' forms (EntityLink / PointLink / AreaLink / Bearing / WorldRotation, CE-4206)
 stale-below: nothing yet.
 known-rot: §2's BehaviorUiCompiler box and its sequence participant are DELETED (CE-1023, 2026-10-12) — the mission panel draws THE one params form (BehaviorParamsForm + ComponentEditDrawer) through a ScopedMapPickContext($.tasks[i]) over the same broker, so the paths and the broker are unchanged; see ../DESIGN_Sensors_And_Doctrine.md §7.6b.
@@ -169,7 +169,7 @@ gizmos) — applies as history, no ruling.
 
 *Rails:* `AdapterTests` A004 (moved onto the shared adapter) + `PickLocationAsync_IsGeodetic_ThroughTheHostTransform` + `PickLocationAsync_FallsBackToTheWorldsTransformSingleton` · `ComponentEditDrawerTests.P5_APickableGeoPointField_IsOneLeaf_AndALocationPickLandsInTheComponent` · `MissionPanelRegistryTests` (the panel picks through the broker; path-keyed; once-only consume; no frame service ⇒ ignored) · `BehaviorUiCompilerTests` (asks the context for `$.tasks[0].TargetNetworkId`) · `PresentationAttributeTests` C008 SC2 (only the `PickableGeoPoint` member is pickable).
 
-## 6. CE-4206 — the editor authors the reference types' FORMS *(ui, `2026-11-02` — build-state: DESIGN, leans F1–F9 await the user)*
+## 6. CE-4206 — the editor authors the reference types' FORMS *(ui, `2026-11-02` — build-state: READY-TO-BUILD; ✅ F1–F9 APPROVED by the user `2026-11-02`, verbatim: "Approved")*
 
 > 🔒 **User:** *"we will need to update the editor to support those XXXLink types."* · dispatched by
 > [HANDOFF_Coordinator_To_Ui_Scenario_Authoring](batches/HANDOFF_Coordinator_To_Ui_Scenario_Authoring.md) ① (frozen at `d358a8728`).
@@ -299,7 +299,7 @@ graph TD
   linkStyle 8 stroke:#c33
 ```
 
-### 6.3 Decisions *(⭐ = my lean; the user approves or names the one to change)*
+### 6.3 Decisions *(✅ all approved `2026-11-02`)*
 
 | # | decision | ⭐ lean | rejected — one line each |
 |---|---|---|---|
