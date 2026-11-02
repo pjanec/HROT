@@ -82,6 +82,9 @@ public sealed record HrotNodeContext : IDisposable
         World.Dispose();
     }
 
+    /// <summary>⭐ Node Features — the node's ONE feature reader (F-4); built by the shared bootstrapper's <c>capabilities</c> step. Null before it.</summary>
+    public NodeFeatures? Features { get; set; }
+
     /// <summary>The ECS world (entity repository).</summary>
     public required EntityRepository World { get; init; }
 

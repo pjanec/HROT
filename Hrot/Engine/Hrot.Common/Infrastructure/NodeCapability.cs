@@ -149,6 +149,9 @@ public interface INodeCapability
     /// <see cref="INodeResourceProvider"/> the plan also selected.</summary>
     IReadOnlyList<string> Needs { get; }
 
+    /// <summary>⭐ Node Features F-2 — the features this capability's code implements; default none. Declared ⇔ available (F-3).</summary>
+    IReadOnlyList<FeatureDeclaration> Features => System.Array.Empty<FeatureDeclaration>();
+
     /// <summary>
     /// Contributes systems to the node's togglable phase groups. Called during the base's
     /// <c>system-groups</c> boot step.
