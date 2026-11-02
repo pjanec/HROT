@@ -31,11 +31,11 @@ related-designs:
 
 | | |
 |---|---|
-| ids next free | `CE-2355` · `R-2072` · AQ `102`+ (check all lanes) · components 430+ (418–433) · rules descriptors 174+ (171–179) · TKB 8862+ (8860–8869) |
+| ids next free | `CE-2378` · `R-2083` · AQ `111`+ (check all lanes) · components 430+ (418–433) · rules descriptors 174+ (171–179) · TKB 8862+ (8860–8869) |
 | merged | `coordinator@02d0079ec`, `backend@29c2ea623` (its param binder) — at `92b681e37` |
 | S1 objectives | ✅ BUILT + LIVE — [design §00.8.1](../DESIGN_Scenario_Rules.md); scenario `sr-objectives-march`, `GET /objectives`. ⚠ open: a PLAYER node reading the statuses |
 | CE-4157 / CE-4159 | ✅ (mission triggers strict · unknown predicate type throws) |
-| S2 triggers | 🔨 design [§00.9](../DESIGN_Scenario_Rules.md) · ⑤ CE-4164 level compiler ✅ `2487aa4c4` · worker tasks: ⑥ CE-4160…4165 action machinery from the PoC · ⑦ the Trigger behaviour · ⑧ verbs + END + PlayerMessage (briefs in the session scratchpad; re-derive from §00.9 if lost) |
+| S2 triggers | 🔨 design [§00.9](../DESIGN_Scenario_Rules.md) · ⑤ CE-4164 ✅ `2487aa4c4` · ⑥ CE-4160…4165 ✅ `593138a39` · ⑦ Trigger ✅ `4302e2d97` (CE-2377 filed: a refused assignment is only a Warn) · worker tasks: ⑥ CE-4160…4165 action machinery from the PoC · ⑦ the Trigger behaviour · ⑧ verbs + END + PlayerMessage (briefs in the session scratchpad; re-derive from §00.9 if lost) |
 | then | a live run of a trigger chain + the end (extend `sr-objectives-march`) · a NOTE to `ui`: the Player subtitle/log from `PlayerMessageEvent` (S2-f) · fold §00.9's as-built |
 | standing Sonnet worker | agent `a851226344b2a12e2` (tasks ⑥–⑧; the first, `aa61f53891af259c3`, did ①–⑤ and filled up) — in-session ids; a new session needs a fresh one |
 
