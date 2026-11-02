@@ -469,19 +469,18 @@ public class TheStartGateIsComposedOnceTests
             var model = ctrl.StartSurface!.Model();
             Assert.Equal(StartVariant.Actions, model.Variant);
             var byLabel = model.Buttons.ToDictionary(b => b.Label);
-            foreach (var label in new[] { "Load Scenario…", "New Scenario…", "Open Exercise Recording…", "Close" })   // ⭐ CE-1443: the first four + Close (Exit is the controller's)
+            foreach (var label in new[] { "Load Scenario…", "Open Exercise Recording…", "Close" })   // ⭐ CE-1443: the first four + Close (Exit is the controller's)
             {
                 Assert.True(byLabel.ContainsKey(label), $"the Start surface of an Orchestrator-only host must offer '{label}'; it offers: {string.Join(", ", model.Buttons.Select(b => b.Label))}");
                 Assert.True(byLabel[label].Enabled, label);
             }
 
-            // New Scenario → the session's ClearWorld (the menu's binding)
+            // ⭐ CE-4140 (bf3e8b629): New Scenario… is NEW FROM A RECIPE; the Orchestrator host composes no scenario-recipe service, so it is OFFERED but greyed
+            //   with its reason (⛔ was: enabled and bound to the session's ClearWorld — the test predated CE-4140)
+            var newScenario = Assert.Single(model.Buttons, b => b.Label.StartsWith("New Scenario…", StringComparison.Ordinal));
+            Assert.False(newScenario.Enabled);
+            Assert.Contains("no scenario recipes", newScenario.Label);
             var session = orch.ScenarioSessionForTest!;
-            session.OpenForEdit("earlier");
-            session.Update();
-            Assert.Equal("earlier", session.LoadedScenarioName);
-            byLabel["New Scenario…"].Invoke();
-            Assert.Null(session.LoadedScenarioName);
 
             // Load Scenario… → the scenario picker over the master's inventory; a pick LOADS into the cluster's armed mode (R-1043: Live, this cluster's master default) through the door (the request goes out)
             byLabel["Load Scenario…"].Invoke();
