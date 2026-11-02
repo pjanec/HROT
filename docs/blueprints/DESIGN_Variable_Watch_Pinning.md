@@ -419,6 +419,8 @@ are still open and untouched, as it directed.
 | ⚠ **the two ruling-9 duplicates** *(two `IMapPickService`, two `MapPickableEntityAttribute`)* | `AQ55` §"Two ruling-9 duplicates" — each its own cleanup |
 
 
+> ⚠ **`2026-11-02` — `BP-511`'s key changes:** a concrete pin is keyed on the entity's `EntityGuid`, not the file's network id (user: *"pin to guid approved, better than network id that is not guaranteed to be same the next time"*), because scenario files drop `NetworkIdentity` (`DESIGN_Scenario_Entity_Keys.md` S8). The re-bind on reload is unchanged in intent; the map becomes GUID → runtime id.
+
 ## ⭐⭐⭐ AS-BUILT — **slice 3 / `94g`: a concrete pin survives a reload (`BP-508`…`BP-512`), `2026-08-25`**
 
 > ⭐⭐ Obligation ⑤. ⛔ Where this disagrees with §3/§5/§8/§8a above, **it wins.**
