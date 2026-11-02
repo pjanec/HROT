@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · §14 (SR-167…SR-176) ✅ accepted 2026-11-02 — READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §14.1 the four preconditions measured (SR-177…SR-179, leans await the user) · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183, leans await the user) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -19,6 +19,8 @@ related-designs:
   - docs/DESIGN_Artifact_Staging.md — OWNS the prefetch (NAS → every node's staging) that SR-80 extends with the macros package
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b OWNS network id allocation and the per-load re-allocation SR-45 / SR-50 rely on
   - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — §0.10 OWNS PartMetadata (the multi-instance part); §6 here explains why macro entities are NOT parts
+  - docs/DESIGN_Entity_Hierarchy_Views.md — OWNS the tree views: the ORBAT stays the command tree (HV-1); a macro's entities are shown in its Scenario view (§14.2)
+  - docs/DESIGN_Add_Entity_Picker.md — D6b OWNS SpawnHeight, the placement intent the creating node resolves; SR-180's PlacementResolver extends it to x, y
   - docs/DESIGN_Node_Roles_And_Policies.md — §7.3 OWNS IsTransient → ScenarioIgnoreTag (R-140) that macro entities reuse
 -->
 
@@ -51,7 +53,7 @@ saved); the file keeps only the instance and its args. A scenario with parameter
 
 | slice | builds | done when | prerequisites | build-state |
 |---|---|---|---|---|
-| **S3a — the macro CORE** *(split `2026-11-01`; §14 ✅ accepted `2026-11-02`; ⏸ ON HOLD `2026-11-02` — user: *"I think we are not yet ready for starting the Scenario macros implementation I will explain later. So please delete the handoff"*; the queued handoff was deleted)* | the `MacroInstance` TKB type (on the map, SR-70) · the macro FILE (`macros/`, header params SR-44 + the authored anchor SR-152 + `relocatable`) · the `Expander` = `CreateEntityRequestSystem`'s child branch with a second source (SR-146: bind · resolve · relocate · create, derived `macro:` GUIDs, fresh ids SR-151) · `ParamBindings` (SR-57) and `bind` maps (SR-129) · the validator in the prepare (SR-149) · `MacroExpansionStatus` (SR-96) · reconcile-by-GUID on an args / anchor edit (SR-150, SR-157) · RefKey's LEXICAL lookup in macro scope (SR-65) · the relocators (SR-154) · the macros package staged on EVERY node (SR-80, SR-148) · scenario-level params in the header (SR-41) + `--param` / HTTP | the same platoon macro placed twice, rotated, both expand and play on a cluster; a nested macro composes its transforms; a missing macro / wrong binding / cycle fails the load naming the path, nothing created; an args edit keeps ids and outside references; a pinned macro placed elsewhere is refused | S0 · CE-4153 S9′ · §14.1 SR-177…SR-179 | ⭐ **READY-TO-BUILD** once SR-177…SR-179 are approved (⏸ on hold by the user) |
+| **S3a — the macro CORE** *(split `2026-11-01`; §14 ✅ accepted `2026-11-02`; ⏸ ON HOLD `2026-11-02` — user: *"I think we are not yet ready for starting the Scenario macros implementation I will explain later. So please delete the handoff"*; the queued handoff was deleted)* | the `MacroInstance` TKB type (on the map, SR-70) · the macro FILE (`macros/`, header params SR-44 + the authored anchor SR-152 + `relocatable`) · the `Expander` = `CreateEntityRequestSystem`'s child branch with a second source (SR-146: bind · resolve · relocate · create, derived `macro:` GUIDs, fresh ids SR-151) · `ParamBindings` (SR-57) and `bind` maps (SR-129) · the validator in the prepare (SR-149) · `MacroExpansionStatus` (SR-96) · reconcile-by-GUID on an args / anchor edit (SR-150, SR-157) · RefKey's LEXICAL lookup in macro scope (SR-65) · the relocators (SR-154) · the macros package staged on EVERY node (SR-80, SR-148) · scenario-level params in the header (SR-41) + `--param` / HTTP | the same platoon macro placed twice, rotated, both expand and play on a cluster; a nested macro composes its transforms; a missing macro / wrong binding / cycle fails the load naming the path, nothing created; an args edit keeps ids and outside references; a pinned macro placed elsewhere is refused | S0 · CE-4153 S9′ · §14.2 SR-180…SR-183 (placement) | ⏸ **DESIGN** — placement (§14.2) awaits the user (⏸ on hold by the user) |
 | **S3b — macros at runtime, variants, the director** | `InsertMacro` (the trigger action, reads `MacroExpansionStatus`) · run variants (SR-101) + the run setup in the picker (AQ108 D24, ui) · `SetSkillAmplifier` (SR-100) · the counter-attack director as a macro (SR-99) | the director is a macro used by two scenarios with different params; variant 3 replays identically | S3a · rules S2 (the trigger runtime) | DESIGN-complete, after S2 |
 
 ⭐ The module picture — who registers the Expander and who calls it (the creation path, at load and at runtime `InsertMacro`) — is
@@ -641,3 +643,69 @@ Class (1: `SharedOrbatPanelWindow`) and `.*(EntityList|EntityBrowser|SceneTree|E
 | **SR-177** | the ORBAT and a macro | ⭐ the tree's parent = the commander if there is one, ELSE `MacroOrigin.Instance` (SR-170) — a macro's top units sit under the instance, their subordinates under them; the instance carries `EntityInfo` (its name). ⭐ Dragging a macro entity to a new commander is refused with SR-43's *"from macro X — edit the macro or its args"* |
 | **SR-178** | the instance's map marker | ⭐ ONE class in `EntityClassTable` (`ScenarioMacro`) + ONE `ProfileOfClass` row — the R-280 table every display reads; until then the fallback rectangle (pickable, draggable) is enough to build S3a |
 | **SR-179** *(amends SR-127)* | a relocated child's Z | ⭐ a relocated child of a GROUNDED type (its template clamps — `GroundClampingConfig.BaseRequiresClamping = 1`, persons and vehicles) is born with `SpawnHeight.OnGround` at its new x, y; a non-grounded one (an aircraft) keeps *authored Z + the anchors' height difference*. ⭐ A PINNED macro (SR-156) uses the authored Z as is. ⇒ uneven terrain, slopes and a soldier on open ground all land right, with no new mechanism. ⚠ A soldier authored on an upper FLOOR of a building lands on the ground at a new place — correct, the building is not there |
+
+### 14.2 The user's answers to §14.1, and PLACEMENT at a new place *(`2026-11-02` — leans SR-180 … SR-183 await the user)*
+
+> 🔒 **User, `2026-11-02`:** *"being created from macro doesn't change the commander hierarchy, so the current orbat panel has no need to somehow
+> reflect the entity that are created by macros … I think we need some other hierarchy view"* · *"Yes, to a specific map marker for a macro
+> entity."* · *"regarding how entities get created from the macro. This might not be trivial, because there might be specific rules how to create
+> entities at places that are not prepared or ready or suitable for placing a new entity. Like if we create a platoon on the beach, half of the
+> platoon would be standing in the water, which is not desired. The same to create entities inside the buildings. That needs some design."* ·
+> *"scenario macros are not units, just scenario part. They shouldn't be movable under a commander, so the refusal is okay."*
+
+| id | outcome |
+|---|---|
+| **SR-177** | ⛔ **WITHDRAWN** — the ORBAT stays the command tree; macro entities are shown by the Scenario view of `DESIGN_Entity_Hierarchy_Views.md` (HV-1 … HV-5). ✅ The refusal half stands: a macro entity cannot be dragged under a commander |
+| **SR-178** | ✅ **ACCEPTED** — one `ScenarioMacro` class in `EntityClassTable` + one `ProfileOfClass` row, a dedicated marker |
+| **SR-179** | ⛔ **SUPERSEDED by SR-180 … SR-183** — *"born on the ground"* is only the height half; WHERE on the ground is the real question |
+
+**INVENTORY** *(`2026-11-02`: graph `.*(Water|Surface(Type|Kind|Class)|Terrain(Type|Material)|Passab|Walkab|Traversab).*` Class (6) and
+`.*(Placement|Placeable|SpawnPoint|SpawnSpot|Snap|NearestValid|FindValid|Footprint).*` Class (~60, mostly snapshots); grep `ProjectToNavmesh`,
+`SurfaceTypeAt`, `INavmeshProvider`; read `DESIGN_Add_Entity_Picker.md` D6b; ⚠ coverage unchecked)*
+
+| what exists | where | so |
+|---|---|---|
+| ⭐ the creating node already resolves a PLACEMENT INTENT carried on the request — `SpawnHeight {Mode, Level}`, resolved from its own terrain, the sent Z ignored | `DESIGN_Add_Entity_Picker.md` D6b; `SpawnHeight.cs`; `NetworkSpawningSystem` | ⭐ the pattern to EXTEND — a horizontal intent beside the vertical one |
+| ⭐ nearest valid point on the navmesh, per agent layer (infantry / vehicle): `INavmeshProvider.ProjectToNavmesh(pos, out snapped, layerMask)` — the navmesh already excludes water (*"water = unwalkable"*), walls and too-steep ground, and includes building floors | `Navigation/INavmeshProvider.cs:28`; `DESIGN_Terrain_World.md:90`; `NavmeshGizmo.cs:13` (Infantry / Vehicle) | ⭐ "is this spot fit for THIS entity" is already answered |
+| the terrain without a navmesh still knows ground cover: `TerrainWorld.SurfaceTypeAt(x, y)` → `Open \| Forest \| Water` | `Terrain/TerrainWorld.cs:17, :749` | the fallback check where no navmesh is resident |
+| a navmesh is held on the SimHost (`SimHostNodeBootstrapper.cs:60`), the editor (`EditorSubsystem.cs:213`) and the shared terrain residency (`Hrot.Core/Services/TerrainResidency.cs:50`) | as cited | ⚠ whether the BRAIN node (who usually creates) keeps one resident — not measured |
+| an entity's footprint (length × width) | `Diagnostics/Gizmos/EntityFootprint.cs` | spacing between placed entities |
+
+```mermaid
+sequenceDiagram
+    participant X as Expander (child branch)
+    participant R as PlacementResolver (NEW, shared)
+    participant N as INavmeshProvider (existing)
+    participant T as TerrainWorld (existing)
+    participant C as creation (SpawnEntityCommand)
+    X->>X: relocate the child's authored point to the instance anchor (§10)
+    X->>R: Resolve(point, layer of its template, MaxShift, already taken spots)
+    alt a navmesh is resident
+        R->>N: ProjectToNavmesh(point, layer)
+        N-->>R: the nearest walkable spot (dry, not inside a wall, not too steep)
+    else terrain only
+        R->>T: SurfaceTypeAt(point) is not Water, else search outward in rings
+    end
+    R-->>X: Exact · Shifted(by d m) · Failed(why)
+    alt every child placed
+        X->>C: create each at its resolved spot (SpawnHeight gives Z)
+    else any child Failed
+        X-->>X: expansion FAILS — nothing created, the reason names the child
+    end
+```
+
+*What the picture shows that prose hid:* the placement check is a step BETWEEN relocation and creation that the whole macro passes or fails
+together — so a platoon is never half in the water and half missing; and the check itself is the navmesh's own answer, not a new rule set.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-180** | ONE placement resolver, not a macro feature | ⭐ `PlacementResolver.Resolve(point, layer, maxShift, taken)` → `Exact \| Shifted \| Failed`, in the shared creation code beside `SpawnHeight`; used by the macro expander, ⭐ and offered to Add Entity, the game-master placement (SR-104 Z1) and a runtime `InsertMacro` — ⛔ never a second placement check per tool. The LAYER comes from the child's template mobility: infantry, vehicle, amphibious (water allowed), air (always Exact) |
+| **SR-181** | what "suitable" means | ⭐ the spot projects onto the navmesh of its layer within `maxShift` — so dry land, not inside a building's walls, not too steep, for that kind of entity. ⭐ With no navmesh resident: terrain only — not `Water` (unless amphibious), searched outward in rings. ⭐ Entities already placed in this expansion count as taken, spaced by their footprints, so two never land on one spot |
+| **SR-182** | when a spot cannot be found | ⭐ the WHOLE expansion fails — nothing created, `MacroExpansionStatus = Failed` (runtime) or the load refused (validator, SR-149), naming the child and why (*"Blue Platoon / Rifleman 3: no dry ground within 30 m"*) — ⛔ never a partly placed group. ⭐ `maxShift` is per macro (`header.placement.maxShift`, default 30 m); a macro that must stand exactly where authored is `relocatable: false` (SR-156) and skips the resolver |
+| **SR-183** | buildings, and the author's view | ⭐ a RELOCATABLE macro places on the ground: an indoor-authored child projects to the nearest walkable spot at the new place (usually outside — the building is not there). ⭐ Occupying a building at the new place is a BEHAVIOUR, not placement: the building comes in as a param (`EntityLink`) and an *occupy* order moves the units in after spawn. ⭐ In the editor, dragging an instance shows every child's ghost — green (exact), yellow with an arrow (shifted), red (no spot) — from the SAME resolver; dropping with any red is refused, saying which |
+
+**Rejected — one line each:**
+- *Spawn as authored and let the movement model sort it out* — a soldier born in the sea or inside a wall stays there; the navmesh never sees it.
+- *Per-macro placement rules written by the author* — every macro would re-encode what the navmesh already knows.
+- *Drop the children that do not fit* — a platoon silently missing a section is worse than a loud refusal.
+- *Placement inside the expander only* — Add Entity and the game master need the same answer (one implementation).

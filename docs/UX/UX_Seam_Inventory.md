@@ -8,6 +8,9 @@
 
 ## Why the earlier scans missed these
 
+> 🔗 **Related, `2026-11-02`:** [`DESIGN_Entity_Hierarchy_Views.md`](../DESIGN_Entity_Hierarchy_Views.md) HV-4 adopts `IHierarchyAdapter` (0 implementers below) as the one relation seam of the tree panel.
+
+
 Five scans ran before this, and all of them searched the **call space** — `RegisterContextMenuHandler`,
 `AddItem`, construction sites. A call-site scan surfaces a type **in proportion to how widely it is
 adopted**. An unadopted seam is therefore *invisible by construction* — and unadopted seams are exactly

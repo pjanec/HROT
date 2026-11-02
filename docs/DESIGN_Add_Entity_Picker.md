@@ -8,6 +8,7 @@ known-rot: (2026-10-19, CE-3271) §2e / §5 "NetworkSpawningSystem resolves" —
 known-rot: (2026-10-31, CE-259ax) §2e's "eleven direct SpawnEntityCommand publishers" was measured 2026-10-07; CE-259ax routed them through CreateEntityRequestSystem (docs/DESIGN_Scenario_Entity_Keys.md §00c)
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Scenario_Macros.md — §14.2 SR-180: a PlacementResolver (nearest suitable spot on the navmesh, per mobility layer) beside D6b's SpawnHeight — the same creating-node intent pattern, extended to x, y; offered to Add Entity too
   - docs/blueprints/Architect_Question_108_Run_Mode_Picker.md — D26 OWNS the generic picker's extensions (P1 side pane … P5 image cache) that §2f's gallery is built on, shared with the scenario picker (D25)
   - blueprints/Architect_Question_94_Brain_Geometry_Sites.md — §5.2a owns WHERE the level is resolved (the position's owner, CE-3271); this doc owns the rule and the wire fields
   - docs/DESIGN_Orders_Params_Entity_Classes.md — C2 (CE-2138): the picker path from the class chain; DisNames.json deleted

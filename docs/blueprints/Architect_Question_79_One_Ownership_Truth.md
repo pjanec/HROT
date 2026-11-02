@@ -7,6 +7,7 @@ stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction. · ⛔ SUPERSEDED 2026-10-28 (R-4095): the BDC stack ("BDC exempt while unused", G6, the §2.3 BDC sender edge) was removed; the exemption is moot.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
 related-designs:
+  - docs/DESIGN_Entity_Hierarchy_Views.md — the Structure view shows PartMetadata parts under their parent (HV-3)
   - ../DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); why macro entities are full transient entities, not PartMetadata parts (§6)
   - docs/DESIGN_Ownership_Groups_And_Grants.md — the BUILD design (R-170): the classification, the ownership groups, the UML; this doc keeps the decisions.
   - docs/DESIGN_Role_Affinity_Ownership.md — owns WHO claims WHICH component (role tables, birthright, promote leg, shard seam §3.8); §0 changes its tables' meaning.

@@ -10,6 +10,9 @@
 
 ## What this doc is for
 
+> 🔗 **Related, `2026-11-02`:** [`DESIGN_Entity_Hierarchy_Views.md`](../DESIGN_Entity_Hierarchy_Views.md) — the outliner (ORBAT) gains a relation switch *[Command | Structure | Scenario]*; this path's command-tree contract is the Command view, unchanged.
+
+
 Three things, and it must keep being good at all of them:
 
 1. **The acceptance test for the whole programme.** When both paths walk clean, the programme is done.
