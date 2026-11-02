@@ -65,13 +65,13 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 |---|---:|---:|
 | `WIRING` | 12 | 97 |
 | `RW-XS` | 4 | 11 |
-| `RW-S` | 158 | 819 |
+| `RW-S` | 159 | 819 |
 | `RW-L` | 144 | 244 |
 | `RW-M` | 230 | 799 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **573** | **2067** |
+| **Total** | **574** | **2067** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
