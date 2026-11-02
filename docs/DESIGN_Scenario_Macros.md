@@ -203,6 +203,52 @@ lose it, the loader finds it by type, and save writes it with no extra step.
 | **SR-162** | how the loader knows | ⭐ by TYPE, in the expansion's step ① (§10.1): the walker applies `RefSpec.Form = Param` leaves; the JSON walk applies every `Bind` of a `BindableNode`; `ParamBindings` is read per child entity. ⭐ The validator (SR-149) checks first: every bound name is a declared param of the macro (or scenario, SR-41) and its type fits the target (a `PointLink` ← a point param, a `float` ← a number). A binding is applied ONCE at expansion (SR-44); the live copy holds values only |
 | **SR-163** | how it is saved | ⭐ nothing extra: ① and ② are inside values the serializer already writes; ③ is a saved component with its own translator. The EXPANDED children are transient and never saved (SR-42′) — the bindings live in the macro FILE, whose entities are edited unexpanded (literal defaults + bindings). ⭐ A RAIL round-trips a macro with all three kinds through hydrate → edit an unrelated field → commit → save → load and asserts every binding survives |
 
+#### 5.1.1 Example — a macro file with all three kinds *(illustrative names; ⚠ the trigger's definition component is named in rules S2 — SR-97's record)*
+
+```jsonc
+// macros/forces/RedQRF.macro.json
+{
+  "header": {
+    "kind": "macro",
+    "anchor": { "position": [0, 0, 0], "heading": 0 },                       // SR-152
+    "params": [                                                                // SR-44 — declared here, never compiled
+      { "Name": "area",     "TypeId": "AreaLink", "Default": "@RedStaging" },
+      { "Name": "speed",    "TypeId": "float",    "Default": 4.0 },
+      { "Name": "side",     "TypeId": "ForceId",  "Default": "Hostile" },
+      { "Name": "minDelay", "TypeId": "float",    "Default": 30 }
+    ]
+  },
+  "entities": {
+    "7b1e…": {                                                                // the squad leader
+      "EntityInfo":   { "Name": "QRF lead", "ForceId": "Hostile" },            // literal = the value when the macro is opened alone
+      "SimTransform": { "Position": [0, 0, 0], "Rotation": [0, 0, 0, 1] },
+      "Behavior":     { "Name": "ClearArea",
+                        "Params": "{\"Area\": \"^area\", \"Speed\": 4.0}" },   // ① "^area" — a FORM of the AreaLink value (SR-159)
+      "ParamBindings": { "Bindings": {                                         // ③ scalars / enums the value type cannot hold (SR-161)
+                          "Behavior.Params.Speed": "speed",
+                          "EntityInfo.ForceId":    "side" } }
+    },
+    "c40a…": {                                                                // a trigger inside the macro
+      "TriggerDefinition": {                                                   // the managed record (SR-97), typed DTOs
+        "When": { "$type": "Compound", "Operator": "And", "Conditions": [
+                  { "$type": "ScenarioTime", "Clock": "Elapsed", "Min": 30,
+                    "Bind": { "Min": "minDelay" } },                           // ② a typed property of the NODE (SR-160)
+                  { "$type": "OnEntity", "Ref": "^area", "Predicate": { "$type": "…" } } ] },
+        "Do":   [ { "Act": "Message", "Args": { "Text": "QRF moving", "Seconds": 8 } },
+                  { "Act": "Order",   "Args": { "Speed": 4.0 },
+                    "Bind": { "Speed": "speed" } } ]                           // ② on the ENTRY (SR-94), never inside Args
+      }
+    }
+  }
+}
+```
+
+| case | who EDITS it | where the editor finds the binding | why the next save keeps it |
+|---|---|---|---|
+| ① `"^area"` | the params form's `AreaLink` leaf | IN the value — the leaf reads `RefSpec.Form == Param` and shows *"⛓ area"* | the form writes the typed value back, form included |
+| ② `Bind` on a node / entry | the predicate builder · the `do`-list editor | a typed property of the node it is drawing — a chip on `Min` / `Speed` | the node (with its `Bind`) is what that editor serialises |
+| ③ `ParamBindings` | ⭐ the params form and the component editor READ it; *Bind / Unbind* WRITES it (an ordinary component edit — undoable) | the entity's `ParamBindings` component, looked up by the path of the field being drawn (`"Behavior.Params.Speed"`) — the same field path the component editor already uses | the params form only ever writes `Params`; `ParamBindings` is a separate saved component it never overwrites |
+
 **Rejected — one line each:**
 - *`bind` keys inside the JSON (SR-129 as written)* — measured: the typed params form drops unknown keys on the first save.
 - *`[JsonExtensionData]` on every DTO* — the binding would survive but no editor would SEE it; editing the bound field silently diverges from it.
