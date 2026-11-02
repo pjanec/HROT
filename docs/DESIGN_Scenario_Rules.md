@@ -441,6 +441,58 @@ a separate `FdpEventBus`, `HrotNodeBuilder.cs:143`) reaches the master — fixed
 `PauseOnEnd_GoesOutOnTheNodeBus_NotTheWorldBus_AndThePackForwardsIt`. ⚠ Open: the Player's subtitle / end summary (ui, `NOTE_Behaviors_To_Ui_Player_Messages_And_Exercise_End.md`) ·
 CE-2377 (a refused trigger at load is only a Warn) · `MissionCommand Replace` refused (needs a plan format) · `Order` reaches only units the Brain node owns.
 
+### 00.10 The rules view's data — on EVERY node *(behaviors, `2026-11-02`; `HANDOFF_Coordinator_To_Behaviors_Rules_S4_And_View_Data.md` Part A)*
+
+> 🔒 **User, `2026-11-02`:** *"The objective view and the summary panel should be displayable on any node so we need replication for necessary info."*
+
+📐 **A1 measured:** a rule entity's whole definition (`when`, `do`, deadline, delay …) travels as the brain-intent JSON (`EntityBrainIntent.IntentJson`,
+`BrainIntentTranslators.cs:69-85`), but its INGRESS is composed only where a behaviour registry is (`CognitiveTranslatorPack.cs:58-62`) ⇒ a Brain / editor
+receives it, ⛔ a Player / IG never does — and SR-120 already rejected every HUD parsing JSON. ⇒ the view's data rides the status topic every node has
+(`EntityObjectiveStatus`, 171, `SharedTranslatorPack`) as unmanaged fields, written by the owner.
+
+| # | decision | why |
+|---|---|---|
+| **V-1** links (A1/A2) | `ObjectiveStatus` gains `DependsOn` (≤ 8 net ids — the entities a trigger's `when` names: `OnEntity` refs, recursively) and `ActsOn` (≤ 8 — the targets its `do` names: `SetObjectiveActive` / `Order` / `MissionCommand` targets), written at assignment from the params (the behaviour already parses them) | one shape on one topic; static, so the change-only egress sends them once |
+| **V-2** timing (A2) | `ObjectiveStatus` gains `HoldFor`, `Delay`, `Cooldown`, `Deadline` (sim s, 0 = none) and `ExpectedAt` (sim s of the NEXT thing the owner already knows will happen: Waiting ⇒ edge + delay · Holding ⇒ since + holdFor · Cooldown ⇒ its end · an Active objective with a deadline ⇒ the deadline; 0 = unknown) | the view draws dashed expected bars from it; ⛔ the frontend never re-derives timing |
+| **V-3** live leaf values (A3) | a STATE topic `EntityRuleLeaves` (descriptor **174**): per trigger ≤ 8 leaves `{ FixedString32 Label, byte Value, float Measured }`, flattened from its `when` (each leaf compiled ONCE through `CompileLevelPredicate`; `Measured` = the property a PropertyMatch reads, else 0/1). Published by the owner at ≤ 2 Hz and ONLY while the node feature `ui.rules-live-values` is on (`AtLoad` off, `Live` on demand) | ⛔ never every frame for every trigger (the handoff) |
+| **V-4** runtime control (A4) | a small unmanaged component `RuleControl { byte Request (Fire · Disarm · Rearm · Reset · Activate · Deactivate); int Seq }` written through the EXISTING attribute path (`EntityWriteRouter.For(repo)`: local apply on the owner, a change-request to the owner elsewhere — recorded); `ObjectiveHost.Enter` honours a new `Seq` once and JOURNALS it with its origin (T9, SR-114) | ⛔ no new command transport; one owner of every rule entity's state |
+
+```mermaid
+classDiagram
+    direction LR
+    class ObjectiveStatus { <<425, on 171>> + DependsOn[8] · ActsOn[8] · HoldFor · Delay · Cooldown · Deadline · ExpectedAt }
+    class RuleLeaves { <<NEW component, on 174>> Leaf[8]: Label · Value · Measured }
+    class RuleControl { <<NEW component, attribute-written>> Request · Seq }
+    class TriggerBehavior { <<existing>> writes links + timing; feeds leaves }
+    class ObjectiveHost { <<existing>> honours RuleControl once, journals }
+    class EntityWriteRouter { <<existing>> local apply or change-request to the owner }
+    class LeafSampler { <<NEW system, Brain>> 2 Hz, only while ui.rules-live-values }
+    class Frontend { <<ui>> rules view · mission summary · HUD on ANY node }
+    TriggerBehavior ..> ObjectiveStatus
+    LeafSampler ..> RuleLeaves
+    Frontend ..> ObjectiveStatus : reads (replicated)
+    Frontend ..> RuleLeaves : reads (replicated)
+    Frontend ..> EntityWriteRouter : fire / disarm / reset
+    EntityWriteRouter ..> RuleControl
+    ObjectiveHost ..> RuleControl
+```
+
+```mermaid
+sequenceDiagram
+    participant IOS as instructor (any node)
+    participant WR as EntityWriteRouter
+    participant B as Brain (owner) · ObjectiveHost
+    participant W as egress 171 / 174
+    IOS->>WR: RuleControl.Request = Disarm (Seq n)
+    WR->>B: change-request (recorded) — or a local apply on the owner
+    B->>B: next tick: Seq new ⇒ Disarm · journal "disarmed by the instructor"
+    B->>W: ObjectiveStatus TriggerState Disarmed
+    W-->>IOS: the view updates
+```
+
+*What the pictures show that prose hid:* every frontend READS two topics and WRITES one attribute — the owner stays the one place a rule's state changes,
+so a disarm from a Player-node IOS and from the editor take the same path.
+
 ⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 
 ⭐ **SR-144** ✅ `2026-11-01` — **macro expansion is CORE infrastructure, not part of the rules.** 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The `Expander` lives on the entity CREATION path (§9.7) and serves forces, units, props and events alike; the rules are one user of it (`InsertMacro`). ⇒ composed wherever entities are created, ⛔ never gated by `scenario.rules` (`DESIGN_Node_Features.md` F-19), and its slice (S3) does not depend on the rules' slices except for `InsertMacro`
