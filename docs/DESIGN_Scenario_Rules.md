@@ -513,6 +513,54 @@ sequenceDiagram
 *What the pictures show that prose hid:* every frontend READS two topics and WRITES one attribute — the owner stays the one place a rule's state changes,
 so a disarm from a Player-node IOS and from the editor take the same path.
 
+### 00.11 S4 — per-member evaluation: build decisions *(behaviors, `2026-11-02`; handoff Part B; on backend's `InsertMacro` (Macros §16) and CE-4155)*
+
+| # | decision | why / basis |
+|---|---|---|
+| **E-1** `MemberEvaluation` | an objective KIND (TKB 8860, the task slot) whose `Subject` is a commander; params `{ common, library: "macros/evaluation/<set>", overrides: {key→macro} }`. Each tick it walks the subject's `UnitRoster` (ONE level — a role macro may itself hold a `MemberEvaluation`, SR-72) and, for a member it has not served, picks the macro by SR-81: `overrides[@RefKey]` → `<library>/<RefKey>` → `<library>/<TacticalDesignation>` → `<library>/<entity class>` → `<library>/Default` (first file the node's macro library HAS), and inserts it through the SAME request `InsertMacro` publishes (one helper, `MacroInsertion.Request`) with args `{ subject: <member>, parent: <this evaluation> }`. Served members are remembered in its blackboard (≤ 16 net ids); a casualty's instance STAYS (it keeps its result); a reinforcement gets one | SR-72 / 72a / 81; ⛔ no second insertion path |
+| **E-2** measures | kinds with `Role = Measure`, `Value` / `Target`, `Score` by `ObjectiveRules.Score` (clamp Value / Target; a "lower is better" measure declares `lowerIsBetter`): `HitRatio` (hits ÷ shots by the subject's men — `WeaponFireIntent` shooter, `DamageAssessedEvent.Source` on a hostile, CE-4155 `attribute` last / original / both) · `Count { what: shots / hits / kills / fratricide / civiliansHarmed / reports }` · `ReportLatency` (`SquadReportNotification` from the subject: `SentAt − ObservedAt`, the mean of the run so far) · `TimeTo { objective }` (scenario start → that objective's `ChangedAt` when Achieved) · ⭐ SR-20 adapters: `Sample { input, aggregate: mean / max / timeAbove }` reads a registered `[UtilityInput]` on the subject (no fourth registry) and the predicate leaf `InputAbove { input, threshold }` (a `SearchPredicateDto` leaf with a level arm) | SR-20, §10.3 |
+| **E-3** roll-up + groups | ⭐ nothing new to aggregate: an evaluation macro's ROOT is a composite (`WeightedMean` by default) with `Parent` = the commander's evaluation, so the tree IS the roll-up up the chain. `ObjectiveCommon` gains `group` (FixedString32: mission · fire · reports · conduct …, from the macro, ⛔ not hard-coded) and it rides the status (171). The per-side HEADLINE = the root composites by subject side (`Score`, pass mark = its `Target`) — read by a frontend from the replicated rows, the same at the end in `ExerciseResult` | SR-75, SR-111 |
+| **E-4** history (trend) | ⛔ no new store. Statuses are RECORDED components ⇒ after the run the recording gives any status's value over time (the Replay Browser's index); LIVE, a frontend keeps its own small ring of the replicated `Score` it receives (it is the one viewing). Measure first what the timeline index already offers; build only the gap | the handoff ("prefer the existing timeline index / recording") |
+| **E-5** debrief / HUD data | ⭐ comes FROM E-1…E-3: a trainee's standards = the statuses whose `Subject` is him (GO = Achieved, NO-GO = Failed / Skipped-required), his squad / platoon = their evaluations up the `Parent` chain, kills / assists = `Count` measures. ⛔ nothing computed twice; the screens are ui's | SR-112, R-4105 |
+
+```mermaid
+classDiagram
+    direction LR
+    class MemberEvaluation { <<NEW kind>> library · overrides · served[16] }
+    class MacroInsertion { <<NEW shared helper>> Request(macro, at, args, guid) }
+    class InsertMacro { <<existing verb, backend>> }
+    class IMacroLibrary { <<existing>> which macro files this node has }
+    class Measures { <<NEW kinds>> HitRatio · Count · ReportLatency · TimeTo · Sample }
+    class InputAbove { <<NEW predicate leaf>> [UtilityInput] over a threshold }
+    class UtilityInputs { <<existing registry>> [UtilityInput] }
+    class WeightedMean { <<existing aggregator>> the roll-up }
+    class ObjectiveStatus { <<existing 425 / 171>> + Group }
+    MemberEvaluation ..> MacroInsertion
+    InsertMacro ..> MacroInsertion
+    MemberEvaluation ..> IMacroLibrary : SR-81 lookup
+    Measures ..> UtilityInputs : Sample
+    InputAbove ..> UtilityInputs
+    Measures ..> ObjectiveStatus : Role Measure
+    WeightedMean ..> ObjectiveStatus : children by Parent
+```
+
+```mermaid
+sequenceDiagram
+    participant ME as MemberEvaluation on "1st Platoon"
+    participant L as macro library (node)
+    participant C as creation path
+    participant M as member macro (Rifleman 3's)
+    ME->>ME: tick — Rifleman 3 not served yet
+    ME->>L: @PL-Trainee? no · Rifleman? yes
+    ME->>C: MacroInsertion.Request(Rifleman, args {subject: R3, parent: ME})
+    C->>M: expanded: HitRatio · Count(fratricide) · WeightedMean root (Parent = ME)
+    M->>M: each tick: measures write Value / Score
+    ME->>ME: WeightedMean over its children (the members' roots) = the platoon's score
+```
+
+*What the pictures show that prose hid:* S4 adds kinds and one helper — the roll-up, the groups, the debrief and the HUD are READINGS of the status tree
+that already replicates to every node.
+
 ⭐ **SR-145** ✅ `2026-11-01` — **objectives and triggers have NO feature switch: they are scenario CONTENT, like cars.** 🔒 user, `2026-11-01`: *"The triggers and objectives, they are entities like cars or whatever else, and they are probably a core system feature as well. So is there anything that we can turn on or off? They are either present in the scenario or they don't. And if they are, they should be working, as the system knows how to handle them."* → *"Yes."* to the lean. ⭐ Measured against every reason to switch them off — free play (per scenario: the instructor disarms a trigger / switches an objective off, T9 / `SetObjectiveActive`, or a run variant / param, SR-101), debugging (the same), performance (a handful of entities, one small behaviour each), a node that cannot run them (any Brain node runs every behaviour), replay (brains do not tick, T10), old builds (no backward compatibility) — none holds. ⇒ ⛔ no `scenario.rules` feature; the ONLY check is the behaviour registry's: an unknown kind / action fails the load loudly. Real switches stay where the run is PRESENTED or PLAYED differently (`exercise.pause-on-end`, `hud.*`, `gameplay.team-kill`). Supersedes SR-6's "master refuses to start" clause and `DESIGN_Node_Features.md` F-17's `scenario.rules`.
 
 ⭐ **SR-144** ✅ `2026-11-01` — **macro expansion is CORE infrastructure, not part of the rules.** 🔒 user: *"Macro expansion is not part of scenario rules, is it? Isn't it a standalone feature which is usable in general, just being used by the rules system? So it should not be gated by scenario.rules. I think this is the core system feature."* ⭐ The `Expander` lives on the entity CREATION path (§9.7) and serves forces, units, props and events alike; the rules are one user of it (`InsertMacro`). ⇒ composed wherever entities are created, ⛔ never gated by `scenario.rules` (`DESIGN_Node_Features.md` F-19), and its slice (S3) does not depend on the rules' slices except for `InsertMacro`
