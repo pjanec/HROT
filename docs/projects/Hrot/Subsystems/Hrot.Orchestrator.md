@@ -396,7 +396,6 @@ public sealed class NodeHealthProfile
 | `string SubsystemName { get; set; }` | Human-readable name (e.g. `"SimHost"`, `"IG"`). |
 | `ClusterState LocalClusterState { get; set; }` | Last reported local DSM state. |
 | `double LastHeartbeatUtcSeconds { get; set; }` | UTC timestamp of last heartbeat. |
-| `float CpuUsagePercent { get; set; }` | CPU load 0-100. |
 | `long RamUsedBytes { get; set; }` | Process RSS in bytes. |
 
 ---

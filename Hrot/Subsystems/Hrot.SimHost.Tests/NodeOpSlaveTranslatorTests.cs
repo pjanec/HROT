@@ -540,16 +540,14 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Equal((id, OrchestrationStatusCode.Failure, "cancelled by the user on node 2"), (opStatus.RequestId, opStatus.StatusCode, (string?)opStatus.ResultPayload));
     }
 
-    // ── ⭐ AQ107 I: the CPU load is a 0…1 FRACTION on the wire, a percent in the cluster cache ───────────────
+    // ── ⭐ CE-4075: the heartbeat → NodeCapability mapping (the ONE shared NodeCapabilityFromHeartbeat) ───────────────
 
     /// <summary>
-    /// ⭐ <c>AQ107 I</c> — <c>NodeHeartbeat.CpuUsage</c> is a 0…1 fraction (SI: a share, not a percent). A heartbeat carrying 0.25 over
-    /// real DDS, read by the shared membership ingest (<c>ClusterCapabilityIngestSystem</c>), lands in the cluster cache as 25 percent —
-    /// <c>NodeCapability.CpuUsagePercent</c>, the unit the least-loaded pick compares, is unchanged. ✅ Red-proof: the ingest storing the
-    /// fraction unconverted ⇒ 0.25 ⇒ red.
+    /// ⭐ <c>CE-4075</c> — a heartbeat over real DDS, read by the shared membership ingest (<c>ClusterCapabilityIngestSystem</c>), lands in the cluster cache
+    /// through <c>NodeCapabilityFromHeartbeat</c>: RAM and the last-seen stamp carried over. (The CPU field was dropped — nothing measured it.)
     /// </summary>
     [Fact(Timeout = 15_000)]
-    public void AQ107I_ACpuLoadOnTheWire_IsAFraction_AndThePercentInTheClusterCache()
+    public void CE4075_TheHeartbeatIngest_MapsRamAndLastSeenIntoTheClusterCache()
     {
         using var participant      = new DdsParticipant(TestDomain);
         using var heartbeatWriter  = new DdsWriter<NodeHeartbeat>(participant);
@@ -562,7 +560,7 @@ public sealed class NodeOpSlaveTranslatorTests
         Thread.Sleep(400);
 
         const int nodeId = 77;
-        heartbeatWriter.Write(new NodeHeartbeat { NodeId = nodeId, SubsystemName = "SimHost", WallTicksUtc = 12345L, CpuUsage = 0.25f, RamUsedBytes = 1L << 20 });
+        heartbeatWriter.Write(new NodeHeartbeat { NodeId = nodeId, SubsystemName = "SimHost", WallTicksUtc = 12345L, RamUsedBytes = 1L << 20 });
 
         Hrot.Network.Routing.NodeCapability? got = null;
         var deadline = DateTime.UtcNow.AddSeconds(8);
@@ -574,8 +572,8 @@ public sealed class NodeOpSlaveTranslatorTests
         }
 
         Assert.NotNull(got);
-        Assert.Equal(25f, got!.CpuUsagePercent, 1e-3f);
-        Assert.Equal(1L << 20, got.RamUsedBytes);
+        Assert.Equal(1L << 20, got!.RamUsedBytes);
+        Assert.Equal(12345.0 / TimeSpan.TicksPerSecond, got.LastSeenUtcSeconds, 1e-9);
     }
 
     // ── ⭐⭐⭐ CE-1436 (R-3066, design V1/V2) — ONE ingress of the cluster's facts; monitoring stays with the observer ───────────────────

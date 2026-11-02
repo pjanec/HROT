@@ -17,7 +17,7 @@ namespace Hrot.Network.Routing
     public interface IClusterStateCache
     {
         /// <summary>
-        /// Returns the node ID of the least-loaded active node that carries
+        /// Returns the node ID of the preferred active node (no load is measured today: the lowest node id) that carries
         /// <paramref name="requiredRole"/>, or <c>null</c> if no such node is currently known.
         /// </summary>
         /// <param name="requiredRole">The capability role the target node must fulfil.</param>
@@ -90,7 +90,6 @@ namespace Hrot.Network.Routing
         public System.Collections.Generic.IReadOnlySet<string> Capabilities { get; set; }
             = new System.Collections.Generic.HashSet<string>();
 
-        public float  CpuUsagePercent { get; set; }
         public long   RamUsedBytes    { get; set; }
         public double LastSeenUtcSeconds { get; set; }
     }

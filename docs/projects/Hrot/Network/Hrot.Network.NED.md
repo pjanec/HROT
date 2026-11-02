@@ -675,7 +675,6 @@ public sealed class NodeCapability
 {
     public int     NodeId              { get; set; }
     public NodeRole Role               { get; set; }
-    public float   CpuUsagePercent    { get; set; }
     public long    RamUsedBytes       { get; set; }
     public double  LastSeenUtcSeconds { get; set; }
 }
@@ -898,7 +897,6 @@ eventBus.Subscribe<NodeHeartbeatEvent>(hb =>
     {
         NodeId             = hb.NodeId,
         Role               = (NodeRole)hb.LocalStateId,
-        CpuUsagePercent    = hb.CpuPercent,
         LastSeenUtcSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
     });
 });

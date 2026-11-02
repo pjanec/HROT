@@ -440,18 +440,7 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
             }
             if (!sample.IsValid) continue;
             var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : System.Array.Empty<string>();
-            _clusterCache.UpdateNode(new NodeCapability
-            {
-                NodeId             = (Fdp.Core.NodeId)(sample.Data.NodeId),
-                // CE-286 (C-roles): the role mask is DERIVED from the fdp.role.* subset of the node's capability
-                // tokens (AQ-70 §Q70-C) — the heartbeat no longer carries RolesMask. An un-advertising / foreign
-                // node reads None, the correct "unknown role"; multi-role [Flags] masks survive.
-                Role               = NodeRoleTokens.MaskFromTokens(tokens),
-                Capabilities       = new System.Collections.Generic.HashSet<string>(tokens),
-                CpuUsagePercent    = Hrot.NED.Descriptors.Orchestration.WireUnits.FractionToPercent(sample.Data.CpuUsage),   // ⭐ AQ107 I — the wire carries a fraction
-                RamUsedBytes       = sample.Data.RamUsedBytes,
-                LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
-            });
+            _clusterCache.UpdateNode(Hrot.Network.Routing.NodeCapabilityFromHeartbeat.Map(sample.Data, tokens));
         }
     }
 

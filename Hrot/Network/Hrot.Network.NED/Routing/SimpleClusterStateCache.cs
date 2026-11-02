@@ -61,15 +61,17 @@ namespace Hrot.Network.Routing
         {
             lock (_lock)
             {
-                NodeCapability? best = null;
+                // ⭐ CE-4075 — no load figure is measured or sent (the heartbeat's CpuUsage was dropped; it was always 0), so every carrier of the
+                //   role is equally loaded: the pick is the LOWEST node id, which is deterministic (it used to be dictionary order).
+                int? best = null;
                 foreach (var cap in _nodes.Values)
                 {
                     if (!cap.Role.HasFlag(requiredRole))
                         continue;
-                    if (best == null || cap.CpuUsagePercent < best.CpuUsagePercent)
-                        best = cap;
+                    if (best == null || (int)cap.NodeId < best.Value)
+                        best = (int)cap.NodeId;
                 }
-                return best?.NodeId;
+                return best;
             }
         }
 

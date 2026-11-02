@@ -44,9 +44,6 @@ public sealed class NodeHealthProfile
     /// <summary>⭐ Node Features F-26 — the override layers the node REFUSED, from its latest heartbeat (empty = none).</summary>
     public IReadOnlyList<string> FeatureErrors { get; set; } = System.Array.Empty<string>();
 
-    /// <summary>CPU utilisation reported by the node in the last heartbeat (0–100 %).</summary>
-    public float CpuUsagePercent { get; set; }
-
     /// <summary>Process RSS / working set reported by the node in the last heartbeat (bytes).</summary>
     public long RamUsedBytes { get; set; }
 }
