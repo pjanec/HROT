@@ -79,7 +79,8 @@ internal sealed class ComponentEditWindow : ManagedWindow
         IMapPickContext? pickerCtx = null,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
         IMutationInterceptor? interceptor = null,
-        object? baseline = null)
+        object? baseline = null,
+        IParamBindContext? paramBindContext = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _baseline      = baseline;
@@ -88,7 +89,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
         _componentType = componentType;
         _sessionGetter = sessionGetter;
         _interceptor   = interceptor;
-        _drawer        = new ComponentEditDrawer(session, pickerCtx, customDrawers);
+        _drawer        = new ComponentEditDrawer(session, pickerCtx, customDrawers, paramBindContext);
 
         IsVolatile = true;
         ShowInMenu = false;

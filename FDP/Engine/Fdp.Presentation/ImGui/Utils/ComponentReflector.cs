@@ -59,6 +59,9 @@ public class ComponentReflector
     /// <summary>Optional picker context for map/entity picking inside the editor.</summary>
     public IMapPickContext? EditPickerContext { get; set; }
 
+    /// <summary>⭐ CE-4210 P2 (MA-1) — makes the bind context of the entity being edited (the world's params in scope + that entity's <c>ParamBindings</c>); null / returning null ⇒ no bind affordance. Set by the host that HAS the world (silent-default rule).</summary>
+    public Func<Entity, Type, IParamBindContext?>? BindContextFactory { get; set; }
+
     /// <summary>
     /// Optional interceptor; when set and IsPaused, commits route to StageMutation.
     /// </summary>
@@ -366,7 +369,8 @@ public class ComponentReflector
                 interceptor: MutationInterceptor,
                 // ⭐ Ruling 14 — `data` IS the value the session is opened on, so the baseline costs
                 //   nothing to supply and is the only thing that makes the staged write surgical.
-                baseline: data));
+                baseline: data,
+                paramBindContext: BindContextFactory?.Invoke(e, type)));
         }
     }
 
@@ -384,7 +388,7 @@ public class ComponentReflector
 
         _inPlaceEditSession = _editService.Open(data, type, scope, editContext);
         _inPlaceEditComponentType = type;
-        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, _fieldDrawers);
+        _inPlaceEditDrawer = new ComponentEditDrawer(_inPlaceEditSession, EditPickerContext, _fieldDrawers, BindContextFactory?.Invoke(e, type));
         _inPlaceEditErrorMessage = null;
     }
 

@@ -262,6 +262,8 @@ namespace Hrot.Editor
         private ScenarioFileService?    _scenarioFileService;
 
         private EntityRepository?       _world;
+        private readonly Hrot.Editor.Scenario.HeaderParamsSchemaSource _headerParams;   // ⭐ CE-4210 P2 (MA-5)
+        private Hrot.Editor.Scenario.ParametersWindow? _parametersWindow;
 
         // ⭐ CE-3330 (DAR §9e, row 28; DESIGN_Director_Timeline_Editor.md §2d) — the event timeline on the EDITOR is its NODE CONTEXT's: the
         //   lanes, the live index and the lane context are the ones every ECS node has (HrotNodeContext.Timeline); the editor runs its own
@@ -1254,6 +1256,7 @@ namespace Hrot.Editor
         // ctor for unit tests
         public EditorSubsystem()
         {
+            _headerParams = new Hrot.Editor.Scenario.HeaderParamsSchemaSource(() => _world, new Hrot.Editor.Scenario.ParamsEditHistory());
             // ⭐⭐⭐ Batch 95 (95b) — EVERY selection store this editor holds reads ONE entity cell.
             // 🔴🔴 The bridge connects exactly one store (_aiEditorSelectionStore), and the three
             //    PERSPECTIVE stores were connected to nothing ⇒ their SelectedEntity was null for
@@ -4833,6 +4836,11 @@ namespace Hrot.Editor
             Func<System.Collections.Generic.List<Fdp.ModuleHost.ModuleStats>?>? editorExecutionStats =
                 _kernel != null ? () => _kernel?.GetExecutionStats() : null;
 
+            // ⭐ CE-4210 P2 (MA-5) — Scenario ▸ Parameters…: the loaded scenario / macro's params in the shared Variables table.
+            _parametersWindow = new Hrot.Editor.Scenario.ParametersWindow(_headerParams);
+            windowManager.RegisterWindow(_parametersWindow);
+            windowManager.GlobalMenu.RegisterItem("Scenario/Parameters…", () => _parametersWindow?.Show(), "Scenario");
+
             Fdp.Toolkit.Runner.UiBundleHost.Compose(
                 new Fdp.Toolkit.Runner.IUiBundle[]
                 {
@@ -4857,7 +4865,9 @@ namespace Hrot.Editor
                         PickBroker: _mapPickAdapter != null
                             ? new MapPickBroker(_mapPickAdapter)
                             : null,
-                        WireParticipant: () => _networkFactory.Participant)),   // ⭐ AQ109 X5 — null offline
+                        WireParticipant: () => _networkFactory.Participant,   // ⭐ AQ109 X5 — null offline
+                        // ⭐ CE-4210 P2 — the inspector's bind popup declares a parameter through the SAME source the Parameters window edits.
+                        DeclareParam: (t, n, v) => { var p = _headerParams.Declare(t, n, v); if (p is not null) _parametersWindow?.Show(); return p; })),
                 },
                 new Fdp.Toolkit.Runner.UiBundleContext(windowManager));
 

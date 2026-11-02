@@ -1,0 +1,86 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Fdp.Presentation.WindowManager;
+using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Refactor;
+using Hrot.Editor.AiShared.Windows;
+using ImGuiNET;
+
+namespace Hrot.Editor.Scenario;
+
+/// <summary>
+/// ⭐ CE-4210 P2 (MA-5) — <i>Scenario ▸ Parameters…</i>: the ONE Variables table (<see cref="VariablesPanelControl"/>) over the loaded scenario / macro's declared params
+/// (<see cref="HeaderParamsSchemaSource"/>), plus Undo / Redo of its steps (a rename moves the declaration and every binding in ONE step).
+/// </summary>
+public sealed class ParametersWindow : ManagedWindow
+{
+    public const string WindowId = "editor_parameters";
+
+    private sealed class ParamsAsset : IEditableAsset
+    {
+        public Guid AssetId { get; } = Guid.NewGuid();
+        public string Name => "Parameters";
+        public AssetKind Kind => AssetKind.Scenario;
+        public string SourceFilePath => "";
+        public bool IsDirty => false;
+        public bool IsEditorOwned => true;
+        public event Action? Changed { add { } remove { } }
+    }
+
+    /// <summary>Parameters have no cross-asset key (<see cref="HeaderParamsSchemaSource.GetRefactorKey"/> is null), so the table never asks the refactor service.</summary>
+    private sealed class NoRefactor : IRefactorService
+    {
+        public IReadOnlyList<AssetReferenceInfo> FindReferences(string targetKey) => Array.Empty<AssetReferenceInfo>();
+        public IReadOnlyList<AssetReferenceInfo> FindReferencesInAsset(Guid hostAssetId) => Array.Empty<AssetReferenceInfo>();
+        public RefactorPreview PreviewRename(string fromKey, string toKey, RefactorOptions options) => new(fromKey, toKey, Array.Empty<RefactorFileEdit>(), Array.Empty<RefactorIssue>());
+        public RefactorResult ApplyRename(RefactorPreview preview) => new(true, Array.Empty<string>(), null);
+        public DeletePreview PreviewDelete(Guid assetId, DeleteOptions options) => new(assetId, Array.Empty<AssetReferenceInfo>(), Array.Empty<RefactorIssue>());
+        public RefactorResult ApplyDelete(DeletePreview preview) => new(true, Array.Empty<string>(), null);
+        public Task<RefactorPreview> PreviewRenameAsync(string fromKey, string toKey, RefactorOptions options, CancellationToken ct = default) => Task.FromResult(PreviewRename(fromKey, toKey, options));
+        public Task<RefactorResult> ApplyRenameAsync(RefactorPreview preview, CancellationToken ct = default) => Task.FromResult(ApplyRename(preview));
+    }
+
+    private readonly HeaderParamsSchemaSource _source;
+    private readonly VariablesPanelControl _control;
+    private readonly VariablesPanelSection _section;
+
+    public ParametersWindow(HeaderParamsSchemaSource source)
+        : base(WindowId, "Parameters", "Scenario", WindowScope.PerspectiveBound)
+    {
+        _source = source ?? throw new ArgumentNullException(nameof(source));
+        var choices = new List<VariableTypeChoice>();
+        foreach (var (id, type) in Fdp.Toolkit.Scenario.ParamTypes.All()) choices.Add(new VariableTypeChoice(id, type));
+        _control = new VariablesPanelControl(new NoRefactor(), new ParamsAsset(), choices);
+        _section = new VariablesPanelSection("Parameters", "ce4210_params", _source, 0, 0, PackWarning.None, AliasingEnabled: false);
+        IsOpen = false;
+        ShowInMenu = false;
+    }
+
+    /// <summary>Opens (and raises) the window — the menu item and the bind popup's <i>New parameter…</i> call this.</summary>
+    public void Show() => IsOpen = true;
+
+    protected override void DrawClientArea()
+    {
+        var h = _source.History;
+        ImGui.BeginDisabled(!h.CanUndo);
+        if (ImGui.Button("Undo")) h.Undo();
+        ImGui.EndDisabled();
+        if (h.UndoLabel is { } ul && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(ul);
+        ImGui.SameLine();
+        ImGui.BeginDisabled(!h.CanRedo);
+        if (ImGui.Button("Redo")) h.Redo();
+        ImGui.EndDisabled();
+        if (h.RedoLabel is { } rl && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(rl);
+        if (_source.LastRefusal is { } why)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.45f, 0.4f, 1f), why);
+        }
+        ImGui.Separator();
+        if (_source.IsReadOnly) { ImGui.TextDisabled("No scenario is loaded."); return; }
+        _control.DrawSingle(_section);
+    }
+}

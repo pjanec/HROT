@@ -23,16 +23,25 @@ public sealed class ComponentEditDrawer
     private readonly IMapPickContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
     private readonly ReferenceLeafDrawers.State _refState = new();   // ⭐ CE-4206 — the form a person switched a link field to, the key being typed
+    private readonly IParamBindContext? _bindCtx;                    // ⭐ CE-4210 MA-1 — the params in scope, null ⇒ no bind affordance anywhere
+    private readonly Stack<object?> _containers = new();             // ⭐ CE-4210 MA-2 — the values of the containers being drawn: the nearest one decides the home
+    private readonly HashSet<int> _hoveredRows = new();              // ⭐ CE-4210 MA-1 — last frame's hovered bindable rows (the label tint reads it before the row is drawn)
 
+    /// <param name="paramBindContext">⭐ CE-4210 P2 (MA-1) — the params a field may be fed from; <c>null</c> (the default) ⇒ nothing changes. ⛔ A host that HAS the world must pass it (the silent-default rule).</param>
     public ComponentEditDrawer(
         IEditSession session,
         IMapPickContext? pickerCtx,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
+        IParamBindContext? paramBindContext = null)
     {
         _session            = session;
         _pickerCtx          = pickerCtx;
         _customDrawers      = customDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
+        _bindCtx            = paramBindContext;
     }
+
+    /// <summary>⭐ CE-4210 — the bind context this drawer was given (for the host rails: the CONSTRUCTED object is what a forwarding rail asserts on).</summary>
+    public IParamBindContext? ParamBindContext => _bindCtx;
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -45,8 +54,13 @@ public sealed class ComponentEditDrawer
     /// components, an array) renders as <see cref="DrawEditNode"/> does. ⭐ CE-1015 — children indent by <see cref="IndentPixels"/>.
     /// Must be called inside a two-column <c>BeginTable</c>/<c>EndTable</c> block.
     /// </summary>
+    /// <summary>⭐ CE-4210 MA-1 — what the last <see cref="DrawRoot"/> drew for binding: faint buttons (unbound bindable rows), chips (bound rows), red chips. The frame rail reads it.</summary>
+    public (int Buttons, int Chips, int RedChips) LastBindRows => (_btnRows, _chipRows, _redRows);
+    private int _btnRows, _chipRows, _redRows;
+
     public void DrawRoot(EditNode root)
     {
+        _btnRows = _chipRows = _redRows = 0;
         ImGuiApi.PushStyleVar(ImGuiStyleVar.IndentSpacing, IndentPixels);
         try
         {
@@ -236,12 +250,18 @@ public sealed class ComponentEditDrawer
 
         if (opened)
         {
-            int i = 0;
-            foreach (var child in node.Children)
+            // ⭐ CE-4210 MA-2 — the container's VALUE is on the stack while its children draw: a property of a BindableNode binds through the node's Bind map
+            _containers.Push(_bindCtx is null ? null : node.Binding?.GetBoxed());
+            try
             {
-                DrawEditNode(child, containerBinding, i);
-                i++;
+                int i = 0;
+                foreach (var child in node.Children)
+                {
+                    DrawEditNode(child, containerBinding, i);
+                    i++;
+                }
             }
+            finally { _containers.Pop(); }
             ImGuiApi.TreePop();
         }
 
@@ -256,23 +276,43 @@ public sealed class ComponentEditDrawer
         ImGuiApi.TableSetColumnIndex(0);
         ImGuiApi.PushID(node.Id.Value);
 
+        // ⭐ CE-4210 MA-1 — is this field bindable, and bound? (no context ⇒ BindView.NotBindable: the row below is exactly what it was)
+        var bind = _bindCtx is null ? BindView.NotBindable
+            : ParamBindModel.View(node.ClrType, node.Binding?.GetBoxed(), node.JsonPath, node.Name, _containers.Count > 0 ? _containers.Peek() : null, _bindCtx);
+        bool hoverTint = bind.Bindable && _hoveredRows.Contains(node.Id.Value);
+        if (hoverTint) ImGuiApi.PushStyleColor(ImGuiCol.Text, BindTint);
         ImGuiApi.TreeNodeEx(
             node.Name,
             ImGuiTreeNodeFlags.Leaf |
             ImGuiTreeNodeFlags.NoTreePushOnOpen |
             ImGuiTreeNodeFlags.SpanAvailWidth);
+        if (hoverTint) ImGuiApi.PopStyleColor();
+        float rowTop = ImGuiApi.GetItemRectMin().Y, rowBottom = ImGuiApi.GetItemRectMax().Y;
+        bool labelRightClicked = bind.Bindable && ImGuiApi.IsItemClicked(ImGuiMouseButton.Right);   // a SHORTCUT to the popup, never the only way
 
         ImGuiApi.TableSetColumnIndex(1);
         bool canDelete = parentContainer != null && parentContainer.CanResize && elementIndex >= 0;
+
+        // the chip of a bound field sits in front of the value; the faint button of an unbound bindable one at the right edge
+        var parentValue = _containers.Count > 0 ? _containers.Peek() : null;
+        if (bind.ShowsChip) { _chipRows++; if (bind.ChipIsRed) _redRows++; }
+        if (bind.ShowsChip) DrawBindChip(node, bind, parentValue);
+        if (bind.ShowsChip) ImGuiApi.SameLine();
+        float buttonReserve = bind.ShowsButton ? BindButtonWidth + ImGuiApi.GetStyle().ItemSpacing.X : 0f;
         float inputWidth = ImGuiApi.GetContentRegionAvail().X;
         if (canDelete) inputWidth -= 30f;
+        inputWidth -= buttonReserve;
 
         bool changed;
         if (ReferenceLeafDrawers.Handles(node.ClrType))
         {
             // ⭐ CE-4206 R1 (F1) — the reference types (EntityLink, PointLink, EntityRef, WorldPoint) are drawn by ONE class, one method per type:
             //   the TYPE makes the field pickable (DESIGN_Entity_Reference D5, DESIGN_Map_Picking_Unification P5); the attribute only narrows the pick.
-            changed = ReferenceLeafDrawers.Draw(node, canDelete ? 30f : 0f, _pickerCtx, _refState);
+            string? boundBefore = bind.Home == BindHome.RefParamForm ? bind.BoundParam : null;
+            changed = ReferenceLeafDrawers.Draw(node, (canDelete ? 30f : 0f) + buttonReserve, _pickerCtx, _refState);
+            // ⭐ CE-4210 — editing the LITERAL of a bound link keeps its binding (SR-168: the literal is the value used when the macro is opened alone)
+            if (changed && boundBefore is not null && ParamBindModel.BoundParamOfLink(node.Binding?.GetBoxed()) is null)
+                node.Binding?.SetBoxed(ParamBindModel.LinkWithParam(node.Binding.GetBoxed(), boundBefore));
         }
         else
         {
@@ -289,6 +329,15 @@ public sealed class ComponentEditDrawer
                 ImGuiApi.TextDisabled(ReferenceLeafDrawers.RotationReadout(changed ? value : node.Binding?.GetBoxed()));
         }
 
+        // ⭐ CE-4210 MA-1 — the faint ⛓ button, always drawn on an unbound bindable row (left of the array X)
+        bool openPopup = labelRightClicked;
+        if (bind.ShowsButton)
+        {
+            ImGuiApi.SameLine();
+            _btnRows++;
+            openPopup |= DrawBindButton(node, rowHovered: _hoveredRows.Contains(node.Id.Value));
+        }
+
         // Delete button for resizable array elements.
         if (canDelete)
         {
@@ -300,7 +349,89 @@ public sealed class ComponentEditDrawer
             }
         }
 
+        if (bind.Bindable)
+        {
+            DrawBindPopup(node, bind, parentValue, openPopup);
+            // the row's hover state, kept for NEXT frame's tint (the label is drawn before the value)
+            rowBottom = Math.Max(rowBottom, ImGuiApi.GetItemRectMax().Y);
+            var win = ImGuiApi.GetWindowPos();
+            bool hovered = ImGuiApi.IsMouseHoveringRect(new Vector2(win.X, rowTop), new Vector2(win.X + ImGuiApi.GetWindowWidth(), rowBottom));
+            if (hovered) _hoveredRows.Add(node.Id.Value); else _hoveredRows.Remove(node.Id.Value);
+        }
+
         ImGuiApi.PopID();
+    }
+
+    // ── ⭐ CE-4210 MA-1 — the bind affordance ─────────────────────────────────────────────────────────────────────────────
+
+    private const float BindButtonWidth = 22f;
+    private static readonly Vector4 BindTint = new(0.55f, 0.75f, 1f, 1f);
+    private static readonly Vector4 BindRed = new(0.9f, 0.25f, 0.2f, 1f);
+
+    /// <summary>The chain glyph, drawn (the editor font has no ⛓): two interlocked rounded links in <paramref name="col"/>.</summary>
+    internal static void DrawChain(Vector2 min, Vector2 max, uint col)
+    {
+        var dl = ImGuiApi.GetWindowDrawList();
+        float w = max.X - min.X, h = max.Y - min.Y, s = MathF.Min(w, h) * 0.5f, cy = (min.Y + max.Y) * 0.5f, cx = (min.X + max.X) * 0.5f;
+        float r = s * 0.45f;
+        dl.AddRect(new Vector2(cx - s * 0.95f, cy - r), new Vector2(cx + s * 0.15f, cy + r), col, r, ImDrawFlags.None, 1.6f);
+        dl.AddRect(new Vector2(cx - s * 0.15f, cy - r), new Vector2(cx + s * 0.95f, cy + r), col, r, ImDrawFlags.None, 1.6f);
+    }
+
+    private bool DrawBindButton(EditNode node, bool rowHovered)
+    {
+        bool clicked = ImGuiApi.InvisibleButton($"##bind_{node.Id.Value}", new Vector2(BindButtonWidth, ImGuiApi.GetFrameHeight()));
+        bool itemHovered = ImGuiApi.IsItemHovered();
+        // FAINT always (the user: visible without hovering); brighter while the row (or the button) is hovered
+        float alpha = itemHovered ? 1f : rowHovered ? 0.8f : 0.38f;
+        var col = ImGuiApi.GetColorU32(new Vector4(0.62f, 0.75f, 0.95f, alpha));
+        DrawChain(ImGuiApi.GetItemRectMin(), ImGuiApi.GetItemRectMax(), col);
+        if (itemHovered || rowHovered && ImGuiApi.IsItemHovered()) ImGuiApi.SetTooltip("Feed from a parameter");
+        return clicked;
+    }
+
+    private void DrawBindChip(EditNode node, BindView bind, object? parentValue)
+    {
+        bool red = bind.ChipIsRed;
+        string label = bind.BoundParam!;
+        float w = ImGuiApi.CalcTextSize("      " + label).X + 14f;
+        var colBtn = red ? BindRed with { W = 0.55f } : new Vector4(0.25f, 0.45f, 0.75f, 0.7f);
+        ImGuiApi.PushStyleColor(ImGuiCol.Button, colBtn);
+        bool clicked = ImGuiApi.Button($"      {label}##chip_{node.Id.Value}", new Vector2(w, 0f));
+        ImGuiApi.PopStyleColor();
+        var min = ImGuiApi.GetItemRectMin();
+        DrawChain(new Vector2(min.X + 3f, min.Y), new Vector2(min.X + 3f + 22f, ImGuiApi.GetItemRectMax().Y), ImGuiApi.GetColorU32(new Vector4(1f, 1f, 1f, 0.95f)));
+        if (ImGuiApi.IsItemHovered()) ImGuiApi.SetTooltip(red ? bind.Problem : $"Fed from parameter '{label}' (the value here is used when the macro is opened alone)");
+        if (clicked) ImGuiApi.OpenPopup($"##bindpop_{node.Id.Value}");
+    }
+
+    private void DrawBindPopup(EditNode node, BindView bind, object? parentValue, bool open)
+    {
+        string id = $"##bindpop_{node.Id.Value}";
+        if (open) ImGuiApi.OpenPopup(id);
+        if (!ImGuiApi.BeginPopup(id)) return;
+        ImGuiApi.TextDisabled($"Bind {node.Name} to");
+        foreach (var p in bind.Fitting)
+            if (ImGuiApi.Selectable($"{p.Name}   ({p.TypeId})##bp_{p.Name}", string.Equals(p.Name, bind.BoundParam, StringComparison.Ordinal)))
+                ApplyBind(node, parentValue, p.Name);
+        if (bind.Fitting.Count == 0) ImGuiApi.TextDisabled("(no parameter of this type)");
+        ImGuiApi.Separator();
+        if (_bindCtx!.CanDeclareParams && ImGuiApi.Selectable("New parameter…##newp"))
+        {
+            var names = _bindCtx.Params.Select(p => p.Name);
+            if (_bindCtx.NewParam(node.ClrType, ParamBindModel.SuggestParamName(node.Name, names), node.Binding?.GetBoxed()) is { } created)
+                ApplyBind(node, parentValue, created.Name);
+        }
+        ImGuiApi.BeginDisabled(bind.BoundParam is null);
+        if (ImGuiApi.Selectable("Unbind##unb"))
+            if (ParamBindModel.Unbind(node, parentValue, _bindCtx)) _session.MarkStructuralChange();
+        ImGuiApi.EndDisabled();
+        ImGuiApi.EndPopup();
+    }
+
+    private void ApplyBind(EditNode node, object? parentValue, string param)
+    {
+        if (ParamBindModel.Bind(node, parentValue, _bindCtx!, param)) _session.MarkStructuralChange();
     }
 
     // ── Unsupported / fallback nodes ──────────────────────────────────────────

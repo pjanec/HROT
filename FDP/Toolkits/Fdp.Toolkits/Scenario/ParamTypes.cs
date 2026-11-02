@@ -53,6 +53,15 @@ namespace Fdp.Toolkit.Scenario
             lock (Gate) if (!Enums.Contains(enumType)) Enums.Add(enumType);
         }
 
+        /// <summary>⭐ CE-4210 MA-5 — every param type, by short id (the plain ones in declaration order, then the registered enums): what a params editor offers as a type choice.</summary>
+        public static IReadOnlyList<(string Id, Type Type)> All()
+        {
+            var list = new List<(string, Type)>();
+            foreach (var (s, _, t) in Plain) list.Add((s, t));
+            lock (Gate) foreach (var e in Enums) list.Add((e.Name, e));
+            return list;
+        }
+
         /// <summary>The CLR type a <paramref name="typeId"/> names, in either spelling (case-insensitive); false for null, empty or unknown.</summary>
         public static bool TryResolve(string? typeId, out Type type)
         {
