@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans HV-1 … HV-5 await the user (coordinator, 2026-11-02)
+build-state: DESIGN — ✅ HV-1 … HV-5 ACCEPTED 2026-11-02 (user: "approved the switchable hierarchy view") · tracker CE-4213 (ui)
 updated: 2026-11-02 (first version)
 current-answer: the whole note — §1 the relations that exist · §2 the views · §3 decisions
 stale-below: nothing
@@ -65,7 +65,7 @@ plumbing are one implementation, so a new relation is one small class, never a n
 | **Scenario** | the macro instance it came from; top-level entities at the root; two root groups — **Saved** and **Transient** (live additions, runtime macro insertions) | authoring: *"what does this macro put in, what will be saved"* | read-only for macro entities; the instance itself edits as any entity |
 | ⏭ *(optional)* **By side & class** | its side, then its class (R-280's table) | finding things in a big scenario | — |
 
-## 3. Decisions *(leans)*
+## 3. Decisions *(✅ accepted `2026-11-02`)*
 
 | # | decision | ⭐ lean |
 |---|---|---|

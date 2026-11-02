@@ -67,18 +67,18 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | `RW-XS` | 5 | 10 |
 | `RW-S` | 179 | 792 |
 | `RW-L` | 145 | 243 |
-| `RW-M` | 234 | 793 |
+| `RW-M` | 235 | 793 |
 | `RW-H` | 23 | 87 |
 | `RW-XL` | 0 | 1 |
 | `OTHER` | 2 | 9 |
-| **Total** | **600** | **2032** |
+| **Total** | **601** | **2032** |
 | *(refuted on verification)* | | *14* |
 
 | Id family | Open | Done |
 |---|---:|---:|
 | `AX-` | 4 | 23 |
 | `BP-` | 105 | 386 |
-| `CE-` | 437 | 1465 |
+| `CE-` | 438 | 1465 |
 | `HN-` | 11 | 41 |
 | `MA-` | 2 | 21 |
 | `MD-` | 0 | 7 |
@@ -86,6 +86,8 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 | `QA-` | 13 | 24 |
 | `ST-` | 12 | 23 |
 | `TM-` | 10 | 27 |
+
+# rows scanned: 2647  (open 601 + done 2032 + refuted 14)
 
 # rows scanned: 2646  (open 600 + done 2032 + refuted 14)
 
@@ -4548,6 +4550,7 @@ collides with work in flight.
 - [ ] **CE-4210** · `RW-M` 📋 **OPEN `2026-11-02` (coordinator → **ui**, owner of the editor; ⚖️ DESIGN FIRST, with CE-4206 — one design in `docs/blueprints/DESIGN_Map_Picking_Unification.md`'s neighbourhood or its own UX doc, + a mockup) — *"FEED THIS FIELD FROM A PARAMETER"* IN THE EDITOR, for every kind of field and every parameter source.** 🔒 User: *"It's not yet clear to me how I, in the editor, can pick that the field will be fed from a scenario macro parameter. or maybe basically from any kind of parameter, because for example the predicate conditions, I guess they are used in many other places"*. ⭐ Basis: `DESIGN_Scenario_Macros.md` §5.1 SR-159…SR-166 (three binding homes, one generic binder with an `IParamSource` per host). ⭐ Scope: ① ONE affordance on every field the ONE params form, the component editor, the predicate builder and the `do`-list editor draw — right-click / a chain icon → *Bind to parameter ▸* (the params IN SCOPE of a matching type: the macro header's while a macro is edited, the scenario header's at top level, a host's own source elsewhere) and *Unbind*; ② a BOUND field shows a chip *⛓ name (default …)* and its literal stays editable as the default; ③ the writes go to the right home by construction — a reference field → its `RefSpec` *Param* form (with CE-4206's form switch), a predicate node / `do` entry → its typed `Bind`, any other field → the entity's `ParamBindings` component (an undoable component edit); ⛔ never a key inside params JSON; ④ the PARAMS themselves are edited in the macro / scenario header's params table (SR-68 — exists?: measure) with add / rename (a rename updates every binding to it) / type / default; ⑤ an unresolved binding (no such param, wrong type) is shown red with the validator's reason (SR-149). ⛔ One affordance, one implementation, used by every editor that draws a field. Depends on: S0 (merged), CE-4206 (the reference leaves), the binder (SR-164, macros S3a). Done when: all three kinds can be bound / unbound in the editor, the chip shows, a save + reload round-trips them, a param rename follows its bindings; frame rails under `xvfb-run -a` · ⭐ **+ `2026-11-02` (macros §14):** *Save selection as macro* turns every reference to an entity OUTSIDE the selection into a param of the new macro (a macro is closed, SR-58) — or refuses, naming them · ⭐ **+ `2026-11-02` (§14.1 ①):** an *Open macro* listing over `macros/` (the same `ScenarioEnumeration`, a second root — *Open* lists only `scenarios/` today), and ⛔ NOT an ORBAT nesting (SR-177 withdrawn by the user — the ORBAT stays the command tree); the macro view is `DESIGN_Entity_Hierarchy_Views.md`'s Scenario view; a drag of a macro entity under a commander is refused
 - [ ] **CE-4211** · `RW-S` 📋 **OPEN `2026-11-02` (coordinator → **backend**) — ONE constant for the scenario FILE NAME.** 📐 Measured (macros §14.1 ①): `"scenario.json"` is a literal in FIVE places — `EditorScenarioSession.cs:55` (`ScenarioFileName`), `HrotScenarioSaveHandler.cs:40` (a second `ScenarioFileName`), `StorageProcessManager.cs:250`, `ScenarioEnumeration.cs:55`, `ScenarioNewAssetService.cs:171`. ⭐ Fix: one `ContentLayout.ScenarioFileName` (beside the folder names it already owns, *"every segment name of the tree is spelled HERE and nowhere else"*), every site reads it; a rail fails on the literal elsewhere. ⭐ Basis: CLAUDE.md *SHARED AND UNIFIED* (one constant per concept); macros reuse the same file name (SR-173). Done when: one definition, the rail green.
 - [ ] **CE-4212** · `RW-S` 📋 **OPEN `2026-11-02` (coordinator → **backend**; MEASURE FIRST) — TWO DORMANT ENTITY TREES beside the command relation.** 📐 Measured (`DESIGN_Entity_Hierarchy_Views.md` §1): `VisHierarchyNode` + `AggregateState` (`Fdp.Presentation/Vis2D/Components/HierarchyComponents.cs`) — a SAVED "ORGBAT" tree with its own scenario translator (`VisHierarchyNodeTranslator`) and genesis intent (`InitialHierarchyIntent`), carried by **0 of 117 scenarios**; `HierarchyNode` + `HierarchyExtensions` (`Fdp.Core`) — no production user. ⚠ Both look like duplicates of `UnitSubordinate.Commander`, ⛔ but UNREFERENCED IS NOT UNINTENTIONAL: search `docs/` then `.dev/` for their intent (map aggregation of a unit's children?) before routing or deleting. ⭐ Basis: CLAUDE.md SHARED AND UNIFIED; HV-4 widens `IHierarchyAdapter` off `VisHierarchyNode`. Done when: each is classified (duplicate code / duplicate surface / dead, with its design record) and routed or removed accordingly.
+- [ ] **CE-4213** · `RW-M` 📋 **OPEN `2026-11-02` (coordinator → **ui**) — ONE entity tree panel, SWITCHABLE between relations: Command (today's ORBAT, unchanged) · Structure (parts under their parent, else the vehicle a passenger rides in) · Scenario (entities under the macro instance they came from; root groups Saved / Transient).** 🔒 User: *"approved the switchable hierarchy view"*. ⭐ Basis: `docs/DESIGN_Entity_Hierarchy_Views.md` HV-1…HV-5. ⭐ Scope: the existing ORBAT panel gains the switch; ONE relation seam — adopt `IHierarchyAdapter` (0 implementers) by widening its enumerator off `VisHierarchyNode` (HV-4); Structure + Scenario read-only; a macro entity dragged under a commander is refused (*"from macro X — edit the macro"*). Depends on: Scenario view — `MacroOrigin` (macros SR-170, S3a); Structure view — nothing new (buildable now). Done when: the three views draw from one tree implementation, selection stays synced with map and inspector in all three; frame rails under `xvfb-run -a`.
 
 ## Out of scope
 

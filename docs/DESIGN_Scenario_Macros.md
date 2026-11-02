@@ -2,7 +2,7 @@
 state: LIVE
 build-state: ⏸ ON HOLD (user, 2026-11-02 — not to be started yet; reasons to follow) · §14 (SR-167…SR-176) ✅ accepted 2026-11-02 — READY-TO-BUILD after S0 + CE-4153 S9′ (accepted 2026-11-01: no reverse remap — authored refs are EntityLink, a rail, the migration writes GUIDs; DESIGN_Scenario_Entity_Keys.md S9′) — SR-146…SR-157 ✅ accepted 2026-11-01 (§9.y: the expander is the creation path's child branch) — slice S3 (§1); CE-4153 S9 (GUID file form) still a prerequisite
 updated: 2026-11-01 (split out of docs/DESIGN_Scenario_Rules.md §8 / §9.1–§9.7 — a MOVE: every decision id, its wording, its approval and every user quote kept verbatim; no id renumbered)
-current-answer: ⭐ §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183, leans await the user) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
+current-answer: ⭐ §14.3 placement as a solver query + many instances (SR-184…SR-188, leans await the user) · §14.2 the user's answers (SR-177 withdrawn, SR-178 ✅, SR-179 superseded) + PLACEMENT (SR-180…SR-183 ✅) · §14.1 the four preconditions measured · §14 the critical review (SR-167…SR-176, ✅ accepted 2026-11-02) · §5.1 where a binding lives (SR-159…SR-166, ✅ accepted 2026-11-02 — §5.1.1 the example, §5.1.2 the generic binder + recording) · §10 relocation (SR-127, SR-131, SR-152…SR-157) · §9.y the gaps closed (SR-146…SR-151) · §0 what a macro is + SR-144 (the founding decision) · §1 the slice (S3) · §2 INVENTORY · §3 the model (class diagram) · §4 params,
   presets and their overrides (SR-27, SR-28, SR-32) · §5 the macro file, the instance, its bindings (SR-38…SR-43, SR-57, SR-69, SR-70) · §6 macro
   entities are full TRANSIENT entities (SR-42′, SR-44, SR-44a, SR-45) · §7 a macro is CLOSED (SR-58, SR-60) · §8 the three reference forms and
   RefKey (SR-63…SR-66, SR-68) · §9 expansion at load — the sequence, SR-80, GAP-1…GAP-5 · §10 relocation + the reference types (still in the
@@ -53,7 +53,7 @@ saved); the file keeps only the instance and its args. A scenario with parameter
 
 | slice | builds | done when | prerequisites | build-state |
 |---|---|---|---|---|
-| **S3a — the macro CORE** *(split `2026-11-01`; §14 ✅ accepted `2026-11-02`; ⏸ ON HOLD `2026-11-02` — user: *"I think we are not yet ready for starting the Scenario macros implementation I will explain later. So please delete the handoff"*; the queued handoff was deleted)* | the `MacroInstance` TKB type (on the map, SR-70) · the macro FILE (`macros/`, header params SR-44 + the authored anchor SR-152 + `relocatable`) · the `Expander` = `CreateEntityRequestSystem`'s child branch with a second source (SR-146: bind · resolve · relocate · create, derived `macro:` GUIDs, fresh ids SR-151) · `ParamBindings` (SR-57) and `bind` maps (SR-129) · the validator in the prepare (SR-149) · `MacroExpansionStatus` (SR-96) · reconcile-by-GUID on an args / anchor edit (SR-150, SR-157) · RefKey's LEXICAL lookup in macro scope (SR-65) · the relocators (SR-154) · the macros package staged on EVERY node (SR-80, SR-148) · scenario-level params in the header (SR-41) + `--param` / HTTP | the same platoon macro placed twice, rotated, both expand and play on a cluster; a nested macro composes its transforms; a missing macro / wrong binding / cycle fails the load naming the path, nothing created; an args edit keeps ids and outside references; a pinned macro placed elsewhere is refused | S0 · CE-4153 S9′ · §14.2 SR-180…SR-183 (placement) | ⏸ **DESIGN** — placement (§14.2) awaits the user (⏸ on hold by the user) |
+| **S3a — the macro CORE** *(split `2026-11-01`; §14 ✅ accepted `2026-11-02`; ⏸ ON HOLD `2026-11-02` — user: *"I think we are not yet ready for starting the Scenario macros implementation I will explain later. So please delete the handoff"*; the queued handoff was deleted)* | the `MacroInstance` TKB type (on the map, SR-70) · the macro FILE (`macros/`, header params SR-44 + the authored anchor SR-152 + `relocatable`) · the `Expander` = `CreateEntityRequestSystem`'s child branch with a second source (SR-146: bind · resolve · relocate · create, derived `macro:` GUIDs, fresh ids SR-151) · `ParamBindings` (SR-57) and `bind` maps (SR-129) · the validator in the prepare (SR-149) · `MacroExpansionStatus` (SR-96) · reconcile-by-GUID on an args / anchor edit (SR-150, SR-157) · RefKey's LEXICAL lookup in macro scope (SR-65) · the relocators (SR-154) · the macros package staged on EVERY node (SR-80, SR-148) · scenario-level params in the header (SR-41) + `--param` / HTTP | the same platoon macro placed twice, rotated, both expand and play on a cluster; a nested macro composes its transforms; a missing macro / wrong binding / cycle fails the load naming the path, nothing created; an args edit keeps ids and outside references; a pinned macro placed elsewhere is refused | S0 · CE-4153 S9′ · §14.3 SR-184…SR-188 | ⏸ **DESIGN** — §14.3 awaits the user (⏸ on hold by the user) |
 | **S3b — macros at runtime, variants, the director** | `InsertMacro` (the trigger action, reads `MacroExpansionStatus`) · run variants (SR-101) + the run setup in the picker (AQ108 D24, ui) · `SetSkillAmplifier` (SR-100) · the counter-attack director as a macro (SR-99) | the director is a macro used by two scenarios with different params; variant 3 replays identically | S3a · rules S2 (the trigger runtime) | DESIGN-complete, after S2 |
 
 ⭐ The module picture — who registers the Expander and who calls it (the creation path, at load and at runtime `InsertMacro`) — is
@@ -338,8 +338,8 @@ lose it, the loader finds it by type, and save writes it with no extra step.
 |---|---|
 | **SR-63** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · three reference forms: **exact** (the entity's GUID — *this one entity*) · **key** (`RefKey` — *whatever entity this scenario gives that key*) · **query** (side, class, command chain, `TacticalDesignation` — *the squad leader of @Squad1*, *all members of @BluePlatoon*). ⇒ `EntityInfo.Name` is a LABEL only, never a reference; ⛔ SR-59 (name paths) and SR-62 (GUIDs for cross-scope refs) are superseded |
 | **SR-64** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · `RefKey` — an author-assigned attribute on an entity (`"RefKey": "BlueHQ"`), separate from the label, set deliberately, rarely changed, unique within its scope; most entities have none. Precedent: `TacticalDesignation` (`Fdp.Core/CommandHierarchy/TacticalDesignation.cs`) is a role key scoped to one command group, a fixed enum on the wire |
-| **SR-65** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · reusable macros reference keys THROUGH PARAMS — `subject` defaults to `"@BlueHQ"`, a scenario with another key overrides it at insertion; lookup is LEXICAL: inside the enclosing macro instance first, then outward to the scenario; from outside, a key inside an instance is qualified by keys only (`@BluePlatoon/SL`) |
-| **SR-66** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · a missing key fails LOUDLY: the objective stays inactive with *"no entity with key 'BlueHQ' here"* (the director's *"no unit named …"* shape); duplicate keys in one scope are refused at save and load |
+| **SR-65** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · ⚠ **amended `2026-11-02` by SR-188 (§14.3): duplicate keys allowed, first match wins, ambiguity warns** · reusable macros reference keys THROUGH PARAMS — `subject` defaults to `"@BlueHQ"`, a scenario with another key overrides it at insertion; lookup is LEXICAL: inside the enclosing macro instance first, then outward to the scenario; from outside, a key inside an instance is qualified by keys only (`@BluePlatoon/SL`) |
+| **SR-66** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · ⚠ **amended `2026-11-02` by SR-188 (§14.3): duplicate keys allowed, first match wins, ambiguity warns** · a missing key fails LOUDLY: the objective stays inactive with *"no entity with key 'BlueHQ' here"* (the director's *"no unit named …"* shape); duplicate keys in one scope are refused at save and load |
 | **SR-68** | ✅ CONFIRMED `2026-11-01` (user: *"References and macros approved."*) · where a macro's (and a scenario's) PARAMS DECLARATION is shown and stored — ⭐ rev `2026-10-31` b (user: *"I am not aware that a scenario has a world entity saved as such. What world entity carries is usually written in the scenario header, and I think the scenario macro parameters should be the same case."*) | measured: the World Environment IS saved as an ENTITY (`ua-weather-regions`, `ua-weather-sensing`, `ua-night-sensing` carry `{NetworkIdentity, ScenarioClock, TkbIdentity, WeatherConditions}`; the others get a default at load and save it next time — Weather W-0 / C-3); the header holds `subsystemType · schemaVersion · terrainName · description` (`ScenarioHeader.cs:33`, `ScenarioHeaderDto.cs`). ⭐ lean (user's model): the declaration is FILE metadata ⇒ `header.params` (rows `{Name, TypeId, Default, Comment}`), by extending `ScenarioHeader` / `ScenarioHeaderDto` — ⛔ not a component on the World Environment entity (a macro file's World Environment would be a never-instantiated oddity). Shown and edited in a **Parameters** map-background Details view (the `DetailsViews.Add` pattern beside *Scenario* / *Zones*, `EditorSubsystem.cs:3141-3200`) with SR-44a's `ScalarEditBox<T>` rows. ⚠ small new code: the header gains an edit path (no view edits the header today — unmeasured) |
 
 ⚠ The film director's takes keep naming units in a RECORDING by name for now — a GUID would need to exist at runtime and in the recording; a separate decision.
@@ -644,7 +644,7 @@ Class (1: `SharedOrbatPanelWindow`) and `.*(EntityList|EntityBrowser|SceneTree|E
 | **SR-178** | the instance's map marker | ⭐ ONE class in `EntityClassTable` (`ScenarioMacro`) + ONE `ProfileOfClass` row — the R-280 table every display reads; until then the fallback rectangle (pickable, draggable) is enough to build S3a |
 | **SR-179** *(amends SR-127)* | a relocated child's Z | ⭐ a relocated child of a GROUNDED type (its template clamps — `GroundClampingConfig.BaseRequiresClamping = 1`, persons and vehicles) is born with `SpawnHeight.OnGround` at its new x, y; a non-grounded one (an aircraft) keeps *authored Z + the anchors' height difference*. ⭐ A PINNED macro (SR-156) uses the authored Z as is. ⇒ uneven terrain, slopes and a soldier on open ground all land right, with no new mechanism. ⚠ A soldier authored on an upper FLOOR of a building lands on the ground at a new place — correct, the building is not there |
 
-### 14.2 The user's answers to §14.1, and PLACEMENT at a new place *(`2026-11-02` — leans SR-180 … SR-183 await the user)*
+### 14.2 The user's answers to §14.1, and PLACEMENT at a new place *(`2026-11-02` — ✅ SR-180 … SR-183 ACCEPTED, SR-180 amended by SR-184 §14.3)*
 
 > 🔒 **User, `2026-11-02`:** *"being created from macro doesn't change the commander hierarchy, so the current orbat panel has no need to somehow
 > reflect the entity that are created by macros … I think we need some other hierarchy view"* · *"Yes, to a specific map marker for a macro
@@ -709,3 +709,56 @@ together — so a platoon is never half in the water and half missing; and the c
 - *Per-macro placement rules written by the author* — every macro would re-encode what the navmesh already knows.
 - *Drop the children that do not fit* — a platoon silently missing a section is worse than a loud refusal.
 - *Placement inside the expander only* — Add Entity and the game master need the same answer (one implementation).
+
+### 14.3 Placement is a QUERY the navigation solver answers · many instances of one macro *(`2026-11-02` — leans SR-184 … SR-188 await the user)*
+
+> 🔒 **User, `2026-11-02`:** *"approved the switchable hierarchy view. approved the relocation of entities to suitable place. Just that cannot happen
+> on the brain, because the brain doesn't have the navmesh. The navmesh is part of the muscle component, the sim host usually. So the whole
+> placement needs to be a query that the muscle node answers."* · *"showing the outcome when we drag the macro instance entity in the editor on the
+> map. This idea is nice, but not sure what would it take. As a macro can create nested macro entities that needs to be expanded as well."* ·
+> *"how do we handle instantiation of the same macro multiple times in the scenario? Do the entities expanded from that macro get different,
+> unique GUIDs? And what happens to their ref keys? … the upper level scenario might want to reference entities by ref keys. So I would not refuse
+> it. I mean the duplication. And just find the first matching entity."* · *"Entities should find the place outside of the building."* · *"yes to
+> refusing to instantiate macro where some entity fails to find a suitable place."*
+
+✅ **Accepted:** SR-180 … SR-183 (placement — with SR-184's amendment: it runs where the navmesh is) · HV-1 … HV-5 (`DESIGN_Entity_Hierarchy_Views.md`).
+
+| measured `2026-11-02` | where |
+|---|---|
+| ⭐ the precedent: a Brain request answered by the NAVIGATION SOLVER over DDS, batched, keyed by a request id, points as ENU offsets from a batch origin (AQ107 B) — `PathRequestBatch` → `PathResponseBatch`, four translators (Brain egress / Solver ingress / Solver egress / Brain ingress); in-process the same pair is the `PathfindingRequestEvent` / `PathfindingResultEvent` bus events | `Hrot.Network.NED/SimHost/PathfindingTranslators.cs:27, :127, :233, :313`; `Navigation/PathfindingEvents.cs:7-19`; `NavigationSolverModule` |
+| the navmesh lives with the solver: the SimHost (`SimHostNodeBootstrapper.cs:60`) and the editor (`EditorSubsystem.cs:213`) | as cited |
+
+```mermaid
+sequenceDiagram
+    participant X as Expander (the creating node, e.g. Brain)
+    participant S as Navigation solver (SimHost / editor) — NavigationSolverModule
+    participant G as ScenarioLoadStep
+    X->>X: FLATTEN the whole instance tree from the files — nested macros, composed transforms, every child's relocated point + layer
+    X->>X: the instance gets MacroExpansionStatus = Expanding and an InitialPlacementIntent (the load waits on it)
+    X->>S: PlacementRequestBatch { RequestId, origin, slots[ point, layer, footprint ] , maxShift }
+    S->>S: per slot in order: ProjectToNavmesh(point, layer) · ring search · spacing against the slots already placed
+    S-->>X: PlacementResponseBatch { RequestId, per slot: Exact | Shifted(point) | Failed(reason) }
+    alt every slot placed
+        X->>X: create every child at its spot, nested instances included, in ONE pass · remove the intent
+    else any slot Failed
+        X->>X: create nothing · status Failed, reason names the child · a load's prepare is refused
+    end
+    G->>G: condition ③ (no Initial*Intent left) already waits for the intent
+```
+
+*What the picture shows that prose hid:* nesting costs nothing extra — the creating node works the whole tree out from the FILES before
+anything exists, so ONE request carries every child of every level, and the load gate waits for it by the condition it already has.
+
+| # | decision | ⭐ lean |
+|---|---|---|
+| **SR-184** *(amends SR-180)* | WHERE placement runs | ⭐ on the node that has the navmesh — the NAVIGATION SOLVER (`NavigationSolverModule`, usually the SimHost; in the editor its own) — as a request / response pair beside the path one: `PlacementRequestBatch` → `PlacementResponseBatch` (wire twins of internal events, R-134; ENU offsets from a batch origin like `PathRequestBatch`). The creating node only ASKS. ⭐ In one process (editor, `--mode all`) the same events go over the in-process bus — one solver code path. ⚠ No solver in the cluster ⇒ a terrain-only check on the creating node (not `Water`, SR-181), stated in the status |
+| **SR-185** | nested macros, and timing | ⭐ the creating node FLATTENS the whole instance tree first (pure computation from the macro files — transforms composed, SR-155) and sends ONE batch for every grounded child at every level; on the answer it creates everything in one pass. ⭐ The wait is an `InitialPlacementIntent` on the instance, so `ScenarioLoadStep` ③ waits by construction (SR-147's pattern) and a runtime `InsertMacro` stays `Expanding` until the answer. ⇒ ONE round trip per expansion, whatever the depth |
+| **SR-186** | the editor's drag preview | ⭐ NOT in v1: a drop is a real re-expansion (SR-157 reconcile), which places through the solver and shows the outcome — the entities at their spots, or a refusal naming the child that has no spot. ⏭ The live ghost while dragging is the SAME request (SR-185 makes it one call), added later if wanted — S3b |
+| **SR-187** | many instances of one macro — GUIDs | ✅ already unique by construction: a child's GUID is `Derive(instance GUID, "macro:<local GUID>")` (SR-167) and every instance has its own GUID, so two instances never collide; a nested instance's children derive from ITS derived GUID, so the same macro twice inside another macro is unique too |
+| **SR-188** *(amends SR-65, SR-66)* | many instances — `RefKey`s | ⭐ duplicates are ALLOWED (user). ⭐ `@Key` resolves to the FIRST match, searched deterministically: ① the referencing scope and outward (nearest scope wins, SR-65); ② if none, the entities of NESTED instances, breadth-first, instances in file order. ⭐ A qualified path `@PlatoonB/SL` names one exactly. ⭐ An ambiguous key is a WARNING, never a refusal — the editor and the load log say *"@SL matches 3 entities; using Platoon A's"*. ⛔ SR-66's *"duplicate keys in one scope are refused"* is withdrawn; a MISSING key still fails loudly |
+
+**Rejected — one line each:**
+- *Placement on the Brain* — the Brain holds no navmesh (user).
+- *One request per nesting level* — N round trips and N waits; flattening from the files needs none.
+- *A live drag ghost in v1* — real cost for a convenience; the drop already shows the outcome.
+- *Refusing duplicate keys* — an upper scenario legitimately references "the squad leader" of whichever platoon comes first (user).
