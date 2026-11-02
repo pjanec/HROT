@@ -161,6 +161,31 @@ namespace Hrot.SimHost.Tests
             Assert.False(caps.HasFlag(ActorCapabilities.CanMove));
         }
 
+        /// <summary>
+        /// ⭐ CE-4135 — a fire mission must not stand down a mortar man who is still walking to his tube: a member the plan found with NO
+        /// indirect weapon gets <c>Stay</c> (nothing sent — he keeps his ManWeapon), a member with nothing left to fire gets the standby Hold.
+        /// 📐 Live on ua-indirect-fire the standby Hold became CombatPosture and replaced Mortar Gunner 1's and 3's ManWeapon at 1.24 s.
+        /// ✅ Red-proof: the Unarmed → Stay branch removed ⇒ the unarmed member gets Hold ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE4135_AFireMission_LeavesAManStillManningHisTube_ToFinish()
+        {
+            var c = _w.CreateEntity();
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            var walking = _w.CreateEntity(); var spent = _w.CreateEntity();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, walking);
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, spent);
+            _w.AddComponent(c, roster);
+            var ctx = new SquadPlayContext(_w, c, 0d, in roster);
+            var play = new BatteryFireMissionPlay();
+            var p = new BatteryFireParams();
+            p.Unarmed[0] = 1;                 // the plan found no indirect weapon on him (not aboard yet)
+            p.Able[1] = 0;                    // no reach / nothing to fire
+            var ws = new SquadPlayState();
+            Assert.Equal(MemberOrderKind.Stay, play.OrderFor(ref p, ref ws, in ctx, 0, 0, default).Kind);
+            Assert.Equal(MemberOrderKind.Hold, play.OrderFor(ref p, ref ws, in ctx, 1, 0, default).Kind);
+        }
+
         [Fact]
         public void CE1056_Disembark_LeavesBesideTheHull_ThroughTheOwner_AndNotAboardIsSuccess()
         {

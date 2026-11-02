@@ -172,6 +172,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Mount[16];
         /// <summary>1 = gun i reaches its aim point.</summary>
         public fixed byte Able[16];
+        /// <summary>⭐ CE-4135 — 1 = gun i has NO indirect weapon yet (a mortar man still walking to his tube): he is left to finish what he
+        /// is doing (<see cref="MemberOrderKind.Stay"/>), never stood down — a standby Hold became CombatPosture and REPLACED his ManWeapon.</summary>
+        public fixed byte Unarmed[16];
     }
 
     /// <summary>
@@ -256,10 +259,10 @@ namespace Hrot.AI.Behaviors.Brains
             int reach = 0;
             for (int i = 0; i < n; i++)
             {
-                p.Able[i] = 0;
+                p.Able[i] = 0; p.Unarmed[i] = 0;
                 if (!ctx.Live(i, out var gun)) continue;
                 int mount = IndirectFireNodes.MountOf(world, gun, out var weapon, out var dto);
-                if (mount < 0 || dto == null) { BehaviorLog.Warn(ctx.Commander, world, $"fire mission: gun {i} has no indirect weapon"); continue; }
+                if (mount < 0 || dto == null) { p.Unarmed[i] = 1; BehaviorLog.Warn(ctx.Commander, world, $"fire mission: gun {i} has no indirect weapon"); continue; }
                 var s = IndirectFireNodes.SolutionFor(world, weapon, dto, p.Point);
                 if (!s.Ok) { BehaviorLog.Warn(ctx.Commander, world, $"fire mission: gun {i} cannot fire ({s.Refusal})"); continue; }
                 p.Able[i] = 1; p.Mount[i] = (byte)mount;
@@ -365,6 +368,10 @@ namespace Hrot.AI.Behaviors.Brains
         public MemberOrder OrderFor(ref BatteryFireParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             ctx.Live(member, out var gun);
+            // ⭐ CE-4135 — a member with no indirect weapon YET (manning his tube) keeps his task; 📐 live on ua-indirect-fire the standby
+            //   Hold replaced Mortar Gunner 1's and 3's ManWeapon at 1.24 s, so only the gunner who started beside his tube ever fired.
+            if (member < 16 && p.Unarmed[member] != 0)
+                return new MemberOrder { Kind = MemberOrderKind.Stay, RoleId = BatteryFireMissionManeuver.RoleStandby };
             if (member >= 16 || Done(ref p, ctx.World, gun, member))
                 return new MemberOrder { Kind = MemberOrderKind.Hold, RoleId = BatteryFireMissionManeuver.RoleStandby };
             int left = p.Rounds - Fired(ref p, ctx.World, gun, member);
