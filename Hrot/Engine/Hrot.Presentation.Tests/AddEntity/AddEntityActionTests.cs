@@ -3,6 +3,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Tkb;
 using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
+using Hrot.Core.Mission;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.Presentation.Systems;
@@ -40,14 +41,14 @@ public sealed class AddEntityActionTests
         public bool HasPicker = true;
         public readonly AddEntityAction Action;
 
-        public Rig()
+        public Rig(GalleryData? gallery = null)
         {
             NedTkbCatalog.RegisterAll(Tkb);
             Action = new AddEntityAction(
                 () => Tkb,
                 () => HasPicker ? (req, cb) => { Request = req; OnChosen = cb; } : null,
                 () => Spawn,
-                () => Suspended);
+                () => Suspended, gallery: () => gallery);
         }
 
         public void Pick(string name)
@@ -77,6 +78,93 @@ public sealed class AddEntityActionTests
         rig.Pick("T-72");
 
         Assert.Equal($"point {TkbEntityTypes.Tank_T72} {{\"Affiliation\":\"FORCE_OPPOSING\"}}", Assert.Single(rig.Spawn.Calls));
+    }
+
+    // ── ⭐ CE-4142 GL4 — the gallery request ────────────────────────────────────
+
+    [Fact]
+    public void CE4142_GL4_WithGalleryData_TheMenuOpensTheGallery_GridSidebarPanePlaceAndRememberedSize()
+    {
+        var rig = new Rig(EntityTypeCatalogTests.ShippedGallery());
+        Assert.True(rig.Action.Open(GlobalActionIds.AddEntityHostile));
+        var r = rig.Request!;
+
+        Assert.Equal(PickerLayout.Grid, r.Layout);
+        Assert.Equal(new[] { PickerLayout.Tree, PickerLayout.Grid }, r.LayoutChoices);   // List ⇄ Thumbnails, remembered per ContextKey by the view store
+        Assert.NotNull(r.GroupSidebar);
+        Assert.Equal("Recent & favourites", r.GroupSidebar!.RecentGroup);
+        Assert.Equal("Recent & favourites", r.GroupSidebar.Order[0]);
+        Assert.Equal(GalleryGroups.OtherName, r.GroupSidebar.Order[^1]);
+        Assert.True(r.ShowSidePane);
+        Assert.NotNull(r.DrawPane);
+        Assert.Equal(new System.Numerics.Vector2(1100f, 700f), r.DefaultSize);
+        var place = Assert.Single(r.Actions!);
+        Assert.Equal(("place", "Place on map", true), (place.Id, place.Label, place.IsDefault));
+        Assert.Equal("add-entity/gallery-types", r.ContextKey);
+
+        // rows: Group/Chip categories, the tile line, side-bearing only
+        var rows = r.ItemsProvider().ToList();
+        var t72 = rows.Single(e => e.Name == "T-72");
+        Assert.Equal("Ground vehicles/Tank", t72.Category);
+        Assert.Contains("Tank", t72.Description);
+        Assert.DoesNotContain(rows, e => e.Category!.StartsWith("Areas"));
+    }
+
+    [Fact]
+    public void CE4142_GL4_PlaceOnMap_ArmsExactlyAsTheTreePickDid_AnotherActionDoesNot()
+    {
+        var rig = new Rig(EntityTypeCatalogTests.ShippedGallery());
+        rig.Action.Open(GlobalActionIds.AddEntityHostile);
+        var entry = rig.Request!.ItemsProvider().Single(e => e.Name == "T-72");
+
+        rig.OnChosen!(new PickerResult(new[] { entry }) { ActionId = "something-else" });
+        Assert.Empty(rig.Spawn.Calls);
+
+        rig.OnChosen!(new PickerResult(new[] { entry }) { ActionId = AddEntityAction.PlaceActionId });
+        Assert.Equal($"point {TkbEntityTypes.Tank_T72} {{\"Affiliation\":\"FORCE_OPPOSING\"}}", Assert.Single(rig.Spawn.Calls));
+    }
+
+    [Fact]
+    public void CE4142_GL4_MapGraphicsGallery_GroupsTheGraphics_AndFireLineCannotBePlaced()
+    {
+        var rig = new Rig(EntityTypeCatalogTests.ShippedGallery());
+        rig.Action.Open(GlobalActionIds.AddMapGraphic);
+        var r = rig.Request!;
+
+        Assert.Equal("add-entity/gallery-graphics", r.ContextKey);
+        var rows = r.ItemsProvider().ToList();
+        Assert.Equal("Areas & routes", rows.Single(e => e.Name == "Route").Category);
+        var fire = rows.Single(e => e.Name == "Fire Line");
+        Assert.Equal("Tactical symbols", fire.Category);
+        Assert.NotNull(r.Actions![0].DisabledReason!(fire));       // Place on map says why
+        Assert.Null(r.Actions[0].DisabledReason!(rows.Single(e => e.Name == "Area")));
+    }
+
+    [Fact]
+    public void CE4142_GL4_SidePaneRows_NameTheSide_AndTheFactsTheTkbHolds()
+    {
+        var rig = new Rig(EntityTypeCatalogTests.ShippedGallery());
+        rig.Action.Open(GlobalActionIds.AddEntityFriendly);
+        var entry = rig.Request!.ItemsProvider().Single(e => e.Name == "T-72");
+
+        var rows = AddEntityPane.Rows(rig.Tkb, entry, eForceIdentifier.FORCE_FRIENDLY);
+
+        Assert.Contains(("Placed as", "Friendly"), rows);
+        Assert.Contains(rows, r => r.Label == "DIS" && r.Value.StartsWith("1.1.222.1."));
+        Assert.Empty(AddEntityPane.Rows(rig.Tkb, new PickerEntry("x", "x", null, null, null, null, null), null));   // not a type ⇒ nothing
+    }
+
+    [Fact]
+    public void CE4142_GL4_WithoutGalleryData_TheTreeStaysAsBefore_AndARootedRequestIsAlwaysTheTree()
+    {
+        var rig = new Rig(gallery: null);
+        rig.Action.Open(GlobalActionIds.AddEntityFriendly);
+        Assert.Equal(PickerLayout.Tree, rig.Request!.Layout);
+        Assert.Null(rig.Request.GroupSidebar);
+        Assert.Null(rig.Request.Actions);
+
+        var rooted = AddEntityAction.BuildRequest(rig.Tkb, null, null, EntityTypeCatalog.UnitsFolder, EntityTypeCatalogTests.ShippedGallery());
+        Assert.Equal(PickerLayout.Tree, rooted.Layout);   // the ExCon ORBAT's New Unit keeps its DIS folder tree
     }
 
     [Fact]

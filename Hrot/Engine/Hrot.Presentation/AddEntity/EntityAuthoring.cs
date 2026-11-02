@@ -26,6 +26,10 @@ public sealed record EntityAuthoringInputs(
     /// <summary>The host's own shell picker registry, when it already has one it draws each frame (Editor, CGF: their
     /// asset pickers live there). Null ⇒ the pack makes one and the host draws it with <see cref="EntityAuthoring.DrawFrame"/>.</summary>
     public Func<PickerRegistry?>? HostPickers { get; init; }
+
+    /// <summary>⭐ CE-4142 — the gallery data (groups + thumbnail map) the Add Entity picker uses; null ⇒ the NAS's <c>assets/thumbnails</c>.
+    /// A rail passes its own folder so it never reads the real NAS.</summary>
+    public Func<GalleryData?>? Gallery { get; init; }
 }
 
 /// <summary>
@@ -55,7 +59,8 @@ public sealed class EntityAuthoring
         _gizmos = gizmos;
         _tools = tools;
         if (inputs.HostPickers is null) _ownPickers = CreatePickers();
-        AddEntity = new AddEntityAction(_in.Tkb, () => Pickers is { } p ? p.OpenPicker : null, () => Spawn, _in.SuspendedReason);
+        AddEntity = new AddEntityAction(_in.Tkb, () => Pickers is { } p ? p.OpenPicker : null, () => Spawn, _in.SuspendedReason,
+                                    gallery: _in.Gallery ?? GalleryData.Shipped);   // ⭐ CE-4142 — every host opens the gallery; a host with none of the data files gets the tree
         CanvasMenu = new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(AddEntity);
     }
 
