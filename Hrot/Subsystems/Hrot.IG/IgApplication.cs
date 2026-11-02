@@ -1557,7 +1557,8 @@ public class IgApplication : IDisposable
     /// ⭐⭐ <c>CE-1445</c> / <c>R-1046</c> — what makes the IG a PLAYER (R-1044): its kind (Player gate), the toolbar time control suppressed, (R-1046's 3-D map in the load is the `map3d.in-load` feature now, F-17).
     /// </summary>
     internal static readonly Hrot.UI.Common.RunMode.NodeRunProfile RunProfile = new(
-        Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true);
+        Hrot.UI.Common.RunMode.RunHostKind.Ig, Control: null, SuppressTimeControl: true,
+        Policy: Fdp.Toolkit.Orchestration.HostGatePolicy.Player);   // ⭐ CE-4149 — the Player host COMPOSES its gate policy
 
     private Fdp.Toolkit.Vis3D.Map3DBuild? _map3D;
 

@@ -11,14 +11,15 @@ namespace Hrot.UI.Common.RunMode;
 /// the host kind (⇒ gate policy, <see cref="HostGatePolicies.For"/>), its scenario session (an operator: editor, CGF), how it reads the unsaved-check answer, and an EXPLICIT suppression of the
 /// toolbar time control (the player issues no ticks — Q54/D4). ⛔ A role parameterises or explicitly suppresses; it never simply lacks.
 /// </summary>
-/// <param name="Kind">The host's kind — its gate policy is <c>HostGatePolicies.For(Kind)</c>; <see cref="RunHostKind.Ig"/> is the Player.</param>
+/// <param name="Kind">The host's kind — its gate policy is the host's composed <c>Policy</c>, else <c>HostGatePolicies.For(Kind)</c> (the IG composes the Player's).</param>
 /// <param name="Control">The host's scenario session; <see langword="null"/> for a host with none (SimHost, IG).</param>
 /// <param name="UnsavedReads">How this host reads the unsaved-check round's answer; <see langword="null"/> ⇒ it observes nothing.</param>
 /// <param name="SuppressTimeControl">The host's role has no toolbar time control (the composer does not register one over its transport).</param>
-public sealed record NodeRunProfile(RunHostKind Kind, IRunScenarioControl? Control = null, UnsavedCheckReads? UnsavedReads = null, bool SuppressTimeControl = false)
+/// <param name="Policy">⭐ CE-4149 (DESIGN_Player_Join §7a B1) — the gate policy the host COMPOSES (the Player host passes <see cref="HostGatePolicy.Player"/>); <see langword="null"/> ⇒ the table's default for <paramref name="Kind"/>.</param>
+public sealed record NodeRunProfile(RunHostKind Kind, IRunScenarioControl? Control = null, UnsavedCheckReads? UnsavedReads = null, bool SuppressTimeControl = false, HostGatePolicy? Policy = null)
 {
-    /// <summary>What this host's controls wait on — the table's value for <see cref="Kind"/>.</summary>
-    public HostGatePolicy GatePolicy => HostGatePolicies.For(Kind);
+    /// <summary>What this host's controls wait on — the policy it composed, else the table's default for <see cref="Kind"/>.</summary>
+    public HostGatePolicy GatePolicy => Policy ?? HostGatePolicies.For(Kind);
 
     /// <summary>A Player (a host that waits only on ITS OWN readiness): no Cancel on its loading screen — it does not own the load.</summary>
     public bool IsPlayer => GatePolicy == HostGatePolicy.Player;

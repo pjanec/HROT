@@ -85,7 +85,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         {
             if (igView.LocalPhase == NodePhase.CatchingUp) sawCatchingUp = true;
             if (!cgfView.ClusterPlayReady) clusterPlayReadyDropped = true;   // ⭐ (d) sampled EVERY frame, not only at the end
-            gateOpened = igView.GateOpen(HostGatePolicies.For(RunHostKind.Ig));
+            gateOpened = igView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player);
             return gateOpened && igView.IsLocalPlayReady && master.InSyncNodeIds.Contains(igNodeId);
         }, 4000);
 
@@ -98,7 +98,7 @@ public sealed class PlayerJoinsARunningScenarioTests : IDisposable
         Assert.Equal(NodePhase.PlayReady, igView.LocalPhase);
 
         // (b) the Player gate is open (asserted in the wait too; stated alone so a regression names it)
-        Assert.True(igView.GateOpen(HostGatePolicies.For(RunHostKind.Ig)), why);
+        Assert.True(igView.GateOpen(Fdp.Toolkit.Orchestration.HostGatePolicy.Player), why);
 
         // (d) the cluster's play-ready never went false while the IG joined — a joiner is not a participant until in sync (R-4014 K6)
         Assert.False(clusterPlayReadyDropped, "ClusterPlayReady (seen by CGF) must never drop while a Player joins");

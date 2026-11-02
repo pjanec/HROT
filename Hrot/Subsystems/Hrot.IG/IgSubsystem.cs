@@ -121,6 +121,8 @@ namespace Hrot.IG
         Hrot.UI.Common.Facades.ITimeTransportFacade? Hrot.UI.Common.RunMode.IProvidesRunControls.Transport => _app?.RunControls;
         Hrot.UI.Common.RunMode.RunModeChoice? Hrot.UI.Common.RunMode.IProvidesRunControls.RunChoice => _app?.RunControls?.RunChoice;
         bool Hrot.UI.Common.RunMode.IProvidesRunControls.SuppressTimeControl => true;
+        /// <summary>⭐ CE-4149 (DESIGN_Player_Join §7a B1) — the Player composes its gate policy: the one its run profile built the controls with.</summary>
+        Fdp.Toolkit.Orchestration.HostGatePolicy Hrot.UI.Common.RunMode.IProvidesRunControls.GatePolicy => IgApplication.RunProfile.GatePolicy;
 
         /// <summary>⭐ R-1046 (CE-4078) — the IG's 3-D map build as the load chain polls it (<c>IsBuilt</c> per load, <c>Failure</c>, <c>Step</c>); null before the IG is initialised. The one place the node exposes it.</summary>
         public Fdp.Toolkit.Orchestration.IMapBuildStatus? MapBuildStatus => _app?.MapBuildStatus;

@@ -24,12 +24,17 @@ public enum RunHostKind
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-3345</c> (R-3072, <c>AQ110</c> D) — <b>the ONE gate-policy table</b>, the pattern of the (withdrawn) per-host default table (R-3068): what each kind of host waits on before its controls open.
-/// <see cref="HostGatePolicy.Player"/> for the IG (its own <c>PlayReady</c> alone — what the rest of the cluster loads is irrelevant to it); <see cref="HostGatePolicy.Operator"/> for every other kind (Editor, CGF, Orchestrator,
-/// SimHost, any other: its own load AND the cluster's must be done). ⛔ Never written as a literal at a host: <c>IProvidesRunControls.GatePolicy</c> reads this table from the host's declared <see cref="RunHostKind"/>,
-/// and <c>ClusterView.GateOpen(policy)</c> combines the facts — so no host re-derives it and no two hosts can disagree. ⭐ A new situation is a new policy value here, never a new message.
+/// <see cref="HostGatePolicy.Operator"/> for every kind (Editor, CGF, Orchestrator, SimHost, any other: its own load AND the cluster's must be done).
+/// ⭐ CE-4149 — <see cref="HostGatePolicy.Player"/> (its own <c>PlayReady</c> alone — what the rest of the cluster loads is irrelevant to it) is not in this table: the Player host COMPOSES it in its <c>NodeRunProfile</c>.
+/// <c>IProvidesRunControls.GatePolicy</c> is the host's composed policy (default: this table),
+/// and <c>ClusterView.GateOpen(policy)</c> combines the facts — so no shared code tests a host kind. ⭐ A new situation is a new policy value here, never a new message.
 /// </summary>
 public static class HostGatePolicies
 {
-    /// <summary>The gate policy of a host of this kind: <see cref="RunHostKind.Ig"/> ⇒ <see cref="HostGatePolicy.Player"/>, every other kind ⇒ <see cref="HostGatePolicy.Operator"/>.</summary>
-    public static HostGatePolicy For(RunHostKind hostKind) => hostKind == RunHostKind.Ig ? HostGatePolicy.Player : HostGatePolicy.Operator;
+    /// <summary>
+    /// The DEFAULT gate policy of a host of this kind: <see cref="HostGatePolicy.Operator"/> for every kind. ⭐ CE-4149 (DESIGN_Player_Join §7a B1) — the table no longer
+    /// tests for the IG: a Player host COMPOSES <see cref="HostGatePolicy.Player"/> itself (<c>NodeRunProfile.Policy</c>, read back through
+    /// <c>IProvidesRunControls.GatePolicy</c>), and shared code reads that composed policy, never a host kind.
+    /// </summary>
+    public static HostGatePolicy For(RunHostKind hostKind) => HostGatePolicy.Operator;
 }
