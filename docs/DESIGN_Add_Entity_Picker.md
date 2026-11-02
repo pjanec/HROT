@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-01 (superseded revisions removed; §2f the thumbnail gallery accepted 2026-11-01, CE-4142)
-build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f (the gallery, CE-4142) is accepted, not built
+build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2e); CE-1031 is the terrain owner's follow-up; §2f (the gallery, CE-4142) is accepted, not built · §2g its UML, READY-TO-BUILD (`2026-11-02`)
 current-answer: §2 every decision D1–D10 in its final wording (+ retired ids) · §2a–§2e the measured basis and the shapes (SpawnHeight, wire fields) · ⭐ §2f THE THUMBNAIL GALLERY G1–G10 (mockup docs/designs/add-entity-picker/) · §3 diagrams · §5 slices and as-built
 stale-below: nothing — superseded revisions removed 2026-11-01; full history at commit de422e11b (`git show de422e11b:docs/DESIGN_Add_Entity_Picker.md`)
 known-rot: (2026-10-19, CE-3271) §2e / §5 "NetworkSpawningSystem resolves" — SUPERSEDED: 8b now only ASKS (a replicated SpawnLevelRequest) and SpawnLevelSystem resolves it on the node that owns the position (Q94 D, R-3018) — docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md §5.2a. The rule (SpawnHeight.Apply, level 0 = ground) is unchanged.
@@ -303,6 +303,90 @@ ONE more level as chips inside a group, pictures on the right, search that ignor
 | **G10** | RECENT & FAVOURITES | the first group: the last 8 placed + ☆ starred types (F on a tile) | the picker's `RecentStore` (CE-4098) |
 
 ⭐ **Cost:** thumbnails load lazily on first show and are cached (P5); a group of ~30 tiles is the usual page. ✅ decided `2026-11-01` (user: *"The thumbnail PNG, of course, will be a snapshot. Very likely doable automatically through the film director's capture, yes - You as an AI model has the full API via AI debug HTTP already available for that."*): the PNGs are SNAPSHOTS made AUTOMATICALLY through the film director's capture (`POST /director/stills` over the ai-debug HTTP API — one placed entity per type, framed, rendered, written to `assets/thumbnails/`), runnable by an AI session; ⛔ open: the tile size default.
+
+## 2g. The gallery as built ON THE ONE PICKER — the UML *(ui, `2026-11-02` — build-state: READY-TO-BUILD; G1–G10 are §2f's, accepted)*
+
+**INVENTORY** — `search_graph .*(EntityType|EntityIcon|DisTypeMask|DisName|PlacementTool|Thumbnail|Gallery).* Class` → 9: `EntityTypeCatalog`,
+`EntityTypeEntry`, `EntityIconLibrary`, `DisTypeMask`, `DisNameTable`, `PlacementToolRegistry`, `TkbEntityTypes`, `DISEntityType`,
+`DisEntityTypeTranslator` — ⛔ no thumbnail map, no group table, no gallery (coverage unchecked: `check_index_coverage` is not on the CLI).
+The picker side (built `2026-11-02`, CE-4168): `PickerRequest.ShowSidePane / DrawPane / Actions / LayoutChoices / DefaultSize`,
+`PickerEntry.ImageKey`, `PickerImageCache` wired once in `EntityAuthoring.CreatePickers`, `RecentStore`, `FavoritesStore`; the Wide layout's
+240 px category sidebar (`WideLayout.cs:20-60`); the Grid layout has NO sidebar. The TKB visual's `IgVisualDef.IconName` (`IgVisualDef.cs:45`).
+
+*What the class diagram shows that §2f's table could not: the gallery adds only DATA (two JSON files and their readers) and ONE generic
+picker option (a group sidebar for the Grid, the Wide layout's own sidebar shared) — every other box already exists.*
+
+```mermaid
+classDiagram
+  class EntityTypeCatalog { <<existing>> Build(tkb) EntityTypeEntry[] }
+  class EntityTypeEntry { <<existing, grows>> +Thumbnail string? +RoleLine string? +Group string }
+  class GalleryGroups { <<NEW, Hrot.Presentation/AddEntity>> Load(assets/thumbnails/groups.json) GroupOf(entry) ChipOf(entry, names) }
+  class ThumbnailMap { <<NEW>> Load(assets/thumbnails/map.json) Resolve(visual, dis) path? }
+  class DisTypeMask { <<existing, Fdp.Core>> Matches · Specificity }
+  class DisNameTable { <<existing>> Path(dis) }
+  class IgVisualDef { <<existing, grows>> IconName · +ThumbnailName }
+  class AddEntityAction { <<existing>> BuildRequest(tkb, side, anchor, root) }
+  class PickerRequest { <<existing, CE-4168>> ShowSidePane · DrawPane · Actions · LayoutChoices · +GroupSidebar }
+  class GridLayout { <<existing, grows>> +the group sidebar when GroupSidebar }
+  class CategorySidebar { <<NEW helper, moved out of WideLayout>> one sidebar for Wide and Grid }
+  class PickerImageCache { <<existing, CE-4168>> }
+  EntityTypeCatalog --> EntityTypeEntry
+  EntityTypeCatalog ..> GalleryGroups : group + chip
+  EntityTypeCatalog ..> ThumbnailMap : thumbnail
+  ThumbnailMap ..> DisTypeMask : most specific match
+  ThumbnailMap ..> IgVisualDef : explicit ThumbnailName wins
+  GalleryGroups ..> DisTypeMask
+  GalleryGroups ..> DisNameTable : chip names
+  AddEntityAction ..> EntityTypeCatalog
+  AddEntityAction --> PickerRequest : Grid + GroupSidebar + side pane + Place
+  GridLayout ..> CategorySidebar
+  GridLayout ..> PickerImageCache : tile thumbnails
+```
+
+*What the sequence shows: the thumbnail precedence (G4) is decided ONCE when the catalogue is built, so a tile only asks the cache for a path;
+the picker stays generic — the group and the chip ride in `PickerEntry.Category` as `"Ground vehicles/Tanks"`.*
+
+```mermaid
+sequenceDiagram
+  participant U as Map menu (Add Entity ▸ Friendly)
+  participant A as AddEntityAction
+  participant C as EntityTypeCatalog
+  participant T as ThumbnailMap + GalleryGroups
+  participant P as PickerWindow (Grid + group sidebar)
+  participant I as PickerImageCache
+  U->>A: BuildRequest(tkb, Friendly)
+  A->>C: Build(tkb)
+  C->>T: per type: explicit ThumbnailName, else best mask, else glyph · group, chip
+  C-->>A: entries (Category = group/chip, ImageKey = path or null)
+  A->>P: Open(request: Grid, GroupSidebar, side pane, Place)
+  P->>I: Get(ImageKey) for the tiles on screen only
+  I-->>P: texture (lazy, cached)
+  U->>P: click a tile, Place
+  P-->>A: PickerResult(entry, ActionId = place)
+  A->>A: arm the placement tool (D4), as today
+```
+
+*Who builds it — every map host already composes the Add Entity picker through `EntityAuthoring` (D9), so the gallery reaches all of them at
+once; the thumbnails folder is read where the icons folder is read today.*
+
+```mermaid
+graph TD
+  MP["MapInteractionPack (Editor, CGF, SimHost, IG)"] --> EA["EntityAuthoring.CreatePickers: the ONE picker registry + PickerImageCache"]
+  MP --> AE["AddEntityAction.BuildRequest"]
+  AE --> CAT["EntityTypeCatalog.Build"]
+  CAT --> TM["ThumbnailMap (assets/thumbnails/map.json)"]
+  CAT --> GG["GalleryGroups (assets/thumbnails/groups.json)"]
+  EA --> PW["PickerWindow: Grid + CategorySidebar"]
+  DIR["film director stills (POST /director/stills)"] -. "writes the PNGs, not built here" .-> TM
+```
+
+| slice | scope | done when |
+|---|---|---|
+| **GL1** | `GalleryGroups` + `groups.json` (G1's ten groups as masks) + chips (G2) + `EntityTypeEntry.Group`/`Category = group/chip` | every TKB type lands in exactly one group (or *Other*); a rail over the shipped TKB |
+| **GL2** | `ThumbnailMap` + `map.json` + `IgVisualDef.ThumbnailName` (G4 precedence) → `PickerEntry.ImageKey` | explicit beats mask beats glyph; most specific mask wins (rail) |
+| **GL3** | `CategorySidebar` shared by Wide and Grid; `PickerRequest.GroupSidebar`; tile line (G3); size slider + List ⇄ Thumbnails (G9, P4) | Wide unchanged; the Grid shows groups left, chips on top, tiles right |
+| **GL4** | the Add Entity request: side preset (G5), side pane facts + *Place on map* (G6), search across groups (G7), Recent & favourites first (G10) | the live editor shows it (xvfb screenshot) |
+| ⏳ | the PNGs themselves (snapshot run through the director's stills) and G8's smart tactical symbols (CE-4169) | — later; until then tiles show today's glyph on a dashed tile |
 
 ## 3. Diagrams
 
