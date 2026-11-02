@@ -98,6 +98,13 @@ namespace Fdp.Toolkit.ScenarioRules
             s.Title = c.Title; s.Required = c.Required; s.Scored = c.Scored; s.Weight = c.Weight; s.Points = c.Points; s.VisibleSides = c.VisibleSides;
         }
 
+        /// <summary>⭐ V-2 — every kind's deadline and the next expected moment (the deadline while Active; 0 once final / closed / inactive). ONE place; a trigger overrides ExpectedAt.</summary>
+        public static void Timing(ref ObjectiveStatus s, in ObjectiveCommonBlock c)
+        {
+            s.Deadline = c.DeadlineSeconds;
+            s.ExpectedAt = s.Closed == 0 && s.State == ObjectiveState.Active && c.DeadlineSeconds > 0f ? c.DeadlineSeconds : 0d;
+        }
+
         /// <summary>S1-c — the links are the params' copy, rewritten every tick (ONE owner: the params).</summary>
         public static void CopyLinks(ref ObjectiveLinks l, in ObjectiveCommonBlock c) { l.Subject = c.Subject; l.Parent = c.Parent; }
 
@@ -114,6 +121,7 @@ namespace Fdp.Toolkit.ScenarioRules
             if (next == s.State) return false;
             s.State = next;
             s.ChangedAt = now;
+            if (s.IsFinal) s.ExpectedAt = 0d;   // V-2: nothing more is expected of a final one
             return true;
         }
 
@@ -191,6 +199,7 @@ namespace Fdp.Toolkit.ScenarioRules
                 }
             }
             s.Closed = 1;
+            s.ExpectedAt = 0d;
         }
     }
 }

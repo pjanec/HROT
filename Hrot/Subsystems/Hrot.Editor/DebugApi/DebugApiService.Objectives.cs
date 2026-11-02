@@ -60,6 +60,11 @@ namespace Hrot.Editor.DebugApi
                     ["subject"] = subject != 0 ? subject : null, ["parent"] = parent != 0 && rows.ContainsKey(parent) ? parent : null,
                     ["children"] = new JsonArray(children.TryGetValue(id, out var kids) ? kids.Select(k => (JsonNode)k).ToArray() : System.Array.Empty<JsonNode>()),
                 };
+                // ⭐ rules V-1 / V-2 (§00.10): what the rule names, and its timing — on the status, so ANY node answers the same
+                var dep = new JsonArray(); for (int i = 0; i < s.DependsOnCount && i < 8; i++) dep.Add(s.DependsOn[i]);
+                var act = new JsonArray(); for (int i = 0; i < s.ActsOnCount && i < 8; i++) act.Add(s.ActsOn[i]);
+                row["dependsOn"] = dep; row["actsOn"] = act;
+                row["timing"] = new JsonObject { ["holdFor"] = s.HoldFor, ["delay"] = s.Delay, ["cooldown"] = s.Cooldown, ["deadline"] = s.Deadline, ["expectedAt"] = s.ExpectedAt };
                 if (s.Role == ObjectiveRole.Trigger)   // ⭐ rules S2-c (T8): the §10.11 machine's state, as a string, and how often it fired
                 {
                     row["triggerState"] = s.TriggerState.ToString();

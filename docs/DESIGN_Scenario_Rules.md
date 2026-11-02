@@ -457,6 +457,16 @@ receives it, ⛔ a Player / IG never does — and SR-120 already rejected every 
 | **V-3** live leaf values (A3) | a STATE topic `EntityRuleLeaves` (descriptor **174**): per trigger ≤ 8 leaves `{ FixedString32 Label, byte Value, float Measured }`, flattened from its `when` (each leaf compiled ONCE through `CompileLevelPredicate`; `Measured` = the property a PropertyMatch reads, else 0/1). Published by the owner at ≤ 2 Hz and ONLY while the node feature `ui.rules-live-values` is on (`AtLoad` off, `Live` on demand) | ⛔ never every frame for every trigger (the handoff) |
 | **V-4** runtime control (A4) | a small unmanaged component `RuleControl { byte Request (Fire · Disarm · Rearm · Reset · Activate · Deactivate); int Seq }` written through the EXISTING attribute path (`EntityWriteRouter.For(repo)`: local apply on the owner, a change-request to the owner elsewhere — recorded); `ObjectiveHost.Enter` honours a new `Seq` once and JOURNALS it with its origin (T9, SR-114) | ⛔ no new command transport; one owner of every rule entity's state |
 
+⭐ **AS BUILT — V-1 / V-2 (task 14, `2026-11-02`).** `ObjectiveStatus` (425) gained, at the end: `DependsOnCount`+`DependsOn` (`NetIds8`), `ActsOnCount`+`ActsOn`, `HoldFor`, `Delay`, `Cooldown`, `Deadline`, `ExpectedAt`.
+**Who writes:** `RuleLinks.Compute` (`Brains/Objectives/RuleLinks.cs`) — DependsOn = every `OnEntity` ref in the `when` JSON (Compound children, an OnEntity's / CountMatching's inner predicate walked); ActsOn = the `target`
+key of every `do` step's args (**the step's JSON args**, read as an `EntityLink`, not the action's params type — it never builds a slot; a `"@Key"` target resolves in the live world through `WorldRefScope`). Run at
+`TriggerBehavior.Resolve` and kept in the trigger's blackboard (`Block.DependsOn/ActsOn`); a ref not resolvable yet sets `LinksPending` and the tick asks again (≤ 30 tries). `TriggerBehavior.WriteViewData` copies them and
+HoldFor/Delay/Cooldown/Deadline into the status every tick and sets `ExpectedAt` (Waiting ⇒ `WaitUntil` = edge + holdFor + delay · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · Armed with a deadline ⇒ the deadline · 0 otherwise / final).
+**Every kind:** `ObjectiveRules.Timing` (called from `ObjectiveHost.Enter`) writes `Deadline` and `ExpectedAt` = the deadline while Active; `Settle` / `OnClose` zero `ExpectedAt` once final — ONE place.
+**Wire:** `EntityObjectiveStatus` (171) carries them as `[DdsManaged] List<int> DependsOn / ActsOn` (null = none) + `HoldFor/Delay/Cooldown/Deadline` floats + `ExpectedAt` double (the ≤ 8 cap is the component's); all are in `SameDisplayAndState` ⇒ they go
+at once. **Route:** `GET /objectives` rows carry `dependsOn`, `actsOn`, `timing{holdFor,delay,cooldown,deadline,expectedAt}`. Rails: `ScenarioRulesTests.ViewData` (links, ExpectedAt while Waiting, objective deadline),
+`ObjectiveStatusWireTests` (full round trip + a second world's ingress + ExpectedAt at once), `TheObjectivesRouteShowsTheTreeTests`.
+
 ```mermaid
 classDiagram
     direction LR

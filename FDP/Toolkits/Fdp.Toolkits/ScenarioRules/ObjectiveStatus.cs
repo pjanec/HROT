@@ -62,6 +62,17 @@ namespace Fdp.Toolkit.ScenarioRules
         /// </summary>
         public byte ResetRequested;
 
+        /// <summary>⭐ rules V-1 (§00.10) — the network ids of the entities a trigger's <c>when</c> NAMES (<c>OnEntity</c> refs, recursively): the first <see cref="DependsOnCount"/> of <see cref="DependsOn"/>. Static; on the wire.</summary>
+        public byte DependsOnCount;
+        public NetIds8 DependsOn;
+        /// <summary>⭐ rules V-1 — the targets a trigger's <c>do</c> list NAMES (any step's <c>target</c>): the first <see cref="ActsOnCount"/> of <see cref="ActsOn"/>.</summary>
+        public byte ActsOnCount;
+        public NetIds8 ActsOn;
+        /// <summary>⭐ rules V-2 — the authored timing (s; 0 = none) of a trigger; <see cref="Deadline"/> is every kind's <c>common.deadlineSeconds</c> (sim s since the start).</summary>
+        public float HoldFor, Delay, Cooldown, Deadline;
+        /// <summary>⭐ rules V-2 — sim s of the NEXT thing the owner already knows will happen (Waiting ⇒ the delay's end · Holding ⇒ edge + holdFor · Cooldown ⇒ its end · an Active one with a deadline ⇒ the deadline); 0 = unknown / final.</summary>
+        public double ExpectedAt;
+
         /// <summary>Achieved, Failed or Skipped — it will not change by itself.</summary>
         public readonly bool IsFinal => State == ObjectiveState.Achieved || State == ObjectiveState.Failed || State == ObjectiveState.Skipped;
     }

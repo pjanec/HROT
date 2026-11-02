@@ -55,6 +55,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             if (run.Began == 0)
             {
                 ObjectiveRules.Begin(ref s, ref l, in c, kind, role, now);
+                ObjectiveRules.Timing(ref s, in c);
                 if (then != 0) s.State = then == 1 ? ObjectiveState.Active : ObjectiveState.Inactive;
                 run.Began = 1;
                 Fdp.Core.Logging.FdpLog<Log>.Info($"objective '{s.Title}' {kind}: begins {s.State}");
@@ -63,6 +64,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             {
                 ObjectiveRules.CopyLinks(ref l, in c);
                 ObjectiveRules.Display(ref s, in c);
+                ObjectiveRules.Timing(ref s, in c);
                 dt = now > run.LastNow ? now - run.LastNow : 0;
             }
             run.LastNow = now;

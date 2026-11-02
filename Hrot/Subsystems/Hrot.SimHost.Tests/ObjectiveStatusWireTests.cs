@@ -36,7 +36,11 @@ namespace Hrot.SimHost.Tests
             ProgressCur = 3, ProgressNeed = 7, Value = 1.5f, Target = 9.25f, Score = 0.75f, Points = 12f, ChangedAt = 321.5,
             Reason = new FixedString64("held 60 s, 5 Blue / 0 Red"), Title = new FixedString64("Hold the bridge"), Kind = new FixedString32("HoldArea"),
             Required = 1, Scored = 1, Weight = 2.5f, VisibleSides = 0b110, FireCount = 4, LastFired = 99.25, TriggerState = TriggerState.Cooldown,
+            DependsOnCount = 2, DependsOn = Ids(101, 102), ActsOnCount = 3, ActsOn = Ids(201, 202, 203),
+            HoldFor = 1.5f, Delay = 2.5f, Cooldown = 3.5f, Deadline = 60f, ExpectedAt = 77.25,
         };
+
+        private static NetIds8 Ids(params int[] v) { var ids = default(NetIds8); for (int i = 0; i < v.Length; i++) ids[i] = v[i]; return ids; }
 
         private static ObjectiveLinks Links() => new() { Subject = new EntityRef(41), Parent = new EntityRef(42) };
 
@@ -73,6 +77,10 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(want.Required, back.Required); Assert.Equal(want.Scored, back.Scored); Assert.Equal(want.Weight, back.Weight);
             Assert.Equal(want.VisibleSides, back.VisibleSides); Assert.Equal(want.FireCount, back.FireCount); Assert.Equal(want.LastFired, back.LastFired);
             Assert.Equal(TriggerState.Cooldown, back.TriggerState);   // ⭐ rules S2-c
+            // ⭐ rules V-1 / V-2: the rule's links and timing cross too (so ANY node answers GET /objectives with them)
+            Assert.Equal((2, 101, 102), (back.DependsOnCount, back.DependsOn[0], back.DependsOn[1]));
+            Assert.Equal((3, 201, 202, 203), (back.ActsOnCount, back.ActsOn[0], back.ActsOn[1], back.ActsOn[2]));
+            Assert.Equal((1.5f, 2.5f, 3.5f, 60f, 77.25), (back.HoldFor, back.Delay, back.Cooldown, back.Deadline, back.ExpectedAt));
             var links = EntityObjectiveStatusIngressTranslator.LinksFromSample(in sample);
             Assert.Equal((41, 42), (links.Subject.NetworkId, links.Parent.NetworkId));
         }
@@ -158,6 +166,54 @@ namespace Hrot.SimHost.Tests
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
                 Assert.Equal((byte)TriggerState.Armed, wire.Written[1].TriggerState);
+            }
+        }
+
+        /// <summary>⭐ rules V-1 / V-2 (the "any node" claim) — the owner's egress publishes the status, a SECOND world's ingress applies it: the rule's links and timing
+        /// arrive on the replica's component. ✅ Red-proof: <c>ActsOn</c> dropped from <c>ToSample</c> ⇒ red.</summary>
+        [Fact]
+        public void TheLinksAndTheTiming_CrossToASecondWorld_AsTheSameComponent()
+        {
+            var (a, _, _) = Node(primaryOwner: 1, localNode: 1);
+            var wire = new CapturingWriter();
+            using (a) new EntityObjectiveStatusEgressTranslator(wire).ScanAndPublish(a);
+            var sample = Assert.Single(wire.Written);
+
+            var b = new EntityRepository();
+            using (b)
+            {
+                b.RegisterComponent<NetworkIdentity>(); b.RegisterComponent<NetworkAuthority>(); b.RegisterComponent<ObjectiveStatus>(); b.RegisterComponent<ObjectiveLinks>();
+                var map = new NetworkEntityMap();
+                var e = b.CreateEntity();
+                b.AddComponent(e, new NetworkIdentity { Value = 80 });
+                b.AddComponent(e, new NetworkAuthority(1, 2));                // node 1 owns it; this is node 2
+                map.Register(80, e);
+                var ingress = new EntityObjectiveStatusIngressTranslator(null, map);
+                ingress.Receive(in sample);
+                using (var cmd = new EntityCommandBuffer()) { ingress.Flush(cmd, b); cmd.Playback(b); }
+                var s = b.GetComponentRO<ObjectiveStatus>(e);
+                Assert.Equal((2, 101, 102), (s.DependsOnCount, s.DependsOn[0], s.DependsOn[1]));
+                Assert.Equal((3, 201, 202, 203), (s.ActsOnCount, s.ActsOn[0], s.ActsOn[1], s.ActsOn[2]));
+                Assert.Equal((1.5f, 2.5f, 3.5f, 60f, 77.25), (s.HoldFor, s.Delay, s.Cooldown, s.Deadline, s.ExpectedAt));
+            }
+        }
+
+        /// <summary>⭐ rules V-2 — <c>ExpectedAt</c> is a state change: it goes at once, inside the progress window. ✅ Red-proof: <c>ExpectedAt</c> left out of <c>SameDisplayAndState</c> ⇒ red.</summary>
+        [Fact]
+        public void AnExpectedAtChange_GoesAtOnce_InsideTheProgressWindow()
+        {
+            var (w, _, e) = Node(primaryOwner: 1, localNode: 1);
+            using (w)
+            {
+                var wire = new CapturingWriter();
+                var egress = new EntityObjectiveStatusEgressTranslator(wire);
+                w.SetSimulationTime(10f);
+                egress.ScanAndPublish(w);
+                w.SetSimulationTime(10.1f);
+                w.GetComponentRW<ObjectiveStatus>(e).ExpectedAt = 99;
+                egress.ScanAndPublish(w);
+                Assert.Equal(2, wire.Written.Count);
+                Assert.Equal(99d, wire.Written[1].ExpectedAt);
             }
         }
 

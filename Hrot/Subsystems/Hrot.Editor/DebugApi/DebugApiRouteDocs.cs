@@ -2818,7 +2818,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_objectives",
             Group:   "K — AI behavior traces",
             Summary: "The minimal mission summary (rules S1-g): every objective / measure status on THIS node and the tree by parent — on a non-Brain node these are the REPLICATED statuses (dtObjectiveStatus).",
-            Returns: "{ objectives:[{networkId, title, kind, role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId]; Role=Trigger rows add triggerState, fireCount, lastFired}], roots:[networkId] } — roots first, depth-first by title",
+            Returns: "{ objectives:[{networkId, title, kind, role, state, closed, owner, progress:{cur, need}, value, target, score, points, weight, required, scored, changedAt, reason, subject, parent, children:[networkId], dependsOn:[networkId] (what a trigger's when names), actsOn:[networkId] (what its do targets), timing:{holdFor, delay, cooldown, deadline, expectedAt} (sim s; 0 = none / unknown); Role=Trigger rows add triggerState, fireCount, lastFired}], roots:[networkId] } — roots first, depth-first by title",
             Hint:    "Optional: tree=1 (children nested as objects). Read on any node. Example: get_objectives({})",
             Params: new RouteParam[]
             {

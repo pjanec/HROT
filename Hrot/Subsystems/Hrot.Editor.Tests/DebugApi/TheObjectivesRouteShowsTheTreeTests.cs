@@ -93,4 +93,23 @@ public sealed class TheObjectivesRouteShowsTheTreeTests : IDisposable
         Assert.Equal(("Trigger", "Cooldown", 2, 12.5), ((string)trig["role"]!, (string)trig["triggerState"]!, (int)trig["fireCount"]!, (double)trig["lastFired"]!));
         Assert.Null(rows.Single(r => (int)r!["networkId"]! == 31)!["triggerState"]);
     }
+
+    /// <summary>⭐ rules V-1 / V-2 — every row carries <c>dependsOn</c> / <c>actsOn</c> (net-id arrays) and <c>timing</c> {holdFor, delay, cooldown, deadline, expectedAt}, read off the status (so any node answers).
+    /// ✅ Red-proof: <c>actsOn</c> not written ⇒ red.</summary>
+    [Fact]
+    public void ARowShowsWhatTheRuleNames_AndItsTiming()
+    {
+        Add(30, "Fire when", "Trigger", ObjectiveState.Active);
+        var e = _map.TryGetEntity(30, out var en) ? en : default;
+        var ids = default(NetIds8); ids[0] = 7; ids[1] = 8;
+        var acts = default(NetIds8); acts[0] = 9;
+        ref var s = ref _world.GetComponentRW<ObjectiveStatus>(e);
+        s.DependsOnCount = 2; s.DependsOn = ids; s.ActsOnCount = 1; s.ActsOn = acts;
+        s.HoldFor = 1.5f; s.Delay = 2f; s.Cooldown = 3f; s.Deadline = 60f; s.ExpectedAt = 12.5;
+        var row = _svc.GetObjectives()["objectives"]![0]!;
+        Assert.Equal(new[] { 7, 8 }, row["dependsOn"]!.AsArray().Select(n => n!.GetValue<int>()));
+        Assert.Equal(new[] { 9 }, row["actsOn"]!.AsArray().Select(n => n!.GetValue<int>()));
+        var t = row["timing"]!;
+        Assert.Equal((1.5f, 2f, 3f, 60f, 12.5), ((float)t["holdFor"]!, (float)t["delay"]!, (float)t["cooldown"]!, (float)t["deadline"]!, (double)t["expectedAt"]!));
+    }
 }

@@ -221,6 +221,14 @@ namespace Hrot.NED.Descriptors
         public float Weight;
         /// <summary>Bit mask by <c>ForceId</c> value.</summary>
         public byte VisibleSides;
+        /// <summary>⭐ rules V-1 (§00.10): the network ids a trigger's <c>when</c> names (≤ 8; null = none).</summary>
+        [DdsManaged] public List<int> DependsOn;
+        /// <summary>⭐ rules V-1: the network ids a trigger's <c>do</c> steps target (≤ 8; null = none).</summary>
+        [DdsManaged] public List<int> ActsOn;
+        /// <summary>⭐ rules V-2: the authored timing (s; 0 = none) — a trigger's hold / delay / cooldown, every kind's deadline.</summary>
+        public float HoldFor, Delay, Cooldown, Deadline;
+        /// <summary>⭐ rules V-2: sim s of the next thing the owner knows will happen; 0 = unknown.</summary>
+        public double ExpectedAt;
     }
 
     // ⭐ rules S2-e (docs/DESIGN_Scenario_Rules.md §00.9, SR-122) — the exercise's RESULT: the phase (Running / Closing / Ended), when it ended, why, and the
