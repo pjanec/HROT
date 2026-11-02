@@ -10,8 +10,8 @@ namespace Fdp.Toolkit.Vis2D.Gizmos;
 /// <summary>
 /// ⭐⭐ CE-4206 R2 (DESIGN_Map_Picking_Unification §6.3 F6) — edits an <see cref="AreaLink"/> SHAPE on the map. A circle: drag the centre, drag the radius handle on the
 /// rim. A rectangle: drag the centre, the two edge handles (width, length) and the heading knob beyond the front edge. With no start shape the first left
-/// click places a circle of <see cref="AreaShapeHandles.DefaultRadius"/> m at the clicked point. <b>Enter</b> or a <b>right-click</b> commits the shape
-/// (<c>onDone</c>); <b>Esc</b> cancels (<c>onCancelled</c>) — as the location gizmo does. The geometry is <see cref="AreaShapeHandles"/> (pure); this class
+/// click places a circle of <see cref="AreaShapeHandles.DefaultRadius"/> m at the clicked point. <b>Enter</b> or a click on the <b>Done</b> button (drawn beside the shape) commits the shape
+/// (<c>onDone</c>); <b>right-click</b> or <b>Esc</b> cancels (<c>onCancelled</c>) — exactly as its sibling <see cref="FdpLocationPickerGizmo"/> cancels. The geometry is <see cref="AreaShapeHandles"/> (pure); this class
 /// is the input state machine and the drawing. Armed through the pick arbiter like <see cref="FdpLocationPickerGizmo"/>.
 /// </summary>
 public sealed class AreaShapeGizmo : IEntityStatefulGizmo
@@ -69,6 +69,16 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
         }
 
         DrawPolyline(draw, AreaShapeHandles.Outline(_shape), outline);
+        // the Done affordance: a small green square with a tick, beside the shape
+        var done = AreaShapeHandles.DonePosition(_shape);
+        var green = new Rgba32(90, 220, 110, 255);
+        float d = AreaShapeHandles.DoneHalfSize(_shape);
+        draw.DrawLine(new Vector3(done.X - d, done.Y - d, 0f), new Vector3(done.X + d, done.Y - d, 0f), green, 2f);
+        draw.DrawLine(new Vector3(done.X + d, done.Y - d, 0f), new Vector3(done.X + d, done.Y + d, 0f), green, 2f);
+        draw.DrawLine(new Vector3(done.X + d, done.Y + d, 0f), new Vector3(done.X - d, done.Y + d, 0f), green, 2f);
+        draw.DrawLine(new Vector3(done.X - d, done.Y + d, 0f), new Vector3(done.X - d, done.Y - d, 0f), green, 2f);
+        draw.DrawLine(new Vector3(done.X - d * 0.6f, done.Y, 0f), new Vector3(done.X - d * 0.1f, done.Y - d * 0.6f, 0f), green, 2f);
+        draw.DrawLine(new Vector3(done.X - d * 0.1f, done.Y - d * 0.6f, 0f), new Vector3(done.X + d * 0.6f, done.Y + d * 0.6f, 0f), green, 2f);
         var handles = AreaShapeHandles.HandlesOf(_shape);
         float r = MathF.Max(0.6f, AreaShapeHandles.HitRadiusFor(_shape) * 0.35f);
         foreach (var h in handles)
@@ -108,13 +118,17 @@ public sealed class AreaShapeGizmo : IEntityStatefulGizmo
         {
             if (isPressed)
             {
+                if (_shape.IsShape && AreaShapeHandles.HitDone(_shape, at)) { Finish(); return; }   // the Done affordance
                 if (!_shape.IsShape) { _shape = AreaShapeHandles.NewAt(at); return; }   // the first click places the centre
                 _grabbed = AreaShapeHandles.HitHandle(_shape, at, AreaShapeHandles.HitRadiusFor(_shape))?.Kind;
             }
             else _grabbed = null;
         }
         else if (button == MapMouseButton.Right && isPressed)
-            Finish();
+        {
+            _onRemove();   // right-click CANCELS, as FdpLocationPickerGizmo does
+            _onCancelled?.Invoke();
+        }
     }
 
     /// <inheritdoc/>

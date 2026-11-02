@@ -123,16 +123,24 @@ public class AreaShapeGizmoTests
     }
 
     [Fact]
-    public void Escape_cancels_and_a_right_click_commits()
+    public void Escape_and_a_right_click_CANCEL_like_the_location_gizmo_and_the_Done_button_commits()
     {
-        AreaLink? done = null; bool cancelled = false; int removed = 0;
-        var esc = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++, () => cancelled = true);
+        AreaLink? done = null; int cancelled = 0, removed = 0;
+        var esc = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++, () => cancelled++);
         esc.OnKeyEvent(MapKeyboardKey.Escape, true);
-        Assert.True(cancelled); Assert.Null(done); Assert.Equal(1, removed);
+        Assert.Equal((1, 1), (cancelled, removed)); Assert.Null(done);
 
-        var right = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++);
+        var right = new AreaShapeGizmo(AreaLink.Circle(Origin, 20f), a => done = a, () => removed++, () => cancelled++);
         right.OnMouseEvent(MapMouseButton.Right, true, Vector3.Zero);
-        Assert.Equal(AreaLink.Circle(Origin, 20f), done);
+        Assert.Equal(2, cancelled); Assert.Null(done);                       // a right-click never commits
+
+        var shape = AreaLink.Circle(Origin, 20f);
+        var button = new AreaShapeGizmo(shape, a => done = a, () => removed++, () => cancelled++);
+        var at = AreaShapeHandles.DonePosition(shape);
+        Assert.Null(AreaShapeHandles.HitHandle(shape, at, AreaShapeHandles.HitRadiusFor(shape)));   // the button is clear of every handle
+        Press(button, at);
+        Assert.Equal(shape, done);
+        Assert.Equal(2, cancelled);
     }
 
     [Fact]

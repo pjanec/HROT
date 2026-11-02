@@ -87,6 +87,24 @@ public static class AreaShapeHandles
         return list;
     }
 
+    /// <summary>Half the side of the Done button (m): scales with the shape, 2–12 m.</summary>
+    public static float DoneHalfSize(AreaLink area) => Math.Clamp(HitRadiusFor(area) * 0.8f, 2f, 12f);
+
+    /// <summary>Where the Done button sits: just right of (and above) the shape's reach, clear of every handle.</summary>
+    public static Vector2 DonePosition(AreaLink area)
+    {
+        float reach = area.Spec.Form == RefForm.Circle ? area.Size.X : MathF.Sqrt(area.Size.X * area.Size.X + area.Size.Y * area.Size.Y) * 0.5f + KnobOffset(area);
+        return Centre(area) + new Vector2(reach + DoneHalfSize(area) * 3f, reach + DoneHalfSize(area) * 3f);
+    }
+
+    /// <summary>Is <paramref name="position"/> on the Done button?</summary>
+    public static bool HitDone(AreaLink area, Vector2 position)
+    {
+        var d = DonePosition(area);
+        float h = DoneHalfSize(area);
+        return MathF.Abs(position.X - d.X) <= h && MathF.Abs(position.Y - d.Y) <= h;
+    }
+
     /// <summary>The distance within which a cursor grabs a handle (m): a tenth of the shape's size, between 2 and 40 m.</summary>
     public static float HitRadiusFor(AreaLink area)
     {
