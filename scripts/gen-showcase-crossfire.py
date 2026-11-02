@@ -149,14 +149,15 @@ def scenario():
     ids, ents = Ids("cf6e0000"), {}
 
     def team(name, force, base, facing, goals):
-        """A body-less team (the subject of its counters) and two 4-man squads, each sent to hold ITS point (SquadDefend) — so the
-        points are contested apart, not all at B."""
+        """A body-less team (only the subject of its counters) and two 4-man squads, each sent to hold ITS point (SquadDefend) — so the
+        points are contested apart, not all at B. The squads command themselves (no commander)."""
         pl = ids()
         ents[pl] = unit(305, f"{name} Team", force, base, facing, key=f"{name}Team")
         for s, goal in enumerate(goals, 1):
             sq = ids()
             at = (base[0], base[1] + (s * 2 - 3) * 8, 0)   # along the street (it is ~10 m wide: houses at x 639 / 661)
-            ents[sq] = unit(302, f"{name} Squad {s}", force, at, facing, commander=pl,
+            ents[sq] = unit(302, f"{name} Squad {s}", force, at, facing,   # ⚠ NOT the team's subordinate: a body-less team runs its default PlatoonHold
+                                                                          #   and would put its squads on InfantrySquadHold (measured live)
                             behavior=("SquadDefend", {"Position": POINTS[goal], "SearchRadius": 12, "Speed": 3}))
             for i in range(4):
                 role = "SquadLeader" if i == 0 else ("MachineGunner" if i == 1 else "Wingman")

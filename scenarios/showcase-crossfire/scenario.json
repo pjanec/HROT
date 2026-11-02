@@ -56,10 +56,6 @@
     "Name": "Blue Squad 1",
     "ForceId": "Friend"
    },
-   "UnitSubordinate": {
-    "CommanderGuid": "cf6e0000-0000-4000-8000-000000000001",
-    "Designation": "Wingman"
-   },
    "Behavior": {
     "Name": "SquadDefend",
     "Params": "{\"Position\": [400, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
@@ -218,10 +214,6 @@
    "EntityInfo": {
     "Name": "Blue Squad 2",
     "ForceId": "Friend"
-   },
-   "UnitSubordinate": {
-    "CommanderGuid": "cf6e0000-0000-4000-8000-000000000001",
-    "Designation": "Wingman"
    },
    "Behavior": {
     "Name": "SquadDefend",
@@ -407,10 +399,6 @@
     "Name": "Red Squad 1",
     "ForceId": "Hostile"
    },
-   "UnitSubordinate": {
-    "CommanderGuid": "cf6e0000-0000-4000-8000-000000000012",
-    "Designation": "Wingman"
-   },
    "Behavior": {
     "Name": "SquadDefend",
     "Params": "{\"Position\": [650, 400, 0], \"SearchRadius\": 12, \"Speed\": 3}",
@@ -569,10 +557,6 @@
    "EntityInfo": {
     "Name": "Red Squad 2",
     "ForceId": "Hostile"
-   },
-   "UnitSubordinate": {
-    "CommanderGuid": "cf6e0000-0000-4000-8000-000000000012",
-    "Designation": "Wingman"
    },
    "Behavior": {
     "Name": "SquadDefend",
